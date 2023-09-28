@@ -103,7 +103,10 @@ struct mlir_op
             }
             if(ins->name() == "@return")
             {
-                return ins_shapes[ins->inputs().at(0)].with_type(type);
+                auto s = ins_shapes[ins->inputs().at(0)].with_type(type);
+                if(not s.standard())
+                    MIGRAPHX_THROW("MLIR doesnt support non-standard output");
+                return s;
             }
             std::vector<shape> input_shapes;
             input_shapes.resize(ins->inputs().size());
@@ -119,6 +122,33 @@ struct mlir_op
 MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
+std::tuple<instruction_ref, std::vector<instruction_ref>>
+fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
+{
+    std::vector<instruction_ref> top_inputs;
+    std::vector<instruction_ref> imm_inputs;
+    size_t input_cnt = 0;
+    for(instruction_ref input : gemm_based_op->inputs())
+    {
+        std::vector<operation> op_stream;
+        while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
+        {
+            op_stream.push_back(input->get_operator());
+            input = input->inputs().at(0);
+        }
+        top_inputs.push_back(input);
+        instruction_ref prev_input =
+            mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        imm_inputs.push_back(prev_input);
+    }
+    instruction_ref new_gemm_based_op =
+        mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
+    return {new_gemm_based_op, top_inputs};
+}
 
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
@@ -134,7 +164,7 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     return true;
 }
 
-struct find_mlir_op
+struct find_mlir_fused_ops
 {
     auto matcher() const
     {
@@ -161,34 +191,6 @@ struct find_mlir_op
             ins_map[ins] = mbcast;
         }
         return ins_map;
-    }
-
-    std::tuple<instruction_ref, std::vector<instruction_ref>>
-    fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op) const
-    {
-        std::vector<instruction_ref> top_inputs;
-        std::vector<instruction_ref> imm_inputs;
-        size_t input_cnt = 0;
-        for(instruction_ref input : gemm_based_op->inputs())
-        {
-            std::vector<operation> op_stream;
-            while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
-            {
-                op_stream.push_back(input->get_operator());
-                input = input->inputs().at(0);
-            }
-            top_inputs.push_back(input);
-            instruction_ref prev_input =
-                mm->add_parameter("y" + std::to_string(input_cnt++), input->get_shape());
-            for(const auto& op : reverse(op_stream))
-            {
-                prev_input = mm->add_instruction(op, {prev_input});
-            }
-            imm_inputs.push_back(prev_input);
-        }
-        instruction_ref new_gemm_based_op =
-            mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
-        return {new_gemm_based_op, top_inputs};
     }
 
     // Whitelist supported fusion options, including imposing type constraints
@@ -236,8 +238,7 @@ struct find_mlir_op
             "log",
             "recip",
             "rsqrt",
-            // There are bugs in MLIR right now for models using sigmoid so disable it for now
-            // "sigmoid",
+            "sigmoid",
             "softmax",
             "tanh",
         };
@@ -301,20 +302,115 @@ struct find_mlir_op
     }
 };
 
+struct find_mlir_standalone_op
+{
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto conv_based_op = r.result;
+        // enable only for fp32/fp16/i8 types
+        if(std::any_of(conv_based_op->inputs().begin(), conv_based_op->inputs().end(), [&](auto i) {
+               return not contains(
+                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
+                   i->get_shape().type());
+           }))
+            return;
+
+        static size_t counter = 0;
+        module_ref mm         = mpm.create_module("mlir_" + std::to_string(counter++));
+        mm->set_bypass();
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, conv_based_op);
+        mm->add_return({anchor_op});
+        mpm.get_module().replace_instruction(
+            conv_based_op, mlir_op{conv_based_op->get_operator()}, top_inputs, {mm});
+    }
+};
+
+struct find_mlir_standalone_convolution_op : find_mlir_standalone_op
+{
+    auto matcher() const { return is_mlir_conv; }
+};
+
+struct find_mlir_standalone_dot_op : find_mlir_standalone_op
+{
+    auto matcher() const { return match::any_of(match::name("dot"), match::name("quant_dot")); }
+};
+
+/**
+ * @brief Declares a new MIGraphX environment variable which forces to generate
+ * only specific MLIR operations.
+ *
+ * The variable, if defined, forces MIGraphX to use only specific operations
+ * with MLIR regardless of the underlying GPU architecture. The variable accepts
+ * a list of operations separated by comma. The variable recognizes the following
+ * operations: "fused", "convolution", "dot". If the variable is not defined MIGraphX
+ * will decide by itself which operations to delegate to MLIR. The variable is
+ * intended to be primarily used by rocMLIR developers.
+ */
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
+bool is_self_decide() { return string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "").empty(); }
+
+bool is_requested(std::string_view option)
+{
+    assert(not is_self_decide());
+    auto string_value  = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    const auto options = split_string(string_value, ',');
+    return contains(options, option);
+}
+
+bool is_enabled(std::string_view op_name, context* ctx)
+{
+    if(is_self_decide())
+    {
+        if(op_name == "fused")
+        {
+            return true;
+        }
+        else if(op_name == "convolution" or op_name == "quant_convolution")
+        {
+            if(ctx == nullptr)
+            {
+                return false;
+            }
+            else
+            {
+                const auto& device = ctx->get_current_device();
+                const std::string navi_family{"gfx110"};
+                return starts_with(device.get_gfx_name(), navi_family);
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return is_requested(op_name);
+}
 } // namespace
 
-#endif
+#endif // MIGRAPHX_MLIR
 
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    match::find_matches(mpm, find_mlir_op{});
+    if(is_enabled("fused", this->ctx))
+    {
+        match::find_matches(mpm, find_mlir_fused_ops{});
+    }
+
+    if(is_enabled("convolution", this->ctx))
+    {
+        match::find_matches(mpm, find_mlir_standalone_convolution_op{});
+    }
+
+    if(is_enabled("dot", this->ctx))
+    {
+        match::find_matches(mpm, find_mlir_standalone_dot_op{});
+    }
 #else
     (void)mpm;
 #endif
 }
 
 } // namespace gpu
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

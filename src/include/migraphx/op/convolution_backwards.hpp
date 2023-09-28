@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -164,7 +164,7 @@ struct convolution_backwards
             shape win_shape{dyn_out.computed_shape.type(), win_size};
 
             par_dfor(in_n, wei_c)([&](int o, int k) {
-                shape_for_each(win_shape, [&](auto idx_win) {
+                shape_for_each(win_shape, [&](const auto& idx_win) {
                     const int w = idx_win[0];
 
                     auto input_dims_start = idx_win.begin() + 1;

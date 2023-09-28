@@ -166,13 +166,13 @@ std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
 
 std::vector<src_file> migraphx_kernels()
 {
-    auto kernels{::migraphx_kernels()};
+    static auto kernels{::migraphx_kernels()};
     std::vector<src_file> result;
     std::transform(
         kernels.begin(),
         kernels.end(),
         std::back_inserter(result),
-        [](std::pair<std::string_view, std::string_view> const& elem) { return src_file{elem}; });
+        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     return result;
 }
 

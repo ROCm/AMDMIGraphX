@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,26 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/instruction.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/make_op.hpp>
+
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-#include <test.hpp>
-
-TEST_CASE(leaky_relu_test)
+struct test_reduce_add : verify_program<test_reduce_add>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = mm->add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
-    mm->add_instruction(migraphx::make_op("leaky_relu", {{"alpha", 0.01}}), l);
-    p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.01f, 0.f, 1.f};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {4, 1000, 2, 2}};
+        migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
+        auto x = mm->add_parameter("x", s);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+        auto reduce_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2, 3}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, reduce_max);
+        mm->add_return({add});
+        return p;
+    };
+};

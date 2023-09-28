@@ -51,7 +51,7 @@ TEST_CASE(fill_static_int)
     std::vector<int64_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold(48, 3);
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(fill_dyn_float)
@@ -75,7 +75,7 @@ TEST_CASE(fill_dyn_float)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(72, 7.36);
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(fill_var_default_value)
@@ -98,5 +98,5 @@ TEST_CASE(fill_var_default_value)
     std::vector<int64_t> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int64_t> gold(48, 2);
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

@@ -1,3 +1,8 @@
+def getgputargets() {
+    targets="gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    return targets
+}
+
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -106,11 +111,13 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true)
+        def gpu_targets = getgputargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
     }
 }, clang_release: rocmnode('mi100+') { cmake_build ->
     stage('Hip Clang Release') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${get_arch}'")
+        def gpu_targets = getgputargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 // }, hidden_symbols: rocmnode('cdna') { cmake_build ->
@@ -119,7 +126,8 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 //     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On ") 
+        def gpu_targets = getgputargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${gpu_targets}'")
     }
 }, mlir_debug: rocmnode('cdna') { cmake_build ->
     stage('MLIR Debug') {
@@ -128,20 +136,23 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             def debug_flags_cxx = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+            def gpu_targets = getgputargets()
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }
 }, ck_release: rocmnode('mi100+') { cmake_build ->
     stage('CK Release') {
         withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1']) {
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
+            def gpu_targets = getgputargets()
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
         }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
         def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
+        def gpu_targets = getgputargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }
 }//, clang_release_navi: rocmnode('navi21') { cmake_build ->
 //    stage('HIP Clang Release Navi') {

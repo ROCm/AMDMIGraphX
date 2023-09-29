@@ -1,7 +1,3 @@
-def get_arch() {
-    return sh """/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*' """
-}
-
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -110,13 +106,11 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        def gpu_arch = get_arch()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${get_arch}'", gpu_debug: true)
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On", gpu_debug: true)
     }
 }, clang_release: rocmnode('mi100+') { cmake_build ->
     stage('Hip Clang Release') {
-        def gpu_arch = get_arch()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${get_arch}' -DGPU_TARGETS='${get_arch}'")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${get_arch}'")
         stash includes: 'build/*.deb', name: 'migraphx-package'
     }
 // }, hidden_symbols: rocmnode('cdna') { cmake_build ->
@@ -125,8 +119,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 //     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
-        def gpu_arch = get_arch()
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${get_arch}'") 
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On ") 
     }
 }, mlir_debug: rocmnode('cdna') { cmake_build ->
     stage('MLIR Debug') {
@@ -135,15 +128,13 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             def debug_flags_cxx = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
-            def gpu_arch = get_arch()
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${get_arch}'")
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}'")
         }
     }
 }, ck_release: rocmnode('mi100+') { cmake_build ->
     stage('CK Release') {
         withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1']) {
-            def gpu_arch = get_arch()
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${get_arch}'")
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
         }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->

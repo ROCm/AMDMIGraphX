@@ -106,7 +106,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
     stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS=\"$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')\"", gpu_debug: true)
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')'", gpu_debug: true)
     }
 }, clang_release: rocmnode('mi100+') { cmake_build ->
     stage('Hip Clang Release') {

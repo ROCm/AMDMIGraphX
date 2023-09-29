@@ -119,7 +119,7 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 //     }
 }, all_targets_debug : rocmnode('cdna') { cmake_build ->
     stage('All targets Release') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS=\"$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')\"") 
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')'") 
     }
 }, mlir_debug: rocmnode('cdna') { cmake_build ->
     stage('MLIR Debug') {

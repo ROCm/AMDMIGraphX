@@ -1245,7 +1245,6 @@ TEST_CASE(nonzero_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-
 TEST_CASE(qlinearconv_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
@@ -1270,9 +1269,8 @@ TEST_CASE(qlinearconv_test)
         34,  87,  243, 89,  23,  77,  69,  60,  18,  93,  18,  67,  216, 131, 178, 175, 153,
         212, 128, 25,  234, 172, 214, 215, 121, 0,   101, 163, 114, 213, 107, 8};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
 
 TEST_CASE(resize_downsample_f_test)
 {

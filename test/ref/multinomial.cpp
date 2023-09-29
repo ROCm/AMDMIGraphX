@@ -89,8 +89,8 @@ TEST_CASE(multinomial_test)
         return static_cast<double>(n) / res_dist_sum;
     });
 
-    EXPECT(migraphx::verify::verify_range_with_tolerance(res_norm, 
-        migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }
 
 TEST_CASE(multinomial_dyn_test)

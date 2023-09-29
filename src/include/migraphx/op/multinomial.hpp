@@ -23,13 +23,13 @@
  */
 
 /**
- *  * Multinomial or categorical distribution.  Performs a sampling of random input and returns a count
- of
+ *  * Multinomial or categorical distribution.  Performs a sampling of random input and returns a
+ count of
  *         each category, or bucket.  This does not require the standard multinomial
  *         distribution but instead takes a probability distribution, i.e. cumulative
  *         distribution function (CDF) as its first input.
  *
- *      Inputs:   args[0] - a tensor of probabilities for each category.  Values are 
+ *      Inputs:   args[0] - a tensor of probabilities for each category.  Values are
  *                          cumulative density function
  *                          totals as provided by op prefix_scan_sum.  Values must have been
  *                          log normalized (i.e. start with any set of numbers > 0, then set
@@ -38,8 +38,9 @@
  *                          This input has Rank 2.  Dimension 0 is batch #, so that there can be
  *                          a different CDF for each iteration in the batch.  The size of dimension
  *                          1 is the number of categories.
- * 
- *                args[1] - a tensor of random numbers.  The last dimension is the sample size, i.e. the number of 
+ *
+ *                args[1] - a tensor of random numbers.  The last dimension is the sample size, i.e.
+ the number of
  *                          random samples in each iteration of the batch.  Nominally
  *                          has two dimensions where the first dimension is batch size, but
  *                          any reshaping such that the total
@@ -55,7 +56,8 @@
                             std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return
  dis(gen); });
  *
- *        Output:   A 2D vector of category each input.  Dimensions are (Input 1[first], Input 2[last]).
+ *        Output:   A 2D vector of category each input.  Dimensions are (Input 1[first], Input
+ 2[last]).
  *
 */
 #ifndef MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP

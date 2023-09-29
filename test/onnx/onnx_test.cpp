@@ -4283,7 +4283,7 @@ TEST_CASE(multinomial_dyn_test)
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf      = mm->add_instruction(
+    cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
@@ -4316,7 +4316,7 @@ TEST_CASE(multinomial_autoseed_dyn_test)
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf      = mm->add_instruction(
+    cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};

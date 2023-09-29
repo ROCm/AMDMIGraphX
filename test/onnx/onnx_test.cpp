@@ -4247,11 +4247,11 @@ TEST_CASE(multinomial_test)
 
     auto input =
         mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {batch_size, 10}});
-    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), input);
     auto mb_maxes = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 10}}}), maxes);
     auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
@@ -4279,10 +4279,10 @@ TEST_CASE(multinomial_dyn_test)
 
     auto input = mm->add_parameter(
         "input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), input);
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
@@ -4312,10 +4312,10 @@ TEST_CASE(multinomial_autoseed_dyn_test)
 
     auto input = mm->add_parameter(
         "input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), input);
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
@@ -4356,11 +4356,11 @@ TEST_CASE(multinomial_int64_test)
     migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), input);
     auto mb_maxes =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
     auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    // cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 

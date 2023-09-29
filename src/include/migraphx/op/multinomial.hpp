@@ -23,23 +23,27 @@
  */
 
 /**
- * Multinomial or categorical distribution.  Performs a sampling of random input and returns a count
+ *  * Multinomial or categorical distribution.  Performs a sampling of random input and returns a count
  of
  *         each category, or bucket.  This does not require the standard multinomial
  *         distribution but instead takes a probability distribution, i.e. cumulative
  *         distribution function (CDF) as its first input.
  *
- *          In the large number limit, the fractional counts approach the multinomial distribution.
- *
- *      Inputs:   args[0] - a 1-D vector of probabilities (CDF) for each category.  Values are
- running
- *                          totals as provided by op prefix_scan_sum.
- *                          Values are log normalized (i.e. start with any set of numbers > 0, then
+ *      Inputs:   args[0] - a tensor of probabilities for each category.  Values are 
+ *                          cumulative density function
+ *                          totals as provided by op prefix_scan_sum.  Values must have been
+ *                          log normalized (i.e. start with any set of numbers > 0, then set
  *                          val[i] = log(val[i]) / sum (log(val[0]) + log(val[1])+ ...) )
- *                          The size of the vector is also the number of categories.
- *
- *                args[1] - a tensor of random numbers.
- *                          TODO: Bug:  Must have at least 3 dimensions.
+ *                          and then apply prefix_scan_sum.
+ *                          This input has Rank 2.  Dimension 0 is batch #, so that there can be
+ *                          a different CDF for each iteration in the batch.  The size of dimension
+ *                          1 is the number of categories.
+ * 
+ *                args[1] - a tensor of random numbers.  The last dimension is the sample size, i.e. the number of 
+ *                          random samples in each iteration of the batch.  Nominally
+ *                          has two dimensions where the first dimension is batch size, but
+ *                          any reshaping such that the total
+ *                          number of elements is (batch_size * sample_size) is legal.
  *
  *                          Values as created by a std::mt19937 like this:
  *
@@ -51,9 +55,7 @@
                             std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return
  dis(gen); });
  *
-        Output:   An array of category numbers for each input value.  Dimensions are
-                  the same as those of args[1]
-
+ *        Output:   A 2D vector of category each input.  Dimensions are (Input 1[first], Input 2[last]).
  *
 */
 #ifndef MIGRAPHX_GUARD_OPERATORS_MULTINOMIAL_HPP
@@ -83,7 +85,7 @@ struct multinomial
     std::string name() const { return "multinomial"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(2);
+        check_shapes{inputs, *this, true}.has(2).only_dims(2);
 
         if(inputs.back().ndim() < 1)
             MIGRAPHX_THROW("Multinomial: Second input shape (sample) has no dimensions");
@@ -91,18 +93,32 @@ struct multinomial
             MIGRAPHX_THROW(
                 "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
 
-        return inputs.back();
+        // Output takes one dimension from each of the two input shapes.  If they are both fixed,
+        // return a static shape
+        if((not inputs.front().dynamic()) or (inputs.front().dyn_dims().front().is_fixed()))
+        {
+            if((not inputs.back().dynamic()) or (inputs.back().dyn_dims().back().is_fixed()))
+            {
+                size_t batch = {inputs.front().max_lens().front()};
+                size_t sample_size{inputs.back().max_lens().back()};
+                return {dtype, {batch, sample_size}};
+            }
+        }
+        return {dtype,
+                {inputs.front().to_dynamic().dyn_dims().front(),
+                 inputs.back().to_dynamic().dyn_dims().back()}};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        size_t class_size  = args[0].get_shape().elements();
-        size_t sample_size = dyn_out.computed_shape.elements();
+        size_t batch_size  = dyn_out.computed_shape.lens().front();
+        size_t class_size  = args[0].get_shape().lens().back();
+        size_t sample_size = dyn_out.computed_shape.lens().back();
 
         visit_all(args[0], args[1])([&](auto cdf, auto dist) {
             result.visit([&](auto output) {
-                par_for(sample_size, [&](auto i) {
+                par_for(batch_size * sample_size, [&](auto i) {
                     auto idx       = args[1].get_shape().multi(i);
                     auto cdf_begin = cdf.begin() + (idx[0] * class_size);
                     auto cdf_end   = cdf_begin + class_size;

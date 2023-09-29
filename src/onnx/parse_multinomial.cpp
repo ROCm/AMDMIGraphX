@@ -57,10 +57,10 @@ struct parse_multinomial : op_parser<parse_multinomial>
 
         // Subtract the per-batch maximum log-probability, making the per-batch max 0
         auto maxes =
-            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
+            info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), args[0]);
         auto cdf = info.add_common_op("sub", args[0], maxes);
         // Take the element-wise exponent to get probabilities in the range (0, 1]
-        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
+        // cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
         // Compute the cumulative distribution function
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);

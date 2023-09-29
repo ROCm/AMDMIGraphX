@@ -225,8 +225,9 @@ struct find_ck_gemm_softmax_gemm
     {
         auto gemm1 =
             match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
-        auto mul     = match::name("pointwise")(match::nargs(2), match::either_arg(0, 1)(
-            match::is_constant().bind("scale"), gemm1))(is_pointwise_scale());
+        auto mul = match::name("pointwise")(
+            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1))(
+            is_pointwise_scale());
         auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
 
         return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(softmax));

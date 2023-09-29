@@ -7079,6 +7079,42 @@ def split_test_no_attribute():
 
 
 @onnx_test()
+def split_test_uneven():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [12, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [3, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [3, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [2, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [2, 15])
+    y5 = helper.make_tensor_value_info('y5', TensorProto.FLOAT, [2, 15])
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x'],
+        outputs=['y1', 'y2', 'y3', 'y4', 'y5'],
+    )
+
+    return ([node], [x], [y1, y2, y3, y4, y5])
+
+
+@onnx_test()
+def split_test_uneven_num_outputs():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [11, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [3, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [3, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [3, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [2, 15])
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+        num_outputs=4,
+    )
+
+    return ([node], [x], [y1, y2, y3, y4])
+
+
+@onnx_test()
 def split_test_no_attribute_invalid_split():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [300, 15])
     y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [75, 15])
@@ -7135,6 +7171,24 @@ def split_test_no_attribute_invalid_input_split():
                                  split=[])
 
     return ([node], [x], [y1, y2, y3])
+
+
+@onnx_test()
+def split_test_invalid_num_outputs():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [11, 15])
+    y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [3, 15])
+    y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [3, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [3, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [2, 15])
+
+    node = onnx.helper.make_node(
+        'Split',
+        inputs=['x'],
+        outputs=['y1', 'y2', 'y3', 'y4'],
+        num_outputs=5,
+    )
+
+    return ([node], [x], [y1, y2, y3, y4])
 
 
 @onnx_test()

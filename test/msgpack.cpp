@@ -100,7 +100,6 @@ TEST_CASE(test_msgpack_float)
     migraphx::value v = 3.0;
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(3.0));
-    double epsilon = 1e-9;
     EXPECT(test::within_abs(migraphx::from_msgpack(buffer).to<float>(), v.to<float>()));
 }
 

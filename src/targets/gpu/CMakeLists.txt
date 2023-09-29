@@ -23,6 +23,10 @@
 # ####################################################################################
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+find_package(hip)
+if(NOT GPU_TARGETS)
+    message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
+endif()
 find_package(miopen)
 
 # rocblas

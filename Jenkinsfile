@@ -132,10 +132,10 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')")
         }
     }
-}, ck_release: rocmnode('mi100+') { cmake_build ->
-    stage('CK Release') {
+}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
+    stage('CK hipRTC') {
         withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1']) {
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')")
+            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')")
         }
     }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->

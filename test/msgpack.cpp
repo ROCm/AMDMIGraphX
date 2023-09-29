@@ -101,7 +101,7 @@ TEST_CASE(test_msgpack_float)
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(3.0));
     double epsilon = 1e-9;
-    EXPECT(std::abs(migraphx::from_msgpack(buffer).to<float>() - v.to<float>()) < epsilon);
+    EXPECT(test::within_abs(migraphx::from_msgpack(buffer).to<float>(), v.to<float>()));
 }
 
 TEST_CASE(test_msgpack_string)

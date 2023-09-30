@@ -72,7 +72,7 @@ include(ROCMSetupVersion)
 option(BUILD_DEV "Build for development purpose only" OFF)
 
 rocm_setup_version(VERSION 2.7.0)
-set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
+set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 

@@ -51,7 +51,7 @@ TEST_CASE(add_broadcast_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(add_multibroadcast_test)
@@ -75,7 +75,7 @@ TEST_CASE(add_multibroadcast_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(add_test)
@@ -91,7 +91,7 @@ TEST_CASE(add_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 2, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(add_dyn_test)
@@ -115,7 +115,7 @@ TEST_CASE(add_dyn_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 2, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(fp16_test)
@@ -134,7 +134,7 @@ TEST_CASE(fp16_test)
     std::vector<migraphx::half> results_vector(1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<migraphx::half> gold{c};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(fp32_fp16_test)
@@ -159,7 +159,7 @@ TEST_CASE(fp32_fp16_test)
         auto result = p.eval({}).back();
         std::vector<float> res;
         result.visit([&](auto output) { res.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(res, gold_res));
+        EXPECT(migraphx::verify::verify_rms_range(res, gold_res));
     };
 
     test_case({"all"});

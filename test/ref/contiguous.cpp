@@ -50,7 +50,7 @@ TEST_CASE(contiguous_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(contiguous_param_test)
@@ -74,7 +74,7 @@ TEST_CASE(contiguous_param_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(contiguous_dyn_test)
@@ -100,5 +100,5 @@ TEST_CASE(contiguous_dyn_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

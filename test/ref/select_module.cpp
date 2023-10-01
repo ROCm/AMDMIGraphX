@@ -74,7 +74,7 @@ TEST_CASE(select_module_add_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{2, 14, 5, 10, 5, 14, 14, 2};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(select_module_reduce_test0)
@@ -120,7 +120,7 @@ TEST_CASE(select_module_reduce_test0)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{-5, 12, 7, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(select_module_reduce_test1)
@@ -166,7 +166,7 @@ TEST_CASE(select_module_reduce_test1)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{-5, 12, 7, 4, -5, 12, 7, 4};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(select_module_not_found_error)

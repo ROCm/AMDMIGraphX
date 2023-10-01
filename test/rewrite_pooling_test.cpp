@@ -50,10 +50,10 @@ TEST_CASE(rewrite_pooling_test)
         migraphx::module m;
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", mode},
-                                                        {"padding", {0, 0, 0}},
-                                                        {"stride", {1, 1, 1}},
-                                                        {"lengths", {3, 4, 5}}}),
+                                                         {{"mode", mode},
+                                                          {"padding", {0, 0, 0}},
+                                                          {"stride", {1, 1, 1}},
+                                                          {"lengths", {3, 4, 5}}}),
                                      input);
         m.add_return({ret});
         return m;
@@ -138,10 +138,10 @@ TEST_CASE(rewrite_avepooling_na3_test)
 
         auto input = m.add_parameter("x", s);
         auto ret   = m.add_instruction(migraphx::make_op("pooling",
-                                                       {{"mode", migraphx::op::pooling_mode::max},
-                                                        {"padding", {0, 0, 0}},
-                                                        {"stride", {1, 1, 1}},
-                                                        {"lengths", {3, 3, 5}}}),
+                                                         {{"mode", migraphx::op::pooling_mode::max},
+                                                          {"padding", {0, 0, 0}},
+                                                          {"stride", {1, 1, 1}},
+                                                          {"lengths", {3, 3, 5}}}),
                                      input);
         m.add_return({ret});
         return m;
@@ -166,10 +166,10 @@ TEST_CASE(literal_rewrite_pooling_test)
         auto* mm   = p.get_main_module();
         auto input = mm->add_literal(migraphx::literal(s, data));
         auto ret   = mm->add_instruction(migraphx::make_op("pooling",
-                                                         {{"mode", mode},
-                                                          {"padding", {0, 0, 0}},
-                                                          {"stride", {1, 1, 1}},
-                                                          {"lengths", {3, 4, 5}}}),
+                                                           {{"mode", mode},
+                                                            {"padding", {0, 0, 0}},
+                                                            {"stride", {1, 1, 1}},
+                                                            {"lengths", {3, 4, 5}}}),
                                        input);
         mm->add_return({ret});
         return p;
@@ -197,7 +197,7 @@ TEST_CASE(literal_rewrite_pooling_test)
         auto result1 = p1.eval({}).back();
         auto result2 = p2.eval({}).back();
         visit_all(result1, result2)(
-            [&](auto r1, auto r2) { EXPECT(migraphx::verify::verify_range(r1, r2)); });
+            [&](auto r1, auto r2) { EXPECT(migraphx::verify::verify_rms_range(r1, r2)); });
     };
 
     test_rewrite_pooling(migraphx::op::pooling_mode::max,

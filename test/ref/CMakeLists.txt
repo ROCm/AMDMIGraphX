@@ -21,4 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-ROCmSoftwarePlatform/rocMLIR@3657f509bfed86bb79d5c6e24aa237e48f09f9f3 -DBUILD_FAT_LIBROCKCOMPILER=On
+
+file(GLOB REF CONFIGURE_DEPENDS *.cpp)
+
+rocm_add_test_executable(test_ref ${REF})
+target_include_directories(test_ref PUBLIC ../include)
+rocm_clang_tidy_check(test_ref)
+

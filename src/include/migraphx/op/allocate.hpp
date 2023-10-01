@@ -36,20 +36,53 @@ namespace op {
 struct allocate
 {
     shape s{};
+    // for dynamic allocate to set the buffer type
+    shape::type_t buf_type = shape::half_type;
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.s, "shape"));
+        return pack(f(self.s, "shape"), f(self.buf_type, "buf_type"));
     }
+
     std::string name() const { return "allocate"; }
+
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        migraphx::check_shapes{inputs, *this, true}.has(0);
-        return s;
+        if(s != shape())
+        {
+            if(inputs.size() == 1)
+            {
+                migraphx::check_shapes{inputs, *this, false}.only_dims(1);
+            }
+            else
+            {
+                migraphx::check_shapes{inputs, *this, false}.has(0);
+            }
+            return s;
+        }
+        else
+        {
+            migraphx::check_shapes{inputs, *this, false}.has(1).only_dims(1);
+            const auto& out_dims = inputs.at(0);
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
+                                                           shape::dynamic_dimension{0, max_val});
+            return {buf_type, dyn_dims};
+        }
     }
-    argument compute(const shape& output_shape, const std::vector<argument>&) const
+    argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        return {output_shape};
+        if(args.empty())
+        {
+            return {output_shape};
+        }
+        else
+        {
+            std::vector<std::size_t> output_dims(output_shape.ndim());
+            args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
+            return {shape{buf_type, output_dims}};
+        }
     }
 };
 

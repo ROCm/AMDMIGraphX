@@ -31,7 +31,7 @@
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
-#include<migraphx/env.hpp>
+#include <migraphx/env.hpp>
 
 #include <migraphx/serialize.hpp>
 #include <migraphx/pass_manager.hpp>

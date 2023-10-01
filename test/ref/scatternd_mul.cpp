@@ -57,5 +57,5 @@ TEST_CASE(scatternd_mul_reduction_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1, 22, 3, 40, 45, 6, 7, 96};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

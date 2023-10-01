@@ -59,7 +59,7 @@ TEST_CASE(transpose_test)
         std::vector<float> results_vector(12);
         result2.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -86,5 +86,5 @@ TEST_CASE(transpose_dyn_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

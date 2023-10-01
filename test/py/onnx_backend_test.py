@@ -117,8 +117,208 @@ def disabled_tests_onnx_1_10_0(backend_test):
     backend_test.exclude(r'test_tril_square_neg_cpu')
     backend_test.exclude(r'test_tril_zero_cpu')
 
-def disabled_tests_onnx_1_12_0(backend_test):
+def disabled_tests_onnx_1_11_0(backend_test):
+    # crash
     backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
+
+    # fails
+    backend_test.exclude(r'test_roialign_aligned_false_cpu')
+    backend_test.exclude(r'test_roialign_aligned_true_cpu')
+    backend_test.exclude(r'test_scatternd_add_cpu')
+    backend_test.exclude(r'test_scatternd_multiply_cpu')
+
+    # errors
+    backend_test.exclude(r'test_identity_opt_cpu')
+    backend_test.exclude(r'test_if_opt_cpu')
+
+
+def disabled_tests_onnx_1_12_0(backend_test):
+    pass
+
+
+def disabled_tests_onnx_1_13_0(backend_test):
+    # fails
+    backend_test.exclude(r'test_reduce_l1_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_l1_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_l1_keep_dims_example_cpu')
+    backend_test.exclude(r'test_reduce_l1_keep_dims_random_cpu')
+    backend_test.exclude(r'test_reduce_l1_negative_axes_keep_dims_example_cpu')
+    backend_test.exclude(r'test_reduce_l1_negative_axes_keep_dims_random_cpu')
+    backend_test.exclude(r'test_reduce_l2_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_l2_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_l2_keep_dims_example_cpu')
+    backend_test.exclude(r'test_reduce_l2_keep_dims_random_cpu')
+    backend_test.exclude(r'test_reduce_l2_negative_axes_keep_dims_example_cpu')
+    backend_test.exclude(r'test_reduce_l2_negative_axes_keep_dims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_exp_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_sum_square_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_scatternd_max_cpu')
+    backend_test.exclude(r'test_scatternd_min_cpu')
+
+    # errors
+    backend_test.exclude(r'test_constant_pad_axes_cpu')
+    backend_test.exclude(r'test_reduce_l1_default_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_l1_default_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l1_default_axes_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_l1_default_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l1_do_not_keepdims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l1_do_not_keepdims_random_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l1_keep_dims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l1_keep_dims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l1_negative_axes_keep_dims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l1_negative_axes_keep_dims_random_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_default_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_l2_default_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_default_axes_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_l2_default_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l2_do_not_keepdims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_do_not_keepdims_random_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_keep_dims_example_expanded_cpu')
+    backend_test.exclude(r'test_reduce_l2_keep_dims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l2_negative_axes_keep_dims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_l2_negative_axes_keep_dims_random_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_asc_axes_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_asc_axes_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_default_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_default_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_desc_axes_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_desc_axes_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_default_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_default_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_default_axes_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_default_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_do_not_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_do_not_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_negative_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_log_sum_exp_negative_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_negative_axes_cpu')
+    backend_test.exclude(r'test_reduce_log_sum_negative_axes_expanded_cpu')
+    backend_test.exclude(r'test_reduce_max_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_max_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_max_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_max_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_max_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_max_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_mean_default_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_mean_default_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_mean_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_mean_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_mean_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_mean_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_mean_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_mean_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_min_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_min_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_min_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_min_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_min_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_min_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_prod_do_not_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_prod_do_not_keepdims_random_cpu')
+    backend_test.exclude(r'test_reduce_prod_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_prod_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_prod_negative_axes_keepdims_example_cpu')
+    backend_test.exclude(r'test_reduce_prod_negative_axes_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_default_axes_keepdims_example_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_default_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_default_axes_keepdims_random_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_default_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_do_not_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_do_not_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_keepdims_random_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_negative_axes_keepdims_example_expanded_cpu')
+    backend_test.exclude(
+        r'test_reduce_sum_square_negative_axes_keepdims_random_expanded_cpu')
+    backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
+    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
+
+    # The following tests fail due to the CastLike operator being unsupported
+    backend_test.exclude(r'test_elu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_elu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_elu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_hardsigmoid_expanded_ver18_cpu')
+    backend_test.exclude(r'test_leakyrelu_default_expanded_cpu')
+    backend_test.exclude(r'test_leakyrelu_example_expanded_cpu')
+    backend_test.exclude(r'test_leakyrelu_expanded_cpu')
+    backend_test.exclude(r'test_selu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_selu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_selu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_default_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_thresholdedrelu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_relu_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softsign_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softsign_expanded_ver18_cpu')
+
+
+def disabled_tests_onnx_1_14_0(backend_test):
+    # fails
+    backend_test.exclude(r'test_averagepool_2d_dilations_cpu')
+    backend_test.exclude(r'test_roialign_mode_max_cpu')
+
+    # errors
+    backend_test.exclude(r'test_constant_pad_negative_axes_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e4m3fn_cpu')
+    backend_test.exclude(r'test_dequantizelinear_e5m2_cpu')
+    backend_test.exclude(r'test_equal_string_broadcast_cpu')
+    backend_test.exclude(r'test_equal_string_cpu')
+    backend_test.exclude(r'test_quantizelinear_e4m3fn_cpu')
+    backend_test.exclude(r'test_quantizelinear_e5m2_cpu')
+
+    # The following tests fail due to the CastLike operator being unsupported
+    backend_test.exclude(r'test_softplus_example_expanded_ver18_cpu')
+    backend_test.exclude(r'test_softplus_expanded_ver18_cpu')
 
 
 def create_backend_test(testname=None, target_device=None):
@@ -346,8 +546,17 @@ def create_backend_test(testname=None, target_device=None):
         if version.parse(onnx.__version__) >= version.parse("1.10.0"):
             disabled_tests_onnx_1_10_0(backend_test)
 
+        if version.parse(onnx.__version__) >= version.parse("1.11.0"):
+            disabled_tests_onnx_1_11_0(backend_test)
+
         if version.parse(onnx.__version__) >= version.parse("1.12.0"):
             disabled_tests_onnx_1_12_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.13.0"):
+            disabled_tests_onnx_1_13_0(backend_test)
+
+        if version.parse(onnx.__version__) >= version.parse("1.14.0"):
+            disabled_tests_onnx_1_14_0(backend_test)
 
 
 # import all test cases at global scope to make

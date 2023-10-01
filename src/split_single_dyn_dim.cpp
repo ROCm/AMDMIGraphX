@@ -68,37 +68,6 @@ has_one_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
                                     dds_it->max};
 }
 
-namespace {
-struct find_static_2in_broadcasts
-{
-    // Convert 2 input static shape broadcast/multibroadcast into 1 input version.
-    // Some compiler passes (ex. simplify_algebra) only support the 1 input versions
-    // of the broadcasting operators.
-    auto matcher() const
-    {
-        return match::broadcast(match::nargs(2),
-                                match::arg(0)(match::static_shape()),
-                                match::arg(1)(match::static_shape()));
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins          = mr.result;
-        auto out_lens     = ins->get_shape().lens();
-        auto broadcast_op = ins->get_operator();
-        if(broadcast_op.name() == "broadcast")
-        {
-            broadcast_op.from_value({{"out_lens", out_lens}});
-        }
-        else
-        {
-            broadcast_op.from_value({{"out_lens", out_lens}, {"out_dyn_dims", {}}});
-        }
-        m.replace_instruction(ins, broadcast_op, ins->inputs().at(0));
-    }
-};
-} // namespace
-
 /**
  * Makes all the shapes in the dynamic_dimension range.  Probably won't work for `if`
  * and `loop` instructions, depending on how the submodules for those
@@ -135,7 +104,6 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 dd_check->dyn_param_str, migraphx::shape{dyn_param_shape.type(), static_lens});
             auto outputs = submod->add_instructions(mm, map_ins);
             submod->add_return({outputs});
-            match::find_matches(*submod, find_static_2in_broadcasts{});
             submodules.push_back(submod);
         }
         // redirect to select_module operator and return

@@ -21,26 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/instruction.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_DYN_OPS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SIMPLIFY_DYN_OPS_HPP
 
-#include <test.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
-TEST_CASE(leaky_relu_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+/**
+ * Convert dynamic ops to their static version if possible.
+ * Should be run after the split_single_dyn_dims pass.
+ */
+struct MIGRAPHX_EXPORT simplify_dyn_ops
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    auto l = mm->add_literal(migraphx::literal{s, {-1.f, 0.f, 1.f}});
-    mm->add_instruction(migraphx::make_op("leaky_relu", {{"alpha", 0.01}}), l);
-    p.compile(migraphx::make_target("ref"));
-    auto result = p.eval({}).back();
-    std::vector<float> results_vector(3);
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.01f, 0.f, 1.f};
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
-}
+    std::string name() const { return "simplify_dyn_ops"; }
+    void apply(module& m) const;
+};
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

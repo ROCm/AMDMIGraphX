@@ -77,5 +77,5 @@ TEST_CASE(imagescaler_test)
                                0.53,
                                0.73,
                                0.93};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

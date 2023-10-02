@@ -645,13 +645,14 @@ struct find_broadcast_transpose
         if(not input->get_shape().scalar())
         {
             // find common shape
-            auto in_lens = input->get_shape().lens();
+            auto in_lens  = input->get_shape().lens();
             int lens_diff = ins_lens.size() - in_lens.size();
             if(lens_diff > 0)
             {
                 std::vector<size_t> unsqueeze_axes(lens_diff);
                 std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
-                input = m.insert_instruction(bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
+                input = m.insert_instruction(
+                    bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
             }
             input = m.insert_instruction(bcast_ins, ins->get_operator(), input);
         }

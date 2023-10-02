@@ -150,6 +150,13 @@ fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
     return {new_gemm_based_op, top_inputs};
 }
 
+MIGRAPHX_PRED_MATCHER(is_mlir_dot, instruction_ref ins)
+{
+    if(ins->name() != "dot" and ins->name() != "quant_dot")
+        return false;
+    return true;
+}
+
 MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
 {
     if(ins->name() != "convolution" and ins->name() != "quant_convolution")
@@ -164,12 +171,39 @@ MIGRAPHX_PRED_MATCHER(is_mlir_conv, instruction_ref ins)
     return true;
 }
 
+MIGRAPHX_PRED_MATCHER(is_fast_mlir_conv, instruction_ref ins)
+{
+    if(ins->name() != "convolution" and ins->name() != "quant_convolution")
+        return false;
+    auto w = ins->inputs().at(1)->get_shape();
+    if (w.lens().size() != 4)
+        return true;
+    if (w.lens()[2] != w.lens()[3])
+        return true;
+    return (w.lens()[3] % 3) != 0;
+}
+
+MIGRAPHX_PRED_MATCHER(is_fast_mlir_dot, instruction_ref ins)
+{
+    if(ins->name() != "dot" and ins->name() != "quant_dot")
+        return false;
+    auto a = ins->inputs().front()->get_shape();
+    auto b = ins->inputs().back()->get_shape();
+    auto m = a.lens()[a.lens().size() - 2];
+    auto n = b.lens().back();
+    auto k = a.lens().back();
+    // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
+    // to avoid poor-performing GEMM kernels from MLIR
+    // To-do: Investigate a more precise strategy
+    return k <= 2048;
+}
+
 struct find_mlir_fused_ops
 {
     auto matcher() const
     {
         auto dot_or_conv = match::skip(match::name("contiguous"))(
-            match::any_of(match::name("dot"), match::name("quant_dot"), is_mlir_conv())
+            match::any_of(is_mlir_dot(is_fast_mlir_dot()), is_mlir_conv(is_fast_mlir_conv()))
                 .bind("gemm_based_op"));
         return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }

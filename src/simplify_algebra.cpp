@@ -537,8 +537,8 @@ struct find_inner_broadcast
             }
             // if no common broadcast axis, transformation is not useful
             if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common) {
-                return num_common > 1;
-            }) == common_axis.end())
+                   return num_common > 1;
+               }) == common_axis.end())
                 return;
         }
 

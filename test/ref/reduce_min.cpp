@@ -175,5 +175,5 @@ TEST_CASE(reduce_min_dynamic_variable_axis0)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1, 2, 3, 4, 5};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

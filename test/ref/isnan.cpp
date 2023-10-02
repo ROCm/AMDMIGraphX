@@ -45,8 +45,8 @@ TEST_CASE(isnan_test)
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
-        EXPECT(migraphx::verify::verify_range(results_vector, correct));
+        std::vector<float> gold = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 
     // half test
@@ -64,8 +64,8 @@ TEST_CASE(isnan_test)
         auto result = p.eval({}).back();
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-        std::vector<float> correct = {0, 0, 1, 1, 0, 0};
-        EXPECT(migraphx::verify::verify_range(results_vector, correct));
+        std::vector<float> gold = {0, 0, 1, 1, 0, 0};
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -86,6 +86,6 @@ TEST_CASE(isnan_dyn_test)
     auto result  = p.eval(params0).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> correct = {0, 0, 1, 1, 0, 0};
-    EXPECT(migraphx::verify::verify_range(results_vector, correct));
+    std::vector<float> gold = {0, 0, 1, 1, 0, 0};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

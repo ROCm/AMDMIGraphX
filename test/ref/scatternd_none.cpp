@@ -56,7 +56,7 @@ TEST_CASE(scatternd_shapes_test_1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0, 11, 0, 10, 9, 0, 0, 12};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_shapes_test_2)
@@ -86,7 +86,7 @@ TEST_CASE(scatternd_shapes_test_2)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{5, 6, 2, 4};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_shapes_test_3)
@@ -117,7 +117,7 @@ TEST_CASE(scatternd_shapes_test_3)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{9, 2, 3, 4, 5, 6, 7, 10};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_test_1)
@@ -147,7 +147,7 @@ TEST_CASE(scatternd_test_1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1, 11, 3, 10, 9, 6, 7, 12};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_test_2)
@@ -177,7 +177,7 @@ TEST_CASE(scatternd_test_2)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{5, 6, 3, 4};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_test_3)
@@ -207,7 +207,7 @@ TEST_CASE(scatternd_test_3)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{9, 2, 3, 4, 5, 6, 7, 10};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_test_4)
@@ -242,7 +242,7 @@ TEST_CASE(scatternd_test_4)
                             7, 8, 8, 7, 6, 5, 4, 3, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
                             4, 4, 4, 4, 8, 7, 6, 5, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6, 7, 8};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatternd_test_5)
@@ -273,5 +273,5 @@ TEST_CASE(scatternd_test_5)
     std::vector<float> gold(32, 0);
     std::copy(data_vec.begin(), data_vec.begin() + 16, gold.begin());
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

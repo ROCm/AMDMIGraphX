@@ -145,7 +145,7 @@ function(add_embed_library EMBED_NAME)
     target_compile_options(object_${EMBED_NAME} PRIVATE
             -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
     set_target_properties(object_${EMBED_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    add_library(${EMBED_NAME} INTERFACE)
+    add_library(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:object_${EMBED_NAME}> ${OUTPUT_FILES})
     target_link_libraries(${EMBED_NAME} INTERFACE $<BUILD_INTERFACE:
             $<TARGET_OBJECTS:object_${EMBED_NAME}>;$<$<BOOL:${EMBED_USE_LD}>:${OUTPUT_FILES}>>)
     target_include_directories(${EMBED_NAME} INTERFACE $<BUILD_INTERFACE:${EMBED_DIR}/include>)

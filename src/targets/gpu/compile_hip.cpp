@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
+#include <deque>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -92,7 +93,7 @@ struct hiprtc_program
 {
     struct string_array
     {
-        std::vector<std::string> strings{};
+        std::deque<std::string> strings{};
         std::vector<const char*> c_strs{};
 
         string_array() {}
@@ -209,7 +210,6 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
-
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {

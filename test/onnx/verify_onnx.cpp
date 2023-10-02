@@ -1668,7 +1668,7 @@ TEST_CASE(tril_test)
 
     std::vector<float> gold = {1, 0, 0, 0, 5, 6, 0, 0, 9, 10, 11, 0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(tril_batch_diff_k_test)
@@ -1679,7 +1679,7 @@ TEST_CASE(tril_batch_diff_k_test)
 
     std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(triu_neg_k_test)
@@ -1690,7 +1690,7 @@ TEST_CASE(triu_neg_k_test)
 
     std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 0, 10, 11, 12};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(tril_neg_k_test)
@@ -1723,7 +1723,7 @@ TEST_CASE(tril_out_k_test)
 
     std::vector<float> gold = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(triu_row_one_test)
@@ -1745,7 +1745,7 @@ TEST_CASE(tril_row_one_test)
 
     std::vector<float> gold = {1, 2, 0, 0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

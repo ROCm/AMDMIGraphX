@@ -7679,12 +7679,10 @@ def tril_batch_diff_k_test():
                                   dims=k.shape,
                                   vals=k.astype(np.int64))
 
-    node = onnx.helper.make_node(
-        'Trilu',
-        inputs=['x', 'k'],
-        outputs=['y'],
-        upper=0
-    )
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
     return ([node], [x], [y], [k_tensor])
 
 
@@ -7720,12 +7718,10 @@ def tril_neg_k_test():
                                   data_type=TensorProto.INT64,
                                   dims=k.shape,
                                   vals=k.astype(np.int64))
-    node = onnx.helper.make_node(
-        'Trilu',
-        inputs=['x', 'k'],
-        outputs=['y'],
-        upper=0
-    )
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
     return ([node], [x], [y], [k_tensor])
 
 
@@ -7742,6 +7738,7 @@ def triu_out_k_test():
     node = onnx.helper.make_node('Trilu', inputs=['x', 'k'], outputs=['y'])
     return ([node], [x], [y], [k_tensor])
 
+
 @onnx_test()
 def tril_out_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
@@ -7751,13 +7748,12 @@ def tril_out_k_test():
                                   data_type=TensorProto.INT64,
                                   dims=k.shape,
                                   vals=k.astype(np.int64))
-    node = onnx.helper.make_node(
-        'Trilu',
-        inputs=['x', 'k'],
-        outputs=['y'],
-        upper=0
-    )
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
     return ([node], [x], [y], [k_tensor])
+
 
 @onnx_test()
 def triu_row_one_test():
@@ -7776,6 +7772,7 @@ def triu_row_one_test():
     )
     return ([node], [x], [y], [k_tensor])
 
+
 @onnx_test()
 def tril_row_one_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
@@ -7786,12 +7783,10 @@ def tril_row_one_test():
                                   dims=k.shape,
                                   vals=k.astype(np.int64))
 
-    node = onnx.helper.make_node(
-        'Trilu',
-        inputs=['x', 'k'],
-        outputs=['y'],
-        upper=0
-    )
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
     return ([node], [x], [y], [k_tensor])
 
 

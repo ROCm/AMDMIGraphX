@@ -64,7 +64,7 @@ TEST_CASE(scatter_elements_axis_0_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatter_elements_axis_neg_2_test)
@@ -76,7 +76,7 @@ TEST_CASE(scatter_elements_axis_neg_2_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(scatter_elements_axis_1_test)
@@ -87,7 +87,7 @@ TEST_CASE(scatter_elements_axis_1_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 migraphx::program create_scatter_elements_program2(const std::string& reduction_mode, int axis)
@@ -125,7 +125,7 @@ TEST_CASE(scatter_elements_none_axis_1_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_none = {1.0, 1.1, 3.0, 2.1, 5.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_none));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_none));
 }
 
 TEST_CASE(scatter_elements_mul_axis_1_test)
@@ -138,7 +138,7 @@ TEST_CASE(scatter_elements_mul_axis_1_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_mul = {1.0, 2.2, 3.0, 8.4, 5.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_mul));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_mul));
 }
 
 TEST_CASE(scatter_elements_add_axis_1_test)
@@ -151,7 +151,7 @@ TEST_CASE(scatter_elements_add_axis_1_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_add = {1.0, 3.1, 3.0, 6.1, 5.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_add));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_add));
 }
 
 TEST_CASE(scatter_elements_min_axis_1_test)
@@ -164,7 +164,7 @@ TEST_CASE(scatter_elements_min_axis_1_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_min = {1.0, 1.1, 3.0, 2.1, 5.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_min));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_min));
 }
 
 TEST_CASE(scatter_elements_max_axis_1_test)
@@ -177,7 +177,7 @@ TEST_CASE(scatter_elements_max_axis_1_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_max = {1.0, 2.0, 3.0, 4.0, 5.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_max));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_max));
 }
 
 auto scatter_elements_duplicate_index_test(const std::string& reduction_mode)
@@ -216,7 +216,7 @@ TEST_CASE(scatter_elements_add_axis_1_duplicate_idx_test)
     const auto results = scatter_elements_duplicate_index_test("add");
     const std::vector<float> gold{1.0, 5.2, 3.0, 4.0, 5.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_mul_axis_1_duplicate_idx_test)
@@ -224,7 +224,7 @@ TEST_CASE(scatter_elements_mul_axis_1_duplicate_idx_test)
     const auto results = scatter_elements_duplicate_index_test("mul");
     const std::vector<float> gold{1.0, 4.62, 3.0, 4.0, 5.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_min_axis_1_duplicate_idx_test)
@@ -232,7 +232,7 @@ TEST_CASE(scatter_elements_min_axis_1_duplicate_idx_test)
     const auto results = scatter_elements_duplicate_index_test("min");
     const std::vector<float> gold{1.0, 1.1, 3.0, 4.0, 5.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_max_axis_1_duplicate_idx_test)
@@ -240,7 +240,7 @@ TEST_CASE(scatter_elements_max_axis_1_duplicate_idx_test)
     const auto results = scatter_elements_duplicate_index_test("max");
     const std::vector<float> gold{1.0, 2.1, 3.0, 4.0, 5.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 migraphx::program create_scatter_elements_program_3x3(const std::string& reduction_mode, int axis)
@@ -278,7 +278,7 @@ TEST_CASE(scatter_elements_none_axis_0_3x3_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold_none2 = {1.1, 7.0, 3.0, 1.0, 7.2, 3.0, 1.2, 7.1, 3.0};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_none2));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_none2));
 }
 
 TEST_CASE(scatter_elements_add_axis_0_3x3_test)
@@ -290,7 +290,7 @@ TEST_CASE(scatter_elements_add_axis_0_3x3_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold_a3 = {4.1, 10.0, 3.0, 4.0, 10.2, 3.0, 4.2, 10.1, 3.0};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_a3));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_a3));
 }
 
 TEST_CASE(scatter_elements_mul_axis_0_3x3_test)
@@ -302,7 +302,7 @@ TEST_CASE(scatter_elements_mul_axis_0_3x3_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold_mul2 = {3.3, 21.0, 3.0, 3.0, 21.6, 3.0, 3.6, 21.3, 3.0};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_mul2));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_mul2));
 }
 
 TEST_CASE(scatter_elements_min_axis_0_3x3_test)
@@ -314,7 +314,7 @@ TEST_CASE(scatter_elements_min_axis_0_3x3_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold_min = {1.1, 3.0, 3.0, 1.0, 3.0, 3.0, 1.2, 3.0, 3.0};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_min));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_min));
 }
 
 TEST_CASE(scatter_elements_max_axis_0_3x3_test)
@@ -326,7 +326,7 @@ TEST_CASE(scatter_elements_max_axis_0_3x3_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold_max = {3.0, 7.0, 3.0, 3.0, 7.2, 3.0, 3.0, 7.1, 3.0};
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold_max));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_max));
 }
 
 auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode)
@@ -364,7 +364,7 @@ TEST_CASE(scatter_elements_add_axis_0_3x3_duplicate_index_test)
     const auto results            = scatter_elements_3x3_duplicate_index_test("add");
     const std::vector<float> gold = {1.0, 7.3, 1.0, 4.2, 1.0, 1.0, 1.0, 1.0, 1.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_mul_axis_0_3x3_duplicate_index_test)
@@ -372,7 +372,7 @@ TEST_CASE(scatter_elements_mul_axis_0_3x3_duplicate_index_test)
     const auto results            = scatter_elements_3x3_duplicate_index_test("mul");
     const std::vector<float> gold = {1.0, 9.24, 1.0, 1.188, 1.0, 1.0, 1.0, 1.0, 1.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_min_axis_0_3x3_duplicate_index_test)
@@ -380,7 +380,7 @@ TEST_CASE(scatter_elements_min_axis_0_3x3_duplicate_index_test)
     const auto results            = scatter_elements_3x3_duplicate_index_test("min");
     const std::vector<float> gold = {1.0, 1.0, 1.0, 0.9, 1.0, 1.0, 1.0, 1.0, 1.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }
 
 TEST_CASE(scatter_elements_max_axis_0_3x3_duplicate_index_test)
@@ -388,5 +388,5 @@ TEST_CASE(scatter_elements_max_axis_0_3x3_duplicate_index_test)
     const auto results            = scatter_elements_3x3_duplicate_index_test("max");
     const std::vector<float> gold = {1.0, 2.2, 1.0, 1.2, 1.0, 1.0, 1.0, 1.0, 1.0};
 
-    EXPECT(migraphx::verify::verify_range(results, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results, gold));
 }

@@ -62,4 +62,38 @@ TEST_CASE(broadcast_transpose_inner_broadcast)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(broadcast_transpose_inner_broadcast_generic)
+{
+    // first optimizes broadcast+transpose to unsqueeze+transpose+broadcast,
+    // then finds inner broadcast to become mul+broadcast
+    migraphx::module m1;
+    {
+        auto l1 = m1.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto l2 = m1.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto mb1 =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 5, 10}}}), l1);
+        auto mb2 =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 10, 5}}}), l2);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), mb2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), mb1, t1);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l1  = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto l2  = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l2);
+        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
+        auto mb1 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5, 10}}}), l1);
+        auto mb2 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5, 10}}}), transpose);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), mb1, mb2);
+        auto mb3 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 5, 10}}}), mul);
+        m2.add_return({mb3});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

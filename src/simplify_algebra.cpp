@@ -521,6 +521,24 @@ struct find_inner_broadcast
                       }) < (lens.size() - 1);
            }))
             return;
+        auto bcast_strides = broadcasts.front()->get_shape().strides().size();
+        std::vector<size_t> common_axis(bcast_strides, 0);
+        // go through the strides of each broadcast,
+        // keep track of values that are equal to 0 in a dimension 
+        for(auto i = 0; i < bcast_strides; i++)
+        {
+            for(auto j = 0; j < broadcasts.size(); j++)
+            {
+                if(broadcasts[j]->get_shape().strides()[i] == 0)
+                    common_axis[i]++;
+            }
+        }
+        // if no common broadcast axis, transformation is not useful
+        if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common) {
+               return num_common > 1;
+           }) == common_axis.end())
+            return;
+
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),
@@ -543,6 +561,17 @@ struct find_inner_broadcast
                       return 3;
                   }));
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        std::vector<shape> broadcast_shapes;
+        std::transform(broadcasts.begin(), broadcasts.end(), std::back_inserter(broadcast_shapes), [](auto broadcast){
+            return broadcast->get_shape();
+        });
+        std::vector<shape> common_shapes;
+        std::transform(op->inputs().begin(), op->inputs().end(), std::back_inserter(common_shapes), [](auto common){
+            return common->get_shape();
+        });
+        if(broadcast_shapes == common_shapes and std::all_of(op->inputs().begin(), op->inputs().end(), [](auto i){
+            return i->name() == "broadcast" or i->name() == "multibroadcast";}))
+            return;
         m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 };

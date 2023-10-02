@@ -641,10 +641,20 @@ struct find_broadcast_transpose
         auto ins_lens  = ins->get_shape().lens();
         auto bcast_ins = r.instructions["bcast_ins"];
         auto input     = bcast_ins->inputs().front();
-        // for now, focusing on scalar transformation
+        // scalar transformation does not need extra transpose
         if(not input->get_shape().scalar())
-            return;
-
+        {
+            // find common shape
+            auto in_lens = input->get_shape().lens();
+            int lens_diff = ins_lens.size() - in_lens.size();
+            if(lens_diff > 0)
+            {
+                std::vector<size_t> unsqueeze_axes(lens_diff);
+                std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
+                input = m.insert_instruction(bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
+            }
+            input = m.insert_instruction(bcast_ins, ins->get_operator(), input);
+        }
         auto new_mbcast = m.insert_instruction(
             bcast_ins, make_op("multibroadcast", {{"out_lens", ins_lens}}), input);
         m.replace_instruction(ins, new_mbcast);

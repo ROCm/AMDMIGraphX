@@ -521,23 +521,26 @@ struct find_inner_broadcast
                       }) < (lens.size() - 1);
            }))
             return;
-        auto bcast_strides = broadcasts.front()->get_shape().strides().size();
-        std::vector<size_t> common_axis(bcast_strides, 0);
-        // go through the strides of each broadcast,
-        // keep track of values that are equal to 0 in a dimension
-        for(auto i = 0; i < bcast_strides; i++)
+        if(broadcasts.size() > 1)
         {
-            for(auto j = 0; j < broadcasts.size(); j++)
+            auto bcast_strides = broadcasts.front()->get_shape().strides().size();
+            std::vector<size_t> common_axis(bcast_strides, 0);
+            // go through the strides of each broadcast,
+            // keep track of values that are equal to 0 in a dimension
+            for(auto i = 0; i < bcast_strides; i++)
             {
-                if(broadcasts[j]->get_shape().strides()[i] == 0)
-                    common_axis[i]++;
+                for(const auto& broadcast : broadcasts)
+                {
+                    if(broadcast->get_shape().strides()[i] == 0)
+                        common_axis[i]++;
+                }
             }
+            // if no common broadcast axis, transformation is not useful
+            if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common) {
+                return num_common > 1;
+            }) == common_axis.end())
+                return;
         }
-        // if no common broadcast axis, transformation is not useful
-        if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common) {
-               return num_common > 1;
-           }) == common_axis.end())
-            return;
 
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),

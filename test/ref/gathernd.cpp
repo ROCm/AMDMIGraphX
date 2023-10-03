@@ -52,7 +52,7 @@ TEST_CASE(gathernd_test_1)
     std::vector<float> gold{0, 3};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_test_2)
@@ -77,7 +77,7 @@ TEST_CASE(gathernd_test_2)
     std::vector<float> gold{2, 3, 0, 1};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_test_3)
@@ -102,7 +102,7 @@ TEST_CASE(gathernd_test_3)
     std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_test_4)
@@ -128,7 +128,7 @@ TEST_CASE(gathernd_test_4)
     std::vector<float> gold{0, 1, 2, 3, 4, 5, 18, 19, 20, 21, 22, 23};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_test_5)
@@ -155,7 +155,7 @@ TEST_CASE(gathernd_test_5)
     std::vector<float> gold{0, 4, 8, 11, 13, 15};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_test_6)
@@ -215,7 +215,7 @@ TEST_CASE(gathernd_dynamic0)
     std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_dynamic1)
@@ -251,7 +251,7 @@ TEST_CASE(gathernd_dynamic1)
     std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_dynamic2)
@@ -287,7 +287,7 @@ TEST_CASE(gathernd_dynamic2)
     std::vector<float> gold{3, 4, 5, 0, 1, 2, 0, 1, 2, 3, 4, 5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_dynamic3)
@@ -323,7 +323,7 @@ TEST_CASE(gathernd_dynamic3)
     std::vector<float> res_data{};
     std::vector<float> gold{1, 0, 3, 4};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_dynamic4)
@@ -358,7 +358,7 @@ TEST_CASE(gathernd_dynamic4)
     std::vector<float> res_data{};
     std::vector<float> gold{5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_negative_index_test_1)
@@ -383,7 +383,7 @@ TEST_CASE(gathernd_negative_index_test_1)
     std::vector<float> gold{2, 3, 0, 1};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(res_data, gold));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, gold));
 }
 
 TEST_CASE(gathernd_negative_index_test_2)

@@ -184,35 +184,26 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
     // This method is to prep for quantizelinear or dequantizelinear operation for
     // either the broadcasting of weight-scale or zero-points of qlinearconv operator
     // outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
-    instruction_ref broadcast_instr(const std::string& op_name,
-                                    const instruction_ref& x_in,
-                                    const instruction_ref& arg_fscale,
-                                    const instruction_ref& arg_z_pt,
+    instruction_ref bcast_qdq_instr(const std::string& op_name,
+                                    const instruction_ref x_in,
+                                    const instruction_ref arg_fscale,
+                                    const instruction_ref arg_z_pt,
                                     const onnx_parser::node_info& info) const
     {
         auto in_lens = x_in->get_shape().lens();
 
         // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
-        std::vector<float> sc_val;
-        auto ev_arg_fscale = arg_fscale->eval();
-        ev_arg_fscale.visit([&](auto s) { sc_val.assign(s.begin(), s.end()); });
-        shape sh_scale = {shape::float_type, {sc_val.size()}};
         instruction_ref bcast_scale;
-        if(sc_val.size() > 1)
+        if(arg_fscale->get_shape().elements() > 1)
             bcast_scale = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}),
-                info.add_literal(sh_scale, sc_val));
+                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_fscale);
         else
-            bcast_scale =
-                info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}),
-                                     info.add_literal(sh_scale, sc_val));
+            bcast_scale = info.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
 
         // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
-        std::vector<int> z_pt_val;
-        auto ev_arg_z_pt = arg_z_pt->eval();
-        ev_arg_z_pt.visit([&](auto z) { z_pt_val.assign(z.begin(), z.end()); });
         instruction_ref bcast_zero_pt;
-        if(z_pt_val.size() > 1)
+        if(arg_z_pt->get_shape().elements() > 1)
             bcast_zero_pt = info.add_instruction(
                 migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_z_pt);
         else
@@ -223,8 +214,8 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
     }
 
-    instruction_ref add_bias_to_conv(const instruction_ref& bias_arg,
-                                     const instruction_ref& conv_instr,
+    instruction_ref add_bias_to_conv(const instruction_ref bias_arg,
+                                     const instruction_ref conv_instr,
                                      const onnx_parser::node_info& info) const
     {
         auto conv_sh   = conv_instr->get_shape();
@@ -262,9 +253,9 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         const instruction_ref& in_scale_y   = args[6];
         const instruction_ref& in_zero_pt_y = args[7];
 
-        auto dquant_x = broadcast_instr("dequantizelinear", in_x, in_scale_x, in_zero_pt_x, info);
+        auto dquant_x = bcast_qdq_instr("dequantizelinear", in_x, in_scale_x, in_zero_pt_x, info);
 
-        auto dquant_w = broadcast_instr("dequantizelinear", in_w, in_scale_w, in_zero_pt_w, info);
+        auto dquant_w = bcast_qdq_instr("dequantizelinear", in_w, in_scale_w, in_zero_pt_w, info);
 
         auto conv_op = values.empty() ? migraphx::make_op("convolution")
                                       : migraphx::make_op("convolution", values);
@@ -276,7 +267,7 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
             conv_x_w = add_bias_to_conv(args[8], conv_x_w, info);
 
         auto quant_conv =
-            broadcast_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
+            bcast_qdq_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
         return quant_conv;
     }
 };

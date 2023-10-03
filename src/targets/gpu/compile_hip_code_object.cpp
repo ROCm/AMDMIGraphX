@@ -164,18 +164,6 @@ std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-std::vector<src_file> migraphx_kernels()
-{
-    static auto kernels{::migraphx_kernels()};
-    std::vector<src_file> result;
-    std::transform(
-        kernels.begin(),
-        kernels.end(),
-        std::back_inserter(result),
-        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    return result;
-}
-
 operation compile_hip_code_object(const std::string& content, hip_compile_options options)
 {
     assert(options.global > 0);
@@ -183,9 +171,13 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     assert(not options.inputs.empty());
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
-    std::vector<src_file> srcs{migraphx_kernels()};
-    srcs.insert(
-        srcs.end(), options.additional_src_files.begin(), options.additional_src_files.end());
+    std::vector<src_file> srcs = options.additional_src_files;
+    static auto kernels{::migraphx_kernels()};
+    std::transform(
+        kernels.begin(),
+        kernels.end(),
+        std::back_inserter(srcs),
+        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     srcs.emplace_back("main.cpp", content);
     auto args_hpp =
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);

@@ -54,12 +54,26 @@ TEST_CASE(targets)
 TEST_CASE(concurrent_targets)
 {
     std::vector<std::thread> threads;
+#ifdef HAVE_GPU
+    std::string target_name = "gpu";
+#elif defined(HAVE_CPU)
+    std::string target_name = "cpu";
+#elif defined(HAVE_FPGA)
+    std::string target_name = "fpga";
+#else
+    std::string target_name = "ref";
+#endif
 
-    for(auto i = 0u; i < 1000; i++)
+    auto n_threads = std::thread::hardware_concurrency() * 4;
+
+    for(auto i = 0u; i < n_threads; i++)
     {
-        auto thread_body = []() {
-            auto ref_target = migraphx::make_target("ref");
+        auto thread_body = [&target_name]() {
+            auto ref_target = migraphx::make_target(target_name);
             migraphx::register_target(ref_target);
+            EXPECT(test::throws([&] { ref_target = migraphx::make_target("xyz"); }));
+
+            migraphx::get_targets();
         };
 
         threads.emplace_back(thread_body);

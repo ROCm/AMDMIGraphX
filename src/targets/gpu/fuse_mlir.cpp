@@ -176,9 +176,9 @@ MIGRAPHX_PRED_MATCHER(is_fast_mlir_conv, instruction_ref ins)
     if(ins->name() != "convolution" and ins->name() != "quant_convolution")
         return false;
     auto w = ins->inputs().at(1)->get_shape();
-    if (w.lens().size() != 4)
+    if(w.lens().size() != 4)
         return true;
-    if (w.lens()[2] != w.lens()[3])
+    if(w.lens()[2] != w.lens()[3])
         return true;
     return (w.lens()[3] % 3) != 0;
 }

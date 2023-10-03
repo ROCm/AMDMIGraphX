@@ -50,8 +50,8 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
-    auto start = context::create_event();
-    auto stop  = context::create_event();
+    auto start = context::create_event_for_timing();
+    auto stop  = context::create_event_for_timing();
     auto run   = [&] { op.compute(ctx, output, args); };
     run();
     gctx.get_stream().record(start.get());

@@ -790,22 +790,26 @@ struct find_layernorm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(match::arg(0)(
+        return precompile_name("pointwise")(match::any_of[match::inputs()](
             precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins       = r.result;
+        auto pw_ins    = r.result;
         auto layernorm = r.instructions["layernorm"];
         if(not layernorm->module_inputs().empty())
             return;
-        auto* pm    = ins->module_inputs().front();
+        auto* pm       = pw_ins->module_inputs().front();
+        auto pw_inputs = pw_ins->inputs();
+        auto ln_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
+        assert(ln_pos != pw_inputs.end());
+        pw_inputs.erase(ln_pos);
         auto inputs = layernorm->inputs();
         inputs.pop_back();
-        inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
 
-        m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
+        m.replace_instruction(pw_ins, layernorm->get_operator(), inputs, {pm});
     }
 };
 

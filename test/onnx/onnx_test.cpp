@@ -957,6 +957,58 @@ TEST_CASE(constant_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(constant_value_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
+    auto prog = optimize_onnx("constant_value_float_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_floats_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {1.0f, 2.0f, 3.0f}});
+    auto prog = optimize_onnx("constant_value_floats_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_int_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto prog = optimize_onnx("constant_value_int_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_ints_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3}}, {1, 2, 3}});
+    auto prog = optimize_onnx("constant_value_ints_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_no_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_no_attributes_test.onnx"); }));
+}
+
+TEST_CASE(constant_multiple_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_multiple_attributes_test.onnx"); }));
+}
+
 TEST_CASE(constant_fill_test)
 {
     migraphx::program p;
@@ -1015,11 +1067,25 @@ TEST_CASE(constant_one_val_int64_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(const_of_shape_default_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape output_dims_shape(migraphx::shape::int64_type, {3});
+    mm->add_literal(migraphx::literal(output_dims_shape, {2, 3, 4}));
+    migraphx::shape output_shape{migraphx::shape::float_type, {2, 3, 4}};
+    std::vector<float> vec(output_shape.elements(), 0.0);
+    mm->add_literal(migraphx::literal(output_shape, vec));
+
+    auto prog = optimize_onnx("const_of_shape_default_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal(migraphx::shape::int32_type));
+    mm->add_literal(migraphx::literal(migraphx::shape::int64_type));
     migraphx::shape s(migraphx::shape::int64_type, {1}, {0});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -1032,7 +1098,7 @@ TEST_CASE(const_of_shape_float_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
     migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
     std::vector<float> vec(s.elements(), 10.0f);
@@ -1046,8 +1112,10 @@ TEST_CASE(const_of_shape_int64_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    // output_dims
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
+    // constant shape literal
     migraphx::shape s(migraphx::shape::int64_type, {2, 3, 4});
     std::vector<int64_t> vec(s.elements(), 10);
     mm->add_literal(migraphx::literal(s, vec));
@@ -1060,13 +1128,49 @@ TEST_CASE(const_of_shape_no_value_attr_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape ss(migraphx::shape::int32_type, {3});
+    migraphx::shape ss(migraphx::shape::int64_type, {3});
     mm->add_literal(migraphx::literal(ss, {2, 3, 4}));
     migraphx::shape s(migraphx::shape::float_type, {2, 3, 4});
     std::vector<float> vec(s.elements(), 0.0f);
     mm->add_literal(migraphx::literal(s, vec));
 
     auto prog = optimize_onnx("const_of_shape_no_value_attr_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_dyn_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto od_param =
+        mm->add_parameter("output_dims", migraphx::shape{migraphx::shape::int64_type, {3}});
+    auto alloc_ins = mm->add_instruction(
+        migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), od_param);
+    migraphx::shape dv_shape(migraphx::shape::float_type, {1}, {0});
+    auto dv_lit   = mm->add_literal(migraphx::literal(dv_shape, {10}));
+    auto fill_ins = mm->add_instruction(migraphx::make_op("fill"), dv_lit, alloc_ins);
+    mm->add_return({fill_ins});
+
+    migraphx::onnx_options options;
+    auto prog = parse_onnx("const_of_shape_dyn_float_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(const_of_shape_dyn_int64_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto od_param =
+        mm->add_parameter("output_dims", migraphx::shape{migraphx::shape::int64_type, {3}});
+    auto alloc_ins = mm->add_instruction(
+        migraphx::make_op("allocate", {{"buf_type", migraphx::shape::int64_type}}), od_param);
+    migraphx::shape dv_shape(migraphx::shape::int64_type, {1}, {0});
+    auto dv_lit   = mm->add_literal(migraphx::literal(dv_shape, {10}));
+    auto fill_ins = mm->add_instruction(migraphx::make_op("fill"), dv_lit, alloc_ins);
+    mm->add_return({fill_ins});
+
+    migraphx::onnx_options options;
+    auto prog = parse_onnx("const_of_shape_dyn_int64_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -5952,7 +6056,13 @@ TEST_CASE(roialign_default_test)
     auto rois = mm->add_parameter("rois", srois);
     auto bi   = mm->add_parameter("batch_ind", sbi);
 
-    auto r = mm->add_instruction(migraphx::make_op("roialign"), x, rois, bi);
+    // Due to the onnx model using opset 12, the coordinate_transformation_mode should be set to
+    // output_half_pixel
+    auto r = mm->add_instruction(
+        migraphx::make_op("roialign", {{"coordinate_transformation_mode", "output_half_pixel"}}),
+        x,
+        rois,
+        bi);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("roialign_default_test.onnx");

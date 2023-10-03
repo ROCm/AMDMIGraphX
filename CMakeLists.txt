@@ -162,6 +162,8 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
+        -cppcoreguidelines-rvalue-reference-param-not-moved
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
@@ -262,6 +264,7 @@ rocm_enable_cppcheck(
 enable_testing()
 
 include(ROCMCreatePackage)
+include(ROCMTest)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -269,6 +272,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
 add_subdirectory(docs)
 if(BUILD_TESTING)
+    rocm_enable_test_package(migraphx)
     add_subdirectory(test)
 endif()
 add_subdirectory(tools)

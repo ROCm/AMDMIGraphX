@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -45,7 +45,7 @@ TEST_CASE(mod_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0, 0, 2};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(mod_dyn_test)
@@ -73,7 +73,7 @@ TEST_CASE(mod_dyn_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0, 0, 2};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(mod_float_test)
@@ -92,5 +92,5 @@ TEST_CASE(mod_float_test)
     std::vector<float> results_vector(4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1.0f, 2.5f, 2.0f};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

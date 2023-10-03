@@ -37,29 +37,22 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static void replace_with_reduce(module& m, instruction_ref ins)
 {
-    auto&& s       = ins->inputs().front()->get_shape();
-    auto&& op      = any_cast<op::pooling>(ins->get_operator());
-    std::int64_t n = s.lens()[0];
-    std::int64_t c = s.lens()[1];
-    auto reshape   = m.insert_instruction(
-        ins, make_op("reshape", {{"dims", {n * c, -1}}}), ins->inputs().front());
-    instruction_ref pooling{};
+    auto&& s  = ins->inputs().front()->get_shape();
+    auto&& op = any_cast<op::pooling>(ins->get_operator());
+    auto lens = s.lens();
+    std::vector<std::int64_t> axes(lens.size() - 2);
+    std::iota(axes.begin(), axes.end(), 2);
 
     // average pooling
     if(op.mode == op::pooling_mode::average)
     {
-        pooling = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", {1}}}), reshape);
+        m.replace_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), ins->inputs());
     }
     // max pooling
     else
     {
-        pooling = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {1}}}), reshape);
+        m.replace_instruction(ins, make_op("reduce_max", {{"axes", axes}}), ins->inputs());
     }
-
-    std::vector<int64_t> rsp_lens(s.lens().size(), 1);
-    rsp_lens[0] = n;
-    rsp_lens[1] = c;
-    m.replace_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), pooling);
 }
 
 static void replace_dilations_with_gather_pooling(module& m, instruction_ref ins)
@@ -154,9 +147,7 @@ void rewrite_pooling::apply(module& m) const
             continue;
         if(ins->inputs().empty())
             continue;
-        auto&& s = ins->inputs().front()->get_shape();
-        if(not s.standard())
-            continue;
+        auto&& s                  = ins->inputs().front()->get_shape();
         auto&& op                 = any_cast<op::pooling>(ins->get_operator());
         bool same_kernel_as_shape = std::equal(
             s.lens().cbegin() + 2, s.lens().cend(), op.lengths.cbegin(), op.lengths.cend());

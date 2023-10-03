@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -48,7 +48,7 @@ TEST_CASE(slice_test_1)
     std::vector<int> gold = {1, 2, 4, 5, 7, 8, 10, 11};
     std::vector<int> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
 }
 
@@ -72,7 +72,7 @@ TEST_CASE(slice_test_2)
     std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
     std::vector<int> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
 }
 
@@ -99,7 +99,7 @@ TEST_CASE(slice_var_inputs_static0)
     std::vector<int32_t> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
     std::vector<int32_t> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(slice_var_inputs_static1)
@@ -125,7 +125,7 @@ TEST_CASE(slice_var_inputs_static1)
     std::vector<int32_t> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
     std::vector<int32_t> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(slice_var_inputs_static2)
@@ -154,7 +154,7 @@ TEST_CASE(slice_var_inputs_static2)
     std::vector<float> gold         = {0, 1, 3, 4, 6, 7, 9, 10};
     std::vector<float> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(slice_var_inputs_dyn)
@@ -182,7 +182,7 @@ TEST_CASE(slice_var_inputs_dyn)
     std::vector<int> gold       = {1, 2, 4, 5, 7, 8, 10, 11};
     std::vector<int> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(slice_dyn_test0)
@@ -213,7 +213,7 @@ TEST_CASE(slice_dyn_test0)
     std::vector<int> results_vector(2 * 1 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
 }
 
@@ -244,6 +244,6 @@ TEST_CASE(slice_dyn_test1)
     std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
     std::vector<int> results_vector(2 * 2 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
 }

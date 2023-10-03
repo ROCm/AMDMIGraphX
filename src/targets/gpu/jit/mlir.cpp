@@ -57,11 +57,9 @@ struct mlir_compiler : compiler<mlir_compiler>
                                               const operation&,
                                               bool exhaustive) const
     {
-        if(not exhaustive)
-            return nullopt;
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
-        return get_tuning_config_mlir(ctx, *smod, shapes);
+        return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
     }
 };
 

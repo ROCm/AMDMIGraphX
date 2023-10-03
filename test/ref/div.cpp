@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -46,7 +46,7 @@ TEST_CASE(div_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(data1.size());
     std::transform(data1.begin(), data1.end(), data2.begin(), gold.begin(), std::divides<float>());
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(div_dyn_test)
@@ -72,5 +72,5 @@ TEST_CASE(div_dyn_test)
     std::vector<float> gold(x_data.size());
     std::transform(
         x_data.begin(), x_data.end(), y_data.begin(), gold.begin(), std::divides<float>());
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

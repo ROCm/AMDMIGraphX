@@ -479,11 +479,11 @@ TEST_CASE(conv_pooling_dot)
         auto q1  = add_quantize_op(m1, "quantizelinear", input, scale, zero);
         auto d5  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
         auto c1  = m1.add_instruction(migraphx::make_op("convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"dilation", {1, 1}},
-                                                        {"group", 1},
-                                                        {"padding_mode", 0}}),
+                                                        {{"padding", {0, 0, 0, 0}},
+                                                         {"stride", {1, 1}},
+                                                         {"dilation", {1, 1}},
+                                                         {"group", 1},
+                                                         {"padding_mode", 0}}),
                                      d5,
                                      d1);
         auto bc1 = m1.add_instruction(
@@ -527,11 +527,11 @@ TEST_CASE(conv_pooling_dot)
         auto d3  = add_quantize_op(m2, "dequantizelinear", ab, scale, zero);
         auto q1  = add_quantize_op(m2, "quantizelinear", input, scale, zero);
         auto c1  = m2.add_instruction(migraphx::make_op("quant_convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"dilation", {1, 1}},
-                                                        {"group", 1},
-                                                        {"padding_mode", 0}}),
+                                                        {{"padding", {0, 0, 0, 0}},
+                                                         {"stride", {1, 1}},
+                                                         {"dilation", {1, 1}},
+                                                         {"group", 1},
+                                                         {"padding_mode", 0}}),
                                      q1,
                                      weights);
         auto d5  = add_quantize_op(m2, "dequantizelinear", c1, scale1);
@@ -587,11 +587,11 @@ TEST_CASE(mobilenet_snippet)
         auto q1  = add_quantize_op(mm, "quantizelinear", input, scale, zero);
         auto d5  = add_quantize_op(mm, "dequantizelinear", q1, scale, zero);
         auto c1  = mm.add_instruction(migraphx::make_op("convolution",
-                                                       {{"padding", {0, 0, 0, 0}},
-                                                        {"stride", {1, 1}},
-                                                        {"dilation", {1, 1}},
-                                                        {"group", 1},
-                                                        {"padding_mode", 0}}),
+                                                        {{"padding", {0, 0, 0, 0}},
+                                                         {"stride", {1, 1}},
+                                                         {"dilation", {1, 1}},
+                                                         {"group", 1},
+                                                         {"padding_mode", 0}}),
                                      d5,
                                      d1);
         auto bc1 = mm.add_instruction(
@@ -703,7 +703,7 @@ TEST_CASE(conv_correctness)
     auto result2 = p2.eval({{"input", input}, {"weights", weights}}).back();
     std::vector<float> rv2(16);
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(rv1, rv2));
+    EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
 }
 
 TEST_CASE(dot_correctness)
@@ -753,7 +753,7 @@ TEST_CASE(dot_correctness)
     auto result2 = p2.eval({{"a", a}, {"b", b}}).back();
     std::vector<float> rv2(sh3.elements());
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(rv1, rv2));
+    EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

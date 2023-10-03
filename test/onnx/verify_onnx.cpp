@@ -1226,6 +1226,56 @@ TEST_CASE(mod_test_fmod_different_types)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+
+TEST_CASE(multinomial_dyn_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    auto p                     = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int> dist{15, 25, 15, 25, 20};
+    std::vector<float> data(5);
+
+    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
+    // Shape of the probability distribution, which also defines the number of categories
+    migraphx::shape s{migraphx::shape::float_type, {1, 10}};    
+
+    migraphx::parameter_map pp;
+    pp["input"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+
+    std::vector<float> result_vec(s.elements());
+    printf("%lu elements\n", result_vec.size() );
+    result.visit([&](auto output) {
+        
+        std::cout << " + " << output.size() << "\n";
+        
+         result_vec.assign(output.begin(), output.end());
+          });
+
+          auto asdf = p.eval(pp);
+    auto result2 = asdf.front();
+    std::vector<float> result2_vec(10);
+    printf("%lu elements\n", result2_vec.size() );
+    result2.visit([&](auto output) {
+        
+        std::cout << " = " << output.size() << "\n";
+        
+         result2_vec.assign(output.begin(), output.end());
+          });
+
+
+    // Make a categorical histogram of output
+    std::vector<int> res_dist(5, 0);
+    for(const auto& r : result_vec)
+        res_dist[r]++;
+
+
+}
+
 TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");

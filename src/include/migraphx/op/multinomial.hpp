@@ -131,10 +131,11 @@ struct multinomial
                         std::upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                     // convert iterator to an integer index
                     output[i] = std::distance(cdf_begin, sample_iter);
+std::cout << "\n " << output[i] << "   " << dist[i];                    
                 });
             });
         });
-
+std::cout << "\n";
         return result;
     }
 };

@@ -83,10 +83,14 @@ struct parse_multinomial : op_parser<parse_multinomial>
 
         if(s0.dynamic())
         {
-            //  Dynamic batch_size will be taken from args[0].  Other contents of input are
-            //  ignored here.
+            //  Dynamic batch_size will be taken from args[0].  The input argument to this should
+            // have a second dimension of sample_size.
+            std::vector<shape::dynamic_dimension> dyn_dim_set;
+            dyn_dim_set.emplace_back(s0.dyn_dims().front());
+            dyn_dim_set.emplace_back(shape::dynamic_dimension{sample_size, sample_size});
+            auto alloc = info.add_instruction(migraphx::make_op("allocate", {{"shape", to_value(shape{s0.type(), dyn_dim_set})}}));
             randoms =
-                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, args[0]);
+                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }
         else
         {
@@ -98,6 +102,8 @@ struct parse_multinomial : op_parser<parse_multinomial>
             randoms =
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
+
+        migraphx::shape asdf = randoms->get_shape();
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

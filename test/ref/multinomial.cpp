@@ -98,7 +98,7 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    size_t sample_size = 1000000;
+    size_t sample_size = 7;
 
     //      Shape of the random data
     migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
@@ -165,12 +165,17 @@ TEST_CASE(multinomial_dyn_test)
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
     std::vector<float> norm(5);
     std::vector<float> res_norm(5);
+
+
     std::transform(dist.begin(), dist.end(), norm.begin(), [&](auto n) {
         return static_cast<double>(n) / dist_sum;
     });
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
+
+for(size_t aa = 1; aa < 5; aa++)  printf(" * %d    %d\n", dist[aa], res_dist[aa]); printf("\n");
+
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));

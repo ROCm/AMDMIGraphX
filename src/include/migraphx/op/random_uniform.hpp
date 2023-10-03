@@ -65,11 +65,14 @@ struct random_uniform
         return inputs.at(1);
     }
 
-    argument compute(const shape&, std::vector<argument> args) const
-    {
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+        //const shape&, std::vector<argument> args) const
+    // {
         // Output goes into the passed buffer, not the shape output.
-        auto result = args[1];
+        // auto result = args[1];
 
+    {
+        argument result{dyn_out.computed_shape};
         uint64_t local_seed = args[0].at<uint64_t>(0);
         std::mt19937 gen(local_seed);
 

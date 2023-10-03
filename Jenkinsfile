@@ -99,7 +99,14 @@ pipeline {
                         build_cmd = "Chris"
                     }
                     steps{
-                        sh "echo Hi ", build_cmd, " from Hip Tidy"
+                        cmd = """ 
+                            pwd
+                            ls -l /
+                            /opt/rocm/bin/rocm-smi
+                        """
+
+                        sh cmd, label: " from Hip Tidy"
+                        sh script: "echo hi mom", label: "my step"
                     }
                 }
                 stage('Clang Format') {

@@ -75,7 +75,16 @@ struct random_uniform
 
         result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
-            if constexpr(std::is_integral<type>{})
+            if constexpr(
+                std::is_integral_v<type>
+#ifdef _MSC_VER
+                // According to the C++ specification, the effect is undefined if the result type
+                // for the generator is not one of short, int, long, long long, unsigned short,
+                // unsigned int, unsigned long, or unsigned long long. See
+                // https://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution.
+                && !(std::is_same_v<type, unsigned char> || std::is_same_v<type, signed char>)
+#endif
+            )
             {
                 // default range for all integer types is
                 // (0, std::uniform_int_distribution<type>::max()).

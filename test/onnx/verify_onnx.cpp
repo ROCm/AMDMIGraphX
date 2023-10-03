@@ -1014,6 +1014,103 @@ TEST_CASE(instance_norm_3d_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(isinf_half_test)
+{
+    migraphx::program p = migraphx::parse_onnx("isinf_half_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    migraphx::parameter_map pp;
+    float nan      = std::numeric_limits<float>::quiet_NaN();
+    float infinity = std::numeric_limits<float>::infinity();
+    float x        = std::numeric_limits<float>::max();
+    // Use a synthesized value to catch any run time FP results
+    // that would bypass FP-units if compiler option like --fast-math is turned on
+    float synth_infinity   = x * x;
+    std::vector<float> tmp = {-infinity, nan, synth_infinity, 3.6, -synth_infinity, infinity};
+    std::vector<migraphx::half> data{tmp.cbegin(), tmp.cend()};
+    pp["t1"] = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 0, 1, 0, 1, 1};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(isinf_neg_test)
+{
+    migraphx::program p = migraphx::parse_onnx("isinf_neg_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::parameter_map pp;
+    float nan      = std::numeric_limits<float>::quiet_NaN();
+    float infinity = std::numeric_limits<float>::infinity();
+    float x        = std::numeric_limits<float>::max();
+    // Use a synthesized value to catch any run time FP results
+    // that would bypass FP-units if compiler option like --fast-math is turned on
+    float synth_infinity    = x * x;
+    std::vector<float> data = {-infinity, nan, synth_infinity, x, -synth_infinity, infinity};
+    pp["t1"]                = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 0, 0, 0, 1, 0};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(isinf_double_pos_test)
+{
+    migraphx::program p = migraphx::parse_onnx("isinf_double_pos_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape s{migraphx::shape::double_type, {2, 3}};
+    migraphx::parameter_map pp;
+    double nan      = std::numeric_limits<double>::quiet_NaN();
+    double infinity = std::numeric_limits<double>::infinity();
+    double x        = std::numeric_limits<double>::max();
+    // Use a synthesized value to catch any run time FP results
+    // that would bypass FP-units if compiler option like --fast-math is turned on
+    double synth_infinity    = x * x;
+    std::vector<double> data = {-infinity, nan, synth_infinity, 3.6, -synth_infinity, infinity};
+    pp["t1"]                 = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 0, 1, 0, 0, 1};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(isinf_no_detect_test)
+{
+    migraphx::program p = migraphx::parse_onnx("isinf_no_detect_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::parameter_map pp;
+    float nan      = std::numeric_limits<float>::quiet_NaN();
+    float infinity = std::numeric_limits<float>::infinity();
+    float x        = std::numeric_limits<float>::max();
+    // Use a synthesized value to catch any run time FP results
+    // that would bypass FP-units if compiler option like --fast-math is turned on
+    float synth_infinity    = x * x;
+    std::vector<float> data = {-infinity, nan, synth_infinity, 3.6, -synth_infinity, infinity};
+    pp["t1"]                = migraphx::argument(s, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 0, 0, 0, 0, 0};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(layer_norm_test)
 {
     std::vector<float> scale{1.2, 0.8};

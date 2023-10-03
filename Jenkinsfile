@@ -96,9 +96,10 @@ pipeline {
                 stage('Hip Tidy') {
                     agent{ label rocmnode("nogpu") }
                     environment{
+                        build_cmd = "Chris"
                     }
                     steps{
-                        sh "echo Hi from Hip Tidy"
+                        sh "echo Hi ", build_cmd, " from Hip Tidy"
                     }
                 }
                 stage('Clang Format') {

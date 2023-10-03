@@ -43,9 +43,7 @@ void rewrite_pooling::apply(module& m) const
             continue;
         if(ins->inputs().empty())
             continue;
-        auto&& s = ins->inputs().front()->get_shape();
-        if(not s.standard())
-            continue;
+        auto&& s  = ins->inputs().front()->get_shape();
         auto&& op = any_cast<op::pooling>(ins->get_operator());
         if(not std::all_of(op.padding.begin(), op.padding.end(), [](auto i) { return i == 0; }))
             continue;
@@ -54,27 +52,18 @@ void rewrite_pooling::apply(module& m) const
         auto lens = s.lens();
         if(not std::equal(lens.begin() + 2, lens.end(), op.lengths.begin(), op.lengths.end()))
             continue;
-        std::int64_t n = s.lens()[0];
-        std::int64_t c = s.lens()[1];
-        auto reshape   = m.insert_instruction(
-            ins, make_op("reshape", {{"dims", {n * c, -1}}}), ins->inputs().front());
-        instruction_ref pooling{};
-
+        std::vector<std::int64_t> axes(lens.size() - 2);
+        std::iota(axes.begin(), axes.end(), 2);
         // average pooling
         if(op.mode == op::pooling_mode::average)
         {
-            pooling = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", {1}}}), reshape);
+            m.replace_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), ins->inputs());
         }
         // max pooling
         else
         {
-            pooling = m.insert_instruction(ins, make_op("reduce_max", {{"axes", {1}}}), reshape);
+            m.replace_instruction(ins, make_op("reduce_max", {{"axes", axes}}), ins->inputs());
         }
-
-        std::vector<int64_t> rsp_lens(lens.size(), 1);
-        rsp_lens[0] = n;
-        rsp_lens[1] = c;
-        m.replace_instruction(ins, make_op("reshape", {{"dims", rsp_lens}}), pooling);
     }
 }
 

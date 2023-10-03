@@ -30,6 +30,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -76,15 +77,25 @@ void verify_program(const std::string& name,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    double tolerance)
+                    verify::tolerance tols)
 {
-    auto x = run_ref(p, inputs);
-    auto y = run_target(p, t, options, quantize, inputs);
+    auto ref_outs    = run_ref(p, inputs);
+    auto target_outs = run_target(p, t, options, quantize, inputs);
 
-    std::size_t output_num = x.size();
+    std::size_t output_num = ref_outs.size();
     for(std::size_t i = 0; i < output_num; ++i)
     {
-        verify_args(name, x[i], y[i], tolerance);
+        if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
+           ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
+        {
+            std::cout << "FAILED: " << name << std::endl;
+            std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
+                      << target_outs[i].get_shape() << "}" << std::endl;
+        }
+        else
+        {
+            verify_args(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
+        }
     }
 }
 
@@ -92,7 +103,7 @@ void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options,
                          precision quantize,
-                         double tolerance)
+                         verify::tolerance tols)
 {
     const auto* mm_prog = prog.get_main_module();
     for(auto&& ins : (*mm_prog))
@@ -123,8 +134,7 @@ void verify_instructions(const program& prog,
         {
             std::cout << "Verify: " << ins.name() << std::endl;
             std::cout << p << std::endl;
-            verify_program(
-                ins.name(), p, t, options, quantize, create_param_map(p, false), tolerance);
+            verify_program(ins.name(), p, t, options, quantize, create_param_map(p, false), tols);
         }
         catch(...)
         {
@@ -140,14 +150,22 @@ void verify_reduced(program p,
                     compile_options options,
                     precision quantize,
                     const parameter_map& inputs,
-                    double tolerance)
+                    verify::tolerance tols)
 {
     auto* mm  = p.get_main_module();
-    auto last = std::prev(mm->end(), n + 1);
+    auto last = std::prev(mm->end(), n);
     mm->remove_instructions(last, mm->end());
     std::cout << "Verify: " << n << std::endl;
     std::cout << p << std::endl;
-    verify_program(std::to_string(n), p, t, options, quantize, inputs, tolerance);
+    try
+    {
+        verify_program(std::to_string(n), p, t, options, quantize, inputs, tols);
+    }
+    catch(const std::exception& e)
+    {
+        std::cout << "FAILED: " << n << std::endl;
+        std::cout << "Exception: " << e.what() << std::endl;
+    }
 }
 
 void verify_reduced_program(const program& p,
@@ -155,14 +173,20 @@ void verify_reduced_program(const program& p,
                             compile_options options,
                             precision quantize,
                             const parameter_map& inputs,
-                            double tolerance)
+                            verify::tolerance tols)
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
     std::cout << "Verify steps: " << n << std::endl;
-    for(std::size_t i = 0; i < n; i++)
+    for(std::size_t i = 1; i < n; i++)
     {
-        verify_reduced(p, i, t, options, quantize, inputs, tolerance);
+        auto last = std::prev(mm->end(), i + 1);
+        if(contains({"@literal", "@param"}, last->name()))
+        {
+            std::cout << "Skip: " << i << std::endl;
+            continue;
+        }
+        verify_reduced(p, i, t, options, quantize, inputs, tols);
     }
 }
 

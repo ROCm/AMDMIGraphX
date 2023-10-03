@@ -292,16 +292,21 @@ TEST_CASE(averagepool_3d_test)
 
 TEST_CASE(averagepool_dyn_test)
 {
+    // Pooling with dynamic input and no auto padding
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter(
         "0", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}, {5, 5}}});
-    auto ret = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {0, 0, 0, 0, 0, 0}},
-                                                      {"stride", {1, 1, 1}},
-                                                      {"lengths", {3, 3, 3}}}),
-                                   l0);
+    auto ret =
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {
+                                                  {"mode", migraphx::op::pooling_mode::average},
+                                                  {"stride", {2, 2, 2}},
+                                                  {"lengths", {3, 3, 3}},
+                                                  {"padding", {1, 1, 1, 1, 1, 1}},
+                                                  {"padding_mode", 0},
+                                              }),
+                            l0);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
@@ -310,12 +315,29 @@ TEST_CASE(averagepool_dyn_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(averagepool_dyn_autopad_error_test)
+TEST_CASE(averagepool_dyn_autopad_test)
 {
+    // Pooling with dynamic input and auto padding. Default padding values will be overridden.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter(
+        "0", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}, {5, 5}}});
+    auto ret = mm->add_instruction(
+        migraphx::make_op("pooling",
+                          {
+                              {"mode", migraphx::op::pooling_mode::average},
+                              {"stride", {2, 2, 2}},
+                              {"lengths", {3, 3, 3}},
+                              {"padding", {0, 0, 0, 0, 0, 0}},
+                              {"padding_mode", migraphx::op::padding_mode_t::same_upper},
+                          }),
+        l0);
+    mm->add_return({ret});
+
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("averagepool_dyn_autopad_error_test.onnx", options); }));
+    auto prog = migraphx::parse_onnx("averagepool_dyn_autopad_test.onnx", options);
+    EXPECT(p == prog);
 }
 
 TEST_CASE(averagepool_dyn_asym_padding_error_test)
@@ -374,16 +396,22 @@ TEST_CASE(averagepool_nt_cip_test)
 
 TEST_CASE(averagepool_same_lower_test)
 {
+    // auto_pad mode of SAME_LOWER with a static input shape is handled in parsing and
+    // padding_mode is set to default_ when the operation is created
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 5}});
-    auto ins   = mm->add_instruction(migraphx::make_op("pooling",
-                                                     {{"mode", migraphx::op::pooling_mode::average},
-                                                      {"padding", {1, 1, 1, 1}},
-                                                      {"stride", {1, 1}},
-                                                      {"lengths", {2, 2}}}),
-                                   input);
-    auto ret   = mm->add_instruction(
+    auto ins   = mm->add_instruction(
+        migraphx::make_op("pooling",
+                            {
+                              {"mode", migraphx::op::pooling_mode::average},
+                              {"padding", {1, 1, 1, 1}},
+                              {"stride", {1, 1}},
+                              {"lengths", {2, 2}},
+                              {"padding_mode", migraphx::op::padding_mode_t::default_},
+                          }),
+        input);
+    auto ret = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {0, 0}}, {"ends", {5, 5}}}), ins);
     mm->add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_same_lower_test.onnx");
@@ -900,6 +928,58 @@ TEST_CASE(constant_test)
     auto prog = optimize_onnx("constant_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_float_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
+    auto prog = optimize_onnx("constant_value_float_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_floats_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {3}}, {1.0f, 2.0f, 3.0f}});
+    auto prog = optimize_onnx("constant_value_floats_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_int_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {1}});
+    auto prog = optimize_onnx("constant_value_int_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_value_ints_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {3}}, {1, 2, 3}});
+    auto prog = optimize_onnx("constant_value_ints_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(constant_no_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_no_attributes_test.onnx"); }));
+}
+
+TEST_CASE(constant_multiple_attributes_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("constant_multiple_attributes_test.onnx"); }));
 }
 
 TEST_CASE(constant_fill_test)
@@ -5871,7 +5951,13 @@ TEST_CASE(roialign_default_test)
     auto rois = mm->add_parameter("rois", srois);
     auto bi   = mm->add_parameter("batch_ind", sbi);
 
-    auto r = mm->add_instruction(migraphx::make_op("roialign"), x, rois, bi);
+    // Due to the onnx model using opset 12, the coordinate_transformation_mode should be set to
+    // output_half_pixel
+    auto r = mm->add_instruction(
+        migraphx::make_op("roialign", {{"coordinate_transformation_mode", "output_half_pixel"}}),
+        x,
+        rois,
+        bi);
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("roialign_default_test.onnx");
@@ -6290,6 +6376,19 @@ TEST_CASE(slice_test)
     mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
     auto prog = optimize_onnx("slice_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(slice_constant_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::float_type, {3, 2}}, {0, 1, 2, 3, 4, 5}});
+    mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 0}}, {"ends", {2, 2}}}), l0);
+    auto prog = optimize_onnx("slice_constant_test.onnx");
 
     EXPECT(p == prog);
 }

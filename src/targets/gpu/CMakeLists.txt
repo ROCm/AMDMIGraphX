@@ -49,7 +49,6 @@ endif()
 
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
@@ -59,7 +58,7 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
 endif()
 
 include(Embed)
-add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
+add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)

@@ -33,6 +33,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -305,6 +306,12 @@ struct matcher_result
         instruction_container(std::unordered_map<std::string, instruction_ref> x)
             : ins_map(std::move(x))
         {
+        }
+
+        instruction_container& operator=(const std::unordered_map<std::string, instruction_ref>& x)
+        {
+            ins_map = x;
+            return *this;
         }
 
         instruction_ref operator[](const std::string& name) const

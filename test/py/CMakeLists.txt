@@ -24,15 +24,9 @@
 
 include(PythonModules)
 set(VENV ${CMAKE_BINARY_DIR}/test/py/venv)
-
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-    file(READ "/etc/os-release" OS_RELEASE_CONTENTS)
-    if(OS_RELEASE_CONTENTS MATCHES "ID=\"sles\"")
-        set(REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements-sles.txt)
-    else()
-        set(REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt)
-    endif()
-endif()
+set(BASE_REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/base-requirements.txt)
+set(REQUIREMENTS_PYTHON_ALL ${CMAKE_CURRENT_SOURCE_DIR}/requirements-python-all.txt)
+set(REQUIREMENTS_PYTHON_36 ${CMAKE_CURRENT_SOURCE_DIR}/requirements-python-3.6.txt)
 
 function(add_py_venv_fixture FIXTURE_NAME PYTHON_EXECUTABLE VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
     if(NOT TEST py_${FIXTURE_NAME}_initialize_env)
@@ -40,7 +34,9 @@ function(add_py_venv_fixture FIXTURE_NAME PYTHON_EXECUTABLE VIRTUAL_ENV_DIR REQU
         set_tests_properties(py_${FIXTURE_NAME}_initialize_env PROPERTIES FIXTURES_SETUP ${FIXTURE_NAME}_INIT_VENV)
         set(ENV{VIRTUAL_ENV} ${VIRTUAL_ENV_DIR})
         set(PYTHON_EXECUTABLE ${VIRTUAL_ENV_DIR}/bin/python)
-        add_test(NAME py_${FIXTURE_NAME}_setup_env COMMAND ${PYTHON_EXECUTABLE} -m pip install -r ${REQUIREMENTS_FILE})
+        add_test(
+            NAME py_${FIXTURE_NAME}_setup_env
+            COMMAND ${PYTHON_EXECUTABLE} -m pip install -r ${BASE_REQUIREMENTS} -r ${REQUIREMENTS_FILE})
         set_tests_properties(py_${FIXTURE_NAME}_setup_env PROPERTIES FIXTURES_REQUIRED ${FIXTURE_NAME}_INIT_VENV)
         set_tests_properties(py_${FIXTURE_NAME}_setup_env PROPERTIES FIXTURES_SETUP ${FIXTURE_NAME}_VENV)
     endif()
@@ -54,7 +50,11 @@ function(add_py_test NAME SCRIPT VENV_DIR)
             "MALLOC_CHECK_=3"
         )
         set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
-        add_py_venv_fixture(${PYTHON_VERSION} ${PYTHON_EXECUTABLE} ${VENV_DIR}/${PYTHON_VERSION} ${REQUIREMENTS})
+        if(${PYTHON_VERSION} STREQUAL "3.6")
+            add_py_venv_fixture(${PYTHON_VERSION} ${PYTHON_EXECUTABLE} ${VENV_DIR}/${PYTHON_VERSION} ${REQUIREMENTS_PYTHON_36})
+        else()
+            add_py_venv_fixture(${PYTHON_VERSION} ${PYTHON_EXECUTABLE} ${VENV_DIR}/${PYTHON_VERSION} ${REQUIREMENTS_PYTHON_ALL})
+        endif()
         unset(PYTHON_EXECUTABLE)
         set(PYTHON_EXECUTABLE ${VENV_DIR}/${PYTHON_VERSION}/bin/python)
         add_test(

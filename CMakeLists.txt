@@ -261,10 +261,12 @@ rocm_enable_cppcheck(
         MIGRAPHX_USE_CLANG_TIDY
 )
 
-enable_testing()
-
 include(ROCMCreatePackage)
 include(ROCMTest)
+
+if(BUILD_TESTING)
+    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:MIGRAPHX_BUILD_TESTING>)
+endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

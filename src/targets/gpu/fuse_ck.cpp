@@ -76,7 +76,7 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 struct ck_gemm_softmax_gemm
 {
     operation op = make_op("dot");
-    double scale = 1.0;
+    float scale = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -203,7 +203,7 @@ struct find_ck_gemm
     }
 };
 
-static auto is_mul_module(module& m)
+auto is_mul_module(module& m)
 {
     auto is_mul =
         match::arg(0)(match::name("mul")(match::all_of[match::inputs()](match::name("@param"))));
@@ -243,7 +243,7 @@ struct find_ck_gemm_softmax_gemm
         if(not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
             return;
 
-        double scale = 1.0;
+        float scale = 1.0;
         scale_lit->eval().visit([&](const auto s) {
             // CK only supports single-valued scale
             if(std::all_of(

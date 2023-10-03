@@ -81,6 +81,14 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         using f_type = decltype(f);
         dim3 nblocks(global / local);
         dim3 nthreads(local);
+        /*
+        hipGetLastError() returns error for the first failed HIP call that happened previously.
+        MIGraphX calls into various backend libraries and failed HIP calls can also happen there.
+        Calling hipGetLastError() would reset error code to hipSuccess, so that inside MIGraphX
+        failed call to hipLaunchKernelGGL() can be captured.
+        */
+        hipError_t flush_call = hipGetLastError();
+        (void)(flush_call);
         // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
         hipError_t kernel_launch_status = hipGetLastError();

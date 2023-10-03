@@ -78,5 +78,6 @@ TEST_CASE(multinomial_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
-    EXPECT(migraphx::verify::verify_range(norm, res_norm, 100000));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }

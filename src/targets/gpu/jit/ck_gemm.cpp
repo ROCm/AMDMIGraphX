@@ -82,7 +82,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto& a_shape = inputs[0];
         const auto& b_shape = inputs[1];
         const auto& c_shape = inputs.back();
-        
+
         auto rank        = a_shape.ndim();
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];

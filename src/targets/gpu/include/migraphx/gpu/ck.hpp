@@ -167,8 +167,8 @@ inline bool can_fold_batch(const std::vector<shape>& inputs)
 {
     const auto& b_shape = inputs[1];
     if(std::any_of(inputs.begin() + 2, inputs.end() - 1, [](auto input) {
-            return not standard_batch(input);
-        }))
+           return not standard_batch(input);
+       }))
         return false;
     const auto& b_strides = b_shape.strides();
     return std::all_of(

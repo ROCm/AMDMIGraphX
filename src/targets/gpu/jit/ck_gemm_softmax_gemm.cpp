@@ -89,7 +89,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         const auto& b_shape  = inputs[1];
         const auto& b1_shape = inputs[2];
         const auto& c_shape  = inputs.back();
-        
+
         auto rank        = a_shape.ndim();
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];
@@ -173,7 +173,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"preamble", v.get("preamble", std::string{})},
                                        {"kernel", options.kernel_name}});
-        
+
         return compile_hip_code_object(src, options);
     }
 

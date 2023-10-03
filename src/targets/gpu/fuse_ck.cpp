@@ -76,7 +76,7 @@ MIGRAPHX_REGISTER_OP(ck_gemm);
 struct ck_gemm_softmax_gemm
 {
     operation op = make_op("dot");
-    float scale = 1.0;
+    float scale  = 1.0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

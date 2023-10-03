@@ -956,13 +956,13 @@ TEST_CASE(test_with_type)
 TEST_CASE(test_multi_index)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 4, 6}};
-    EXPECT(migraphx::verify::verify_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
-    EXPECT(migraphx::verify::verify_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
-    EXPECT(migraphx::verify::verify_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
-    EXPECT(migraphx::verify::verify_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
-    EXPECT(migraphx::verify::verify_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
-    EXPECT(migraphx::verify::verify_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
-    EXPECT(migraphx::verify::verify_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(0), std::vector<size_t>{0, 0, 0}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(4), std::vector<size_t>{0, 0, 4}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(6), std::vector<size_t>{0, 1, 0}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(8), std::vector<size_t>{0, 1, 2}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(24), std::vector<size_t>{1, 0, 0}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(30), std::vector<size_t>{1, 1, 0}));
+    EXPECT(migraphx::verify::verify_rms_range(s.multi(34), std::vector<size_t>{1, 1, 4}));
 }
 
 TEST_CASE(find_permutation_2d_standard)

@@ -10,8 +10,6 @@
 //
 // Each docker can be used on any system
 
-
-
 def rocmnode(name) {
     return 'rocmtest && (' + name + ')'
 }
@@ -62,7 +60,6 @@ def getDockerImage(Map conf=[:])
     }
     return [dockerImage, image]
 }
-
 
 
 pipeline {

@@ -5018,6 +5018,26 @@ def prelu_brcst_test():
 
 
 @onnx_test()
+def qlinearglobalavgpool_test():
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
+
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    z_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [128])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 3, 1, 1])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.025])
+    z_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [64])
+
+    n = onnx.helper.make_node(
+        'QLinearGlobalAveragePool',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'])
+
+    return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
+
+
+@onnx_test()
 def quantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])

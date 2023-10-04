@@ -1,5 +1,5 @@
 def getgputargets() {
-    targets="gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
     return targets
 }
 

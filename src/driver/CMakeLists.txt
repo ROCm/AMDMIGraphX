@@ -52,6 +52,7 @@ target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     target_link_libraries(driver migraphx_py)
+    target_compile_definitions(driver PRIVATE MIGRAPHX_ENABLE_PYTHON)
 endif()
 
 rocm_install_targets(

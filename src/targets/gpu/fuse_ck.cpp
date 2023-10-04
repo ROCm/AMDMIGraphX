@@ -173,15 +173,12 @@ struct find_ck_gemm
 
 struct find_ck_gemm_softmax_gemm
 {
-    auto matcher() const
-    {
-        return match::name("gpu::pre_gemm_softmax_gemm");
-    }
+    auto matcher() const { return match::name("gpu::pre_gemm_softmax_gemm"); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins       = r.result;
-        auto v = ins->get_operator().to_value();
+        auto v         = ins->get_operator().to_value();
         assert(v.contains("scale"));
         auto scale = v.at("scale").to<float>();
         mpm.get_module().replace_instruction(

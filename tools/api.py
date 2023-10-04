@@ -27,6 +27,7 @@ import re
 import runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from pathlib import Path
 
 type_map: Dict[str, Callable[['Parameter'], None]] = {}
 cpp_type_map: Dict[str, str] = {}
@@ -678,6 +679,10 @@ def add_function(name: str, *args, **kwargs) -> Function:
     return f
 
 
+def register_functions(path: Union[Path, str]) -> None:
+    runpy.run_path(path if isinstance(path, str) else str(path))
+
+
 def once(f: Callable) -> Any:
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -1281,11 +1286,14 @@ def template_eval(template, **kwargs):
     return template
 
 
+def invoke(path: Union[Path, str]) -> str:
+    return template_eval(open(path).read())
+
+
 def run(args: List[str]) -> None:
-    runpy.run_path(args[0])
+    register_functions(args[0])
     if len(args) > 1:
-        f = open(args[1]).read()
-        r = template_eval(f)
+        r = invoke(args[1])
         sys.stdout.write(r)
     else:
         sys.stdout.write(generate_c_header())

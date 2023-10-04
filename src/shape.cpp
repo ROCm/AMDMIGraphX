@@ -490,6 +490,26 @@ shape shape::with_lens(const std::vector<std::size_t>& l) const
     return this->with_lens(this->type(), l);
 }
 
+shape shape::prepend_dim(size_t dim) const
+{
+    if(this->dynamic())
+        MIGRAPHX_THROW("SHAPE: with_lens() called on dynamic shape");
+    auto cur_lens = this->lens();
+    std::vector<std::size_t> nlens(1 + cur_lens.size(), dim);
+    std::copy(cur_lens.begin(), cur_lens.end(), nlens.begin() + 1);
+    return {this->type(), nlens};
+}
+
+shape shape::append_dim(size_t dim) const
+{
+    if(this->dynamic())
+        MIGRAPHX_THROW("SHAPE: with_lens() called on dynamic shape");
+    auto cur_lens = this->lens();
+    std::vector<std::size_t> nlens(1 + cur_lens.size(), dim);
+    std::copy(cur_lens.begin(), cur_lens.end(), nlens.begin());
+    return {this->type(), nlens};
+}
+
 shape shape::with_type(type_t t) const
 {
     auto c    = impl->copy();

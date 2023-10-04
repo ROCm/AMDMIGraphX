@@ -288,6 +288,10 @@ struct MIGRAPHX_EXPORT shape
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
 
+    shape prepend_dim(size_t dim) const;
+
+    shape append_dim(size_t dim) const;
+
     shape with_type(type_t t) const;
 
     // convert the shape to an equivalent dynamic shape with empty optimals

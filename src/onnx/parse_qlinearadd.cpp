@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
+#include <migraphx/onnx/broadcast_qdq.hpp>
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {
@@ -101,8 +102,6 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
 
         auto sh_a = in_a->get_shape();
         auto sh_b = in_b->get_shape();
-        if(sh_a != sh_b)
-            MIGRAPHX_THROW("QLINEARADD: mismatched input shapes");
 
         auto type_a = sh_a.type();
         auto type_b = sh_b.type();
@@ -110,48 +109,9 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
             MIGRAPHX_THROW("QLINEARADD: unsupported input type");
         if(type_b != migraphx::shape::int8_type and type_b != migraphx::shape::uint8_type)
             MIGRAPHX_THROW("QLINEARADD: unsupported input type");
-    }
 
-    instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
-                                       const instruction_ref arg_in,
-                                       const onnx_parser::node_info& info) const
-    {
-        auto bcast_instr_out = info.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", shape_out.lens()}}), arg_in);
-        return bcast_instr_out;
-    }
-
-    // This method is to prep for quantizelinear or dequantizelinear operation for
-    // either the broadcasting of weight-scale or zero-points of qlinearadd operator
-    // outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
-    instruction_ref bcast_qdq_instr(const std::string& op_name,
-                                    const instruction_ref x_in,
-                                    const instruction_ref arg_fscale,
-                                    const instruction_ref arg_z_pt,
-                                    const onnx_parser::node_info& info) const
-    {
-        auto in_lens = x_in->get_shape().lens();
-
-        // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_scale;
-        if(arg_fscale->get_shape().elements() > 1)
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_fscale);
-        else
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
-
-        // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_zero_pt;
-        if(arg_z_pt->get_shape().elements() > 1)
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_z_pt);
-        else
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_z_pt);
-
-        // op_name is either quantizelinear or dequantizelinear:
-        return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
+        if(sh_a != sh_b)
+            MIGRAPHX_THROW("QLINEARADD: mismatched input shapes");
     }
 
     instruction_ref parse(const op_desc& /* opd */,

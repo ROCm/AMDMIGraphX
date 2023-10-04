@@ -129,10 +129,10 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& c_shape  = inputs.back();
-        auto tuning_value    = v.get("tuning_value", 5);
-        auto batch_count = get_batch_count(c_shape);
-        auto problem     = create_problem(inputs, v);
+        const auto& c_shape = inputs.back();
+        auto tuning_value   = v.get("tuning_value", 5);
+        auto batch_count    = get_batch_count(c_shape);
+        auto problem        = create_problem(inputs, v);
 
         const auto include_header   = problem.GetIncludeHeader();
         const auto solutions        = problem.GetSolutions(ctx.get_current_device().get_gfx_name());

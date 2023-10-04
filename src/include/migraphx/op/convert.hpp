@@ -68,7 +68,7 @@ struct convert : unary<convert>
             auto y = x;
             shape::visit(type, [&](auto as) {
                 // clamping value between target_type's max and min doesn't work for NaNs,
-                if(std::isnan(x))
+                if(std::isnan(static_cast<double>(x)))
                 {
                     y = as.nan();
                 }

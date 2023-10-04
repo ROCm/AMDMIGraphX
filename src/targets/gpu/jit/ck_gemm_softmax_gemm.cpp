@@ -90,6 +90,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         const auto& b1_shape = inputs[2];
         const auto& c_shape  = inputs.back();
 
+        // cppcheck-suppress unreadVariable
         auto rank        = a_shape.ndim();
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];

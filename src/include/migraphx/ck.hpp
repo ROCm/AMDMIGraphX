@@ -49,12 +49,12 @@ struct gemm_softmax_gemm
         return pack(f(self.op, "op"), f(self.scale, "scale"));
     }
 
-    std::string name() const { return "pre_gemm_softmax_gemm"; }
+    std::string name() const { return "gemm_softmax_gemm"; }
 
     void check_gemm_shape(const shape& s) const
     {
         if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
-            MIGRAPHX_THROW("Invalid shape for ck_gemm_softmax_gemm");
+            MIGRAPHX_THROW("Invalid shape for " + name());
     }
 
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const

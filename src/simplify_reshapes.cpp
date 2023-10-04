@@ -642,8 +642,8 @@ struct find_broadcast_transpose
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto transpose       = r.result;
-        auto transpose_lens  = transpose->get_shape().lens();
+        auto transpose      = r.result;
+        auto transpose_lens = transpose->get_shape().lens();
         auto bcast_ins = r.instructions["bcast_ins"];
         auto input     = bcast_ins->inputs().front();
         // scalar transformation does not need extra transpose

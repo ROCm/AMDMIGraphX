@@ -74,15 +74,17 @@ TEST_CASE(broadcast_transpose)
         auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
         auto mb =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), mb);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), mb);
         m1.add_return({t1});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
         auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
-        auto t1 = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 2, 3}}}), t1);
         m2.add_return({mb});
@@ -99,13 +101,14 @@ TEST_CASE(broadcast_transpose_opt)
         auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
         auto mb =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
-        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), mb);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), mb);
         m1.add_return({t1});
     }
     run_pass(m1);
     migraphx::module m2;
     {
-        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
         auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5}}}), u1);

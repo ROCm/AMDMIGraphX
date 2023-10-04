@@ -62,7 +62,7 @@ TEST_CASE(nms_dyn_out_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_dyn_batch_test)
@@ -108,7 +108,7 @@ TEST_CASE(nms_dyn_batch_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 1, 0, 3, 1, 0, 0, 1, 0, 5};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_dyn_boxes_test)
@@ -151,7 +151,7 @@ TEST_CASE(nms_dyn_boxes_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_dyn_classes_test)
@@ -195,7 +195,7 @@ TEST_CASE(nms_dyn_classes_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 1, 3, 0, 1, 0};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_not_center_test)
@@ -231,7 +231,7 @@ TEST_CASE(nms_not_center_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_test)
@@ -265,7 +265,7 @@ TEST_CASE(nms_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_transpose1_test)
@@ -303,7 +303,7 @@ TEST_CASE(nms_transpose1_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(nms_transpose2_test)
@@ -341,5 +341,5 @@ TEST_CASE(nms_transpose2_test)
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }

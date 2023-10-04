@@ -45,7 +45,7 @@ TEST_CASE(sinh_test)
     std::vector<float> gold = data;
     std::transform(
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sinhf(n); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(sinh_dynamic_test)
@@ -67,5 +67,5 @@ TEST_CASE(sinh_dynamic_test)
     std::vector<float> gold = input_data;
     std::transform(
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return sinhf(n); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

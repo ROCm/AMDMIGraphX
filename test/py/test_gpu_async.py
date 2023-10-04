@@ -24,14 +24,28 @@
 import migraphx
 import ctypes
 import os
+import glob
 
 def test_conv_relu():
+
     library = "libamdhip64.so"
 
-    # Full path of the library is specified to fix
-    # an issue on sles where the library is not loaded otherwise.
-    if os.path.exists("/opt/rocm/lib/libamdhip64.so"):
-        library = "/opt/rocm/lib/libamdhip64.so"
+    rocm_path_env_var = "rocm_path"
+
+    rocm_path_var = os.getenv(rocm_path_env_var, default="/opt/rocm")
+
+    library_file = os.path.join(rocm_path_var, "lib", library)
+
+    # Check if the library file exists at the specified path
+    if os.path.exists(library_file):
+        library = library_file
+    else:
+        # Pattern match path for rocm paths: /opt/rocm-*
+        rocm_path_pattern = "/opt/rocm-*/lib/libamdhip64.so"
+        matching_libraries = glob.glob(rocm_path_pattern)
+
+        if matching_libraries:
+            library = matching_libraries[0]
 
     hip = ctypes.cdll.LoadLibrary(library)
 

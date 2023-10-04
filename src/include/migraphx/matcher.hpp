@@ -308,12 +308,6 @@ struct matcher_result
         {
         }
 
-        instruction_container& operator=(const std::unordered_map<std::string, instruction_ref>& x)
-        {
-            ins_map = x;
-            return *this;
-        }
-
         instruction_ref operator[](const std::string& name) const
         {
             auto it = ins_map.find(name);

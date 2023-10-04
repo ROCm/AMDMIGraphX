@@ -27,26 +27,49 @@ import os
 import glob
 
 def test_conv_relu():
+    # Full path of the library is needed to fix an issue on sles
+    # where the library is not loaded otherwise.
+    # We check for the presence of library at the following paths,
+    # in the order listed below:
+    #
+    # 1. 'rocm_path' environment variable
+    # 2. /opt/rocm
+    # 3. /opt/rocm-*
+    #
+    # If the library is not found at any of these paths, we fall back
+    # to the library path being detected automatically.
 
     library = "libamdhip64.so"
 
+    # Environment variable containing path to rocm
     rocm_path_env_var = "rocm_path"
 
+    # Check for rocm_path, default to /opt/rocm if it does not exist.
     rocm_path_var = os.getenv(rocm_path_env_var, default="/opt/rocm")
 
+    # Join the paths to the library to get full path,
+    # e.g. /opt/rocm/lib/libamdhip64.so
     library_file = os.path.join(rocm_path_var, "lib", library)
 
     # Check if the library file exists at the specified path
     if os.path.exists(library_file):
+        # Replace library name by full path to the library
         library = library_file
     else:
-        # Pattern match path for rocm paths: /opt/rocm-*
+        # Pattern match to look for path to different
+        # rocm versions: /opt/rocm-*
         rocm_path_pattern = "/opt/rocm-*/lib/libamdhip64.so"
         matching_libraries = glob.glob(rocm_path_pattern)
 
         if matching_libraries:
+            # Replace library name by full path to the first
+            # library found.
             library = matching_libraries[0]
 
+    # Loads library either by using the full path to the
+    # library, if it has been detected earlier,
+    # or, proceeds to load the library based on the name
+    # of the library.
     hip = ctypes.cdll.LoadLibrary(library)
 
     p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")

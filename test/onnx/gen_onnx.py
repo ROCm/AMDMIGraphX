@@ -583,6 +583,29 @@ def cast_test():
 
 
 @onnx_test()
+def castlike_test():
+    input = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [10])
+    target_type = helper.make_tensor_value_info('1', TensorProto.FLOAT, [10])
+    output = helper.make_tensor_value_info('out', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node('CastLike',
+                                 inputs=['0', '1'],
+                                 outputs=['out'])
+
+    return ([node], [input, target_type], [output])
+
+
+@onnx_test()
+def castlike_error_test():
+    input = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [10])
+    output = helper.make_tensor_value_info('out', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node('CastLike', inputs=['0'], outputs=['out'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -826,6 +849,76 @@ def constant_test():
 
 
 @onnx_test()
+def constant_value_float_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_float=[1.0])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_floats_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_floats=[1.0, 2.0, 3.0])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_int_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_int=[1])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_value_ints_test():
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_ints=[1, 2, 3])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_no_attributes_test():
+
+    node = onnx.helper.make_node('Constant', inputs=[], outputs=[])
+
+    return ([node], [], [])
+
+
+@onnx_test()
+def constant_multiple_attributes_test():
+    x = np.array([0, 1, 2])
+
+    node = onnx.helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=[],
+                                 value_floats=[1.0, 2.0],
+                                 value_ints=[1, 2],
+                                 value=onnx.helper.make_tensor(
+                                     name='const_tensor',
+                                     data_type=TensorProto.FLOAT,
+                                     dims=x.shape,
+                                     vals=x.flatten().astype(float)))
+
+    return ([node], [], [])
+
+
+@onnx_test()
 def constant_fill_test():
     value = helper.make_tensor_value_info('value', TensorProto.FLOAT, [2, 3])
 
@@ -937,9 +1030,9 @@ def const_of_shape_empty_input_test():
                                          [10])
     empty_val = np.array([]).astype(np.int64)
     empty_ts = helper.make_tensor(name='empty_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=empty_val.shape,
-                                  vals=empty_val.flatten().astype(int))
+                                  vals=empty_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],
@@ -965,9 +1058,9 @@ def const_of_shape_float_test():
 
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
 
     shape_const = helper.make_node(
         'Constant',
@@ -986,21 +1079,43 @@ def const_of_shape_float_test():
 
 
 @onnx_test()
-def const_of_shape_int64_test():
-    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
-                                         [10])
+def const_of_shape_default_test():
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],
         outputs=['shape'],
         value=shape_ts,
     )
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['shape'],
+                                 outputs=['y'])
+
+    return ([shape_const, node], [], [y])
+
+
+@onnx_test()
+def const_of_shape_int64_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
+                                         [10])
+    shape_val = np.array([2, 3, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT64,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(np.int64))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
 
     node = onnx.helper.make_node('ConstantOfShape',
                                  inputs=['shape'],
@@ -1014,9 +1129,9 @@ def const_of_shape_int64_test():
 def const_of_shape_no_value_attr_test():
     shape_val = np.array([2, 3, 4]).astype(np.int64)
     shape_ts = helper.make_tensor(name='shape_tensor',
-                                  data_type=TensorProto.INT32,
+                                  data_type=TensorProto.INT64,
                                   dims=shape_val.shape,
-                                  vals=shape_val.flatten().astype(int))
+                                  vals=shape_val.flatten().astype(np.int64))
     shape_const = helper.make_node(
         'Constant',
         inputs=[],
@@ -1032,6 +1147,40 @@ def const_of_shape_no_value_attr_test():
     )
 
     return ([shape_const, node], [], [y])
+
+
+@onnx_test()
+def const_of_shape_dyn_float_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.FLOAT, [1],
+                                         [10])
+
+    output_dims = helper.make_tensor_value_info('output_dims',
+                                                TensorProto.INT64, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['output_dims'],
+                                 outputs=['y'],
+                                 value=tensor_val)
+
+    return ([node], [output_dims], [y])
+
+
+@onnx_test()
+def const_of_shape_dyn_int64_test():
+    tensor_val = onnx.helper.make_tensor('value', onnx.TensorProto.INT64, [1],
+                                         [10])
+
+    output_dims = helper.make_tensor_value_info('output_dims',
+                                                TensorProto.INT64, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT64, [2, 3, 4])
+
+    node = onnx.helper.make_node('ConstantOfShape',
+                                 inputs=['output_dims'],
+                                 outputs=['y'],
+                                 value=tensor_val)
+
+    return ([node], [output_dims], [y])
 
 
 @onnx_test()

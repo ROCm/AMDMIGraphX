@@ -53,7 +53,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
-#include <migraphx/ck.hpp>
+#include <migraphx/gpu/ck.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>

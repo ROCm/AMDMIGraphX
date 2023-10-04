@@ -22,10 +22,11 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
-#include <migraphx/ck.hpp>
+#include <migraphx/gpu/ck.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

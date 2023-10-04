@@ -23,11 +23,12 @@
  */
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/ck.hpp>
+#include <migraphx/gpu/ck.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

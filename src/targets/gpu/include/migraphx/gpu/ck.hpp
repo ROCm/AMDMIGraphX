@@ -24,9 +24,10 @@
 #ifndef MIGRAPHX_GUARD_GPU_CK_HPP
 #define MIGRAPHX_GUARD_GPU_CK_HPP
 
-#include <migraphx/ck.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <migraphx/compile_src.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include "ck/host/device_gemm_multiple_d.hpp"
 #include "ck/host/device_batched_gemm_softmax_gemm.hpp"
@@ -34,6 +35,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+#ifndef _WIN32
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNE_CK);
+#endif
 
 // NOLINTNEXTLINE
 const char* const disable_warning_pragma = R"__migraphx__(

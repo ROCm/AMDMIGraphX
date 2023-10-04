@@ -21,22 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_CK_HPP
-#define MIGRAPHX_GUARD_CK_HPP
+#ifndef MIGRAPHX_GUARD_GPU_GEMM_SOFTMAX_GEMM_HPP
+#define MIGRAPHX_GUARD_GPU_GEMM_SOFTMAX_GEMM_HPP
 
-#include <migraphx/env.hpp>
+
 #include <migraphx/make_op.hpp>
 #include <migraphx/check_shapes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-#ifndef _WIN32
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNE_CK);
-#endif
+namespace gpu {
 
 struct gemm_softmax_gemm
 {
@@ -49,7 +43,7 @@ struct gemm_softmax_gemm
         return pack(f(self.op, "op"), f(self.scale, "scale"));
     }
 
-    std::string name() const { return "gemm_softmax_gemm"; }
+    std::string name() const { return "gpu::gemm_softmax_gemm"; }
 
     void check_gemm_shape(const shape& s) const
     {
@@ -75,7 +69,8 @@ struct gemm_softmax_gemm
     static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
 };
 
+} // namespace gpu
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_CK_HPP

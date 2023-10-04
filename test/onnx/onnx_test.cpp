@@ -5443,6 +5443,11 @@ TEST_CASE(reshape_non_standard_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(reshape_2in_test)
+{
+    // TODO
+}
+
 TEST_CASE(resize_downsample_c_test)
 {
     migraphx::program p;

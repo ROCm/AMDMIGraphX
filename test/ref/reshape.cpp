@@ -153,7 +153,7 @@ TEST_CASE(reshape_test2)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(reshape_dyn_test)
+TEST_CASE(reshape_dyn_1in_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -172,4 +172,9 @@ TEST_CASE(reshape_dyn_test)
     std::vector<float> results_vector{};
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(reshape_dyn_2in_test)
+{
+    // TODO
 }

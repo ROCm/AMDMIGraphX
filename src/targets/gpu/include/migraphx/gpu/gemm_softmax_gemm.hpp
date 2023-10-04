@@ -72,4 +72,4 @@ struct gemm_softmax_gemm
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_CK_HPP
+#endif // MIGRAPHX_GUARD_GPU_GEMM_SOFTMAX_GEMM_HPP

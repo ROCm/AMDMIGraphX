@@ -66,16 +66,6 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
 def disabled_tests_onnx_1_7_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_argmax_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_no_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(r'test_argmin_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_no_keepdims_example_select_last_index_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
     backend_test.exclude(r'test_logsoftmax_default_axis_cpu')

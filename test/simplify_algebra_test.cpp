@@ -669,6 +669,23 @@ TEST_CASE(simplify_inner_broadcast_different_broadcasts)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_inner_broadcast_no_common_axis)
+{
+    auto b = migraphx::make_op("multibroadcast", {{"out_lens", {1, 5, 10}}});
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {5, 10}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 5, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_add_conv1)
 {
     migraphx::module m;

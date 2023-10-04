@@ -26,6 +26,7 @@ import ctypes
 import os
 import glob
 
+
 def test_conv_relu():
     # Full path of the library is needed to fix an issue on sles
     # where the library is not loaded otherwise.

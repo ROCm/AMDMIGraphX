@@ -24,15 +24,15 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/match/layernorm.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/ck.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
 namespace {
 
 template <class Derived, std::size_t N>
@@ -120,6 +120,60 @@ struct find_add_layernorm
         m.replace_instruction(ins, add_layernorm{op.epsilon}, add_ins->inputs());
     }
 };
+
+struct pre_gemm_softmax_gemm : gemm_softmax_gemm
+{
+    std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
+};
+MIGRAPHX_REGISTER_OP(pre_gemm_softmax_gemm);
+
+MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
+{
+    if(ins->name() != "dot")
+        return false;
+    if(not pre_gemm_softmax_gemm::is_ck_supported_type(ins->get_shape().type()))
+        return false;
+    return true;
+}
+
+struct find_gemm_softmax_gemm
+{
+    auto matcher() const
+    {
+        auto gemm1 =
+            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+        auto mul = match::name("mul")(
+            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
+        auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
+
+        return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto gemm2_ins = r.instructions["gemm2"];
+        auto gemm1_ins = r.instructions["gemm1"];
+        auto scale_lit = r.instructions["scale"];
+
+        float scale = 1.0;
+        scale_lit->eval().visit([&](const auto s) {
+            // CK only supports single-valued scale
+            if(std::all_of(
+                   s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+                scale = s.front();
+            else
+                return;
+        });
+
+        auto inputs = gemm1_ins->inputs();            // A, B
+        inputs.push_back(gemm2_ins->inputs().back()); // B1
+
+        mpm.get_module().replace_instruction(
+            ins, pre_gemm_softmax_gemm{gemm2_ins->get_operator(), scale}, inputs);
+    }
+};
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -127,6 +181,8 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
+    if (enabled(MIGRAPHX_ENABLE_CK{}))
+        match::find_matches(mpm, find_gemm_softmax_gemm{});
 }
 
 } // namespace gpu

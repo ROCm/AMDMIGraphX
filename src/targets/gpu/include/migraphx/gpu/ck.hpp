@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_CK_HPP
 #define MIGRAPHX_GUARD_GPU_CK_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/ck.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/compile_src.hpp>
 
@@ -34,10 +34,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNE_CK);
 
 // NOLINTNEXTLINE
 const char* const disable_warning_pragma = R"__migraphx__(
@@ -78,34 +74,13 @@ static std::vector<src_file> create_ck_headers()
     return srcs;
 }
 
-static const std::vector<src_file>& ck_headers()
+static inline const std::vector<src_file>& ck_headers()
 {
     static const auto& headers = create_ck_headers();
     return headers;
 }
 
 inline bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
-
-inline float matrix_distance(const shape& x, const shape& y)
-{
-    if(x.type() != y.type())
-        return std::numeric_limits<float>::max();
-    if(transposed_matrix(x) != transposed_matrix(y))
-        return std::numeric_limits<float>::max();
-    auto sum_squared = std::inner_product(x.lens().rbegin(),
-                                          x.lens().rbegin() + 2,
-                                          y.lens().rbegin(),
-                                          0,
-                                          std::plus<>{},
-                                          [](auto a, auto b) { return (a - b) * (a - b); });
-    return std::sqrt(sum_squared);
-}
-
-inline std::string get_layout(const shape& s)
-{
-    return transposed_matrix(s) ? "ck::tensor_layout::gemm::ColumnMajor"
-                                : "ck::tensor_layout::gemm::RowMajor";
-}
 
 inline ck::host::DataType get_type(const shape& s)
 {

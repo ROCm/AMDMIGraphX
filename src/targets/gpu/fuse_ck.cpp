@@ -24,8 +24,8 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/ck.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -73,41 +73,9 @@ struct ck_gemm
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);
 
-struct ck_gemm_softmax_gemm
+struct ck_gemm_softmax_gemm : gemm_softmax_gemm
 {
-    operation op = make_op("dot");
-    float scale  = 1.0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.op, "op"), f(self.scale, "scale"));
-    }
-
     std::string name() const { return "gpu::ck_gemm_softmax_gemm"; }
-
-    void check_gemm_shape(const shape& s) const
-    {
-        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
-            MIGRAPHX_THROW("Invalid shape for ck_gemm_softmax_gemm");
-    }
-
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>&) const
-    {
-        check_shapes{inputs, *this}.same_ndims();
-        if(inputs.size() < 3)
-            MIGRAPHX_THROW(name() + ": Expected 3 inputs but got " + to_string(inputs.size()));
-        auto a  = inputs[0];
-        auto b  = inputs[1];
-        auto b1 = inputs[2];
-        for(const auto& input : inputs)
-        {
-            check_gemm_shape(input);
-        }
-        return op.compute_shape({op.compute_shape({a, b}), b1});
-    }
-
-    static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm_softmax_gemm);
 
@@ -203,61 +171,21 @@ struct find_ck_gemm
     }
 };
 
-auto is_mul_module(module& m)
-{
-    auto is_mul =
-        match::arg(0)(match::name("mul")(match::all_of[match::inputs()](match::name("@param"))));
-    return match_instruction(m, std::prev(m.end()), is_mul).result != m.end();
-}
-
-MIGRAPHX_PRED_MATCHER(is_pointwise_scale, instruction_ref ins)
-{
-    if(ins->name() != "pointwise")
-        return false;
-    if(ins->module_inputs().size() != 1)
-        return false;
-    return is_mul_module(*ins->module_inputs().front());
-}
-
 struct find_ck_gemm_softmax_gemm
 {
     auto matcher() const
     {
-        auto gemm1 =
-            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
-        auto mul = match::name("pointwise")(
-            match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1))(
-            is_pointwise_scale());
-        auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
-
-        return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(softmax));
+        return match::name("gpu::pre_gemm_softmax_gemm");
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins       = r.result;
-        auto gemm2_ins = r.instructions["gemm2"];
-        auto gemm1_ins = r.instructions["gemm1"];
-        auto scale_lit = r.instructions["scale"];
-
-        if(not ck_gemm_softmax_gemm::is_ck_supported_type(gemm1_ins->get_shape().type()))
-            return;
-
-        float scale = 1.0;
-        scale_lit->eval().visit([&](const auto s) {
-            // CK only supports single-valued scale
-            if(std::all_of(
-                   s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
-                scale = s.front();
-            else
-                return;
-        });
-
-        auto inputs = gemm1_ins->inputs();            // A, B
-        inputs.push_back(gemm2_ins->inputs().back()); // B1
-
+        auto v = ins->get_operator().to_value();
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
         mpm.get_module().replace_instruction(
-            ins, ck_gemm_softmax_gemm{gemm2_ins->get_operator(), scale}, inputs);
+            ins, ck_gemm_softmax_gemm{migraphx::make_op("dot"), scale}, ins->inputs());
     }
 };
 
@@ -265,8 +193,7 @@ struct find_ck_gemm_softmax_gemm
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_softmax_gemm{});
-    match::find_matches(mpm, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm_softmax_gemm{}, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

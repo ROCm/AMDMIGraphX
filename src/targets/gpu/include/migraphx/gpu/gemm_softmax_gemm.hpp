@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_GPU_GEMM_SOFTMAX_GEMM_HPP
 #define MIGRAPHX_GUARD_GPU_GEMM_SOFTMAX_GEMM_HPP
 
-
 #include <migraphx/make_op.hpp>
 #include <migraphx/check_shapes.hpp>
 

@@ -61,6 +61,15 @@ def getDockerImage(Map conf=[:])
     return [dockerImage, image]
 }
 
+def show_node_info() {
+    sh """
+        echo "NODE_NAME = \$NODE_NAME"
+        lsb_release -sd
+        uname -r
+        cat /sys/module/amdgpu/version
+        ls /opt/ -la
+    """
+}
 
 pipeline {
     agent none
@@ -99,14 +108,7 @@ pipeline {
                         build_cmd = "Chris"
                     }
                     steps{
-                        cmd = """ 
-                            pwd
-                            ls -l /
-                            /opt/rocm/bin/rocm-smi
-                        """
-
-                        sh cmd, label: " from Hip Tidy"
-                        sh script: "echo hi mom", label: "my step"
+                        show_node_info() 
                     }
                 }
                 stage('Clang Format') {

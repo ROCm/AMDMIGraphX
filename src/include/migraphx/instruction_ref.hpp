@@ -27,6 +27,7 @@
 #include <list>
 #include <functional>
 #include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,27 +42,23 @@ struct instruction_ref : std::list<instruction>::iterator
     instruction_ref() = default;
     instruction_ref(const instruction_iter& other) : instruction_iter(other) {}
 
-    friend bool operator==(const instruction_ref& x, const instruction_ref& y)
+    template <class T,
+              class U,
+              MIGRAPHX_REQUIRES(std::is_same<T, instruction_ref>{} or
+                                std::is_same<U, instruction_ref>{})>
+    friend bool operator==(const T& x, const U& y)
     {
         return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
     }
 
-    friend bool operator==(const instruction_ref& x, const instruction_const_iter& y)
-    {
-        return x._Unwrapped()._Ptr == y._Unwrapped()._Ptr;
-    }
-
-    friend bool operator!=(const instruction_iter& y, const instruction_ref& x)
-    {
-        return !(x == y);
-    }
-
-    friend bool operator!=(const instruction_ref& x, const instruction_iter& y)
+    template <class T,
+              class U,
+              MIGRAPHX_REQUIRES(std::is_same<T, instruction_ref>{} or
+                                std::is_same<U, instruction_ref>{})>
+    friend bool operator!=(const T& x, const U& y)
     {
         return !(x == y);
     }
-
-    friend bool operator!=(const instruction_ref& x, const instruction_ref& y) { return !(x == y); }
 };
 #else
 using instruction_ref = std::list<instruction>::iterator;

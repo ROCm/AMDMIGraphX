@@ -97,6 +97,9 @@ TEST_CASE(test_msgpack_bool)
 
 TEST_CASE(test_msgpack_float)
 {
+    // changed all double values in this code to not end with .0 because on msgpack for Windows if
+    // input type is double and ends with .0 it could be converted to uint64_t or int64_t and the
+    // goal of these functions is to test double without conversions
     migraphx::value v = 3.01;
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(3.01));

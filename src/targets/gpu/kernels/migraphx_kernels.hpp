@@ -25,14 +25,9 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP
 
-#include "migraphx/compile_src.hpp"
+#include <string_view>
+#include <unordered_map>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-std::vector<src_file> migraphx_kernels();
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+std::unordered_map<std::string_view, std::string_view> migraphx_kernels();
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_KERNELS_HPP

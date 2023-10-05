@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{HIP_PATH})
 find_package(hip)
 if(NOT GPU_TARGETS)
     message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
@@ -57,10 +57,13 @@ endif()
 
 if(NOT WIN32)
     include(Embed)
-    add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
+    add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 endif()
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
+file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
+add_library(migraphx_device ${DEVICE_GPU_SRCS})
+
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
@@ -72,24 +75,6 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
     message(STATUS "Enable -fhip-lambda-host-device")
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
-
-add_library(migraphx_device
-        device/argmax.cpp
-        device/argmin.cpp
-        device/contiguous.cpp
-        device/fill.cpp
-        device/gather.cpp
-        device/int8_gemm_pack.cpp
-        device/logsoftmax.cpp
-        device/multinomial.cpp
-        device/nonzero.cpp
-        device/pad.cpp
-        device/prefix_scan_sum.cpp
-        device/reverse.cpp
-        device/rnn_variable_seq_lens.cpp
-        device/scatter.cpp
-        device/targets.cpp
-        device/topk.cpp)
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})

@@ -22,8 +22,4 @@
 # THE SOFTWARE.
 #####################################################################################
 
-if(WIN32)
-    add_custom_target(generate generate.cmd WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-else()
-    add_custom_target(generate bash ${CMAKE_CURRENT_SOURCE_DIR}/generate.sh)
-endif()
+add_custom_target(generate ${CMAKE_COMMAND} -P generate.cmake WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

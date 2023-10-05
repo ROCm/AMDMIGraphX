@@ -39,7 +39,7 @@ struct src_file
     fs::path path;
     std::string_view content;
 
-    src_file() = delete;
+    src_file() = default;
     src_file(fs::path file_path, std::string_view file_content)
         : path{std::move(file_path)}, content{file_content}
     {

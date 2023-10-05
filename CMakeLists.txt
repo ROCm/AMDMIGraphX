@@ -55,6 +55,9 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
+include(CMakeDependentOption)
+cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -270,8 +273,6 @@ rocm_enable_cppcheck(
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
 )
-
-enable_testing()
 
 include(ROCMCreatePackage)
 include(ROCMTest)

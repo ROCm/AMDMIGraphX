@@ -56,13 +56,13 @@ add_library(migraphx_cpu
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
-option(MIGRAPHX_ENABLE_ZENDNN "" OFF)
+option(MIGRAPHX_ENABLE_ZENDNN "MIGraphX enable ZenDNN" Off)
 
 if(MIGRAPHX_ENABLE_ZENDNN)
     find_path(ZENDNN_INC_PATH zendnn.hpp)
     find_library(ZENDNN_LIB amdZenDNN)
     find_library(BLIS_LIB blis)
-elif(NOT WIN32)
+elseif(NOT WIN32)
     find_package(dnnl REQUIRED)
 endif()
 

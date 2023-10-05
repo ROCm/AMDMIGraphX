@@ -66,6 +66,18 @@ struct dynamic_loader_impl
     std::shared_ptr<tmp_dir> temp = nullptr;
 };
 
+optional<dynamic_loader> dynamic_loader::try_load(const fs::path& p)
+{
+    try
+    {
+        return dynamic_loader{p};
+    }
+    catch(const std::exception&)
+    {
+        return nullopt;
+    }
+}
+
 dynamic_loader::dynamic_loader(const fs::path& p) : impl(std::make_shared<dynamic_loader_impl>(p))
 {
 }

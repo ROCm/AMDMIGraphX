@@ -74,7 +74,6 @@ add_library(migraphx
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
-    process.cpp
     program.cpp
     propagate_constant.cpp
     promote_literals.cpp
@@ -104,10 +103,10 @@ add_library(migraphx
     verify_args.cpp
 )
 if(WIN32)
-    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp)
+    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp process_win32.cpp)
     target_compile_definitions(migraphx PUBLIC -D_USE_MATH_DEFINES)
 else()
-    target_sources(migraphx PRIVATE dynamic_loader.cpp)
+    target_sources(migraphx PRIVATE dynamic_loader.cpp process.cpp)
 endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
@@ -286,15 +285,14 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
-include(CMakeDependentOption)
-cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
-
 add_subdirectory(api)
 add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
 
+if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
+endif()
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)

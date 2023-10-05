@@ -851,11 +851,7 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_axes_3_2_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_larger_cpu')
     backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
-
-    # The following tests fail due to the CastLike operator being unsupported
-    backend_test.exclude(r'test_split_1d_uneven_split_opset18_cpu')
-    backend_test.exclude(r'test_split_2d_uneven_split_opset18_cpu')
+    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')    
 
 
 def disabled_tests_onnx_1_14_0(backend_test):

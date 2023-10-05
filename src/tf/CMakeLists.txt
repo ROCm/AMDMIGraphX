@@ -21,10 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(Protobuf REQUIRED)
-
-protobuf_generate_cpp(
-    PROTO_SRCS PROTO_HDRS 
+set(PROTO_FILES
     graph.proto
     node_def.proto
     attr_value.proto
@@ -36,20 +33,62 @@ protobuf_generate_cpp(
     op_def.proto
     versions.proto
 )
-add_library(tf-proto STATIC ${PROTO_SRCS})
-target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
-target_compile_options(tf-proto PRIVATE -w)
-target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
+add_library(tf-proto STATIC ${PROTO_FILES})
+if(WIN32)
+    include(${protobuf_DIR}/protobuf-generate.cmake)
+    add_dependencies(tf-proto protobuf::protoc)
+    target_compile_options(tf-proto
+        PRIVATE
+            -Wno-old-style-cast
+            -Wno-used-but-marked-unused
+            -Wno-switch-enum
+            -Wno-reserved-identifier
+            -Wno-inconsistent-missing-destructor-override
+            -Wno-suggest-destructor-override
+            -Wno-zero-as-null-pointer-constant
+            -Wno-undef
+            -Wno-unused-parameter
+            -Wno-shadow-field-in-constructor
+            -Wno-global-constructors
+            -Wno-covered-switch-default)
+    protobuf_generate(TARGET tf-proto)
+else()
+    find_package(Protobuf REQUIRED)
+    protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+    target_sources(tf-proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_compile_options(tf-proto PRIVATE -w)
+endif()
+target_link_libraries(tf-proto PRIVATE protobuf::libprotobuf)
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_tf ${TF_SRCS})
 migraphx_generate_export_header(migraphx_tf)
-target_include_directories(migraphx_tf PRIVATE include)
+target_include_directories(migraphx_tf PRIVATE include ${CMAKE_BINARY_DIR}/include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
 rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
-target_link_libraries(migraphx_tf PRIVATE tf-proto "-Wl,--exclude-libs,ALL")
+if(WIN32)
+    target_link_libraries(migraphx_tf PRIVATE tf-proto protobuf::libprotobuf)
+    target_include_directories(migraphx_tf SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    target_compile_options(migraphx_tf
+        PRIVATE
+            -Wno-old-style-cast
+            -Wno-used-but-marked-unused
+            -Wno-switch-enum
+            -Wno-reserved-identifier
+            -Wno-inconsistent-missing-destructor-override
+            -Wno-suggest-destructor-override
+            -Wno-zero-as-null-pointer-constant
+            -Wno-undef
+            -Wno-unused-parameter
+            -Wno-shadow-field-in-constructor
+            -Wno-global-constructors
+            -Wno-covered-switch-default)
+else()
+    target_link_libraries(migraphx_tf PRIVATE tf-proto "-Wl,--exclude-libs,ALL")
+endif()
 target_link_libraries(migraphx_tf PUBLIC migraphx)
 
 rocm_install_targets(

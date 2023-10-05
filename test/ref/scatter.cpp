@@ -64,7 +64,7 @@ TEST_CASE(scatter_ax0_test)
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -78,7 +78,7 @@ TEST_CASE(scatter_ax_neg_test)
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {2.0, 1.1, 0.0, 1.0, 0.0, 2.2, 0.0, 2.1, 1.2};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -91,7 +91,7 @@ TEST_CASE(scatter_ax1_test)
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold = {1.1, 1.0, 1.2, 2.0, 2.2, 2.1, 0.0, 0.0, 0.0};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     }
 }
 
@@ -128,7 +128,7 @@ TEST_CASE(scatter_reduction1_test)
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_none = {1.0, 1.1, 3.0, 2.1, 5.0};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_none));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_none));
     }
 }
 
@@ -142,7 +142,7 @@ TEST_CASE(scatter_reduction2_test)
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_mul = {1.0, 2.2, 3.0, 8.4, 5.0};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_mul));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_mul));
     }
 }
 TEST_CASE(scatter_reduction3_test)
@@ -155,7 +155,7 @@ TEST_CASE(scatter_reduction3_test)
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_add = {1.0, 3.1, 3.0, 6.1, 5.0};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_add));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_add));
     }
 }
 
@@ -184,7 +184,7 @@ TEST_CASE(scatter_reduction_3x3_test)
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_a2 = {4.1, 4.0, 4.2, 10.0, 10.2, 10.1, 3.0, 3.0, 3.0};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_a2));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_a2));
     }
 }
 
@@ -221,7 +221,7 @@ TEST_CASE(scatter_reduction_3x3_xpose1_test)
         std::vector<float> results_vector;
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_none2 = {1.1, 7.0, 3.0, 1.0, 7.2, 3.0, 1.2, 7.1, 3.0};
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_none2));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_none2));
     }
 }
 
@@ -236,7 +236,7 @@ TEST_CASE(scatter_reduction_3x3_xpose2_test)
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_a3 = {4.1, 10.0, 3.0, 4.0, 10.2, 3.0, 4.2, 10.1, 3.0};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_a3));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_a3));
     }
 }
 
@@ -250,6 +250,6 @@ TEST_CASE(scatter_reduction_3x3_xpose3_test)
         result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
         std::vector<float> gold_mul2 = {3.3, 21.0, 3.0, 3.0, 21.6, 3.0, 3.6, 21.3, 3.0};
 
-        EXPECT(migraphx::verify::verify_range(results_vector, gold_mul2));
+        EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_mul2));
     }
 }

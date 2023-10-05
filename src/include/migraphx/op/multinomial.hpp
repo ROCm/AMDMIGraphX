@@ -91,9 +91,9 @@ struct multinomial
 
         if(inputs.back().ndim() < 1)
             MIGRAPHX_THROW("Multinomial: Second input shape (sample) has no dimensions");
-        if(not contains({shape::int32_type, shape::int64_type}, dtype))
-            MIGRAPHX_THROW(
-                "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
+        // if(not contains({shape::int32_type, shape::int64_type}, dtype))
+        //     MIGRAPHX_THROW(
+        //         "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
 
         // Output takes one dimension from each of the two input shapes.  If they are both fixed,
         // return a static shape
@@ -127,6 +127,9 @@ struct multinomial
 
                     // std::upper_bound returns an iterator to the bucket the value belongs in,
                     // when normalized by the probability distribution dist
+
+// debug the distribution array
+for(auto cc : cdf) std::cout << cc << " "; std::cout << "   distribution  " << dist[i]  << " " <<  dist[i] * *(std::prev(cdf_end)) << "\n ";                   
                     auto sample_iter =
                         std::upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                     // convert iterator to an integer index

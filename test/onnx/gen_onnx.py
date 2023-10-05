@@ -4584,14 +4584,16 @@ def multinomial_test():
 def multinomial_dyn_test():
     sample_size = 13
     seed = 0.0
+    categories = 5
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
-                                          [None, 10])
-    output = helper.make_tensor_value_info("output", TensorProto.INT32,
-                                           [None, 10])
+                                          [None, categories])
+    output = helper.make_tensor_value_info("output", TensorProto.FLOAT,
+                                           [None, categories])
 
     node = onnx.helper.make_node('Multinomial',
                                  inputs=['input'],
                                  sample_size=sample_size,
+                                 dtype=1,  # shape::float_type
                                  seed=seed,
                                  outputs=['output'])
 

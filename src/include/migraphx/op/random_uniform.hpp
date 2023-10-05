@@ -78,6 +78,7 @@ struct random_uniform
 
         result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
+            decltype(output) asdf;
             if constexpr(std::is_integral<type>{})
             {
                 // default range for all integer types is
@@ -90,9 +91,14 @@ struct random_uniform
             {
                 // default real distribution type is double with range (0, 1);
                 std::uniform_real_distribution<> dis;
-                std::generate(output.begin(), output.end(), [&] { return dis(gen); });
+                std::generate(output.begin(), output.end(), [&] { 
+                    auto aa =dis(gen);
+                    std::cout << aa << " aa ";
+                    return aa; 
+                    });
             }
         });
+        std::cout << "\n";
         return result;
     }
 

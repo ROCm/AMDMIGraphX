@@ -1232,15 +1232,19 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
     auto p                     = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+    const size_t batch_size(1);
+    const size_t categories(5);
 
     p.compile(migraphx::make_target("ref"));
 
+    // The type of the prob. 
     std::vector<int> dist{15, 25, 15, 25, 20};
-    std::vector<float> data(5);
+    EXPECT(dist.size() == categories * batch_size);
+    std::vector<float> data(categories * batch_size);
 
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
     // Shape of the probability distribution, which also defines the number of categories
-    migraphx::shape s{migraphx::shape::float_type, {1, 10}};    
+    migraphx::shape s{migraphx::shape::float_type, {batch_size, categories}};    
 
     migraphx::parameter_map pp;
     pp["input"] = migraphx::argument(s, data.data());
@@ -1251,6 +1255,7 @@ TEST_CASE(multinomial_dyn_test)
     printf("%lu elements\n", result_vec.size() );
     result.visit([&](auto output) {
         
+        // debug
         std::cout << " + " << output.size() << "\n";
         
          result_vec.assign(output.begin(), output.end());
@@ -1258,7 +1263,7 @@ TEST_CASE(multinomial_dyn_test)
 
           auto asdf = p.eval(pp);
     auto result2 = asdf.front();
-    std::vector<float> result2_vec(10);
+    std::vector<float> result2_vec(batch_size * categories);
     printf("%lu elements\n", result2_vec.size() );
     result2.visit([&](auto output) {
         
@@ -1269,7 +1274,7 @@ TEST_CASE(multinomial_dyn_test)
 
 
     // Make a categorical histogram of output
-    std::vector<int> res_dist(5, 0);
+    std::vector<int> res_dist(categories, 0);
     for(const auto& r : result_vec)
         res_dist[r]++;
 

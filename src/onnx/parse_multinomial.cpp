@@ -60,7 +60,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
             info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), args[0]);
         auto cdf = info.add_common_op("sub", args[0], maxes);
         // Take the element-wise exponent to get probabilities in the range (0, 1]
-        // cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
+        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
         // Compute the cumulative distribution function
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
@@ -88,13 +88,38 @@ struct parse_multinomial : op_parser<parse_multinomial>
             std::vector<shape::dynamic_dimension> dyn_dim_set;
             dyn_dim_set.emplace_back(s0.dyn_dims().front());
             dyn_dim_set.emplace_back(shape::dynamic_dimension{sample_size, sample_size});
-            auto alloc = info.add_instruction(migraphx::make_op("allocate", {{"shape", to_value(shape{s0.type(), dyn_dim_set})}}));
+
+            // read the input dimensions
+            auto dim_of = info.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), args[0]);
+
+            // The next two operations insert the value sample_size into the second array position
+
+            // make an argument of (1, 0)
+            shape s(shape::int64_type, {2});
+            std::vector<int64_t> data1{1,0};
+            auto l1 = info.add_literal(s, data1);
+            auto batch_arg = info.add_instruction(migraphx::make_op("mul"), dim_of, l1);
+            std::vector<int64_t> data2(2, 0);
+            // make an argument of (0, sample_size)
+            data2[1] = sample_size;
+            auto l2 = info.add_literal(s, data2);
+            auto alloc_shape =  info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
+            // alloc_shape should contain the input-based shape dimensions as its values at runtime, and its own shape is (2, 0)
+
+            // compile_shape is the shape used when compiling the Allocate op, and may be dynamic
+            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
+            migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
+
+            // Allocate on-device storage for the random values
+            // TODO:  this creates data type half_type if "buf_type" is not specified
+            auto alloc = info.add_instruction(migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}), alloc_shape);
             randoms =
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }
         else
         {
-            // use literal.  It may be quite large.
+            // use literal.  The array populated by random_uniform may have any shape, as long its 
+            // number of elements is batch_size * sample_size .
             size_t batch_size = s0.lens().front();
             auto rand_dummy   = info.add_literal(
                 migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});

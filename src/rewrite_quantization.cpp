@@ -33,6 +33,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "quantizelinear");
@@ -63,8 +65,21 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         min_quant = qt.min();
     });
     auto s        = add_zero_point->get_shape();
-    auto min_arg  = m.add_literal(literal{shape{s.type()}, {min_quant}});
-    auto max_arg  = m.add_literal(literal{shape{s.type()}, {max_quant}});
+    instruction_ref min_arg;
+    instruction_ref max_arg;
+
+    if (enabled(MIGRAPHX_ENABLE_CK{}))
+    {
+        std::vector<int> min_data(s.elements(), min_quant);
+        std::vector<int> max_data(s.elements(), max_quant);
+        min_arg = m.add_literal(literal(s, min_data));
+        max_arg = m.add_literal(literal(s, max_data));
+    }
+    else
+    {
+        min_arg  = m.add_literal(literal{shape{s.type()}, {min_quant}});
+        max_arg  = m.add_literal(literal{shape{s.type()}, {max_quant}});
+    }
     auto saturate = insert_common_op(m, ins, make_op("clip"), {add_zero_point, min_arg, max_arg});
     m.replace_instruction(
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);

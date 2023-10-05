@@ -58,6 +58,9 @@ include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
+file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
+add_library(migraphx_device ${DEVICE_GPU_SRCS})
+
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
@@ -69,23 +72,6 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
     message(STATUS "Enable -fhip-lambda-host-device")
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
-
-add_library(migraphx_device
-        device/argmax.cpp
-        device/argmin.cpp
-        device/contiguous.cpp
-        device/fill.cpp
-        device/gather.cpp
-        device/int8_gemm_pack.cpp
-        device/logsoftmax.cpp
-        device/multinomial.cpp
-        device/nonzero.cpp
-        device/pad.cpp
-        device/prefix_scan_sum.cpp
-        device/reverse.cpp
-        device/rnn_variable_seq_lens.cpp
-        device/scatter.cpp
-        device/topk.cpp)
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
@@ -252,7 +238,11 @@ else()
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
-        execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        if(WIN32)
+            execute_process(COMMAND where ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        else()
+            execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        endif()
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
         target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()

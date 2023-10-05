@@ -45,6 +45,7 @@ struct MIGRAPHX_EXPORT dynamic_loader
         return path(reinterpret_cast<void*>(address));
     }
     static fs::path path(void* address);
+#endif
 
     static optional<dynamic_loader> try_load(const fs::path& p);
 

@@ -70,6 +70,8 @@ void quantize_int8(program& prog,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
+    run_passes(prog, {optimize_module{}});
+
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
@@ -143,10 +145,7 @@ void quantize_int8(program& prog,
 
     run_passes(prog,
                {quantize_int8_pass{ins_names, *int8_quant_params},
-                eliminate_common_subexpression{},
-                dead_code_elimination{},
-                simplify_reshapes{},
-                dead_code_elimination{},
+                optimize_module{},
                 simplify_qdq{},
                 dead_code_elimination{}});
 }

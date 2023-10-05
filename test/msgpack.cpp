@@ -97,10 +97,10 @@ TEST_CASE(test_msgpack_bool)
 
 TEST_CASE(test_msgpack_float)
 {
-    migraphx::value v = 3.0;
+    migraphx::value v = 3.01;
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(3.0));
-    EXPECT(test::within_abs(migraphx::from_msgpack(buffer).to<float>(), v.to<float>()));
+    EXPECT(buffer == msgpack_buffer(3.01));
+    EXPECT(test::within_abs(migraphx::from_msgpack(buffer), v));
 }
 
 TEST_CASE(test_msgpack_string)
@@ -129,15 +129,11 @@ TEST_CASE(test_msgpack_empty_array)
 
 TEST_CASE(test_msgpack_object)
 {
-    migraphx::value v = {{"one", 1.0}, {"three", 3.0}, {"two", 2.0}};
+    migraphx::value v = {{"one", 1.01}, {"three", 3.01}, {"two", 2.01}};
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(std::map<std::string, double>{
-                         {"one", 1.0}, {"three", 3.0}, {"two", 2.0}}));
-
-    // converted to vector in the following line because in value.cpp value constructor with
-    // unordered map is creating vector<value> with map items as vector elements
-    // value(std::vector<value>(m.begin(), m.end()), false)
-    EXPECT(migraphx::from_msgpack(buffer).to_vector<double>() == v.to_vector<double>());
+                         {"one", 1.01}, {"three", 3.01}, {"two", 2.01}}));
+    EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
 TEST_CASE(test_msgpack_empty_object)
@@ -161,17 +157,17 @@ struct foo
 
 TEST_CASE(test_msgpack_object_class)
 {
-    migraphx::value v = {{"a", 1.0}, {"b", "abc"}};
+    migraphx::value v = {{"a", 1.01}, {"b", "abc"}};
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(foo{1.0, "abc"}));
+    EXPECT(buffer == msgpack_buffer(foo{1.01, "abc"}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
 TEST_CASE(test_msgpack_array_class)
 {
-    migraphx::value v = {{{"a", 1.0}, {"b", "abc"}}, {{"a", 3.0}, {"b", "xyz"}}};
+    migraphx::value v = {{{"a", 1.01}, {"b", "abc"}}, {{"a", 3.01}, {"b", "xyz"}}};
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(std::vector<foo>{foo{1.0, "abc"}, foo{3.0, "xyz"}}));
+    EXPECT(buffer == msgpack_buffer(std::vector<foo>{foo{1.01, "abc"}, foo{3.01, "xyz"}}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 

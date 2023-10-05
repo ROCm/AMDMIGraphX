@@ -22,10 +22,11 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/gpu/ck.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,7 +56,7 @@ struct ck_gemm
     {
         check_shapes{inputs, *this}.same_ndims();
         if(inputs.size() < 2)
-            MIGRAPHX_THROW("should have at least two inputs.");
+            MIGRAPHX_THROW(name() + ": should have at least two inputs.");
         auto a = inputs[0];
         auto b = inputs[1];
         for(const auto& input : inputs)
@@ -65,21 +66,27 @@ struct ck_gemm
             return r;
         return r.with_type(mods.front()->get_output_shapes().front().type());
     }
+
+    static bool is_ck_supported_type(shape::type_t t)
+    {
+        return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
+    }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);
 
-namespace {
-
-bool is_ck_supported_type(shape::type_t t)
+struct ck_gemm_softmax_gemm : gemm_softmax_gemm
 {
-    return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
-}
+    std::string name() const { return "gpu::ck_gemm_softmax_gemm"; }
+};
+MIGRAPHX_REGISTER_OP(ck_gemm_softmax_gemm);
+
+namespace {
 
 MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
 {
     if(ins->name() != "dot" and ins->name() != "quant_dot")
         return false;
-    if(not is_ck_supported_type(ins->get_shape().type()))
+    if(not ck_gemm::is_ck_supported_type(ins->get_shape().type()))
         return false;
     auto a = ins->inputs().front()->get_shape();
     auto b = ins->inputs().back()->get_shape();
@@ -127,7 +134,11 @@ struct find_ck_gemm_pointwise
            ins->get_shape().type() != gemm_ins->get_shape().type())
             return;
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
-               return not is_ck_supported_type(input->get_shape().type());
+               return not ck_gemm::is_ck_supported_type(input->get_shape().type());
+           }))
+            return;
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
+               return not input->inputs().empty() and input->inputs().front()->name() == "capture";
            }))
             return;
         assert(gemm_it != inputs.end());
@@ -152,7 +163,7 @@ struct find_ck_gemm_pointwise
 
 struct find_ck_gemm
 {
-    auto matcher() const { return match::name("dot")(is_ck_gemm().bind("gemm")); }
+    auto matcher() const { return match::name("dot", "quant_dot")(is_ck_gemm().bind("gemm")); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -161,11 +172,26 @@ struct find_ck_gemm
     }
 };
 
+struct find_ck_gemm_softmax_gemm
+{
+    auto matcher() const { return match::name("gpu::pre_gemm_softmax_gemm"); }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto v   = ins->get_operator().to_value();
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
+        mpm.get_module().replace_instruction(
+            ins, ck_gemm_softmax_gemm{migraphx::make_op("dot"), scale}, ins->inputs());
+    }
+};
+
 } // namespace
 
 void fuse_ck::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm, find_ck_gemm_pointwise{});
+    match::find_matches(mpm, find_ck_gemm_softmax_gemm{}, find_ck_gemm_pointwise{});
     match::find_matches(mpm, find_ck_gemm{});
 }
 

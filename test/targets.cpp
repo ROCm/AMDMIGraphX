@@ -71,7 +71,7 @@ TEST_CASE(concurrent_targets)
         auto thread_body = [&target_name]() {
             // remove all existing targets, if any
             std::vector<std::string> target_list = migraphx::get_targets();
-            for(auto tt : target_list)
+            for(const auto& tt : target_list)
                 migraphx::unregister_target(tt);
 
             auto ref_target = migraphx::make_target(target_name);

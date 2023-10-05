@@ -68,13 +68,6 @@ struct convert : unary<convert>
             auto y = x;
             shape::visit(type, [&](auto as) {
                 // clamping value between target_type's max and min doesn't work for NaNs,
-
-                // WIN32: The standard library from MSVC does implement std::isfinite()
-                // (used by std::isnan() internally) for floating-point types only
-                // - there are no additional overloads for integer types, which should be
-                // treated as doubles according to the C++ specification.
-                // Reference: https://en.cppreference.com/w/cpp/numeric/math/isfinite
-
                 if(std::isnan(static_cast<double>(x)))
                 {
                     y = as.nan();

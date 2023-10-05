@@ -100,7 +100,7 @@ TEST_CASE(test_msgpack_float)
     migraphx::value v = 3.01;
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(3.01));
-    EXPECT(test::within_abs(migraphx::from_msgpack(buffer), v));
+    EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
 TEST_CASE(test_msgpack_string)

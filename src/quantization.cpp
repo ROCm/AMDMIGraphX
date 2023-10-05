@@ -70,6 +70,8 @@ void quantize_int8(program& prog,
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
 
+    // Run optimize_module() before converting to int8 to const eval and fold in FP32 to
+    // avoid loss of precision.
     run_passes(prog, {optimize_module{}});
 
     std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =

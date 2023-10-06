@@ -54,7 +54,8 @@ struct parse_reshape : op_parser<parse_reshape>
             if(s.empty())
             {
                 // arg[1] not eval-able
-                auto alloc_ins = info.add_instruction(make_op("allocate"), args[1]);
+                auto alloc_ins = info.add_instruction(
+                    make_op("allocate", {{"buf_type", args[0]->get_shape().type()}}), args[1]);
                 return info.add_instruction(make_op("reshape"), args[0], alloc_ins);
             }
             else

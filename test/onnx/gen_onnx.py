@@ -5769,9 +5769,23 @@ def reshape_non_standard_test():
 
     return ([trans, res], [x], [y])
 
-@onnx_test()
-def reshape_variable_input_test():
 
+@onnx_test()
+def reshape_variable_input_test0():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 2, 3])
+    x_shape = helper.make_tensor_value_info('1', TensorProto.INT64, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 8])
+    node = onnx.helper.make_node('Reshape', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, x_shape], [y])
+
+
+@onnx_test()
+def reshape_variable_input_test1():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3])
+    x_shape = helper.make_tensor_value_info('1', TensorProto.INT64, [2])
+    y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 6])
+    node = onnx.helper.make_node('Reshape', inputs=['0', '1'], outputs=['2'])
+    return ([node], [x, x_shape], [y])
 
 
 @onnx_test()

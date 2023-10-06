@@ -5443,23 +5443,35 @@ TEST_CASE(reshape_non_standard_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(reshape_variable_input_test)
+TEST_CASE(reshape_variable_input_test0)
 {
-    // TODO
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::op::reshape op;
-    std::vector<int64_t> reshape_dims{3, 8};
-    mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
-    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
-    op.dims = reshape_dims;
-    auto c0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    mm->add_instruction(op, c0);
-    auto c1 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    mm->add_instruction(op, c1);
-    auto prog = optimize_onnx("reshape_test.onnx");
+    auto p0    = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
+    auto p1    = mm->add_parameter("1", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), p1);
+    mm->add_instruction(migraphx::make_op("reshape"), p0, alloc);
 
+    auto prog = optimize_onnx("reshape_variable_input_test0test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(reshape_variable_input_test1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto p0  = mm->add_parameter(
+        "0", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 2}, {3, 3}}});
+    auto p1    = mm->add_parameter("1", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), p1);
+    auto reshape = mm->add_instruction(migraphx::make_op("reshape"), p0, alloc);
+    mm->add_return({reshape});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 4};
+    auto prog                     = parse_onnx("reshape_variable_input_test1.onnx", options);
     EXPECT(p == prog);
 }
 

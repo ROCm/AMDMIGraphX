@@ -5464,7 +5464,7 @@ TEST_CASE(reshape_variable_input_test0)
         migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), p1);
     mm->add_instruction(migraphx::make_op("reshape"), p0, alloc);
 
-    auto prog = optimize_onnx("reshape_variable_input_test0test.onnx");
+    auto prog = optimize_onnx("reshape_variable_input_test0.onnx");
     EXPECT(p == prog);
 }
 

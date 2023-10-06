@@ -35,16 +35,16 @@ namespace op {
 
 /**
  * Static allocate:
- * No inputs: allocate()
- * `s` attribute set to the static output shape of the buffer.
+ * No inputs: `allocate()`
+ * `this.s` attribute set to the static output shape of the buffer.
  *
  * Dynamic allocate:
- * One input: allocate(output_dims)
- * Output_dims are the output buffer dimensions and has a static shape.
- * Either `s` or `buf_type` must be set to calculate the dynamic output shape at compute time.
- * If `buf_type` is set, the compute_shape() of allocate at compile time will have
- * dynamic_dimensions from {0, max_int} with rank = output_dims.ndim(). If `s` is set then the
- * compute_shape() will output `s`; `s` should be a dynamic shape.
+ * One input: `allocate(output_dims)`
+ * `output_dims` are the output buffer dimensions and has a static shape.
+ * Either `this.s` or `this.buf_type` must be set to calculate the dynamic output shape at compute
+ * time. If `this.buf_type` is set, the compute_shape() of allocate at compile time will have
+ * dynamic_dimensions from {0, max_int} with rank = output_dims.ndim(). If `this.s` is set then the
+ * compute_shape() will output `this.s`; `this.s` should be a dynamic shape.
  */
 struct allocate
 {

@@ -41,7 +41,8 @@ namespace op {
  * reshape(input_data); self.dims = output_dims
  *
  * 2 input version:
- * reshape(input_data, output_buffer)
+ * reshape(input_data, output_buffer); self.dims = unset
+ * This version will not fail if the shapes are incompatible.
  */
 struct reshape
 {
@@ -261,6 +262,7 @@ struct reshape
         else
         {
             // 2 arg
+            assert(args[0].get_shape().elements() == args[1].get_shape().elements());
             visit_all(args[1], args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
             });

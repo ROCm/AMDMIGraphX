@@ -47,8 +47,9 @@ struct parse_reshape : op_parser<parse_reshape>
             s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
             return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
         }
-        if(args.size() == 2)
+        else
         {
+            // 2 inputs
             auto s = args[1]->eval();
             if(s.empty())
             {

@@ -2708,9 +2708,18 @@ TEST_CASE(reshape_dyn_1in)
     }
 }
 
-TEST_CASE(reshape_dyn_2in)
+TEST_CASE(reshape_dyn_2in_0)
 {
-    // TODO
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {8, 8}, {3, 3}, {1, 1}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
+}
+
+TEST_CASE(reshape_dyn_2in_1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{12, 12}, {2, 2}, {1, 1}, {1, 4}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
 }
 
 TEST_CASE(reshape_multiple_non_fixed_error)

@@ -5769,6 +5769,10 @@ def reshape_non_standard_test():
 
     return ([trans, res], [x], [y])
 
+@onnx_test()
+def reshape_variable_input_test():
+
+
 
 @onnx_test()
 def resize_downsample_f_test():

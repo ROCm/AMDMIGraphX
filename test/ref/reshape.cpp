@@ -174,7 +174,7 @@ TEST_CASE(reshape_dyn_1in_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(reshape_dyn_2in_test)
+TEST_CASE(reshape_2in_test0)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -186,13 +186,39 @@ TEST_CASE(reshape_dyn_2in_test)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> gold(48);
-    std::iota(gold.begin(), gold.end(), -3);
+    std::iota(gold.begin(), gold.end(), -3.);
     std::vector<float> buffer(48);
     std::iota(buffer.begin(), buffer.end(), 0.);
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 24, 1, 1}};
     migraphx::shape output_fixed_shape{migraphx::shape::float_type, {2, 6, 4, 1}};
     params["X"] = migraphx::argument(input_fixed_shape, gold.data());
+    params["Y"] = migraphx::argument(output_fixed_shape, buffer.data());
+    auto result = p.eval(params).back();
+    EXPECT(result.get_shape() == output_fixed_shape);
+    std::vector<float> results_vector{};
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(reshape_2in_test1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s_in{migraphx::shape::float_type, {2, 24, 1, 1}};
+    migraphx::shape s_out{migraphx::shape::float_type, {{2, 4}, {6, 6}, {2, 4}, {1, 1}}};
+    auto input         = mm->add_parameter("X", s_in);
+    auto output_buffer = mm->add_parameter("Y", s_out);
+    mm->add_instruction(migraphx::make_op("reshape"), input, output_buffer);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> gold(48);
+    std::iota(gold.begin(), gold.end(), -3.);
+    std::vector<float> buffer(48);
+    std::iota(buffer.begin(), buffer.end(), 0.);
+    migraphx::parameter_map params;
+    migraphx::shape output_fixed_shape{migraphx::shape::float_type, {2, 6, 4, 1}};
+    params["X"] = migraphx::argument(s_in, gold.data());
     params["Y"] = migraphx::argument(output_fixed_shape, buffer.data());
     auto result = p.eval(params).back();
     EXPECT(result.get_shape() == output_fixed_shape);

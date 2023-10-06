@@ -38,11 +38,19 @@ namespace op {
 
 /**
  * 1 input version:
- * reshape(input_data); self.dims = output_dims
+ * reshape(input_data)
+ * this.dims = output_dims
+ * Makes a copy of input_data to the output shape.
  *
  * 2 input version:
- * reshape(input_data, output_buffer); self.dims = unset
- * This version will not fail if the shapes are incompatible.
+ * reshape(input_data, output_buffer)
+ * this.dims = unset
+ * Copies input_data to output_buffer; output_buffer already has the output shape.
+ * This version will not fail gracefully if the input shape and output_buffer shape are
+ * incompatible. There's an assert that can catch when the number of elements do not match at
+ * runtime. This version should only be used for dynamic reshapes (output dimensions only known at
+ * runtime). If output_buffer has a static shape during compile/parse, you can use the 1 input
+ * version.
  */
 struct reshape
 {

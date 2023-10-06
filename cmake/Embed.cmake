@@ -77,16 +77,17 @@ function(generate_embed_source EMBED_NAME)
         list(GET PARSE_FILES ${idx} FILE)
 
         set(START_SYMBOL "_binary_${SYMBOL}_start")
-        set(END_SYMBOL "_binary_${SYMBOL}_end")
+        set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
         if(EMBED_USE_LD)
             string(APPEND EXTERNS "
-                extern const char ${START_SYMBOL}[];
-                extern const char ${END_SYMBOL}[];
+extern const char ${START_SYMBOL}[];
+extern const size_t _binary_${SYMBOL}_size;
+const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
             ")
         else()
             string(APPEND EXTERNS "
-                extern const char ${START_SYMBOL}[];
-                extern const char* ${END_SYMBOL};
+extern const char ${START_SYMBOL}[];
+extern const size_t ${LENGTH_SYMBOL};
             ")
         endif()
 
@@ -97,23 +98,22 @@ function(generate_embed_source EMBED_NAME)
         endif()
 
         string(APPEND INIT_KERNELS "
-            { \"${BASE_NAME}\", { ${START_SYMBOL}, ${END_SYMBOL}} },
-        ")
+            { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
     endforeach()
 
     file(WRITE "${PARSE_HEADER}" "
+#include <string_view>
 #include <unordered_map>
-#include <string>
 #include <utility>
-const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMBED_NAME}();
+std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
 ")
 
     file(WRITE "${PARSE_SRC}" "
 #include <${EMBED_NAME}.hpp>
 ${EXTERNS}
-const std::unordered_map<std::string, std::pair<const char*,const char*>>& ${EMBED_NAME}()
+std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
 {
-    static const std::unordered_map<std::string, std::pair<const char*,const char*>> result = {${INIT_KERNELS}};
+    static std::unordered_map<std::string_view, std::string_view> result = {${INIT_KERNELS}};
     return result;
 }
 ")
@@ -154,9 +154,10 @@ function(embed_file OUTPUT_FILE OUTPUT_SYMBOL FILE)
             # removes trailing comma
             string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
             file(WRITE "${OUT_FILE}" "
-                extern const char _binary_${SYMBOL}_start[] = { ${ARRAY_VALUES} };
-                extern const char* _binary_${SYMBOL}_end = _binary_${SYMBOL}_start + sizeof(_binary_${SYMBOL}_start);
-            \n")
+#include <cstddef>
+extern const char _binary_${SYMBOL}_start[] = { ${ARRAY_VALUES} };
+extern const size_t _binary_${SYMBOL}_length = sizeof(_binary_${SYMBOL}_start);
+")
         endif()
     endforeach()
 endfunction()

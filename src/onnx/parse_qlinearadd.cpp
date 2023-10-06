@@ -134,23 +134,8 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
         const auto& in_zero_pt_b = args[5];
         auto dquant_b = bcast_qdq_instr("dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info);
 
-        auto sh_a = in_a->get_shape();
-        auto sh_b = in_b->get_shape();
-
-        if(sh_a != sh_b)
-        {
-            auto common_lens = compute_broadcasted_lens(sh_a.lens(), sh_b.lens());
-            if(sh_a.lens() != common_lens)
-                dquant_a = info.add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", common_lens}}), dquant_a);
-
-            if(sh_b.lens() != common_lens)
-                dquant_b = info.add_instruction(
-                    migraphx::make_op("multibroadcast", {{"out_lens", common_lens}}), dquant_b);
-        }
-
         // C = A + B
-        auto out_c = info.add_instruction(migraphx::make_op("add"), dquant_a, dquant_b);
+        auto out_c = info.add_common_op("add", dquant_a, dquant_b);
 
         const auto& in_scale_c = args[6];
 

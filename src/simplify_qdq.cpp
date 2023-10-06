@@ -38,7 +38,7 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
+namespace {
 std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
@@ -146,6 +146,48 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     return (x == y) or diff_shapes_equal_vals;
 }
 
+template<class Iterator>
+bool precedes(Iterator x, Iterator y, Iterator last)
+{
+    auto r = range(std::next(x), last);
+    return any_of(iterator_for(r), [&](auto it)
+    {
+        return it == y;
+    });
+}
+
+struct match_qlinear_reused
+{
+    auto matcher() const
+    {
+        return match::name("quantizelinear")(match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto x_ins = r.instructions["x"];
+        assert(ins != x_ins);
+
+        auto dq_inputs = ins->inputs();
+        dq_inputs[0] = ins;
+        auto outputs = x_ins->outputs();
+        if (outputs.size() != 2)
+            return;
+        for(auto output:outputs)
+        {
+            if (output->name() == "quantizelinear")
+                continue;
+            if (not output->get_operator().attributes().contains("pointwise"))
+                continue;
+            if (not precedes(ins, output, m.end()))
+                continue;
+            auto dq = m.insert_instruction(std::next(ins), make_op("dequantizelinear"), dq_inputs);
+            instruction::replace_argument(output, x_ins, dq);
+        }
+    }
+};
+
 void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -166,6 +208,7 @@ void remove_qdq_pairs(module& m)
         }
     }
 }
+} // namespace
 
 void simplify_qdq::apply(module& m) const
 {
@@ -173,6 +216,7 @@ void simplify_qdq::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
+    match::find_matches(m, match_qlinear_reused{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

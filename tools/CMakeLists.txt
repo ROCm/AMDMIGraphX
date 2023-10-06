@@ -22,4 +22,16 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_custom_target(generate ${CMAKE_COMMAND} -P generate.cmake WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+find_package(Python 3 COMPONENTS Interpreter)
+if(NOT Python_EXECUTABLE)
+    message(WARNING "Python 3 interpreter not found - skipping 'generate' target!")
+    return()
+endif()
+
+find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm $ENV{HIP_PATH})
+if(NOT CLANG_FORMAT)
+    message(WARNING "clang-format not found - skipping 'generate' target!")
+    return()
+endif()
+
+add_custom_target(generate ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

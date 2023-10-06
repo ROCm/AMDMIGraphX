@@ -24,6 +24,7 @@
 
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/onnx/broadcast_qdq.hpp>
@@ -109,9 +110,8 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
             MIGRAPHX_THROW("QLINEARADD: unsupported input type");
         if(type_b != migraphx::shape::int8_type and type_b != migraphx::shape::uint8_type)
             MIGRAPHX_THROW("QLINEARADD: unsupported input type");
-
-        if(sh_a != sh_b)
-            MIGRAPHX_THROW("QLINEARADD: mismatched input shapes");
+        if(type_a != type_b)
+            MIGRAPHX_THROW("QLINEARADD: mismatched input types");
     }
 
     instruction_ref parse(const op_desc& /* opd */,
@@ -125,6 +125,7 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
         const auto& in_a         = args[0];
         const auto& in_scale_a   = args[1];
         const auto& in_zero_pt_a = args[2];
+
         auto dquant_a = bcast_qdq_instr("dequantizelinear", in_a, in_scale_a, in_zero_pt_a, info);
 
         // B
@@ -132,6 +133,21 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
         const auto& in_scale_b   = args[4];
         const auto& in_zero_pt_b = args[5];
         auto dquant_b = bcast_qdq_instr("dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info);
+
+        auto sh_a = in_a->get_shape();
+        auto sh_b = in_b->get_shape();
+
+        if(sh_a != sh_b)
+        {
+            auto common_lens = compute_broadcasted_lens(sh_a.lens(), sh_b.lens());
+            if(sh_a.lens() != common_lens)
+                dquant_a = info.add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", common_lens}}), dquant_a);
+
+            if(sh_b.lens() != common_lens)
+                dquant_b = info.add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", common_lens}}), dquant_b);
+        }
 
         // C = A + B
         auto out_c = info.add_instruction(migraphx::make_op("add"), dquant_a, dquant_b);

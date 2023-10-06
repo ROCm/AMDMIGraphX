@@ -1,10 +1,10 @@
-constant-of-shape:Å
+!const_of_shape_no_value_attr_test:ë
 6shape"Constant*#
-value**Bshape_tensor†
+value*:Bshape_tensor†
 
-shapey"ConstantOfShapeconstant_of_shapeb
+shapey"ConstantOfShape!const_of_shape_no_value_attr_testb
 y
 
 
 
-B
+B

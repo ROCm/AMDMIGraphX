@@ -53,8 +53,11 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
-include(CMakeDependentOption)
-cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
+if(WIN32)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
+else()
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+endif()
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)

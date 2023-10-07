@@ -41,7 +41,6 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 
-#include <migraphx/instruction.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>

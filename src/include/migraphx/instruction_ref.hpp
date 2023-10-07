@@ -65,4 +65,8 @@ struct equal_to<migraphx::instruction_ref> // NOLINT
 
 } // namespace std
 
+#ifdef _MSC_VER
+#include <migraphx/instruction.hpp>
+#endif
+
 #endif

@@ -103,20 +103,26 @@ struct dnnl_op : auto_register_op<Derived>
         Primitive prim;
         std::vector<int> arg_lookup;
 #ifdef _DEBUG
-        const Derived& self;
+        const dnnl_op& self;
+        const Derived& derived;
         std::string name;
         dnnl::primitive_attr prim_attr;
+        const std::vector<shape>& inputs;
+        const shape& output_shape;
 #endif
         public:
         // clang-format off
-        executable(const dnnl_op& op, const shape& output_shape, const std::vector<shape>& inputs)
-            : md{op.to_memory_desc(output_shape, inputs)},
+        executable(const dnnl_op& op, const shape& _output_shape, const std::vector<shape>& _inputs)
+            : md{op.to_memory_desc(_output_shape, _inputs)},
               prim{op.get_primitive(md)},
-              arg_lookup{op.create_arg_map(inputs.size())}
+              arg_lookup{op.create_arg_map(_inputs.size())}
 #ifdef _DEBUG
-            , self{static_cast<const Derived&>(op)},
+            , self{op},
+              derived{static_cast<const Derived&>(op)},
               name{derived.name()},
-              prim_attr{outer.get_primitive_attr(md)}
+              prim_attr{op.get_primitive_attr(md)},
+              inputs{_inputs},
+              output_shape{_output_shape}
 #endif
         // clang-format on
         {
@@ -128,7 +134,7 @@ struct dnnl_op : auto_register_op<Derived>
             // Check that the memory descriptors have not changed
             auto debug_args = args;
             debug_args.pop_back();
-            auto debug_md = to_memory_desc(output_shape, to_shapes(debug_args));
+            auto debug_md = self.to_memory_desc(output_shape, to_shapes(debug_args));
             for(auto&& p : debug_md)
             {
                 if(md.count(p.first) == 0)
@@ -141,7 +147,7 @@ struct dnnl_op : auto_register_op<Derived>
             }
             // Check post_ops args are correct
             auto pos             = prim_attr.get_post_ops();
-            auto prim_input_size = inputs.size() - this->get_extra_post_op_args();
+            auto prim_input_size = inputs.size() - self.get_extra_post_op_args();
             int j                = 0;
             for(int i = 0; i < pos.len(); i++)
             {
@@ -177,9 +183,9 @@ struct dnnl_op : auto_register_op<Derived>
                     {
                         MIGRAPHX_THROW("Unknown kind");
                     }
-                    if(to_dnnl_algo(post_ops[i].algo) != algo)
+                    if(to_dnnl_algo(self.post_ops[i].algo) != algo)
                         MIGRAPHX_THROW(mesg + "Algorithm doesn't match for post op " +
-                                       post_ops[i].algo + " != " + to_string(algo));
+                                       self.post_ops[i].algo + " != " + to_string(algo));
                 }
                 catch(const dnnl::error& e)
                 {

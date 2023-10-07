@@ -44,8 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::invoke_result_t<Function>> detach_async(Function&& f,
-                                                                  bool parallel = true)
+std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {

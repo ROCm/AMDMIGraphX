@@ -112,17 +112,17 @@ struct dnnl_op : auto_register_op<Derived>
 #endif
         public:
         // clang-format off
-        executable(const dnnl_op& op, const shape& _output_shape, const std::vector<shape>& _inputs)
-            : md{op.to_memory_desc(_output_shape, _inputs)},
+        executable(const dnnl_op& op, const shape& out_shape, const std::vector<shape>& in_shapes)
+            : md{op.to_memory_desc(out_shape, in_shapes)},
               prim{op.get_primitive(md)},
-              arg_lookup{op.create_arg_map(_inputs.size())}
+              arg_lookup{op.create_arg_map(in_shapes.size())}
 #ifdef _DEBUG
             , self{op},
               derived{static_cast<const Derived&>(op)},
               name{derived.name()},
               prim_attr{op.get_primitive_attr(md)},
-              inputs{_inputs},
-              output_shape{_output_shape}
+              inputs{in_shapes},
+              output_shape{out_shape}
 #endif
         // clang-format on
         {

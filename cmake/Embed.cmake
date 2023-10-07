@@ -125,7 +125,7 @@ function(embed_file FILE BASE_DIRECTORY)
         file(WRITE "${OUTPUT_FILE}" "
 #include <cstddef>
 extern const char _binary_${OUTPUT_SYMBOL}_start[] = { ${ARRAY_VALUES} };
-                extern const char* _binary_${SYMBOL}_end = _binary_${SYMBOL}_start + sizeof(_binary_${SYMBOL}_start);
+extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
 ")
     endif()
     set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)

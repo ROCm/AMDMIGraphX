@@ -75,6 +75,7 @@ add_library(migraphx
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
+    process.cpp
     program.cpp
     propagate_constant.cpp
     promote_literals.cpp
@@ -103,11 +104,6 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
-if(WIN32)
-    target_sources(migraphx PRIVATE process_win32.cpp)
-else()
-    target_sources(migraphx PRIVATE process.cpp)
-endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)

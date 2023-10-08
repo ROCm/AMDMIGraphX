@@ -687,6 +687,26 @@ TEST_CASE(cast_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(castlike_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l   = mm->add_parameter("0", migraphx::shape{migraphx::shape::half_type, {10}});
+    mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {10}});
+    mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+        l);
+
+    auto prog = optimize_onnx("castlike_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(castlike_error_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("castlike_error_test.onnx"); }));
+}
+
 TEST_CASE(ceil_test)
 {
     migraphx::program p;
@@ -4834,6 +4854,59 @@ TEST_CASE(prelu_brcst_test)
     auto prog = migraphx::parse_onnx("prelu_brcst_test.onnx");
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(qlinearadd_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("A", {migraphx::shape::uint8_type, {64}});
+    auto b = mm->add_parameter("B", {migraphx::shape::uint8_type, {64}});
+
+    auto sc_a   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_a = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto sc_b   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_b = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {128}});
+
+    auto sc_c   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_c = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {64}});
+
+    auto scale_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_a);
+
+    auto z_pt_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_a);
+
+    auto fp_a =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), a, scale_a_bcast, z_pt_a_bcast);
+
+    auto scale_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_b);
+
+    auto z_pt_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_b);
+
+    auto fp_b =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scale_b_bcast, z_pt_b_bcast);
+
+    auto fp_c = mm->add_instruction(migraphx::make_op("add"), fp_a, fp_b);
+
+    auto scale_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_c);
+
+    auto z_pt_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_c);
+
+    auto c =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_c, scale_c_bcast, z_pt_c_bcast);
+
+    mm->add_return({c});
+
+    auto prog = migraphx::parse_onnx("qlinearadd_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
 }
 
 TEST_CASE(quantizelinear_test)

@@ -34,6 +34,7 @@ struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
     tmp_dir(const std::string& prefix = "");
+    tmp_dir(tmp_dir&&) = default;
 
     void execute(const std::string& exe, const std::string& args) const;
 

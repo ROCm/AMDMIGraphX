@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_ISNAN_HPP
-#define MIGRAPHX_GUARD_OPERATORS_ISNAN_HPP
-
-#include <migraphx/op/unary.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
+namespace onnx {
 
-struct isnan : unary<isnan>
+struct parse_castlike : op_parser<parse_castlike>
 {
-    auto apply() const
-    {
-        return [](auto x) { return std::isnan(static_cast<double>(x)); };
-    }
+    std::vector<op_desc> operators() const { return {{"CastLike"}}; }
 
-    std::string name() const { return "isnan"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          const std::vector<instruction_ref>& args) const
     {
-        return unary<isnan>::compute_shape(std::move(inputs)).with_type(shape::bool_type);
+        if(not(args.size() == 2))
+        {
+            MIGRAPHX_THROW("PARSE_CASTLIKE: CastLike must have exactly 2 inputs!");
+        }
+        shape::type_t target_type = args[1]->get_shape().type();
+        return info.add_instruction(make_op("convert", {{"target_type", target_type}}), args[0]);
     }
 };
 
-} // namespace op
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -41,7 +41,7 @@ specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
 
 
 def hasKeySequence(inputfile: str, key_message: str) -> bool:
-    if key_message in inputfile: 
+    if key_message in inputfile:
         return True
     return False
 
@@ -63,7 +63,9 @@ def needStampCheck(filename: str) -> bool:
                 save = contents.read()
 
                 # Check if we have a license stamp already
-                if hasKeySequence(save, "Advanced Micro Devices, Inc. All rights reserved"):
+                if hasKeySequence(
+                        save,
+                        "Advanced Micro Devices, Inc. All rights reserved"):
                     if debug: print("....Already Stamped: Skipping  file ")
                     contents.close()
                     return False
@@ -77,8 +79,8 @@ def needStampCheck(filename: str) -> bool:
 
 
 # Check if any element in fileTuple is in filename
-def check_filename(filename: str, fileTuple: tuple) -> bool:
-    if any([x in filename for x in fileTuple]): 
+def check_filename(filename: str, fileTuple: tuple or list) -> bool:
+    if any([x in filename for x in fileTuple]):
         return True
     return False
 
@@ -100,7 +102,7 @@ def main() -> None:
 
     for file in fileList:
         if check_filename(file, supported_file_types):
-            if needStampCheck(file): 
+            if needStampCheck(file):
                 unstampedFiles.append(file)
 
         elif check_filename(file, unsupported_file_types):

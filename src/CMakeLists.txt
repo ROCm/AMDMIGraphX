@@ -43,6 +43,7 @@ add_library(migraphx
     cpp_generator.cpp
     dead_code_elimination.cpp
     dom_info.cpp
+    dynamic_loader.cpp
     eliminate_allocation.cpp
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
@@ -103,11 +104,6 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
-if(WIN32)
-    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp)
-else()
-    target_sources(migraphx PRIVATE dynamic_loader.cpp)
-endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)

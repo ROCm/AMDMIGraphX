@@ -85,13 +85,10 @@ def openAndCheckFile(filename):
 
 
 # Deterine if filename is desired in the fileTuple past in
-def check_filename(filename, fileTuple):
-    supported = False
-    for key in fileTuple:
-        if key in filename:
-            supported = True
-            break
-    return supported
+def check_filename(filename: str, fileTuple: list or tuple) -> bool:
+    if any([x in filename for x in fileTuple]): 
+        return True
+    return False
 
 
 def main():

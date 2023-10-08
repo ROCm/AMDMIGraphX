@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -27,11 +27,11 @@ import sys
 
 debug = False
 # The filetypes we want to check for that are stamped
-# LICENSE is included here as it SHOULD have a liscence in it otherwise flag it as unstamped
+# LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
                         ".bsh", "LICENSE", ".cmake")
 
-#add general stuff we shouldn't stamp and any exceptions here
+# add general stuff we shouldn't stamp and any exceptions here
 unsupported_file_types = [
     ".onnx", ".pb", ".rst", ".jpg", ".jpeg", ".proto", ".md", ".clang",
     ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
@@ -40,104 +40,86 @@ unsupported_file_types = [
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
 
 
-def hasKeySequence(inputfile, key_message):
-    result = False
-    if key_message in inputfile:
-        result = True
-    return result
+def hasKeySequence(inputfile: str, key_message: str) -> bool:
+    if key_message in inputfile: 
+        return True
+    return False
 
 
-#Simple just open and write stuff to each file with the license stamp
-def openAndCheckFile(filename):
-    result = False
-    #open save old contents and append things here
-    if debug is True:
-        print("Open", filename, end='')
+# Simple just open and write stuff to each file with the license stamp
+def needStampCheck(filename: str) -> bool:
+    # open save old contents and append things here
+    if debug: print("Open", filename, end=' ')
 
     try:
         file = open(filename, 'r')
     except OSError as e:
-        if debug is True:
-            print(str(e) + "....Open Error: Skipping  file ")
+        if debug: print(str(e) + "....Open Error: Skipping  file ")
         file.close()
-        return
+        return False
     else:
         with file as contents:
             try:
                 save = contents.read()
-                hasAmdLic = hasKeySequence(
-                    save, "Advanced Micro Devices, Inc. All rights reserved")
 
-                #Check if we have a licence stamp already
-                if hasAmdLic is True:
-                    if debug is True:
-                        print("....Already Stamped: Skipping  file ")
+                # Check if we have a license stamp already
+                if hasKeySequence(save, "Advanced Micro Devices, Inc. All rights reserved"):
+                    if debug: print("....Already Stamped: Skipping  file ")
                     contents.close()
-                    result = True
+                    return False
 
             except UnicodeDecodeError as eu:
-                if debug is True:
-                    print(str(eu) + "...Skipping binary file ")
+                if debug: print(f"{str(eu)}...Skipping binary file ")
                 contents.close()
-                result = True
+                return False
 
-    return result
-
-
-# Deterine if filename is desired in the fileTuple past in
-def check_filename(filename, fileTuple):
-    supported = False
-    for key in fileTuple:
-        if key in filename:
-            supported = True
-            break
-    return supported
+    return True
 
 
-def main():
+# Check if any element in fileTuple is in filename
+def check_filename(filename: str, fileTuple: tuple) -> bool:
+    if any([x in filename for x in fileTuple]): 
+        return True
+    return False
+
+
+def main() -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    #Get a list of all the tracked files in our git repo
+    # Get a list of all the tracked files in our git repo
     proc = subprocess.run("git ls-files --exclude-standard",
                           shell=True,
                           stdout=subprocess.PIPE)
     fileList = proc.stdout.decode().split('\n')
 
-    if debug is True:
-        print("Target file list:\n" + str(fileList))
+    if debug: print("Target file list:\n" + str(fileList))
 
     unsupportedFiles = []
     unstampedFiles = []
     unknownFiles = []
 
     for file in fileList:
-        supported = check_filename(file, supported_file_types)
-        if supported is True:
-            isStamped = openAndCheckFile(file)
-            if isStamped is False:
+        if check_filename(file, supported_file_types):
+            if needStampCheck(file): 
                 unstampedFiles.append(file)
 
+        elif check_filename(file, unsupported_file_types):
+            unsupportedFiles.append(file)
         else:
-            unsupported = check_filename(file, unsupported_file_types)
-            if unsupported is True:
-                unsupportedFiles.append(file)
-            else:
-                unknownFiles.append(file)
+            unknownFiles.append(file)
 
-    #Do a bunch of checks based on our file lists
+    # Do a bunch of checks based on our file lists
     if len(unstampedFiles) > 0:
-        print("Error: The following " + str(len(unstampedFiles)) +
+        print("\nError: The following " + str(len(unstampedFiles)) +
               " files are currently without a license:")
         print(str(unstampedFiles))
         sys.exit(1)
 
     if len(unknownFiles) > 0:
-        print("Error: The following " + str(len(unknownFiles)) +
+        print("\nError: The following " + str(len(unknownFiles)) +
               " files not handled:")
         print(str(unknownFiles))
         sys.exit(2)
-
-    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -74,6 +74,7 @@ add_library(migraphx
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
+    process.cpp
     program.cpp
     propagate_constant.cpp
     promote_literals.cpp
@@ -103,10 +104,10 @@ add_library(migraphx
     verify_args.cpp
 )
 if(WIN32)
-    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp process_win32.cpp)
+    target_sources(migraphx PRIVATE dynamic_loader_win32.cpp)
     target_compile_definitions(migraphx PUBLIC -D_USE_MATH_DEFINES)
 else()
-    target_sources(migraphx PRIVATE dynamic_loader.cpp process.cpp)
+    target_sources(migraphx PRIVATE dynamic_loader.cpp)
 endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})

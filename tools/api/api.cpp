@@ -42,6 +42,8 @@
 #include <algorithm>
 #include <cstdarg>
 
+namespace migraphx {
+
 #ifdef MIGRAPHX_BUILD_TESTING
 static thread_local bool disable_exception_catch = false; // NOLINT
 
@@ -50,8 +52,6 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
     disable_exception_catch = b;
 }
 #endif
-
-namespace migraphx {
 
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT

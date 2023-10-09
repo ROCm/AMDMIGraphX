@@ -260,7 +260,6 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     if(fs::exists(driver))
 #endif
     {
-
         value v;
         v["srcs"]   = to_value(hsrcs);
         v["params"] = to_value(params);

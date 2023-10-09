@@ -679,10 +679,6 @@ def add_function(name: str, *args, **kwargs) -> Function:
     return f
 
 
-def register_functions(path: Union[Path, str]) -> None:
-    runpy.run_path(path if isinstance(path, str) else str(path))
-
-
 def once(f: Callable) -> Any:
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -1286,21 +1282,17 @@ def template_eval(template, **kwargs):
     return template
 
 
-def invoke(path: Union[Path, str]) -> str:
+def run(path: Union[Path, str]) -> str:
     return template_eval(open(path).read())
 
 
-def run(args: List[str]) -> None:
-    register_functions(args[0])
-    if len(args) > 1:
-        r = invoke(args[1])
+if __name__ == "__main__":
+    sys.modules['api'] = sys.modules['__main__']
+    runpy.run_path(sys.argv[1])
+    if len(sys.argv) > 2:
+        r = run(sys.argv[2])
         sys.stdout.write(r)
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())
         # sys.stdout.write(generate_cpp_header())
-
-
-if __name__ == "__main__":
-    sys.modules['api'] = sys.modules['__main__']
-    run(sys.argv[1:])

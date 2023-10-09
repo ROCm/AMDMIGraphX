@@ -105,6 +105,11 @@ struct dynamic_loader_impl
         }
     }
 
+    dynamic_loader_impl(const dynamic_loader_impl&)            = delete;
+    dynamic_loader_impl& operator=(const dynamic_loader_impl&) = delete;
+
+    dynamic_loader_impl(dynamic_loader_impl&&) = default;
+
     ~dynamic_loader_impl()
     {
         if(handle != nullptr)
@@ -112,6 +117,7 @@ struct dynamic_loader_impl
             FreeLibrary(handle);
         }
     }
+
     static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
     {
         auto t = tmp_dir{"migx-dynload"};

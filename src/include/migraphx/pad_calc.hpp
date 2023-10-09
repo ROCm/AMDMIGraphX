@@ -64,6 +64,7 @@ shape compute_padded_shape(const shape& input,
 
 // Used for dynamic auto padding of pooling operators where padding needs to be computed at
 // evaulation time.
+MIGRAPHX_EXPORT
 shape compute_padded_pool_shape(const shape& input,
                                 const shape& kernel,
                                 const std::vector<std::size_t>& padding,

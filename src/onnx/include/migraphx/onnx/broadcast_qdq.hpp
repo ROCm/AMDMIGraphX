@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,47 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <functional>
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
+
 #include <string>
-#include <utility>
-#include <vector>
+
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-struct src_file
-{
-    fs::path path;
-    std::string_view content;
+// This method is to prep for quantizelinear or dequantizelinear operation for
+// either the broadcasting of weight-scale or zero-points of qlinearadd operator
+// outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
+instruction_ref bcast_qdq_instr(const std::string& op_name,
+                                instruction_ref x_in,
+                                instruction_ref arg_fscale,
+                                instruction_ref arg_z_pt,
+                                const onnx_parser::node_info& info);
 
-    src_file() = default;
-    src_file(fs::path file_path, std::string_view file_content)
-        : path{std::move(file_path)}, content{file_content}
-    {
-    }
+// Multibroadcast a scaler..
+instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
+                                   instruction_ref arg_in,
+                                   const onnx_parser::node_info& info);
 
-    explicit src_file(const std::pair<std::string_view, std::string_view>& pair)
-        : path{pair.first}, content{pair.second}
-    {
-    }
-};
-
-struct MIGRAPHX_EXPORT src_compiler
-{
-    std::string compiler                      = "c++";
-    std::string flags                         = "";
-    std::string output                        = "";
-    std::string launcher                      = "";
-    std::string out_ext                       = ".o";
-    std::function<fs::path(fs::path)> process = nullptr;
-    std::vector<char> compile(const std::vector<src_file>& srcs) const;
-};
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
+
+#endif

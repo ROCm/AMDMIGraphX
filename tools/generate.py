@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import os, sys, argparse, subprocess, te, api
+import api, argparse, os, runpy, subprocess, sys, te
 from pathlib import Path
 
 clang_format_path = Path('clang-format.exe' if os.name ==
@@ -43,12 +43,12 @@ def clang_format(buffer, **kwargs):
 
 def api_generate(input_path: Path, output_path: Path):
     with open(output_path, 'w') as f:
-        f.write(clang_format(api.invoke(input_path)))
+        f.write(clang_format(api.run(input_path)))
 
 
 def te_generate(input_path: Path, output_path: Path):
     with open(output_path, 'w') as f:
-        f.write(clang_format(te.invoke(input_path)))
+        f.write(clang_format(te.run(input_path)))
 
 
 def main():
@@ -66,11 +66,10 @@ def main():
         return
 
     try:
-        for f in [
-                f for f in Path('include').absolute().iterdir() if f.is_file()
-        ]:
+        files = Path('include').absolute().iterdir()
+        for f in [f for f in files if f.is_file()]:
             te_generate(f, src_dir / f'include/migraphx/{f.name}')
-        api.register_functions(str(migraphx_py_path))
+        runpy.run_path(str(migraphx_py_path))
         api_generate(work_dir / 'api/migraphx.h',
                      src_dir / 'api/include/migraphx/migraphx.h')
         print('Finished generating header migraphx.h')

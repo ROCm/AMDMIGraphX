@@ -299,23 +299,6 @@ struct context
 
     any_ptr get_queue() { return get_stream().get(); }
 
-    void enable_perf_measurement(bool b = true)
-    {
-        if(b)
-        {
-            start_event = create_event_for_timing();
-            stop_event  = create_event_for_timing();
-            get_stream().record(start_event.get());
-            get_stream().record(stop_event.get());
-        }
-        else
-        {
-            start_event = nullptr;
-            stop_event  = nullptr;
-        }
-        measure_perf = b;
-    }
-
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {
         if(measure_perf)

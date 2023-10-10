@@ -1232,7 +1232,7 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
     auto p                     = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
-    const size_t batch_size(1);
+    const size_t batch_size(2);
     const size_t categories(5);
 
     p.compile(migraphx::make_target("ref"));
@@ -1242,7 +1242,7 @@ TEST_CASE(multinomial_dyn_test)
     EXPECT(dist.size() == categories * batch_size);
     std::vector<float> data(categories * batch_size);
 
-    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
+    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return log(d); });
     // Shape of the probability distribution, which also defines the number of categories
     migraphx::shape s{migraphx::shape::float_type, {batch_size, categories}};    
 
@@ -1256,27 +1256,32 @@ TEST_CASE(multinomial_dyn_test)
     result.visit([&](auto output) {
         
         // debug
-        std::cout << " + " << output.size() << "\n";
-        
+        I am not getting the right number of results back for batch size 2
          result_vec.assign(output.begin(), output.end());
           });
 
-          auto asdf = p.eval(pp);
-    auto result2 = asdf.front();
-    std::vector<float> result2_vec(batch_size * categories);
-    printf("%lu elements\n", result2_vec.size() );
-    result2.visit([&](auto output) {
+//           auto asdf = p.eval(pp);
+//     auto result2 = asdf.front();
+//     std::vector<float> result2_vec(batch_size * categories);
+//     printf("%lu elements\n", result2_vec.size() );
+//     result2.visit([&](auto output) {
         
-        std::cout << " = " << output.size() << "\n";
         
-         result2_vec.assign(output.begin(), output.end());
-          });
+//          result2_vec.assign(output.begin(), output.end());
+//           });
 
+printf("Results are: ");
+// for(auto aa : result_vec) printf(", %f", aa);
+printf("\n"); 
 
     // Make a categorical histogram of output
     std::vector<int> res_dist(categories, 0);
     for(const auto& r : result_vec)
         res_dist[r]++;
+
+printf("Distribution is : ");
+for(auto aa : res_dist) printf(", %d", aa);
+printf("\n");
 
 
 }

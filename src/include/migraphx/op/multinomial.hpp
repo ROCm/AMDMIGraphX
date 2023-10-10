@@ -129,16 +129,16 @@ struct multinomial
                     // when normalized by the probability distribution dist
 
 // debug the distribution array
-for(auto cc : cdf) std::cout << cc << " "; std::cout << "   distribution  " << dist[i]  << " " <<  dist[i] * *(std::prev(cdf_end)) << "\n ";                   
+// for(auto cc : cdf) std::cout << cc << "c "; std::cout << "   distribution  " << dist[i]  << " " <<  dist[i] * *(std::prev(cdf_end)) << "\n ";                   
                     auto sample_iter =
                         std::upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                     // convert iterator to an integer index
                     output[i] = std::distance(cdf_begin, sample_iter);
-std::cout << "\n " << output[i] << "   " << dist[i];                    
+// std::cout << "\n " << output[i] << " o&d  " << dist[i] << "\n ";                    
                 });
             });
         });
-std::cout << "\n";
+// std::cout << "\n";
         return result;
     }
 };

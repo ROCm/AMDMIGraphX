@@ -91,14 +91,9 @@ struct random_uniform
             {
                 // default real distribution type is double with range (0, 1);
                 std::uniform_real_distribution<> dis;
-                std::generate(output.begin(), output.end(), [&] { 
-                    auto aa =dis(gen);
-                    std::cout << aa << " aa ";
-                    return aa; 
-                    });
+                std::generate(output.begin(), output.end(), [&] { return dis(gen); });
             }
         });
-        std::cout << "\n";
         return result;
     }
 

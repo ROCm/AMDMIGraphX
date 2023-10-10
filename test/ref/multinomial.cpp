@@ -27,6 +27,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <numeric>
 #include <random>
 
 #include <test.hpp>
@@ -48,18 +49,18 @@ TEST_CASE(multinomial_test)
     migraphx::shape s{migraphx::shape::float_type, {1, 5}};
     std::vector<int> dist{15, 25, 15, 25, 20};
     std::vector<float> data(5);
-    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return std::log(d); });
+    std::vector<float> sum(5);
+    // convert to float
+    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
+    // take cumulative sum
+    std::partial_sum(data.begin(), data.end(), sum.begin(), std::plus<float>());
+    // normalize to total of 1
+    float total = sum[4];
+    std::transform(sum.begin(), sum.end(), data.begin(), [&](auto d) { return d/total; });
+
     auto input = mm->add_literal(migraphx::literal(s, data));
 
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 5}}}), maxes);
-    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
-    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf      = mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
-
-    mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
+    mm->add_instruction(migraphx::make_op("multinomial"), input, rs_lit);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     // result_vec is a list of indices, or category labels, for each slot
@@ -88,6 +89,7 @@ TEST_CASE(multinomial_test)
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
+// for(size_t aa = 0; aa < 5; aa++)  printf(" * %d    %d\n", dist[aa], res_dist[aa]); printf("\n");
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
@@ -95,10 +97,13 @@ TEST_CASE(multinomial_test)
 
 TEST_CASE(multinomial_dyn_test)
 {
+    // Invokes random_uniform and multinomial ops together, to verify the interface
+
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    size_t sample_size = 7;
+    size_t sample_size = 100000;
+    size_t batch_size = 2;
 
     //      Shape of the random data
     migraphx::shape rs{migraphx::shape::float_type, {{1, 2}, {2, sample_size + 1}}};
@@ -112,35 +117,38 @@ TEST_CASE(multinomial_dyn_test)
     auto seed_input = mm->add_parameter("Seed", seed_shape);
 
     // Shape of the probability distribution, which also defines the number of categories
-    migraphx::shape s{migraphx::shape::float_type, {{1, 1}, {5, 6}}};
-    std::vector<int> dist{15, 25, 15, 25, 20};
-    std::vector<float> data(5);
+    migraphx::shape s{migraphx::shape::float_type, {{2, 2}, {5, 6}}};
+    std::vector<int> dist{15, 25, 15, 25, 20, 20, 20, 10, 25, 25};
+    // std::vector<float> data(5 * batch_size);
 
-    std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
+    // // Normalize the probability distribution and take cumulative sum,
+    // // as required by the multinomial operation
+    // std::vector<float> sum(5);
+    // // convert to float
+    // std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
+    // // take cumulative sum
+    // std::partial_sum(data.begin(), data.end(), sum.begin(), std::plus<float>());
+    // // normalize to total of 1
+    // float total = sum[4];
+    // std::transform(sum.begin(), sum.begin() + 4, data.begin(), [&](auto d) { return d/total; });
+    // total = sum[9];
+
+    // Unnormalized distributions for batch size 2:
+    //   15, 25, 15, 15, 20
+    //   20, 20, 10, 25, 25
+    std::vector<float> data{.15f, .40f, .55f, .80f, 1.0f, .20f, .40f, .50f, .75f, 1.0f};
 
     auto input2 = mm->add_parameter("Input_2", s);
 
-    // The next several instructions log-normalize the probability distribution,
-    // as required by the multinomial operation
-    auto logs = mm->add_instruction(migraphx::make_op("log"), input2);
-
-    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), logs);
-    auto mb_maxes = mm->add_instruction(migraphx::make_op("multibroadcast"), maxes, input2);
-    auto cdf      = mm->add_instruction(migraphx::make_op("sub"), logs, mb_maxes);
-
-    cdf = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf = mm->add_instruction(
-        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
-
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, input);
-    mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
+    mm->add_instruction(migraphx::make_op("multinomial"), input2, randoms);
 
     p.compile(migraphx::make_target("ref"));
 
     // Create a dummy input in the shape we want for the random data
     std::vector<float> dummy(sample_size, 0);
     migraphx::shape input_fixed_shape1{migraphx::shape::float_type, {1, sample_size}};
-    migraphx::shape input_fixed_shape2{migraphx::shape::float_type, {1, 5}};
+    migraphx::shape input_fixed_shape2{migraphx::shape::float_type, {batch_size, 5}};
     migraphx::parameter_map params0;
     params0["Input_1"] = migraphx::argument(input_fixed_shape1, dummy.data());
 
@@ -156,27 +164,50 @@ TEST_CASE(multinomial_dyn_test)
 
     // Make a categorical histogram of output
     std::vector<int> res_dist(5, 0);
-    for(const auto& r : result_vec)
-        res_dist[r]++;
+    size_t r = 0;
+    for(r = 0; r < result_vec.size()/2; r++)
+        res_dist[result_vec[r]]++;
+
+    //  histogram for second set of batch
+    std::vector<int> res_dist2(5, 0);
+    for(; r < result_vec.size(); r++)
+        res_dist2[result_vec[r]]++;
 
     // Rescale or normalize both the input probability distribution and the output
     // histogram, and compare.  Should be close but not identical.
-    auto dist_sum     = std::accumulate(dist.begin(), dist.end(), 0);
+    auto dist_sum     = std::accumulate(dist.begin(), dist.begin() + 5, 0);
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
     std::vector<float> norm(5);
     std::vector<float> res_norm(5);
-
-
-    std::transform(dist.begin(), dist.end(), norm.begin(), [&](auto n) {
+// Add batch logic here.  Don't recalcuilate input distr but dcheck both batches.'
+    std::transform(dist.begin(), dist.begin() + 5, norm.begin(), [&](auto n) {
         return static_cast<double>(n) / dist_sum;
     });
     std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
         return static_cast<double>(n) / res_dist_sum;
     });
 
-for(size_t aa = 1; aa < 5; aa++)  printf(" * %d    %d\n", dist[aa], res_dist[aa]); printf("\n");
+for(size_t aa = 0; aa < 5; aa++)  printf(" * %d    %d\n", dist[aa], res_dist[aa]); printf("\n");
 
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
+
+    // 2nd in batch
+    dist_sum     = std::accumulate(dist.begin() + 5, dist.end(), 0); 
+    res_dist_sum = std::accumulate(res_dist2.begin(), res_dist2.end(), 0);   
+    std::transform(dist.begin()+5, dist.end(), norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / dist_sum;
+    });
+    std::transform(res_dist2.begin(), res_dist2.end(), res_norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / res_dist_sum;
+    });
+
+for(size_t aa = 0; aa < 5; aa++)  printf(" * %d    %d\n", dist[aa], res_dist[aa]); printf("\n");
+
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
+
+
 }

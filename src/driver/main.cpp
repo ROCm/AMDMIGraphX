@@ -579,8 +579,8 @@ struct verify : command<verify>
         {
             tols = migraphx::verify::tolerance{8e-2, 4e-2, 4e-2};
         }
-        auto dbl_comp = [&](auto a, auto b){
-            return std::abs(a - b) <= std::numeric_limits<double>::epsilon();
+        auto dbl_comp = [&](double a, double b){
+            return (std::abs(a - b) <= std::numeric_limits<double>::epsilon());
         };
         if(not dbl_comp(this->rms_tol, -1.))
         {

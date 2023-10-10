@@ -406,8 +406,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     mlir_mode mode = enabled(MIGRAPHX_ENABLE_MLIR{}) ? mlir_mode::fast : mlir_mode::none;
 
-    match::find_matches(
-        mpm, find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast), .dot_mode = get_mode("fused", mode)});
+    match::find_matches(mpm,
+                        find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
+                                            .dot_mode  = get_mode("fused", mode)});
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::int8)},

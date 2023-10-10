@@ -65,7 +65,7 @@ struct allocate
         {
             migraphx::check_shapes{inputs, *this, false}.has(1).only_dims(1);
             const auto& out_dims = inputs.at(0);
-            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::size_t max_val  = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});
             return {buf_type, dyn_dims};

@@ -26,7 +26,9 @@
 
 #include <hip/hip_runtime.h>
 #include <migraphx/config.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/device/types.hpp>
+#include <migraphx/gpu/device/targets.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +43,7 @@ struct index
 
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
-    __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
+    __device__ index_int nlocal() const { return blockDim.x; }              // NOLINT
 
     template <class F>
     __device__ void global_stride(index_int n, F f) const
@@ -79,8 +81,29 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         using f_type = decltype(f);
         dim3 nblocks(global / local);
         dim3 nthreads(local);
+        /*
+        hipGetLastError() returns error for the first failed HIP call that happened previously.
+        MIGraphX calls into various backend libraries and failed HIP calls can also happen there.
+        Calling hipGetLastError() would reset error code to hipSuccess, so that inside MIGraphX
+        failed call to hipLaunchKernelGGL() can be captured.
+        */
+        hipError_t flush_call = hipGetLastError();
+        (void)(flush_call);
         // cppcheck-suppress UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
+        hipError_t kernel_launch_status = hipGetLastError();
+        if(kernel_launch_status != hipSuccess)
+        {
+            std::string message = hipGetErrorString(kernel_launch_status);
+            if(not contains(get_targets(), get_device_name()))
+            {
+                message += ". Trying to run a kernel for " + get_device_name() +
+                           " but MIGraphX was built for targets " + get_targets_as_string() +
+                           ". Please rebuild MIGraphX with -DGPU_TARGETS='" + get_device_name() +
+                           "'.";
+            }
+            MIGRAPHX_THROW("MIGraphX device kernel failed to launch with error: " + message);
+        }
     };
 }
 

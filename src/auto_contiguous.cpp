@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
-
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {

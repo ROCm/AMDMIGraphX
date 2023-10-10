@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,10 +35,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propogate(instruction_ref ins)
+bool skip_propagate(instruction_ref ins)
 {
     if(ins->name() == "contiguous")
-        return skip_propogate(ins->inputs().front());
+        return skip_propagate(ins->inputs().front());
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar() and not s.packed())
         return true;
@@ -47,7 +47,7 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
+bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propagate(ins); }
 
 void propagate_constant::apply(module& m) const
 {

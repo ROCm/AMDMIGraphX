@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/operators.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
@@ -66,6 +65,106 @@ migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
     auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), xm, ym, zm);
     m.add_return({concat});
     return m;
+}
+
+TEST_CASE(broadcast_transpose)
+{
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 2, 3}}}), t1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_opt)
+{
+    // extra transpose from transformation will be optimized out
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5}}}), u1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_scalar)
+{
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_scalar_multi_use)
+{
+    // multibroadcast used more than once
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+        auto id = m1.add_instruction(migraphx::make_op("identity"), mb);
+        m1.add_return({t1, id});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        auto mb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), mb2);
+        m2.add_return({mb, id});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(double_contig)
@@ -477,7 +576,7 @@ TEST_CASE(concat_multibroadcasts1)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_multibroadcasts2)
@@ -500,7 +599,7 @@ TEST_CASE(concat_multibroadcasts2)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 0);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 0);
 }
 
 TEST_CASE(concat_multibroadcasts3)
@@ -523,7 +622,7 @@ TEST_CASE(concat_multibroadcasts3)
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "multibroadcast"; });
     auto md = std::distance(m.begin(), new_mb);
     EXPECT(cd == md - 1);
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 2);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 2);
 }
 
 TEST_CASE(concat_multibroadcasts4)
@@ -559,7 +658,7 @@ TEST_CASE(concat_transpose1)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 3);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 3);
 }
 
 TEST_CASE(concat_transpose2)
@@ -583,7 +682,7 @@ TEST_CASE(concat_transpose2)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_transpose3)
@@ -607,7 +706,7 @@ TEST_CASE(concat_transpose3)
     auto new_concat =
         std::find_if(m.begin(), m.end(), [](auto ins) { return ins.name() == "concat"; });
     EXPECT(bool{new_concat != m.end()});
-    EXPECT(migraphx::any_cast<migraphx::op::concat>(new_concat->get_operator()).axis == 1);
+    EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 1);
 }
 
 TEST_CASE(concat_transpose4)

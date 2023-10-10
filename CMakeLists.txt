@@ -51,6 +51,7 @@ project(migraphx LANGUAGES C CXX)
 include(CTest)
 
 find_package(ROCM REQUIRED)
+find_package(Threads REQUIRED)
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
@@ -70,7 +71,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.7.0)
+rocm_setup_version(VERSION 2.8.0)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -161,6 +162,8 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
+        -cppcoreguidelines-rvalue-reference-param-not-moved
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
@@ -227,14 +230,12 @@ rocm_enable_cppcheck(
         shadowVar
         shadowVariable
         unsafeClassDivZero
+        # Disable because of too many FPs
+        arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
-        constParameter:*src/targets/gpu/*.cpp
-        constParameter:*src/targets/gpu/*.hpp
-        # Suppress mlir_conv.cpp since this file will be deleted
-        *:*src/targets/gpu/mlir_conv.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
@@ -251,15 +252,19 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
+        MIGRAPHX_MLIR=1
         CPPCHECK=1
         __device__=
         __host__=
         __global__=
+    UNDEFINE
+        MIGRAPHX_USE_CLANG_TIDY
 )
 
 enable_testing()
 
 include(ROCMCreatePackage)
+include(ROCMTest)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
@@ -267,6 +272,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
 add_subdirectory(docs)
 if(BUILD_TESTING)
+    rocm_enable_test_package(migraphx)
     add_subdirectory(test)
 endif()
 add_subdirectory(tools)
@@ -277,7 +283,6 @@ file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
 foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
-configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
 
 rocm_create_package(
     NAME MIGraphX

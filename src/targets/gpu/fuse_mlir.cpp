@@ -151,11 +151,11 @@ enum class mlir_mode
 auto is_mlir_dot(mlir_mode mode)
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if (mode == mlir_mode::none)
+        if(mode == mlir_mode::none)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
-        if (mode != mlir_mode::fast)
+        if(mode != mlir_mode::fast)
             return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
@@ -172,7 +172,7 @@ auto is_mlir_dot(mlir_mode mode)
 auto is_mlir_conv(mlir_mode mode)
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
-        if (mode == mlir_mode::none)
+        if(mode == mlir_mode::none)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
@@ -183,9 +183,9 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;
-        if (ins->get_shape().type() == shape::int8_type)
+        if(ins->get_shape().type() == shape::int8_type)
             return true;
-        if (mode != mlir_mode::fast)
+        if(mode != mlir_mode::fast)
             return true;
         auto w = ins->inputs().at(1)->get_shape();
         if(w.lens().size() != 4)
@@ -199,12 +199,11 @@ auto is_mlir_conv(mlir_mode mode)
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
-    mlir_mode dot_mode = mlir_mode::none;
+    mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
         auto dot_or_conv = match::skip(match::name("contiguous"))(
-            match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode))
-                .bind("gemm_based_op"));
+            match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
@@ -336,7 +335,7 @@ struct find_mlir_fused_ops
     }
 };
 
-template<auto Matcher>
+template <auto Matcher>
 struct find_mlir_standalone_op
 {
     mlir_mode mode = mlir_mode::none;
@@ -363,7 +362,7 @@ struct find_mlir_standalone_op
 };
 
 using find_mlir_standalone_convolution_op = find_mlir_standalone_op<&is_mlir_conv>;
-using find_mlir_standalone_dot_op = find_mlir_standalone_op<&is_mlir_dot>;
+using find_mlir_standalone_dot_op         = find_mlir_standalone_op<&is_mlir_dot>;
 
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -381,7 +380,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
 bool is_requested(std::string_view option, bool fallback = false)
 {
     auto string_value  = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
-    if (string_value.empty())
+    if(string_value.empty())
         return fallback;
     const auto options = split_string(string_value, ',');
     return contains(options, option);
@@ -398,17 +397,21 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const bool is_navi = starts_with(device.get_gfx_name(), navi_family);
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if (is_requested(option))
+        if(is_requested(option))
             return mlir_mode::all;
-        if (is_navi)
+        if(is_navi)
             return mlir_mode::all;
         return std::max(m1, m2);
     };
 
     mlir_mode mode = enabled(MIGRAPHX_ENABLE_MLIR{}) ? mlir_mode::fast : mlir_mode::none;
 
-    match::find_matches(mpm, find_mlir_fused_ops{get_mode("fused", mlir_mode::fast), get_mode("fused", mode)});
-    match::find_matches(mpm, find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::int8)}, find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
+    match::find_matches(
+        mpm, find_mlir_fused_ops{get_mode("fused", mlir_mode::fast), get_mode("fused", mode)});
+    match::find_matches(
+        mpm,
+        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::int8)},
+        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
 #else
     (void)mpm;
 #endif

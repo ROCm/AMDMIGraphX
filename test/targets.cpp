@@ -23,7 +23,7 @@
  */
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
-#include <thread>
+#include <migraphx/par_for.hpp>
 #include "test.hpp"
 
 TEST_CASE(make_target)
@@ -53,7 +53,7 @@ TEST_CASE(targets)
 
 TEST_CASE(concurrent_targets)
 {
-    std::vector<std::thread> threads;
+    std::vector<migraphx::joinable_thread> threads;
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
 #elif defined(HAVE_CPU)
@@ -86,8 +86,7 @@ TEST_CASE(concurrent_targets)
 
         threads.emplace_back(thread_body);
     }
-    for(auto& tt : threads)
-        tt.join();
+    // joinable_thread don't need to have join() called.
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

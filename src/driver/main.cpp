@@ -542,6 +542,12 @@ struct verify : command<verify>
     void parse(argument_parser& ap)
     {
         c.parse(ap);
+        //TODO remove this and make the driver able to figure out datatype most used in the model
+        // then set the tolerances appropriately
+        if(c.to_fp16)
+        {
+            tols = migraphx::verify::tolerance{8e-2, 4e-2, 4e-2};
+        }
         ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
         ap(tols.atol,
            {"--atol"},

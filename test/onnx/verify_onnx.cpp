@@ -47,7 +47,7 @@ TEST_CASE(averagepool_notset_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {12};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(averagepool_nt_cip_test)
@@ -65,7 +65,7 @@ TEST_CASE(averagepool_nt_cip_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {8.33333};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(batch_norm_flat_test)
@@ -76,15 +76,15 @@ TEST_CASE(batch_norm_flat_test)
     migraphx::shape x_shape{migraphx::shape::float_type, {10}};
     migraphx::shape c_shape(migraphx::shape::float_type, {1});
     std::vector<float> x_data        = {1.6524342,
-                                 -0.51048076,
-                                 0.32543048,
-                                 2.4410043,
-                                 2.0833702,
-                                 0.44981122,
-                                 1.0044622,
-                                 -0.24006313,
-                                 -0.43065986,
-                                 0.07626268};
+                                        -0.51048076,
+                                        0.32543048,
+                                        2.4410043,
+                                        2.0833702,
+                                        0.44981122,
+                                        1.0044622,
+                                        -0.24006313,
+                                        -0.43065986,
+                                        0.07626268};
     std::vector<float> scale_data    = {-0.02927135};
     std::vector<float> bias_data     = {0.42347777};
     std::vector<float> mean_data     = {-0.00449735};
@@ -111,7 +111,7 @@ TEST_CASE(batch_norm_flat_test)
                                0.43305403,
                                0.4408022,
                                0.42019472};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(batch_norm_rank_2_test)
@@ -148,7 +148,7 @@ TEST_CASE(batch_norm_rank_2_test)
                                9.89948504,
                                9.89948504,
                                12.72790933};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(batch_norm_1d_test)
@@ -184,7 +184,7 @@ TEST_CASE(batch_norm_1d_test)
            0.4927, 0.771,   -1.956,  -2.123, -0.664, -0.583, -0.7207, -0.5127};
 
     std::vector<migraphx::half> gold{tmp.cbegin(), tmp.cend()};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(batch_norm_2d_test)
@@ -250,7 +250,7 @@ TEST_CASE(batch_norm_2d_test)
         -2.76707697e+00, 1.47579327e+01,  4.94736385e+00,  2.68847847e+01,  -6.49254417e+00,
         1.94286156e+00,  -7.19223642e+00, -3.70413971e+00, -4.04303551e-01, -1.01827660e+01,
         1.49476433e+00};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(batch_norm_3d_test)
@@ -292,7 +292,7 @@ TEST_CASE(batch_norm_3d_test)
            6.098, 11.03, 2.81,  2.81,   2.81,  12.125, 3.143, 8.53,   17.52,   4.938, 15.71,
            1.347, 4.938, 1.167, 6.098,  12.67, 12.67,  4.453, 4.453,  -0.4768, 12.67};
     std::vector<migraphx::half> gold{tmp.cbegin(), tmp.cend()};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(celu_verify_test)
@@ -309,12 +309,12 @@ TEST_CASE(celu_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> correct(6);
+    std::vector<float> gold(6);
     float alpha = 0.5;
-    std::transform(data.begin(), data.end(), correct.begin(), [&](auto x) {
+    std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
         return std::max(0.0f, x) + std::min(0.0f, alpha * std::expm1(x / alpha));
     });
-    EXPECT(migraphx::verify::verify_range(result_vector, correct));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(clip_args_type_mismatch)
@@ -330,7 +330,7 @@ TEST_CASE(clip_args_type_mismatch)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1.5, 2, 2, 1.9, 2.5, 3, 2.9, 3.2, 3.7};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(depthtospace_simple_test)
@@ -348,7 +348,7 @@ TEST_CASE(depthtospace_simple_test)
     std::vector<float> gold = {0,  12, 1,  13, 2,  14, 24, 36, 25, 37, 26, 38, 3,  15, 4,  16,
                                5,  17, 27, 39, 28, 40, 29, 41, 6,  18, 7,  19, 8,  20, 30, 42,
                                31, 43, 32, 44, 9,  21, 10, 22, 11, 23, 33, 45, 34, 46, 35, 47};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(spacetodepth_simple_test)
@@ -366,7 +366,7 @@ TEST_CASE(spacetodepth_simple_test)
     std::vector<float> gold = {0,  2,  4,  12, 14, 16, 24, 26, 28, 36, 38, 40, 1,  3,  5,  13,
                                15, 17, 25, 27, 29, 37, 39, 41, 6,  8,  10, 18, 20, 22, 30, 32,
                                34, 42, 44, 46, 7,  9,  11, 19, 21, 23, 31, 33, 35, 43, 45, 47};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(spacetodepth_depthtospace_test)
@@ -374,11 +374,11 @@ TEST_CASE(spacetodepth_depthtospace_test)
     // space to depth
     auto p1 = migraphx::parse_onnx("spacetodepth_simple_test.onnx");
     p1.compile(migraphx::make_target("ref"));
-    std::vector<float> data_in(48);
-    std::iota(std::begin(data_in), std::end(data_in), 0);
+    std::vector<float> gold_data_in(48);
+    std::iota(std::begin(gold_data_in), std::end(gold_data_in), 0);
     migraphx::shape s_x_1{migraphx::shape::float_type, {1, 2, 4, 6}};
     migraphx::parameter_map pp1;
-    pp1["x"]     = migraphx::argument(s_x_1, data_in.data());
+    pp1["x"]     = migraphx::argument(s_x_1, gold_data_in.data());
     auto result1 = p1.eval(pp1).back();
     // depth to space
     auto p2 = migraphx::parse_onnx("depthtospace_simple_test.onnx");
@@ -388,7 +388,7 @@ TEST_CASE(spacetodepth_depthtospace_test)
     auto result2 = p2.eval(pp2).back();
     std::vector<float> result_vector2;
     result2.visit([&](auto output) { result_vector2.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(result_vector2, data_in));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector2, gold_data_in));
 }
 
 TEST_CASE(eyelike_verify_test)
@@ -405,8 +405,8 @@ TEST_CASE(eyelike_verify_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
-    EXPECT(migraphx::verify::verify_range(result_vector, eyelike_mat));
+    std::vector<float> gold_eyelike_mat = {0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold_eyelike_mat));
 }
 
 TEST_CASE(eyelike_verify_negk_test)
@@ -423,8 +423,8 @@ TEST_CASE(eyelike_verify_negk_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
-    EXPECT(migraphx::verify::verify_range(result_vector, eyelike_mat));
+    std::vector<float> gold_eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold_eyelike_mat));
 }
 
 TEST_CASE(gather_elements)
@@ -447,7 +447,7 @@ TEST_CASE(gather_elements)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {-0.125, 0.5625, -0.9375, 0.25, 0.5625, 0.9375};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(gemm_test)
@@ -491,7 +491,7 @@ TEST_CASE(gemm_test)
         0.8098607,  1.2157929,  1.1010075,  1.0706307, 1.0429881,  1.1771785, 1.2362702,
         0.8239243,  1.1112559,  0.9639262,  1.0813537, 0.8825792,  1.121141,  1.1885703,
         1.2227502,  1.4568202,  1.1388762,  1.55058,   1.0958102,  1.4637487, 1.5756242};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(gemm_half_test)
@@ -535,7 +535,7 @@ TEST_CASE(gemm_half_test)
            2.143, 2.062, 1.921, 1.836, 2.203, 1.952, 1.055, 1.225,  1.418, 1.209, 1.155,
            1.42,  1.234, 1.302, 1.593, 1.368, 1.289, 1.327, 1.451,  1.394};
     std::vector<migraphx::half> gold{tmp.cbegin(), tmp.cend()};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(greaterorequal_test)
@@ -556,7 +556,7 @@ TEST_CASE(greaterorequal_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1.0, 1.0, 0.0};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(hardsigmoid_verify_test)
@@ -580,7 +580,7 @@ TEST_CASE(hardsigmoid_verify_test)
     std::transform(data.begin(), data.end(), gold.begin(), [&](auto x) {
         return std::max(0.0f, std::min(x * alpha + beta, 1.0f));
     });
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_else_test)
@@ -602,7 +602,7 @@ TEST_CASE(if_else_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0.0866565, -0.371067, 0.017719, 0.0250614, 0.0612539, -0.744683};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_else_test_inlined)
@@ -621,7 +621,7 @@ TEST_CASE(if_else_test_inlined)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0.0507132, -0.712328, 0.0105797, 0.04569, 0.0185013, -1.16472};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_then_test)
@@ -644,7 +644,7 @@ TEST_CASE(if_then_test)
 
     // onnx adds ones so result should be just + 1.0
     std::vector<float> gold = {1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_then_test_inlined)
@@ -663,7 +663,7 @@ TEST_CASE(if_then_test_inlined)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_literal_test)
@@ -688,14 +688,14 @@ TEST_CASE(if_literal_test)
     {
         auto result_vector      = run_prog(true);
         std::vector<float> gold = {1, 2, 3, 4, 5};
-        EXPECT(migraphx::verify::verify_range(result_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
     }
 
     // else branch
     {
         auto result_vector      = run_prog(false);
         std::vector<float> gold = {5, 4, 3, 2, 1};
-        EXPECT(migraphx::verify::verify_range(result_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
     }
 }
 
@@ -726,7 +726,7 @@ TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
 
     std::vector<float> gold = {
         1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375, 0.125, 1.50, -0.125, 0.250, -0.250, -1.125};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_then_else_multi_output_shapes_test)
@@ -757,7 +757,7 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
 
     std::vector<float> gold = {
         1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375, 0.125, 1.50, -0.125, 0.250, -0.250, -1.125};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(if_pl_test)
@@ -789,14 +789,14 @@ TEST_CASE(if_pl_test)
     {
         auto result_vector      = run_prog(true);
         std::vector<float> gold = {2, 3, 4, 5, 6, 7};
-        EXPECT(migraphx::verify::verify_range(result_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
     }
 
     // else branch
     {
         auto result_vector      = run_prog(false);
         std::vector<float> gold = {1, 2, 3, 4, 5, 6};
-        EXPECT(migraphx::verify::verify_range(result_vector, gold));
+        EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
     }
 }
 
@@ -835,8 +835,8 @@ TEST_CASE(if_tuple_test)
         auto results = run_prog(true);
         std::vector<float> gold0(4, 2.0f);
         std::vector<float> gold1(12, 4.0f);
-        EXPECT(migraphx::verify::verify_range(results.at(0), gold0));
-        EXPECT(migraphx::verify::verify_range(results.at(1), gold1));
+        EXPECT(migraphx::verify::verify_rms_range(results.at(0), gold0));
+        EXPECT(migraphx::verify::verify_rms_range(results.at(1), gold1));
     }
 
     // else branch
@@ -844,8 +844,8 @@ TEST_CASE(if_tuple_test)
         auto results = run_prog(false);
         std::vector<float> gold0(4, 3.0f);
         std::vector<float> gold1(12, 5.0f);
-        EXPECT(migraphx::verify::verify_range(results.at(0), gold0));
-        EXPECT(migraphx::verify::verify_range(results.at(1), gold1));
+        EXPECT(migraphx::verify::verify_rms_range(results.at(0), gold0));
+        EXPECT(migraphx::verify::verify_rms_range(results.at(1), gold1));
     }
 }
 
@@ -876,7 +876,7 @@ TEST_CASE(instance_norm_test)
                                2.54919,
                                3.32379,
                                4.09838};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(instance_norm_dyn_batch_test)
@@ -918,7 +918,7 @@ TEST_CASE(instance_norm_dyn_batch_test)
                                2.54919,
                                3.32379,
                                4.09838};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(instance_norm_3d_test)
@@ -947,7 +947,7 @@ TEST_CASE(instance_norm_3d_test)
                                3.18218,
                                4.05505};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(lessorequal_test)
@@ -968,7 +968,7 @@ TEST_CASE(lessorequal_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1, 0, 1};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(lpnormalization_1norm)
@@ -996,7 +996,7 @@ TEST_CASE(lpnormalization_1norm)
                             3.f / 7.f,
                             0.f,
                             0.f};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(lpnormalization_2norm)
@@ -1012,19 +1012,19 @@ TEST_CASE(lpnormalization_2norm)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> correct{0.f,
-                               2.f / 3.f,
-                               -2.f / 3.f,
-                               1.f / 3.f,
-                               1.f / 6.f,
-                               -5.f / 6.f,
-                               3.f / 6.f,
-                               -1.f / 6.f,
-                               -4.f / 5.f,
-                               3.f / 5.f,
-                               0.f,
-                               0.f};
-    EXPECT(migraphx::verify::verify_range(result_vector, correct));
+    std::vector<float> gold{0.f,
+                            2.f / 3.f,
+                            -2.f / 3.f,
+                            1.f / 3.f,
+                            1.f / 6.f,
+                            -5.f / 6.f,
+                            3.f / 6.f,
+                            -1.f / 6.f,
+                            -4.f / 5.f,
+                            3.f / 5.f,
+                            0.f,
+                            0.f};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mean_broadcast_test)
@@ -1055,7 +1055,7 @@ TEST_CASE(mean_broadcast_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold(24, 3);
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mean_test)
@@ -1082,7 +1082,7 @@ TEST_CASE(mean_test)
 
     const auto mean = std::accumulate(scalars.begin(), scalars.end(), 0.0) / num_data;
     std::vector<double> gold(num_elms, mean);
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mean_integral_test)
@@ -1109,7 +1109,7 @@ TEST_CASE(mean_integral_test)
 
     const auto mean = std::accumulate(scalars.begin(), scalars.end(), 0) / num_data;
     std::vector<int> gold(num_elms, mean);
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mod_test)
@@ -1136,7 +1136,7 @@ TEST_CASE(mod_test)
     std::vector<int32_t> gold = {0, -2, 5, 0, 2, 3,  0, -2, 5, 0, 2, 3,  0, -2,
                                  5, 0,  2, 3, 0, -2, 5, 0,  2, 3, 0, -2, 5};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mod_test_different_types)
@@ -1164,7 +1164,7 @@ TEST_CASE(mod_test_different_types)
     std::vector<int32_t> gold = {0, -2, 5, 0, 2, 3,  0, -2, 5, 0, 2, 3,  0, -2,
                                  5, 0,  2, 3, 0, -2, 5, 0,  2, 3, 0, -2, 5};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mod_test_fmod)
@@ -1193,7 +1193,7 @@ TEST_CASE(mod_test_fmod)
                             10.7, 11.2, 12.3, 13.9, -14.2, 15.8, 1.6, 3.9,  5.2,
                             7.0,  9.0,  1.0,  -4.0, 7.0,   -3.0, 1.2, 1.3,  3.1};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(mod_test_fmod_different_types)
@@ -1223,7 +1223,7 @@ TEST_CASE(mod_test_fmod_different_types)
                             10.7, 11.2, 12.3, 13.9, -14.2, 15.8, 1.6, 3.9,  5.2,
                             7.0,  9.0,  1.0,  -4.0, 7.0,   -3.0, 1.2, 1.3,  3.1};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(nonzero_test)
@@ -1242,7 +1242,80 @@ TEST_CASE(nonzero_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0, 0, 1, 0, 0, 1, 0, 0};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(qlinearadd_test)
+{
+    // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearAdd
+    migraphx::program p = migraphx::parse_onnx("qlinearadd_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape a{migraphx::shape::uint8_type, {64}};
+    std::vector<uint8_t> data_a = {0,   2,   4,   6,   8,   10,  12,  14,  16,  18,  20,  22,  24,
+                                   26,  28,  30,  32,  34,  36,  38,  40,  42,  44,  46,  48,  50,
+                                   52,  54,  56,  58,  60,  62,  64,  66,  68,  70,  72,  74,  76,
+                                   78,  80,  82,  84,  86,  88,  90,  92,  94,  96,  98,  100, 102,
+                                   104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126};
+
+    migraphx::shape b{migraphx::shape::uint8_type, {64}};
+    std::vector<uint8_t> data_b = {128, 126, 124, 122, 120, 118, 116, 114, 112, 110, 108, 106, 104,
+                                   102, 100, 98,  96,  94,  92,  90,  88,  86,  84,  82,  80,  78,
+                                   76,  74,  72,  70,  68,  66,  64,  62,  60,  58,  56,  54,  52,
+                                   50,  48,  46,  44,  42,  40,  38,  36,  34,  32,  30,  28,  26,
+                                   24,  22,  20,  18,  16,  14,  12,  10,  8,   6,   4,   2};
+
+    migraphx::parameter_map pp;
+    pp["A"]     = migraphx::argument(a, data_a.data());
+    pp["B"]     = migraphx::argument(b, data_b.data());
+    auto result = p.eval(pp).back();
+
+    std::vector<unsigned char> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<uint8_t> gold = {64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+                                 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+                                 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+                                 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(qlinearadd_bcast_test)
+{
+    // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearAdd
+    migraphx::program p = migraphx::parse_onnx("qlinearadd_bcast_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape a{migraphx::shape::int8_type, {64}};
+    std::vector<int8_t> data_a = {-64, -62, -60, -58, -56, -54, -52, -50, -48, -46, -44, -42, -40,
+                                  -38, -36, -34, -32, -30, -28, -26, -24, -22, -20, -18, -16, -14,
+                                  -12, -10, -8,  -6,  -4,  -2,  0,   2,   4,   6,   8,   10,  12,
+                                  14,  16,  18,  20,  22,  24,  26,  28,  30,  32,  34,  36,  38,
+                                  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,  60,  62};
+
+    migraphx::shape b{migraphx::shape::int8_type, {1, 1, 64}};
+    std::vector<int8_t> data_b = {96, 94,  92,  90,  88,  86,  84,  82,  80,  78,  76,  74, 72,
+                                  70, 68,  66,  64,  62,  60,  58,  56,  54,  52,  50,  48, 46,
+                                  44, 42,  40,  38,  36,  34,  32,  30,  28,  26,  24,  22, 20,
+                                  18, 16,  14,  12,  10,  8,   6,   4,   2,   0,   -2,  -4, -6,
+                                  -8, -10, -12, -14, -16, -18, -20, -22, -24, -26, -28, -30};
+
+    migraphx::parameter_map pp;
+    pp["A"]     = migraphx::argument(a, data_a.data());
+    pp["B"]     = migraphx::argument(b, data_b.data());
+    auto result = p.eval(pp).back();
+
+    std::vector<int8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {-64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64,
+                                -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64,
+                                -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64,
+                                -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64,
+                                -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64, -64};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(resize_downsample_f_test)
@@ -1263,7 +1336,7 @@ TEST_CASE(resize_downsample_f_test)
 
     std::vector<float> gold = {0.0f, 3.0f};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(resize_upsample_linear_ac_test)
@@ -1298,7 +1371,7 @@ TEST_CASE(resize_upsample_linear_ac_test)
                                11.0f / 3,
                                4};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(resize_upsample_linear_test)
@@ -1319,7 +1392,7 @@ TEST_CASE(resize_upsample_linear_test)
     std::vector<float> gold = {
         1, 1.25, 1.75, 2, 1.5, 1.75, 2.25, 2.5, 2.5, 2.75, 3.25, 3.5, 3, 3.25, 3.75, 4};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(resize_upsample_pf_test)
@@ -1340,7 +1413,7 @@ TEST_CASE(resize_upsample_pf_test)
     std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
                                3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(reversesequence_4D_verify_test)
@@ -1361,7 +1434,7 @@ TEST_CASE(reversesequence_4D_verify_test)
     std::vector<float> gold = {
         8.0, 9.0, 10.0, 11.0, 4.0, 5.0, 6.0, 7.0, 0.0, 1.0, 2.0, 3.0, 12.0, 13.0, 14.0, 15.0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(reversesequence_batch_verify_test)
@@ -1382,7 +1455,7 @@ TEST_CASE(reversesequence_batch_verify_test)
     std::vector<float> gold = {
         0.0, 1.0, 2.0, 3.0, 5.0, 4.0, 6.0, 7.0, 10.0, 9.0, 8.0, 11.0, 15.0, 14.0, 13.0, 12.0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(reversesequence_time_verify_test)
@@ -1403,7 +1476,7 @@ TEST_CASE(reversesequence_time_verify_test)
     std::vector<float> gold = {
         3.0, 6.0, 9.0, 12.0, 2.0, 5.0, 8.0, 13.0, 1.0, 4.0, 10.0, 14.0, 0.0, 7.0, 11.0, 15.0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(selu_test)
@@ -1423,7 +1496,7 @@ TEST_CASE(selu_test)
 
     std::vector<float> gold = {0.55, 1.05, 0, -0.10912, -0.149251, 6};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(size_verify_test)
@@ -1457,7 +1530,7 @@ TEST_CASE(slice_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {2, 3};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(slice_5arg_test)
@@ -1477,7 +1550,7 @@ TEST_CASE(slice_5arg_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {10, 11, 12, 13, 15, 16, 17, 18};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(slice_reverse_test)
@@ -1497,7 +1570,7 @@ TEST_CASE(slice_reverse_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {14, 13, 12, 11, 19, 18, 17, 16};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(slice_step_test)
@@ -1517,7 +1590,7 @@ TEST_CASE(slice_step_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {14, 12};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(softplus_test)
@@ -1538,7 +1611,7 @@ TEST_CASE(softplus_test)
     std::transform(
         data.begin(), data.end(), gold.begin(), [](auto x) { return std::log1p(std::exp(x)); });
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(softsign_test)
@@ -1559,7 +1632,7 @@ TEST_CASE(softsign_test)
     std::transform(
         data.begin(), data.end(), gold.begin(), [](auto x) { return x / (1.0 + std::abs(x)); });
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(upsample_test)
@@ -1578,7 +1651,7 @@ TEST_CASE(upsample_test)
 
     std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
                                3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(where_test)
@@ -1620,7 +1693,7 @@ TEST_CASE(where_test)
                                2.0f,
                                1.0f,
                                2.0f};
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 std::vector<float> gen_trilu_test(const migraphx::shape& s, const migraphx::program& p)
@@ -1645,7 +1718,7 @@ TEST_CASE(trilu_test)
 
     std::vector<float> gold = {1, 2, 3, 4, 0, 6, 7, 8, 0, 0, 11, 12};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(trilu_batch_diff_k_test)
@@ -1656,7 +1729,7 @@ TEST_CASE(trilu_batch_diff_k_test)
 
     std::vector<float> gold = {0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 0, 0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(trilu_lower_test)
@@ -1667,7 +1740,7 @@ TEST_CASE(trilu_lower_test)
 
     std::vector<float> gold = {0, 0, 0, 0, 5, 0, 0, 0, 9, 10, 0, 0};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(trilu_out_k_test)
@@ -1678,7 +1751,7 @@ TEST_CASE(trilu_out_k_test)
 
     std::vector<float> gold(12, 0);
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(trilu_row_one_test)
@@ -1689,7 +1762,7 @@ TEST_CASE(trilu_row_one_test)
 
     std::vector<float> gold = {0, 2, 3, 4};
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

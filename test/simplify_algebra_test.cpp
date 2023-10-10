@@ -3372,9 +3372,8 @@ TEST_CASE(dot_fusion_reshape)
         auto s1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {320}}, {"ends", {640}}}), d);
 
-        auto cont0 = m2.add_instruction(migraphx::make_op("contiguous"), s0);
         auto r0 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), cont0);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 8, 40}}}), s0);
 
         m2.add_return({r0, s1});
     };

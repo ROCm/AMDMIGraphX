@@ -52,6 +52,7 @@ using dependent_type = typename select_dependent_type<T, Ts...>::type;
  * \param attr_val the normalize_axes attributes from the operator
  * \param prefix error message prefix
  */
+MIGRAPHX_EXPORT
 std::vector<int64_t> normalize_axes(const std::vector<int64_t>& axes,
                                     const shape& input_shape,
                                     const value& attr_val,
@@ -67,6 +68,7 @@ std::vector<int64_t> normalize_axes(const std::vector<int64_t>& axes,
  * \param attr_val the normalize_axes attributes from the operator
  * \param prefix error message prefix
  */
+MIGRAPHX_EXPORT
 std::vector<int64_t> normalize_indices(const std::vector<int64_t>& indices,
                                        const std::vector<int64_t>& axes,
                                        const shape& input_shape,

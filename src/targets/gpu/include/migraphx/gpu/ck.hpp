@@ -66,7 +66,8 @@ static std::unordered_map<std::string_view, std::string_view> create_ck_header_s
 
     std::transform(
         ck_headers.begin(), ck_headers.end(), std::inserter(result, result.begin()), [&](auto& p) {
-            return std::pair<std::string_view, std::string_view>(p.first, ck_disable_warnings(p.second));
+            return std::pair<std::string_view, std::string_view>(p.first,
+                                                                 ck_disable_warnings(p.second));
         });
     return result;
 }
@@ -75,10 +76,10 @@ static std::vector<src_file> create_ck_headers()
 {
     static const auto& header_strings = create_ck_header_strings();
     std::vector<src_file> srcs;
-    std::transform(
-        header_strings.begin(), header_strings.end(), std::back_inserter(srcs), [&](auto& p) {
-            return src_file{p};
-        });
+    std::transform(header_strings.begin(),
+                   header_strings.end(),
+                   std::back_inserter(srcs),
+                   [&](auto& p) { return src_file{p}; });
     return srcs;
 }
 

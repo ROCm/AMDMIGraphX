@@ -601,7 +601,9 @@ struct verify : command<verify>
             quantize = precision::fp16;
         } 
         if(c.to_int8)
+        {
             quantize = precision::int8;
+        }
 
         if(per_instruction)
         {

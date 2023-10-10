@@ -632,6 +632,9 @@ struct find_transpose_contiguous_reshaper_unary
     }
 };
 
+// simplifies broadcast->transpose to transpose->broadcast
+// in the case of a scalar, simply rewrite to broadcast
+// this can allow for further optimizations with find_inner_broadcast() in simplify_algebra.cpp
 struct find_broadcast_transpose
 {
     auto matcher() const

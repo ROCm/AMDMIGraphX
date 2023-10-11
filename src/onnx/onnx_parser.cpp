@@ -244,7 +244,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
-        this->path = parent_path;
+        this->path = parent_path.string();
 
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))

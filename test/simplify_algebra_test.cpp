@@ -2323,9 +2323,8 @@ TEST_CASE(simplify_dot_horiz_reshape)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {4}}, {"ends", {8}}}), dot);
-        auto x_cont = m2.add_instruction(migraphx::make_op("contiguous"), x);
         auto x_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x_cont);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
         auto y_rsp =
             m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
         auto sum = m2.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});

@@ -2690,10 +2690,6 @@ void reorder_reshape_slice()
         }
         auto input     = m2.add_parameter("input", s);
         auto rsp_input = input;
-        if(TransposeInput)
-        {
-            rsp_input = m2.add_instruction(migraphx::make_op("contiguous"), {input});
-        }
         std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 30, 64};
         auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);
 

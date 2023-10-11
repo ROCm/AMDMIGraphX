@@ -135,7 +135,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         const auto& c_shape = inputs.back();
-        auto tuning_value   = v.get("tuning_value", 0);
+        auto tuning_value   = v.get("tuning_value", 34);
         auto batch_count = get_batch_count(c_shape);
         auto problem     = create_problem(inputs, v);
 

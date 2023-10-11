@@ -59,14 +59,14 @@ std::string ck_disable_warnings(P p)
                               {{"content", std::string{p.data(), p.size()}}});
 }
 
-static std::unordered_map<std::string_view, std::string_view> create_ck_header_strings()
+static std::unordered_map<std::string, std::string> create_ck_header_strings()
 {
-    std::unordered_map<std::string_view, std::string_view> result;
+    std::unordered_map<std::string, std::string> result;
     auto ck_headers = ck::host::GetHeaders();
 
     std::transform(
         ck_headers.begin(), ck_headers.end(), std::inserter(result, result.begin()), [&](auto& p) {
-            return std::pair<std::string_view, std::string_view>(p.first,
+            return std::pair<std::string, std::string>(p.first,
                                                                  ck_disable_warnings(p.second));
         });
     return result;

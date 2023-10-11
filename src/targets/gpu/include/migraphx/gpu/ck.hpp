@@ -66,8 +66,7 @@ static std::unordered_map<std::string, std::string> create_ck_header_strings()
 
     std::transform(
         ck_headers.begin(), ck_headers.end(), std::inserter(result, result.begin()), [&](auto& p) {
-            return std::pair<std::string, std::string>(p.first,
-                                                                 ck_disable_warnings(p.second));
+            return std::pair<std::string, std::string>(p.first, ck_disable_warnings(p.second));
         });
     return result;
 }

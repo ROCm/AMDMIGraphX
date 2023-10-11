@@ -2432,6 +2432,44 @@ def gathernd_batch_dims_test():
 
 
 @onnx_test()
+def gemm_softmax_gemm_half():
+    a = helper.make_tensor_value_info('a', TensorProto.FLOAT16, [1, 1])
+    b = helper.make_tensor_value_info('b', TensorProto.FLOAT16, [1, 1])
+    b1 = helper.make_tensor_value_info('b1', TensorProto.FLOAT16, [1, 1])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT16, [1, 1])
+
+    scale_array = np.array([(1/8)])
+    zero_array  = np.array([0])
+    scale_tensor = helper.make_tensor(name='scale',
+                                    data_type=TensorProto.FLOAT16,
+                                    dims=scale_array.shape,
+                                    vals=scale_array.flatten().astype(np.float16))
+    zero_tensor = helper.make_tensor(name='zeros',
+                                    data_type=TensorProto.FLOAT16,
+                                    dims=zero_array.shape,
+                                    vals=zero_array.flatten().astype(np.float16))
+
+    gemm1 = onnx.helper.make_node('MatMul',
+                                 inputs=['a', 'b'],
+                                 outputs=['gemm1_out'])
+    mul1 = onnx.helper.make_node('Mul',
+                                 inputs=['gemm1_out', 'scale'],
+                                 outputs=['mul1_out'])
+    add1 = onnx.helper.make_node('Add',
+                                 inputs=['mul1_out', 'zeros'],
+                                 outputs=['add1_out'])
+    softmax = onnx.helper.make_node('Softmax',
+                                 inputs=['add1_out'],
+                                 outputs=['softmax_out'])
+    gemm2 = onnx.helper.make_node('MatMul',
+                                 inputs=['softmax_out', 'b1'],
+                                 outputs=['out'])
+    
+
+    return ([gemm1, mul1, add1, softmax, gemm2], [a, b, b1], [out], [scale_tensor, zero_tensor])
+
+
+@onnx_test()
 def gemm_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, 6])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])
@@ -4133,6 +4171,21 @@ def lrn_test():
                                  outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def matmul_half():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [1, 1, 1])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [1, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 1])
+
+    node = onnx.helper.make_node(
+        'MatMul',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
 
 
 @onnx_test()

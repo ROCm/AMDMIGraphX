@@ -23,18 +23,21 @@
  */
 
 /**
- *  * Multinomial or categorical distribution.  Performs a sampling of random input and returns a
- count of
+ *  * Multinomial or categorical distribution.  Performs a sampling of random input
+ *         and returns a count of
  *         each category, or bucket.  This does not require the standard multinomial
  *         distribution but instead takes a probability distribution, i.e. cumulative
  *         distribution function (CDF) as its first input.
  *
  *      Inputs:   args[0] - a tensor of probabilities for each category.  Values are
  *                          cumulative density function
- *                          totals as provided by op prefix_scan_sum.  Values must have been
- *                          log normalized (i.e. start with any set of numbers > 0, then set
- *                          val[i] = log(val[i]) / sum (log(val[0]) + log(val[1])+ ...) )
- *                          and then apply prefix_scan_sum.
+ *                          totals as provided by operation prefix_scan_sum.  Values are
+ *                          cumulative probabilities (i.e. start with any set of numbers > 0, then
+ *                          normalize val[i] = val[i] / sum (val[0] + val[1]+ ...)
+ *                          and then apply prefix_scan_sum.  Inputs from the Onnx multinomial
+ *                          operation are unnormalized logs and so must have exp applied, then
+ *                          normalize and take cumulative sum before calling this operation.
+ *
  *                          This input has Rank 2.  Dimension 0 is batch #, so that there can be
  *                          a different CDF for each iteration in the batch.  The size of dimension
  *                          1 is the number of categories.
@@ -48,13 +51,13 @@
  *
  *                          Values as created by a std::mt19937 like this:
  *
-                            size_t sample_size = 100000;
-                            float seed         = 0.0f;
-                            std::mt19937 gen(seed);
-                            std::uniform_real_distribution<> dis(0.0, 1.0);
-                            std::vector<float> rand_samples(sample_size);
-                            std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return
- dis(gen); });
+ *                           size_t sample_size = 100000;
+ *                           float seed         = 0.0f;
+ *                           std::mt19937 gen(seed);
+ *                           std::uniform_real_distribution<> dis(0.0, 1.0);
+ *                           std::vector<float> rand_samples(sample_size);
+ *                           std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return
+ *                                dis(gen); });
  *
  *        Output:   A 2D vector of category each input.  Dimensions are (Input 1[first], Input
  2[last]).
@@ -127,18 +130,13 @@ struct multinomial
 
                     // std::upper_bound returns an iterator to the bucket the value belongs in,
                     // when normalized by the probability distribution dist
-
-// debug the distribution array
-// for(auto cc : cdf) std::cout << cc << "c "; std::cout << "   distribution  " << dist[i]  << " " <<  dist[i] * *(std::prev(cdf_end)) << "\n ";                   
                     auto sample_iter =
                         std::upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
                     // convert iterator to an integer index
                     output[i] = std::distance(cdf_begin, sample_iter);
-// std::cout << "\n " << output[i] << " o&d  " << dist[i] << "\n ";                    
                 });
             });
         });
-// std::cout << "\n";
         return result;
     }
 };

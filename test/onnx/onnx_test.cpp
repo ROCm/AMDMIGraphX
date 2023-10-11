@@ -4335,7 +4335,7 @@ TEST_CASE(multinomial_test)
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
-p.debug_print();
+    p.debug_print();
     auto prog = optimize_onnx("multinomial_test.onnx");
 
     EXPECT(p == prog);
@@ -4355,7 +4355,7 @@ TEST_CASE(multinomial_dyn_test)
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf = mm->add_instruction(
+    cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};

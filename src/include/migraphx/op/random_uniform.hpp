@@ -66,10 +66,10 @@ struct random_uniform
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
-        //const shape&, std::vector<argument> args) const
+    // const shape&, std::vector<argument> args) const
     // {
-        // Output goes into the passed buffer, not the shape output.
-        // auto result = args[1];
+    // Output goes into the passed buffer, not the shape output.
+    // auto result = args[1];
 
     {
         argument result{dyn_out.computed_shape};
@@ -78,7 +78,6 @@ struct random_uniform
 
         result.visit([&](auto output) {
             using type = typename decltype(output)::value_type;
-            decltype(output) asdf;
             if constexpr(std::is_integral<type>{})
             {
                 // default range for all integer types is

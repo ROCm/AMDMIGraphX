@@ -32,7 +32,9 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -281,10 +283,12 @@ struct loader
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
                 p = migraphx::load_py(file);
             }
+#endif
             else if(file_type == "migraphx")
             {
                 p = migraphx::load(file);

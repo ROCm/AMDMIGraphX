@@ -21,49 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_FLOAT_EQUAL_HPP
 
-#include <algorithm>
-#include <cmath>
-#include <numeric>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/requires.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/type_traits.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-template <class... Ts>
-using common_type = typename std::common_type<Ts...>::type;
-
-struct float_equal_fn
+struct test_scatter_nonstandard_shape : verify_program<test_scatter_nonstandard_shape>
 {
-    template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
-    static bool apply(T x, T y)
+    migraphx::program create_program() const
     {
-        return std::isfinite(x) and std::isfinite(y) and
-               std::nextafter(x, std::numeric_limits<T>::lowest()) <= y and
-               std::nextafter(x, std::numeric_limits<T>::max()) >= y;
-    }
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 1, 3}, {1, 3, 2}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1, 3}, {1, 3, 2}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+        migraphx::shape su{migraphx::shape::float_type, {2, 1, 3}, {1, 2, 3}};
 
-    template <class T, MIGRAPHX_REQUIRES(not is_floating_point<T>{})>
-    static bool apply(T x, T y)
-    {
-        return x == y;
-    }
+        auto pd = mm->add_parameter("data", sd);
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto pu = mm->add_parameter("update", su);
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
+        mm->add_return({r});
 
-    template <class T, class U>
-    bool operator()(T x, U y) const
-    {
-        return float_equal_fn::apply<common_type<T, U>>(x, y);
+        return p;
     }
 };
-
-static constexpr float_equal_fn float_equal{};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

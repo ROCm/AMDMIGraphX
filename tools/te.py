@@ -431,6 +431,9 @@ def template_eval(template, **kwargs):
     return template
 
 
-f = open(sys.argv[1]).read()
-r = template_eval(f)
-sys.stdout.write(r)
+def run(p):
+    return template_eval(open(p).read())
+
+
+if __name__ == '__main__':
+    sys.stdout.write(run(sys.argv[1]))

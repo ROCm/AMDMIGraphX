@@ -68,7 +68,8 @@ void auto_contiguous::apply(module& m) const
         if(not outputs.empty())
             // if contiguous was already inserted, skip
             if(std::all_of(outputs.begin(), outputs.end(), [](auto output) {
-                return output->name() == "contiguous";}))
+                   return output->name() == "contiguous";
+               }))
                 continue;
         shape s = ins->get_shape();
         if(s.dynamic())
@@ -79,7 +80,6 @@ void auto_contiguous::apply(module& m) const
             continue;
         if(s.scalar() and not contains(ins->name(), "broadcast"))
             continue;
-        
 
         auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
         m.replace_instruction(ins, c);

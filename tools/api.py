@@ -27,6 +27,7 @@ import re
 import runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from pathlib import Path
 
 type_map: Dict[str, Callable[['Parameter'], None]] = {}
 cpp_type_map: Dict[str, str] = {}
@@ -1281,18 +1282,17 @@ def template_eval(template, **kwargs):
     return template
 
 
-def run(args: List[str]) -> None:
-    runpy.run_path(args[0])
-    if len(args) > 1:
-        f = open(args[1]).read()
-        r = template_eval(f)
+def run(path: Union[Path, str]) -> str:
+    return template_eval(open(path).read())
+
+
+if __name__ == "__main__":
+    sys.modules['api'] = sys.modules['__main__']
+    runpy.run_path(sys.argv[1])
+    if len(sys.argv) > 2:
+        r = run(sys.argv[2])
         sys.stdout.write(r)
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())
         # sys.stdout.write(generate_cpp_header())
-
-
-if __name__ == "__main__":
-    sys.modules['api'] = sys.modules['__main__']
-    run(sys.argv[1:])

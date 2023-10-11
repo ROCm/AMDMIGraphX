@@ -141,10 +141,6 @@ struct find_ck_gemm_pointwise
                return not input->inputs().empty() and input->inputs().front()->name() == "capture";
            }))
             return;
-        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto input) {
-               return not input->inputs().empty() and input->inputs().front()->name() == "capture";
-           }))
-            return;
         assert(gemm_it != inputs.end());
         if(gemm_idx != 0)
         {

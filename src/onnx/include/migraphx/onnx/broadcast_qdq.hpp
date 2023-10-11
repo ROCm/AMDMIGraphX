@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,51 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
+
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
 
 #include <string>
-#include <migraphx/config.hpp>
+
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-template <class PrivateMigraphTypeNameProbe>
-std::string compute_type_name()
-{
-    std::string name;
-#if defined(_MSC_VER) && !defined(__clang__)
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
-#else
-    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
+// This method is to prep for quantizelinear or dequantizelinear operation for
+// either the broadcasting of weight-scale or zero-points of qlinearadd operator
+// outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
+instruction_ref bcast_qdq_instr(const std::string& op_name,
+                                instruction_ref x_in,
+                                instruction_ref arg_fscale,
+                                instruction_ref arg_z_pt,
+                                const onnx_parser::node_info& info);
 
-    name = __PRETTY_FUNCTION__;
+// Multibroadcast a scaler..
+instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
+                                   instruction_ref arg_in,
+                                   const onnx_parser::node_info& info);
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
-    auto length = name.find_last_of(",") - begin;
-#else
-    auto length = name.find_first_of("];", begin) - begin;
-#endif
-    name        = name.substr(begin, length);
-#endif
-    return name;
-}
-
-template <class T>
-const std::string& get_type_name()
-{
-    static const std::string name = compute_type_name<T>();
-    return name;
-}
-
-template <class T>
-const std::string& get_type_name(const T&)
-{
-    return migraphx::get_type_name<T>();
-}
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

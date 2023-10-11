@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_DEVICE_TARGETS_CPP
 #define MIGRAPHX_GUARD_DEVICE_TARGETS_CPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/device/config.hpp>
 #include <string>
 #include <vector>
 
@@ -34,9 +34,13 @@ namespace gpu {
 namespace device {
 #define MIGRAPHX_GPU_TARGETS "@GPU_TARGETS@" // NOLINT
 
+MIGRAPHX_DEVICE_EXPORT
 const std::vector<std::string>& get_targets();
+
+MIGRAPHX_DEVICE_EXPORT
 std::string get_targets_as_string();
 
+MIGRAPHX_DEVICE_EXPORT
 std::string get_device_name();
 
 } // namespace device

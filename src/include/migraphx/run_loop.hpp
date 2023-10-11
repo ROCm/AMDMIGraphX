@@ -31,6 +31,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
+#include <array>
 #include <string>
 
 namespace migraphx {

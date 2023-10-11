@@ -1897,12 +1897,17 @@ TEST_CASE(simplify_split_add_relu_reshape)
         auto concatb = m2.add_instruction(b, concat);
         auto sum     = m2.add_instruction(migraphx::make_op("add"), input, concatb);
         auto relu    = m2.add_instruction(migraphx::make_op("relu"), sum);
-        auto rsp     = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 8}}}), relu);
         auto slc1    = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), rsp);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), relu);
+
+        auto rsp1    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc1);
+
         auto slc2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), rsp);
-        auto add = m2.add_instruction(migraphx::make_op("add"), slc1, slc2);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), relu);
+
+        auto rsp2    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc2);
+
+        auto add = m2.add_instruction(migraphx::make_op("add"), rsp1, rsp2);
         m2.add_instruction(pass_op{}, add);
     }
     EXPECT(m1.sort() == m2.sort());

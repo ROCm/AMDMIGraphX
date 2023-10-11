@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
+#include <deque>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -92,7 +93,7 @@ struct hiprtc_program
 {
     struct string_array
     {
-        std::vector<std::string> strings{};
+        std::deque<std::string> strings{};
         std::vector<const char*> c_strs{};
 
         string_array() {}
@@ -209,7 +210,6 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
-
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -248,7 +248,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
@@ -338,7 +338,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
@@ -359,9 +359,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
 
     std::string src;
-    src_file input;
-    input.path    = "main.cpp";
-    input.content = std::make_pair(src.data(), src.data() + src.size());
+    src_file input{"main.cpp", src};
 
     try
     {

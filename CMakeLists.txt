@@ -53,6 +53,12 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
+if(WIN32)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
+else()
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+endif()
+
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
@@ -71,7 +77,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.7.0)
+rocm_setup_version(VERSION 2.8.0)
 set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
@@ -261,8 +267,6 @@ rocm_enable_cppcheck(
         MIGRAPHX_USE_CLANG_TIDY
 )
 
-enable_testing()
-
 include(ROCMCreatePackage)
 include(ROCMTest)
 
@@ -283,7 +287,6 @@ file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
 foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
-configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
 
 rocm_create_package(
     NAME MIGraphX

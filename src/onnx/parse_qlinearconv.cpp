@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
+#include <migraphx/onnx/broadcast_qdq.hpp>
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {
@@ -179,39 +180,6 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
             recalc_conv_attributes(values, kdims);
 
         return values;
-    }
-
-    // This method is to prep for quantizelinear or dequantizelinear operation for
-    // either the broadcasting of weight-scale or zero-points of qlinearconv operator
-    // outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
-    instruction_ref bcast_qdq_instr(const std::string& op_name,
-                                    const instruction_ref x_in,
-                                    const instruction_ref arg_fscale,
-                                    const instruction_ref arg_z_pt,
-                                    const onnx_parser::node_info& info) const
-    {
-        auto in_lens = x_in->get_shape().lens();
-
-        // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_scale;
-        if(arg_fscale->get_shape().elements() > 1)
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_fscale);
-        else
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
-
-        // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_zero_pt;
-        if(arg_z_pt->get_shape().elements() > 1)
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_z_pt);
-        else
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_z_pt);
-
-        // op_name is either quantizelinear or dequantizelinear:
-        return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
     }
 
     instruction_ref add_bias_to_conv(const instruction_ref bias_arg,

@@ -261,8 +261,6 @@ rocm_enable_cppcheck(
         MIGRAPHX_USE_CLANG_TIDY
 )
 
-enable_testing()
-
 include(ROCMCreatePackage)
 include(ROCMTest)
 

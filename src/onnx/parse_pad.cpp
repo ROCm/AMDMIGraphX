@@ -149,7 +149,7 @@ struct parse_pad : op_parser<parse_pad>
         if(args.size() >= 2)
         {
             auto pad_arg = args.at(1)->eval();
-            check_arg_empty(pad_arg, "PARSE_PAD: pad input must be constant");
+            check_arg_empty(pad_arg, "PARSE_PAD: `pads` input must be constant");
             pad_arg.visit([&](auto v) { pads.assign(v.begin(), v.end()); });
         }
         else if(contains(info.attributes, "pads"))
@@ -159,7 +159,7 @@ struct parse_pad : op_parser<parse_pad>
         }
         else
         {
-            MIGRAPHX_THROW("PARSE_PAD: pad must be available");
+            MIGRAPHX_THROW("PARSE_PAD: `pads` must be available");
         }
         return pads;
     }
@@ -174,12 +174,12 @@ struct parse_pad : op_parser<parse_pad>
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())
             {
-                MIGRAPHX_THROW("PARSE_PAD: input value must be constant");
+                MIGRAPHX_THROW("PARSE_PAD: input `value` must be constant");
             }
             auto val_arg = val_ins->eval();
             if(val_arg.get_shape().elements() != 1)
             {
-                MIGRAPHX_THROW("PARSE_PAD: value should contain only one element");
+                MIGRAPHX_THROW("PARSE_PAD: `value` should contain only one element");
             }
             value = val_arg.at<float>();
         }
@@ -199,7 +199,7 @@ struct parse_pad : op_parser<parse_pad>
         if(args.size() >= pos)
         {
             auto axes_arg = args.at(pos - 1)->eval();
-            check_arg_empty(axes_arg, "PARSE_PAD: pad input must be constant");
+            check_arg_empty(axes_arg, "PARSE_PAD: variable `axes` input not supported");
             axes_arg.visit([&](auto v) { axes.assign(v.begin(), v.end()); });
         }
         return axes;

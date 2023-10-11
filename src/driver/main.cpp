@@ -593,6 +593,8 @@ struct verify : command<verify>
         }
 
         std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         auto quantize = precision::fp32;
         if(c.to_fp16)

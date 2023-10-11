@@ -537,9 +537,9 @@ struct verify : command<verify>
 {
     compiler c;
     // Set to -1. as nonsense initial value
-    double rms_tol = -1.;
-    double atol = -1.;
-    double rtol = -1.;
+    double rms_tol = -1.0;
+    double atol = -1.0;
+    double rtol = -1.0;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
@@ -579,21 +579,20 @@ struct verify : command<verify>
         {
             tols = migraphx::verify::tolerance{8e-2, 4e-2, 4e-2};
         }
-        auto dbl_comp = [&](double a, double b){
-            return (std::abs(a - b) <= std::numeric_limits<double>::epsilon());
-        };
-        if(not dbl_comp(this->rms_tol, -1.))
+        if(not float_equal(this->rms_tol, -1.0))
         {
             tols.rms_tol = this->rms_tol;
         }
-        if(not dbl_comp(this->atol, -1.))
+        if(not float_equal(this->atol, -1.0))
         {
             tols.atol = this->atol;
         }
-        if(not dbl_comp(this->rtol, -1.))
+        if(not float_equal(this->rtol, -1.0))
         {
             tols.rtol = this->rtol;
         }
+
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
 
         auto quantize = precision::fp32;
         if(c.to_fp16)

@@ -599,6 +599,29 @@ def cast_test():
 
 
 @onnx_test()
+def castlike_test():
+    input = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [10])
+    target_type = helper.make_tensor_value_info('1', TensorProto.FLOAT, [10])
+    output = helper.make_tensor_value_info('out', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node('CastLike',
+                                 inputs=['0', '1'],
+                                 outputs=['out'])
+
+    return ([node], [input, target_type], [output])
+
+
+@onnx_test()
+def castlike_error_test():
+    input = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [10])
+    output = helper.make_tensor_value_info('out', TensorProto.FLOAT, [10])
+
+    node = onnx.helper.make_node('CastLike', inputs=['0'], outputs=['out'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
 def ceil_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -5103,6 +5126,61 @@ def prelu_brcst_test():
     )
 
     return ([node], [arg0, arg1], [arg_out])
+
+
+@onnx_test()
+def qlinearadd_test():
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [64])
+    sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_a = helper.make_tensor('A_zero_point', TensorProto.UINT8, [], [0])
+
+    b = helper.make_tensor_value_info('B', TensorProto.UINT8, [64])
+    sc_b = helper.make_tensor('B_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_b = helper.make_tensor('B_zero_point', TensorProto.UINT8, [],
+                                   [128])
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [64])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [64])
+
+    node = onnx.helper.make_node(
+        'QLinearAdd',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a, b], [c],
+            [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def qlinearadd_bcast_test():
+    a = helper.make_tensor_value_info('A', TensorProto.INT8, [64])
+    sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_a = helper.make_tensor('A_zero_point', TensorProto.INT8, [], [0])
+
+    b = helper.make_tensor_value_info('B', TensorProto.INT8, [1, 1, 64])
+    sc_b = helper.make_tensor('B_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_b = helper.make_tensor('B_zero_point', TensorProto.INT8, [], [32])
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.INT8, [], [-64])
+
+    c = helper.make_tensor_value_info('C', TensorProto.INT8, [1, 1, 64])
+
+    node = onnx.helper.make_node(
+        'QLinearAdd',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a, b], [c],
+            [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
 
 
 @onnx_test()

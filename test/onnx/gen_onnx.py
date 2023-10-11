@@ -5794,7 +5794,7 @@ def reshape_non_standard_test():
 
 
 @onnx_test()
-def reshape_variable_input_test0():
+def reshape_variable_input_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 2, 3])
     x_shape = helper.make_tensor_value_info('1', TensorProto.INT64, [2])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 8])
@@ -5803,7 +5803,7 @@ def reshape_variable_input_test0():
 
 
 @onnx_test()
-def reshape_variable_input_test1():
+def reshape_variable_input_dyn_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [None, 2, 3])
     x_shape = helper.make_tensor_value_info('1', TensorProto.INT64, [2])
     y = helper.make_tensor_value_info('2', TensorProto.FLOAT, [None, 6])

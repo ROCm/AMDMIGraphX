@@ -5454,7 +5454,7 @@ TEST_CASE(reshape_non_standard_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(reshape_variable_input_test0)
+TEST_CASE(reshape_variable_input_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -5464,11 +5464,11 @@ TEST_CASE(reshape_variable_input_test0)
         migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), p1);
     mm->add_instruction(migraphx::make_op("reshape"), p0, alloc);
 
-    auto prog = optimize_onnx("reshape_variable_input_test0.onnx");
+    auto prog = optimize_onnx("reshape_variable_input_test.onnx");
     EXPECT(p == prog);
 }
 
-TEST_CASE(reshape_variable_input_test1)
+TEST_CASE(reshape_variable_input_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -5482,7 +5482,7 @@ TEST_CASE(reshape_variable_input_test1)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = parse_onnx("reshape_variable_input_test1.onnx", options);
+    auto prog                     = parse_onnx("reshape_variable_input_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
 

@@ -47,7 +47,7 @@ namespace op {
  * this.dims = unset
  * Copies input_data to output_buffer; output_buffer already has the output shape.
  * This version will not fail gracefully if the input shape and output_buffer shape are
- * incompatible. There's an assert that can catch when the number of elements do not match at
+ * incompatible. There's a throw that will catch when the number of elements do not match at
  * runtime. This version should only be used for dynamic reshapes (output dimensions only known at
  * runtime). If output_buffer has a static shape during compile/parse, you can use the 1 input
  * version.
@@ -270,7 +270,12 @@ struct reshape
         else
         {
             // 2 arg
-            assert(args[0].get_shape().elements() == args[1].get_shape().elements());
+            if(args[0].get_shape().elements() != args[1].get_shape().elements())
+            {
+                MIGRAPHX_THROW("Reshape: Number of elements must match at runtime. Input: " +
+                               std::to_string(args[0].get_shape().elements()) +
+                               " Output buffer: " + std::to_string(args[1].get_shape().elements()));
+            }
             visit_all(args[1], args[0])([&](auto output, auto input) {
                 std::copy(input.begin(), input.end(), output.begin());
             });

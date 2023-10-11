@@ -2971,9 +2971,8 @@ TEST_CASE(reorder_reshape_slice_multi_rsp)
         auto input = m2.add_parameter("input", s);
         auto t1    = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), input);
-        auto c_t1 = m2.add_instruction(migraphx::make_op("contiguous"), t1);
         auto rsp1 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {384, 128, 80}}}), c_t1);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {384, 128, 80}}}), t1);
         auto slc0 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {256}}, {"ends", {384}}}), rsp1);
         auto slc1 = m2.add_instruction(
@@ -2988,9 +2987,8 @@ TEST_CASE(reorder_reshape_slice_multi_rsp)
 
         auto dot = m2.add_instruction(migraphx::make_op("dot"), slc2, c_t_slc1);
 
-        auto c_t1_1 = m2.add_instruction(migraphx::make_op("contiguous"), t1);
         auto rsp2 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 32, 128, 80}}}), c_t1_1);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12, 32, 128, 80}}}), t1);
 
         auto slc2_1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), rsp2);

@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct MIGRAPHX_EXPORT tmp_dir
+struct test_scatter_nonstandard_shape : verify_program<test_scatter_nonstandard_shape>
 {
-    fs::path path;
-    tmp_dir(const std::string& prefix = "");
-    tmp_dir(tmp_dir&&) = default;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 1, 3}, {1, 3, 2}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1, 3}, {1, 3, 2}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+        migraphx::shape su{migraphx::shape::float_type, {2, 1, 3}, {1, 2, 3}};
 
-    void execute(const std::string& exe, const std::string& args) const;
+        auto pd = mm->add_parameter("data", sd);
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto pu = mm->add_parameter("update", su);
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
+        mm->add_return({r});
 
-    tmp_dir(tmp_dir const&) = delete;
-    tmp_dir& operator=(tmp_dir const&) = delete;
-
-    ~tmp_dir();
+        return p;
+    }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

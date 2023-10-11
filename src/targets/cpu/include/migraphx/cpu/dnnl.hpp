@@ -95,10 +95,7 @@ template <class F>
 struct execute_wrapper
 {
     F f;
-    argument operator()(context&, const std::vector<argument>& args) const
-    {
-        return f(args);
-    }
+    argument operator()(context&, const std::vector<argument>& args) const { return f(args); }
 };
 
 template <class F>

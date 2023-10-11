@@ -22,7 +22,6 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_compile_definitions($<$<COMPILE_LANGUAGE:CXX,C>:MIGRAPHX_ENABLE_PYTHON>)
 add_library(migraphx_py py_loader.cpp)
 migraphx_generate_export_header(migraphx_py)
 target_include_directories(migraphx_py PRIVATE include)

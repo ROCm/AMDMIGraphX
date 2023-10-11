@@ -105,7 +105,7 @@ class pipe
             throw GetLastError();
     }
 
-    pipe(const pipe&) = delete;
+    pipe(const pipe&)            = delete;
     pipe& operator=(const pipe&) = delete;
 
     pipe(pipe&&) = default;
@@ -206,7 +206,7 @@ int exec(const std::string& cmd)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
     HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
-    return (std_out == nullptr || std_out == INVALID_HANDLE_VALUE)
+    return (std_out == nullptr or std_out == INVALID_HANDLE_VALUE)
                ? GetLastError()
                : exec(cmd, [&](const pipe&, const pipe& out) {
                      for(;;)
@@ -214,7 +214,7 @@ int exec(const std::string& cmd)
                          if(auto result = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE))
                          {
                              auto [more_data, bytes_read] = *result;
-                             if(!more_data || bytes_read == 0)
+                             if(not more_data or bytes_read == 0)
                                  break;
                              DWORD written;
                              if(WriteFile(std_out, buffer, bytes_read, &written, nullptr) == FALSE)

@@ -55,8 +55,11 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
-include(CMakeDependentOption)
-cmake_dependent_option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON "WIN32" OFF)
+if(WIN32)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
+else()
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)

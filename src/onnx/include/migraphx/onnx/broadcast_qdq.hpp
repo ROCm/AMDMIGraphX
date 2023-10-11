@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,34 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/tf/op_parser.hpp>
-#include <migraphx/tf/tf_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
+
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_BROADCAST_QDQ_HPP
+
+#include <string>
+
+#include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace tf {
+namespace onnx {
 
-struct parse_reshape : op_parser<parse_reshape>
-{
-    std::vector<op_desc> operators() const { return {{"Reshape"}}; }
+// This method is to prep for quantizelinear or dequantizelinear operation for
+// either the broadcasting of weight-scale or zero-points of qlinearadd operator
+// outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
+instruction_ref bcast_qdq_instr(const std::string& op_name,
+                                instruction_ref x_in,
+                                instruction_ref arg_fscale,
+                                instruction_ref arg_z_pt,
+                                const onnx_parser::node_info& info);
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const tf_parser& /*parser*/,
-                          const tf_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        if(args.size() != 2)
-            MIGRAPHX_THROW("reshape needs 2 arguments (input, new_shape)");
-        auto s = args[1]->eval();
-        std::vector<int64_t> dims;
-        s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
-    }
-};
+// Multibroadcast a scaler..
+instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
+                                   instruction_ref arg_in,
+                                   const onnx_parser::node_info& info);
 
-} // namespace tf
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

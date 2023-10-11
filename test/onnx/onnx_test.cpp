@@ -1772,8 +1772,7 @@ TEST_CASE(depthtospace_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_test.onnx");
     EXPECT(p == prog);
 }
@@ -1787,8 +1786,7 @@ TEST_CASE(depthtospace_crd_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 1, 4, 2, 5, 3}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_crd_test.onnx");
     EXPECT(p == prog);
 }
@@ -1802,8 +1800,7 @@ TEST_CASE(depthtospace_simple_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2, 2, 3}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4, 6}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4, 6}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_simple_test.onnx");
     EXPECT(p == prog);
 }
@@ -1817,8 +1814,7 @@ TEST_CASE(spacetodepth_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 5, 2, 5, 2}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 5, 5}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 5, 5}}}), tmp2);
     auto prog = optimize_onnx("spacetodepth_test.onnx");
     EXPECT(p == prog);
 }
@@ -1832,8 +1828,7 @@ TEST_CASE(spacetodepth_simple_test)
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2, 3, 2}}}), l0);
     auto tmp2 = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 3, 5, 1, 2, 4}}}), tmp1);
-    auto tmp3 = mm->add_instruction(migraphx::make_op("contiguous"), tmp2);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 2, 3}}}), tmp3);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 8, 2, 3}}}), tmp2);
     auto prog = optimize_onnx("spacetodepth_simple_test.onnx");
     EXPECT(p == prog);
 }
@@ -4856,6 +4851,59 @@ TEST_CASE(prelu_brcst_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(qlinearadd_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("A", {migraphx::shape::uint8_type, {64}});
+    auto b = mm->add_parameter("B", {migraphx::shape::uint8_type, {64}});
+
+    auto sc_a   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_a = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto sc_b   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_b = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {128}});
+
+    auto sc_c   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_c = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {64}});
+
+    auto scale_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_a);
+
+    auto z_pt_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_a);
+
+    auto fp_a =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), a, scale_a_bcast, z_pt_a_bcast);
+
+    auto scale_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_b);
+
+    auto z_pt_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_b);
+
+    auto fp_b =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scale_b_bcast, z_pt_b_bcast);
+
+    auto fp_c = mm->add_instruction(migraphx::make_op("add"), fp_a, fp_b);
+
+    auto scale_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_c);
+
+    auto z_pt_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_c);
+
+    auto c =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_c, scale_c_bcast, z_pt_c_bcast);
+
+    mm->add_return({c});
+
+    auto prog = migraphx::parse_onnx("qlinearadd_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
 TEST_CASE(quantizelinear_test)
 {
     migraphx::program p;
@@ -5438,12 +5486,9 @@ TEST_CASE(reshape_test)
         migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
     op.dims = reshape_dims;
-    auto c0 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    mm->add_instruction(op, c0);
-    auto c1 = mm->add_instruction(migraphx::make_op("contiguous"), l0);
-    mm->add_instruction(op, c1);
+    mm->add_instruction(op, l0);
+    mm->add_instruction(op, l0);
     auto prog = optimize_onnx("reshape_test.onnx");
-
     EXPECT(p == prog);
 }
 
@@ -5456,8 +5501,7 @@ TEST_CASE(reshape_non_standard_test)
     auto x = mm->add_parameter("x", s);
     auto tran_x =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
-    auto cont_x = mm->add_instruction(migraphx::make_op("contiguous"), tran_x);
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), cont_x);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), tran_x);
     auto prog = optimize_onnx("reshape_non_standard_test.onnx");
 
     EXPECT(p == prog);

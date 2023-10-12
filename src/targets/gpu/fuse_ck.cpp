@@ -88,7 +88,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     auto n = b.lens().back();
     auto k = a.lens().back();
     auto batch_size = std::accumulate(
-            a.lens().rbegin() + 2, a.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
+        a.lens().rbegin() + 2, a.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
     // Integer gemms must be divisible by 4 in ck
     if(contains({shape::int8_type, shape::int32_type}, ins->get_shape().type()))
     {
@@ -100,11 +100,11 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
             return false;
     }
     auto device_name = trim(split_string(get_device_name(), ':').front());
-    if (device_name == "gfx940")
+    if(device_name == "gfx940")
     {
-        if (ins->get_shape().type() == shape::half_type)
+        if(ins->get_shape().type() == shape::half_type)
         {
-            if (batch_size >= 64)
+            if(batch_size >= 64)
                 return m < 2048 or k <= 64 or n <= 384 or n >= 2048;
             return true;
         }

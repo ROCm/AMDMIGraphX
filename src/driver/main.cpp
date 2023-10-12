@@ -541,9 +541,9 @@ struct verify : command<verify>
 {
     compiler c;
     // Set to -1. as nonsense initial value
-    double rms_tol = -1.0;
-    double atol = -1.0;
-    double rtol = -1.0;
+    double rms_tol       = -1.0;
+    double atol          = -1.0;
+    double rtol          = -1.0;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
@@ -572,12 +572,11 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-
-        //TODO remove this and make the driver able to figure out datatype most used in the model
-        // then set the tolerances appropriately. Need to check here because c.to_fp16 only set
-        // after argument_parser.parse() is run. This code is complicated because there's not a good way
-        // to change the default tolerances after reading `--fp16` but before reading `--rms-tol`, `--atol`,
-        // and `--rtol`.
+        // TODO remove this and make the driver able to figure out datatype most used in the model
+        //  then set the tolerances appropriately. Need to check here because c.to_fp16 only set
+        //  after argument_parser.parse() is run. This code is complicated because there's not a
+        //  good way to change the default tolerances after reading `--fp16` but before reading
+        //  `--rms-tol`, `--atol`, and `--rtol`.
         migraphx::verify::tolerance tols{};
         if(c.to_fp16)
         {
@@ -604,7 +603,7 @@ struct verify : command<verify>
         if(c.to_fp16)
         {
             quantize = precision::fp16;
-        } 
+        }
         if(c.to_int8)
         {
             quantize = precision::int8;

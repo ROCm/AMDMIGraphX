@@ -86,9 +86,9 @@ TEST_CASE(quantizelinear)
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
     // ensure clip literals created in quantized program are scalar
     // unless CK workarounds are enabled
-    if (migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
+    if(migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
         EXPECT(none_of(*p2.get_main_module(), &is_clip_scalar));
-    else 
+    else
         EXPECT(any_of(*p2.get_main_module(), &is_clip_scalar));
 }
 

@@ -540,17 +540,20 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    migraphx::verify::tolerance tols;
+    // Set to -1. as nonsense initial value
+    double rms_tol       = -1.0;
+    double atol          = -1.0;
+    double rtol          = -1.0;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
-        ap(tols.atol,
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
+        ap(atol,
            {"--atol"},
            ap.help("Tolerance for the elementwise absolute difference (Default: 0.001)"));
-        ap(tols.rtol,
+        ap(rtol,
            {"--rtol"},
            ap.help("Tolerance for the elementwise relative difference (Default: 0.001)"));
         ap(per_instruction,
@@ -569,11 +572,42 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
+        // TODO remove this and make the driver able to figure out datatype most used in the model
+        //  then set the tolerances appropriately. Need to check here because c.to_fp16 only set
+        //  after argument_parser.parse() is run. This code is complicated because there's not a
+        //  good way to change the default tolerances after reading `--fp16` but before reading
+        //  `--rms-tol`, `--atol`, and `--rtol`.
+        migraphx::verify::tolerance tols{};
+        if(c.to_fp16)
+        {
+            tols = migraphx::verify::tolerance{8e-2, 4e-2, 4e-2};
+        }
+        if(not float_equal(this->rms_tol, -1.0))
+        {
+            tols.rms_tol = this->rms_tol;
+        }
+        if(not float_equal(this->atol, -1.0))
+        {
+            tols.atol = this->atol;
+        }
+        if(not float_equal(this->rtol, -1.0))
+        {
+            tols.rtol = this->rtol;
+        }
+
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
+
         auto quantize = precision::fp32;
         if(c.to_fp16)
+        {
             quantize = precision::fp16;
+        }
         if(c.to_int8)
+        {
             quantize = precision::int8;
+        }
 
         if(per_instruction)
         {

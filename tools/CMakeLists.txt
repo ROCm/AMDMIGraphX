@@ -28,7 +28,7 @@ if(NOT Python_EXECUTABLE)
     return()
 endif()
 
-find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm/bin /opt/rocm*/llvm/bin $ENV{HIP_PATH})
+find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
 if(NOT CLANG_FORMAT)
     message(WARNING "clang-format not found - skipping 'generate' target!")
     return()

@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <migraphx/api/export.h>
 

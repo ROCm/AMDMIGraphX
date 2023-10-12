@@ -1,5 +1,5 @@
 def getgputargets() {
-    targets="gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
     return targets
 }
 
@@ -107,7 +107,7 @@ def rocmnode(name, body) {
     }
 }
 
-rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
+rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     stage('hipRTC Debug') {
         def sanitizers = "undefined"
         def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
@@ -124,12 +124,12 @@ rocmtest clang_debug: rocmnode('cdna') { cmake_build ->
 //     stage('Hidden symbols') {
 //         cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
 //     }
-}, all_targets_debug : rocmnode('cdna') { cmake_build ->
+}, all_targets_debug : rocmnode('mi100+') { cmake_build ->
     stage('All targets Release') {
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${gpu_targets}'")
     }
-}, mlir_debug: rocmnode('cdna') { cmake_build ->
+}, mlir_debug: rocmnode('mi100+') { cmake_build ->
     stage('MLIR Debug') {
         withEnv(['MIGRAPHX_ENABLE_MLIR=1']) {
             def sanitizers = "undefined"

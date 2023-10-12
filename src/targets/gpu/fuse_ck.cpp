@@ -108,6 +108,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
                 return m < 2048 or k <= 64 or n <= 384 or n >= 2048;
             return true;
         }
+        return true;
     }
     return k <= 2048;
 }

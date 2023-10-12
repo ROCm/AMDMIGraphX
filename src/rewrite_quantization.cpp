@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
@@ -68,7 +68,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
     instruction_ref min_arg;
     instruction_ref max_arg;
 
-    if(enabled(MIGRAPHX_ENABLE_CK{}))
+    if(enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
     {
         std::vector<int> min_data(s.elements(), min_quant);
         std::vector<int> max_data(s.elements(), max_quant);

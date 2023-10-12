@@ -48,7 +48,7 @@
 
 #include "test.hpp"
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
@@ -4796,7 +4796,7 @@ migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
 {
     migraphx::instruction_ref min_arg;
     migraphx::instruction_ref max_arg;
-    if(migraphx::enabled(MIGRAPHX_ENABLE_CK{}))
+    if(migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
     {
         std::vector<int> min_data(s.elements(), min_quant);
         std::vector<int> max_data(s.elements(), max_quant);

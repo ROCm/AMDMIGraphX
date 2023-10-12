@@ -36,7 +36,7 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/pass_manager.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
@@ -85,7 +85,9 @@ TEST_CASE(quantizelinear)
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
     // ensure clip literals created in quantized program are scalar
-    EXPECT(migraphx::enabled(MIGRAPHX_ENABLE_CK{}) xor any_of(*p2.get_main_module(), &is_clip_scalar));
+    // unless CK workarounds are enabled
+    EXPECT(migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}) and none_of(*p2.get_main_module(), &is_clip_scalar));
+    EXPECT(not migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}) and any_of(*p2.get_main_module(), &is_clip_scalar));
 }
 
 TEST_CASE(dequantizelinear)

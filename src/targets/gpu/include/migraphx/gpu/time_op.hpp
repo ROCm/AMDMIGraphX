@@ -32,7 +32,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT std::pair<double, double>
+MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
 
 } // namespace gpu

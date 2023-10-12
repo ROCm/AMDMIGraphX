@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
@@ -51,7 +51,7 @@ TEST_CASE(avgpool_rank3_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_test)
@@ -77,7 +77,7 @@ TEST_CASE(avgpool_dyn_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.25, 0.3, 0.25, 0.65, 0.7, 0.5, 0.4, 0.4, 0.35};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_pad_test)
@@ -105,7 +105,7 @@ TEST_CASE(avgpool_dyn_pad_test)
 
     std::vector<float> gold{
         0.3, 0.25, 0.3, 0.25, 0.1, 0.8, 0.65, 0.7, 0.5, 0.1, 0.1, 0.4, 0.4, 0.35, 0.6};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_auto_pad_test)
@@ -141,7 +141,7 @@ TEST_CASE(avgpool_dyn_auto_pad_test)
     std::vector<float> results_vector(12);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{2.5, 2.5, 3.5, 3.5};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_auto_pad_1d_test)
@@ -175,7 +175,7 @@ TEST_CASE(avgpool_dyn_auto_pad_1d_test)
                             0.8, 0.65, 0.7, 0.5,
                             0.1, 0.4,  0.4, 0.35};
     // clang-format on
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_dyn_pad_ceil_test)
@@ -212,7 +212,7 @@ TEST_CASE(avgpool_dyn_pad_ceil_test)
                             2.0, 2.5, 2.5, 3.0, 
                             3.0, 3.5, 3.5, 4.0};
     // clang-format on
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_rank3_stride2_test)
@@ -245,7 +245,7 @@ TEST_CASE(avgpool_rank3_stride2_test)
                             -0.3442, 1.22005, 1.5295,
                             0.9965, 0.7854, -0.2915};
     // clang-format on
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(avgpool_rank5_test)
@@ -281,7 +281,7 @@ TEST_CASE(avgpool_rank5_test)
         -0.078375, 0.139375,  0.46075,   0.0285,  -0.188125, -0.085,    0.378125,  -0.085375,
         -0.04,     0.304125,  0.40775,   0.2835,  0.112375,  -0.073375, 0.4355,    -0.187,
         -0.392625, -0.258375, -0.485875, -0.0345, 0.16125,   -0.131875, -0.228375, 0.068625};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globalavgpool_test)
@@ -302,7 +302,7 @@ TEST_CASE(globalavgpool_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.25, 0.575, 0.375};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globalavgpool_dyn_test)
@@ -325,7 +325,7 @@ TEST_CASE(globalavgpool_dyn_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.25, 0.575, 0.375};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globallppool_test)
@@ -347,7 +347,7 @@ TEST_CASE(globallppool_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.5477225575051662, 1.307669683062202, 0.9327379053088815};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globallppool_dyn_test)
@@ -371,7 +371,7 @@ TEST_CASE(globallppool_dyn_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.5477225575051662, 1.307669683062202, 0.9327379053088815};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globalmaxpool_test)
@@ -392,7 +392,7 @@ TEST_CASE(globalmaxpool_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.4, 0.9, 0.7};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(globalmaxpool_dyn_test)
@@ -416,7 +416,7 @@ TEST_CASE(globalmaxpool_dyn_test)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.4, 0.9, 0.7};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(lppool_l1_norm_test)
@@ -440,7 +440,7 @@ TEST_CASE(lppool_l1_norm_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.5, 0.6, 0.5, 1.3, 1.4, 1.0, 0.8, 0.8, 0.7};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 // TODO: this tests compliance with a oneDNN rule and a feature that's commented out
@@ -493,7 +493,7 @@ TEST_CASE(lppool_l2_norm_test)
                             0.7071067811865475,
                             0.7071067811865475,
                             0.6082762530298219};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(lppool_dyn_test)
@@ -526,7 +526,7 @@ TEST_CASE(lppool_dyn_test)
                             0.7071067811865475,
                             0.7071067811865475,
                             0.6082762530298219};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_test)
@@ -565,12 +565,6 @@ TEST_CASE(maxpool_test)
         -0.88503587, 0.6629802,   1.47319221,  -1.05829155, -0.97027361, -0.93187737, -1.39954746,
         -0.52359426, -0.14743951, 1.51522756,  0.2078452,   -1.28156149, -1.19363916, -0.78680223,
         -0.89094824, 1.30212069,  -0.77974445, -0.58411664, 0.48764706,  -0.67132682};
-    std::vector<float> c = {1.33493888, 1.54562736, 1.22098756, 1.33493888, 1.18358743, 1.99097753,
-                            1.00170159, 1.45862222, 1.39087725, 1.46645272, 1.18943918, -0.01443311,
-                            1.47151589, 2.36277103, 2.24768877, 0.68883753, 0.82949388, 0.71550399,
-                            1.95433736, 2.46601582, 1.53285873, 1.95433736, 1.06763375, 1.4545635,
-                            1.33624589, 1.16736257, 0.6126079,  1.36892557, 2.40126371, 1.53441942,
-                            0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
     migraphx::shape a_shape{migraphx::shape::float_type, {2, 3, 6, 6}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     mm->add_instruction(migraphx::make_op("pooling",
@@ -583,7 +577,15 @@ TEST_CASE(maxpool_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(36);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, c));
+    std::vector<float> gold = {
+        1.33493888, 1.54562736, 1.22098756, 1.33493888, 1.18358743, 1.99097753,
+        1.00170159, 1.45862222, 1.39087725, 1.46645272, 1.18943918, -0.01443311,
+        1.47151589, 2.36277103, 2.24768877, 0.68883753, 0.82949388, 0.71550399,
+        1.95433736, 2.46601582, 1.53285873, 1.95433736, 1.06763375, 1.4545635,
+        1.33624589, 1.16736257, 0.6126079,  1.36892557, 2.40126371, 1.53441942,
+        0.52119428, 2.07681108, 0.88494766, 1.51522756, 0.54275119, 0.6629802};
+
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_pad_test)
@@ -591,7 +593,6 @@ TEST_CASE(maxpool_pad_test)
     migraphx::program p;
     auto* mm             = p.get_main_module();
     std::vector<float> a = {-6, -5, -4, -3, -5, -1, 0, 1, 2, 3, 4, 5};
-    std::vector<float> c = {-4, -3, -4, -1, 2, 3, 4, 5};
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 2, 3, 2}};
     auto al = mm->add_literal(migraphx::literal{a_shape, a});
     mm->add_instruction(migraphx::make_op("pooling",
@@ -611,8 +612,8 @@ TEST_CASE(maxpool_pad_test)
     auto result = p.eval({}).back();
     std::vector<float> results_vector(8);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify::verify_range(results_vector, c));
+    std::vector<float> gold = {-4, -3, -4, -1, 2, 3, 4, 5};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_rank3_test0)
@@ -635,7 +636,7 @@ TEST_CASE(maxpool_rank3_test0)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.3, 0.4, 0.4, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_rank3_test1)
@@ -660,7 +661,7 @@ TEST_CASE(maxpool_rank3_test1)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.4975, -0.0405, -0.6186, 0.6022, 0.5493, -0.8039, 1.5001, -1.1603};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_rank3_ceil_test)
@@ -694,7 +695,7 @@ TEST_CASE(maxpool_rank3_ceil_test)
                             0.6022, 1.1925, 0.5493, -0.8039,
                             0.9907, 1.5001, -1.1603, 1.2556};
     // clang-format on
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_rank5_test)
@@ -727,7 +728,7 @@ TEST_CASE(maxpool_rank5_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{1.5064, 1.3655, 0.9035, 2.6859};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(maxpool_dyn_test)
@@ -752,5 +753,5 @@ TEST_CASE(maxpool_dyn_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.3, 0.4, 0.4, 0.8, 0.9, 0.9, 0.7, 0.7, 0.6};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

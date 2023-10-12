@@ -25,7 +25,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -47,7 +47,7 @@ TEST_CASE(argmax_test_0)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmax_test_1)
@@ -66,7 +66,7 @@ TEST_CASE(argmax_test_1)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmax_test_2)
@@ -85,7 +85,7 @@ TEST_CASE(argmax_test_2)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmax_test_neg_2)
@@ -104,7 +104,7 @@ TEST_CASE(argmax_test_neg_2)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmax_dyn_test)
@@ -126,7 +126,7 @@ TEST_CASE(argmax_dyn_test)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold = {0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1};
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmax_test_nonstd_shape)
@@ -145,5 +145,5 @@ TEST_CASE(argmax_test_nonstd_shape)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold_vec;
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold_vec));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold_vec));
 }

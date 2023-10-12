@@ -32,7 +32,9 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -281,10 +283,12 @@ struct loader
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
                 p = migraphx::load_py(file);
             }
+#endif
             else if(file_type == "migraphx")
             {
                 p = migraphx::load(file);
@@ -536,13 +540,19 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    double tolerance     = 80;
+    migraphx::verify::tolerance tols;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
+        ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
+        ap(tols.atol,
+           {"--atol"},
+           ap.help("Tolerance for the elementwise absolute difference (Default: 0.001)"));
+        ap(tols.rtol,
+           {"--rtol"},
+           ap.help("Tolerance for the elementwise relative difference (Default: 0.001)"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
@@ -567,15 +577,15 @@ struct verify : command<verify>
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, tolerance);
+            verify_instructions(p, t, c.co, quantize, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, quantize, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, quantize, m, tols);
         }
     }
 };

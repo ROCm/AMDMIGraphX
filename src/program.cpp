@@ -352,7 +352,7 @@ void program::finalize()
 template <class T>
 std::string classify(T x)
 {
-    switch(std::fpclassify(x))
+    switch(std::fpclassify(static_cast<double>(x)))
     {
     case FP_INFINITE: return "inf";
     case FP_NAN: return "nan";

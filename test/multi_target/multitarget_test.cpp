@@ -37,7 +37,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
-#include <basic_ops.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>

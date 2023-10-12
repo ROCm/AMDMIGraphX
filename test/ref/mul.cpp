@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -49,7 +49,7 @@ TEST_CASE(mul_test)
         data1.begin(), data1.end(), data2.begin(), gold.begin(), [](float n1, float n2) -> float {
             return n1 * n2;
         });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(mul_dyn_test)
@@ -78,5 +78,5 @@ TEST_CASE(mul_dyn_test)
                    y_data.begin(),
                    gold.begin(),
                    [](float n1, float n2) -> float { return n1 * n2; });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -50,11 +50,11 @@ TEST_CASE(concat_test_1)
     std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
     std::vector<int> results_vector(2 * 6);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                          std::vector<std::size_t>({2, 6})));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                          std::vector<std::size_t>({6, 1})));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({2, 6})));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().strides(),
+                                              std::vector<std::size_t>({6, 1})));
 }
 
 TEST_CASE(concat_test_2)
@@ -77,11 +77,11 @@ TEST_CASE(concat_test_2)
     std::vector<int> gold = {0, 1, 2, 3, 4, 10, 5, 6, 7, 8, 9, 20};
     std::vector<int> results_vector(2 * 6);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                          std::vector<std::size_t>({2, 6})));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                          std::vector<std::size_t>({6, 1})));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({2, 6})));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().strides(),
+                                              std::vector<std::size_t>({6, 1})));
 }
 
 TEST_CASE(concat_test_3)
@@ -104,11 +104,11 @@ TEST_CASE(concat_test_3)
     std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     std::vector<int> results_vector(6 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                          std::vector<std::size_t>({6, 2})));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                          std::vector<std::size_t>({2, 1})));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({6, 2})));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().strides(),
+                                              std::vector<std::size_t>({2, 1})));
 }
 
 TEST_CASE(concat_test_4)
@@ -131,11 +131,11 @@ TEST_CASE(concat_test_4)
     std::vector<int> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     std::vector<int> results_vector(6 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                          std::vector<std::size_t>({6, 2})));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().strides(),
-                                          std::vector<std::size_t>({2, 1})));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({6, 2})));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().strides(),
+                                              std::vector<std::size_t>({2, 1})));
 }
 
 TEST_CASE(concat_dyn_test)
@@ -169,7 +169,7 @@ TEST_CASE(concat_dyn_test)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
-    EXPECT(migraphx::verify::verify_range(result.get_shape().lens(),
-                                          std::vector<std::size_t>({6, 2})));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
+                                              std::vector<std::size_t>({6, 2})));
 }

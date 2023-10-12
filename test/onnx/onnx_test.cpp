@@ -4930,7 +4930,7 @@ migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
     }
 
     return migraphx::insert_common_op(m, ins, migraphx::make_op("clip"), {round, min_arg, max_arg});
-} 
+}
 
 TEST_CASE(quantizelinear_test)
 {

@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/time_op.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-struct compile_op : action<compile_op>
+struct test_scatter_nonstandard_shape : verify_program<test_scatter_nonstandard_shape>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << t << "ms";
-        std::cout << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 1, 3}, {1, 3, 2}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1, 3}, {1, 3, 2}};
+        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
+        migraphx::shape su{migraphx::shape::float_type, {2, 1, 3}, {1, 2, 3}};
+
+        auto pd = mm->add_parameter("data", sd);
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto pu = mm->add_parameter("update", su);
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
+        mm->add_return({r});
+
+        return p;
     }
 };
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

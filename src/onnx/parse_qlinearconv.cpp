@@ -30,6 +30,7 @@
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/onnx/broadcast_qdq.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -117,6 +118,8 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         auto type_x = sh_x.type();
         auto type_w = sh_w.type();
 
+        assert(in_x->get_shape().ndim() > 2);
+
         if(type_x != shape::int8_type and type_x != shape::uint8_type)
             MIGRAPHX_THROW("QLINEARCONV: unsupported input type");
         if(type_w != shape::int8_type and type_w != shape::uint8_type)
@@ -137,47 +140,57 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
                              const std::vector<instruction_ref>& args) const
     {
         value values;
+
         const auto& in_x = args[0];
-        auto in_x_shape  = in_x->get_shape();
-        auto in_x_lens   = in_x_shape.max_lens();
-        assert(in_x_lens.size() > 2);
-        auto kdims = in_x_lens.size() - 2;
+        const auto& wt   = args[3];
+
+        size_t kdims = in_x->get_shape().ndim() - 2;
 
         check_padding_mode(info, "QLINEARCONV");
 
-        if(contains(info.attributes, "strides"))
-        {
-            copy(info.attributes.at("strides").ints(), std::back_inserter(values["stride"]));
-            check_attr_sizes(kdims, values["stride"].size(), "QLINEARCONV: inconsistent strides");
-        }
-
-        if(contains(info.attributes, "dilations"))
-        {
-            copy(info.attributes.at("dilations").ints(), std::back_inserter(values["dilation"]));
-            check_attr_sizes(
-                kdims, values["dilation"].size(), "QLINEARCONV: inconsistent dilations");
-        }
-
-        if(contains(info.attributes, "pads"))
-        {
-            std::vector<int64_t> padding;
-            copy(info.attributes.at("pads").ints(), std::back_inserter(padding));
-            check_attr_sizes(kdims, padding.size() / 2, "QLINEARCONV: inconsistent padding");
-            values["padding"] = std::vector<size_t>(padding.begin(), padding.end());
-        }
-
-        if(contains(info.attributes, "auto_pad"))
-        {
-            auto auto_pad = info.attributes.at("auto_pad").s();
-            if(auto_pad.find("NOTSET") == std::string::npos)
-                MIGRAPHX_THROW("QLINEARCONV: auto_pad option fix..");
-        }
+        values["stride"]   = std::vector<int>(kdims, 1);
+        values["dilation"] = std::vector<int>(kdims, 1);
+        values["padding"]  = std::vector<int>(kdims, 0);
+        values["group"]    = 1;
 
         if(contains(info.attributes, "group"))
             values["group"] = parser.parse_value(info.attributes.at("group")).template at<int>();
 
-        if(not values.empty())
-            recalc_conv_attributes(values, kdims);
+        if(contains(info.attributes, "strides"))
+        {
+            std::vector<int> st;
+            copy(info.attributes.at("strides").ints(), std::back_inserter(st));
+            check_attr_sizes(kdims, st.size(), "QLINEARCONV: inconsistent strides");
+            values["stride"] = st;
+        }
+
+        if(contains(info.attributes, "dilations"))
+        {
+            std::vector<int> dil;
+            copy(info.attributes.at("dilations").ints(), std::back_inserter(dil));
+            check_attr_sizes(kdims, dil.size(), "QLINEARCONV: inconsistent dilations");
+            values["dilation"] = dil;
+        }
+
+        if(contains(info.attributes, "pads"))
+        {
+            std::vector<int> pads;
+            copy(info.attributes.at("pads").ints(), std::back_inserter(pads));
+            check_attr_sizes(kdims, pads.size() / 2, "QLINEARCONV: inconsistent padding");
+            values["padding"] = pads;
+        }
+        else if(contains(info.attributes, "auto_pad"))
+        {
+            auto in_lens = in_x->get_shape().lens();
+            auto wt_lens = wt->get_shape().lens();
+            std::vector<std::size_t> k_lens(wt_lens.begin() + 2, wt_lens.end());
+            std::vector<int64_t> pads = values["padding"].to_vector<std::int64_t>();
+            cal_auto_padding_size(
+                info, values, k_lens, values["dilation"].to_vector<std::size_t>(), in_lens, pads);
+            values["padding"] = pads;
+        }
+
+        recalc_conv_attributes(values, kdims);
 
         return values;
     }

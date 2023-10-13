@@ -55,6 +55,13 @@ struct parse_multinomial : op_parser<parse_multinomial>
         else
             MIGRAPHX_THROW("PARSE_MULTINOMIAL: sample_size not given");
 
+        // TODO: onnx_runtime implementation subtracts the maximum of args[0]
+        // elementwise at this point, creating an array with one 0 and many negative logs
+        // "for numerical stability".  See
+        // https://github.com/microsoft/onnxruntime/blob/8d737f977056444a307f1b7f0bcd402fba62d790/onnxruntime/core/providers/cpu/generator/random.cc#L259
+        // the results range from (0-1] but is unnormalized and skews the resulting
+        // multinomial distribution.
+
         // Extract the probability from log-probability
         auto cdf = info.add_common_op("exp", args[0]);
 

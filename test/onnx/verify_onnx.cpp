@@ -1233,7 +1233,7 @@ TEST_CASE(multinomial_dyn_test)
     auto p                        = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
     const size_t batch_size(2);
     const size_t categories(5);
-
+    const size_t sample_size(100000);
     p.compile(migraphx::make_target("ref"));
 
     // The type of the prob.
@@ -1250,8 +1250,7 @@ TEST_CASE(multinomial_dyn_test)
 
     auto result = p.eval(pp).back();
 
-    std::vector<float> result_vec(s.elements());
-    printf("%lu elements\n", result_vec.size());
+    std::vector<int32_t> result_vec(batch_size * sample_size);
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
     // Make a categorical histogram of output

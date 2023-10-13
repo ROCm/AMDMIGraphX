@@ -152,32 +152,29 @@ struct auto_gen_root_modules
     bool is_merge_node(migraphx::instruction_ref ins, std::optional<std::size_t> tid)
     {
         const auto inputs = ins->inputs();
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
-               if(tass.find(input_ins) != tass.end() and
-                  tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max()))
-               {
-                   return true;
-               }
-               return false;
-           }))
-            return true;
-        return false;
+        return std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
+            if((skip_ins.find(input_ins) != skip_ins.end()) or
+               (tass.find(input_ins) != tass.end() and
+                tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max())))
+            {
+                return true;
+            }
+            return false;
+        });
     }
 
     bool is_fork_node(migraphx::instruction_ref ins, std::optional<std::size_t> tid)
     {
         const auto outputs = ins->outputs();
-        if(std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
-               if(tass.find(output_ins) != tass.end() and
-                  tass.at(output_ins) != tid.value_or(std::numeric_limits<std::size_t>::max()) and
-                  output_ins->name() != "@return")
-               {
-                   return true;
-               }
-               return false;
-           }))
-            return true;
-        return false;
+        return std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
+            if(tass.find(output_ins) != tass.end() and
+               tass.at(output_ins) != tid.value_or(std::numeric_limits<std::size_t>::max()) and
+               output_ins->name() != "@return")
+            {
+                return true;
+            }
+            return false;
+        });
     }
 
     void find_subgraphs(migraphx::module_ref mm, migraphx::program& p)
@@ -196,6 +193,7 @@ struct auto_gen_root_modules
             if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
             {
                 std::cout << "looking at instruction: \n";
+                std::cout << "ins->name() == " << ins->name() << std::endl;
                 ins->debug_print();
             }
 
@@ -214,6 +212,18 @@ struct auto_gen_root_modules
                     update_tid_counter(current_tid.value());
                     same_tid_ins_vec.push_back(ins);
                     same_tid_ins_set.insert(ins);
+                    if(is_fork_node(ins, current_tid))
+                    {
+                        generate_run_on_target_modules(mm, p, std::next(ins), current_tid.value());
+                        if(not same_tid_ins_vec.empty())
+                        {
+                            // generate() method would populate these container for next(ins),
+                            // remove them to maintain invariant
+                            current_tid = nullopt;
+                            same_tid_ins_set.erase(std::next(ins));
+                            same_tid_ins_vec.pop_back();
+                        }
+                    }
                 }
             }
             else

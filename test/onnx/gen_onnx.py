@@ -8930,6 +8930,22 @@ def upsample_test():
 
 
 @onnx_test()
+def upsample_ver7_test():
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
+
+    node = onnx.helper.make_node(
+        'Upsample',
+        inputs=['X'],
+        outputs=['Y'],
+        mode='nearest',
+        scales=[1.0, 1.0, 2.0, 3.0]
+    )
+
+    return ([node], [X], [Y])
+
+
+@onnx_test()
 def variable_batch_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT,
                                       [None, 3, 16, 16])

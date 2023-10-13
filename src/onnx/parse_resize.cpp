@@ -265,21 +265,36 @@ struct parse_resize : op_parser<parse_resize>
                                         ": dynamic input scale is not supported!");
 
                     arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-                    if(in_lens.size() != vec_scale.size())
-                    {
-                        MIGRAPHX_THROW("PARSE_" + opd.op_name +
-                                       ": ranks of input and scale are different!");
-                    }
-
-                    std::transform(in_lens.begin(),
-                                   in_lens.end(),
-                                   vec_scale.begin(),
-                                   out_lens.begin(),
-                                   [&](auto idx, auto scale) {
-                                       return static_cast<std::size_t>(idx * scale);
-                                   });
                 }
             }
+        }
+
+        // scales still missing, must be an attribute
+        if(vec_scale.empty())
+        {
+            if(contains(info.attributes, "scales"))
+            {
+                copy(info.attributes["scales"].floats(), std::back_inserter(vec_scale));
+            }
+            else
+            {
+                MIGRAPHX_THROW("PARSE_" + opd.op_name + ": scale not provided!");
+            }
+        }
+        if(in_lens.size() != vec_scale.size())
+        {
+            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": ranks of input and scale are different!");
+        }
+
+        // if the output was not calculated yet, we update it based on the scales
+        if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
+        {
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                vec_scale.begin(),
+                out_lens.begin(),
+                [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
         }
 
         shape out_s{in_s.type(), out_lens};

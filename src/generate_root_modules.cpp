@@ -209,7 +209,6 @@ struct auto_gen_root_modules
             }
             if(fork_node)
             {
-                std::cout << "found fork node\n";
                 assert(current_tid.has_value());
                 generate_run_on_target_modules(mm, p, ins, current_tid.value());
                 if(not same_tid_ins_vec.empty())

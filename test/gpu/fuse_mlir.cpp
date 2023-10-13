@@ -34,7 +34,7 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::gpu::fuse_mlir{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
 }
 
 template <class F>
@@ -151,7 +151,6 @@ TEST_CASE(int_quant_dot_tanh_fails)
 
 int main(int argc, const char* argv[])
 {
-    if(migraphx::gpu::mlir_enabled())
-        test::run(argc, argv);
+    test::run(argc, argv);
     return 0;
 }

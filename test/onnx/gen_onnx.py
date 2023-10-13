@@ -4582,7 +4582,7 @@ def multinomial_test():
 
 @onnx_test()
 def multinomial_dyn_test():
-    sample_size = 13
+    sample_size = 100000
     seed = 0.0
     categories = 5
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT,

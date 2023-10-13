@@ -1261,10 +1261,24 @@ TEST_CASE(multinomial_dyn_test)
     for(r = 0; r < result_vec.size() / 2; r++)
         res_dist[result_vec[r]]++;
 
+    // normalizing factors for original and measured distributions
+    auto dist_sum     = std::accumulate(dist.begin(), dist.begin() + 5, 0);
+    auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
+
     // gold values are repeatable for the random seed given in the Onnx file.
     //  Values approximate the distribution in dist
-    std::vector<int> gold{1, 4, 2, 2, 4};
-    EXPECT(migraphx::verify::verify_rms_range(res_dist, gold));
+    std::vector<float> norm(5);
+    std::vector<float> res_norm(5);
+
+    std::transform(dist.begin(), dist.begin() + 5, norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / dist_sum;
+    });
+    std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / res_dist_sum;
+    });
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        norm, migraphx::verify::expected{res_norm}, migraphx::verify::tolerance{0.01}));
 
     // Make a categorical histogram of output
     // for second result in batch
@@ -1272,8 +1286,17 @@ TEST_CASE(multinomial_dyn_test)
     for(; r < result_vec.size(); r++)
         res_dist[result_vec[r]]++;
 
-    std::vector<int> gold2{1, 2, 1, 5, 4};
-    EXPECT(migraphx::verify::verify_rms_range(res_dist, gold2));
+    dist_sum     = std::accumulate(dist.begin() + 5, dist.end(), 0);
+    res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
+    std::transform(dist.begin() + 5, dist.end(), norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / dist_sum;
+    });
+    std::transform(res_dist.begin(), res_dist.end(), res_norm.begin(), [&](auto n) {
+        return static_cast<double>(n) / res_dist_sum;
+    });
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }
 
 TEST_CASE(nonzero_test)

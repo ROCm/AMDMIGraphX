@@ -135,8 +135,6 @@ struct parse_multinomial : op_parser<parse_multinomial>
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
 
-        migraphx::shape asdf = randoms->get_shape();
-
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);
     }

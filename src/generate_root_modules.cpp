@@ -39,7 +39,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_PARTITIONER)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_ROOT_GENERATOR)
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -185,7 +185,7 @@ struct auto_gen_root_modules
     {
         // sort the graph in reverse post order DFS order
         mm->sort();
-        if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
+        if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
         {
             std::cout << "sorted module: \n";
             mm->debug_print();
@@ -194,7 +194,7 @@ struct auto_gen_root_modules
         std::optional<std::size_t> current_tid = nullopt;
         for(auto ins : iterator_for(*mm))
         {
-            if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
+            if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
             {
                 std::cout << "looking at instruction: \n";
                 ins->debug_print();
@@ -300,7 +300,7 @@ struct auto_gen_root_modules
                 return_ins.insert(*tins);
             }
         }
-        if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
+        if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
         {
             std::cout << "params ins: \n";
             for(auto tmp : iterator_for(params))
@@ -360,7 +360,7 @@ struct auto_gen_root_modules
         }
         tmod->add_return(rins);
 
-        if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
+        if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
         {
             std::cout << "Created target module: " << tmod->name() << "\n";
             tmod->debug_print();
@@ -397,7 +397,7 @@ struct auto_gen_root_modules
         {
             current_tid = std::numeric_limits<std::size_t>::max();
         }
-        if(enabled(MIGRAPHX_DEBUG_PARTITIONER{}))
+        if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
         {
             std::cout << "Main module after creation of target module: " << tmod->name() << "\n";
             mm->debug_print();

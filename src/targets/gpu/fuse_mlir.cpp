@@ -131,9 +131,16 @@ fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
     for(instruction_ref input : gemm_based_op->inputs())
     {
         std::vector<operation> op_stream;
-        while(contains({"slice", "transpose", "contiguous", "reshape"}, input->name()))
+        while(contains(
+            {"slice", "transpose", "contiguous", "reshape", "squeeze", "flatten", "unsqueeze"},
+            input->name()))
         {
-            op_stream.push_back(input->get_operator());
+            operation op = input->get_operator();
+            if(contains({"squeeze", "flatten", "unsqueeze"}, input->name()))
+            {
+                op = migraphx::make_op("reshape", {{"dims", input->get_shape().lens()}});
+            }
+            op_stream.push_back(op);
             input = input->inputs().at(0);
         }
         top_inputs.push_back(input);

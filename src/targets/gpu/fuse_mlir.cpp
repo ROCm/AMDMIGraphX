@@ -393,7 +393,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     const auto& device_name = ctx ? ctx->get_current_device().get_gfx_name() : "";
-    const bool is_navi = starts_with(device_name, "gfx110");
+    const bool is_navi      = starts_with(device_name, "gfx110");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(is_requested(option))
@@ -403,7 +403,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         return std::max(m1, m2);
     };
 
-    mlir_mode mode = (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
+    mlir_mode mode =
+        (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
 
     match::find_matches(mpm,
                         find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),

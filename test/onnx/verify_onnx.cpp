@@ -538,28 +538,41 @@ TEST_CASE(gemm_half_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-TEST_CASE(group_norm_test)
+template <typename T = float>
+std::vector<T> norm_test(const std::vector<size_t>& x_dims,
+                         std::vector<T>& scale,
+                         std::vector<T>& bias,
+                         const std::string& onnx_file)
 {
-    migraphx::program p = migraphx::parse_onnx("group_norm_3d_test.onnx");
+    migraphx::program p = migraphx::parse_onnx(onnx_file);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> data_x(8);
-    std::iota(std::begin(data_x), std::end(data_x), 1);
-    migraphx::shape s_x{migraphx::shape::float_type, {1, 4, 2}};
-    std::vector<float> data_scale{1.2, 0.8};
-    migraphx::shape s_s{migraphx::shape::float_type, {2}};
-    std::vector<float> data_bias{0.5, 0.2};
-    migraphx::shape s_b{migraphx::shape::float_type, {2}};
+    migraphx::shape s_x{migraphx::shape::get_type<T>{}, x_dims};
+    migraphx::shape s_s{migraphx::shape::get_type<T>{}, {scale.size()}};
+    migraphx::shape s_b{migraphx::shape::get_type<T>{}, {scale.size()}};
+
+    std::vector<T> x(s_x.elements());
+    std::iota(std::begin(x), std::end(x), 1);
 
     migraphx::parameter_map pp;
-    pp["x"]     = migraphx::argument(s_x, data_x.data());
-    pp["scale"] = migraphx::argument(s_s, data_scale.data());
-    pp["bias"]  = migraphx::argument(s_b, data_bias.data());
+    pp["x"]     = migraphx::argument(s_x, x.data());
+    pp["scale"] = migraphx::argument(s_s, scale.data());
+    pp["bias"]  = migraphx::argument(s_b, bias.data());
 
     auto result = p.eval(pp).back();
 
-    std::vector<float> result_vector;
+    std::vector<T> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    return result_vector;
+}
+
+TEST_CASE(group_norm_test)
+{
+    std::vector<float> scale{1.2, 0.8};
+    std::vector<float> bias{0.5, 0.2};
+    std::vector<float> result_vector =
+        norm_test<float>({1, 4, 2}, scale, bias, "group_norm_3d_test.onnx");
     std::vector<float> gold = {-1.10996256,
                                -0.0366542,
                                1.0366542,
@@ -568,6 +581,24 @@ TEST_CASE(group_norm_test)
                                -0.15776947,
                                0.55776947,
                                1.27330837};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(group_norm_half_test)
+{
+    using migraphx::half;
+    std::vector<half> scale{half{1.2}, half{0.8}};
+    std::vector<half> bias{half{0.5}, half{0.2}};
+    std::vector<half> result_vector =
+        norm_test<half>({1, 4, 2}, scale, bias, "group_norm_3d_half_test.onnx");
+    std::vector<half> gold = {half{-1.10996256},
+                              half{-0.0366542},
+                              half{1.0366542},
+                              half{2.10996256},
+                              half{-0.87330837},
+                              half{-0.15776947},
+                              half{0.55776947},
+                              half{1.27330837}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
@@ -985,26 +1016,10 @@ TEST_CASE(instance_norm_3d_test)
 
 TEST_CASE(layer_norm_test)
 {
-    migraphx::program p = migraphx::parse_onnx("layer_norm_3d_test.onnx");
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> data_x(8);
-    std::iota(std::begin(data_x), std::end(data_x), 1);
-    migraphx::shape s_x{migraphx::shape::float_type, {1, 4, 2}};
-    std::vector<float> data_scale{1.2, 0.8};
-    migraphx::shape s_s{migraphx::shape::float_type, {2}};
-    std::vector<float> data_bias{0.5, 0.2};
-    migraphx::shape s_b{migraphx::shape::float_type, {2}};
-
-    migraphx::parameter_map pp;
-    pp["x"]     = migraphx::argument(s_x, data_x.data());
-    pp["scale"] = migraphx::argument(s_s, data_scale.data());
-    pp["bias"]  = migraphx::argument(s_b, data_bias.data());
-
-    auto result = p.eval(pp).back();
-
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> scale{1.2, 0.8};
+    std::vector<float> bias{0.5, 0.2};
+    std::vector<float> result_vector =
+        norm_test<float>({1, 4, 2}, scale, bias, "layer_norm_3d_test.onnx");
     std::vector<float> gold = {-0.69997597,
                                0.99998398,
                                -0.69997597,
@@ -1013,6 +1028,24 @@ TEST_CASE(layer_norm_test)
                                0.99998398,
                                -0.69997597,
                                0.99998398};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(layer_norm_half_test)
+{
+    using migraphx::half;
+    std::vector<half> scale{half{1.2}, half{0.8}};
+    std::vector<half> bias{half{0.5}, half{0.2}};
+    std::vector<half> result_vector =
+        norm_test<half>({1, 4, 2}, scale, bias, "layer_norm_3d_half_test.onnx");
+    std::vector<half> gold = {half{-0.69997597},
+                              half{0.99998398},
+                              half{-0.69997597},
+                              half{0.99998398},
+                              half{-0.69997597},
+                              half{0.99998398},
+                              half{-0.69997597},
+                              half{0.99998398}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 

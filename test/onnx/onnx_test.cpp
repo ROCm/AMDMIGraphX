@@ -2786,105 +2786,108 @@ TEST_CASE(group_conv_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(group_norm_3d_test)
+migraphx::program make_group_norm(const std::vector<int64_t>& input_dims,
+                                  const std::vector<int64_t>& scale_dims,
+                                  const std::vector<int64_t>& bias_dims,
+                                  const std::vector<int64_t>& reshape_dims,
+                                  const std::vector<int64_t>& reduce_axes,
+                                  const float eps_value               = 1e-5f,
+                                  const migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 4, 2}});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
-    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
+    auto x     = mm->add_parameter("x", {dtype, input_dims});
+    auto scale = mm->add_parameter("scale", {dtype, scale_dims});
+    auto bias  = mm->add_parameter("bias", {dtype, bias_dims});
 
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
-
-    auto x_reshaped =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 2}}}), x);
-    auto mean =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x_reshaped);
-    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
-    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
-    auto var =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x_sqdiff_mean);
-    auto var_eps     = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto rsqrt       = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
-    auto result      = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 2}}}), scale);
-    auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 2}}}), bias);
-    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
-    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 2}}}), y);
-
-    auto prog = optimize_onnx("group_norm_3d_test.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(group_norm_4d_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 4, 3, 3}});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {2}});
-    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {2}});
-
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 
     auto x_reshaped =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 3, 3}}}), x);
+        mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x);
     auto mean =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}), x_reshaped);
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x_reshaped);
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
-    auto var =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4}}}), x_sqdiff_mean);
-    auto var_eps     = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
-    auto rsqrt       = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
-    auto result      = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
-    auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 3, 3}}}), scale);
-    auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 2, 2, 3, 3}}}), bias);
-    auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
-    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 3, 3}}}), y);
-
-    auto prog = optimize_onnx("group_norm_4d_test.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(group_norm_5d_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {3, 3, 3, 3, 3}});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, {1}});
-    auto bias  = mm->add_parameter("bias", {migraphx::shape::float_type, {1}});
-
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
-
-    auto x_reshaped =
-        mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3, 3, 3}}}), x);
-    auto mean =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4, 5}}}), x_reshaped);
-    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
-    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
-    auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3, 4, 5}}}),
+    auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
                                    x_sqdiff_mean);
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
     auto rsqrt   = mm->add_instruction(migraphx::make_op("rsqrt"), {var_eps});
     auto result  = add_common_op(*mm, migraphx::make_op("mul"), {x_sub_mean, rsqrt});
     auto scale_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 3, 3, 3, 3}}}), scale);
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), scale);
     auto bias_bcast = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {3, 1, 3, 3, 3, 3}}}), bias);
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", reshape_dims}}), bias);
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result, scale_bcast});
     auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
-    mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3, 3, 3, 3}}}), y);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", input_dims}}), y);
 
-    auto prog = optimize_onnx("group_norm_5d_test.onnx");
+    return p;
+}
+
+TEST_CASE(group_norm_3d_test)
+{
+    migraphx::program p = make_group_norm(
+        {1, 4, 2}, {2}, {2}, {1, 2, 2, 2}, {2, 3}, 1e-5f, migraphx::shape::float_type);
+    auto prog = optimize_onnx("group_norm_3d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_3d_half_test)
+{
+    migraphx::program p = make_group_norm(
+        {1, 4, 2}, {2}, {2}, {1, 2, 2, 2}, {2, 3}, 1e-5f, migraphx::shape::half_type);
+    auto prog = optimize_onnx("group_norm_3d_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_4d_test)
+{
+    migraphx::program p = make_group_norm(
+        {1, 4, 3, 3}, {2}, {2}, {1, 2, 2, 3, 3}, {2, 3, 4}, 1e-5f, migraphx::shape::float_type);
+    auto prog = optimize_onnx("group_norm_4d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_4d_half_test)
+{
+    migraphx::program p = make_group_norm(
+        {1, 4, 3, 3}, {2}, {2}, {1, 2, 2, 3, 3}, {2, 3, 4}, 1e-5f, migraphx::shape::half_type);
+    auto prog = optimize_onnx("group_norm_4d_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_5d_test)
+{
+    migraphx::program p = make_group_norm({3, 3, 3, 3, 3},
+                                          {1},
+                                          {1},
+                                          {3, 1, 3, 3, 3, 3},
+                                          {2, 3, 4, 5},
+                                          1e-5f,
+                                          migraphx::shape::float_type);
+    auto prog           = optimize_onnx("group_norm_5d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_5d_half_test)
+{
+    migraphx::program p = make_group_norm({3, 3, 3, 3, 3},
+                                          {1},
+                                          {1},
+                                          {3, 1, 3, 3, 3, 3},
+                                          {2, 3, 4, 5},
+                                          1e-5f,
+                                          migraphx::shape::half_type);
+    auto prog           = optimize_onnx("group_norm_5d_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(group_norm_small_eps_half_test)
+{
+    migraphx::program p = make_group_norm(
+        {1, 4, 2}, {2}, {2}, {1, 2, 2, 2}, {2, 3}, 1e-7f, migraphx::shape::half_type);
+    auto prog = optimize_onnx("group_norm_small_eps_half_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -3788,19 +3791,21 @@ migraphx::program make_layer_norm(const std::vector<int64_t>& input_shape,
                                   const std::vector<int64_t>& scale_bias_shape,
                                   const std::vector<int64_t>& reduce_axes,
                                   size_t skipped_axis,
-                                  bool skip_bias = false)
+                                  bool skip_bias                      = false,
+                                  const float eps_value               = 1e-5f,
+                                  const migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", {migraphx::shape::float_type, input_shape});
-    auto scale = mm->add_parameter("scale", {migraphx::shape::float_type, scale_bias_shape});
+    auto x     = mm->add_parameter("x", {dtype, input_shape});
+    auto scale = mm->add_parameter("scale", {dtype, scale_bias_shape});
     migraphx::instruction_ref bias;
     if(not skip_bias)
     {
-        bias = mm->add_parameter("bias", {migraphx::shape::float_type, scale_bias_shape});
+        bias = mm->add_parameter("bias", {dtype, scale_bias_shape});
     }
 
-    auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x);
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
@@ -3865,11 +3870,29 @@ TEST_CASE(layer_norm_3d_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(layer_norm_3d_half_test)
+{
+    migraphx::program p =
+        make_layer_norm({1, 4, 2}, {2}, {2}, 2, false, 1e-5f, migraphx::shape::half_type);
+
+    auto prog = optimize_onnx("layer_norm_3d_half_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(layer_norm_4d_test)
 {
     migraphx::program p = make_layer_norm({3, 3, 3, 3}, {3}, {3}, 3);
 
     auto prog = optimize_onnx("layer_norm_4d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_4d_half_test)
+{
+    migraphx::program p =
+        make_layer_norm({3, 3, 3, 3}, {3}, {3}, 3, false, 1e-5f, migraphx::shape::half_type);
+
+    auto prog = optimize_onnx("layer_norm_4d_half_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -3895,6 +3918,15 @@ TEST_CASE(layer_norm_without_bias_test)
     migraphx::program p = make_layer_norm({1, 2}, {2}, {1}, 1, true);
 
     auto prog = optimize_onnx("layer_norm_without_bias_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(layer_norm_small_eps_half_test)
+{
+    migraphx::program p =
+        make_layer_norm({1, 2}, {2}, {1}, 1, true, 1e-7, migraphx::shape::half_type);
+
+    auto prog = optimize_onnx("layer_norm_small_eps_half_test.onnx");
     EXPECT(p == prog);
 }
 

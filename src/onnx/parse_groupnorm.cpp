@@ -108,6 +108,8 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
         auto x_sqdiff_mean = info.add_common_op("sqdiff", x_reshaped, mean);
         auto variance =
             info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x_sqdiff_mean);
+        epsilon =
+            (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
         auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
         auto var_eps = info.add_common_op("add", variance, eps);
         auto rsqrt   = info.add_instruction(make_op("rsqrt"), var_eps);

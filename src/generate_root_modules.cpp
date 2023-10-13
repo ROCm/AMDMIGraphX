@@ -130,7 +130,6 @@ struct auto_gen_root_modules
 
     void update_tid_counter(std::size_t tid)
     {
-        assert(tid != std::numeric_limits<std::size_t>::max());
         if(tid_counter.find(tid) != tid_counter.end())
         {
             tid_counter[tid]++;

@@ -47,46 +47,30 @@ com.microsoft.QLinearConv
 Version
 This version of the operator has been available since version 1 of the 'com.microsoft' operator set.
 
-Attributes
-
+ATTRIBUTES:
 auto_pad : string
-
 channels_last : int
-
 dilations : list of ints
-
 group : int
-
 kernel_shape : list of ints
-
 pads : list of ints
-
 strides : list of ints
 
-Inputs (8 - 9)
-
+INPUTS (8 - 9):
 x : T1
-
 x_scale : tensor(float)
-
 x_zero_point : T1
-
 w : T2
-
 w_scale : tensor(float)
-
 w_zero_point : T2
-
 y_scale : tensor(float)
-
 y_zero_point : T3
-
 B (optional) : T4
 
-Outputs
+OUTPUTS:
 y : T3
 
-Type Constraints
+Type Constraints:
 T1 : tensor(int8), tensor(uint8)
 T2 : tensor(int8), tensor(uint8)
 T3 : tensor(int8), tensor(uint8)
@@ -238,8 +222,7 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
 
         auto dquant_w = bcast_qdq_instr("dequantizelinear", in_w, in_scale_w, in_zero_pt_w, info);
 
-        auto conv_op = values.empty() ? migraphx::make_op("convolution")
-                                      : migraphx::make_op("convolution", values);
+        auto conv_op = migraphx::make_op("convolution", values);
 
         auto conv_x_w = info.add_instruction(conv_op, dquant_x, dquant_w);
 

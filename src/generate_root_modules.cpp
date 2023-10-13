@@ -215,6 +215,12 @@ struct auto_gen_root_modules
                 same_tid_ins_vec.push_back(ins);
                 same_tid_ins_set.insert(ins);
                 generate_run_on_target_modules(mm, p, std::next(ins), current_tid);
+                if(not same_tid_ins_vec.empty())
+                {
+                    current_tid = std::numeric_limits<std::size_t>::max();
+                    same_tid_ins_set.erase(ins);
+                    same_tid_ins_vec.pop_back();
+                }
             }
             else if(current_tid == std::numeric_limits<std::size_t>::max())
             {

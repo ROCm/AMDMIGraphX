@@ -134,6 +134,7 @@ bool check_compiled_program(const migraphx::program& p,
                             const std::vector<migraphx::target>& targets)
 {
     auto mods           = p.get_modules();
+    bool rot_ins        = false;
     bool check_compiled = true;
     for(const auto* mod : mods)
     {
@@ -141,6 +142,7 @@ bool check_compiled_program(const migraphx::program& p,
         {
             if(ins.name() == "run_on_target")
             {
+                rot_ins |= true;
                 auto* mod_input = ins.module_inputs().front();
                 std::size_t target_id =
                     ins.get_operator().to_value()["target_id"].to<std::size_t>();
@@ -156,7 +158,7 @@ bool check_compiled_program(const migraphx::program& p,
             }
         }
     }
-    return check_compiled;
+    return check_compiled and rot_ins;
 }
 
 TEST_CASE(multitarget_compile_cpu_gpu)

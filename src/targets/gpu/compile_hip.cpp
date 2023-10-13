@@ -284,13 +284,13 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 
 bool is_hip_clang_compiler()
 {
-    static const auto result = ends_with(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER), "clang++");
+    static const auto result = fs::path{MIGRAPHX_HIP_COMPILER}.stem() == "clang++";
     return result;
 }
 
 bool has_compiler_launcher()
 {
-    static const auto result = fs::exists(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER));
+    static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER);
     return result;
 }
 
@@ -306,8 +306,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 {
     assert(not srcs.empty());
     if(not is_hip_clang_compiler())
-        MIGRAPHX_THROW("Unknown hip compiler: " +
-                       std::string(MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER)));
+        MIGRAPHX_THROW("Unknown hip compiler: " MIGRAPHX_HIP_COMPILER);
 
     if(params.find("-std=") == std::string::npos)
         params += " --std=c++17";
@@ -323,14 +322,14 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         params += " -DMIGRAPHX_DEBUG";
 
     params += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
-    params += MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_FLAGS);
+    params += MIGRAPHX_HIP_COMPILER_FLAGS;
 
     src_compiler compiler;
     compiler.flags    = params;
-    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+    compiler.compiler = MIGRAPHX_HIP_COMPILER;
 #ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
     if(has_compiler_launcher())
-        compiler.launcher = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+        compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
@@ -354,7 +353,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 bool hip_has_flags(const std::vector<std::string>& flags)
 {
     src_compiler compiler;
-    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+    compiler.compiler = MIGRAPHX_HIP_COMPILER;
     compiler.flags =
         join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
 

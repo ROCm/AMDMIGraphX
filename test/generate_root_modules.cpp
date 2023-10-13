@@ -46,6 +46,15 @@
 
 TEST_CASE(fork_case)
 {
+    /*
+            Add (tid = 0)
+             |
+      ----------------
+      |               |
+    Mul             Identity
+    (tid = 0)       (tid = 1)
+
+    */
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::target_assignments tass;
     migraphx::program p1;
@@ -62,12 +71,22 @@ TEST_CASE(fork_case)
         tass.insert(tass.begin(), std::make_pair(mul_ins, 0));
         tass.insert(tass.begin(), std::make_pair(identity_ins, 1));
     }
+
     migraphx::generate_root_modules(p1, tass);
     p1.debug_print();
 };
 
 TEST_CASE(merge_case)
 {
+    /*
+            Add             Identity
+            (tid = 0)       (tid = 1)
+             |               |
+             -----------------
+                     |
+                    Mul (tid = 0)
+
+    */
     migraphx::target_assignments tass;
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::program p1;
@@ -90,6 +109,21 @@ TEST_CASE(merge_case)
 
 TEST_CASE(fork_and_merge_case)
 {
+    /*
+           Add (tid = 0)
+            |
+     ----------------
+     |               |
+   Mul             Identity
+   (tid = 0)       (tid = 1)
+     |               |
+     ----------------
+            |
+          Sub
+          (tid = 0)
+
+   */
+
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::target_assignments tass;
     migraphx::program p1;

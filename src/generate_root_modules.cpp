@@ -230,8 +230,10 @@ struct auto_gen_root_modules
                     generate_run_on_target_modules(mm, p, std::next(ins), current_tid.value());
                     if(not same_tid_ins_vec.empty())
                     {
+                        // generate() method would populate these container for next(ins), remove
+                        // them to maintain invariant
                         current_tid = nullopt;
-                        same_tid_ins_set.erase(ins);
+                        same_tid_ins_set.erase(std::next(ins));
                         same_tid_ins_vec.pop_back();
                     }
                 }

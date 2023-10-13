@@ -27,6 +27,7 @@
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
+#include <migraphx/onnx/broadcast_qdq.hpp>
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {
@@ -107,47 +108,21 @@ struct parse_qlinearglobalaveragepool : op_parser<parse_qlinearglobalaveragepool
             MIGRAPHX_THROW("QLINEARGLOBALAVERAGEPOOL: mismatched type: output zero point");
     }
 
-    // This method is to prep for quantizelinear or dequantizelinear operation for
-    // either the broadcasting of weight-scale or zero-points of an operator
-    // outputs: operator op (inputs x, broadcasted: scale (float) & zero_pt (8-bit))
-    instruction_ref bcast_qdq_instr(const std::string& op_name,
-                                    const instruction_ref x_in,
-                                    const instruction_ref arg_fscale,
-                                    const instruction_ref arg_z_pt,
-                                    const onnx_parser::node_info& info) const
-    {
-        auto in_lens = x_in->get_shape().lens();
-
-        // prep 1: broadcast scale. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_scale;
-        if(arg_fscale->get_shape().elements() > 1)
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_fscale);
-        else
-            bcast_scale = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_fscale);
-
-        // prep 2: broadcast zero point. it can come as a scalar or a 1-D tensor.
-        instruction_ref bcast_zero_pt;
-        if(arg_z_pt->get_shape().elements() > 1)
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", in_lens}}), arg_z_pt);
-        else
-            bcast_zero_pt = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_lens}}), arg_z_pt);
-
-        // op_name is either quantizelinear or dequantizelinear:
-        return info.add_instruction(migraphx::make_op(op_name), x_in, bcast_scale, bcast_zero_pt);
-    }
-
     instruction_ref parse(const op_desc& /* opd */,
-                          const onnx_parser& /*parser*/,
+                          const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
+        int channels_last =
+            parser.parse_value(info.attributes.at("channels_last")).template at<int>();
+        if(channels_last != 0)
+            MIGRAPHX_THROW(
+                "QLINEARGLOBALAVERAGEPOOL: channels_last (N x D1..Dn x C) is not supported");
+
         check_inputs(args);
 
         // Input: X
+
         const auto& in_x      = args[0];
         const auto& scale_x   = args[1];
         const auto& zero_pt_x = args[2];

@@ -5150,7 +5150,7 @@ def qlinearadd_bcast_test():
     return ([node], [a, b], [c],
             [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
 
-
+@onnx_test()
 def qlinearglobalavgpool_test():
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
 
@@ -5165,7 +5165,9 @@ def qlinearglobalavgpool_test():
     n = onnx.helper.make_node(
         'QLinearGlobalAveragePool',
         inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
-        outputs=['Y'])
+        outputs=['Y'],
+        channels_last=0,
+    )
 
     return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
 

@@ -21,30 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/time_op.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-struct compile_op : action<compile_op>
+struct test_squeeze_conv_relu : verify_program<test_squeeze_conv_relu>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << t << "ms";
-        std::cout << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 1, 3, 3}});
+        input = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), input);
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        mm->add_instruction(migraphx::make_op("relu"), conv);
+        return p;
     }
 };
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
-#define MIGRAPHX_GUARD_KERNELS_CK_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_CK_GEMM_SOFTMAX_GEMM_HPP
+#define MIGRAPHX_GUARD_KERNELS_CK_GEMM_SOFTMAX_GEMM_HPP
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
@@ -33,28 +33,41 @@
 
 namespace migraphx {
 
-template <class G, class E, class A, class B, class... Ds>
-__device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
+template <class T>
+struct ck_gemm_softmax_gemm_settings
+{
+    T scale{};
+};
+
+template <class... Ts>
+constexpr ck_gemm_softmax_gemm_settings<Ts...> make_ck_gemm_softmax_gemm_settings(Ts... xs)
+{
+    return {xs...};
+}
+
+template <class G, class C, class A, class B, class B1, class Settings>
+__device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
 {
     constexpr auto desc = G::make_descriptor(to_ck_tensor<A>(),
                                              to_ck_tensor<ck_transposeb<B>>(),
-                                             ck::make_tuple(to_ck_tensor<Ds>()...),
-                                             to_ck_tensor<E>());
+                                             to_ck_tensor<ck_transposeb<B1>>(),
+                                             to_ck_tensor<C>());
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
 
     G::Run(desc,
+           s.scale,
            to_ck_const_pointer(a.data()),
            to_ck_const_pointer(b.data()),
-           ck::make_tuple(to_ck_const_pointer(ds.data())...),
-           to_ck_pointer(e.data()));
+           to_ck_const_pointer(b1.data()),
+           to_ck_pointer(c.data()));
 }
 
-template <class G, index_int BlocksPerBatch, class... Ts>
-__device__ void ck_gemm(Ts... xs)
+template <class G, index_int BlocksPerBatch, class... Ts, class Settings>
+__device__ void ck_gemm_softmax_gemm(Settings s, Ts... xs)
 {
     gemm_batch_args(make_index(), _c<BlocksPerBatch>, xs...)(
-        [](auto... ys) { ck_gemm_matrix<G>(ys...); });
+        [&](auto... ys) { ck_gemm_softmax_gemm_matrix<G>(ys..., s); });
 }
 
 } // namespace migraphx

@@ -121,17 +121,16 @@ struct parse_qlinearmatmul : op_parser<parse_qlinearmatmul>
             MIGRAPHX_THROW("QLINEARMATMUL: empty input");
 
         // broadcast supported if either is 1-D -- the other can be a 2-D tensor.
+        // if it is 1-D, just prepend/append that lens and check further constraints..
         if(dim_a == 1)
         {
-            sh_a   = sh_a.prepend_dim(1);
-            lens_a = sh_a.lens();
-            dim_a  = lens_a.size();
+            lens_a.insert(lens_a.begin(), 1);
+            dim_a++;
         }
         if(dim_b == 1)
         {
-            sh_b   = sh_b.append_dim(1);
-            lens_b = sh_b.lens();
-            dim_b  = lens_b.size();
+            lens_b.push_back(1);
+            dim_b++;
         }
 
         // 2-D or higher-order mat mul

@@ -942,22 +942,6 @@ TEST_CASE(cpp_type_name)
     EXPECT(test::throws([&] { migraphx::shape::cpp_type(migraphx::shape::tuple_type); }));
 }
 
-TEST_CASE(test_prepend_dim)
-{
-    migraphx::shape s1{migraphx::shape::int8_type, {2, 2}};
-    auto result = s1.prepend_dim(4);
-    migraphx::shape gold{migraphx::shape::int8_type, {4, 2, 2}};
-    EXPECT(result == gold);
-}
-
-TEST_CASE(test_append_dim)
-{
-    migraphx::shape s1{migraphx::shape::float_type, {2, 2}};
-    auto result = s1.append_dim(3);
-    migraphx::shape gold{migraphx::shape::float_type, {2, 2, 3}};
-    EXPECT(result == gold);
-}
-
 TEST_CASE(test_with_type)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}, {1, 0}};

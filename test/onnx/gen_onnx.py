@@ -5152,6 +5152,116 @@ def qlinearadd_bcast_test():
 
 
 @onnx_test()
+def qlinearconv_test():
+    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
+    sc_x = helper.make_tensor('1', TensorProto.FLOAT, [], [0.00369204697])
+    zero_pt_x = helper.make_tensor('2', TensorProto.UINT8, [], [132])
+
+    wt = helper.make_tensor('3', TensorProto.UINT8, [1, 1, 1, 1], [0])
+    sc_wt = helper.make_tensor('4', TensorProto.FLOAT, [], [0.00172794575])
+    zero_pt_wt = helper.make_tensor('5', TensorProto.UINT8, [], [255])
+
+    sc_y = helper.make_tensor('6', TensorProto.FLOAT, [], [0.00162681262])
+    zero_pt_y = helper.make_tensor('7', TensorProto.UINT8, [], [123])
+
+    out = helper.make_tensor_value_info('out', TensorProto.UINT8, [1, 1, 7, 7])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', '1', '2', '3', '4', '5', '6', '7'],
+        outputs=['out'],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
+def qlinearconv_pad_1_test():
+    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
+    sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
+                              [0.09411764705882353])
+    zero_pt_x = helper.make_tensor('2', TensorProto.UINT8, [], [0])
+
+    wt = helper.make_tensor('3', TensorProto.UINT8, [1, 1, 3, 3],
+                            [1, 1, 1, 1, 1, 1, 1, 1, 1])
+    sc_wt = helper.make_tensor('4', TensorProto.FLOAT, [], [1.0])
+    zero_pt_wt = helper.make_tensor('5', TensorProto.UINT8, [], [0])
+
+    sc_y = helper.make_tensor('6', TensorProto.FLOAT, [], [0.6352941176470588])
+    zero_pt_y = helper.make_tensor('7', TensorProto.UINT8, [], [0])
+
+    out = helper.make_tensor_value_info('out', TensorProto.UINT8, [1, 1, 5, 5])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', '1', '2', '3', '4', '5', '6', '7'],
+        outputs=['out'],
+        pads=[1, 1, 1, 1],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
+def qlinearconv_pad_0_test():
+    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
+    sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
+                              [0.09411764705882353])
+    zero_pt_x = helper.make_tensor('2', TensorProto.UINT8, [], [0])
+
+    wt = helper.make_tensor('3', TensorProto.UINT8, [1, 1, 3, 3],
+                            [1, 1, 1, 1, 1, 1, 1, 1, 1])
+    sc_wt = helper.make_tensor('4', TensorProto.FLOAT, [], [1.0])
+    zero_pt_wt = helper.make_tensor('5', TensorProto.UINT8, [], [0])
+
+    sc_y = helper.make_tensor('6', TensorProto.FLOAT, [], [0.6352941176470588])
+    zero_pt_y = helper.make_tensor('7', TensorProto.INT8, [], [-128])
+
+    out = helper.make_tensor_value_info('out', TensorProto.INT8, [1, 1, 3, 3])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', '1', '2', '3', '4', '5', '6', '7'],
+        outputs=['out'],
+        pads=[0, 0, 0, 0],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
+def qlinearconv_scale_1D_test():
+    # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 5, 5])
+    sc_x = helper.make_tensor('1', TensorProto.FLOAT, [],
+                              [0.09411764705882353])
+    zero_pt_x = helper.make_tensor('2', TensorProto.UINT8, [], [0])
+
+    wt = helper.make_tensor(
+        '3', TensorProto.UINT8, [2, 1, 3, 3],
+        [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2])
+    sc_wt = helper.make_tensor('4', TensorProto.FLOAT, [2], [1.0, 0.5])
+    zero_pt_wt = helper.make_tensor('5', TensorProto.UINT8, [2], [0, 0])
+
+    sc_y = helper.make_tensor('6', TensorProto.FLOAT, [], [0.6352941176470588])
+    zero_pt_y = helper.make_tensor('7', TensorProto.INT8, [], [-128])
+
+    out = helper.make_tensor_value_info('out', TensorProto.INT8, [1, 2, 3, 3])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', '1', '2', '3', '4', '5', '6', '7'],
+        outputs=['out'],
+        pads=[0, 0, 0, 0],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
 def quantizelinear_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT, [5])
     arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1])

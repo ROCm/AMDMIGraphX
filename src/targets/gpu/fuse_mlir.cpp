@@ -392,7 +392,7 @@ bool is_requested(std::string_view option, bool fallback = false)
 void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
-    const auto& device_name = ctx ? ctx->get_current_device().get_gfx_name() : "";
+    const auto& device_name = ctx != nullopt ? ctx->get_current_device().get_gfx_name() : "";
     const bool is_navi      = starts_with(device_name, "gfx110");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {

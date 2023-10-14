@@ -21,22 +21,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx
-import numpy as np
 
-
-def test_add_op():
-    p = migraphx.program()
-    mm = p.get_main_module()
-    x = mm.add_literal(np.ones((3, 3), dtype='float32'))
-    y = mm.add_literal(2 * np.ones((3, 3), dtype='float32'))
-    add_op = mm.add_instruction(migraphx.op("add"), [x, y])
-    mm.add_return([add_op])
-    p.compile(migraphx.get_target("ref"))
-    params = {}
-    output = p.run(params)[-1].tolist()
-    assert output == list(3 * np.ones((9), dtype='float32'))
-
-
-if __name__ == "__main__":
-    test_add_op()
+numpy==1.21.6

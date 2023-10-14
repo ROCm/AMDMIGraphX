@@ -4904,7 +4904,6 @@ TEST_CASE(qlinearadd_test)
     EXPECT(p.sort() == prog.sort());
 }
 
-
 TEST_CASE(qlinearconv_test)
 {
     migraphx::program p;
@@ -4960,7 +4959,6 @@ TEST_CASE(qlinearconv_test)
     EXPECT(p.sort() == prog.sort());
 }
 
-
 TEST_CASE(qlinearglobalavgpool_test)
 {
     migraphx::program p;
@@ -5005,7 +5003,6 @@ TEST_CASE(qlinearglobalavgpool_test)
 
     EXPECT(p.sort() == prog.sort());
 }
-
 
 TEST_CASE(quantizelinear_test)
 {

@@ -5152,28 +5152,6 @@ def qlinearadd_bcast_test():
 
 
 @onnx_test()
-def qlinearglobalavgpool_test():
-    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
-
-    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
-    z_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [128])
-
-    y = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 3, 1, 1])
-
-    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.025])
-    z_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [64])
-
-    n = onnx.helper.make_node(
-        'QLinearGlobalAveragePool',
-        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
-        outputs=['Y'],
-        channels_last=0,
-    )
-
-    return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
-
-
-@onnx_test()
 def qlinearconv_test():
     # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
@@ -5281,6 +5259,28 @@ def qlinearconv_scale_1D_test():
     )
     return ([node], [x], [out],
             [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
+def qlinearglobalavgpool_test():
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
+
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    z_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [128])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 3, 1, 1])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.025])
+    z_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [64])
+
+    n = onnx.helper.make_node(
+        'QLinearGlobalAveragePool',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'],
+        channels_last=0,
+    )
+
+    return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
 
 
 @onnx_test()

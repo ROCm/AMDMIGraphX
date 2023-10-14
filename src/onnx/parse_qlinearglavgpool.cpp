@@ -74,7 +74,7 @@ Zero point tensor for output 'Y'. It must be a scalar.
 Outputs
 Y : T
 Output data tensor from pooling across the input tensor. The output tensor has the same rank as the
-input. with the N and C value keep it value, while the otherdimensions are all 1. Type Constraints
+input. with the N and C value keep it value, while the other dimensions are all 1. Type Constraints
 T : tensor(uint8), tensor(int8)
 Constrain input and output types to signed/unsigned int8 tensors.
 

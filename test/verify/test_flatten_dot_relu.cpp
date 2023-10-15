@@ -21,27 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_CPU_FUSE_OPS_HPP
-#define MIGRAPHX_GUARD_CPU_FUSE_OPS_HPP
 
-#include <migraphx/cpu/context.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-namespace cpu {
-
-struct MIGRAPHX_CPU_EXPORT fuse_ops
+struct test_flatten_dot_relu : verify_program<test_flatten_dot_relu>
 {
-    context* ctx = nullptr;
-    std::string name() const { return "cpu::fuse_ops"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a =
+            mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {1, 2, 3, 3, 5}});
+        a = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 3}}), a);
+        auto b =
+            mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {1, 5, 3, 3, 1}});
+        b        = mm->add_instruction(migraphx::make_op("flatten", {{"axis", 3}}), b);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        mm->add_instruction(migraphx::make_op("relu"), dot);
+        return p;
+    }
 };
-
-} // namespace cpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_CPU_FUSE_OPS_HPP

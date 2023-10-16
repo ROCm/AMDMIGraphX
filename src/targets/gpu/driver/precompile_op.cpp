@@ -38,11 +38,12 @@ namespace driver {
 
 struct precompile_op : action<precompile_op>
 {
-    static program create_preop_program(const operation& preop, const std::vector<shape>& inputs)
+    static program create_preop_program(const operation& preop, std::vector<shape> inputs)
     {
         program p;
         auto mm = p.get_main_module();
         std::vector<instruction_ref> args;
+        inputs.pop_back();
         transform(inputs, range(inputs.size()), std::back_inserter(args), [&](auto input, auto i) {
             return mm->add_parameter("x" + std::to_string(i), input);
         });

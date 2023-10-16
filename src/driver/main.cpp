@@ -566,7 +566,7 @@ struct verify : command<verify>
 
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
-        
+
         auto quantize = precision::fp32;
         if(c.to_fp16)
         {

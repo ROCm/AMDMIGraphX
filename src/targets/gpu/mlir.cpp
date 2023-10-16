@@ -320,7 +320,10 @@ struct mlir_program
 
     MlirType make_tensor(const shape& s) const
     {
-        assert(s.standard());
+        if(not s.standard())
+            MIGRAPHX_THROW("MLIR expects all tensors to be in standard shape");
+        if(s.dynamic())
+            MIGRAPHX_THROW("MLIR does not support dynamic shapes");
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
         return mlirRankedTensorTypeGet(
             lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());

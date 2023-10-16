@@ -47,7 +47,7 @@ void cal_auto_padding_size(onnx_parser::node_info info,
         return;
     }
 
-    auto auto_pad = info.attributes["auto_pad"].s();
+    auto auto_pad = to_upper(info.attributes["auto_pad"].s());
     if(auto_pad.find("SAME") != std::string::npos)
     {
         bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);

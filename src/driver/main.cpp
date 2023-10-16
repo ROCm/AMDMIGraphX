@@ -1,5 +1,5 @@
 /*
-ii The MIT License (MIT)
+ * The MIT License (MIT)
  *
  * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -41,8 +41,6 @@ ii The MIT License (MIT)
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 
-#include <migraphx/instruction.hpp>
-#include <migraphx/module_ref.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
@@ -539,39 +537,6 @@ struct params : command<params>
     }
 };
 
-/**
- * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
- * Sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction in found in the model.
- */
-verify::tolerance get_tolerances(const program& p, precision quantize, std::optional<double> rms_tol, std::optional<double> atol, std::optional<double> rtol)
-{
-    bool has_fp16 = any_of(p.get_modules(), [](auto&& m) {
-            return any_of(*m, [](auto&& ins) {
-                    return (ins.get_shape().type() == shape::half_type);
-                    });
-            });
-    migraphx::verify::tolerance result{};
-    if(has_fp16 or quantize == precision::fp16)
-    {
-        result.rms_tol = 8e-2;
-        result.atol = 4e-2;
-        result.rtol = 4e-2;
-    }
-    if(rms_tol)
-    {
-        result.rms_tol = *rms_tol;
-    }
-    if(atol)
-    {
-        result.atol = *atol;
-    }
-    if(rtol)
-    {
-        result.rtol = *rtol;
-    }
-    return result;
-}
-
 struct verify : command<verify>
 {
     compiler c;
@@ -583,13 +548,9 @@ struct verify : command<verify>
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(*rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
-        ap(*atol,
-           {"--atol"},
-           ap.help("Tolerance for the elementwise absolute difference"));
-        ap(*rtol,
-           {"--rtol"},
-           ap.help("Tolerance for the elementwise relative difference"));
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+        ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+        ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),

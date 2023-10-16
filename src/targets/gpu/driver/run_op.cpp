@@ -43,8 +43,8 @@ struct run_op : action<run_op>
         auto op = make_op(name);
         if(v.contains("fields"))
             op.from_value(v.at("fields"));
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms" << std::endl;
+        auto t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        std::cout << op << ": " << t << "ms" << std::endl;
     }
 };
 

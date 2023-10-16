@@ -44,7 +44,7 @@ struct precompile_op : action<precompile_op>
         auto mm = p.get_main_module();
         std::vector<instruction_ref> args;
         transform(inputs, range(inputs.size()), std::back_inserter(args), [&](auto input, auto i) {
-            return mm->add_parameter("x"+std::to_string(i), input);
+            return mm->add_parameter("x" + std::to_string(i), input);
         });
         mm->add_instruction(preop, args);
         return p;
@@ -56,7 +56,7 @@ struct precompile_op : action<precompile_op>
         auto it = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
             return (ins.name() == "gpu::code_object");
         });
-        if (it == mm->end())
+        if(it == mm->end())
             MIGRAPHX_THROW("Failed to create code object");
         return it->get_operator();
     }
@@ -65,14 +65,14 @@ struct precompile_op : action<precompile_op>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto name   = v.at("name").to<std::string>();
-        auto preop = make_op(name);
+        auto preop  = make_op(name);
         if(v.contains("fields"))
             preop.from_value(v.at("fields"));
         bool exhaustive = v.get("exhaustive", false);
-        auto prog = create_preop_program(preop, inputs);
+        auto prog       = create_preop_program(preop, inputs);
         run_passes(prog, {lowering{}, compile_ops{&ctx, exhaustive}});
         auto op = get_code_object(prog);
-        auto t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        auto t  = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << preop << ": " << t << "ms" << std::endl;
     }
 };

@@ -8934,13 +8934,11 @@ def upsample_ver7_test():
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
 
-    node = onnx.helper.make_node(
-        'Upsample',
-        inputs=['X'],
-        outputs=['Y'],
-        mode='nearest',
-        scales=[1.0, 1.0, 2.0, 3.0]
-    )
+    node = onnx.helper.make_node('Upsample',
+                                 inputs=['X'],
+                                 outputs=['Y'],
+                                 mode='nearest',
+                                 scales=[1.0, 1.0, 2.0, 3.0])
 
     return ([node], [X], [Y])
 

@@ -36,6 +36,15 @@ namespace migraphx {
 #if defined(MIGRAPHX_NGLOBAL) && defined(MIGRAPHX_NLOCAL)
 #define MIGRAPHX_NGROUP ((MIGRAPHX_NGLOBAL + MIGRAPHX_NLOCAL - 1) / MIGRAPHX_NLOCAL)
 #endif
+inline __device__ __attribute__((const)) index_int compute_max_local_size()
+{
+#ifdef MIGRAPHX_NLOCAL
+    return MIGRAPHX_NLOCAL;
+#else
+    MIGRAPHX_ASSERT(compute_global_size() % blockDim.x == 0);
+    return blockDim.x;
+#endif
+}
 
 inline __device__ __attribute__((const)) index_int compute_global_size()
 {
@@ -45,35 +54,18 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
     // This actualy works even when global is not divisible by local size.
     // This doesnt actually do a multiplicatiosn. Instead it calls a device
     // function to get the global size, which is why it works.
-    return blockDim.x * gridDim.x;  // NOLINT
+    return compute_max_local_size() * gridDim.x; // NOLINT
 #endif
 }
 
-// We cant just use blockDim.x to get the local size since its broken on hip
-// when global is not divisible by local size. In this case, we calulate the
-// size for the last group.
 inline __device__ __attribute__((const)) index_int compute_local_size()
 {
 #ifdef MIGRAPHX_NLOCAL
     const auto nlocal = MIGRAPHX_NLOCAL;
 #else
-    const auto nlocal = blockDim.x; // NOLINT
+    const auto nlocal = blockDim.x;              // NOLINT
 #endif
-#ifdef MIGRAPHX_NGROUP
-    const auto ngroup = MIGRAPHX_NGROUP;
-#else
-    const auto ngroup = gridDim.x;  // NOLINT
-#endif
-    const auto group_id = blockIdx.x; // NOLINT
-    const auto nglobal  = compute_global_size();
-    if(group_id == ngroup - 1)
-    {
-        return 1 + (nglobal - 1) % nlocal;
-    }
-    else
-    {
-        return nlocal; // NOLINT
-    }
+    return nlocal; // NOLINT
 }
 
 #ifdef MIGRAPHX_NGROUP
@@ -124,11 +116,7 @@ struct index
 #ifdef MIGRAPHX_NLOCAL
     constexpr index_constant<MIGRAPHX_NLOCAL> max_nlocal() const { return {}; }
 #else
-    __device__ index_int max_nlocal() const
-    {
-        MIGRAPHX_ASSERT(blockDim.x > 0);
-        return blockDim.x;
-    }
+    __device__ index_int max_nlocal() const { return compute_max_local_size(); }
 #endif
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
@@ -249,7 +237,8 @@ struct index
 #endif
 inline __device__ __attribute__((const)) index make_index()
 {
-    return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+    return index{
+        blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
 
 } // namespace migraphx

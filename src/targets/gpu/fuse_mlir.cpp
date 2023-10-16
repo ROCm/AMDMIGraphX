@@ -81,7 +81,6 @@ struct mlir_op
             MIGRAPHX_THROW("should have at least two inputs.");
 
         module_ref mod = mods[0];
-        std::cerr << "mod:" << *mod << std::endl;
         auto type      = mod->get_output_shapes().front().type();
         std::unordered_map<instruction_ref, shape> ins_shapes;
         size_t param_cnt               = 0;
@@ -481,7 +480,6 @@ struct find_mlir_standalone_attention_op : find_mlir_standalone_op
     {
         auto top_dot = r.instructions["top_dot"];
         // Check the pointwise mod only contains a single mul
-        std::cerr << "standalone attention found!\n";
         if(r.instructions.find("scale") != r.instructions.end()){
             auto scale_pm = r.instructions["scale"];
             bool found_mul = false;
@@ -493,7 +491,6 @@ struct find_mlir_standalone_attention_op : find_mlir_standalone_op
                     found_mul = true;
                     continue;
                 }
-                std::cerr << "standalone attention scale not compatible!\n";
                 return;
             }
         }
@@ -503,7 +500,6 @@ struct find_mlir_standalone_attention_op : find_mlir_standalone_op
                    {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
                    i->get_shape().type());
            })){
-            std::cerr << "standalone attention dtype not compatible!\n";
             return;
         }
         rewrite(mpm, r);

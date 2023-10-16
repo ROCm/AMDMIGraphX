@@ -54,9 +54,9 @@ TEST_CASE(multinomial_test)
     std::transform(dist.begin(), dist.end(), data.begin(), [&](auto d) { return d; });
     // take cumulative sum
     std::partial_sum(data.begin(), data.end(), sum.begin(), std::plus<float>());
-    // normalize to total of 1
-    float total = sum[4];
-    std::transform(sum.begin(), sum.end(), data.begin(), [&](auto d) { return d / total; });
+    // scale probabilities arbitrarily
+    float odd_scale = 10000.;
+    std::transform(sum.begin(), sum.end(), data.begin(), [&](auto d) { return d*odd_scale; });
 
     auto input = mm->add_literal(migraphx::literal(s, data));
 
@@ -123,8 +123,8 @@ TEST_CASE(multinomial_dyn_test)
     //   15, 25, 15, 15, 20
     //   20, 20, 10, 25, 25
     std::vector<int> dist{15, 25, 15, 25, 20, 20, 20, 10, 25, 25};
-    // Hard-coded normalized, accumulated distribution follows:
-    std::vector<float> data{.15f, .40f, .55f, .80f, 1.0f, .20f, .40f, .50f, .75f, 1.0f};
+    // Hard-coded non-normalized, accumulated distribution follows:
+    std::vector<float> data{.15f, .40f, .55f, .80f, 1.0f, 20.f, 40.f, 50.f, 75.f, 100.f};
 
     auto input2 = mm->add_parameter("Input_2", s);
 

@@ -4318,25 +4318,24 @@ TEST_CASE(multinomial_test)
     size_t categories  = 10;
     uint32_t seed      = 0;
 
-    auto input = mm->add_parameter(
-        "input", migraphx::shape{migraphx::shape::float_type, {batch_size, categories}});
-    auto cdf = mm->add_instruction(migraphx::make_op("exp"), input);
-    auto sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cdf);
-    cdf      = add_common_op(*mm, migraphx::make_op("div"), {cdf, sum});
-    ;
-    cdf = mm->add_instruction(
+    auto input =
+        mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {batch_size, categories}});
+    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto mb_maxes = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 10}}}), maxes);
+    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
     migraphx::shape s{migraphx::shape::uint32_type, {1}};
-    std::vector<uint32_t> data = {seed};
-    auto seed_input            = mm->add_literal(migraphx::literal(s, data));
-
-    // static size
+    std::vector<uint32_t> seed_data = {seed};
+    auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
     auto rand_dummy =
         mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
-    mm->add_instruction(
-        migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), cdf, randoms);
+    mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     auto prog = optimize_onnx("multinomial_test.onnx");
 
     EXPECT(p == prog);
@@ -4355,10 +4354,10 @@ TEST_CASE(multinomial_dyn_test)
         "input",
         migraphx::shape{migraphx::shape::float_type, {{1, categories}, {categories, categories}}});
 
-    auto cdf = mm->add_instruction(migraphx::make_op("exp"), input);
-    auto sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cdf);
-    cdf      = add_common_op(*mm, migraphx::make_op("div"), {cdf, sum});
-    ;
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
@@ -4410,10 +4409,11 @@ TEST_CASE(multinomial_autoseed_dyn_test)
 
     auto input = mm->add_parameter(
         "input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
-    auto cdf = mm->add_instruction(migraphx::make_op("exp"), input);
-    auto sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cdf);
-    cdf      = add_common_op(*mm, migraphx::make_op("div"), {cdf, sum});
-    ;
+
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
     auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));

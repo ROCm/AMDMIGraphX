@@ -1236,7 +1236,7 @@ TEST_CASE(multinomial_dyn_test)
     const size_t sample_size(100000);
     p.compile(migraphx::make_target("ref"));
 
-    // The type of the prob.
+    // Distribution function (2 distributions of 5 categories each)
     std::vector<int> dist{15, 25, 15, 25, 20, 20, 20, 10, 25, 25};
     EXPECT(dist.size() == categories * batch_size);
     std::vector<float> data(categories * batch_size);
@@ -1264,7 +1264,6 @@ TEST_CASE(multinomial_dyn_test)
     auto dist_sum     = std::accumulate(dist.begin(), dist.begin() + 5, 0);
     auto res_dist_sum = std::accumulate(res_dist.begin(), res_dist.end(), 0);
 
-    // gold values are repeatable for the random seed given in the Onnx file.
     //  Values approximate the distribution in dist
     std::vector<float> norm(5);
     std::vector<float> res_norm(5);

@@ -32,18 +32,16 @@
  *      Inputs:   args[0] - a tensor of probabilities for each category.  Values are
  *                          cumulative density function
  *                          totals as provided by operation prefix_scan_sum.  Values are
- *                          cumulative probabilities (i.e. start with any set of numbers > 0, then
- *                          normalize val[i] = val[i] / sum (val[0] + val[1]+ ...)
- *                          and then apply prefix_scan_sum.  Inputs from the Onnx multinomial
- *                          operation are unnormalized logs and so must have exp applied, then
- *                          normalize and take cumulative sum before calling this operation.
+ *                          cumulative probabilities (i.e. start with any set of numbers > 0
+ *                          and then apply prefix_scan_sum).  Values do not need to be
+ *                          normalized to sum to 1; this is done in runtime computation.
  *
  *                          This input has Rank 2.  Dimension 0 is batch #, so that there can be
  *                          a different CDF for each iteration in the batch.  The size of dimension
  *                          1 is the number of categories.
  *
- *                args[1] - a tensor of random numbers.  The last dimension is the sample size, i.e.
- the number of
+ *                args[1] - a tensor of random numbers.  The last dimension is the sample
+ *                          size, i.e. the number of
  *                          random samples in each iteration of the batch.  Nominally
  *                          has two dimensions where the first dimension is batch size, but
  *                          any reshaping such that the total

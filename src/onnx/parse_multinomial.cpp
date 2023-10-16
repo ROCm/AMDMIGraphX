@@ -55,20 +55,17 @@ struct parse_multinomial : op_parser<parse_multinomial>
         else
             MIGRAPHX_THROW("PARSE_MULTINOMIAL: sample_size not given");
 
-        // TODO: onnx_runtime implementation subtracts the maximum of args[0]
-        // elementwise at this point, creating an array with one 0 and many negative logs
-        // "for numerical stability".  See
-        // https://github.com/microsoft/onnxruntime/blob/8d737f977056444a307f1b7f0bcd402fba62d790/onnxruntime/core/providers/cpu/generator/random.cc#L259
-        // the results range from (0-1] but is unnormalized and skews the resulting
-        // multinomial distribution.
+        // Use logarithmic math to scale probabilities while avoiding division by very
+        // small numbers.  Scaling by the maximum makes very tiny ranges more
+        // tractable; any constant factor gives equivalent distr. since the Multinomial op.
+        // normalizes at runtime.
 
-        // Extract the probability from log-probability
-        auto cdf = info.add_common_op("exp", args[0]);
-
-        // Normalize probabilities to sum of 1
-        auto sum = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cdf);
-        cdf      = info.add_common_op("div", cdf, sum);
-
+        // Subtract the per-batch maximum log-probability, making the per-batch max 0
+        auto maxes =
+            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), args[0]);
+        auto cdf = info.add_common_op("sub", args[0], maxes);
+        // Take the element-wise exponent to get probabilities in the range (0, 1]
+        cdf = info.add_instruction(migraphx::make_op("exp"), cdf);
         // Compute the cumulative distribution function
         cdf = info.add_instruction(
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
@@ -98,41 +95,35 @@ struct parse_multinomial : op_parser<parse_multinomial>
             dyn_dim_set.emplace_back(shape::dynamic_dimension{sample_size, sample_size});
 
             // read the input dimensions
-            auto dim_of =
-                info.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), args[0]);
+            auto dim_of = info.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), args[0]);
 
             // The next two operations insert the value sample_size into the second array position
 
             // make an argument of (1, 0)
             shape s(shape::int64_type, {2});
-            std::vector<int64_t> data1{1, 0};
-            auto l1        = info.add_literal(s, data1);
+            std::vector<int64_t> data1{1,0};
+            auto l1 = info.add_literal(s, data1);
             auto batch_arg = info.add_instruction(migraphx::make_op("mul"), dim_of, l1);
             std::vector<int64_t> data2(2, 0);
             // make an argument of (0, sample_size)
-            data2[1]         = sample_size;
-            auto l2          = info.add_literal(s, data2);
-            auto alloc_shape = info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
-            // alloc_shape should contain the input-based shape dimensions as its values at runtime,
-            // and its own shape is (2, 0)
+            data2[1] = sample_size;
+            auto l2 = info.add_literal(s, data2);
+            auto alloc_shape =  info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
+            // alloc_shape should contain the input-based shape dimensions as its values at runtime, and its own shape is (2, 0)
 
             // compile_shape is the shape used when compiling the Allocate op, and may be dynamic
-            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(),
-            // {sample_size, sample_size} } );
-            migraphx::shape compile_shape =
-                migraphx::shape(s0.type(), {s0.dyn_dims().front(), {sample_size, sample_size}});
+            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
+            migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
 
             // Allocate on-device storage for the random values
             // TODO:  this creates data type half_type if "buf_type" is not specified
-            auto alloc = info.add_instruction(
-                migraphx::make_op("allocate",
-                                  {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}),
-                alloc_shape);
-            randoms = info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
+            auto alloc = info.add_instruction(migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}), alloc_shape);
+            randoms =
+                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }
         else
         {
-            // use literal.  The array populated by random_uniform may have any shape, as long its
+            // use literal.  The array populated by random_uniform may have any shape, as long its 
             // number of elements is batch_size * sample_size .
             size_t batch_size = s0.lens().front();
             auto rand_dummy   = info.add_literal(
@@ -141,6 +132,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
             randoms =
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
+
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

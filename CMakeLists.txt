@@ -27,20 +27,19 @@ if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directroy cannot be the same")
 endif()
 
-get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+get_property(MIGRAPHX_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 
+# Setup valid strings for build type
+if (NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
+endif()
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
-if(_GENERATOR_IS_MULTI_CONFIG)
-    if (NOT CMAKE_CONFIGURATION_TYPES)
-        set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
-            "Available build types (configurations) on multi-config generators")
-    endif()
+if(MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
 else()
-    if(NOT CMAKE_BUILD_TYPE)
-        set(CMAKE_BUILD_TYPE Release CACHE STRING
-            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
-    endif()
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 endif()
 
 set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")

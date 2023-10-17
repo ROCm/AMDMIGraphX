@@ -56,7 +56,7 @@ TEST_CASE(multinomial_test)
     std::partial_sum(data.begin(), data.end(), sum.begin(), std::plus<float>());
     // scale probabilities arbitrarily
     float odd_scale = 10000.;
-    std::transform(sum.begin(), sum.end(), data.begin(), [&](auto d) { return d*odd_scale; });
+    std::transform(sum.begin(), sum.end(), data.begin(), [&](auto d) { return d * odd_scale; });
 
     auto input = mm->add_literal(migraphx::literal(s, data));
 

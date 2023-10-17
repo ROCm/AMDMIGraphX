@@ -73,10 +73,10 @@ struct parse_multinomial : op_parser<parse_multinomial>
         instruction_ref seed_input;
         if(contains(info.attributes, "seed"))
         {
-            uint32_t seed = info.attributes.at("seed").i();
-            migraphx::shape s{migraphx::shape::uint32_type, {1}};
-            std::vector<uint32_t> data = {seed};
-            seed_input                 = info.add_literal(migraphx::literal(s, data));
+            float seed = info.attributes.at("seed").f();
+            migraphx::shape s{migraphx::shape::float_type, {1}};
+            std::vector<float> data = {seed};
+            seed_input              = info.add_literal(migraphx::literal(s, data));
         }
         else
         {
@@ -95,35 +95,41 @@ struct parse_multinomial : op_parser<parse_multinomial>
             dyn_dim_set.emplace_back(shape::dynamic_dimension{sample_size, sample_size});
 
             // read the input dimensions
-            auto dim_of = info.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), args[0]);
+            auto dim_of =
+                info.add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), args[0]);
 
             // The next two operations insert the value sample_size into the second array position
 
             // make an argument of (1, 0)
             shape s(shape::int64_type, {2});
-            std::vector<int64_t> data1{1,0};
-            auto l1 = info.add_literal(s, data1);
+            std::vector<int64_t> data1{1, 0};
+            auto l1        = info.add_literal(s, data1);
             auto batch_arg = info.add_instruction(migraphx::make_op("mul"), dim_of, l1);
             std::vector<int64_t> data2(2, 0);
             // make an argument of (0, sample_size)
-            data2[1] = sample_size;
-            auto l2 = info.add_literal(s, data2);
-            auto alloc_shape =  info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
-            // alloc_shape should contain the input-based shape dimensions as its values at runtime, and its own shape is (2, 0)
+            data2[1]         = sample_size;
+            auto l2          = info.add_literal(s, data2);
+            auto alloc_shape = info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
+            // alloc_shape should contain the input-based shape dimensions as its values at runtime,
+            // and its own shape is (2, 0)
 
             // compile_shape is the shape used when compiling the Allocate op, and may be dynamic
-            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
-            migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(), {sample_size, sample_size} } );
+            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(),
+            // {sample_size, sample_size} } );
+            migraphx::shape compile_shape =
+                migraphx::shape(s0.type(), {s0.dyn_dims().front(), {sample_size, sample_size}});
 
             // Allocate on-device storage for the random values
             // TODO:  this creates data type half_type if "buf_type" is not specified
-            auto alloc = info.add_instruction(migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}), alloc_shape);
-            randoms =
-                info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
+            auto alloc = info.add_instruction(
+                migraphx::make_op("allocate",
+                                  {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}),
+                alloc_shape);
+            randoms = info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }
         else
         {
-            // use literal.  The array populated by random_uniform may have any shape, as long its 
+            // use literal.  The array populated by random_uniform may have any shape, as long its
             // number of elements is batch_size * sample_size .
             size_t batch_size = s0.lens().front();
             auto rand_dummy   = info.add_literal(
@@ -132,7 +138,6 @@ struct parse_multinomial : op_parser<parse_multinomial>
             randoms =
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }
-
 
         return info.add_instruction(
             migraphx::make_op("multinomial", {{"dtype", output_type}}), cdf, randoms);

@@ -4566,7 +4566,7 @@ def mod_test_fmod_different_dtypes():
 @onnx_test()
 def multinomial_test():
     sample_size = 13
-    seed = 0.0
+    seed = 0.
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [3, 10])
     output = helper.make_tensor_value_info("output", TensorProto.INT32,
                                            [1, 10])
@@ -4583,7 +4583,7 @@ def multinomial_test():
 @onnx_test()
 def multinomial_dyn_test():
     sample_size = 100000
-    seed = 0.0
+    seed = 1.3
     categories = 5
     input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
                                           [None, categories])

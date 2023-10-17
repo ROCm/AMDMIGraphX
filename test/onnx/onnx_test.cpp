@@ -4316,10 +4316,10 @@ TEST_CASE(multinomial_test)
     size_t sample_size = 13;
     size_t batch_size  = 3;
     size_t categories  = 10;
-    uint32_t seed      = 0;
+    float seed         = 0;
 
-    auto input =
-        mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {batch_size, categories}});
+    auto input = mm->add_parameter(
+        "input", migraphx::shape{migraphx::shape::float_type, {batch_size, categories}});
     auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
     auto mb_maxes = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 10}}}), maxes);
@@ -4328,8 +4328,8 @@ TEST_CASE(multinomial_test)
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    migraphx::shape s{migraphx::shape::uint32_type, {1}};
-    std::vector<uint32_t> seed_data = {seed};
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<float> seed_data = {seed};
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
     auto rand_dummy =
         mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
@@ -4348,7 +4348,7 @@ TEST_CASE(multinomial_dyn_test)
     auto* mm           = p.get_main_module();
     size_t sample_size = 100000;
     size_t categories  = 5;
-    float seed         = 0.0f;
+    float seed         = 1.3f;
 
     auto input = mm->add_parameter(
         "input",
@@ -4358,10 +4358,10 @@ TEST_CASE(multinomial_dyn_test)
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf = mm->add_instruction(
+    cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    migraphx::shape s{migraphx::shape::uint32_type, {1}};
+    migraphx::shape s{migraphx::shape::float_type, {1}};
     std::vector<float> seed_data = {seed};
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
 
@@ -4414,7 +4414,7 @@ TEST_CASE(multinomial_autoseed_dyn_test)
 
     auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
-    cdf = mm->add_instruction(
+    cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
     auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
 
@@ -4470,21 +4470,21 @@ TEST_CASE(multinomial_int64_test)
     migraphx::program p;
     auto* mm                      = p.get_main_module();
     size_t sample_size            = 10;
-    uint32_t seed                 = 0;
+    float seed                    = 1.0;
     uint32_t batch_size           = 1;
     migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
-    auto cdf   = mm->add_instruction(migraphx::make_op("exp"), input);
-    auto sum   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), cdf);
-    cdf        = add_common_op(*mm, migraphx::make_op("div"), {cdf, sum});
-    ;
-    cdf = mm->add_instruction(
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    migraphx::shape s{migraphx::shape::uint32_type, {1}};
-    std::vector<uint32_t> data = {seed};
-    auto seed_input            = mm->add_literal(migraphx::literal(s, data));
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<float> data = {seed};
+    auto seed_input         = mm->add_literal(migraphx::literal(s, data));
 
     // static size
     auto rand_dummy =

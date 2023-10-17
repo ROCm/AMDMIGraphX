@@ -189,7 +189,7 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     auto args_hpp =
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
     srcs.emplace_back("args.hpp", args_hpp);
-  
+
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.params += " -fno-offload-uniform-block";
     else

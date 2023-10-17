@@ -34,7 +34,7 @@
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
-extern "C" __device__ size_t __ockl_get_enqueue_local_size(uint);
+extern "C" __device__ size_t __ockl_get_enqueued_local_size(uint);
 extern "C" __device__ size_t __ockl_get_global_size(uint);
 extern "C" __device__ size_t __ockl_get_local_size(uint);
 #pragma clang diagnostic pop
@@ -51,7 +51,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    return __ockl_get_global_size(0);        // NOLINT
+    return __ockl_get_global_size(0);         // NOLINT
 #endif
 }
 
@@ -67,16 +67,16 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #ifdef MIGRAPHX_HAS_CONST_LOCAL
     return MIGRAPHX_NLOCAL;
 #else
-    return __ockl_get_local_size(0);         // NOLINT
+    return __ockl_get_local_size(0);          // NOLINT
 #endif
 }
 
 inline __device__ __attribute__((const)) index_int compute_max_local_size()
 {
-#ifdef MIGRAPHX_NLOCAL
+#ifdef MIGRAPHX_HAS_CONST_NLOCAL
     return MIGRAPHX_NLOCAL;
 #else
-    return __ockl_get_enqueue_local_size(0); // NOLINT
+    return __ockl_get_enqueued_local_size(0); // NOLINT
 #endif
 }
 

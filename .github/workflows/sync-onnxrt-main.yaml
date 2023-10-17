@@ -47,6 +47,7 @@ jobs:
             onnxruntime
             dependancies
             automated 
+            skip bot checks
           assignees: TedThemistokleous
           reviewers: TedThemistokleous causten
           draft: false

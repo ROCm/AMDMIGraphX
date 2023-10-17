@@ -155,7 +155,7 @@ int main() {}
 
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
-    return {name, std::make_pair(content.data(), content.data() + content.size())};
+    return {name, content};
 }
 
 TEST_CASE(simple_compile_hip)
@@ -216,6 +216,15 @@ TEST_CASE(compile_warnings)
     EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
     EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
 #endif
+}
+
+TEST_CASE(has_flags)
+{
+    EXPECT(migraphx::gpu::hip_has_flags({"--std=c++17"}));
+    EXPECT(not migraphx::gpu::hip_has_flags({"--non-existent-flag-to-test-in-migraphx"}));
+    EXPECT(migraphx::gpu::hip_has_flags({"-Wunused-parameter"}));
+    EXPECT(not migraphx::gpu::hip_has_flags(
+        {"-Wnon-existent-warnings-flag-to-test-in-migraphx", "-Werror"}));
 }
 
 TEST_CASE(code_object_hip)

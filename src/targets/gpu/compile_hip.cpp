@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <cassert>
 #include <iostream>
+#include <deque>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -92,7 +93,7 @@ struct hiprtc_program
 {
     struct string_array
     {
-        std::vector<std::string> strings{};
+        std::deque<std::string> strings{};
         std::vector<const char*> c_strs{};
 
         string_array() {}
@@ -115,6 +116,12 @@ struct hiprtc_program
     std::string cpp_src  = "";
     std::string cpp_name = "";
 
+    hiprtc_program(const std::string& src, const std::string& name = "main.cpp")
+        : cpp_src(src), cpp_name(name)
+    {
+        create_program();
+    }
+
     hiprtc_program(std::vector<hiprtc_src_file> srcs)
     {
         for(auto&& src : srcs)
@@ -130,6 +137,14 @@ struct hiprtc_program
                 include_names.push_back(std::move(src.path));
             }
         }
+        create_program();
+    }
+
+    void create_program()
+    {
+        assert(not cpp_src.empty());
+        assert(not cpp_name.empty());
+        assert(headers.size() == include_names.size());
         prog = hiprtc_program_create(cpp_src.c_str(),
                                      cpp_name.c_str(),
                                      headers.size(),
@@ -137,7 +152,7 @@ struct hiprtc_program
                                      include_names.data());
     }
 
-    void compile(const std::vector<std::string>& options) const
+    void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
             std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
@@ -148,7 +163,7 @@ struct hiprtc_program
                        [](const std::string& s) { return s.c_str(); });
         auto result   = hiprtcCompileProgram(prog.get(), c_options.size(), c_options.data());
         auto prog_log = log();
-        if(not prog_log.empty())
+        if(not prog_log.empty() and not quiet)
         {
             std::cerr << prog_log << std::endl;
         }
@@ -195,7 +210,6 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
         options.push_back("-Wno-gnu-line-marker");
         options.push_back("-Wno-old-style-cast");
     }
-
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
         options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
@@ -210,6 +224,20 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     return {prog.get_code_obj()};
 }
 
+bool hip_has_flags(const std::vector<std::string>& flags)
+{
+    hiprtc_program prog{" "};
+    try
+    {
+        prog.compile(flags, true);
+        return true;
+    }
+    catch(...)
+    {
+        return false;
+    }
+}
+
 std::vector<std::vector<char>>
 compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch)
 {
@@ -220,7 +248,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
@@ -310,7 +338,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            std::cout << std::string(src.content.first, src.len()) << std::endl;
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
@@ -321,6 +349,27 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     }
 
     return {compiler.compile(srcs)};
+}
+
+bool hip_has_flags(const std::vector<std::string>& flags)
+{
+    src_compiler compiler;
+    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+    compiler.flags =
+        join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
+
+    std::string src;
+    src_file input{"main.cpp", src};
+
+    try
+    {
+        compiler.compile({input});
+        return true;
+    }
+    catch(...)
+    {
+        return false;
+    }
 }
 
 #endif // MIGRAPHX_USE_HIPRTC

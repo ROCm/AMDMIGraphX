@@ -216,24 +216,22 @@ struct gemm_impl
         k             = input_shapes[0].lens()[dim_1];
         if(input_shapes[0].type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
         {
-        MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be multiple of 4!");
+            MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be multiple of 4!");
         }
 
         a_stride     = get_batch_stride(input_shapes[0]);
         b_stride     = get_batch_stride(input_shapes[1]);
         c_stride     = get_batch_stride(input_shapes[2]);
         d_stride     = is_3inputs ? get_batch_stride(input_shapes[3]) : c_stride;
-        num_matrices = std::accumulate(out_lens.rbegin() + 2,
-                                        out_lens.rend(),
-                                        std::size_t{1},
-                                        std::multiplies<std::size_t>());
+        num_matrices = std::accumulate(
+            out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         if(num_matrices == 1 or (num_matrices > 1 and b_stride == 0))
         {
-        // If the batch dimension of B is broadcasted, then we can
-        // multiply m by the batch_size and use rocblas_gemm_ex
-        // instead of rocblas_gemm_strided_batched_ex.
-        m *= num_matrices;
-        strided_batched = false;
+            // If the batch dimension of B is broadcasted, then we can
+            // multiply m by the batch_size and use rocblas_gemm_ex
+            // instead of rocblas_gemm_strided_batched_ex.
+            m *= num_matrices;
+            strided_batched = false;
         }
     }
 

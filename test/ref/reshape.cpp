@@ -226,3 +226,25 @@ TEST_CASE(reshape_2in_test1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
+TEST_CASE(reshape_2in_elements_runtime_error)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s_in{migraphx::shape::float_type, {2, 24, 1, 1}};
+    migraphx::shape s_out{migraphx::shape::float_type, {{2, 4}, {6, 6}, {2, 4}, {1, 1}}};
+    auto input         = mm->add_parameter("X", s_in);
+    auto output_buffer = mm->add_parameter("Y", s_out);
+    mm->add_instruction(migraphx::make_op("reshape"), input, output_buffer);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> gold(48);
+    std::iota(gold.begin(), gold.end(), -3.);
+    std::vector<float> buffer(48);
+    std::iota(buffer.begin(), buffer.end(), 0.);
+    migraphx::parameter_map params;
+    // elements do not match up
+    migraphx::shape output_fixed_shape{migraphx::shape::float_type, {2, 6, 2, 1}};
+    params["X"] = migraphx::argument(s_in, gold.data());
+    params["Y"] = migraphx::argument(output_fixed_shape, buffer.data());
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
+}

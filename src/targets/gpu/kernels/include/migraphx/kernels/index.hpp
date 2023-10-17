@@ -34,8 +34,8 @@
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
-extern "C" __device__ size_t __ockl_get_enqueued_local_size(uint);
-extern "C" __device__ size_t __ockl_get_local_size(uint);
+extern "C" __device__ size_t __ockl_get_enqueued_local_size(uint); // NOLINT
+extern "C" __device__ size_t __ockl_get_local_size(uint);          // NOLINT
 #pragma clang diagnostic pop
 #endif
 

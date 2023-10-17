@@ -57,7 +57,7 @@ struct instruction_ref : std::list<instruction>::iterator
                                 std::is_same<U, instruction_ref>{})>
     friend bool operator!=(const T& x, const U& y)
     {
-        return !(x == y);
+        return not(x == y);
     }
 };
 #else

@@ -35,7 +35,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 extern "C" __device__ size_t __ockl_get_enqueued_local_size(uint);
-extern "C" __device__ size_t __ockl_get_global_size(uint);
 extern "C" __device__ size_t __ockl_get_local_size(uint);
 #pragma clang diagnostic pop
 #endif
@@ -51,7 +50,9 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    return __ockl_get_global_size(0);         // NOLINT
+    // This doesnt actually do a multiplicatiosn. Instead it calls a device
+    // function to get the global size, which is why it works.
+    return blockDim.x * gridDim.x; // NOLINT
 #endif
 }
 
@@ -67,7 +68,8 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #ifdef MIGRAPHX_HAS_CONST_LOCAL
     return MIGRAPHX_NLOCAL;
 #else
-    return __ockl_get_local_size(0);          // NOLINT
+    // Returns block size. For the non-uniform block it returns the size of the non-uniform block.
+    return __ockl_get_local_size(0); // NOLINT
 #endif
 }
 
@@ -76,6 +78,9 @@ inline __device__ __attribute__((const)) index_int compute_max_local_size()
 #ifdef MIGRAPHX_HAS_CONST_NLOCAL
     return MIGRAPHX_NLOCAL;
 #else
+
+    // Returns the block size. When workgrop has non-uniform block, this returns size of the uniform
+    // block.
     return __ockl_get_enqueued_local_size(0); // NOLINT
 #endif
 }

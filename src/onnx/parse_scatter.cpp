@@ -57,7 +57,8 @@ struct parse_scatter : op_parser<parse_scatter>
             // reduction op names should follow this pattern and should also be added to the check
             // above.
         }
-        op = migraphx::make_op("scatter_elements", {{"axis", axis}, {"reduction", reduction}});
+        op = migraphx::make_op("scatter_elements_" + reduction, {{"axis", axis}});
+
         return info.add_instruction(op, args);
     }
 };

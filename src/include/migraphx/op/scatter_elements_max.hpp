@@ -21,31 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MAX_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MAX_HPP
 
-#include <migraphx/kernels/index.hpp>
-#include <migraphx/kernels/algorithm.hpp>
-#include <migraphx/kernels/scatter_reduction_modes.hpp>
+#include <migraphx/op/scatter_elements_op.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
-template <uint64_t Axis, class T, class U, class V, class F>
-__device__ void scatter_elements(const T& indices_t, const U& updates_t, const V& output_t, F f)
+struct scatter_elements_max : public scatter_elements_op<scatter_elements_max>
 {
-    auto gpu_index     = make_index();
-    auto indices_shape = indices_t.get_shape();
-    auto axis_dim_size = output_t.get_shape().lens[Axis];
+    auto reduction() const
+    {
+        return [](auto& x, const auto& y) { x = std::max(x, y); };
+    }
+};
 
-    gpu_index.global_stride(indices_shape.elements(), [&](auto i) {
-        auto out_idx  = indices_shape.multi(i);
-        auto index    = indices_t[i];
-        index         = index < 0 ? index + axis_dim_size : index;
-        out_idx[Axis] = index;
-
-        f(output_t[out_idx], updates_t[i]);
-    });
-}
-
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
 #endif

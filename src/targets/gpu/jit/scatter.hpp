@@ -56,6 +56,11 @@ struct scatter_compiler : compiler<Derived>
         return prepend_copy_data_to_output(compile_hip_code_object(src, options));
     }
 
+    // ONNX spec states the following for ScatterElements and ScatterND:
+    // "The output of the operation is produced by creating a copy of the input data, ..."
+    // The sole responsibility of the MIGraphX Scatter operator implementations being to perform the
+    // update operations as specified by ONNX, it is necessary to place the copying of the input
+    // data before the MIGraphX operator in the graph.
     compiler_replace prepend_copy_data_to_output(const operation& co) const
     {
         return {co, [](module& m, instruction_ref ins, const operation& op) {

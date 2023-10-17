@@ -42,10 +42,7 @@ struct test_scatter_elements_none_axis_neg_1 : verify_program<test_scatter_eleme
         auto li = mm->add_literal(migraphx::literal{si, vi});
         auto pu = mm->add_parameter("update", su);
         auto r  = mm->add_instruction(
-            migraphx::make_op("scatter_elements", {{"axis", -1}, {"reduction", "none"}}),
-            pd,
-            li,
-            pu);
+            migraphx::make_op("scatter_elements_none", {{"axis", -1}}), pd, li, pu);
         mm->add_return({r});
 
         return p;

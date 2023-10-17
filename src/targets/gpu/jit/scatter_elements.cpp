@@ -53,17 +53,26 @@ MIGRAPHX_GLOBAL void scatter_elements_kernel(void* in_indices, void* in_updates,
 
 struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
 {
-    std::vector<std::string> names() const { return {"scatter_elements"}; }
+    std::vector<std::string> names() const
+    {
+        return {"scatter_elements_none",
+                "scatter_elements_add",
+                "scatter_elements_mul",
+                "scatter_elements_min",
+                "scatter_elements_max"};
+    }
 
     std::string make_interpolated_string(const operation& op) const
     {
-        const auto v   = op.to_value();
-        auto reduction = "assign_" + v.get("reduction", std::string{"none"});
-        auto axis      = std::to_string(v.get("axis", 0));
+        const auto reduction =
+            op.name().substr(std::char_traits<char>::length("scatter_elements_"));
+        auto axis = std::to_string(op.to_value().get("axis", 0));
 
         return interpolate_string(scatter_elements_kernel,
-                                  {{"reduction", reduction}, {"axis", axis}});
+                                  {{"reduction", "assign_" + reduction}, {"axis", axis}});
     }
+
+    std::string get_kernel_name(const operation&) const { return "scatter_elements_kernel"; }
 };
 
 } // namespace gpu

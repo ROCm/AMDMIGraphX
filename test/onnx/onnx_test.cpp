@@ -6343,10 +6343,7 @@ migraphx::program create_scatter_elements_program(const std::string& reduction, 
     auto l2 =
         mm->add_parameter("update", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
     auto r = mm->add_instruction(
-        migraphx::make_op("scatter_elements", {{"axis", axis}, {"reduction", reduction}}),
-        l0,
-        l1,
-        l2);
+        migraphx::make_op("scatter_elements_" + reduction, {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
     return p;
 }

@@ -44,10 +44,7 @@ struct test_scatter_elements_duplicate_index_base : verify_program<Derived>
         auto pu              = mm->add_parameter("update", su);
         const auto reduction = static_cast<const Derived&>(*this).reduction();
         auto r               = mm->add_instruction(
-            migraphx::make_op("scatter_elements", {{"axis", 0}, {"reduction", reduction}}),
-            pd,
-            li,
-            pu);
+            migraphx::make_op("scatter_elements_" + reduction, {{"axis", 0}}), pd, li, pu);
         mm->add_return({r});
 
         return p;

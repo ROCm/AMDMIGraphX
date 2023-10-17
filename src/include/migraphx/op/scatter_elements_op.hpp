@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_OP_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_OP_HPP
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
@@ -43,15 +43,15 @@ namespace op {
 // scatterND is a generalization that works on a set of 3 tensors of different ranks.  The
 // complementary operations are gather/gatherND.
 
-struct scatter_elements : op_name<scatter_elements>
+template <typename Derived>
+struct scatter_elements_op : op_name<Derived>
 {
-    int64_t axis          = 0;
-    std::string reduction = "none";
+    int64_t axis = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.reduction, "reduction"));
+        return pack(f(self.axis, "axis"));
     }
 
     value attributes() const
@@ -69,36 +69,6 @@ struct scatter_elements : op_name<scatter_elements>
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
-    {
-        if(reduction == "none")
-        {
-            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x = y; });
-        }
-        else if(reduction == "add")
-        {
-
-            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x += y; });
-        }
-        else if(reduction == "mul")
-        {
-            return compute(output_shape, std::move(args), [](auto& x, const auto& y) { x *= y; });
-        }
-        else if(reduction == "min")
-        {
-            return compute(
-                output_shape, std::move(args), [](auto& x, const auto& y) { x = std::min(x, y); });
-        }
-        else if(reduction == "max")
-        {
-            return compute(
-                output_shape, std::move(args), [](auto& x, const auto& y) { x = std::max(x, y); });
-        }
-
-        MIGRAPHX_THROW("Scatter: " + reduction + " is not supported");
-    }
-
-    template <typename F>
-    argument compute(const shape& output_shape, std::vector<argument> args, F f) const
     {
         argument result{output_shape};
 
@@ -126,13 +96,16 @@ struct scatter_elements : op_name<scatter_elements>
 
                     // look up the appropriate locations in output, using idx and out_idx.
                     // call reduction() method of derived struct to copy and reduce that element
-                    f(output(out_idx.begin(), out_idx.end()), update(idx.begin(), idx.end()));
+                    derived().reduction()(output(out_idx.begin(), out_idx.end()),
+                                          update(idx.begin(), idx.end()));
                 });
             });
         });
 
         return result;
     }
+
+    const Derived& derived() const { return static_cast<const Derived&>(*this); }
 };
 
 } // namespace op

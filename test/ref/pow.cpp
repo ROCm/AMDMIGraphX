@@ -46,7 +46,7 @@ TEST_CASE(pow_test)
     std::vector<float> gold = data;
     std::transform(
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return std::pow(n, n); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 TEST_CASE(pow_dyn_test)
@@ -70,5 +70,5 @@ TEST_CASE(pow_dyn_test)
     std::vector<float> gold = data;
     std::transform(
         gold.begin(), gold.end(), gold.begin(), [](float n) -> float { return std::pow(n, n); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

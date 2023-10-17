@@ -81,7 +81,7 @@ struct roialign_compiler : compiler<roialign_compiler>
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
-        float rois_offset = (ctm == "output_half_pixel") ? -0.5f : 0.0f;
+        float rois_offset = (ctm == "half_pixel") ? -0.5f : 0.0f;
         options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
 
         // spatial_scale

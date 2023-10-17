@@ -66,7 +66,7 @@ struct scatter : op_name<Derived>
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3).standard();
+        check_shapes{inputs, *this}.has(3);
         // If non-packed, this converts to a packed output while preserving permutation of tensor
         return inputs.front().with_lens(inputs.front().lens());
     }

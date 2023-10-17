@@ -197,6 +197,7 @@ register_migraphx_ops(
     reduce_sum
     relu
     reshape
+    reshape_lazy
     reverse
     rnn
     rnn_last_cell_output
@@ -281,7 +282,9 @@ add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
 
+if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
+endif()
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)

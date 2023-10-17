@@ -79,7 +79,7 @@ struct find_const_3in_slice
         auto inputs         = ins->inputs();
         argument starts_arg = inputs.at(1)->eval();
         argument ends_arg   = inputs.at(2)->eval();
-        if(not(starts_arg.empty() and ends_arg.empty()))
+        if(not starts_arg.empty() and not ends_arg.empty())
         {
             std::vector<int64_t> starts_vec;
             std::vector<int64_t> ends_vec;
@@ -116,7 +116,7 @@ struct find_const_4in_slice
         argument starts_arg = inputs.at(1)->eval();
         argument ends_arg   = inputs.at(2)->eval();
         argument axes_arg   = inputs.at(3)->eval();
-        if(not(starts_arg.empty() and ends_arg.empty() and axes_arg.empty()))
+        if(not starts_arg.empty() and not ends_arg.empty() and not axes_arg.empty())
         {
             std::vector<int64_t> starts_vec;
             std::vector<int64_t> ends_vec;

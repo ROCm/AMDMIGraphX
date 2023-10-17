@@ -50,6 +50,7 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
+    // This actualy works even when global is not divisible by local size.
     // This doesnt actually do a multiplicatiosn. Instead it calls a device
     // function to get the global size, which is why it works.
     return blockDim.x * gridDim.x; // NOLINT

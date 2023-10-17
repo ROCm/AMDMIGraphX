@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_CPU_FUSE_OPS_HPP
 #define MIGRAPHX_GUARD_CPU_FUSE_OPS_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/cpu/context.hpp>
 #include <string>
 
 namespace migraphx {
@@ -34,9 +34,7 @@ struct module;
 
 namespace cpu {
 
-struct context;
-
-struct fuse_ops
+struct MIGRAPHX_CPU_EXPORT fuse_ops
 {
     context* ctx = nullptr;
     std::string name() const { return "cpu::fuse_ops"; }

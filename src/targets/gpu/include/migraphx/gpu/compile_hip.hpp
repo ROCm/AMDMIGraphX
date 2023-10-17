@@ -45,10 +45,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS);
 struct hiprtc_src_file
 {
     hiprtc_src_file() = default;
-    hiprtc_src_file(const src_file& s)
-        : path(s.path.string()), content(s.content.first, s.content.second)
-    {
-    }
+    hiprtc_src_file(const src_file& s) : path(s.path.string()), content(s.content) {}
     std::string path;
     std::string content;
     template <class Self, class F>

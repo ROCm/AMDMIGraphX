@@ -2705,7 +2705,7 @@ TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_dyn_shape)
+TEST_CASE(reshape_dyn_1in)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{
@@ -2727,6 +2727,27 @@ TEST_CASE(reshape_dyn_shape)
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
+
+TEST_CASE(reshape_dyn_2in_0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {8, 8}, {3, 3}, {1, 1}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
+}
+
+TEST_CASE(reshape_dyn_2in_1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{12, 12}, {2, 2}, {1, 1}, {1, 4}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
+}
+
+TEST_CASE(reshape_dyn_2in_2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 24, 1, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 2}, {6, 12}, {1, 1}, {4, 4}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
 }
 
 TEST_CASE(reshape_multiple_non_fixed_error)

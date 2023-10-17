@@ -2722,6 +2722,119 @@ def group_conv_test():
     return ([node], [x, y], [z])
 
 
+def group_norm_test(x_dims,
+                    scale_dims,
+                    bias_dims,
+                    y_dims,
+                    num_groups,
+                    eps_value=1e-5,
+                    dtype=TensorProto.FLOAT):
+    x = helper.make_tensor_value_info('x', dtype, x_dims)
+    scale = helper.make_tensor_value_info('scale', dtype, scale_dims)
+    bias = helper.make_tensor_value_info('bias', dtype, bias_dims)
+    y = helper.make_tensor_value_info('y', dtype, y_dims)
+
+    node = onnx.helper.make_node('GroupNormalization',
+                                 inputs=['x', 'scale', 'bias'],
+                                 outputs=['y'],
+                                 num_groups=num_groups,
+                                 epsilon=eps_value)
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def group_norm_3d_test():
+    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2], 2)
+
+
+@onnx_test()
+def group_norm_3d_half_test():
+    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+                           2,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_4d_test():
+    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3], 2)
+
+
+@onnx_test()
+def group_norm_4d_half_test():
+    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3],
+                           2,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_5d_test():
+    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3], 1)
+
+
+@onnx_test()
+def group_norm_5d_half_test():
+    return group_norm_test([3, 3, 3, 3, 3], [1], [1], [3, 3, 3, 3, 3],
+                           1,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_small_eps_half_test():
+    return group_norm_test([1, 4, 2], [2], [2], [1, 4, 2],
+                           2,
+                           eps_value=1e-12,
+                           dtype=TensorProto.FLOAT16)
+
+
+@onnx_test()
+def group_norm_invalid_num_groups_error_test():
+    return group_norm_test([1, 4, 3, 3], [2], [2], [1, 4, 3, 3], 3)
+
+
+@onnx_test()
+def group_norm_missing_attribute_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
+
+    node = onnx.helper.make_node('GroupNormalization',
+                                 inputs=['x', 'scale', 'bias'],
+                                 outputs=['y'])
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def group_norm_invalid_input_count_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 3, 3])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 3, 3])
+
+    node = onnx.helper.make_node('GroupNormalization',
+                                 inputs=['x', 'scale'],
+                                 outputs=['y'],
+                                 num_groups=2)
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def group_norm_invalid_input_shape_error_test():
+    return group_norm_test([1, 4], [2], [2], [1, 4], 2)
+
+
+@onnx_test()
+def group_norm_invalid_scale_shape_test():
+    return group_norm_test([1, 4, 3, 3], [1], [2], [1, 4, 3, 3], 2)
+
+
+@onnx_test()
+def group_norm_invalid_bias_shape_test():
+    return group_norm_test([1, 4, 3, 3], [2], [3], [1, 4, 3, 3], 2)
+
+
 @onnx_test()
 def hardsigmoid_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 5])
@@ -3802,6 +3915,110 @@ def layernorm_test():
 
     return ([mean, sub_mean, sub_pow, var, add, sqrt, div, mul,
              bias_add], [x, scale, bias], [y], [pow_tensor, epsilon_tensor])
+
+
+def make_layer_norm(shape, axis, dtype=TensorProto.FLOAT):
+    norm_axis = axis + len(shape) if axis < 0 else axis
+    x = helper.make_tensor_value_info('x', dtype, shape)
+    scale = helper.make_tensor_value_info('scale', dtype, shape[norm_axis:])
+    bias = helper.make_tensor_value_info('bias', dtype, shape[norm_axis:])
+    y = helper.make_tensor_value_info('y', dtype, shape)
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale', 'bias'],
+                                 outputs=['y'],
+                                 axis=axis)
+
+    return ([node], [x, scale, bias], [y])
+
+
+@onnx_test()
+def layer_norm_invalid_shape_error_test():
+    return make_layer_norm([3], 0)
+
+
+@onnx_test()
+def layer_norm_2d_axis_zero_test():
+    return make_layer_norm([3, 4], 0)
+
+
+@onnx_test()
+def layer_norm_2d_axis_one_test():
+    return make_layer_norm([3, 4], 1)
+
+
+@onnx_test()
+def layer_norm_2d_axis_minus_one_test():
+    return make_layer_norm([3, 4], -1)
+
+
+@onnx_test()
+def layer_norm_3d_test():
+    return make_layer_norm([1, 4, 2], -1)
+
+
+@onnx_test()
+def layer_norm_3d_half_test():
+    return make_layer_norm([1, 4, 2], -1, TensorProto.FLOAT16)
+
+
+@onnx_test()
+def layer_norm_4d_test():
+    return make_layer_norm([3, 3, 3, 3], -1)
+
+
+@onnx_test()
+def layer_norm_4d_half_test():
+    return make_layer_norm([3, 3, 3, 3], -1, TensorProto.FLOAT16)
+
+
+@onnx_test()
+def layer_norm_invalid_axis_error_test():
+    return make_layer_norm([1, 4, 2], 1000)
+
+
+@onnx_test()
+def layer_norm_invalid_minus_axis_error_test():
+    return make_layer_norm([1, 4, 2], -1000)
+
+
+@onnx_test()
+def layer_norm_invalid_input_count_error_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def layer_norm_without_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale'],
+                                 outputs=['y'])
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def layer_norm_small_eps_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 2])
+
+    node = onnx.helper.make_node('LayerNormalization',
+                                 inputs=['x', 'scale'],
+                                 outputs=['y'],
+                                 epsilon=1e-12)
+
+    return ([node], [x, scale], [y])
 
 
 @onnx_test()

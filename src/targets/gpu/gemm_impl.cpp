@@ -199,7 +199,7 @@ struct gemm_impl
         if(output_type == rocblas_datatype_i8_r)
         {
             output_type = rocblas_datatype_i32_r;
-            }
+        }
             compute_type = output_type;
             if(compute_fp32)
             {

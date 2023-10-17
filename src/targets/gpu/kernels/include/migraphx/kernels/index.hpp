@@ -126,7 +126,11 @@ struct index
 #ifdef MIGRAPHX_NLOCAL
     constexpr index_constant<MIGRAPHX_NLOCAL> max_nlocal() const { return {}; }
 #else
-    __device__ index_int max_nlocal() const { return compute_max_local_size(); }
+    __device__ index_int max_nlocal() const
+    {
+        MIGRAPHX_ASSERT(compute_max_local_size() > 0);
+        return compute_max_local_size();
+    }
 #endif
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }

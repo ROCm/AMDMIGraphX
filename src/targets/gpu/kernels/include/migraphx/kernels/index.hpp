@@ -31,38 +31,28 @@
 #include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/functional.hpp>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-identifier"
+extern "C" __device__ size_t __ockl_get_enqueue_local_size(uint);
+extern "C" __device__ size_t __ockl_get_global_size(uint);
+extern "C" __device__ size_t __ockl_get_local_size(uint);
+#pragma clang diagnostic pop
+#endif
+
 namespace migraphx {
 
 #if defined(MIGRAPHX_NGLOBAL) && defined(MIGRAPHX_NLOCAL)
 #define MIGRAPHX_NGROUP ((MIGRAPHX_NGLOBAL + MIGRAPHX_NLOCAL - 1) / MIGRAPHX_NLOCAL)
 #endif
-inline __device__ __attribute__((const)) index_int compute_max_local_size()
-{
-#ifdef MIGRAPHX_NLOCAL
-    return MIGRAPHX_NLOCAL;
-#else
-    MIGRAPHX_ASSERT(compute_global_size() % blockDim.x == 0);
-    return blockDim.x;
-#endif
-}
 
 inline __device__ __attribute__((const)) index_int compute_global_size()
 {
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    return compute_max_local_size() * gridDim.x; // NOLINT
+    return __ockl_get_global_size(0);        // NOLINT
 #endif
-}
-
-inline __device__ __attribute__((const)) index_int compute_local_size()
-{
-#ifdef MIGRAPHX_NLOCAL
-    const auto nlocal = MIGRAPHX_NLOCAL;
-#else
-    const auto nlocal = blockDim.x;              // NOLINT
-#endif
-    return nlocal; // NOLINT
 }
 
 #ifdef MIGRAPHX_NGROUP
@@ -71,6 +61,24 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #define MIGRAPHX_HAS_CONST_LOCAL 1
 #endif
 #endif
+
+inline __device__ __attribute__((const)) index_int compute_local_size()
+{
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+    return MIGRAPHX_NLOCAL;
+#else
+    return __ockl_get_local_size(0);         // NOLINT
+#endif
+}
+
+inline __device__ __attribute__((const)) index_int compute_max_local_size()
+{
+#ifdef MIGRAPHX_NLOCAL
+    return MIGRAPHX_NLOCAL;
+#else
+    return __ockl_get_enqueue_local_size(0); // NOLINT
+#endif
+}
 
 struct index
 {

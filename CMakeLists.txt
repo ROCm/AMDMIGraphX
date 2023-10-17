@@ -53,6 +53,12 @@ include(CTest)
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
 
+if(WIN32)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
+else()
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+endif()
+
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
@@ -260,8 +266,6 @@ rocm_enable_cppcheck(
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
 )
-
-enable_testing()
 
 include(ROCMCreatePackage)
 include(ROCMTest)

@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHX_SOURCE_LOCATION_HPP
 #define MIGRAPHX_GUARD_MIGRAPHX_SOURCE_LOCATION_HPP
 
+#include <cstdint>
 #include <migraphx/config.hpp>
 
 #if defined(CPPCHECK)

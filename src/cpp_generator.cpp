@@ -213,13 +213,13 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                 ins->get_literal().visit([&](auto v) {
                     assert(v.size() == 1);
                     auto x = v.front();
-                    if(std::isinf(x))
+                    if(std::isinf(static_cast<double>(x)))
                     {
                         string_literal = "__builtin_huge_val()";
                         if(x < 0)
                             string_literal = "-__builtin_huge_val()";
                     }
-                    else if(std::isnan(x))
+                    else if(std::isnan(static_cast<double>(x)))
                         string_literal = "__builtin_nan()";
                     else
                         string_literal = ins->get_literal().to_string();

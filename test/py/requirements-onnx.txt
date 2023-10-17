@@ -24,6 +24,6 @@
 
 onnx==1.14.1
 protobuf==3.20.2
-numpy==1.21.6
+numpy==1.22.0
 packaging==23.0
 pytest==6.0.1

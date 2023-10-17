@@ -493,31 +493,31 @@ struct gemm_impl
 #endif
     private:
     size_t num_matrices = 0;
-    rocblas_int m = 0;
-    rocblas_int n = 0;
-    rocblas_int k = 0;
-    bool transa = false;
-    bool transb = false;
-    T alpha = 0;
-    T beta = 0;
+    rocblas_int m       = 0;
+    rocblas_int n       = 0;
+    rocblas_int k       = 0;
+    bool transa         = false;
+    bool transb         = false;
+    T alpha             = 0;
+    T beta              = 0;
 
     std::function<const void*()> get_alpha{};
     std::function<const void*()> get_beta{};
-    flag_type int8_flag = 0;
-    rocblas_int lda = 0;
-    rocblas_int ldb = 0;
-    rocblas_int ldc = 0;
-    rocblas_int ldd = 0;
-    rocblas_int a_stride = 0;
-    rocblas_int b_stride = 0;
-    rocblas_int c_stride = 0;
-    rocblas_int d_stride = 0;
+    flag_type int8_flag           = 0;
+    rocblas_int lda               = 0;
+    rocblas_int ldb               = 0;
+    rocblas_int ldc               = 0;
+    rocblas_int ldd               = 0;
+    rocblas_int a_stride          = 0;
+    rocblas_int b_stride          = 0;
+    rocblas_int c_stride          = 0;
+    rocblas_int d_stride          = 0;
     rocblas_datatype compute_type = rocblas_datatype_f32_r;
-    rocblas_datatype arg_type = rocblas_datatype_f32_r;
-    rocblas_datatype output_type = rocblas_datatype_f32_r;
-    bool strided_batched = true;
-    bool is_3inputs = true;
-    bool compute_fp32 = true;
+    rocblas_datatype arg_type     = rocblas_datatype_f32_r;
+    rocblas_datatype output_type  = rocblas_datatype_f32_r;
+    bool strided_batched          = true;
+    bool is_3inputs               = true;
+    bool compute_fp32             = true;
 }; // gemm_impl
 
 void gemm_compute(context& ctx,

@@ -1942,20 +1942,33 @@ TEST_CASE(multibroadcast_3in_dyn_dyn)
     expect_shape(expected_shape, migraphx::make_op("multibroadcast"), c_shape, a_shape, b_shape);
 }
 
-TEST_CASE(multinomial)
+TEST_CASE(multinomial_bool_type)
 {
-    migraphx::shape s{migraphx::shape::float_type, {2, 5}};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
     int dtype = 0;
 
-    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s, s);
+    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
+}
+
+TEST_CASE(multinomial)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {1, 4}};
+    int dtype = 2;
+
+    expect_shape(s3, migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
 }
 
 TEST_CASE(multinomial_dyn)
 {
-    migraphx::shape s{migraphx::shape::int32_type, {{2, 3}, {5, 6}}};
+    migraphx::shape s1{migraphx::shape::int32_type, {{2, 3}, {5, 6}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{7, 8}, {9, 10}}};
+    migraphx::shape s3{migraphx::shape::int32_type, {{2, 3}, {9, 10}}};
 
     expect_shape(
-        s, migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), s, s);
+        s3, migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), s1, s2);
 }
 
 TEST_CASE(nms_shape)

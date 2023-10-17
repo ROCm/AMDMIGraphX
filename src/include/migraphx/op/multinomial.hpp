@@ -92,9 +92,8 @@ struct multinomial
 
         if(inputs.back().ndim() < 1)
             MIGRAPHX_THROW("Multinomial: Second input shape (sample) has no dimensions");
-        // if(not contains({shape::int32_type, shape::int64_type}, dtype))
-        //     MIGRAPHX_THROW(
-        //         "Multinomial: Invalid output type. Valid types are int32_type and int64_type.");
+        if(dtype == shape::bool_type)
+            MIGRAPHX_THROW("Multinomial: boolean output type invalid.");
 
         // Output takes one dimension from each of the two input shapes.  If they are both fixed,
         // return a static shape

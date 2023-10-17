@@ -97,7 +97,7 @@ struct parse_pooling : op_parser<parse_pooling>
             values["lp_order"] = info.attributes.at("p").i();
         }
 
-        // ensure pads availabe only when auto_pad is "NOT_SET"
+        // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, "POOLING");
 
         return values;

@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FUSE_OPS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FUSE_OPS_HPP
 
-#include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
@@ -34,7 +33,7 @@ struct module;
 
 namespace gpu {
 
-struct fuse_ops
+struct MIGRAPHX_GPU_EXPORT fuse_ops
 {
     context* ctx   = nullptr;
     bool fast_math = true;

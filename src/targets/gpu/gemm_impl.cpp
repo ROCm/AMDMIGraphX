@@ -447,22 +447,15 @@ struct gemm_impl
         rocblas_int best_sol = 0;
         for(auto sol : solution_indices)
         {
-            // Define the function to be timed
-            auto run_func = [&]() {
-                run(ctx, input_args, sol);
-                ctx.finish();
-            };
-
             // Warmup: the first call to an op. may not be representative since there is
             // more time taken initializing caches, etc. so we won't time it.
-            run_func();
-            double host_time = 0.0;
-
-            for(int hc = 0; hc < hot_calls; ++hc)
-            {
+            run(ctx, input_args, sol);
+            double host_time = time<milliseconds>([&] {
+                for([[maybe_unused]] int hc:range(hot_calls))
+                    run(ctx, input_args, sol);
                 ctx.finish();
-                host_time += time<microseconds>(run_func);
-            }
+            });
+
             // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
             // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
             // and increasing cold_calls makes little or no difference.  Why?
@@ -479,8 +472,8 @@ struct gemm_impl
                 best_time = host_time;
             }
         }
-        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " us, beats "
-                  << first_time << std::endl;
+        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
+                  << first_time << "ms" << std::endl;
         return best_sol;
     }
 #endif

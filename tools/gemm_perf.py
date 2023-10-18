@@ -115,9 +115,10 @@ def get_gemm_time(config, fp16, provider, timeout):
                              env=dict(os.environ, 
                                       MIGRAPHX_ENABLE_CK=use_CK,
                                       MIGRAPHX_ENABLE_MLIR=use_MLIR,
+                                      MIGRAPHX_USE_CK_ONLY="1",
                                       MIGRAPHX_MLIR_USE_SPECIFIC_OPS="dot"))
     except Exception as e:
-        print(f"{provider.name} encountered and exception {e}")
+        print(f"{provider.name} encountered an exception: {e}")
         return -100.0
     
     if verify_output(str(out.stdout), provider):
@@ -147,7 +148,7 @@ def get_gemm_softmax_gemm_time(config, provider, timeout):
                                       MIGRAPHX_ENABLE_MLIR=use_MLIR,
                                       MIGRAPHX_MLIR_USE_SPECIFIC_OPS="dot"))
     except Exception as e:
-        print(f"{provider.name} encountered and exception {e}")
+        print(f"{provider.name} encountered an exception: {e}")
         return -100.0
     
     if verify_output(str(out.stdout), provider):

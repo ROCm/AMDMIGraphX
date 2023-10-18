@@ -34,6 +34,8 @@ struct module;
 
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_CK_ONLY);
+
 struct ck_gemm
 {
     operation op = make_op("dot");
@@ -106,7 +108,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
     // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
     // to avoid poor-performing GEMM kernels from CK
     // To-do: Investigate a more precise strategy
-    return k <= 2048;
+    return k <= 2048 or enabled(MIGRAPHX_USE_CK_ONLY{});
 }
 
 struct find_ck_gemm_pointwise

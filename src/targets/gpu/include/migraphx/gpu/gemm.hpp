@@ -140,7 +140,7 @@ struct rocblas_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
         if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
         {
             if(this->name() == "gpu::gemm")

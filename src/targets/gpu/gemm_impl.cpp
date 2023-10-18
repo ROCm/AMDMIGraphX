@@ -251,7 +251,7 @@ struct gemm_impl
         }
     }
 
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx) const
     {
         // Create dummy arguments for the shapes, and call the overloaded method
@@ -380,7 +380,7 @@ struct gemm_impl
                     ldd,
                     compute_type);
     }
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     /**
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
@@ -557,7 +557,7 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
     // This code should be called only if either the environment var.
     // MIGRAPHX_ENABLE_GEMM_TUNING, or option --exhaustive-tune, is set
@@ -597,7 +597,7 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
     // This code should be called only if either the environment var.
     // MIGRAPHX_ENABLE_GEMM_TUNING, or option --exhaustive-tune, is set

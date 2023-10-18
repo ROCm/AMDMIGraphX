@@ -124,6 +124,13 @@ struct auto_gen_root_modules
         : tass(target_assignments)
     {
         auto* mm = p.get_main_module();
+        for(const auto& i : tass)
+        {
+            if(tid_counter.find(i.second) == tid_counter.end())
+            {
+                update_tid_counter(i.second);
+            }
+        }
         find_subgraphs(mm, p);
         dead_code_elimination{}.apply(p);
     }
@@ -231,7 +238,6 @@ struct auto_gen_root_modules
                 if(tass.find(ins) != tass.end())
                 {
                     current_tid = std::make_optional<std::size_t>(tass.at(ins));
-                    update_tid_counter(current_tid.value());
                     same_tid_ins_vec.push_back(ins);
                     same_tid_ins_set.insert(ins);
                     fork_node = is_fork_node(ins, current_tid);
@@ -398,7 +404,6 @@ struct auto_gen_root_modules
         if(tass.find(ins) != tass.end())
         {
             current_tid = tass.at(ins);
-            update_tid_counter(current_tid);
             same_tid_ins_set.insert(ins);
             same_tid_ins_vec.push_back(ins);
         }

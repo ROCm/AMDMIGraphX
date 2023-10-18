@@ -87,7 +87,7 @@ TEST_CASE(gemm_tune_with_rocblas)
             break;
         }
     }
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -129,7 +129,7 @@ TEST_CASE(gemm_tune_strided)
             break;
         }
     }
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -175,7 +175,7 @@ TEST_CASE(gemm_tune_strided_lowered)
             break;
         }
     }
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     EXPECT(0 != solution_idx.to<std::size_t>());
 #else
     EXPECT(0 == solution_idx.to<std::size_t>());
@@ -215,7 +215,7 @@ TEST_CASE(gemm_tune_invalid_sol_index)
             break;
         }
     }
-#ifdef ROCBLAS_BETA_FEATURES_API
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     EXPECT(0 == solution_idx.to<std::size_t>());
 #else
     EXPECT(0 != solution_idx.to<std::size_t>());

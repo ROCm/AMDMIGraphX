@@ -48,8 +48,8 @@ TEST_CASE(fork_case)
 {
     /*
             Add (tid = 0)
-             |
-      ----------------
+              |
+       ----------------
       |               |
     Mul             Identity
     (tid = 0)       (tid = 1)
@@ -211,9 +211,7 @@ TEST_CASE(fork_and_merge_case)
      |               |
      ----------------
             |
-          Sub
-          (tid = 0)
-
+          Sub (tid = 0)
    */
 
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};

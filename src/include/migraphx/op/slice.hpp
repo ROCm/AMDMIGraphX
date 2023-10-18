@@ -104,9 +104,18 @@ struct slice
         return new_lens;
     }
 
+    std::array<bool, 3> get_set_attributes() const
+    {
+        std::array<std::vector<int64_t>, 3> attrs = {this->starts, this->ends, this->axes};
+        std::array<bool, 3> bool_vec;
+        std::transform(
+            attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](auto a) { return not a.empty(); });
+        return bool_vec;
+    }
+
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1, 3, 4);
+        check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
         auto input_shape = inputs[0];
         if(inputs.size() == 1)
         {
@@ -141,20 +150,68 @@ struct slice
                 .only_dims(1)
                 .same_dims();
             auto dds = input_shape.to_dynamic().dyn_dims();
-            if(inputs.size() == 3)
+            auto set_attributes = get_set_attributes();
+            if(inputs.size() == 2)
             {
-                if(inputs[1].lens().at(0) != axes.size())
+                if(set_attributes == std::array<bool, 3>{false, true, true})
                 {
-                    MIGRAPHX_THROW("SLICE: inputs starts and ends do not have the same dimension "
-                                   "as the axes attribute");
+                    // attr ends and axes set; inputs are (data, input_starts)
                 }
-                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
-                });
+                else if(set_attributes == std::array<bool, 3>{true, false, true})
+                {
+                    // attr starts and axes set; inputs are (data, input_ends)
+                }
+                else if(set_attributes == std::array<bool, 3>{true, true, false})
+
+                {
+                    // attr starts and ends set; inputs are (data, input_axes)
+                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                        return shape::dynamic_dimension{0, dd.max};
+                    });
+                }
+                else
+                {
+                    MIGRAPHX_THROW("Invalid 2 input and attributes configuration");
+                }
+            }
+            else if(inputs.size() == 3)
+            {
+                if(set_attributes == std::array<bool, 3>{false, false, true})
+                {
+                    // attr axes set; inputs are (data, input_starts, input_ends)
+                    if(inputs[1].lens().at(0) != axes.size())
+                    {
+                        MIGRAPHX_THROW(
+                            "SLICE: inputs starts and ends do not have the same dimension "
+                            "as the axes attribute");
+                    }
+                    std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                        dds.at(axis) = {0, dds.at(axis).max};
+                    });
+                }
+                else if(set_attributes == std::array<bool, 3>{false, true, false})
+                {
+                    // attr ends set; inputs are (data, input_starts, input_axes)
+                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                        return shape::dynamic_dimension{0, dd.max};
+                    });
+                }
+                else if(set_attributes == std::array<bool, 3>{true, false, false})
+
+                {
+                    // attr starts set; inputs are (data, input_ends, input_axes)
+                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                        return shape::dynamic_dimension{0, dd.max};
+                    });
+                }
+                else
+                {
+                    MIGRAPHX_THROW("Invalid 3 input and attributes configuration");
+                }
             }
             else
             {
-                // if axes is an input, then all the output dimensions could be 0 to the max value
+                // all 4 inputs (data, inputs_starts, input_ends, input_axes)
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
                     return shape::dynamic_dimension{0, dd.max};
                 });

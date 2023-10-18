@@ -123,13 +123,13 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
 
 static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
 
-static rocblas_int get_batch_stride(const argument& a)
+static rocblas_int get_batch_stride(const shape& s)
 {
     // This value is not needed for non-strided inputs
-    if(a.get_shape().strides().size() < 3)
+    if(s.strides().size() < 3)
         return 0;
     else
-        return a.get_shape().strides()[a.get_shape().strides().size() - 3];
+        return s.strides()[s.strides().size() - 3];
 }
 
 /**

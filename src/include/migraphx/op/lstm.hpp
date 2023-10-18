@@ -49,6 +49,7 @@ struct lstm
     rnn_direction direction = rnn_direction::forward;
     float clip              = 0.0f;
     int input_forget        = 0;
+    int layout              = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -57,7 +58,8 @@ struct lstm
                     f(self.actv_funcs, "actv_func"),
                     f(self.direction, "direction"),
                     f(self.clip, "clip"),
-                    f(self.input_forget, "input_forget"));
+                    f(self.input_forget, "input_forget"),
+                    f(self.layout, "layout"));
     }
 
     std::string name() const { return "lstm"; }
@@ -82,7 +84,10 @@ struct lstm
         }
 
         std::vector<std::size_t> out_dims(in_dims);
-        out_dims.insert(out_dims.begin() + 1, num_directions);
+        // layout = 0 [seq_length, num_directions, batch_size, hidden_size]
+        // layout = 1 [batch_size, seq_length, num_directions, hidden_size]
+        std::size_t num_directions_offset = (layout == 0) ? 1 : 2;
+        out_dims.insert(out_dims.begin() + num_directions_offset, num_directions);
         out_dims.back() = hidden_size;
 
         return {inputs[0].type(), out_dims};

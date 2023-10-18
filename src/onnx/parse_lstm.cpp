@@ -202,6 +202,12 @@ struct parse_lstm : op_parser<parse_lstm>
             input_forget = parser.parse_value(info.attributes.at("input_forget")).at<int>();
         }
 
+        int layout = 0;
+        if(contains(info.attributes, "layout"))
+        {
+            layout = parser.parse_value(info.attributes.at("layout")).at<int>();
+        }
+
         // append undefined opeator to make 6 arguments
         if(args.size() < 8)
         {
@@ -215,14 +221,16 @@ struct parse_lstm : op_parser<parse_lstm>
                                                            {"actv_func", to_value(vec_actv_funcs)},
                                                            {"direction", dirct},
                                                            {"clip", clip},
-                                                           {"input_forget", input_forget}}),
+                                                           {"input_forget", input_forget},
+                                                           {"layout", layout}}),
                                                   args);
 
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+        auto last_output = info.add_instruction(make_op("rnn_last_hs_output", {{"layout", layout}}),
+                                                hidden_states);
 
         // third output for last cell output
-        auto last_cell_output =
-            info.add_instruction(make_op("rnn_last_cell_output"), hidden_states);
+        auto last_cell_output = info.add_instruction(
+            make_op("rnn_last_cell_output", {{"layout", layout}}), hidden_states);
 
         return {hidden_states, last_output, last_cell_output};
     }

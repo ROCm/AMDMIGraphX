@@ -69,6 +69,7 @@ struct MIGRAPHX_EXPORT rewrite_rnn
     // for lstm operators
     void apply_lstm(module& m, instruction_ref ins) const;
     std::vector<instruction_ref> lstm_cell(bool is_forward,
+                                           int layout,
                                            module& m,
                                            instruction_ref ins,
                                            std::vector<instruction_ref> inputs,
@@ -83,21 +84,25 @@ struct MIGRAPHX_EXPORT rewrite_rnn
                                            instruction_ref ins,
                                            instruction_ref seq_lens,
                                            instruction_ref last_hs_output,
-                                           op::rnn_direction dirct) const;
+                                           op::rnn_direction dirct,
+                                           int layout) const;
 
     void replace_last_cell_output(module& m,
                                   instruction_ref ins,
                                   instruction_ref seq_lens,
                                   instruction_ref cell_outputs,
                                   instruction_ref last_cell_output,
-                                  op::rnn_direction dirct) const;
+                                  op::rnn_direction dirct,
+                                  int layout) const;
 
-    std::size_t get_seq_len(const module& m, instruction_ref input, instruction_ref seq_lens) const;
+    std::size_t
+    get_seq_len(const module& m, instruction_ref input, instruction_ref seq_lens, int layout) const;
 
     instruction_ref pad_hidden_states(module& m,
                                       instruction_ref seq,
                                       instruction_ref seq_lens,
-                                      instruction_ref hs) const;
+                                      instruction_ref hs,
+                                      int layout) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

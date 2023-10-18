@@ -36,19 +36,22 @@ namespace device {
 void MIGRAPHX_DEVICE_EXPORT rnn_var_sl_shift_sequence(hipStream_t stream,
                                                       const argument& result,
                                                       const argument& arg_hs,
-                                                      const argument& arg_sl);
+                                                      const argument& arg_sl,
+                                                      int layout);
 
 void MIGRAPHX_DEVICE_EXPORT rnn_var_sl_shift_output(hipStream_t stream,
                                                     const argument& result,
                                                     const argument& arg_hs,
                                                     const argument& arg_sl,
-                                                    bool is_reverse);
+                                                    bool is_reverse,
+                                                    int layout);
 
 void MIGRAPHX_DEVICE_EXPORT rnn_var_sl_last_output(hipStream_t stream,
                                                    const argument& result,
                                                    const argument& arg_hs,
                                                    const argument& arg_sl,
-                                                   bool is_reverse);
+                                                   bool is_reverse,
+                                                   int layout);
 
 } // namespace device
 } // namespace gpu

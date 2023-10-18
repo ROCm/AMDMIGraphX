@@ -1032,7 +1032,7 @@ void program::print_cpp(std::ostream& os) const
     os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        std::string var_name = "m" + mod->name();
+        std::string var_name = mod->name();
         os << "migraphx::module_ref " << var_name << " = ";
         if(mod->name() == "main")
             os << "p.get_main_module();";

@@ -237,10 +237,10 @@ TEST_CASE(fork_and_merge_case)
     migraphx::generate_root_modules(p1, tass);
     migraphx::program p2;
     {
-        migraphx::module_ref main = p2.get_main_module();
-        auto z = main->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8}});
-        auto y = main->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {8}});
-        auto x = main->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {8}});
+        migraphx::module_ref mm = p2.get_main_module();
+        auto z = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8}});
+        auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {8}});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {8}});
 
         migraphx::module_ref target_mod_0_0 = p2.create_module("target_mod_0_0");
         auto target_mod_0_0_param_1         = target_mod_0_0->add_parameter(
@@ -251,9 +251,9 @@ TEST_CASE(fork_and_merge_case)
             migraphx::make_op("add"), target_mod_0_0_param_1, target_mod_0_0_param_0);
         target_mod_0_0->add_return({x_target_mod_0_0_2});
 
-        auto x_3 = main->add_instruction(
+        auto x_3 = mm->add_instruction(
             migraphx::make_op("run_on_target", {{"target_id", 0}}), {y, x}, {target_mod_0_0});
-        auto x_4 = main->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_3);
+        auto x_4 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_3);
 
         migraphx::module_ref target_mod_0_1 = p2.create_module("target_mod_0_1");
         auto target_mod_0_1_param_1         = target_mod_0_1->add_parameter(
@@ -264,9 +264,9 @@ TEST_CASE(fork_and_merge_case)
             migraphx::make_op("mul"), target_mod_0_1_param_1, target_mod_0_1_param_0);
         target_mod_0_1->add_return({x_target_mod_0_1_2});
 
-        auto x_5 = main->add_instruction(
+        auto x_5 = mm->add_instruction(
             migraphx::make_op("run_on_target", {{"target_id", 0}}), {z, x_4}, {target_mod_0_1});
-        auto x_6 = main->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_5);
+        auto x_6 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_5);
 
         migraphx::module_ref target_mod_1_0 = p2.create_module("target_mod_1_0");
         auto target_mod_1_0_param_0         = target_mod_1_0->add_parameter(
@@ -275,9 +275,9 @@ TEST_CASE(fork_and_merge_case)
             target_mod_1_0->add_instruction(migraphx::make_op("identity"), target_mod_1_0_param_0);
         target_mod_1_0->add_return({x_target_mod_1_0_1});
 
-        auto x_7 = main->add_instruction(
+        auto x_7 = mm->add_instruction(
             migraphx::make_op("run_on_target", {{"target_id", 1}}), {x_4}, {target_mod_1_0});
-        auto x_8 = main->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_7);
+        auto x_8 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_7);
 
         migraphx::module_ref target_mod_0_2 = p2.create_module("target_mod_0_2");
         auto target_mod_0_2_param_1         = target_mod_0_2->add_parameter(
@@ -288,12 +288,12 @@ TEST_CASE(fork_and_merge_case)
             migraphx::make_op("sub"), target_mod_0_2_param_1, target_mod_0_2_param_0);
         target_mod_0_2->add_return({x_target_mod_0_2_2});
 
-        auto x_9 = main->add_instruction(
+        auto x_9 = mm->add_instruction(
             migraphx::make_op("run_on_target", {{"target_id", 0}}), {x_6, x_8}, {target_mod_0_2});
-        auto x_10 = main->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_9);
-        main->add_return({x_10});
+        auto x_10 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_9);
+        mm->add_return({x_10});
     }
-
+    p1.print_cpp(std::cout);
     EXPECT(p1.sort() == p2.sort());
 };
 

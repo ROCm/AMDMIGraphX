@@ -49,7 +49,7 @@ struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu>
         auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
         auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), bias);
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
         mm->add_instruction(migraphx::make_op("relu"), gemm2);
         return p;
     }

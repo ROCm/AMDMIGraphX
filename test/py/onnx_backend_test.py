@@ -592,7 +592,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_lstm_batchwise_cpu')
     backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     backend_test.exclude(r'test_tril_cpu')
     backend_test.exclude(r'test_tril_one_row_neg_cpu')

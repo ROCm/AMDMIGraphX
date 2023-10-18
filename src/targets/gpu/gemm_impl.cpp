@@ -159,11 +159,6 @@ struct gemm_impl
             beta = 0;
         }
 
-        rocblas_gemm_flags flag = rocblas_gemm_flags_none;
-#if ROCBLAS_VERSION_MAJOR < 3
-        if(int8_x4_format)
-            flag = rocblas_gemm_flags_pack_int8x4;
-#endif
         // Create lambdas that will cast alpha, beta to the output shape's type
         // and retain the values being pointed to
         output_shape.visit_type([&](auto as) {
@@ -205,7 +200,9 @@ struct gemm_impl
                 compute_type = rocblas_datatype_f32_r;
         }
 
+#if ROCBLAS_VERSION_MAJOR < 3
         int8_flag = int8_x4_format ? rocblas_gemm_flags_pack_int8x4 : rocblas_gemm_flags_none;
+#endif
 
         auto a_lens = input_shapes[0].lens();
         auto b_lens = input_shapes[1].lens();

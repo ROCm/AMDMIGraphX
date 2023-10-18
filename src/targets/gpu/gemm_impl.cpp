@@ -451,7 +451,7 @@ struct gemm_impl
             // more time taken initializing caches, etc. so we won't time it.
             run(ctx, input_args, sol);
             double host_time = time<milliseconds>([&] {
-                for([[maybe_unused]] int hc:range(hot_calls))
+                for([[maybe_unused]] int hc : range(hot_calls))
                     run(ctx, input_args, sol);
                 ctx.finish();
             });

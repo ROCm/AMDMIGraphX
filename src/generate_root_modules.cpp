@@ -215,7 +215,7 @@ struct auto_gen_root_modules
             if(fork_node)
             {
                 assert(current_tid.has_value());
-                generate_run_on_target_modules(mm, p, ins, current_tid.value());
+                generate_run_on_target_modules(mm, p, ins, current_tid);
                 if(not same_tid_ins_vec.empty())
                 {
                     current_tid = nullopt;
@@ -246,7 +246,7 @@ struct auto_gen_root_modules
                 if(ins->name() == "@return" or is_different_subgraph(ins, current_tid) or
                    is_merge_node(ins, current_tid))
                 {
-                    generate_run_on_target_modules(mm, p, ins, current_tid.value());
+                    generate_run_on_target_modules(mm, p, ins, current_tid);
                 }
                 else if(tass.at(ins) == current_tid.value())
                 {
@@ -282,12 +282,12 @@ struct auto_gen_root_modules
     void generate_run_on_target_modules(migraphx::module_ref mm,
                                         migraphx::program& p,
                                         migraphx::instruction_ref ins,
-                                        std::size_t& current_tid)
+                                        std::optional<std::size_t>& current_tid)
     {
         assert(same_tid_ins_vec.size() == same_tid_ins_set.size());
         if(same_tid_ins_vec.empty())
         {
-            assert(current_tid == std::numeric_limits<std::size_t>::max());
+            assert(not current_tid.has_value());
             return;
         }
         // gather all parameters
@@ -327,9 +327,9 @@ struct auto_gen_root_modules
             }
         }
 
-        auto* tmod = p.create_module("target_mod_" + std::to_string(current_tid) + "_" +
-                                     std::to_string(tid_counter[current_tid]));
-        update_tid_counter(current_tid);
+        auto* tmod = p.create_module("target_mod_" + std::to_string(current_tid.value()) + "_" +
+                                     std::to_string(tid_counter[current_tid.value()]));
+        update_tid_counter(current_tid.value());
         std::unordered_map<instruction_ref, instruction_ref> params_map;
         std::size_t param_counter = 0;
         std::vector<instruction_ref> rot_ins_params;
@@ -380,8 +380,11 @@ struct auto_gen_root_modules
         }
 
         // add run_on_target ins
-        auto rot_ins = mm->insert_instruction(
-            ins, make_op("run_on_target", {{"target_id", current_tid}}), rot_ins_params, {tmod});
+        auto rot_ins =
+            mm->insert_instruction(ins,
+                                   make_op("run_on_target", {{"target_id", current_tid.value()}}),
+                                   rot_ins_params,
+                                   {tmod});
         skip_ins.insert(rot_ins);
 
         // fetch return instructions from tuple
@@ -401,13 +404,13 @@ struct auto_gen_root_modules
         same_tid_ins_vec.clear();
         if(tass.find(ins) != tass.end())
         {
-            current_tid = tass.at(ins);
+            current_tid = std::make_optional<std::size_t>(tass.at(ins));
             same_tid_ins_set.insert(ins);
             same_tid_ins_vec.push_back(ins);
         }
         else
         {
-            current_tid = std::numeric_limits<std::size_t>::max();
+            current_tid = nullopt;
         }
         if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
         {

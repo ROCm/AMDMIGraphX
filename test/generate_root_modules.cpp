@@ -947,7 +947,7 @@ TEST_CASE(nested_if_then_else_program)
              |                     |               |                   |
         (then_mod)             (else_mod)        (then_mod)         (else_mod)
              |                     |               |                   |
-            Add (tid = 1)        Add (tid = 0)   Add (tid = 0)      Add (tid = 1)
+        Add (tid = 1)        Add (tid = 0)      Add (tid = 0)      Add (tid = 1)
     */
 
     migraphx::shape ds{migraphx::shape::float_type, {2, 3}};

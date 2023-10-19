@@ -149,30 +149,58 @@ struct auto_gen_root_modules
         }
     }
 
-    bool is_different_subgraph(migraphx::instruction_ref ins, std::optional<std::size_t> tid)
+    bool is_different_subgraph(migraphx::instruction_ref ins,
+                               std::optional<std::size_t> previous_tid)
     {
         if(tass.find(ins) == tass.end())
         {
-            return tid.has_value();
+            return previous_tid.has_value();
         }
-        return tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max());
+        return tass.at(ins) != previous_tid.value_or(std::numeric_limits<std::size_t>::max());
     }
 
-    bool is_merge_node(migraphx::instruction_ref ins, std::optional<std::size_t> tid)
+    /*
+    Merge node is defined as node where two or more branches converge.
+        NodeX   NodeY
+        |       |
+        ---------
+            |
+           NodeZ
+    For the partitioner, if any of the merge node's input doesn't have same tid as the merge node
+    itself then, it is classified as boundary for subgraph.
+    */
+    bool is_merge_node(migraphx::instruction_ref ins, std::optional<std::size_t> ins_tid)
     {
+
         const auto inputs = ins->inputs();
         if(inputs.size() == 1)
         {
             return false;
         }
         return std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
-            return ((skip_ins.find(input_ins) != skip_ins.end()) or
-                    (tass.find(input_ins) != tass.end() and
-                     tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max())));
+            if(tass.find(input_ins) == tass.end())
+            {
+                return ins_tid.has_value();
+            }
+            else
+            {
+                return tass.at(input_ins) !=
+                       ins_tid.value_or(std::numeric_limits<std::size_t>::max());
+            }
         });
     }
 
-    bool is_fork_node(migraphx::instruction_ref ins, std::optional<std::size_t> tid)
+    /*
+    Fork node is defined as node where graph forks into two  or more branches
+            NodeX
+              |
+        ------------
+        |          |
+      NodeY      NodeZ
+    For the partitioner, if any of the fork node's output doesn't have same tid as the fork node
+    itself then, it is classified as boundary for subgraph.
+    */
+    bool is_fork_node(migraphx::instruction_ref ins, std::optional<std::size_t> ins_tid)
     {
         const auto outputs = ins->outputs();
         if(outputs.size() == 1)
@@ -180,9 +208,15 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
-            return (tass.find(output_ins) != tass.end() and
-                    tass.at(output_ins) != tid.value_or(std::numeric_limits<std::size_t>::max()) and
-                    output_ins->name() != "@return");
+            if(tass.find(output_ins) == tass.end())
+            {
+                return ins_tid.has_value();
+            }
+            else
+            {
+                return tass.at(output_ins) !=
+                       ins_tid.value_or(std::numeric_limits<std::size_t>::max());
+            };
         });
     }
 

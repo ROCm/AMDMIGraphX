@@ -33,6 +33,19 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Static allocate:
+ * No inputs: `allocate()`
+ * `this.s` attribute set to the static output shape of the buffer.
+ *
+ * Dynamic allocate:
+ * One input: `allocate(output_dims)`
+ * `output_dims` are the output buffer dimensions and has a static shape.
+ * Either `this.s` or `this.buf_type` must be set to calculate the dynamic output shape at compute
+ * time. If `this.buf_type` is set, the compute_shape() of allocate at compile time will have
+ * dynamic_dimensions from {0, max_int} with rank = output_dims.ndim(). If `this.s` is set then the
+ * compute_shape() will output `this.s`; `this.s` should be a dynamic shape.
+ */
 struct allocate
 {
     shape s{};
@@ -75,13 +88,13 @@ struct allocate
     {
         if(args.empty())
         {
-            return {output_shape};
+            return argument{output_shape};
         }
         else
         {
             std::vector<std::size_t> output_dims(output_shape.ndim());
             args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
-            return {shape{buf_type, output_dims}};
+            return argument{shape{buf_type, output_dims}};
         }
     }
 };

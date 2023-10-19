@@ -5788,9 +5788,9 @@ TEST_CASE(quantizelinear_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5813,9 +5813,9 @@ TEST_CASE(quantizelinear_int32_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5835,7 +5835,7 @@ TEST_CASE(quantizelinear_zero_point_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l2);
     l2_mbcast = mm->add_instruction(
@@ -5868,7 +5868,7 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l1);
 
     auto div      = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
-    auto round    = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round    = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l2);
     l2_bcast = mm->add_instruction(

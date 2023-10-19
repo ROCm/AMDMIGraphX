@@ -26,19 +26,36 @@
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/config.hpp>
+#include <fenv.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+#ifndef _WIN32
+#pragma STDC FENV_ACCESS ON
+#else
+#pragma fenv_access(on)
+#endif
+
 struct nearbyint : unary<nearbyint>
 {
     auto apply() const
     {
-        return [](auto x) { return std::nearbyint(x); };
+        return [](auto x) {
+            auto rounding_mode = fegetround();
+            fesetround(FE_TONEAREST);
+            return std::nearbyint(x);
+            fesetround(rounding_mode);
+        };
     }
 };
 
+#ifndef _WIN32
+#pragma STDC FENV_ACCESS OFF
+#else
+#pragma fenv_access(off)
+#endif
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -149,8 +149,8 @@ struct auto_gen_root_modules
         }
     }
 
-    bool is_different_subgraph(migraphx::instruction_ref current_ins,
-                               std::optional<std::size_t> previous_tid)
+    bool has_different_tass(migraphx::instruction_ref current_ins,
+                            std::optional<std::size_t> previous_tid)
     {
         if(tass.find(current_ins) == tass.end())
         {
@@ -162,11 +162,13 @@ struct auto_gen_root_modules
 
     /*
     Merge node is defined as node where two or more branches converge.
+
         NodeX   NodeY
         |       |
         ---------
             |
            NodeZ
+
     For the partitioner, if any of the merge node's input doesn't have same tid as the merge node
     itself then, it is classified as boundary for subgraph.
     */
@@ -179,17 +181,22 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
-            return is_different_subgraph(input_ins, ins_tid);
+            return (
+                (this->skip_ins.find(input_ins) != skip_ins.end()) or
+                (tass.find(input_ins) != tass.end() and
+                 tass.at(input_ins) != ins_tid.value_or(std::numeric_limits<std::size_t>::max())));
         });
     }
 
     /*
     Fork node is defined as node where graph forks into two  or more branches
+
             NodeX
               |
         ------------
         |          |
       NodeY      NodeZ
+
     For the partitioner, if any of the fork node's output doesn't have same tid as the fork node
     itself then, it is classified as boundary for subgraph.
     */
@@ -201,7 +208,13 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
-            return is_different_subgraph(output_ins, ins_tid);
+            if(output_ins->name() == "return")
+            {
+                return false;
+            }
+            return (tass.find(output_ins) != tass.end() and
+                    tass.at(output_ins) !=
+                        ins_tid.value_or(std::numeric_limits<std::size_t>::max()));
         });
     }
 
@@ -254,7 +267,7 @@ struct auto_gen_root_modules
             }
             else
             {
-                if(ins->name() == "@return" or is_different_subgraph(ins, current_tid) or
+                if(ins->name() == "@return" or has_different_tass(ins, current_tid) or
                    is_merge_node(ins, current_tid))
                 {
                     generate_run_on_target_modules(mm, p, ins, current_tid);
@@ -304,7 +317,7 @@ struct auto_gen_root_modules
         // gather all parameters
         std::unordered_set<instruction_ref> params;
         // gather all return values
-        std::unordered_set<instruction_ref> return_ins;
+        std::vector<instruction_ref> return_ins;
         for(auto tins : iterator_for(same_tid_ins_vec))
         {
             auto inputs  = (*tins)->inputs();
@@ -321,7 +334,7 @@ struct auto_gen_root_modules
                    return same_tid_ins_set.count(out_ins) == 0;
                }))
             {
-                return_ins.insert(*tins);
+                return_ins.push_back(*tins);
             }
         }
         if(enabled(MIGRAPHX_DEBUG_ROOT_GENERATOR{}))
@@ -380,7 +393,7 @@ struct auto_gen_root_modules
         for(auto ritr : iterator_for(return_ins))
         {
             rins.push_back(params_map.at(*ritr));
-            return_ins_idx_map[*ritr] = std::distance(ritr, return_ins.begin());
+            return_ins_idx_map[*ritr] = std::distance(return_ins.begin(), ritr);
         }
         tmod->add_return(rins);
 

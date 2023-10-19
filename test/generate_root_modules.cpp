@@ -485,9 +485,11 @@ TEST_CASE(fork_case_4)
                         |
             ---------------------------
             |                         |
-        Identity (tid  = 0)         Return
-            |
-          Return
+        Identity (tid  = 0)           |
+            |                         |
+            --------------------------
+                        |
+                     Return
     */
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::target_assignments tass;
@@ -505,29 +507,24 @@ TEST_CASE(fork_case_4)
     migraphx::generate_root_modules(p1, tass);
     migraphx::program p2;
     {
-        migraphx::module_ref mm             = p2.get_main_module();
-        auto y                              = mm->add_parameter("y", s);
-        auto x                              = mm->add_parameter("x", s);
-        migraphx::module_ref target_mod_0_0 = p2.create_module("target_mod_0_0");
-        auto target_mod_0_0_param_1         = target_mod_0_0->add_parameter("param:1", s);
-        auto target_mod_0_0_param_0         = target_mod_0_0->add_parameter("param:0", s);
-        auto x_target_mod_0_0_2             = target_mod_0_0->add_instruction(
-            migraphx::make_op("add"), target_mod_0_0_param_1, target_mod_0_0_param_0);
-        target_mod_0_0->add_return({x_target_mod_0_0_2});
+        migraphx::module_ref mm = p2.get_main_module();
+        auto y                  = mm->add_parameter("y", s);
+        auto x                  = mm->add_parameter("x", s);
 
-        migraphx::module_ref target_mod_0_1 = p2.create_module("target_mod_0_1");
-        auto target_mod_0_1_param_0         = target_mod_0_1->add_parameter("param:0", s);
-        auto x_target_mod_0_1_1 =
-            target_mod_0_1->add_instruction(migraphx::make_op("identity"), target_mod_0_1_param_0);
-        target_mod_0_1->add_return({x_target_mod_0_1_1});
+        migraphx::module_ref target_mod_0_0 = p2.create_module("target_mod_0_0");
+        auto target_mod_0_0_param_0         = target_mod_0_0->add_parameter("param:0", s);
+        auto target_mod_0_0_param_1         = target_mod_0_0->add_parameter("param:1", s);
+        auto x_target_mod_0_0_0             = target_mod_0_0->add_instruction(
+            migraphx::make_op("add"), target_mod_0_0_param_1, target_mod_0_0_param_0);
+        auto x_target_mod_0_0_1 =
+            target_mod_0_0->add_instruction(migraphx::make_op("identity"), x_target_mod_0_0_0);
+        target_mod_0_0->add_return({x_target_mod_0_0_0, x_target_mod_0_0_1});
 
         auto x_2 = mm->add_instruction(
             migraphx::make_op("run_on_target", {{"target_id", 0}}), {y, x}, {target_mod_0_0});
         auto x_3 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_2);
-        auto x_4 = mm->add_instruction(
-            migraphx::make_op("run_on_target", {{"target_id", 0}}), {x_3}, {target_mod_0_1});
-        auto x_5 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_4);
-        mm->add_return({x_3, x_5});
+        auto x_4 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), x_2);
+        mm->add_return({x_3, x_4});
     }
     EXPECT(p1.sort() == p2.sort());
 }

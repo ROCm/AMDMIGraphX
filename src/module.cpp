@@ -114,7 +114,7 @@ struct module_impl
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-module::module(const std::string& name) :impl(std::make_unique<module_impl>())
+module::module(const std::string& name) : impl(std::make_unique<module_impl>())
 {
     impl->name = name;
 }
@@ -165,7 +165,7 @@ void module::assign(const module& m)
             auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
-                                       {builtin::param{name, order}, std::move(s), {}});
+                                    {builtin::param{name, order}, std::move(s), {}});
             impl->nparams++;
         }
         else if(ins->name() == "@outline")
@@ -800,10 +800,8 @@ static std::string cpp_var_name(const std::string& name)
 {
     std::string prefix = "x_";
     if(not contains(name, "@"))
-    {
-        return to_c_id(name);
-    }
-    return to_c_id(prefix + name);
+        prefix = "p_";
+    return to_c_id(prefix + replace_string(name, ":", "_module_"));
 }
 
 static void print_py_op(std::ostream& os, const operation& op)
@@ -827,11 +825,8 @@ static void print_make_op(std::ostream& os, const operation& op)
     auto v = op.to_value();
     if(not v.empty())
     {
-        os << "migraphx::make_op(" << enclose_name(op.name());
-        auto rname = "{" + replace_string(to_json_string(v), "\"", "\\\"") + "}";
-        rname      = replace_string(rname, ":", ", ");
-        rname      = replace_string(rname, "\\", "");
-        os << ", " << rname;
+        os << "migraphx::make_json_op(" << enclose_name(op.name());
+        os << ", " << enclose_name(to_json_string(v));
     }
     else
     {

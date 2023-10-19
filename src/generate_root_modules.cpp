@@ -166,13 +166,9 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
-            if((skip_ins.find(input_ins) != skip_ins.end()) or
-               (tass.find(input_ins) != tass.end() and
-                tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max())))
-            {
-                return true;
-            }
-            return false;
+            return ((skip_ins.find(input_ins) != skip_ins.end()) or
+                    (tass.find(input_ins) != tass.end() and
+                     tass.at(ins) != tid.value_or(std::numeric_limits<std::size_t>::max())));
         });
     }
 
@@ -184,13 +180,9 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
-            if(tass.find(output_ins) != tass.end() and
-               tass.at(output_ins) != tid.value_or(std::numeric_limits<std::size_t>::max()) and
-               output_ins->name() != "@return")
-            {
-                return true;
-            }
-            return false;
+            return (tass.find(output_ins) != tass.end() and
+                    tass.at(output_ins) != tid.value_or(std::numeric_limits<std::size_t>::max()) and
+                    output_ins->name() != "@return");
         });
     }
 

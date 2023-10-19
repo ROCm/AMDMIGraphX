@@ -608,7 +608,7 @@ TEST_CASE(nested_if_then_else_program)
         auto z                  = mm->add_parameter("z", ds);
         auto create_test_module = [&](migraphx::program& prog,
                                       std::size_t tid,
-                                      std::string param_prefix) {
+                                      const std::string& param_prefix) {
             std::string mod_name =
                 "target_" + std::to_string(tid) + "_" + std::to_string(counter_map[tid]++);
             auto* test_mod        = prog.create_module(mod_name);

@@ -479,15 +479,15 @@ TEST_CASE(fork_case_3)
 TEST_CASE(fork_case_4)
 {
     /*
-    **** Fork node returning ****
+        **** Fork node returning ****
 
-              Add (tid = 0)
-               |
-        ---------------------------
-        |                         |
-      Identity (tid  = 0)      Return
-        |
-       Return
+                   Add (tid = 0)
+                        |
+            ---------------------------
+            |                         |
+        Identity (tid  = 0)         Return
+            |
+          Return
     */
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::target_assignments tass;
@@ -669,7 +669,7 @@ TEST_CASE(merge_case_2)
                          |
                        Return
 
-        */
+    */
     migraphx::target_assignments tass;
     auto s = migraphx::shape{migraphx::shape::float_type, {8}};
     migraphx::program p1;

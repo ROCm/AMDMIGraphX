@@ -149,14 +149,15 @@ struct auto_gen_root_modules
         }
     }
 
-    bool is_different_subgraph(migraphx::instruction_ref ins,
+    bool is_different_subgraph(migraphx::instruction_ref current_ins,
                                std::optional<std::size_t> previous_tid)
     {
-        if(tass.find(ins) == tass.end())
+        if(tass.find(current_ins) == tass.end())
         {
             return previous_tid.has_value();
         }
-        return tass.at(ins) != previous_tid.value_or(std::numeric_limits<std::size_t>::max());
+        return tass.at(current_ins) !=
+               previous_tid.value_or(std::numeric_limits<std::size_t>::max());
     }
 
     /*
@@ -178,15 +179,7 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(inputs.begin(), inputs.end(), [&](auto input_ins) {
-            if(tass.find(input_ins) == tass.end())
-            {
-                return ins_tid.has_value();
-            }
-            else
-            {
-                return tass.at(input_ins) !=
-                       ins_tid.value_or(std::numeric_limits<std::size_t>::max());
-            }
+            return is_different_subgraph(input_ins, ins_tid);
         });
     }
 
@@ -208,15 +201,7 @@ struct auto_gen_root_modules
             return false;
         }
         return std::any_of(outputs.begin(), outputs.end(), [&](auto output_ins) {
-            if(tass.find(output_ins) == tass.end())
-            {
-                return ins_tid.has_value();
-            }
-            else
-            {
-                return tass.at(output_ins) !=
-                       ins_tid.value_or(std::numeric_limits<std::size_t>::max());
-            };
+            return is_different_subgraph(output_ins, ins_tid);
         });
     }
 

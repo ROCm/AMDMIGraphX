@@ -453,7 +453,6 @@ TEST_CASE(fork_and_merge_case)
         auto x_10 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), x_9);
         mm->add_return({x_10});
     }
-    p1.print_cpp(std::cout);
     EXPECT(p1.sort() == p2.sort());
 };
 

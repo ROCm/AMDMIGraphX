@@ -249,8 +249,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_reversesequence_time_cpu')
     backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
-    backend_test.exclude(r'test_shrink_hard_cpu')
-    backend_test.exclude(r'test_shrink_soft_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_default_axes_cpu')
     backend_test.exclude(r'test_slice_default_steps_cpu')
@@ -463,7 +461,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_sequence_model6_cpu')
     backend_test.exclude(r'test_sequence_model7_cpu')
     backend_test.exclude(r'test_sequence_model8_cpu')
-    backend_test.exclude(r'test_shrink_cpu')
     backend_test.exclude(r'test_strnorm_model_monday_casesensintive_lower_cpu')
     backend_test.exclude(
         r'test_strnorm_model_monday_casesensintive_nochangecase_cpu')

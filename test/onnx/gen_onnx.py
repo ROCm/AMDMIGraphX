@@ -7136,6 +7136,101 @@ def shape_gather_test():
 
 
 @onnx_test()
+def shrink_hard_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=1.5,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shrink_soft_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=1.5,
+        bias=1.5,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shrink_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [5])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=-5.0,
+        bias=1.0,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shrink_verify2_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [5])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=-6.0,
+        bias=5.0,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shrink_int8_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [3, 3])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=1.5,
+        bias=1.5,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def shrink_uint8_test():
+    x = helper.make_tensor_value_info('x', TensorProto.UINT8, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 3])
+
+    node = onnx.helper.make_node(
+        "Shrink",
+        inputs=["x"],
+        outputs=["y"],
+        lambd=5.0,
+        bias=-4.5,
+    )
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def sign_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [10, 5])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [10, 5])

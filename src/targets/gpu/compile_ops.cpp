@@ -184,21 +184,25 @@ struct compile_plan
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
-        std::transform(
-            results.begin(), results.end(), config->solutions.begin(), std::back_inserter(times), [&](const auto& cr, const auto& solution) {
-                if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
-                    std::cout << "Benchmarking solution: " << solution << std::endl;
-                if(not cr.has_value())
-                {
-                    if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
-                        std::cout << "No binary" << std::endl;
-                    return std::numeric_limits<double>::max();
-                }
-                auto t = time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
-                if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
-                    std::cout << t << "ms" << std::endl;
-                return t;
-            });
+        std::transform(results.begin(),
+                       results.end(),
+                       config->solutions.begin(),
+                       std::back_inserter(times),
+                       [&](const auto& cr, const auto& solution) {
+                           if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
+                               std::cout << "Benchmarking solution: " << solution << std::endl;
+                           if(not cr.has_value())
+                           {
+                               if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
+                                   std::cout << "No binary" << std::endl;
+                               return std::numeric_limits<double>::max();
+                           }
+                           auto t = time_op(
+                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                           if(enabled(MIGRAPHX_TRACE_BENCHMARKING{}))
+                               std::cout << t << "ms" << std::endl;
+                           return t;
+                       });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));

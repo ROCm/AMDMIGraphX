@@ -88,13 +88,13 @@ struct allocate
     {
         if(args.empty())
         {
-            return {output_shape};
+            return argument{output_shape};
         }
         else
         {
             std::vector<std::size_t> output_dims(output_shape.ndim());
             args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
-            return {shape{buf_type, output_dims}};
+            return argument{shape{buf_type, output_dims}};
         }
     }
 };

@@ -440,7 +440,7 @@ struct pooling
             // for dynamic GlobalPooling, there's no padding
             kernel_dims.insert(kernel_dims.end(), input_lens.begin() + 2, input_lens.end());
             output_shape = dyn_out.computed_shape;
-            result       = dyn_out.computed_shape;
+            result       = argument{dyn_out.computed_shape};
         }
         else if((padding_mode != op::padding_mode_t::default_))
         {
@@ -468,7 +468,7 @@ struct pooling
         {
             kernel_dims  = this->lengths;
             output_shape = dyn_out.computed_shape;
-            result       = dyn_out.computed_shape;
+            result       = argument{dyn_out.computed_shape};
         }
 
         // Perform the computation and populate result

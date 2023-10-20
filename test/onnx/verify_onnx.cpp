@@ -1266,6 +1266,35 @@ TEST_CASE(resize_downsample_f_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
+
+TEST_CASE(resize_downsample_f_dyn_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10};
+    options.use_dyn_output        = true;
+
+    auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
+    // migraphx::program p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+p.debug_print();
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+printf("result_vector has size %lu: \n", result_vector.size());
+for(float aa : result_vector) printf (" %f ", aa);printf("\n");
+ 
+    std::vector<float> gold = {0.0f, 3.0f};
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
 TEST_CASE(resize_upsample_linear_ac_test)
 {
     migraphx::program p = migraphx::parse_onnx("resize_upsample_linear_ac_test.onnx");

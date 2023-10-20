@@ -5652,7 +5652,7 @@ def resize_downsample_f_test():
                                       dims=scales.shape,
                                       vals=scales.flatten().astype(np.float32))
 
-    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 35, 60])
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node(
@@ -5669,13 +5669,13 @@ def resize_downsample_f_test():
 
 @onnx_test()
 def resize_downsample_f_dyn_test():
-    scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
+    scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
                                       dims=scales.shape,
                                       vals=scales.flatten().astype(np.float32))
 
-    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 35, 60])
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node(

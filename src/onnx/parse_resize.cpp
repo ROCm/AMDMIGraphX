@@ -348,6 +348,7 @@ struct parse_resize : op_parser<parse_resize>
                 // The indexes we find will be an argument to the gather op.
                 shape_for_each(static_out_shape, [&](const auto& out_idx_v, size_t out_idx) {
                     std::vector<size_t> in_idx(out_idx_v.size());
+// printf(" index ");                    
                     for(auto ii = 0; ii < fixed_dims.size(); ++ii)
                     {
                         // Convert this index by scaling.  Inefficient since indexes are repeated
@@ -355,37 +356,79 @@ struct parse_resize : op_parser<parse_resize>
                             fixed_dims[ii], fixed_out_lens[ii], out_idx_v[ii], vec_scale[ii]);
                         // round the scaled value to an index
                         in_idx[ii] = nearest_op(fixed_dims[ii], idx_val);
+// printf(" %lu ", in_idx[ii]);                        
                     }
-
+// printf("\n");
+                    // convert a 3-D index to a single index  into a vector
+                    // ind has a size equal to the output, each value is a 1D index into the 
+                    // input data
                     ind[out_idx] = static_cast<int64_t>(static_out_shape.index(in_idx));
+// printf("Maps to %d \n", ind[out_idx]);                    
                 });
 
                 // Create a static shape that's just like the scaled out_lens except we set to 1 the
                 // 0'th dimension of output, later to be broadcasted to dynamic batch size
-                out_lens[0] = 1;
-                shape ind_s{shape::int32_type, out_lens};
-                auto ins_ind = info.add_literal(literal(ind_s, ind));
+                // out_lens[0] = 1;
+                // shape ind_s{shape::int32_type, out_lens};
+                // auto ins_ind = info.add_literal(literal(ind_s, ind));
+
+
 
                 // define a dynamic shape including the batch dimension
-                std::vector<shape::dynamic_dimension> out_dyn_dims(in_dims.size());
-                out_dyn_dims[0] = in_dims[0];
-                std::transform(fixed_out_lens.begin(),
-                               fixed_out_lens.end(),
-                               out_dyn_dims.begin() + 1,
-                               [&](auto len) {
-                                   return shape::dynamic_dimension{len, len};
-                               });
-                shape dyn_out_shape{in_s.type(), out_dyn_dims};
+                // Not using this now; the next block seems to work with gather
+                // std::vector<shape::dynamic_dimension> out_dyn_dims(in_dims.size());
+                // out_dyn_dims[0] = in_dims[0];
+                // std::transform(fixed_out_lens.begin(),
+                //                fixed_out_lens.end(),
+                //                out_dyn_dims.begin() + 1,
+                //                [&](auto len) {
+                //                    return shape::dynamic_dimension{len, len};
+                //                });
+                // shape dyn_out_shape{in_s.type(), out_dyn_dims};
 
-                // allocate op to create the output argument we want
-                auto ins_dyn_out =
-                    info.add_instruction(make_op("allocate", {{"shape", to_value(dyn_out_shape)}}));
+                instruction_ref gather_ins{args[0]};
+                // for each static dimension
+                for(auto ii = 0; ii < fixed_dims.size(); ++ii)
+                {
+                    std::vector<size_t> in_idx(fixed_out_lens[ii]);
+                   // for range of this dimension's size in output
+                   for(auto len : range(fixed_out_lens[ii]))
+                   {
+                        // Convert this index by scaling.
+                        auto idx_val = idx_op(fixed_dims[ii], fixed_out_lens[ii], len, vec_scale[ii+1]);
+ 
+ printf(" ii %d  out_lens %lu len  %lu  vec_scale[ii+1] %f   --->    idx_val %f\n", ii, fixed_out_lens[ii],
+ len, vec_scale[ii+1], idx_val);
+                        // round the scaled value to an index
+                        in_idx[len] = nearest_op(fixed_dims[ii], idx_val);             
+printf(" in_idx %lu\n", in_idx[len]);
+                        // Put the value into index vector
+                    }
+                    // Create a 1D shape literal
+                    auto index_litA = info.add_literal(literal(migraphx::shape(migraphx::shape::int64_type,
+                        {fixed_out_lens[ii]}), in_idx));
 
-                // multibroadcast op to convert static ins_ind to a dynamic shape
-                auto ins_dyn =
-                    info.add_instruction(make_op("multibroadcast"), ins_ind, ins_dyn_out);
+                    // add a "gather" instruction 
+                    gather_ins = info.add_instruction(make_op("gather", {{"axis", 1 + ii}}), gather_ins, index_litA);
+                    
+printf("***\n");                    
+                    if( ii == (fixed_dims.size() - 1))
+                        return gather_ins;
+                }
+                // If we get here, no gather instructions were added.
+                MIGRAPHX_THROW("PARSE_RESIZE: inputs didn't have enough dimensions");
 
-                return info.add_instruction(make_op("gather", {{"axis", 0}}), args[0], ins_dyn);
+
+                // define an index dynamic shape without the batch dimension
+                // shape index_shape{in_s.type(), fixed_out_lens};
+                // this has the same data as ins_ind, but 1 less dimension ;lacks the leading dimension of 1
+                // auto index_lit = info.add_literal(literal(index_shape, ind));
+
+printf("fixed_out_lens: ");
+for(size_t aa : fixed_out_lens) printf (" %lu ", aa);printf("\n");
+
+                // Axis 0 or 1?  look into shape in gather's compute_shape' and results
+                // return info.add_instruction(make_op("gather", {{"axis", 0}}), args[0], index_lit);
             }
             else
             {

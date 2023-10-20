@@ -134,13 +134,11 @@ struct find_const_4in_slice
 
 /**
  * Simplify dimensions_of to a literal when the input arugment has a static shape
+ * or the dynamic dimensions from `start` to `end` are fixed.
  */
 struct find_static_dimensions_of
 {
-    auto matcher() const
-    {
-        return match::name("dimensions_of")(match::arg(0)(match::static_shape()));
-    }
+    auto matcher() const { return match::name("dimensions_of")(); }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
@@ -149,10 +147,20 @@ struct find_static_dimensions_of
         auto dimensions_of_value = ins->get_operator().to_value();
         auto start               = dimensions_of_value.at("start").to<std::size_t>();
         auto end                 = dimensions_of_value.at("end").to<std::size_t>();
+        if(input->get_shape().dynamic())
+        {
+            // check if dynamic dimensions from start to end are fixed
+            auto dds = input->get_shape().dyn_dims();
+            if(std::any_of(
+                   dds.begin() + start, dds.end() + end, [](auto dd) { return not dd.is_fixed(); }))
+            {
+                return;
+            }
+        }
         std::size_t output_ndim  = end - start;
         std::vector<int64_t> vec_shape(output_ndim);
         migraphx::shape s(migraphx::shape::int64_type, {output_ndim});
-        std::vector<std::size_t> input_lens = input->get_shape().lens();
+        std::vector<std::size_t> input_lens = input->get_shape().to_static(1).lens();
         std::transform(input_lens.begin() + start,
                        input_lens.begin() + end,
                        vec_shape.begin(),

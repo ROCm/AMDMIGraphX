@@ -1,3 +1,7 @@
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+
+DOCKER_IMAGE = 'rocm/migraphx-ci-ubuntu'
+
 def getgputargets() {
     targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102"
     return targets
@@ -52,18 +56,14 @@ def rocmtestnode(Map conf) {
                 checkout scm
             }
             gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
-                pre()
-                stage("image ${variant}") {
-                    try {
-                        docker.build("${image}", "${docker_build_args} .")
-                    } catch(Exception ex) {
-                        docker.build("${image}", "${docker_build_args} --no-cache .")
-
-                    }
-                }
-                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
-                    timeout(time: 2, unit: 'HOURS') {
-                        body(cmake_build)
+                withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                    sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                    pre()
+                    sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
+                    withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
+                        timeout(time: 2, unit: 'HOURS') {
+                            body(cmake_build)
+                        }
                     }
                 }
             }
@@ -104,6 +104,46 @@ def rocmnodename(name) {
 def rocmnode(name, body) {
     return { label ->
         rocmtestnode(variant: label, node: rocmnodename(name), body: body)
+    }
+}
+
+properties([
+    parameters([
+        booleanParam(name: 'FORCE_DOCKER_IMAGE_BUILD', defaultValue: false)
+    ])
+])
+
+node("(rocmtest || migraphx)") {
+    Boolean imageExists = false
+    withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+        sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+        stage('Check image') {
+            checkout scm
+            def calculateImageTagScript = """
+                shopt -s globstar
+                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini | sha256sum | cut -d " " -f 1
+            """
+            env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
+            imageExists = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0
+        }
+        stage('Build image') {
+            if(!imageExists || params.FORCE_DOCKER_IMAGE_BUILD) {
+                def builtImage
+
+                try {
+                    sh "docker pull ${DOCKER_IMAGE}:latest"
+                    builtImage = docker.build("${DOCKER_IMAGE}:${IMAGE_TAG}", "--cache-from ${DOCKER_IMAGE}:latest .")
+                } catch(Exception ex) {
+                    builtImage = docker.build("${DOCKER_IMAGE}:${IMAGE_TAG}", " --no-cache .")
+                }
+                builtImage.push("${IMAGE_TAG}")
+                builtImage.push("latest")
+            } else {
+                echo "Image already exists, skip building available"
+                // Skip stage so it remains in the visualization
+                Utils.markStageSkippedForConditional(STAGE_NAME)
+            }
+        }
     }
 }
 

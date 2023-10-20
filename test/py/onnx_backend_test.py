@@ -154,7 +154,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
     backend_test.exclude(r'test_mod_mixed_sign_int32_cpu')
     backend_test.exclude(r'test_mod_mixed_sign_int8_cpu')
-    backend_test.exclude(r'test_mvn_cpu')
     backend_test.exclude(
         r'test_negative_log_likelihood_loss_iinput_shape_is_NCd1_weight_ignore_index_cpu'
     )
@@ -803,7 +802,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_group_normalization_example_cpu')
     backend_test.exclude(r'test_group_normalization_example_expanded_cpu')
     backend_test.exclude(r'test_mish_cpu')
-    backend_test.exclude(r'test_mvn_expanded_ver18_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_sequence_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_tensor_cpu')
     backend_test.exclude(r'test_optional_get_element_tensor_cpu')

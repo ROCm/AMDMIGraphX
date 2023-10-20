@@ -8091,11 +8091,6 @@ TEST_CASE(transpose_gather_test)
     EXPECT(p.sort() == prog.sort());
 }
 
-TEST_CASE(trilu_neg_k_test)
-{
-    EXPECT(test::throws([&] { migraphx::parse_onnx("trilu_neg_k_test.onnx"); }));
-}
-
 TEST_CASE(undefined_test)
 {
     migraphx::program p;

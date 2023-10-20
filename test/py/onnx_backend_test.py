@@ -590,9 +590,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     backend_test.exclude(r'test_gru_batchwise_cpu')
     backend_test.exclude(r'test_lstm_batchwise_cpu')
     backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
-    backend_test.exclude(r'test_tril_cpu')
-    backend_test.exclude(r'test_tril_one_row_neg_cpu')
-    backend_test.exclude(r'test_tril_square_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')

@@ -210,14 +210,12 @@ struct auto_gen_root_modules
         {
             return true;
         }
-        else if(input_from_other_tid_module + num_default_tids == in_degree)
+        else if((input_from_other_tid_module + num_default_tids == in_degree) or
+                (num_same_tid + num_default_tids == in_degree))
         {
             return false;
         }
-        else if(num_same_tid + num_default_tids == in_degree)
-        {
-            return false;
-        }
+        (void)(num_different_tids);
         return true;
     }
 
@@ -259,11 +257,9 @@ struct auto_gen_root_modules
                 }
             }
         }
-        if(output_tids.empty())
-        {
-            return false;
-        }
-        else if(output_tids.size() == 1 and output_tids.cbegin()->second == outputs.size())
+
+        if(output_tids.empty() or
+           (output_tids.size() == 1 and output_tids.cbegin()->second == outputs.size()))
         {
             return false;
         }

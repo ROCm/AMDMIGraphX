@@ -936,7 +936,7 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
-    os << "Rate: " << rate * batch << "/sec" << std::endl;
+    os << "Rate: " << rate * batch << "inference/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

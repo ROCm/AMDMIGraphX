@@ -4504,6 +4504,66 @@ TEST_CASE(mean_integral_test)
     EXPECT(p == prog);
 }
 
+void mvn_n_rank_test(std::vector<int64_t> axes,
+                     std::vector<size_t> input_shape,
+                     const std::string& test_file)
+{
+    using migraphx::make_op;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto data = mm->add_parameter("data", {migraphx::shape::float_type, std::move(input_shape)});
+    auto data_mean         = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), data);
+    auto data_mean_squared = add_common_op(*mm, make_op("mul"), {data_mean, data_mean});
+
+    auto data_squared = add_common_op(*mm, make_op("mul"), {data, data});
+    auto data_squared_mean =
+        mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), data_squared);
+
+    auto mean_sub = add_common_op(*mm, make_op("sub"), {data_squared_mean, data_mean_squared});
+    auto std      = add_common_op(*mm, make_op("sqrt"), {mean_sub});
+
+    auto dividend = add_common_op(*mm, make_op("sub"), {data, data_mean});
+    auto epsilon  = mm->add_literal({migraphx::shape::float_type, {1e-9}});
+    auto divisor  = add_common_op(*mm, make_op("add"), {std, epsilon});
+    add_common_op(*mm, make_op("div"), {dividend, divisor});
+
+    auto prog = optimize_onnx(test_file);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mvn_default_axes_test)
+{
+    mvn_n_rank_test({0, 2, 3}, {2, 2, 2, 2}, "mvn_default_axes_test.onnx");
+}
+
+TEST_CASE(mvn_default_axes_rank_too_small_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_small_test.onnx"); }));
+}
+
+TEST_CASE(mvn_default_axes_rank_too_big_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_big_test.onnx"); }));
+}
+
+TEST_CASE(mvn_rank_2_test) { mvn_n_rank_test({1}, {2, 2}, "mvn_rank_2_test.onnx"); }
+
+TEST_CASE(mvn_rank_3_test) { mvn_n_rank_test({0, 1}, {2, 2, 2}, "mvn_rank_3_test.onnx"); }
+
+TEST_CASE(mvn_axes_rank_too_small_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_axes_rank_too_small_test.onnx"); }));
+}
+
+TEST_CASE(mvn_axes_rank_too_big_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_axes_rank_too_big_test.onnx"); }));
+}
+
 TEST_CASE(min_test)
 {
     migraphx::program p;
@@ -8033,11 +8093,6 @@ TEST_CASE(transpose_gather_test)
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
-}
-
-TEST_CASE(trilu_neg_k_test)
-{
-    EXPECT(test::throws([&] { migraphx::parse_onnx("trilu_neg_k_test.onnx"); }));
 }
 
 TEST_CASE(undefined_test)

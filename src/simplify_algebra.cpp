@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -521,6 +521,27 @@ struct find_inner_broadcast
                       }) < (lens.size() - 1);
            }))
             return;
+        if(broadcasts.size() > 1)
+        {
+            auto bcast_strides = broadcasts.front()->get_shape().strides().size();
+            std::vector<size_t> common_axis(bcast_strides, 0);
+            // go through the strides of each broadcast,
+            // keep track of values that are equal to 0 in a dimension
+            for(auto i = 0; i < bcast_strides; i++)
+            {
+                for(const auto& broadcast : broadcasts)
+                {
+                    if(broadcast->get_shape().strides()[i] == 0)
+                        common_axis[i]++;
+                }
+            }
+            // if no common broadcast axis, transformation is not useful
+            if(std::find_if(common_axis.begin(), common_axis.end(), [](auto num_common) {
+                   return num_common > 1;
+               }) == common_axis.end())
+                return;
+        }
+
         std::vector<instruction_ref> inputs;
         std::transform(broadcasts.begin(),
                        broadcasts.end(),

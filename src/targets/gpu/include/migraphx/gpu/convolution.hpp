@@ -199,9 +199,9 @@ struct miopen_convolution
             // MIOpen has APIs to pass pre-allocated buffers starting from rocm-5.6
             preallocate = true;
 #endif
-            auto x = preallocate ? to_gpu(generate_argument(x_shape)) : inputs[0];
-            auto w = preallocate ? to_gpu(generate_argument(w_shape)) : inputs[1];
-            auto y = preallocate ? allocate_gpu(output_shape) : inputs[2];
+            auto x = preallocate ? to_gpu(generate_argument(x_shape)) : argument{inputs[0]};
+            auto w = preallocate ? to_gpu(generate_argument(w_shape)) : argument{inputs[1]};
+            auto y = preallocate ? allocate_gpu(output_shape) : argument{inputs[2]};
             auto workspace =
                 preallocate ? allocate_gpu(workspace_shape) : migraphx::argument(workspace_shape);
 

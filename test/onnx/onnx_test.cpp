@@ -42,10 +42,13 @@
 #include <migraphx/op/lrn.hpp>
 #include <migraphx/op/reshape.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/env.hpp>
 
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
@@ -4501,6 +4504,66 @@ TEST_CASE(mean_integral_test)
     EXPECT(p == prog);
 }
 
+void mvn_n_rank_test(std::vector<int64_t> axes,
+                     std::vector<size_t> input_shape,
+                     const std::string& test_file)
+{
+    using migraphx::make_op;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto data = mm->add_parameter("data", {migraphx::shape::float_type, std::move(input_shape)});
+    auto data_mean         = mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), data);
+    auto data_mean_squared = add_common_op(*mm, make_op("mul"), {data_mean, data_mean});
+
+    auto data_squared = add_common_op(*mm, make_op("mul"), {data, data});
+    auto data_squared_mean =
+        mm->add_instruction(make_op("reduce_mean", {{"axes", axes}}), data_squared);
+
+    auto mean_sub = add_common_op(*mm, make_op("sub"), {data_squared_mean, data_mean_squared});
+    auto std      = add_common_op(*mm, make_op("sqrt"), {mean_sub});
+
+    auto dividend = add_common_op(*mm, make_op("sub"), {data, data_mean});
+    auto epsilon  = mm->add_literal({migraphx::shape::float_type, {1e-9}});
+    auto divisor  = add_common_op(*mm, make_op("add"), {std, epsilon});
+    add_common_op(*mm, make_op("div"), {dividend, divisor});
+
+    auto prog = optimize_onnx(test_file);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(mvn_default_axes_test)
+{
+    mvn_n_rank_test({0, 2, 3}, {2, 2, 2, 2}, "mvn_default_axes_test.onnx");
+}
+
+TEST_CASE(mvn_default_axes_rank_too_small_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_small_test.onnx"); }));
+}
+
+TEST_CASE(mvn_default_axes_rank_too_big_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_big_test.onnx"); }));
+}
+
+TEST_CASE(mvn_rank_2_test) { mvn_n_rank_test({1}, {2, 2}, "mvn_rank_2_test.onnx"); }
+
+TEST_CASE(mvn_rank_3_test) { mvn_n_rank_test({0, 1}, {2, 2, 2}, "mvn_rank_3_test.onnx"); }
+
+TEST_CASE(mvn_axes_rank_too_small_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_axes_rank_too_small_test.onnx"); }));
+}
+
+TEST_CASE(mvn_axes_rank_too_big_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_axes_rank_too_big_test.onnx"); }));
+}
+
 TEST_CASE(min_test)
 {
     migraphx::program p;
@@ -5480,6 +5543,31 @@ TEST_CASE(qlinearmatmul_2D_test)
     EXPECT(p.sort() == prog.sort());
 }
 
+migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
+                                                     const migraphx::instruction_ref ins,
+                                                     const migraphx::instruction_ref round,
+                                                     const migraphx::shape s,
+                                                     const int64_t min_quant,
+                                                     const int64_t max_quant)
+{
+    migraphx::instruction_ref min_arg;
+    migraphx::instruction_ref max_arg;
+    if(migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
+    {
+        std::vector<int> min_data(s.elements(), min_quant);
+        std::vector<int> max_data(s.elements(), max_quant);
+        min_arg = m.add_literal(migraphx::literal(s, min_data));
+        max_arg = m.add_literal(migraphx::literal(s, max_data));
+    }
+    else
+    {
+        min_arg = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {min_quant}});
+        max_arg = m.add_literal(migraphx::literal{migraphx::shape{s.type()}, {max_quant}});
+    }
+
+    return migraphx::insert_common_op(m, ins, migraphx::make_op("clip"), {round, min_arg, max_arg});
+}
+
 TEST_CASE(quantizelinear_test)
 {
     migraphx::program p;
@@ -5488,16 +5576,10 @@ TEST_CASE(quantizelinear_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
-    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s       = round->get_shape();
-    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
-    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
-    auto min_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
-    auto max_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s     = round->get_shape();
+    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5519,16 +5601,10 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div     = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round   = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s       = round->get_shape();
-    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {0}});
-    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {255}});
-    auto min_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
-    auto max_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), round, min_mbcast, max_mbcast);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto s     = round->get_shape();
+    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5555,15 +5631,9 @@ TEST_CASE(quantizelinear_zero_point_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_mbcast);
-    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
-    auto s       = round->get_shape();
-    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
-    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
-    auto min_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
-    auto max_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_mbcast);
+    auto s    = round->get_shape();
+    auto clip = insert_quantizelinear_clip(*mm, div, add, s, -128, 127);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -5594,15 +5664,9 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l2_bcast);
-    auto add     = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
-    auto s       = round->get_shape();
-    auto min_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {-128}});
-    auto max_arg = mm->add_literal(migraphx::literal{migraphx::shape{s.type()}, {127}});
-    auto min_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), min_arg);
-    auto max_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max_arg);
-    auto clip = mm->add_instruction(migraphx::make_op("clip"), add, min_mbcast, max_mbcast);
+    auto add  = mm->add_instruction(migraphx::make_op("add"), round, l2_bcast);
+    auto s    = round->get_shape();
+    auto clip = insert_quantizelinear_clip(*mm, div, add, s, -128, 127);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::int8_type)}}),
@@ -8029,11 +8093,6 @@ TEST_CASE(transpose_gather_test)
     auto prog = optimize_onnx("transpose_gather_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
-}
-
-TEST_CASE(trilu_neg_k_test)
-{
-    EXPECT(test::throws([&] { migraphx::parse_onnx("trilu_neg_k_test.onnx"); }));
 }
 
 TEST_CASE(undefined_test)

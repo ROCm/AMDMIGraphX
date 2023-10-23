@@ -73,20 +73,9 @@ struct mlir_op
         module_ref mod = mods[0];
         auto type      = mod->get_output_shapes().front().type();
         std::unordered_map<instruction_ref, shape> ins_shapes;
-        size_t param_cnt               = 0;
-        std::vector<std::string> names = mod->get_parameter_names();
-        std::sort(names.begin(), names.end());
-        for(const std::string& param_name : names)
-        {
-            ins_shapes[mod->get_parameter(param_name)] = inputs[param_cnt++];
-        }
         for(auto ins : iterator_for(*mod))
         {
-            if(ins->name() == "@param")
-            {
-                continue;
-            }
-            if(ins->name() == "@literal")
+            if(ins->name() == "@literal" or ins->name() == "@param")
             {
                 ins_shapes[ins] = ins->get_shape();
                 continue;

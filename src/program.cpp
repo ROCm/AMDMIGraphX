@@ -347,7 +347,7 @@ void program::finalize()
 template <class T>
 std::string classify(T x)
 {
-    switch(std::fpclassify(x))
+    switch(std::fpclassify(static_cast<double>(x)))
     {
     case FP_INFINITE: return "inf";
     case FP_NAN: return "nan";
@@ -936,7 +936,7 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
-    os << "Rate: " << rate * batch << "/sec" << std::endl;
+    os << "Rate: " << rate * batch << "inferences/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

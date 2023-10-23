@@ -1266,7 +1266,6 @@ TEST_CASE(resize_downsample_f_test)
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }
 
-
 TEST_CASE(resize_downsample_f_dyn_test)
 {
     migraphx::onnx_options options;
@@ -1274,7 +1273,6 @@ TEST_CASE(resize_downsample_f_dyn_test)
     options.use_dyn_output        = true;
 
     auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
-    // migraphx::program p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};
@@ -1290,7 +1288,51 @@ p.debug_print();
 printf("result_vector has size %lu: \n", result_vector.size());
 for(float aa : result_vector) printf (" %f ", aa);printf("\n");
  
-    std::vector<float> gold = {0.0f, 3.0f};
+    // clang-format off
+    // TODO: gold value includes floating-point rounding errors
+    std::vector<float> gold = {0.100000, 1.100000, 3.100000, 4.100000, 6.100000, 
+    9.100000, 10.100000, 12.100000, 13.100000, 15.100000, 
+    27.100000, 28.100000, 30.100000, 31.100000, 33.099998, 
+    45.099998, 46.099998, 48.099998, 49.099998, 51.099998, 
+    54.099998, 55.099998, 57.099998, 58.099998, 60.099998, 
+    72.099998, 73.099998, 75.099998, 76.099998, 78.099998};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+}
+
+TEST_CASE(resize_upsample_f_dyn_test)
+{
+    // resize with half_pixel and round_prefer_ceil, with scale > 1
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10};
+    options.use_dyn_output        = true;
+
+    auto p = migraphx::parse_onnx("resize_upsample_f_dyn_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
+
+    // should upscale to 2x4x8
+    migraphx::shape sx{migraphx::shape::float_type, {2, 1, 3, 5}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+ 
+    // clang-format off
+    std::vector<float> gold = { 
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        5.1f,  5.1f,    6.1f,  7.1f,    7.1f,  8.1f,    9.1f,  9.1f,  
+        10.1f,  10.1f,  11.1f,  12.1f,  12.1f,  13.1f,  14.1f,  14.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        20.1f,  20.1f,  21.1f,  22.1f,  22.1f,  23.1f,  24.1f,  24.1f,  
+        25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
+    // clang-format on
 
     EXPECT(migraphx::verify::verify_range(result_vector, gold));
 }

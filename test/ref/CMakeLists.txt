@@ -24,7 +24,7 @@
 
 file(GLOB REF CONFIGURE_DEPENDS *.cpp)
 
-add_test_executable(test_ref ${REF})
+rocm_add_test_executable(test_ref ${REF})
 target_include_directories(test_ref PUBLIC ../include)
 rocm_clang_tidy_check(test_ref)
 

@@ -3,7 +3,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,7 @@ else
     openmp-extras \
     python3-dev \
     python3-pip \
+    python3-venv \
     rocblas-dev \
     rocm-cmake
 fi
@@ -80,8 +81,8 @@ rbuild prepare -d $PREFIX -s develop
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
-pip3 install onnx==1.10.2 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
+pip3 install onnx==1.14.1 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
 
 # pin version of protobuf in Python for onnx runtime unit tests between dist versions
-pip3 install protobuf==3.20.0
+pip3 install protobuf==3.20.2
 fi

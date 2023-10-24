@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+ 
 
 add_library(migraphx 
     adjust_allocation.cpp
@@ -95,6 +96,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     simplify_algebra.cpp
+    simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     target.cpp
@@ -141,6 +143,7 @@ register_migraphx_ops(
     equal
     erf
     exp
+    fill
     flatten
     floor
     fmod
@@ -184,6 +187,8 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
+    random_uniform
+    random_seed
     recip
     reduce_max
     reduce_mean
@@ -192,6 +197,7 @@ register_migraphx_ops(
     reduce_sum
     relu
     reshape
+    reshape_lazy
     reverse
     rnn
     rnn_last_cell_output
@@ -276,7 +282,9 @@ add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
 
+if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
+endif()
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)

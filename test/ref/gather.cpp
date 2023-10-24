@@ -24,7 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
@@ -52,7 +52,7 @@ TEST_CASE(gather_non_std_test)
             0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f, 0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
         std::vector<float> res_data;
         result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-        EXPECT(migraphx::verify::verify_range(res_data, golden));
+        EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
     }
 }
 
@@ -75,7 +75,7 @@ TEST_CASE(gather_test_1)
     std::vector<float> res_data(4 * 5);
     std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_2)
@@ -97,7 +97,7 @@ TEST_CASE(gather_test_2)
     std::vector<float> res_data(4 * 5);
     std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_3)
@@ -119,7 +119,7 @@ TEST_CASE(gather_test_3)
     std::vector<float> res_data(4 * 5);
     std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_4)
@@ -141,7 +141,7 @@ TEST_CASE(gather_test_4)
     std::vector<float> res_data(4 * 5);
     std::vector<float> golden = {0.5f, 2.5f, 3.5f, 5.5f, 6.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_5)
@@ -164,7 +164,7 @@ TEST_CASE(gather_test_5)
     std::vector<float> res_data{};
     std::vector<float> golden = {0.5f, 3.5f, 6.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_6)
@@ -187,7 +187,7 @@ TEST_CASE(gather_test_6)
     std::vector<float> res_data{};
     std::vector<float> golden = {0.5f, 3.5f, 6.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_test_7)
@@ -210,7 +210,7 @@ TEST_CASE(gather_test_7)
     std::vector<float> res_data{};
     std::vector<float> golden = {0.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(res_data, golden));
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
 TEST_CASE(gather_dyn_test0)
@@ -243,7 +243,7 @@ TEST_CASE(gather_dyn_test0)
     std::vector<int> gold = {1, 2, 4, 5};
     std::vector<int> results_vector(2 * 1 * 2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     migraphx::shape sfinal{migraphx::shape::int32_type, {2, 1, 2}};
     EXPECT(result.get_shape() == sfinal);
 }
@@ -280,7 +280,7 @@ TEST_CASE(gather_dyn_test1)
     std::vector<int> results_vector(1 * 2 * 4);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     migraphx::shape sfinal{migraphx::shape::int32_type, {1, 2, 4}};
     EXPECT(result.get_shape() == sfinal);
 }

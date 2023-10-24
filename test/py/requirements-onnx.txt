@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CLANG_FORMAT=/opt/rocm/llvm/bin/clang-format
-SRC_DIR=$DIR/../src
-PYTHON=python3
-if type -p python3.6 > /dev/null ; then
-    PYTHON=python3.6
-fi
-if type -p python3.8 > /dev/null ; then
-    PYTHON=python3.8
-fi
-ls -1 $DIR/include/ | xargs -n 1 -P $(nproc) -I{} -t bash -c "$PYTHON $DIR/te.py $DIR/include/{} | $CLANG_FORMAT -style=file > $SRC_DIR/include/migraphx/{}"
 
-function api {
-    $PYTHON $DIR/api.py $SRC_DIR/api/migraphx.py $1 | $CLANG_FORMAT -style=file > $2
-}
-
-api $DIR/api/migraphx.h $SRC_DIR/api/include/migraphx/migraphx.h
-echo "Finished generating header migraphx.h"
-api $DIR/api/api.cpp $SRC_DIR/api/api.cpp
-echo "Finished generating source api.cpp "
+onnx==1.14.1
+protobuf==3.20.2
+numpy==1.21.6
+packaging==23.0
+pytest==6.0.1

@@ -82,6 +82,27 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
+    parser.add_argument(
+        '--disable-offload-copy',
+        dest="offload_copy",
+        action='store_false',
+        default=True,
+        help=
+        'Disable offload copying (user must handle copy to and from device)')
+
+    parser.add_argument(
+        '--disable-fast-math',
+        dest="fast_math",
+        action='store_false',
+        default=True,
+        help='Disable fast math optimizations (etc: rewrite_gelu)')
+
+    parser.add_argument('--exhaustive_tune',
+                        dest="exhaustive_tune",
+                        action='store_true',
+                        default=False,
+                        help='Enable exhaustive tuning for solutions')
+
     args = parser.parse_args()
 
     return args
@@ -177,7 +198,12 @@ def main():
         print(model)
 
     if not args.ort_run:
-        model.compile(migraphx.get_target(args.target))
+        model.compile(
+            migraphx.get_target(args.target),
+            offload_copy=args.offload_copy,
+            fast_math=args.fast_math,
+            exhaustive_tune=args.exhaustive_tune,
+        )
 
     params = {}
     test_inputs = {}
@@ -194,10 +220,16 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        params[name] = migraphx.argument(test_input)
+        migraphx_arg = migraphx.argument(test_input)
+        if not args.offload_copy:
+            migraphx_arg = migraphx.to_gpu(migraphx_arg)
+        params[name] = migraphx_arg
 
     if not args.ort_run:
-        pred_migx = np.array(model.run(params)[-1])
+        if not args.offload_copy:
+            pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
+        else:
+            pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
         sess_op = ort.SessionOptions()

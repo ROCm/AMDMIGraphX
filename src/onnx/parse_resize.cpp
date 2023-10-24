@@ -425,6 +425,11 @@ struct parse_resize : op_parser<parse_resize>
 
                     ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
                 });
+            // get the number of dimensions
+            // std::size_t n_dim = out_lens.size();
+            // std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
+            // std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
+            // std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
                 shape ind_s{shape::int32_type, out_lens};
                 auto ins_ind = info.add_literal(literal(ind_s, ind));

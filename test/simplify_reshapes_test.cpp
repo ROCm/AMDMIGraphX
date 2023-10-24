@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,6 +65,106 @@ migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
     auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), xm, ym, zm);
     m.add_return({concat});
     return m;
+}
+
+TEST_CASE(broadcast_transpose)
+{
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 2, 3}}}), t1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_opt)
+{
+    // extra transpose from transformation will be optimized out
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5}}}), u1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_scalar)
+{
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_scalar_multi_use)
+{
+    // multibroadcast used more than once
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto t1 = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), mb);
+        auto id = m1.add_instruction(migraphx::make_op("identity"), mb);
+        m1.add_return({t1, id});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l);
+        auto mb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), l);
+        auto id = m2.add_instruction(migraphx::make_op("identity"), mb2);
+        m2.add_return({mb, id});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(double_contig)

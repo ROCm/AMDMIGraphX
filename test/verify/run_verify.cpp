@@ -44,8 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
-                                                                    bool parallel = true)
+std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
@@ -251,7 +250,8 @@ void run_verify::verify(const std::string& name,
             std::size_t num = gold.size();
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
-                passed &= migraphx::verify_args(tname, gold[i], result[i]);
+                passed &= migraphx::verify_args_with_tolerance(
+                    tname, result[i], migraphx::verify::expected{gold[i]});
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))

@@ -361,7 +361,8 @@ struct find_mlir_standalone_op
             return;
 
         static size_t counter = 0;
-        module_ref mm         = mpm.create_module("mlir_" + conv_based_op->name() + std::to_string(counter++));
+        module_ref mm =
+            mpm.create_module("mlir_" + conv_based_op->name() + std::to_string(counter++));
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, conv_based_op);
         mm->add_return({anchor_op});

@@ -31,6 +31,9 @@
 #include <migraphx/pass_manager.hpp>
 #if !defined(_MSC_VER)
 #include <migraphx/dead_code_elimination.hpp>
+#if MIGRAPHX_USE_COMPOSABLEKERNEL
+#include <migraphx/gpu/ck.hpp>
+#endif
 #endif
 
 namespace migraphx {

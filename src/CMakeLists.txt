@@ -233,6 +233,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where

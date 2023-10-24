@@ -1281,21 +1281,19 @@ TEST_CASE(resize_downsample_f_dyn_test)
 
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
-p.debug_print();
+
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-printf("result_vector has size %lu: \n", result_vector.size());
-for(float aa : result_vector) printf (" %f ", aa);printf("\n");
  
     // clang-format off
-    // TODO: gold value includes floating-point rounding errors
-    std::vector<float> gold = {0.100000, 1.100000, 3.100000, 4.100000, 6.100000, 
-    9.100000, 10.100000, 12.100000, 13.100000, 15.100000, 
-    27.100000, 28.100000, 30.100000, 31.100000, 33.099998, 
-    45.099998, 46.099998, 48.099998, 49.099998, 51.099998, 
-    54.099998, 55.099998, 57.099998, 58.099998, 60.099998, 
-    72.099998, 73.099998, 75.099998, 76.099998, 78.099998};
+    std::vector<float> gold = {
+                0.1f,   1.1f,   3.1f,  4.1f,  6.1f, 
+                9.1f,  10.1f, 12.1f, 13.1f, 15.1f, 
+                27.1f, 28.1f, 30.1f, 31.1f, 33.1f, 
+                45.1f, 46.1f, 48.1f, 49.1f, 51.1f, 
+                54.1f, 55.1f, 57.1f, 58.1f, 60.1f, 
+                72.1f, 73.1f, 75.1f, 76.1f, 78.1f};
     // clang-format on
 
     EXPECT(migraphx::verify::verify_range(result_vector, gold));

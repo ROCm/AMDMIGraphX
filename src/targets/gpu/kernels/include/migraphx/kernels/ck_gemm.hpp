@@ -33,17 +33,6 @@
 
 namespace migraphx {
 
-// In CK, the B matrix is ordered as N,K instead of K,N
-template <class Dims>
-constexpr auto ck_transposeb_dims(Dims dims)
-{
-    return unpack(dims, [](auto k, auto n) { return make_const_array(n, k); });
-}
-
-template <class Tensor>
-using ck_transposeb = decltype(make_shape(ck_transposeb_dims(get_shape_c<Tensor>{}.lens),
-                                          ck_transposeb_dims(get_shape_c<Tensor>{}.strides)));
-
 template <class G, class E, class A, class B, class... Ds>
 __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
 {

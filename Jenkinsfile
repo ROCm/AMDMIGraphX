@@ -161,7 +161,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, clang_release_navi: rocmnode('navi32') { cmake_build ->
     stage('HIP Clang Release Navi32') {
-        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
     }
 }
 

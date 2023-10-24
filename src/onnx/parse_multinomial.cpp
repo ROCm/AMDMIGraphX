@@ -111,19 +111,16 @@ struct parse_multinomial : op_parser<parse_multinomial>
             auto l2          = info.add_literal(s, data2);
             auto alloc_shape = info.add_instruction(migraphx::make_op("add"), batch_arg, l2);
             // alloc_shape should contain the input-based shape dimensions as its values at runtime,
-            // and its own shape is (2, 0)
+            // and its own shape is {2}
 
             // compile_shape is the shape used when compiling the Allocate op, and may be dynamic
-            // migraphx::shape compile_shape = migraphx::shape(s0.type(),{s0.dyn_dims().front(),
-            // {sample_size, sample_size} } );
             migraphx::shape compile_shape =
                 migraphx::shape(s0.type(), {s0.dyn_dims().front(), {sample_size, sample_size}});
 
             // Allocate on-device storage for the random values
-            // TODO:  this creates data type half_type if "buf_type" is not specified
             auto alloc = info.add_instruction(
                 migraphx::make_op("allocate",
-                                  {{"shape", to_value(compile_shape)}, {"buf_type", s0.type()}}),
+                                  {{"shape", to_value(compile_shape)}}),
                 alloc_shape);
             randoms = info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }

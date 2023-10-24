@@ -105,7 +105,9 @@ file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
 if(WIN32)
     # TODO: re-enable when CK is ported to Windows
-    list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
+    list(REMOVE_ITEM JIT_GPU_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
 add_library(migraphx_gpu

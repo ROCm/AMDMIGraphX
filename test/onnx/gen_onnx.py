@@ -5659,7 +5659,7 @@ def resize_downsample_f_test():
         'Resize',
         inputs=['X', '', 'scales'],
         outputs=['Y'],
-        coordinate_transformation_mode='asymmetric',
+        coordinate_transformation_mode='align_corners',
         mode='nearest',
         nearest_mode='floor')
 

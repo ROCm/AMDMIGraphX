@@ -48,9 +48,9 @@ namespace op {
  */
 struct allocate
 {
-    shape s{};
+    std::optional<shape> s;
     // for dynamic allocate to set the buffer type
-    shape::type_t buf_type = shape::half_type;
+    std::optional<shape::type_t> buf_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -62,26 +62,38 @@ struct allocate
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if(s != shape())
+        if(s)
         {
+            if(buf_type)
+            {
+                MIGRAPHX_THROW("ALLOCATE: shape and buf_type attributes both set");
+            }
             if(inputs.size() == 1)
             {
                 migraphx::check_shapes{inputs, *this, false}.only_dims(1);
             }
             else
             {
+                if(s->dynamic())
+                {
+                    MIGRAPHX_THROW("ALLOCATE: dynamic shape attribute and no input");
+                }
                 migraphx::check_shapes{inputs, *this, false}.has(0);
             }
-            return s;
+            return *s;
         }
         else
         {
+            if(not buf_type)
+            {
+                MIGRAPHX_THROW("ALLOCATE: shape and buf_type attributes both not set");
+            }
             migraphx::check_shapes{inputs, *this, false}.has(1).only_dims(1);
             const auto& out_dims = inputs.at(0);
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});
-            return {buf_type, dyn_dims};
+            return {*buf_type, dyn_dims};
         }
     }
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -94,7 +106,11 @@ struct allocate
         {
             std::vector<std::size_t> output_dims(output_shape.ndim());
             args.at(0).visit([&](auto a) { output_dims.assign(a.begin(), a.end()); });
-            return argument{shape{buf_type, output_dims}};
+            if(s)
+            {
+                return argument{shape{s->type(), output_dims}};
+            }
+            return argument{shape{buf_type.value(), output_dims}};
         }
     }
 };

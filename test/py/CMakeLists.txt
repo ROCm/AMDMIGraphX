@@ -28,7 +28,7 @@ set(VENV_ONNX ${CMAKE_BINARY_DIR}/test/py/venv-onnx)
 set(REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt)
 set(REQUIREMENTS_ONNX ${CMAKE_CURRENT_SOURCE_DIR}/requirements-onnx.txt)
 set(PYTHON_VERSION_TO_DISABLE_ONNX 3.6)
-option(ENABLE_VIRTUAL_ENV "Enable python virtual environments" ON)
+option(MIGRAPHX_DISABLE_VIRTUAL_ENV "Disable python virtual environments" OFF)
 
 
 function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
@@ -62,7 +62,7 @@ function(add_py_test NAME SCRIPT FIXTURE_NAME VENV_DIR)
             "PYTHONMALLOC=debug"
             "MALLOC_CHECK_=3"
         )
-        if(ENABLE_VIRTUAL_ENV)
+        if(NOT MIGRAPHX_DISABLE_VIRTUAL_ENV)
             set(PYTHON_EXECUTABLE ${VENV_DIR}/${PYTHON_VERSION}/bin/python)
         else()
             set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
@@ -74,7 +74,7 @@ function(add_py_test NAME SCRIPT FIXTURE_NAME VENV_DIR)
             add_custom_target(test_py_${PYTHON_VERSION}_${NAME}
                 COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN}
                 COMMENT "${PYTHON_EXECUTABLE} ${SCRIPT}")
-            if(ENABLE_VIRTUAL_ENV)
+            if(NOT MIGRAPHX_DISABLE_VIRTUAL_ENV)
                 set_tests_properties(test_py_${PYTHON_VERSION}_${NAME} PROPERTIES FIXTURES_REQUIRED ${FIXTURE_NAME}_${PYTHON_VERSION}_VENV)
             endif()
         endif()
@@ -83,7 +83,7 @@ endfunction()
 add_dependencies(tests migraphx_py)
 add_dependencies(check migraphx_py)
 
-if(ENABLE_VIRTUAL_ENV)
+if(NOT MIGRAPHX_DISABLE_VIRTUAL_ENV)
     add_py_venv_fixture(common ${VENV} ${REQUIREMENTS})
     add_py_venv_fixture(onnx ${VENV_ONNX} ${REQUIREMENTS_ONNX})
 endif()

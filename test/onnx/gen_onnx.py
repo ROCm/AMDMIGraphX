@@ -150,6 +150,21 @@ def argmax_test():
 
 
 @onnx_test()
+def argmax_select_last_index_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+
+    node = onnx.helper.make_node('ArgMax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2,
+                                 keepdims=0,
+                                 select_last_index=1)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def argmax_dyn_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, 4, 6])
@@ -173,6 +188,21 @@ def argmin_test():
                                  outputs=['y'],
                                  axis=3,
                                  keepdims=0)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def argmin_select_last_index_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
+
+    node = onnx.helper.make_node('ArgMin',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=3,
+                                 keepdims=0,
+                                 select_last_index=1)
 
     return ([node], [x], [y])
 
@@ -4681,6 +4711,77 @@ def mean_integral_test():
     return ([node], data, [mean])
 
 
+def mvn_default_axes_test_base(dims, type=TensorProto.FLOAT):
+    data = helper.make_tensor_value_info("data", type, dims)
+    out = helper.make_tensor_value_info("out", type, dims)
+    node = helper.make_node("MeanVarianceNormalization",
+                            inputs=["data"],
+                            outputs=["out"])
+
+    return ([node], [data], [out])
+
+
+@onnx_test()
+def mvn_default_axes_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2])
+
+
+@onnx_test()
+def mvn_default_axes_fp16_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2], TensorProto.FLOAT16)
+
+
+@onnx_test()
+def mvn_default_axes_rank_too_small_test():
+    return mvn_default_axes_test_base([2, 2, 2])
+
+
+@onnx_test()
+def mvn_default_axes_rank_too_big_test():
+    return mvn_default_axes_test_base([2, 2, 2, 2, 2])
+
+
+def mvn_n_rank_test_base(axes, dims, type=TensorProto.FLOAT):
+    data = helper.make_tensor_value_info("data", type, dims)
+    out = helper.make_tensor_value_info("out", type, dims)
+    node = helper.make_node("MeanVarianceNormalization",
+                            inputs=["data"],
+                            outputs=["out"],
+                            axes=axes)
+
+    return ([node], [data], [out])
+
+
+@onnx_test()
+def mvn_rank_2_test():
+    return mvn_n_rank_test_base([1], [2, 2])
+
+
+@onnx_test()
+def mvn_rank_2_fp16_test():
+    return mvn_n_rank_test_base([1], [2, 2], TensorProto.FLOAT16)
+
+
+@onnx_test()
+def mvn_rank_3_test():
+    return mvn_n_rank_test_base([0, 1], [2, 2, 2])
+
+
+@onnx_test()
+def mvn_rank_3_fp16_test():
+    return mvn_n_rank_test_base([0, 1], [2, 2, 2], TensorProto.FLOAT16)
+
+
+@onnx_test()
+def mvn_axes_rank_too_small_test():
+    return mvn_n_rank_test_base([0, 1, 2], [2, 2, 2])
+
+
+@onnx_test()
+def mvn_axes_rank_too_big_test():
+    return mvn_n_rank_test_base([0], [2, 2, 2])
+
+
 @onnx_test()
 def min_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
@@ -8502,7 +8603,7 @@ def transpose_gather_test():
 
 
 @onnx_test()
-def trilu_test():
+def triu_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
 
@@ -8515,7 +8616,7 @@ def trilu_test():
 
 
 @onnx_test()
-def trilu_batch_diff_k_test():
+def triu_batch_diff_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
     k = np.array([2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
@@ -8533,7 +8634,24 @@ def trilu_batch_diff_k_test():
 
 
 @onnx_test()
-def trilu_lower_test():
+def tril_batch_diff_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 3])
+    k = np.array([2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 2, 3])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def tril_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
 
@@ -8542,7 +8660,7 @@ def trilu_lower_test():
 
 
 @onnx_test()
-def trilu_neg_k_test():
+def triu_neg_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     k = np.array([-1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -8556,7 +8674,23 @@ def trilu_neg_k_test():
 
 
 @onnx_test()
-def trilu_out_k_test():
+def tril_neg_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([-1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def triu_out_k_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
     k = np.array([5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -8570,7 +8704,23 @@ def trilu_out_k_test():
 
 
 @onnx_test()
-def trilu_row_one_test():
+def tril_out_k_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    k = np.array([5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def triu_row_one_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
     k = np.array([1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
@@ -8584,6 +8734,23 @@ def trilu_row_one_test():
         inputs=['x', 'k'],
         outputs=['y'],
     )
+    return ([node], [x], [y], [k_tensor])
+
+
+@onnx_test()
+def tril_row_one_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4])
+    k = np.array([1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4])
+    k_tensor = helper.make_tensor(name='k',
+                                  data_type=TensorProto.INT64,
+                                  dims=k.shape,
+                                  vals=k.astype(np.int64))
+
+    node = onnx.helper.make_node('Trilu',
+                                 inputs=['x', 'k'],
+                                 outputs=['y'],
+                                 upper=0)
     return ([node], [x], [y], [k_tensor])
 
 

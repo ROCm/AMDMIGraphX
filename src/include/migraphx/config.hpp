@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_CONFIG_HPP
 
 #include <migraphx/export.h>
+#include <ciso646>
 
 #if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
 

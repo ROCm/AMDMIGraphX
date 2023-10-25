@@ -62,10 +62,10 @@ function(add_py_test NAME SCRIPT FIXTURE_NAME VENV_DIR)
             "PYTHONMALLOC=debug"
             "MALLOC_CHECK_=3"
         )
-        if(NOT MIGRAPHX_DISABLE_VIRTUAL_ENV)
-            set(PYTHON_EXECUTABLE ${VENV_DIR}/${PYTHON_VERSION}/bin/python)
-        else()
+        if(MIGRAPHX_DISABLE_VIRTUAL_ENV)
             set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
+        else()
+            set(PYTHON_EXECUTABLE ${VENV_DIR}/${PYTHON_VERSION}/bin/python)
         endif()
         if(NOT (${FIXTURE_NAME} STREQUAL "onnx" AND ${PYTHON_VERSION} STREQUAL ${PYTHON_VERSION_TO_DISABLE_ONNX}))
             add_test(

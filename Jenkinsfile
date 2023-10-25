@@ -3,6 +3,11 @@ def getgputargets() {
     return targets
 }
 
+def getnavi3xtargets() {
+    targets="gfx1100;gfx1101;gfx1102"
+    return targets
+}
+
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -161,6 +166,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, clang_release_navi: rocmnode('navi32') { cmake_build ->
     stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
     }
 }

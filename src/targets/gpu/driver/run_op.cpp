@@ -36,6 +36,7 @@ struct run_op : action<run_op>
     static void apply(const parser& p, const value& v)
     {
         context ctx;
+        migraphx::context gctx = ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto name   = v.at("name").to<std::string>();
         if(not contains(name, "::"))
@@ -43,6 +44,10 @@ struct run_op : action<run_op>
         auto op = make_op(name);
         if(v.contains("fields"))
             op.from_value(v.at("fields"));
+        bool exhaustive = v.get("exhaustive", false);
+        ctx.set_exhaustive_tune_flag(exhaustive);
+        auto output = op.compute_shape(inputs);
+        op.finalize(gctx, output, inputs);
         auto t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
         std::cout << op << ": " << t << "ms" << std::endl;
     }

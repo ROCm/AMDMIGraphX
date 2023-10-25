@@ -30,6 +30,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/half.hpp>
+#include <migraphx/verify.hpp>
 #include "test.hpp"
 
 TEST_CASE(averagepool_notset_test)
@@ -1786,7 +1787,7 @@ TEST_CASE(resize_downsample_f_dyn_test)
                 72.1f, 73.1f, 75.1f, 76.1f, 78.1f};
     // clang-format on
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector, migraphx::verify::expected{gold}));
 }
 
 TEST_CASE(resize_upsample_f_dyn_test)
@@ -1822,7 +1823,9 @@ TEST_CASE(resize_upsample_f_dyn_test)
         25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
     // clang-format on
 
-    EXPECT(migraphx::verify::verify_range(result_vector, gold));
+    // Using verify_range_with_tolerance() because floating-point
+    // rounding errorswere observed.
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector, migraphx::verify::expected{gold}));
 }
 
 TEST_CASE(resize_upsample_linear_ac_test)

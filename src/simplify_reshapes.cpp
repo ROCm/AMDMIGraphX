@@ -194,7 +194,10 @@ struct find_nested_convert
 
 struct find_nested_slice
 {
-    auto matcher() const { return match::name("slice")(match::arg(0)(match::used_once(), match::name("slice"))); }
+    auto matcher() const
+    {
+        return match::name("slice")(match::arg(0)(match::used_once(), match::name("slice")));
+    }
 
     using axes_map = std::map<std::size_t, std::pair<std::size_t, std::size_t>>;
 

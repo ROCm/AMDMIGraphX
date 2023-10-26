@@ -6616,13 +6616,12 @@ def resize_downsample_f_dyn_test():
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
-    node = onnx.helper.make_node(
-        'Resize',
-        inputs=['X', '', 'scales'],
-        outputs=['Y'],
-        coordinate_transformation_mode='asymmetric',
-        mode='nearest',
-        nearest_mode='floor')
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
 
     return ([node], [X], [Y], [scale_tensor])
 
@@ -6638,13 +6637,12 @@ def resize_upsample_f_dyn_test():
     X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 3, 5])
     Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
-    node = onnx.helper.make_node(
-        'Resize',
-        inputs=['X', '', 'scales'],
-        outputs=['Y'],
-        coordinate_transformation_mode='half_pixel',
-        mode='nearest',
-        nearest_mode='round_prefer_ceil')
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='nearest',
+                                 nearest_mode='round_prefer_ceil')
 
     return ([node], [X], [Y], [scale_tensor])
 

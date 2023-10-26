@@ -209,7 +209,7 @@ struct parse_resize : op_parser<parse_resize>
             bool mostly_fixed =
                 std::all_of(some_dims.begin() + 1,
                             some_dims.end(),
-                            [](shape::dynamic_dimension dd) { return dd.is_fixed(); });
+                            [](const shape::dynamic_dimension& dd) { return dd.is_fixed(); });
 
             if(not mostly_fixed)
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +
@@ -261,12 +261,12 @@ struct parse_resize : op_parser<parse_resize>
                     // Put the value into index vector
                 }
                 // Create a 1D shape literal
-                auto index_litA = info.add_literal(literal(
+                auto index_lit = info.add_literal(literal(
                     migraphx::shape(migraphx::shape::int64_type, {fixed_out_lens[ii]}), in_idx));
 
                 // add a "gather" instruction
                 gather_ins = info.add_instruction(
-                    make_op("gather", {{"axis", 1 + ii}}), gather_ins, index_litA);
+                    make_op("gather", {{"axis", 1 + ii}}), gather_ins, index_lit);
             }
             return gather_ins;
         }
@@ -314,20 +314,15 @@ struct parse_resize : op_parser<parse_resize>
         // Look at inputs and infer either output size or scale, depending on input type
         for(const auto& arg : args)
         {
-            if(arg->name() == "undefined" or arg == args.front())
-            {
-                continue;
-            }
-
             if(arg != args[0] and arg->get_shape().dynamic())
             {
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +
                                ": no dynamic input shapes allowed except the first one");
             }
 
-            // skip any empty inputs
-            auto lens = arg->get_shape().lens();
-            if(lens.empty())
+            // skip first input and any empty inputs
+            auto lens = arg->get_shape().to_static(1).lens();
+            if(arg->name() == "undefined" or arg == args.front() or lens.empty())
             {
                 continue;
             }

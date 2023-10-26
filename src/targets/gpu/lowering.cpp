@@ -83,7 +83,6 @@ struct miopen_apply
         assert(mod != nullptr);
         assert(pass != nullptr);
 
-        auto& ctx    = get_context();
         compute_fp32 = get_compute_fp32_flag();
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 

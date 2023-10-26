@@ -1757,6 +1757,39 @@ TEST_CASE(resize_downsample_f_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+
+TEST_CASE(resize_outsize_test)
+{
+    // resize using output_size input, rather than scales
+    migraphx::program p = migraphx::parse_onnx("resize_outsize_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+    std::vector<float> dy(sx.elements(), 0);
+ 
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+    pp["Y"] = migraphx::argument(sx, dy.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = {0.1f, 0.1f, 1.1f, 1.1f, 1.1f, 1.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+
 TEST_CASE(resize_downsample_f_dyn_test)
 {
     migraphx::onnx_options options;
@@ -1776,7 +1809,7 @@ TEST_CASE(resize_downsample_f_dyn_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
- 
+
     // clang-format off
     std::vector<float> gold = {
                 0.1f,   1.1f,   3.1f,  4.1f,  6.1f, 
@@ -1787,7 +1820,8 @@ TEST_CASE(resize_downsample_f_dyn_test)
                 72.1f, 73.1f, 75.1f, 76.1f, 78.1f};
     // clang-format on
 
-    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
 }
 
 TEST_CASE(resize_upsample_f_dyn_test)
@@ -1806,11 +1840,11 @@ TEST_CASE(resize_upsample_f_dyn_test)
     std::iota(dx.begin(), dx.end(), 0.1f);
 
     migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(sx, dx.data());
+    pp["X"]     = migraphx::argument(sx, dx.data());
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
- 
+
     // clang-format off
     std::vector<float> gold = { 
         0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
@@ -1825,7 +1859,8 @@ TEST_CASE(resize_upsample_f_dyn_test)
 
     // Using verify_range_with_tolerance() because floating-point
     // rounding errorswere observed.
-    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector, migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
 }
 
 TEST_CASE(resize_upsample_linear_ac_test)

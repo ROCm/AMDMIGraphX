@@ -277,14 +277,14 @@ TEST_CASE(convolution_backwards_dyn_batch2)
     params["x"] = migraphx::argument(input_fixed_shape, x_data.data());
     auto result = p.eval(params).back();
 
-    //clang-format off
+    // clang-format off
     std::vector<float> gold{12.,  0., 21.,  0., 27.,  0., 33.,  0., 24.,  0., 0.,  0., 0.,   0.,
                             0.,   0., 0.,   0., 33.,  0., 54.,  0., 63.,  0., 72., 0., 51.,  0.,
                             0.,   0., 0.,   0., 0.,   0., 0.,   0., 63.,  0., 99., 0., 108., 0.,
                             117., 0., 81.,  0., 0.,   0., 0.,   0., 0.,   0., 0.,  0., 93.,  0.,
                             144., 0., 153., 0., 162., 0., 111., 0., 0.,   0., 0.,  0., 0.,   0.,
                             0.,   0., 72.,  0., 111., 0., 117., 0., 123., 0., 84.};
-    //clang-format on
+    // clang-format on
 
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });

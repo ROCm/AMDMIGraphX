@@ -128,8 +128,6 @@ add_library(migraphx_gpu
     gather.cpp
     gemm_impl.cpp
     hip.cpp
-    int8_conv_pack.cpp
-    int8_gemm_pack.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp

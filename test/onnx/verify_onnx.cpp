@@ -1757,7 +1757,6 @@ TEST_CASE(resize_downsample_f_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-
 TEST_CASE(resize_outsize_test)
 {
     // resize using output_size input, rather than scales
@@ -1770,7 +1769,7 @@ TEST_CASE(resize_outsize_test)
 
     migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
     std::vector<float> dy(sx.elements(), 0);
- 
+
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
     pp["Y"] = migraphx::argument(sx, dy.data());
@@ -1788,7 +1787,6 @@ TEST_CASE(resize_outsize_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
 
 TEST_CASE(resize_downsample_f_dyn_test)
 {

@@ -6287,9 +6287,9 @@ TEST_CASE(resize_downsample_f_dyn_test)
     std::vector<int> ind3 = {0, 1, 3, 4, 6};
     auto li3              = mm->add_literal(migraphx::literal(si3, ind3));
 
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), inx, li1);
-    r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), r, li2);
-    r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), r, li3);
+    auto r = mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), inx, li1);
+    r      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), r, li2);
+    r      = mm->add_instruction(migraphx::make_op("gather", {{"axis", 3}}), r, li3);
     mm->add_return({r});
 
     migraphx::onnx_options options;

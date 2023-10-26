@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,8 @@ argument hip_argmin::compute(context& ctx, const shape&, const std::vector<argum
 {
     auto n_dim         = args.front().get_shape().lens().size();
     int64_t tuned_axis = tune_axis(n_dim, op.axis, op.name());
-    device::argmin(ctx.get_stream().get(), args.back(), args.front(), tuned_axis);
+    device::argmin(
+        ctx.get_stream().get(), args.back(), args.front(), tuned_axis, op.select_last_index);
     return args.back();
 }
 

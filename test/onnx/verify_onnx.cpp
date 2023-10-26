@@ -27,7 +27,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/verify.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/half.hpp>
 #include <migraphx/verify.hpp>

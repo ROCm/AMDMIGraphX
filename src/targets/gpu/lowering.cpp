@@ -61,9 +61,8 @@ struct miopen_apply
     const lowering* pass     = nullptr;
     std::unordered_map<std::string, std::function<instruction_ref(instruction_ref)>> apply_map{};
     instruction_ref last{};
-    bool offload_copy   = false;
-    bool int8_x4_format = true;
-    bool compute_fp32   = false;
+    bool offload_copy = false;
+    bool compute_fp32 = false;
 
     context& get_context() const
     {
@@ -84,10 +83,9 @@ struct miopen_apply
         assert(mod != nullptr);
         assert(pass != nullptr);
 
-        auto& ctx      = get_context();
-        int8_x4_format = get_int8_x4_format(ctx);
-        compute_fp32   = get_compute_fp32_flag();
-        offload_copy   = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
+        auto& ctx    = get_context();
+        compute_fp32 = get_compute_fp32_flag();
+        offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
         add_extend_op("argmax");
@@ -231,18 +229,15 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(
-                ins, rocblas_gemm<Op>{Op{}, 1, 0, int8_x4_format, compute_fp32}, refs);
+            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }
 
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            operation conv = make_op(
-                "gpu::" + name,
-                {{"op", ins->get_operator().to_value()}, {"int8_x4_format", int8_x4_format}});
-            auto output = insert_allocation(ins, ins->get_shape());
+            operation conv = make_op("gpu::" + name, {{"op", ins->get_operator().to_value()}});
+            auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(ins,
                                             make_op("gpu::miopen_op", {{"op", to_value(conv)}}),

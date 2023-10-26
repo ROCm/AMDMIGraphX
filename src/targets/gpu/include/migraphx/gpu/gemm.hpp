@@ -50,7 +50,6 @@ struct rocblas_gemm
     Op op;
     float alpha          = 1;
     float beta           = 0;
-    bool int8_x4_format  = true;
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
 
@@ -60,7 +59,6 @@ struct rocblas_gemm
         return pack_join(migraphx::reflect(self.op, f),
                          pack(f(self.alpha, "alpha"),
                               f(self.beta, "beta"),
-                              f(self.int8_x4_format, "int8_x4_format"),
                               f(self.compute_fp32, "compute_fp32"),
                               f(self.trans_batch, "trans_batch")));
     }
@@ -113,7 +111,7 @@ struct rocblas_gemm
     {
         if(this->name() == "gpu::gemm")
         {
-            gemm(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
+            gemm(ctx, output_shape, args, alpha, beta, compute_fp32);
         }
         else
         {
@@ -122,7 +120,6 @@ struct rocblas_gemm
                  args,
                  int32_t(alpha),
                  int32_t(beta),
-                 int8_x4_format,
                  compute_fp32);
         }
         return args.back();

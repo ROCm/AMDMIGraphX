@@ -140,7 +140,6 @@ add_library(migraphx_gpu
     no_device.cpp
     nonzero.cpp
     pack_args.cpp
-    pack_int8_args.cpp
     prefuse_ops.cpp
     pad.cpp
     perfdb.cpp
@@ -184,17 +183,12 @@ register_migraphx_gpu_ops(hip_
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
-    int8_conv_pack
     lrn
     pooling
 )
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/int8_gemm_pack.hpp
-    OPERATORS gpu::hip_int8_gemm_pack_a gpu::hip_int8_gemm_pack_b
     INCLUDES migraphx/gpu/context.hpp)
 register_op(migraphx_gpu
     HEADER migraphx/gpu/gemm.hpp

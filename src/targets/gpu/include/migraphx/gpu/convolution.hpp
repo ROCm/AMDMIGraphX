@@ -57,7 +57,6 @@ template <class Op>
 struct miopen_convolution
 {
     Op op;
-    bool int8_x4_format               = false;
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
 #ifdef MIGRAPHX_HAS_FIND_2_API
@@ -74,7 +73,6 @@ struct miopen_convolution
                     f(self.solution_object, "solution_object"),
 #endif
                     f(self.algo, "algo"),
-                    f(self.int8_x4_format, "int8_x4_format"),
                     f(self.solution_id, "solution_id"));
     }
 
@@ -94,8 +92,8 @@ struct miopen_convolution
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()), int8_x4_format);
-        auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()), int8_x4_format);
+        auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()));
+        auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()));
         auto y_desc = make_tensor(reshape_if_1d(output_shape));
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         auto workspace_size        = args[2].get_shape().bytes();
@@ -162,8 +160,8 @@ struct miopen_convolution
     shape find(context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
     {
         shape workspace_shape{};
-        auto x_desc = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
-        auto w_desc = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
+        auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+        auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
         auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
@@ -181,11 +179,6 @@ struct miopen_convolution
 
         auto x_shape = inputs[0];
         auto w_shape = inputs[1];
-        if(int8_x4_format)
-        {
-            x_shape = pack_int8_shape(x_shape);
-            w_shape = pack_int8_shape(w_shape);
-        }
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
@@ -327,8 +320,8 @@ struct miopen_convolution
                                    ": workspace has changed during finalization.");
             }
 
-            auto x_desc = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
-            auto w_desc = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
+            auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+            auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
             auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
             auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
@@ -346,21 +339,6 @@ struct miopen_convolution
     inline std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
-    }
-
-    inline shape pack_int8_shape(const shape& s) const
-    {
-        if(s.type() != shape::int8_type)
-        {
-            return s;
-        }
-
-        auto lens    = s.lens();
-        auto strides = s.strides();
-        lens[1]      = (lens[1] + 3) / 4 * 4;
-        strides[0]   = strides[1] * lens[1];
-
-        return {s.type(), lens, strides};
     }
 };
 

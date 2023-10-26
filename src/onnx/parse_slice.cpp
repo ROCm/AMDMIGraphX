@@ -152,10 +152,6 @@ struct parse_slice : op_parser<parse_slice>
             if(sd.op.axes.empty())
                 MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
         }
-        else
-        {
-            sd.steps.clear();
-        }
 
         assert(sd.steps.empty() or sd.steps.size() == sd.op.axes.size());
 

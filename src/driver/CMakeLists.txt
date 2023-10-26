@@ -55,6 +55,9 @@ if(MIGRAPHX_ENABLE_PYTHON)
     target_compile_definitions(driver PRIVATE MIGRAPHX_ENABLE_PYTHON)
 endif()
 
-rocm_install_targets(
-  TARGETS driver
-)
+# For ASAN Enabled Build no need to package binaries
+if( NOT ENABLE_ASAN_PACKAGING )
+  rocm_install_targets(
+    TARGETS driver
+  )
+endif()

@@ -30,8 +30,8 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 #include <vector>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,10 +70,16 @@ auto stream_write_value_impl(rank<1>, std::ostream& os, const T& x) -> decltype(
 }
 
 template <class T>
-auto stream_write_value_impl(rank<1>, std::ostream& os, const std::optional<T>& x)
-    -> decltype(os << x.value(), void())
+auto stream_write_value_impl(rank<1>, std::ostream& os, const optional<T>& x)
 {
-    os << *x;
+    if(x.has_value())
+    {
+        os << *x;
+    }
+    else
+    {
+        os << "nullopt";
+    }
 }
 
 template <class T>

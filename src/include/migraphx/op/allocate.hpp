@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,16 +41,16 @@ namespace op {
  * Dynamic allocate:
  * One input: `allocate(output_dims)`
  * `output_dims` are the output buffer dimensions and has a static shape.
- * Either `this.s` or `this.buf_type` must be set to calculate the dynamic output shape at compute
- * time. If `this.buf_type` is set, the compute_shape() of allocate at compile time will have
- * dynamic_dimensions from {0, max_int} with rank = output_dims.ndim(). If `this.s` is set then the
- * compute_shape() will output `this.s`; `this.s` should be a dynamic shape.
+ * Either `this.s` or `this.buf_type` (but not both) must be set to calculate the dynamic output
+ * shape at compute time. If `this.buf_type` is set, the compute_shape() of allocate at compile time
+ * will have dynamic_dimensions from {0, max_int} with rank = output_dims.ndim(). If `this.s` is set
+ * then the compute_shape() will output `this.s`; `this.s` should be a dynamic shape.
  */
 struct allocate
 {
-    std::optional<shape> s;
+    optional<shape> s;
     // for dynamic allocate to set the buffer type
-    std::optional<shape::type_t> buf_type;
+    optional<shape::type_t> buf_type;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -62,9 +62,9 @@ struct allocate
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        if(s)
+        if(s.has_value())
         {
-            if(buf_type)
+            if(buf_type.has_value())
             {
                 MIGRAPHX_THROW("ALLOCATE: shape and buf_type attributes both set");
             }
@@ -80,11 +80,11 @@ struct allocate
                 }
                 migraphx::check_shapes{inputs, *this, false}.has(0);
             }
-            return *s;
+            return s.value();
         }
         else
         {
-            if(not buf_type)
+            if(not buf_type.has_value())
             {
                 MIGRAPHX_THROW("ALLOCATE: shape and buf_type attributes both not set");
             }
@@ -93,7 +93,7 @@ struct allocate
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(out_dims.lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});
-            return {*buf_type, dyn_dims};
+            return {buf_type.value(), dyn_dims};
         }
     }
     argument compute(const shape& output_shape, const std::vector<argument>& args) const

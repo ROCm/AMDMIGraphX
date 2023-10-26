@@ -115,12 +115,7 @@ struct rocblas_gemm
         }
         else
         {
-            gemm(ctx,
-                 output_shape,
-                 args,
-                 int32_t(alpha),
-                 int32_t(beta),
-                 compute_fp32);
+            gemm(ctx, output_shape, args, int32_t(alpha), int32_t(beta), compute_fp32);
         }
         return args.back();
     }

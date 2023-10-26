@@ -151,8 +151,9 @@ struct find_static_dimensions_of
         {
             // check if dynamic dimensions from start to end are fixed
             auto dds = input->get_shape().dyn_dims();
-            if(std::any_of(
-                   dds.begin() + start, dds.end() + end, [](auto dd) { return not dd.is_fixed(); }))
+            if(std::any_of(dds.begin() + start, dds.begin() + end, [](auto dd) {
+                   return not dd.is_fixed();
+               }))
             {
                 return;
             }

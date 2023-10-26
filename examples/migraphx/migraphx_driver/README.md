@@ -149,8 +149,6 @@ gpu::gelu
 gpu::gelu_new
 gpu::gemm
 gpu::greater
-gpu::int8_gemm_pack_a
-gpu::int8_gemm_pack_b
 gpu::layernorm
 gpu::leaky_relu
 gpu::less

@@ -94,7 +94,7 @@ struct miopen_convolution
     {
         auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()));
         auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()));
-        auto y_desc = make_tensor(reshape_if_1d(output_shape));
+        auto y_desc                = make_tensor(reshape_if_1d(output_shape));
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         auto workspace_size        = args[2].get_shape().bytes();
 
@@ -177,8 +177,8 @@ struct miopen_convolution
 
         workspace_shape = shape{shape::int8_type, {workspace_size}};
 
-        auto x_shape = inputs[0];
-        auto w_shape = inputs[1];
+        const auto& x_shape = inputs[0];
+        const auto& w_shape = inputs[1];
 
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {

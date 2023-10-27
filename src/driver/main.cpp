@@ -811,7 +811,11 @@ struct main_command
 using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
-    std::vector<std::string> args(argv + 1, argv + argc);
+    std::vector<std::string> cmd_args(argv, argv + argc);
+    std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
+    std::cout << "Running " << cmd_string << std::endl;
+    
+    std::vector<std::string> args(cmd_args.begin() + 1, cmd_args.end());
 
     // no argument, print the help infomration by default
     if(args.empty())
@@ -820,22 +824,23 @@ int main(int argc, const char* argv[])
     }
 
     auto&& m = get_commands();
-    auto cmd = args.front();
+    auto cmd_migx = args.front();
 
-    if(cmd == "ort-sha")
+    if(cmd_migx == "ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
         return 0;
     }
 
-    if(m.count(cmd) > 0)
+    if(m.count(cmd_migx) > 0)
     {
-        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
+        m.at(cmd_migx)(argv[0], {args.begin() + 1, args.end()});
     }
     else
     {
         run_command<main_command>(argv[0], args);
     }
 
+    std::cout << "command [ " << cmd_string << " ] was successful." << std::endl;
     return 0;
 }

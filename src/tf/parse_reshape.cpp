@@ -45,8 +45,7 @@ struct parse_reshape : op_parser<parse_reshape>
         auto s = args[1]->eval();
         std::vector<int64_t> dims;
         s.visit([&](auto v) { copy(v, std::back_inserter(dims)); });
-        return info.add_instruction(make_op("reshape", {{"dims", dims}}),
-                                    info.make_contiguous(args[0]));
+        return info.add_instruction(make_op("reshape", {{"dims", dims}}), args[0]);
     }
 };
 

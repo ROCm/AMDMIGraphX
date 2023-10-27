@@ -33,6 +33,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 

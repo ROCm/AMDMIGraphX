@@ -47,7 +47,7 @@ TEST_CASE(argmin_test_0)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmin_test_1)
@@ -66,7 +66,7 @@ TEST_CASE(argmin_test_1)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmin_test_2)
@@ -85,7 +85,7 @@ TEST_CASE(argmin_test_2)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmin_test_neg_1)
@@ -104,7 +104,7 @@ TEST_CASE(argmin_test_neg_1)
     std::vector<int64_t> result_vec;
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
 
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }
 
 TEST_CASE(argmin_test_nonstd_shape)
@@ -123,5 +123,39 @@ TEST_CASE(argmin_test_nonstd_shape)
     result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
     std::vector<int64_t> res_gold_vec;
     res_gold.visit([&](auto output) { res_gold_vec.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(result_vec, res_gold_vec));
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold_vec));
+}
+
+TEST_CASE(argmin_test_select_last_index_0)
+{
+    migraphx::program p;
+    auto* mm                      = p.get_main_module();
+    std::vector<float> data       = {-2.0305, 0.853, -2.0305, 1.5706, 0.7545, 0.7545};
+    std::vector<int64_t> res_gold = {2, 2};
+    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3}};
+    auto dl = mm->add_literal(migraphx::literal{data_shape, data});
+    mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}, {"select_last_index", true}}),
+                        dl);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<int64_t> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
+}
+
+TEST_CASE(argmin_test_select_last_index_1)
+{
+    migraphx::program p;
+    auto* mm                      = p.get_main_module();
+    std::vector<float> data       = {-2.0305, 0.853, -2.0305, 1.5706, 0.7545, 0.7545};
+    std::vector<int64_t> res_gold = {0, 1};
+    migraphx::shape data_shape{migraphx::shape::float_type, {2, 3}};
+    auto dl = mm->add_literal(migraphx::literal{data_shape, data});
+    mm->add_instruction(migraphx::make_op("argmin", {{"axis", 1}, {"select_last_index", false}}),
+                        dl);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<int64_t> result_vec;
+    result.visit([&](auto output) { result_vec.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(result_vec, res_gold));
 }

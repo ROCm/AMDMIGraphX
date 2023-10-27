@@ -290,7 +290,7 @@ bool is_hip_clang_compiler()
 
 bool has_compiler_launcher()
 {
-    static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER);
+    static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER); // NOLINT
     return result;
 }
 

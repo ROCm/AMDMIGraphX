@@ -761,7 +761,8 @@ struct main_command
     {
         std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
                                   "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." MIGRAPHX_VERSION_TWEAK;
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) +
+                                  "." MIGRAPHX_VERSION_TWEAK;
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,

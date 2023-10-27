@@ -814,7 +814,7 @@ int main(int argc, const char* argv[])
     std::vector<std::string> cmd_args(argv, argv + argc);
     std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
     std::cout << "Running " << cmd_string << std::endl;
-    
+
     std::vector<std::string> args(cmd_args.begin() + 1, cmd_args.end());
 
     // no argument, print the help infomration by default

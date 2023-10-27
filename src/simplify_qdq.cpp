@@ -60,20 +60,38 @@ MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
 
 struct match_find_quantizable_ops
 {
+    static bool
+    is_valid_scale(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    {
+        return scale->get_shape().scalar() or scale->get_shape().elements() == lens.at(axis);
+    }
+
+    static auto
+    scale_broadcast_op(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    {
+        if(scale->get_shape().scalar())
+        {
+            return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
+        }
+        else
+        {
+            return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
+        }
+    }
 
     static auto dequantizelinear_op(const std::string& name, const std::string& scale)
     {
         return match::name("dequantizelinear")(
             match::arg(0)(match::skip(match::name("quantizelinear"))(match::any().bind(name))),
-            match::arg(1)(match::skip_broadcasts(has_same_value().bind(scale))),
+            match::arg(1)(match::skip_broadcasts(match::name("@literal").bind(scale))),
             match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
     }
 
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(dequantizelinear_op("x1", "scale1")),
-            match::arg(1)(dequantizelinear_op("x2", "scale2")));
+            match::arg(0)(match::skip_broadcasts(dequantizelinear_op("x1", "scale1"))),
+            match::arg(1)(match::skip_broadcasts(dequantizelinear_op("x2", "scale2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -89,15 +107,15 @@ struct match_find_quantizable_ops
            q2->get_shape().type() != migraphx::shape::int8_type)
             return;
 
-        double scale;
-        visit_all(scale1->get_literal(), scale2->get_literal())(
-            [&](const auto s1, const auto s2) { scale = s1.front() * s2.front(); });
+        // Only support scalar and 1D scales
+        if(scale1->get_shape().lens().size() != 1 or scale2->get_shape().lens().size() != 1)
+            return;
 
         auto qop_args  = qop->inputs();
         qop_args.at(0) = q1;
         qop_args.at(1) = q2;
         instruction_ref dq;
-        instruction_ref dq_scale;
+        instruction_ref out_scale;
         instruction_ref zero_point;
         if(qop->name() == "convolution")
         {
@@ -107,15 +125,24 @@ struct match_find_quantizable_ops
         }
         else if(qop->name() == "dot")
         {
-            dq = m.insert_instruction(qop, migraphx::make_op("quant_dot"), qop_args);
-        }
-        auto ins_type = qop->get_shape().type();
-        dq_scale      = m.add_literal(literal({ins_type}, {scale}));
+            dq            = m.insert_instruction(qop, migraphx::make_op("quant_dot"), qop_args);
+            auto out_lens = dq->get_shape().lens();
 
-        auto lens = dq->get_shape().lens();
-        auto scale_mb =
-            m.insert_instruction(qop, make_op("multibroadcast", {{"out_lens", lens}}), dq_scale);
-        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, scale_mb);
+            // For (..., M, N) x (..., N, K) dot, only support cases where quantization axis is M
+            // for input1 and K for input 2
+            if(not(is_valid_scale(scale1, out_lens, out_lens.size() - 2) and
+                   is_valid_scale(scale2, out_lens, out_lens.size() - 1)))
+                return;
+
+            auto s1_bcast = m.insert_instruction(
+                qop, scale_broadcast_op(scale1, out_lens, out_lens.size() - 2), scale1);
+            auto s2_bcast = m.insert_instruction(
+                qop, scale_broadcast_op(scale2, out_lens, out_lens.size() - 1), scale2);
+
+            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
+        }
+
+        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, out_scale);
         m.replace_instruction(qop, dq);
     }
 };

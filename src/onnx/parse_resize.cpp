@@ -438,8 +438,9 @@ struct parse_resize : op_parser<parse_resize>
 
                 // get the number of dimensions
                 std::size_t n_dim = out_lens.size();
-                auto vvv_ind =
-                    std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
+                std::vector<std::vector<std::size_t>> vv_ind(
+                    2, std::vector<std::size_t>(out_elements));
+                std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
                 std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
                 shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {

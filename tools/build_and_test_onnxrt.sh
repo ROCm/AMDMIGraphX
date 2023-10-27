@@ -40,4 +40,4 @@ echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions' >> ../../../tool
 echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions2' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 echo 'InferenceSessionTests.Test3LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 echo 'InferenceSessionTests.Test2LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-../../../tools/ci_build/github/pai/migraphx_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)
+../../../tools/ci_build/github/pai/pai_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)

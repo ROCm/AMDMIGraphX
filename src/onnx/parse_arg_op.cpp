@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,14 +50,25 @@ struct parse_arg_op : op_parser<parse_arg_op>
             keep_dims = parser.parse_value(info.attributes.at("keepdims")).at<int>();
         }
 
+        bool select_last_index = false;
+        if(contains(info.attributes, "select_last_index"))
+        {
+            select_last_index = static_cast<bool>(
+                parser.parse_value(info.attributes.at("select_last_index")).at<int>());
+        }
+
         if(keep_dims == 0)
         {
-            auto ins = info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
+            auto ins = info.add_instruction(
+                make_op(opd.op_name, {{"axis", axis}, {"select_last_index", select_last_index}}),
+                args);
             return info.add_instruction(make_op("squeeze", {{"axes", {axis}}}), ins);
         }
         else
         {
-            return info.add_instruction(make_op(opd.op_name, {{"axis", axis}}), args);
+            return info.add_instruction(
+                make_op(opd.op_name, {{"axis", axis}, {"select_last_index", select_last_index}}),
+                args);
         }
     }
 };

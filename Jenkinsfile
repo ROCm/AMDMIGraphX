@@ -93,6 +93,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "mi100+") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
+    } else if(name == "mi200") {
+        node_name = "${rocmtest_name} && (gfx90a) && !vm && lockhart";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "nogpu") {
@@ -117,7 +119,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
         }
     }
-}, clang_release: rocmnode('mi100+') { cmake_build ->
+}, clang_release: rocmnode('mi200') { cmake_build ->
     stage('Hip Clang Release') {
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}'")
@@ -127,12 +129,12 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
 //     stage('Hidden symbols') {
 //         cmake_build(flags: "-DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_VISIBILITY_PRESET=hidden -DCMAKE_C_VISIBILITY_PRESET=hidden")
 //     }
-}, all_targets_debug : rocmnode('mi100+') { cmake_build ->
+}, all_targets_debug : rocmnode('mi200') { cmake_build ->
     stage('All targets Release') {
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${gpu_targets}'")
     }
-}, mlir_debug: rocmnode('mi100+') { cmake_build ->
+}, mlir_debug: rocmnode('mi200') { cmake_build ->
     stage('MLIR Debug') {
         withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1']) {
             def sanitizers = "undefined"
@@ -143,7 +145,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }
-}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
+}, ck_hiprtc: rocmnode('mi200') { cmake_build ->
     stage('CK hipRTC') {
         withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1', 'MIGRAPHX_DISABLE_MLIR=1']) {
             def gpu_targets = getgputargets()
@@ -172,7 +174,7 @@ def onnxnode(name, body) {
     }
 }
 
-rocmtest onnx: onnxnode('mi100+') { cmake_build ->
+rocmtest onnx: onnxnode('mi200') { cmake_build ->
     stage("Onnx runtime") {
         sh '''
             apt install half

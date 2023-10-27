@@ -87,11 +87,30 @@ struct match_find_quantizable_ops
             match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
     }
 
+    // Helper function to insert quantized versions of any broadcasts and transpose ops that
+    // occur between dequantizelinear and the quantized op
+    static auto
+    propagate_quantized_ins(module& m, const instruction_ref qins, const instruction_ref qop)
+    {
+        auto qinp     = qins;
+        auto next_ins = qinp->outputs().front();
+
+        while(next_ins != qop)
+        {
+            if(next_ins->name() != "dequantizelinear")
+            {
+                qinp = m.insert_instruction(qop, next_ins->get_operator(), qinp);
+            }
+            next_ins = next_ins->outputs().front();
+        }
+        return qinp;
+    }
+
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(match::skip_broadcasts(dequantizelinear_op("x1", "scale1"))),
-            match::arg(1)(match::skip_broadcasts(dequantizelinear_op("x2", "scale2"))));
+            match::arg(0)(match::skip_broadcasts_transposes(dequantizelinear_op("x1", "scale1"))),
+            match::arg(1)(match::skip_broadcasts_transposes(dequantizelinear_op("x2", "scale2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -111,9 +130,10 @@ struct match_find_quantizable_ops
         if(scale1->get_shape().lens().size() != 1 or scale2->get_shape().lens().size() != 1)
             return;
 
+        // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = q1;
-        qop_args.at(1) = q2;
+        qop_args.at(0) = propagate_quantized_ins(m, q1, qop);
+        qop_args.at(1) = propagate_quantized_ins(m, q2, qop);
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref zero_point;

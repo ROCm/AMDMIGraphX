@@ -844,6 +844,12 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
+template <class... Ms>
+auto skip_broadcasts_transposes(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous", "transpose"))(ms...);
+}
+
 template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {

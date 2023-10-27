@@ -24,8 +24,6 @@
 import argparse
 import numpy as np
 import migraphx
-import onnx
-from onnxconverter_common import float16
 import onnxruntime as ort
 import sys
 
@@ -261,14 +259,6 @@ def main():
         if args.ort_logging:
             sess_op.log_verbosity_level = 0
             sess_op.log_severity_level = 0
-
-        if args.fp16:
-            fp32_model = onnx.load(model_name)
-            fp16_model = float16.convert_float_to_float16(fp32_model,
-                                                          keep_io_types=True)
-            new_model_name = model_name.replace('.onnx', '_fp16.onnx')
-            onnx.save(fp16_model, new_model_name)
-            model_name = new_model_name
 
         sess = ort.InferenceSession(model_name,
                                     sess_options=sess_op,

@@ -32,6 +32,12 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+verify::tolerance get_tolerances(const program& p,
+                                 precision quantize,
+                                 std::optional<double> rms_tol,
+                                 std::optional<double> atol,
+                                 std::optional<double> rtol);
+
 void verify_program(const std::string& name,
                     const program& p,
                     const target& t,

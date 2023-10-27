@@ -66,16 +66,6 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
 def disabled_tests_onnx_1_7_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_argmax_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_no_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(r'test_argmin_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_no_keepdims_example_select_last_index_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
     backend_test.exclude(r'test_logsoftmax_default_axis_cpu')
@@ -154,7 +144,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
     backend_test.exclude(r'test_mod_mixed_sign_int32_cpu')
     backend_test.exclude(r'test_mod_mixed_sign_int8_cpu')
-    backend_test.exclude(r'test_mvn_cpu')
     backend_test.exclude(
         r'test_negative_log_likelihood_loss_iinput_shape_is_NCd1_weight_ignore_index_cpu'
     )
@@ -249,8 +238,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_reversesequence_time_cpu')
     backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
-    backend_test.exclude(r'test_shrink_hard_cpu')
-    backend_test.exclude(r'test_shrink_soft_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_default_axes_cpu')
     backend_test.exclude(r'test_slice_default_steps_cpu')
@@ -463,7 +450,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_sequence_model6_cpu')
     backend_test.exclude(r'test_sequence_model7_cpu')
     backend_test.exclude(r'test_sequence_model8_cpu')
-    backend_test.exclude(r'test_shrink_cpu')
     backend_test.exclude(r'test_strnorm_model_monday_casesensintive_lower_cpu')
     backend_test.exclude(
         r'test_strnorm_model_monday_casesensintive_nochangecase_cpu')
@@ -594,9 +580,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     backend_test.exclude(r'test_gru_batchwise_cpu')
     backend_test.exclude(r'test_lstm_batchwise_cpu')
     backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
-    backend_test.exclude(r'test_tril_cpu')
-    backend_test.exclude(r'test_tril_one_row_neg_cpu')
-    backend_test.exclude(r'test_tril_square_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
@@ -806,7 +789,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_group_normalization_example_cpu')
     backend_test.exclude(r'test_group_normalization_example_expanded_cpu')
     backend_test.exclude(r'test_mish_cpu')
-    backend_test.exclude(r'test_mvn_expanded_ver18_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_sequence_cpu')
     backend_test.exclude(r'test_optional_get_element_optional_tensor_cpu')
     backend_test.exclude(r'test_optional_get_element_tensor_cpu')

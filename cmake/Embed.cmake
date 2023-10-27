@@ -34,8 +34,10 @@ if(NOT WIN32 AND EMBED_USE_RESOURCES)
 endif()
 
 function(wrap_string)
+    set(options)
     set(oneValueArgs VARIABLE AT_COLUMN)
-    cmake_parse_arguments(PARSE "" "${oneValueArgs}" "" ${ARGN})
+    set(multiValueArgs)
+    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     string(LENGTH ${${PARSE_VARIABLE}} string_length)
     math(EXPR offset "0")
@@ -59,8 +61,10 @@ function(wrap_string)
 endfunction()
 
 function(generate_embed_source EMBED_NAME SRC_FILE HEADER_FILE BASE_DIRECTORY)
+    set(options)
+    set(oneValueArgs)
     set(multiValueArgs SYMBOLS FILES)
-    cmake_parse_arguments(PARSE "" "" "${multiValueArgs}" ${ARGN})
+    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     set(RESOURCE_ID 100)
     foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
@@ -188,8 +192,10 @@ extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SY
 endfunction()
 
 function(add_embed_library EMBED_NAME)
+    set(options)
     set(oneValueArgs BASE_DIRECTORY)
-    cmake_parse_arguments(PARSE "" "${oneValueArgs}" "" ${ARGN})
+    set(multiValueArgs)
+    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     file(MAKE_DIRECTORY ${EMBED_DIR})

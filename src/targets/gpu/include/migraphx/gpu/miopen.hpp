@@ -143,6 +143,7 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
         d = miopenInt32;
     else if(s.type() == shape::int8_type)
     {
+#ifndef _WIN32
         if(pack)
         {
             // update the lens and corresponding strides
@@ -154,6 +155,12 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
         {
             d = miopenInt8;
         }
+#else
+        // MIGraphX on Windows is based on the most recent MIOpen
+        // The support for miopenInt8x4 has been discontinued.
+        (void)pack;
+        d = miopenInt8;
+#endif
     }
     else
     {

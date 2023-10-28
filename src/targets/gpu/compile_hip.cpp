@@ -288,11 +288,15 @@ bool is_hip_clang_compiler()
     return result;
 }
 
+#ifdef MIGRAPHX_HIP_COMPILER_LAUNCHER
+
 bool has_compiler_launcher()
 {
-    static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER); // NOLINT
+    static const auto result = fs::exists(MIGRAPHX_HIP_COMPILER_LAUNCHER);
     return result;
 }
+
+#endif
 
 src_compiler assemble(src_compiler compiler)
 {

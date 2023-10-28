@@ -65,7 +65,7 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(RESOURCE_ID 100)
     foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
         cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE BASE_NAME)
-	if(EMBED_USE_RESOURCES AND WIN32)
+        if(EMBED_USE_RESOURCES AND WIN32)
             string(TOUPPER "${SYMBOL}" SYMBOL)
             string(APPEND FILE_IDS "#define IDR_${SYMBOL} ${RESOURCE_ID}\n")
             string(APPEND RC_MAPPING "IDR_${SYMBOL} TEXTFILE \"${BASE_NAME}\"\n")
@@ -125,7 +125,7 @@ std::string_view read(int id)
 std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
 ")
 
-file(WRITE "${EMBED_DIR}/${EMBED_NAME}.cpp" "
+    file(WRITE "${EMBED_DIR}/${EMBED_NAME}.cpp" "
 #include <${EMBED_NAME}.hpp>
 ${EXTERNS}
 std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
@@ -145,16 +145,16 @@ function(embed_file FILE BASE_DIRECTORY)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
     if(EMBED_USE_RESOURCES)
-	if(NOT WIN32)
-	    set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
-	    add_custom_command(
+        if(NOT WIN32)
+            set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
+            add_custom_command(
                 OUTPUT "${OUTPUT_FILE}"
-		COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
+                COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
                 COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUTPUT_FILE}"
-		WORKING_DIRECTORY "${BASE_DIRECTORY}"
+                WORKING_DIRECTORY "${BASE_DIRECTORY}"
                 DEPENDS "${FILE}"
                 VERBATIM)
-	    set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
+            set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
         endif()
     else()
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
@@ -199,7 +199,10 @@ function(add_embed_library EMBED_NAME)
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
     target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
-    set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)  
+    set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
     add_library(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}> ${OUTPUT_FILES})
+    if(EMBED_USE_RESOURCES AND WIN32)
+        target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
+    endif()
     target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
 endfunction()

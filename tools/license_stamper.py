@@ -153,9 +153,9 @@ def openAndWriteFile(filename, message, commentChar, rfile):
 
                     lastCommitYear = getYearOfLatestCommit(rfile)
 
-                    if not hasKeySequence and lastCommitYear > 2022 (
+                    if not hasKeySequence (
                             save,
-                            f'2015-{lastCommitYear} Advanced Micro Devices'):
+                            f'2015-{lastCommitYear} Advanced Micro Devices') and lastCommitYear > 2022:
                         if debug:
                             print(
                                 f"....Already stamped but wrong year: Updating the year to {current_year}"

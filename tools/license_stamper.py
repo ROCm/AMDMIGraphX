@@ -70,6 +70,7 @@ def hasKeySequence(inputfile, key_message):
 
     return result
 
+
 def getYearOfLatestCommit(rfile: str) -> datetime:
     proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
                            shell=True,
@@ -88,6 +89,7 @@ def updateYear(filename: str) -> None:
 
     with open(filename, 'w') as f:
         f.write(newfileContent)
+
 
 # Header and footer of the comment block
 # modify these if we want some different style

@@ -25,7 +25,7 @@
 import subprocess, os, datetime, re
 
 #Debug flag
-debug = False
+debug = True
 
 current_year = datetime.date.today().year
 

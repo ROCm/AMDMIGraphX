@@ -46,6 +46,7 @@ unknownFiles = []
 
 current_year = datetime.date.today().year
 
+
 def hasKeySequence(inputfile: str, key_message: str) -> bool:
     if key_message in inputfile:
         return True
@@ -75,11 +76,13 @@ def needStampCheck(filename: str) -> bool:
                     yearOfLastCommit = getYearOfLatestCommit(filename)
                     if not hasKeySequence(
                             save,
-                            f"2015-{yearOfLastCommit} Advanced Micro Devices") and yearOfLastCommit > 2022:
+                            f"2015-{yearOfLastCommit} Advanced Micro Devices"
+                    ) and yearOfLastCommit > 2022:
                         if debug: print("....Already Stamped but wrong year")
                         stampedFilesWithBadYear.append(filename)
 
-                    elif debug: print("....Already Stamped: Skipping  file ")
+                    elif debug:
+                        print("....Already Stamped: Skipping  file ")
 
                     contents.close()
                     return False
@@ -126,7 +129,7 @@ def main() -> None:
               " files are currently without a license:")
         print(str(unstampedFiles))
         sys.exit(1)
-    
+
     if len(stampedFilesWithBadYear) > 0:
         print("\nError: The following " + str(len(stampedFilesWithBadYear)) +
               " files licenses do not match the current year:")

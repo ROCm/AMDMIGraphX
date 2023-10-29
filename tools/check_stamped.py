@@ -25,7 +25,7 @@
 import subprocess, sys, datetime
 from license_stamper import getYearOfLatestCommit
 
-debug = True
+debug = False
 # The filetypes we want to check for that are stamped
 # LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",

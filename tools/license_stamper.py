@@ -25,7 +25,7 @@
 import subprocess, os, datetime, re
 
 #Debug flag
-debug = True
+debug = False
 
 current_year = datetime.date.today().year
 
@@ -70,6 +70,24 @@ def hasKeySequence(inputfile, key_message):
 
     return result
 
+def getYearOfLatestCommit(rfile: str) -> datetime:
+    proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
+                           shell=True,
+                           stdout=subprocess.PIPE,
+                           cwd=__repo_dir__)
+    year = datetime.datetime.strptime(proc2.stdout.decode().strip(),
+                                      '%Y-%m-%d').year
+    return year
+
+
+def updateYear(filename: str) -> None:
+    with open(filename, 'r') as f:
+        newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
+                                f'2015-{current_year} Advanced Micro Devices',
+                                f.read())
+
+    with open(filename, 'w') as f:
+        f.write(newfileContent)
 
 # Header and footer of the comment block
 # modify these if we want some different style
@@ -211,26 +229,6 @@ def openAndWriteFile(filename, message, commentChar, rfile):
 
 # Get the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
-
-
-def getYearOfLatestCommit(rfile: str) -> datetime:
-    proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
-                           shell=True,
-                           stdout=subprocess.PIPE,
-                           cwd=__repo_dir__)
-    year = datetime.datetime.strptime(proc2.stdout.decode().strip(),
-                                      '%Y-%m-%d').year
-    return year
-
-
-def updateYear(filename: str) -> None:
-    with open(filename, 'r') as f:
-        newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
-                                f'2015-{current_year} Advanced Micro Devices',
-                                f.read())
-
-    with open(filename, 'w') as f:
-        f.write(newfileContent)
 
 
 def getDelimiter(filename):

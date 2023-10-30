@@ -146,7 +146,10 @@ endfunction()
 
 function(test_headers PREFIX)
     file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
-
+    if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+        list(REMOVE_ITEM HEADERS
+              ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
+    endif()
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)

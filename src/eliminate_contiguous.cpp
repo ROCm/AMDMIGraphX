@@ -41,6 +41,14 @@ static bool try_compute_shape(instruction_ref ins,
                               const std::vector<shape>& inputs,
                               const std::vector<module_ref>& mods)
 {
+    // compute_shape of gpu::contiguous always returns a standard shape
+    // this can propagate false `true` values for non standard shapes in recursive try_compute_shape
+    // calls
+    if(ins->name() == "gpu::contiguous" &&
+       std::any_of(inputs.begin(), inputs.end(), [&](auto& shape) { return not shape.standard(); }))
+    {
+        return false;
+    }
     try
     {
         shape new_shape = ins->get_operator().compute_shape(inputs, mods);

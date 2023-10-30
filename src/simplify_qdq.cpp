@@ -45,19 +45,6 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
-MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
-{
-    if(ins->name() != "@literal")
-        return false;
-    bool all_same = false;
-    ins->get_literal().visit([&](auto s) {
-        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
-            return float_equal(scale, s.front());
-        });
-    });
-    return all_same;
-}
-
 struct match_find_quantizable_ops
 {
     static bool
@@ -79,21 +66,13 @@ struct match_find_quantizable_ops
         }
     }
 
-    static auto dequantizelinear_op(const std::string& name, const std::string& scale)
-    {
-        return match::name("dequantizelinear")(
-            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any().bind(name))),
-            match::arg(1)(match::skip_broadcasts(match::name("@literal").bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
-    }
-
     // Helper function to insert quantized versions of any broadcasts and transpose ops that
     // occur between dequantizelinear and the quantized op
     static auto
-    propagate_quantized_ins(module& m, const instruction_ref qins, const instruction_ref qop)
+    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop)
     {
-        auto qinp     = qins;
-        auto next_ins = qinp->outputs().front();
+        auto qinp     = dqins->inputs().front();
+        auto next_ins = dqins;
 
         while(next_ins != qop)
         {
@@ -106,24 +85,34 @@ struct match_find_quantizable_ops
         return qinp;
     }
 
+    static auto dequantizelinear_op(const std::string& scale)
+    {
+        return match::name("dequantizelinear")(
+            match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
+            match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
+            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
+    }
+
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(match::skip_broadcasts_transposes(dequantizelinear_op("x1", "scale1"))),
-            match::arg(1)(match::skip_broadcasts_transposes(dequantizelinear_op("x2", "scale2"))));
+            match::arg(0)(
+                match::skip_broadcasts_transposes(dequantizelinear_op("scale1").bind("dq1"))),
+            match::arg(1)(
+                match::skip_broadcasts_transposes(dequantizelinear_op("scale2").bind("dq2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto qop    = r.result;
-        auto q1     = r.instructions["x1"];
-        auto q2     = r.instructions["x2"];
+        auto dq1    = r.instructions["dq1"];
+        auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
 
         // Only INT8 type currently supported
-        if(q1->get_shape().type() != migraphx::shape::int8_type or
-           q2->get_shape().type() != migraphx::shape::int8_type)
+        if(dq1->inputs().front()->get_shape().type() != migraphx::shape::int8_type or
+           dq2->inputs().front()->get_shape().type() != migraphx::shape::int8_type)
             return;
 
         // Only support scalar and 1D scales
@@ -132,8 +121,8 @@ struct match_find_quantizable_ops
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = propagate_quantized_ins(m, q1, qop);
-        qop_args.at(1) = propagate_quantized_ins(m, q2, qop);
+        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop);
+        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop);
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref zero_point;
@@ -142,6 +131,19 @@ struct match_find_quantizable_ops
             auto conv_val = qop->get_operator().to_value();
             dq            = m.insert_instruction(
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
+            auto out_lens = dq->get_shape().lens();
+
+            // Input scale should always be scalar and output scale can be scalar or 1D of the
+            // same lens as the channel dim (dim 1)
+            if(not(is_valid_scale(scale1, out_lens, 1) and is_valid_scale(scale2, out_lens, 1)))
+                return;
+
+            auto s1_bcast =
+                m.insert_instruction(qop, scale_broadcast_op(scale1, out_lens, 1), scale1);
+            auto s2_bcast =
+                m.insert_instruction(qop, scale_broadcast_op(scale2, out_lens, 1), scale2);
+
+            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
         }
         else if(qop->name() == "dot")
         {

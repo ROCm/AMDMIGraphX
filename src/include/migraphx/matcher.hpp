@@ -591,6 +591,19 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return false;
+    bool all_same = false;
+    ins->get_literal().visit([&](auto s) {
+        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
+            return float_equal(scale, s.front());
+        });
+    });
+    return all_same;
+}
+
 MIGRAPHX_BASIC_MATCHER(output, const matcher_context&, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
@@ -854,9 +867,10 @@ template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "@literal")
+        if(not ins->can_eval())
             return false;
-        auto l = ins->get_literal();
+
+        auto l = ins->eval();
         if(l.empty())
             return false;
         bool b = false;

@@ -34,8 +34,7 @@ message(STATUS "MIGraphX is using MIOpen")
 find_package(rocblas REQUIRED)
 message(STATUS "MIGraphX build with rocBLAS")
 
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
 
@@ -48,10 +47,10 @@ endif()
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 
-if(WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
@@ -103,8 +102,7 @@ rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
-if(WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM JIT_GPU_SRCS
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
@@ -306,8 +304,7 @@ endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
 endif()
 

@@ -267,10 +267,9 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
 if(NOT WIN32)
-    find_package(PkgConfig)
-    pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
+    find_package(SQLite3 REQUIRED)
 endif()
-target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
+target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 if(NOT WIN32)
     find_package(msgpackc-cxx QUIET)

@@ -137,7 +137,7 @@ struct parse_slice : op_parser<parse_slice>
         sd.always_insert(args.at(0));
 
         // If axes arg is not given, the default is all of them.
-        if(sd.op.axes.empty() and sd.op_args.size() < 3)
+        if(sd.op.axes.empty() and sd.op_args.size() <= 3)
         {
             std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});

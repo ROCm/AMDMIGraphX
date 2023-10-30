@@ -25,7 +25,7 @@
 cmake_policy(SET CMP0057 NEW)
 
 find_package(Threads REQUIRED)
-rocm_test_link_libraries(Threads::Threads migraphx migraphx_ref migraphx_onnx migraphx_tf)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_onnx migraphx_tf)
 rocm_test_include_directories(include)
 
 set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")

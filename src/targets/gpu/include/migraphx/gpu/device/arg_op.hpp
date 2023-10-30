@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,7 +55,7 @@ MIGRAPHX_DEVICE_CONSTEXPR val_index<T> make_val_index(T v, int64_t i)
     return {v, i};
 }
 
-struct argmax_op
+struct argmax_op_first_index
 {
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
@@ -73,7 +73,25 @@ struct argmax_op
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest(); }
 };
 
-struct argmin_op
+struct argmax_op_last_index
+{
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
+    {
+        if(x.val > y.val)
+            return x;
+        else if(x.val < y.val)
+            return y;
+        else
+        {
+            return (x.index > y.index) ? x : y;
+        }
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest(); }
+};
+
+struct argmin_op_first_index
 {
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
@@ -85,6 +103,24 @@ struct argmin_op
         else
         {
             return (x.index < y.index) ? x : y;
+        }
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return highest(); }
+};
+
+struct argmin_op_last_index
+{
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR val_index<T> operator()(val_index<T> x, val_index<T> y) const
+    {
+        if(x.val < y.val)
+            return x;
+        else if(x.val > y.val)
+            return y;
+        else
+        {
+            return (x.index > y.index) ? x : y;
         }
     }
 

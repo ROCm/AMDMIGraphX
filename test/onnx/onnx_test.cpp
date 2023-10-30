@@ -4748,10 +4748,8 @@ TEST_CASE(multinomial_dyn_test)
         migraphx::shape(migraphx::shape::float_type,
                         {input->get_shape().dyn_dims().front(), {sample_size, sample_size}});
 
-    auto alloc = mm->add_instruction(migraphx::make_op("allocate",
-                                                       {{"shape", to_value(compile_shape)},
-                                                        {"buf_type", migraphx::shape::float_type}}),
-                                     alloc_shape);
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}}), alloc_shape);
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
     auto ret     = mm->add_instruction(
@@ -4801,10 +4799,8 @@ TEST_CASE(multinomial_autoseed_dyn_test)
         migraphx::shape(migraphx::shape::float_type,
                         {input->get_shape().dyn_dims().front(), {sample_size, sample_size}});
 
-    auto alloc = mm->add_instruction(migraphx::make_op("allocate",
-                                                       {{"shape", to_value(compile_shape)},
-                                                        {"buf_type", migraphx::shape::float_type}}),
-                                     alloc_shape);
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}}), alloc_shape);
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
     auto ret     = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);

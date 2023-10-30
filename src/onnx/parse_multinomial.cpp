@@ -119,9 +119,7 @@ struct parse_multinomial : op_parser<parse_multinomial>
 
             // Allocate on-device storage for the random values
             auto alloc = info.add_instruction(
-                migraphx::make_op("allocate",
-                                  {{"shape", to_value(compile_shape)}}),
-                alloc_shape);
+                migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}}), alloc_shape);
             randoms = info.add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
         }
         else

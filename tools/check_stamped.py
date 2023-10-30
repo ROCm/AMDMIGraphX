@@ -79,7 +79,8 @@ def needStampCheck(filename: str) -> bool:
                             f"2015-{yearOfLastCommit} Advanced Micro Devices"
                     ) and yearOfLastCommit > 2022:
                         if debug: print("....Already Stamped but wrong year")
-                        stampedFilesWithBadYear.append([filename,yearOfLastCommit])
+                        stampedFilesWithBadYear.append(
+                            [filename, yearOfLastCommit])
 
                     elif debug:
                         print("....Already Stamped: Skipping  file ")

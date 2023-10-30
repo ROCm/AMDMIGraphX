@@ -25,7 +25,7 @@
 cmake_policy(SET CMP0057 NEW)
 
 find_package(Threads REQUIRED)
-rocm_test_link_libraries(Threads::Threads migraphx migraphx_ref migraphx_onnx migraphx_tf)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_onnx migraphx_tf)
 rocm_test_include_directories(include)
 
 set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
@@ -146,7 +146,10 @@ endfunction()
 
 function(test_headers PREFIX)
     file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
-
+    if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+        list(REMOVE_ITEM HEADERS
+              ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
+    endif()
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)

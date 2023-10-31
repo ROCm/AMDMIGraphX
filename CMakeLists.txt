@@ -112,9 +112,17 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+if(WIN32)
+    add_compile_definitions(
+            $<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>
+            $<$<COMPILE_LANGUAGE:C,CXX>:_USE_MATH_DEFINES>)
+endif()
+
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
+else()
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)

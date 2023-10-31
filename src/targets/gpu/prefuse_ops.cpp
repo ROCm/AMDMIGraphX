@@ -23,24 +23,19 @@
  */
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
-#if !defined(_MSC_VER)
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/match/layernorm.hpp>
 #include <migraphx/register_op.hpp>
-#endif
 #include <migraphx/pass_manager.hpp>
-#if !defined(_MSC_VER)
 #include <migraphx/dead_code_elimination.hpp>
-#if MIGRAPHX_USE_COMPOSABLEKERNEL
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
-#endif
 #endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-#if !defined(_MSC_VER)
 namespace {
 
 template <class Derived, std::size_t N>
@@ -129,6 +124,8 @@ struct find_add_layernorm
     }
 };
 
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
+
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
@@ -182,19 +179,18 @@ struct find_gemm_softmax_gemm
     }
 };
 
-} // namespace
 #endif
+
+} // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-#if !defined(_MSC_VER)
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
+#ifdef MIHRAPHX_USE_COMPOSABLEKERNEL
     if(enabled(MIGRAPHX_ENABLE_CK{}))
         match::find_matches(mpm, find_gemm_softmax_gemm{});
-#else
-	(void)mpm;
 #endif
 }
 

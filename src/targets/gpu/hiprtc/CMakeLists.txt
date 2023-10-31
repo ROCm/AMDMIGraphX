@@ -25,9 +25,6 @@
 add_executable(migraphx-hiprtc-driver
     main.cpp
 )
-if(WIN32)
-    target_compile_definitions(migraphx-hiprtc-driver PRIVATE _CRT_SECURE_NO_WARNINGS)
-endif()
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)

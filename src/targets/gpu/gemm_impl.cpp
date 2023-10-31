@@ -108,7 +108,6 @@ void gemm_impl(context& ctx,
                const std::vector<argument>& args,
                T alpha,
                T beta,
-               bool int8_x4_format,
                bool compute_fp32)
 {
     const bool is_3inputs = (args.size() == 4);
@@ -141,11 +140,6 @@ void gemm_impl(context& ctx,
     }
 
     rocblas_gemm_flags flag = rocblas_gemm_flags_none;
-#if ROCBLAS_VERSION_MAJOR < 3
-    if(int8_x4_format)
-        flag = rocblas_gemm_flags_pack_int8x4;
-#endif
-
     auto a_lens = args[0].get_shape().lens();
     auto b_lens = args[1].get_shape().lens();
     output_shape.visit_type([&](auto as) {
@@ -167,10 +161,6 @@ void gemm_impl(context& ctx,
         rocblas_int n   = out_lens[dim_1];
         rocblas_int k   = args[0].get_shape().lens()[dim_1];
         auto to_pointer = [&](auto&& arg) { return as.from(arg.data()); };
-        if(args[0].get_shape().type() == shape::int8_type and (k % 4) != 0 and int8_x4_format)
-        {
-            MIGRAPHX_THROW("ROCBLAS_GEMM: k size of int8 type input must be mutlple of 4!");
-        }
 
         auto num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
@@ -256,10 +246,9 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           float alpha,
           float beta,
-          bool int8_x4_format,
           bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
+    gemm_impl(ctx, output_shape, args, alpha, beta, compute_fp32);
 }
 
 void gemm(context& ctx,
@@ -267,10 +256,9 @@ void gemm(context& ctx,
           const std::vector<argument>& args,
           int32_t alpha,
           int32_t beta,
-          bool int8_x4_format,
           bool compute_fp32)
 {
-    gemm_impl(ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32);
+    gemm_impl(ctx, output_shape, args, alpha, beta, compute_fp32);
 }
 
 } // namespace gpu

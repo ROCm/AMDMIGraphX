@@ -56,11 +56,12 @@
 #include <string>
 #include <utility>
 
-#if defined __HIP_PLATFORM_HCC__
-// MIOpen by default does not have device code in the regular compilation paths,
+#if defined(__HIP_PLATFORM_AMD__) || defined(__HIP_PLATFORM_HCC__)
+// MIGraphX by default does not have device code in the regular compilation paths,
 // therefore, when this file is used from the host side, compilation takes much
 // longer. By guarding the __device__ directive we can control that such compilation
 // only happens for kernels which include this file.
+#include <hip/hip_runtime.h>
 #define MIGRAPHX_HIP_HOST_DEVICE __host__ __device__
 #else
 #define MIGRAPHX_HIP_HOST_DEVICE
@@ -74,7 +75,7 @@ namespace migraphx {
 
 namespace detail {
 
-inline float MIGRAPHX_HIP_HOST_DEVICE fp32_from_bits(uint32_t w)
+inline MIGRAPHX_HIP_HOST_DEVICE float fp32_from_bits(uint32_t w)
 {
     union
     {
@@ -84,7 +85,7 @@ inline float MIGRAPHX_HIP_HOST_DEVICE fp32_from_bits(uint32_t w)
     return fp32.as_value;
 }
 
-inline uint32_t MIGRAPHX_HIP_HOST_DEVICE fp32_to_bits(float f)
+inline MIGRAPHX_HIP_HOST_DEVICE uint32_t fp32_to_bits(float f)
 {
     union
     {
@@ -101,7 +102,7 @@ inline uint32_t MIGRAPHX_HIP_HOST_DEVICE fp32_to_bits(float f)
  *
  * @note The implementation doesn't use any floating-point operations.
  */
-inline float MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz_to_fp32_value(uint8_t input)
+inline MIGRAPHX_HIP_HOST_DEVICE float fp8e4m3fnuz_to_fp32_value(uint8_t input)
 {
     constexpr float e4m3fnuz_lut[256] = {
         0.0f,           0.0009765625f,  0.001953125f,
@@ -199,7 +200,7 @@ inline float MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz_to_fp32_value(uint8_t input)
  * Convert a 32-bit floating-point number in IEEE single-precision format to a
  * 8-bit floating-point number in fp8 E4M3FNUZ format, in bit representation.
  */
-inline uint8_t MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz_from_fp32_value(float f)
+inline MIGRAPHX_HIP_HOST_DEVICE uint8_t fp8e4m3fnuz_from_fp32_value(float f)
 {
     /*
      * Binary representation of 256.0f, which is the first value not representable
@@ -283,9 +284,9 @@ struct alignas(1) fp8e4m3fnuz
     struct from_bits_t
     {
     };
-    __device__ __host__ static constexpr from_bits_t from_bits() { return from_bits_t(); }
+    static constexpr MIGRAPHX_HIP_HOST_DEVICE from_bits_t from_bits() { return from_bits_t(); }
 
-    __device__ __host__ fp8e4m3fnuz() : x(0) {}
+    MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz() : x(0) {}
 
     MIGRAPHX_HIP_HOST_DEVICE constexpr fp8e4m3fnuz(uint8_t bits, from_bits_t) : x(bits) {}
 

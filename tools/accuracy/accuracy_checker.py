@@ -220,10 +220,16 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        params[name] = migraphx.argument(test_input)
+        migraphx_arg = migraphx.argument(test_input)
+        if not args.offload_copy:
+            migraphx_arg = migraphx.to_gpu(migraphx_arg)
+        params[name] = migraphx_arg
 
     if not args.ort_run:
-        pred_migx = np.array(model.run(params)[-1])
+        if not args.offload_copy:
+            pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
+        else:
+            pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
         sess_op = ort.SessionOptions()

@@ -37,8 +37,7 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
 
@@ -51,10 +50,10 @@ endif()
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 
-if(WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
@@ -102,9 +101,10 @@ rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
-if(WIN32)
-    # TODO: re-enable when CK is ported to Windows
-    list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+    list(REMOVE_ITEM JIT_GPU_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
 add_library(migraphx_gpu
@@ -127,8 +127,6 @@ add_library(migraphx_gpu
     gather.cpp
     gemm_impl.cpp
     hip.cpp
-    int8_conv_pack.cpp
-    int8_gemm_pack.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -139,7 +137,6 @@ add_library(migraphx_gpu
     no_device.cpp
     nonzero.cpp
     pack_args.cpp
-    pack_int8_args.cpp
     prefuse_ops.cpp
     pad.cpp
     perfdb.cpp
@@ -183,17 +180,12 @@ register_migraphx_gpu_ops(hip_
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
-    int8_conv_pack
     lrn
     pooling
 )
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/int8_gemm_pack.hpp
-    OPERATORS gpu::hip_int8_gemm_pack_a gpu::hip_int8_gemm_pack_b
     INCLUDES migraphx/gpu/context.hpp)
 register_op(migraphx_gpu
     HEADER migraphx/gpu/gemm.hpp
@@ -280,8 +272,7 @@ endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
 endif()
 

@@ -34,6 +34,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
+#include <migraphx/fp8e4m3fnuz.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
 
@@ -53,6 +54,7 @@ struct MIGRAPHX_EXPORT shape
     m(half_type, half) \
     m(float_type, float) \
     m(double_type, double) \
+    m(float8_type, fp8e4m3fnuz) \
     m(uint8_type, uint8_t) \
     m(int8_type, int8_t) \
     m(uint16_type, uint16_t) \

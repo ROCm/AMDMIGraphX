@@ -25,6 +25,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_TRAITS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TYPE_TRAITS_HPP
 
+#include <migraphx/fp8e4m3fnuz.hpp>
 #include <type_traits>
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
@@ -32,20 +33,29 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#define MIGRAPHX_DETAIL_DEFINE_TRAIT(trait) \
+    template <class X>                      \
+    struct trait : std::trait<X>            \
+    {                                       \
+    };
+
 #define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                             \
-    struct trait : std::trait<X>                   \
-    {                                              \
-    };                                             \
-                                                   \
     template <>                                    \
     struct trait<T> : std::true_type               \
     {                                              \
     };
 
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_floating_point);
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_arithmetic);
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_signed);
+
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
+
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, fp8e4m3fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, fp8e4m3fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, fp8e4m3fnuz)
 
 template <class T>
 using accumulator_type =

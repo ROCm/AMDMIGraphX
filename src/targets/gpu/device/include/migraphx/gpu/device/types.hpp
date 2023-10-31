@@ -146,20 +146,20 @@ __device__ __host__ T to_hip_type(T x)
 // Hip doens't support __fp16
 inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
 
-#define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                             \
-    struct trait : std::trait<X>                   \
-    {                                              \
-    };                                             \
-                                                   \
-    template <>                                    \
-    struct trait<T> : std::true_type               \
-    {                                              \
+#define MIGRAPHX_DETAIL_DEVICE_EXTEND_TRAIT_FOR(trait, T) \
+    template <class X>                                    \
+    struct trait : std::trait<X>                          \
+    {                                                     \
+    };                                                    \
+                                                          \
+    template <>                                           \
+    struct trait<T> : std::true_type                      \
+    {                                                     \
     };
 
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
+MIGRAPHX_DETAIL_DEVICE_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
+MIGRAPHX_DETAIL_DEVICE_EXTEND_TRAIT_FOR(is_signed, __fp16)
+MIGRAPHX_DETAIL_DEVICE_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
 
 } // namespace device
 } // namespace gpu

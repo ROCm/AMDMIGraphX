@@ -42,18 +42,8 @@ foreach(TEST ${TESTS})
 endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
-    set(GPU_TESTS
-        gpu/adjust_allocation.cpp
-        gpu/context_serialize.cpp
-        gpu/hip.cpp
-        gpu/jit.cpp
-        gpu/literal.cpp
-        gpu/manage_host_buffer.cpp
-        gpu/mlir.cpp
-        gpu/pack_args.cpp
-        gpu/pack_int8_args.cpp
-        gpu/quantization.cpp
-        gpu/stream_sync.cpp)
+    # gpu tests
+    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -63,22 +53,16 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
-        if(WIN32)
-            target_include_directories(test_gpu_${BASE_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src/targets/gpu/kernels)
-        else()
-            target_link_libraries(test_gpu_${BASE_NAME} migraphx_kernels)
-        endif()
         if(MIGRAPHX_USE_HIPRTC)
         target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
         endif()
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu)
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
     endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
-    set(FPGA_TESTS
-            fpga/get_target_assignments.cpp
-            fpga/test_compile.cpp)
+    # fpga tests
+    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -94,10 +78,7 @@ endif()
 
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
-set(ONNX_TESTS
-    onnx/onnx_rnn_test.cpp
-    onnx/onnx_test.cpp
-    onnx/verify_onnx.cpp)
+file(GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
 
 foreach(ONNX_TEST ${ONNX_TESTS})
     get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)
@@ -164,36 +145,31 @@ int main() {}\n"
 endfunction()
 
 function(test_headers PREFIX)
-    cmake_parse_arguments(PARSE "" "" "HEADERS;DEPENDS" ${ARGN})
-    foreach(HEADER ${PARSE_HEADERS})
+    file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
+    if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+        list(REMOVE_ITEM HEADERS
+              ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
+    endif()
+    foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)
         get_filename_component(BASE_NAME ${HEADER} NAME_WE)
         test_header(header_${TEST_NAME} ${PREFIX}/${BASE_NAME}.hpp)
-        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets ${PARSE_DEPENDS})
+        target_link_libraries(header_${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets)
     endforeach()
 endfunction()
 
-file(GLOB HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
-test_headers(migraphx HEADERS ${HEADERS})
-
-file(GLOB HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
-test_headers(migraphx/ref HEADERS ${HEADERS})
+test_headers(migraphx ${CMAKE_SOURCE_DIR}/src/include/migraphx/*.hpp)
+test_headers(migraphx/ref ${CMAKE_SOURCE_DIR}/src/targets/ref/include/migraphx/ref/*.hpp)
 
 if(MIGRAPHX_ENABLE_GPU)
-    file(GLOB HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp)
-    if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
-        list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
-    endif()
-    test_headers(migraphx/gpu HEADERS ${HEADERS} DEPENDS migraphx_gpu)
+    test_headers(migraphx/gpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/*.hpp DEPENDS migraphx_gpu)
 endif()
 if(MIGRAPHX_ENABLE_CPU)
-    file(GLOB HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/cpu/*.hpp)
-    test_headers(migraphx/cpu ${HEADERS} DEPENDS migraphx_cpu)
+    test_headers(migraphx/cpu HEADERS ${CMAKE_SOURCE_DIR}/src/targets/cpu/include/migraphx/cpu/*.hpp migraphx_cpu)
 endif()
 if(MIGRAPHX_ENABLE_FPGA)
-    file(GLOB HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/fpga/*.hpp)
-    test_headers(migraphx/fpga HEADERS ${HEADERS} DEPENDS migraphx_fpga)
+    test_headers(migraphx/fpga HEADERS ${CMAKE_SOURCE_DIR}/src/targets/fpga/include/migraphx/fpga/*.hpp migraphx_fpga)
 endif()
 
 

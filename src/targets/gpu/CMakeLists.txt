@@ -54,10 +54,8 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
 
-if(NOT WIN32)
-    include(Embed)
-    add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
-endif()
+include(Embed)
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
@@ -157,20 +155,6 @@ add_library(migraphx_gpu
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
-
-if(WIN32)
-    target_include_directories(migraphx_gpu PRIVATE kernels)
-    target_sources(migraphx_gpu
-        PRIVATE
-            kernels/migraphx_kernels.cpp
-            kernels/migraphx_kernels.hpp
-            kernels/resource.h
-            kernels/resource.rc)
-    target_compile_options(migraphx_gpu PUBLIC $<BUILD_INTERFACE:-Wno-ignored-attributes>)
-else()
-    target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
-    target_link_options(migraphx_gpu PUBLIC -Wno-option-ignored)
-endif()
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
@@ -295,7 +279,7 @@ else()
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
+target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
 endif()

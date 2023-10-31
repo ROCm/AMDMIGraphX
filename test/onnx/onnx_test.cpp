@@ -7321,7 +7321,7 @@ TEST_CASE(slice_var_input_default_steps)
     auto starts = mm->add_parameter("starts", migraphx::shape{migraphx::shape::int64_type, {2}});
     auto ends   = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int64_type, {2}});
     auto axes   = mm->add_parameter("axes", migraphx::shape{migraphx::shape::int64_type, {2}});
-    mm->add_literal({{migraphx::shape::int32_type, {2}}, {1, 1}});
+    mm->add_literal({{migraphx::shape::int64_type, {2}}, {1, 1}});
     auto ret = mm->add_instruction(migraphx::make_op("slice"), data, starts, ends, axes);
     mm->add_return({ret});
 

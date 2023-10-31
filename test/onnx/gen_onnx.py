@@ -7674,7 +7674,7 @@ def slice_var_input_dyn1():
 def slice_var_input_default_steps():
     step = np.array([1, 1])
     step_tensor = helper.make_tensor(name="step",
-                                     data_type=TensorProto.INT32,
+                                     data_type=TensorProto.INT64,
                                      dims=step.shape,
                                      vals=step.astype(int))
     arg_step = helper.make_node("Constant",

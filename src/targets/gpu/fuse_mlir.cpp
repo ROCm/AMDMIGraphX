@@ -365,7 +365,7 @@ struct find_mlir_standalone_op
     void rewrite(module_pass_manager& mpm, instruction_ref top_ins) const
     {
         static size_t counter = 0;
-        module_ref mm         = mpm.create_module("mlir_" + std::to_string(counter++));
+        module_ref mm = mpm.create_module("mlir_" + top_ins->name() + std::to_string(counter++));
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, top_ins);
         mm->add_return({anchor_op});

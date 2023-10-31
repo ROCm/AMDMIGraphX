@@ -361,7 +361,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
 bool hip_has_flags(const std::vector<std::string>& flags)
 {
     src_compiler compiler;
-    compiler.compiler = MIGRAPHX_STRINGIZE(MIGRAPHX_HIP_COMPILER);
+    compiler.compiler = MIGRAPHX_HIP_COMPILER;
     compiler.flags =
         join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
 

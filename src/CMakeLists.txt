@@ -104,9 +104,6 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
-if(WIN32)
-    target_compile_definitions(migraphx PUBLIC -D_USE_MATH_DEFINES)
-endif()
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -249,7 +246,9 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-if(NOT WIN32)
+if(WIN32)
+    target_compile_definitions(migraphx PUBLIC _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
+else()
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
     if(HAS_LIB_STD_FILESYSTEM)
         target_link_libraries(migraphx PRIVATE -lstdc++fs)

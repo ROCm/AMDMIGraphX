@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{HIP_PATH})
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
 find_package(hip)
 if(NOT GPU_TARGETS)
     message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")

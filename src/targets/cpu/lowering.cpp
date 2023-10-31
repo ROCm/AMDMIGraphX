@@ -122,11 +122,11 @@ struct cpu_im2col
             const std::size_t col_height = (height - kernel_h + 2 * pad_h) / stride_h + 1;
             const std::size_t col_width  = (width - kernel_w + 2 * pad_w) / stride_w + 1;
             // account for padding for the starting position of the input pixels
-            std::size_t iinput = kdiv2_h - long(pad_h);
+            long iinput = kdiv2_h - long(pad_h);
             // loop over output pixels (ioutput, joutput)
             for(std::size_t ioutput = 0; ioutput < col_height; ioutput++, iinput += stride_h)
             {
-                std::size_t jinput = kdiv2_w - long(pad_w);
+                long jinput = kdiv2_w - long(pad_w);
                 for(std::size_t joutput = 0; joutput < col_width; joutput++, jinput += stride_w)
                 {
                     // compute linear index for output
@@ -137,7 +137,9 @@ struct cpu_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx < height) && (jdx < width)) ? input(0, c, idx, jdx) : 0;
+                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
+                                          ? input(0, c, idx, jdx)
+                                          : 0;
                         p++;
                     });
                 }
@@ -454,6 +456,8 @@ void lowering::apply(module& m) const
 {
 #if !defined(_MSC_VER)
     cpu_apply{&m}.apply();
+#else
+    (void)m;
 #endif
 }
 

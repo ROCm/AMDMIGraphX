@@ -41,9 +41,10 @@ if(NOT MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 endif()
 
-set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
-
-set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+if(NOT WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+    set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+endif()
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 
@@ -59,14 +60,14 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+# By default build shared libraries
+option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
 else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
-
-# By default build shared libraries
-option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
 if(WIN32)
     add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>)
@@ -284,10 +285,6 @@ rocm_enable_cppcheck(
 
 include(ROCMCreatePackage)
 include(ROCMTest)
-
-if(BUILD_TESTING)
-    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:MIGRAPHX_BUILD_TESTING>)
-endif()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

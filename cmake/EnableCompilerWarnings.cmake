@@ -23,77 +23,95 @@
 #####################################################################################
 # - Enable warning all for gcc/clang or use /W4 for visual studio
 
-## Strict compile options for Visual C++ compiler
-set(__default_msvc_compile_options /w)
+## Strict warning level
+if (MSVC)
+    # Use the highest warning level for visual studio.
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /w")
+    # set(CMAKE_CXX_WARNING_LEVEL 4)
+    # if (CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
+    #     string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    # else ()
+    #     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    # endif ()
 
-## Strict compile options for GNU/Clang compilers
-set(__default_compile_options
-        -Wall -Wextra
-        -Wcomment
-        -Wendif-labels
-        -Wformat
-        -Winit-self
-        -Wreturn-type
-        -Wsequence-point
-        -Wswitch
-        -Wtrigraphs
-        -Wundef
-        -Wuninitialized
-        -Wunreachable-code
-        -Wunused
-        -Wno-sign-compare
-        -Wno-reserved-macro-identifier)
+    # set(CMAKE_C_WARNING_LEVEL 4)
+    # if (CMAKE_C_FLAGS MATCHES "/W[0-4]")
+    #     string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    # else ()
+    #     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
+    # endif ()
 
-## Strict compile options for Clang compilers
-set(__default_clang_compile_options
-        -Weverything
-        -Wshadow
-        -Wno-c++98-compat
-        -Wno-c++98-compat-pedantic
-        -Wno-conversion
-        -Wno-double-promotion
-        -Wno-exit-time-destructors
-        -Wno-extra-semi
-        -Wno-extra-semi-stmt
-        -Wno-float-conversion
-        -Wno-gnu-anonymous-struct
-        -Wno-gnu-zero-variadic-macro-arguments
-        -Wno-missing-prototypes
-        -Wno-nested-anon-types
-        -Wno-option-ignored
-        -Wno-padded
-        -Wno-shorten-64-to-32
-        -Wno-sign-conversion
-        -Wno-unused-command-line-argument
-        -Wno-weak-vtables
-        -Wno-c99-extensions
-        -fno-sanitize=function,vptr)
+else()
+    foreach(COMPILER C CXX)
+        set(CMAKE_COMPILER_WARNINGS)
+        # use -Wall for gcc and clang
+        list(APPEND CMAKE_COMPILER_WARNINGS 
+            -Wall
+            -Wextra
+            -Wcomment
+            -Wendif-labels
+            -Wformat
+            -Winit-self
+            -Wreturn-type
+            -Wsequence-point
+            # Shadow is broken on gcc when using lambdas
+            # -Wshadow
+            -Wswitch
+            -Wtrigraphs
+            -Wundef
+            -Wuninitialized
+            -Wunreachable-code
+            -Wunused
 
-if(WIN32)
-    list(APPEND __default_clang_compile_options
-        -fms-extensions
-        -fms-compatibility
-        -fdelayed-template-parsing)
-endif()
-
-set(__default_gnu_compile_options
-        -Wduplicated-branches
-        -Wduplicated-cond
-        -Wno-noexcept-type
-        -Wodr
-        -Wshift-negative-value
-        -Wshift-overflow=2
-        -Wno-missing-field-initializers
-        -Wno-maybe-uninitialized)
-
-add_compile_options(
-        "$<$<OR:$<CXX_COMPILER_ID:MSVC>,$<C_COMPILER_ID:MSVC>>:${__default_msvc_compile_options}>"
-        "$<$<OR:$<CXX_COMPILER_ID:GNU,Clang>,$<C_COMPILER_ID:GNU,Clang>>:${__default_compile_options}>"
-        "$<$<OR:$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,7>>,$<AND:$<C_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<C_COMPILER_VERSION>,7>>>:${__default_gnu_compile_options}>"
-        "$<$<OR:$<CXX_COMPILER_ID:Clang>,$<C_COMPILER_ID:Clang>>:${__default_clang_compile_options}>")
-
-unset(__default_msvc_compile_options)
-unset(__default_compile_options)
-unset(__default_gnu_compile_options)
-unset(__default_clang_compile_options)
-
+            -Wno-sign-compare
+        )
+        # Flags for gcc 7
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "7.0")
+                list(APPEND CMAKE_COMPILER_WARNINGS 
+                -Wduplicated-branches
+                -Wduplicated-cond
+                -Wno-noexcept-type
+                -Wodr
+                -Wshift-negative-value
+                -Wshift-overflow=2
+            )
+            endif()
+        endif()
+        if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
+            list(APPEND CMAKE_COMPILER_WARNINGS
+                -Weverything
+                -Wno-c++98-compat
+                -Wno-c++98-compat-pedantic
+                -Wno-conversion
+                -Wno-double-promotion
+                -Wno-exit-time-destructors
+                -Wno-extra-semi
+                -Wno-extra-semi-stmt
+                -Wno-float-conversion
+                -Wno-gnu-anonymous-struct
+                -Wno-gnu-zero-variadic-macro-arguments
+                -Wno-missing-prototypes
+                -Wno-nested-anon-types
+                -Wno-option-ignored
+                -Wno-padded
+                -Wno-shorten-64-to-32
+                -Wno-sign-conversion
+                -Wno-unused-command-line-argument
+                -Wno-weak-vtables
+                -Wno-c99-extensions
+                # -Wno-c++2a-designator
+            )
+        else()
+            list(APPEND CMAKE_COMPILER_WARNINGS
+                -Wno-missing-field-initializers
+                -Wno-maybe-uninitialized
+                # -Wno-deprecated-declarations
+            )
+        endif()
+        foreach(COMPILER_WARNING ${CMAKE_COMPILER_WARNINGS})
+            add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
+        endforeach()
+    endforeach()
+endif ()

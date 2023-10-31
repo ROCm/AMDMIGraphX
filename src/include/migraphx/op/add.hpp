@@ -35,8 +35,8 @@ struct add : binary<add>
 {
     value attributes() const
     {
-        value a          = base_attributes();
-        a["commutative"] = value(true);
+        auto a           = base_attributes();
+        a["commutative"] = true;
         return a;
     }
     std::string point_function() const { return "+"; }

@@ -41,9 +41,10 @@ if(NOT MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 endif()
 
-set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
-
-set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+if(NOT WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+    set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+endif()
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 
@@ -59,14 +60,14 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+# By default build shared libraries
+option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
 else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
-
-# By default build shared libraries
-option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
 if(WIN32)
     add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>)
@@ -111,9 +112,17 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+if(WIN32)
+    add_compile_definitions(
+            $<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>
+            $<$<COMPILE_LANGUAGE:C,CXX>:_USE_MATH_DEFINES>)
+endif()
+
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
+else()
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)

@@ -22,8 +22,7 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{HIP_PATH})
-find_package(hip)
+find_package(hip REQUIRED)
 if(NOT GPU_TARGETS)
     message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
 endif()
@@ -55,7 +54,7 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
 endif()
 
 include(Embed)
-add_embed_library(migraphx_kernels ${KERNEL_FILES} BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
@@ -155,8 +154,6 @@ add_library(migraphx_gpu
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
-
-target_link_options(migraphx_gpu PUBLIC -Wno-option-ignored)
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})

@@ -56,7 +56,7 @@ add_library(migraphx_cpu
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 
-option(MIGRAPHX_ENABLE_ZENDNN "MIGraphX enable ZenDNN" Off)
+set(MIGRAPHX_ENABLE_ZENDNN Off CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_ZENDNN)
     find_path(ZENDNN_INC_PATH zendnn.hpp)
@@ -67,7 +67,6 @@ elseif(NOT WIN32)
 endif()
 
 rocm_clang_tidy_check(migraphx_cpu)
-
 if(MIGRAPHX_ENABLE_ZENDNN)
     target_compile_definitions(migraphx_cpu PRIVATE -DMIGRAPHX_ENABLE_ZENDNN)
     target_include_directories(migraphx_cpu PRIVATE ${ZENDNN_INC_PATH})

@@ -42,18 +42,8 @@ foreach(TEST ${TESTS})
 endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
-    set(GPU_TESTS
-        gpu/adjust_allocation.cpp
-        gpu/context_serialize.cpp
-        gpu/hip.cpp
-        gpu/jit.cpp
-        gpu/literal.cpp
-        gpu/manage_host_buffer.cpp
-        gpu/mlir.cpp
-        gpu/pack_args.cpp
-        gpu/pack_int8_args.cpp
-        gpu/quantization.cpp
-        gpu/stream_sync.cpp)
+    # gpu tests
+    file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)
 
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -63,22 +53,16 @@ if(MIGRAPHX_ENABLE_GPU)
             COST 10
             RESOURCE_LOCK gpu
         )
-        if(WIN32)
-            target_include_directories(test_gpu_${BASE_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src/targets/gpu/kernels)
-        else()
-            target_link_libraries(test_gpu_${BASE_NAME} migraphx_kernels)
-        endif()
         if(MIGRAPHX_USE_HIPRTC)
         target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
         endif()
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu)
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels)
     endforeach()
 endif()
 
 if(MIGRAPHX_ENABLE_FPGA)
-    set(FPGA_TESTS
-            fpga/get_target_assignments.cpp
-            fpga/test_compile.cpp)
+    # fpga tests
+    file(GLOB FPGA_TESTS CONFIGURE_DEPENDS fpga/*.cpp)
 
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
@@ -94,10 +78,7 @@ endif()
 
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
-set(ONNX_TESTS
-    onnx/onnx_rnn_test.cpp
-    onnx/onnx_test.cpp
-    onnx/verify_onnx.cpp)
+file(GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
 
 foreach(ONNX_TEST ${ONNX_TESTS})
     get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)

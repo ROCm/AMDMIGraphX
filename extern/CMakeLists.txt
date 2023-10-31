@@ -188,11 +188,11 @@ ExternalProject_Add(
         BUILD_COMMAND ${NMAKE_EXECUTABLE} /f ..\\sqlite3\\Makefile.msc USE_AMALGAMATION=1 NO_TCL=1 TOP=..\\sqlite3 libsqlite3.lib
         INSTALL_COMMAND "")
 
+add_library(SQLite::SQLite3 INTERFACE IMPORTED GLOBAL)
+add_dependencies(SQLite::SQLite3 sqlite3)
+
 ExternalProject_Get_Property(sqlite3 BINARY_DIR)
 
-# For compatibility with PkgConfig on Linux
-add_library(PkgConfig::SQLITE3 INTERFACE IMPORTED GLOBAL)
-add_dependencies(PkgConfig::SQLITE3 sqlite3)
-target_link_directories(PkgConfig::SQLITE3 INTERFACE ${BINARY_DIR})
-target_link_libraries(PkgConfig::SQLITE3 INTERFACE libsqlite3.lib)
-target_include_directories(PkgConfig::SQLITE3 INTERFACE ${BINARY_DIR})
+target_link_directories(SQLite::SQLite3 INTERFACE ${BINARY_DIR})
+target_link_libraries(SQLite::SQLite3 INTERFACE libsqlite3.lib)
+target_include_directories(SQLite::SQLite3 INTERFACE ${BINARY_DIR})

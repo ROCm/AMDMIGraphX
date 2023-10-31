@@ -28,7 +28,11 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
- 
+
+if(WIN32)
+    # Due to compilation crashing, we need to use type-erased matchers on Windows.
+    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1>)
+endif()
 
 add_library(migraphx 
     adjust_allocation.cpp
@@ -263,7 +267,9 @@ endif()
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
-find_package(SQLite3 REQUIRED)
+if(NOT WIN32)
+    find_package(SQLite3 REQUIRED)
+endif()
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 if(NOT WIN32)

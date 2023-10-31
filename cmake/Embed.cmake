@@ -21,10 +21,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_program(EMBED_LD ld)
-find_program(EMBED_OBJCOPY objcopy)
 
-option(EMBED_USE_LD "Use ld to embed data files" OFF)
+option(EMBED_USE_BINARY "Use data file embedding to binary" ON)
+
+if(EMBED_USE_BINARY AND NOT WIN32)
+    find_program(EMBED_LD ld REQUIRED)
+    find_program(EMBED_OBJCOPY objcopy REQUIRED)
+endif()
 
 function(wrap_string)
     set(options)
@@ -53,40 +56,76 @@ function(wrap_string)
     set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
 endfunction()
 
-function(generate_embed_source EMBED_NAME SRC_FILE HEADER_FILE BASE_DIRECTORY)
+function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(options)
-    set(oneValueArgs "")
+    set(oneValueArgs)
     set(multiValueArgs SYMBOLS FILES)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    set(RESOURCE_ID 100)
     foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
-        set(START_SYMBOL "_binary_${SYMBOL}_start")
-        set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
-        if(EMBED_USE_LD)
-            string(APPEND EXTERNS "
+        cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE BASE_NAME)
+        if(EMBED_USE_BINARY AND WIN32)
+            string(TOUPPER "${SYMBOL}" SYMBOL)
+            string(APPEND FILE_IDS "#define IDR_${SYMBOL} ${RESOURCE_ID}\n")
+            string(APPEND RC_MAPPING "IDR_${SYMBOL} TEXTFILE \"${BASE_NAME}\"\n")
+            string(APPEND INIT_KERNELS "        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},\n")
+            math(EXPR RESOURCE_ID "${RESOURCE_ID} + 1" OUTPUT_FORMAT DECIMAL)
+        else()
+            set(START_SYMBOL "_binary_${SYMBOL}_start")
+            set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
+            if(EMBED_USE_BINARY)
+                string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t _binary_${SYMBOL}_size;
 const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
-            ")
-        else()
-            string(APPEND EXTERNS "
+")
+            else()
+                string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t ${LENGTH_SYMBOL};
-            ")
+")
+            endif()
+            string(APPEND INIT_KERNELS "
+        { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
         endif()
-        cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE BASE_NAME)
-        string(APPEND INIT_KERNELS "
-            { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
     endforeach()
+    if(EMBED_USE_BINARY AND WIN32)
+       file(WRITE "${EMBED_DIR}/include/resource.h" "
+#define TEXTFILE 256
 
-    file(WRITE "${HEADER_FILE}" "
+${FILE_IDS}
+")
+        file(WRITE "${EMBED_DIR}/resource.rc" "
+#include \"resource.h\"
+
+${RC_FILE_MAPPING}
+")
+        set(EXTERNS "
+#include <Windows.h>
+#include \"resource.h\"
+
+namespace resource {
+std::string_view read(int id)
+{
+    HMODULE handle = GetModuleHandle(nullptr);
+    HRSRC rc = FindResource(handle, MAKEINTRESOURCE(id), MAKEINTRESOURCE(TEXTFILE));
+    HGLOBAL data = LoadResource(handle, rc);
+    return {static_cast<const char*>(LockResource(data)), SizeofResource(handle, rc)};
+}
+}
+
+")
+        set(EMBED_FILES ${EMBED_DIR}/include/resource.h ${EMBED_DIR}/resource.rc)
+    endif()
+    file(WRITE "${EMBED_DIR}/include/${EMBED_NAME}.hpp" "
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
 ")
 
-    file(WRITE "${SRC_FILE}" "
+    file(WRITE "${EMBED_DIR}/${EMBED_NAME}.cpp" "
 #include <${EMBED_NAME}.hpp>
 ${EXTERNS}
 std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
@@ -95,23 +134,28 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
     return result;
 }
 ")
+    list(APPEND EMBED_FILES ${EMBED_DIR}/${EMBED_NAME}.cpp ${EMBED_DIR}/include/${EMBED_NAME}.hpp)
+    set(EMBED_FILES ${EMBED_FILES} PARENT_SCOPE)
 endfunction()
 
 function(embed_file FILE BASE_DIRECTORY)
     message(STATUS "    ${FILE}")
-    cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE REL_FILE)
+    cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY "${BASE_DIRECTORY}" OUTPUT_VARIABLE REL_FILE)
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
-    if(EMBED_USE_LD)
-        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
-        add_custom_command(
-            OUTPUT ${OUTPUT_FILE}
-            COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
-            COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUTPUT_FILE}"
-            WORKING_DIRECTORY ${BASE_DIRECTORY}
-            DEPENDS ${FILE}
-            VERBATIM)
+    if(EMBED_USE_BINARY)
+        if(NOT WIN32)
+            set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
+            add_custom_command(
+                OUTPUT "${OUTPUT_FILE}"
+                COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
+                COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUTPUT_FILE}"
+                WORKING_DIRECTORY "${BASE_DIRECTORY}"
+                DEPENDS "${FILE}"
+                VERBATIM)
+            set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
+        endif()
     else()
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
         # reads source file contents as hex string
@@ -127,40 +171,38 @@ function(embed_file FILE BASE_DIRECTORY)
 extern const char _binary_${OUTPUT_SYMBOL}_start[] = { ${ARRAY_VALUES} };
 extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
 ")
+        set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     endif()
-    set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     set(OUTPUT_SYMBOL ${OUTPUT_SYMBOL} PARENT_SCOPE)
 endfunction()
 
 function(add_embed_library EMBED_NAME)
     set(options)
-    set(oneValueArgs BASE_DIRECTORY)
+    set(oneValueArgs RELATIVE)
     set(multiValueArgs)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     file(MAKE_DIRECTORY ${EMBED_DIR})
-    set(SRC_FILE "${EMBED_DIR}/${EMBED_NAME}.cpp")
-    set(HEADER_FILE "${EMBED_DIR}/include/${EMBED_NAME}.hpp")
     message(STATUS "Embedding kernel files:")
     foreach(FILE ${PARSE_UNPARSED_ARGUMENTS})
-        embed_file(${FILE} ${PARSE_BASE_DIRECTORY})
+        embed_file(${FILE} ${PARSE_RELATIVE})
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
     message(STATUS "Generating embedding library '${EMBED_NAME}'")
-    generate_embed_source(${EMBED_NAME} ${SRC_FILE} ${HEADER_FILE} "${PARSE_BASE_DIRECTORY}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
-    add_library(embed_lib_${EMBED_NAME} OBJECT ${SRC_FILE} ${HEADER_FILE})
-    if(NOT EMBED_USE_LD)
-        target_sources(embed_lib_${EMBED_NAME} PRIVATE ${OUTPUT_FILES})
+    generate_embed_source(${EMBED_NAME} ${EMBED_DIR} "${PARSE_RELATIVE}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
+    set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
+    add_library(${INTERNAL_EMBED_LIB} OBJECT ${EMBED_FILES})
+    if(NOT EMBED_USE_BINARY)
+        target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
-    target_include_directories(embed_lib_${EMBED_NAME} PUBLIC ${EMBED_DIR}/include)
-    target_compile_options(embed_lib_${EMBED_NAME} PRIVATE
-            -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
-    set_target_properties(embed_lib_${EMBED_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    add_library(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:embed_lib_${EMBED_NAME}> ${OUTPUT_FILES})
-    target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:embed_lib_${EMBED_NAME}>)
-    if(EMBED_USE_LD)
-        target_link_libraries(${EMBED_NAME} INTERFACE ${OUTPUT_FILES})
+    target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
+    target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
+    add_library(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}> ${OUTPUT_FILES})
+    if(EMBED_USE_BINARY AND WIN32)
+        target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
     endif()
-    target_include_directories(${EMBED_NAME} INTERFACE ${EMBED_DIR}/include)
+    target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
 endfunction()

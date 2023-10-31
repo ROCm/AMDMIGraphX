@@ -133,8 +133,8 @@ struct match_find_quantizable_ops
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
             auto out_lens = dq->get_shape().lens();
 
-            // Input scale should always be scalar and output scale can be scalar or 1D of the
-            // same lens as the channel dim (dim 1)
+            // Input scale should always be scalar and weight scale can be scalar or 1D of the
+            // same lens as the output channel dim (dim 1 in the output)
             if(not(is_valid_scale(scale1, out_lens, 1) and is_valid_scale(scale2, out_lens, 1)))
                 return;
 

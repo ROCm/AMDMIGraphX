@@ -37,6 +37,8 @@ namespace op {
  * Static allocate:
  * No inputs: `allocate()`
  * `this.s` attribute set to the static output shape of the buffer.
+ * `this.s` attribute can be set to a dynamic output shape; however this will allocate the maximum
+ * buffer size for that case
  *
  * Dynamic allocate:
  * One input: `allocate(output_dims)`
@@ -74,10 +76,6 @@ struct allocate
             }
             else
             {
-                if(s->dynamic())
-                {
-                    MIGRAPHX_THROW("ALLOCATE: dynamic shape attribute and no input");
-                }
                 migraphx::check_shapes{inputs, *this, false}.has(0);
             }
             return s.value();

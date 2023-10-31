@@ -116,11 +116,12 @@ TEST_CASE(allocate_dyn_with_shape_attr)
                  input);
 }
 
-TEST_CASE(allocate_dyn_no_input_error)
+TEST_CASE(allocate_dyn_no_input)
 {
     migraphx::shape shape_attr{migraphx::shape::float_type,
                                {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
-    throws_shape(migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}));
+    expect_shape(shape_attr,
+                 migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}));
 }
 
 TEST_CASE(allocate_shape_and_buf_type_error)

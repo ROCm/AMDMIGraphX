@@ -251,7 +251,7 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
             std::cout << std::string(src.content) << std::endl;
         }
     }
-    auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
+    auto p = dynamic_loader::path(&compile_hip_src_with_hiprtc);
 #ifdef _WIN32
     auto driver = p.parent_path() / "migraphx-hiprtc-driver.exe";
 #else

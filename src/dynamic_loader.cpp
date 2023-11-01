@@ -134,8 +134,9 @@ fs::path dynamic_loader::path(void* address)
 {
     HMODULE module = nullptr;
     if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                         GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                         static_cast<LPCSTR>(address), &module) == 0)
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         static_cast<LPCSTR>(address),
+                         &module) == 0)
     {
         auto err = GetLastError();
         MIGRAPHX_THROW("Unable to obtain module handle, error = " + std::to_string(err));

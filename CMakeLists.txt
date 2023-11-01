@@ -113,11 +113,10 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 if(WIN32)
-    add_compile_definitions(
-            $<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS>
-            $<$<COMPILE_LANGUAGE:C,CXX>:_USE_MATH_DEFINES>)
+    add_compile_definitions("$<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES>")
 endif()
 
+set(CMAKE_CXX_STANDARD_DEFAULT "")
 if(MSVC)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
 else()

@@ -185,8 +185,7 @@ struct compile_plan
             results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
                 if(not cr.has_value())
                     return std::numeric_limits<double>::max();
-                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20)
-                    .first;
+                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
             });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;

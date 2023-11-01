@@ -22,9 +22,15 @@
 # THE SOFTWARE.
 #####################################################################################
 
-option(EMBED_USE_BINARY "Use data file embedding to binary" ON)
+if(WIN32)
+    set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
+else()
+    set(EMBED_USE CArrays CACHE STRING "Use LD or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
+endif()
 
-if(EMBED_USE_BINARY AND NOT WIN32)
+if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_LD ld REQUIRED)
     find_program(EMBED_OBJCOPY objcopy REQUIRED)
 endif()
@@ -65,16 +71,17 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(RESOURCE_ID 100)
     foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
         cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE BASE_NAME)
-        if(EMBED_USE_BINARY AND WIN32)
+        if(EMBED_USE STREQUAL "RC")
             string(TOUPPER "${SYMBOL}" SYMBOL)
             string(APPEND FILE_IDS "#define IDR_${SYMBOL} ${RESOURCE_ID}\n")
-            string(APPEND RC_MAPPING "IDR_${SYMBOL} TEXTFILE \"${BASE_NAME}\"\n")
-            string(APPEND INIT_KERNELS "        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},\n")
+            cmake_path(NATIVE_PATH FILE NORMALIZE NATIVE_FILE)
+            string(APPEND RC_FILE_MAPPING "IDR_${SYMBOL} TEXTFILE \"${NATIVE_FILE}\"\n")
+            string(APPEND INIT_KERNELS "\n        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},")
             math(EXPR RESOURCE_ID "${RESOURCE_ID} + 1" OUTPUT_FORMAT DECIMAL)
         else()
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
-            if(EMBED_USE_BINARY)
+            if(EMBED_USE STREQUAL "LD")
                 string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t _binary_${SYMBOL}_size;
@@ -90,7 +97,7 @@ extern const size_t ${LENGTH_SYMBOL};
         { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
         endif()
     endforeach()
-    if(EMBED_USE_BINARY AND WIN32)
+    if(EMBED_USE STREQUAL "RC")
        file(WRITE "${EMBED_DIR}/include/resource.h" "
 #define TEXTFILE 256
 
@@ -114,7 +121,6 @@ std::string_view read(int id)
     return {static_cast<const char*>(LockResource(data)), SizeofResource(handle, rc)};
 }
 }
-
 ")
         set(EMBED_FILES ${EMBED_DIR}/include/resource.h ${EMBED_DIR}/resource.rc)
     endif()
@@ -130,7 +136,8 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}();
 ${EXTERNS}
 std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
 {
-    static std::unordered_map<std::string_view, std::string_view> result = {${INIT_KERNELS}};
+    static std::unordered_map<std::string_view, std::string_view> result = {${INIT_KERNELS}
+    };
     return result;
 }
 ")
@@ -144,19 +151,17 @@ function(embed_file FILE BASE_DIRECTORY)
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
-    if(EMBED_USE_BINARY)
-        if(NOT WIN32)
-            set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
-            add_custom_command(
-                OUTPUT "${OUTPUT_FILE}"
-                COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
-                COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUTPUT_FILE}"
-                WORKING_DIRECTORY "${BASE_DIRECTORY}"
-                DEPENDS "${FILE}"
-                VERBATIM)
-            set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
-        endif()
-    else()
+    if(EMBED_USE STREQUAL "LD")
+        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.o")
+        add_custom_command(
+            OUTPUT "${OUTPUT_FILE}"
+            COMMAND ${EMBED_LD} -r -o "${OUTPUT_FILE}" -z noexecstack --format=binary "${REL_FILE}"
+            COMMAND ${EMBED_OBJCOPY} --rename-section .data=.rodata,alloc,load,readonly,data,contents "${OUTPUT_FILE}"
+            WORKING_DIRECTORY "${BASE_DIRECTORY}"
+            DEPENDS "${FILE}"
+            VERBATIM)
+        set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
+    elseif(EMBED_USE STREQUAL "CArrays")
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
         # reads source file contents as hex string
         file(READ ${FILE} HEX_STRING HEX)
@@ -194,15 +199,16 @@ function(add_embed_library EMBED_NAME)
     generate_embed_source(${EMBED_NAME} ${EMBED_DIR} "${PARSE_RELATIVE}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
     set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
     add_library(${INTERNAL_EMBED_LIB} OBJECT ${EMBED_FILES})
-    if(NOT EMBED_USE_BINARY)
+    if(EMBED_USE STREQUAL "CArrays")
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
     target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
     set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
     add_library(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}> ${OUTPUT_FILES})
-    if(EMBED_USE_BINARY AND WIN32)
+    if(EMBED_USE STREQUAL "RC")
         target_link_libraries(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
     endif()
     target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
 endfunction()
+

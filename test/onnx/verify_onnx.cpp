@@ -1796,6 +1796,11 @@ TEST_CASE(resize_downsample_f_dyn_test)
     auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 
+    // A Resize op. with static input shape goes through a different code path
+    // but should give same result
+    auto reference_p = migraphx::parse_onnx("resize_downsample_f_ref_test.onnx", options);
+    reference_p.compile(migraphx::make_target("ref"));
+
     migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};
     std::vector<float> dx(sx.elements());
     std::iota(dx.begin(), dx.end(), 0.1f);
@@ -1819,6 +1824,12 @@ TEST_CASE(resize_downsample_f_dyn_test)
 
     EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
                                                          migraphx::verify::expected{gold}));
+
+    auto reference_result = reference_p.eval(pp).back();
+    std::vector<float> reference_vector;
+    reference_result.visit([&](auto output) { reference_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{reference_vector}));
 }
 
 TEST_CASE(resize_upsample_f_dyn_test)

@@ -147,8 +147,8 @@ void quantize_int8(program& prog,
 
     run_passes(prog,
                {quantize_int8_pass{ins_names, *int8_quant_params},
-                optimize_module{},
                 simplify_qdq{},
+                optimize_module{},
                 dead_code_elimination{}});
 }
 

@@ -49,6 +49,8 @@ endif()
 
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
+message(STATUS "CMAKE Source Dir is : ${CMAKE_SOURCE_DIR}")
+list(APPEND KERNEL_FILES ${CMAKE_SOURCE_DIR}/src/include/migraphx/fp8e4m3fnuz.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
@@ -57,6 +59,7 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
 endif()
+
 
 include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)

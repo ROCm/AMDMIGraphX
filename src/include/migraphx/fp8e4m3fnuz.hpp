@@ -52,7 +52,7 @@
 #include <limits>
 #include <sstream>
 #include <iostream>
-#include <migraphx/half.hpp>
+#include <migraphx/config.hpp>
 #include <string>
 #include <utility>
 
@@ -61,6 +61,7 @@
 // therefore, when this file is used from the host side, compilation takes much
 // longer. By guarding the __device__ directive we can control that such compilation
 // only happens for kernels which include this file.
+// need to include hip_runtime.h otherwise it complains about __host__ and __device__
 #include <hip/hip_runtime.h>
 #define MIGRAPHX_HIP_HOST_DEVICE __host__ __device__
 #else
@@ -72,7 +73,7 @@
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 namespace migraphx {
-
+inline namespace MIGRAPHX_INLINE_NS {
 namespace detail {
 
 inline MIGRAPHX_HIP_HOST_DEVICE float fp32_from_bits(uint32_t w)
@@ -102,7 +103,7 @@ inline MIGRAPHX_HIP_HOST_DEVICE uint32_t fp32_to_bits(float f)
  *
  * @note The implementation doesn't use any floating-point operations.
  */
-inline MIGRAPHX_HIP_HOST_DEVICE float fp8e4m3fnuz_to_fp32_value(uint8_t input)
+inline MIGRAPHX_HIP_HOST_DEVICE constexpr float fp8e4m3fnuz_to_fp32_value(uint8_t input)
 {
     constexpr float e4m3fnuz_lut[256] = {
         0.0f,           0.0009765625f,  0.001953125f,
@@ -275,6 +276,24 @@ inline MIGRAPHX_HIP_HOST_DEVICE uint8_t fp8e4m3fnuz_from_fp32_value(float f)
     return result;
 }
 
+/// Temporary half-precision expression.
+/// This class represents a half-precision expression which just stores a single-precision value
+/// internally.
+struct expr
+{
+    /// Conversion constructor.
+    /// \param f single-precision value to convert
+    explicit expr(float f) : value_(f) {}
+
+    /// Conversion to single-precision.
+    /// \return single precision value representing expression value
+    operator float() const { return value_; }
+
+    private:
+    /// Internal expression value stored in single-precision.
+    float value_;
+};
+
 } // namespace detail
 
 struct alignas(1) fp8e4m3fnuz
@@ -290,16 +309,18 @@ struct alignas(1) fp8e4m3fnuz
 
     MIGRAPHX_HIP_HOST_DEVICE constexpr fp8e4m3fnuz(uint8_t bits, from_bits_t) : x(bits) {}
 
+    MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz(const fp8e4m3fnuz& y) = default;
+
     inline explicit MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz(float value)
         : x(detail::fp8e4m3fnuz_from_fp32_value(value))
     {
     }
-    inline explicit MIGRAPHX_HIP_HOST_DEVICE fp8e4m3fnuz(migraphx::half value)
-        : x(detail::fp8e4m3fnuz_from_fp32_value(float(value)))
-    {
-    }
 
-    inline MIGRAPHX_HIP_HOST_DEVICE operator float() const
+    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(const fp8e4m3fnuz& rhs) = default;
+
+    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(fp8e4m3fnuz&& rhs) = default;
+
+    inline constexpr MIGRAPHX_HIP_HOST_DEVICE operator float() const
     {
         return detail::fp8e4m3fnuz_to_fp32_value(x);
     }
@@ -307,12 +328,6 @@ struct alignas(1) fp8e4m3fnuz
     fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(float rhs)
     {
         x = detail::fp8e4m3fnuz_from_fp32_value(rhs);
-        return *this;
-    }
-
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(migraphx::half rhs)
-    {
-        x = detail::fp8e4m3fnuz_from_fp32_value(float(rhs));
         return *this;
     }
 
@@ -346,6 +361,7 @@ inline std::ostream& operator<<(std::ostream& out, const fp8e4m3fnuz& value)
     return out;
 }
 
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 namespace std {
@@ -429,17 +445,17 @@ struct common_type<migraphx::fp8e4m3fnuz, migraphx::fp8e4m3fnuz>
     using type = float;
 };
 
-template <>
-struct common_type<migraphx::fp8e4m3fnuz, migraphx::half>
-{
-    using type = float;
-};
+// template <>
+// struct common_type<migraphx::fp8e4m3fnuz, migraphx::half>
+// {
+//     using type = float;
+// };
 
-template <>
-struct common_type<migraphx::half, migraphx::fp8e4m3fnuz>
-{
-    using type = float;
-};
+// template <>
+// struct common_type<migraphx::half, migraphx::fp8e4m3fnuz>
+// {
+//     using type = float;
+// };
 
 } // namespace std
 #pragma clang diagnostic pop

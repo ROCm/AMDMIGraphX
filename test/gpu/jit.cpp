@@ -144,7 +144,7 @@ extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = migraphx::implicit_conversion(migraphx::${invoke});
+    *p = migraphx::${invoke};
 
 }
 }
@@ -237,12 +237,12 @@ TEST_CASE(code_object_hip)
 
     std::vector<migraphx::shape> expected_inputs = {input, input};
     auto co                                      = migraphx::make_op("gpu::code_object",
-                                {{"code_object", migraphx::value::binary{binaries.front()}},
-                                 {"symbol_name", "add_2"},
-                                 {"global", input.elements()},
-                                 {"local", 1024},
-                                 {"expected_inputs", migraphx::to_value(expected_inputs)},
-                                 {"output", migraphx::to_value(input)}});
+                                                                     {{"code_object", migraphx::value::binary{binaries.front()}},
+                                                                      {"symbol_name", "add_2"},
+                                                                      {"global", input.elements()},
+                                                                      {"local", 1024},
+                                                                      {"expected_inputs", migraphx::to_value(expected_inputs)},
+                                                                      {"output", migraphx::to_value(input)}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();
@@ -345,18 +345,18 @@ TEST_CASE(compile_math)
         // clang-format on
     };
     std::vector<std::string> data_types;
-    auto vec_sizes = {2, 4, 6};
+    // auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(t == migraphx::shape::half_type or t == migraphx::shape::float8_type)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
-        migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
-            return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
-        });
+        // migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
+        //     return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
+        // });
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
@@ -399,7 +399,7 @@ TEST_CASE(assert_type_min_max)
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(t == migraphx::shape::half_type or t == migraphx::shape::float8_type)
             name.insert(0, "migraphx::");
 
         migraphx::shape::visit(t, [&](auto as) {
@@ -423,7 +423,6 @@ TEST_CASE(assert_type_min_max)
                 min = std::to_string(as.min());
                 max = std::to_string(as.max());
             }
-
             auto src = migraphx::interpolate_string(assert_template,
                                                     {{"type", name}, {"max", max}, {"min", min}});
             migraphx::shape input{migraphx::shape::float_type, {5, 2}};

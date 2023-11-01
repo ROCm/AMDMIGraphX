@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPE_TRAITS_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPE_TRAITS_HPP
 
+#include <migraphx/fp8e4m3fnuz.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 
@@ -230,7 +231,7 @@ constexpr unsigned long int_max(unsigned long n)
 
 template <class T,
           MIGRAPHX_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
-                            is_same<T, migraphx::half>{})>
+                            is_same<T, migraphx::half>{} or is_same<T, migraphx::fp8e4m3fnuz>{})>
 constexpr T numeric_max()
 {
     if constexpr(is_integral<T>{})
@@ -246,6 +247,8 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
+    else if constexpr(is_same<T, migraphx::fp8e4m3fnuz>{})
+        return T{0x7F, migraphx::fp8e4m3fnuz::from_bits()};
     else
         return 0;
 }
@@ -260,6 +263,8 @@ constexpr T numeric_lowest()
         else
             return -numeric_max<T>() - 1;
     }
+    else if constexpr(is_same<T, migraphx::fp8e4m3fnuz>{})
+        return T{0xFF, migraphx::fp8e4m3fnuz::from_bits()};
     else
     {
         return -numeric_max<T>();

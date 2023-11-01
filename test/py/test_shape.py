@@ -81,7 +81,7 @@ def test_create_dyn_shape():
 
 def test_type_enum():
     mgx_types = [
-        'bool_type', 'double_type', 'float_type', 'half_type', 'int16_type',
+        'bool_type', 'double_type', 'float_type', 'half_type', 'float_type', 'int16_type',
         'int32_type', 'int64_type', 'int8_type', 'uint16_type', 'uint32_type',
         'uint64_type', 'uint8_type'
     ]

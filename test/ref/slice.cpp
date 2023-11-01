@@ -204,12 +204,6 @@ TEST_CASE(slice_var_inputs_dyn1)
     std::vector<int> gold      = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     std::vector<int> results_vector(2 * 2 * 3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::cout << "[";
-    for(int i = 0; i < results_vector.size(); ++i)
-    {
-        std::cout << results_vector.at(i) << ",";
-    }
-    std::cout << "]\n";
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 

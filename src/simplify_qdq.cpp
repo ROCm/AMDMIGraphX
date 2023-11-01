@@ -53,6 +53,19 @@ struct match_find_quantizable_ops
         return scale->get_shape().scalar() or scale->get_shape().elements() == lens.at(axis);
     }
 
+    static bool is_valid_zero_point(instruction_ref zp)
+    {
+        if(not zp->can_eval())
+            return false;
+
+        bool all_zeros = false;
+        zp->eval().visit([&](auto z) {
+            all_zeros =
+                std::all_of(z.begin(), z.end(), [&](auto val) { return float_equal(val, 0); });
+        });
+        return all_zeros;
+    }
+
     static auto
     scale_broadcast_op(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
     {
@@ -85,21 +98,21 @@ struct match_find_quantizable_ops
         return qinp;
     }
 
-    static auto dequantizelinear_op(const std::string& scale)
+    static auto dequantizelinear_op(const std::string& scale, const std::string& zp)
     {
         return match::name("dequantizelinear")(
             match::arg(0)(match::skip(match::name("quantizelinear"))(match::any())),
             match::arg(1)(match::skip_broadcasts(match::is_constant().bind(scale))),
-            match::arg(2)(match::skip_broadcasts(match::all_of(match::has_value(0)))));
+            match::arg(2)(match::skip_broadcasts(match::is_constant().bind(zp))));
     }
 
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(
-                match::skip_broadcasts_transposes(dequantizelinear_op("scale1").bind("dq1"))),
-            match::arg(1)(
-                match::skip_broadcasts_transposes(dequantizelinear_op("scale2").bind("dq2"))));
+            match::arg(0)(match::skip_broadcasts_transposes(
+                dequantizelinear_op("scale1", "zp1").bind("dq1"))),
+            match::arg(1)(match::skip_broadcasts_transposes(
+                dequantizelinear_op("scale2", "zp2").bind("dq2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -109,10 +122,16 @@ struct match_find_quantizable_ops
         auto dq2    = r.instructions["dq2"];
         auto scale1 = r.instructions["scale1"];
         auto scale2 = r.instructions["scale2"];
+        auto zp1    = r.instructions["zp1"];
+        auto zp2    = r.instructions["zp2"];
 
         // Only INT8 type currently supported
         if(dq1->inputs().front()->get_shape().type() != migraphx::shape::int8_type or
            dq2->inputs().front()->get_shape().type() != migraphx::shape::int8_type)
+            return;
+
+        // Only symmetric quantization supported (ie. non-zero zero_points not allowed)
+        if(not(is_valid_zero_point(zp1) and is_valid_zero_point(zp2)))
             return;
 
         // Only support scalar and 1D scales

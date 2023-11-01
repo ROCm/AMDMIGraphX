@@ -867,10 +867,9 @@ template <class T>
 inline auto has_value(T x, float tolerance = 1e-6)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
-        if(not ins->can_eval())
+        if(ins->name() != "@literal")
             return false;
-
-        auto l = ins->eval();
+        auto l = ins->get_literal();
         if(l.empty())
             return false;
         bool b = false;

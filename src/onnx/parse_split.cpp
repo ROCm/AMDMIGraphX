@@ -93,7 +93,6 @@ struct parse_split : op_parser<parse_split>
             {
                 std::size_t chunk_size      = lens[tuned_axis] / num_outputs + 1;
                 std::size_t last_chunk_size = lens[tuned_axis] - chunk_size * (num_outputs - 1);
-                vec_splits.reserve(num_outputs);
                 vec_splits.resize(num_outputs - 1, chunk_size);
                 vec_splits.push_back(last_chunk_size);
             }

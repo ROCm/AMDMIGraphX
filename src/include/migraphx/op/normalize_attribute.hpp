@@ -40,6 +40,7 @@ namespace op {
  * 2. use_rank (default) vs use_len:
  *  `use_rank` sets the max value/index of the attribute as the rank of lens.
  *  `use_lens` sets the max value/index as the corresponding value in lens at the axes index.
+ *      Uses the dynamic_dimension.max value for dynamic shapes.
  * 3. `clip_min` vs. `not_clip_min` (default):
  *  Clip values less than the minimum to the minimum or not.
  * 4. `include_min` vs. `exclude_min` (default):

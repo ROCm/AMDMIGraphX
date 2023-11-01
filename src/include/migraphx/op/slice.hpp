@@ -90,24 +90,25 @@ struct slice
 
     /**
      * Ensure that attribute axes is within limits.
-     * Supplies flags for normalizing starts and ends but is not used by compute_shape_op() call.
+     * Will attempt to normalize starts and ends; but will use the dynamic_dimension.max
+     * values for dynamic shapes. This makes it so you have to renormalize for
+     * non-fixed dynamic_dimensions.
      */
     value attributes() const
     {
         value normalize_axes     = value::object{};
         normalize_axes["axes"]   = value::array{normalize_attribute::include_min};
-        value normalize_inds     = value::object{};
-        normalize_inds["starts"] = value::array{normalize_attribute::clip_max,
+        normalize_axes["starts"] = value::array{normalize_attribute::clip_max,
                                                 normalize_attribute::clip_min,
                                                 normalize_attribute::include_max,
                                                 normalize_attribute::use_len,
                                                 normalize_attribute::include_min};
-        normalize_inds["ends"]   = value::array{normalize_attribute::clip_max,
+        normalize_axes["ends"]   = value::array{normalize_attribute::clip_max,
                                               normalize_attribute::clip_min,
                                               normalize_attribute::include_max,
                                               normalize_attribute::use_len,
                                               normalize_attribute::include_min};
-        return {{"normalize_axes", normalize_axes}, {"normalize_inds", normalize_inds}};
+        return {{"normalize_axes", normalize_axes}};
     }
 
     std::string name() const { return "slice"; }
@@ -141,8 +142,7 @@ struct slice
         return bool_vec;
     }
 
-    // uses the normalize_axes flag to normalize axes
-    // starts and ends are not normalized
+    // uses the normalize_axes flag to normalize axes, starts, and ends
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
@@ -153,31 +153,29 @@ struct slice
         {
             if(set_attributes != attr_cases::all_set)
             {
-                MIGRAPHX_THROW("SLICE: Invalid 1 input and attributes configuration");
+                MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
             }
+            // NOTE: make sure to update how normalization works here if this type of slicing is
+            // changed to be allowed
             if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                    return not input_shape.dyn_dims()[axis].is_fixed();
                }))
             {
-                MIGRAPHX_THROW("SLICE: slicing is not allowed on non-fixed dynamic input axis ");
+                MIGRAPHX_THROW(
+                    "SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
             }
             if(input_shape.dynamic())
             {
                 return shape{
                     t,
-                    lens_calc(input_shape.min_lens(), norm_attrs.at("norm_starts"), ends, axes),
-                    lens_calc(input_shape.max_lens(), starts, ends, axes),
+                    lens_calc(input_shape.min_lens(), this->starts, this->ends, this->axes),
+                    lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes),
                     {}};
             }
             else
             {
-                auto norm_attrs = normalize_starts_ends_axes(
-                    input_shape, std::nullopt, std::nullopt, std::nullopt);
                 return shape{t,
-                             lens_calc(input_shape.lens(),
-                                       norm_attrs.at("norm_starts"),
-                                       norm_attrs.at("norm_ends"),
-                                       norm_attrs.at("norm_axes")),
+                             lens_calc(input_shape.lens(), this->starts, this->ends, this->axes),
                              input_shape.strides()};
             }
         }
@@ -350,7 +348,6 @@ struct slice
                                const optional<std::vector<int64_t>>& input_axes) const
     {
         auto axes_attrs = this->attributes().at("normalize_axes");
-        auto inds_attrs = this->attributes().at("normalize_inds");
         std::vector<int64_t> norm_starts;
         std::vector<int64_t> norm_ends;
         std::vector<int64_t> norm_axes;
@@ -363,7 +360,6 @@ struct slice
         }
         else
         {
-            // don't need to normalize axes attribute again
             norm_axes = this->axes;
         }
         if(input_starts)
@@ -371,26 +367,24 @@ struct slice
             norm_starts = normalize_indices(input_starts.value(),
                                             norm_axes,
                                             input_shape,
-                                            inds_attrs.at("starts"),
+                                            axes_attrs.at("starts"),
                                             "Slice variable input_starts");
         }
         else
         {
-            norm_starts = normalize_indices(
-                this->starts, norm_axes, input_shape, inds_attrs.at("starts"), "Slice starts attr");
+            norm_starts = this->starts;
         }
         if(input_ends)
         {
             norm_ends = normalize_indices(input_ends.value(),
                                           norm_axes,
                                           input_shape,
-                                          inds_attrs.at("ends"),
+                                          axes_attrs.at("ends"),
                                           "Slice variable input ends");
         }
         else
         {
-            norm_starts = normalize_indices(
-                this->ends, norm_axes, input_shape, inds_attrs.at("ends"), "Slice ends attr");
+            norm_ends = this->ends;
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
     }
@@ -406,6 +400,9 @@ struct slice
         }
         else
         {
+            // Note that we re-normalize both the attributes and inputs because of the non-fixed
+            // dynamic input shape case. It's possible to only re-normalize if slicing over
+            // non-fixed dynamic_dimensions.
             auto set_attributes = get_set_attributes();
             std::unordered_map<std::string, std::vector<int64_t>> norm_inputs;
             if(set_attributes == attr_cases::ends_axes)
@@ -415,8 +412,8 @@ struct slice
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    input_starts.template to_vector<int64_t>(),
-                                                   std::nullopt,
-                                                   std::nullopt);
+                                                   this->ends,
+                                                   this->axes);
                 });
             }
             else if(set_attributes == attr_cases::starts_axes)
@@ -425,9 +422,9 @@ struct slice
                 args[1].visit([&](auto input_ends) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   std::nullopt,
+                                                   this->starts,
                                                    input_ends.template to_vector<int64_t>(),
-                                                   std::nullopt);
+                                                   this->axes);
                 });
             }
             else if(set_attributes == attr_cases::starts_ends)
@@ -436,8 +433,8 @@ struct slice
                 args[1].visit([&](auto input_axes) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   std::nullopt,
-                                                   std::nullopt,
+                                                   this->starts,
+                                                   this->ends,
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
@@ -449,7 +446,7 @@ struct slice
                         normalize_starts_ends_axes(input_shape,
                                                    input_starts.template to_vector<int64_t>(),
                                                    input_ends.template to_vector<int64_t>(),
-                                                   std::nullopt);
+                                                   this->axes);
                 });
             }
             else if(set_attributes == attr_cases::ends_only)
@@ -459,7 +456,7 @@ struct slice
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    input_starts.template to_vector<int64_t>(),
-                                                   std::nullopt,
+                                                   this->ends,
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
@@ -469,7 +466,7 @@ struct slice
                 visit_all(args[1], args[2])([&](auto input_ends, auto input_axes) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   std::nullopt,
+                                                   this->starts,
                                                    input_ends.template to_vector<int64_t>(),
                                                    input_axes.template to_vector<int64_t>());
                 });

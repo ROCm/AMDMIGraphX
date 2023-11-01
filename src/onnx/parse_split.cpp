@@ -84,9 +84,19 @@ struct parse_split : op_parser<parse_split>
                 }
             }
 
-            auto dl = lens[tuned_axis] / num_outputs;
-            vec_splits.resize(lens[tuned_axis] % num_outputs, dl + 1);
-            vec_splits.resize(num_outputs, dl);
+            if(lens[tuned_axis] % num_outputs == 0)
+            {
+                std::size_t chunk_size = lens[tuned_axis] / num_outputs;
+                vec_splits.resize(num_outputs, chunk_size);
+            }
+            else
+            {
+                std::size_t chunk_size      = lens[tuned_axis] / num_outputs + 1;
+                std::size_t last_chunk_size = lens[tuned_axis] - chunk_size * (num_outputs - 1);
+                vec_splits.reserve(num_outputs);
+                vec_splits.resize(num_outputs - 1, chunk_size);
+                vec_splits.push_back(last_chunk_size);
+            }
         }
 
         if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=

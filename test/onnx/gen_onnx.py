@@ -8047,9 +8047,9 @@ def split_test_uneven():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [12, 15])
     y1 = helper.make_tensor_value_info('y1', TensorProto.FLOAT, [3, 15])
     y2 = helper.make_tensor_value_info('y2', TensorProto.FLOAT, [3, 15])
-    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [2, 15])
-    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [2, 15])
-    y5 = helper.make_tensor_value_info('y5', TensorProto.FLOAT, [2, 15])
+    y3 = helper.make_tensor_value_info('y3', TensorProto.FLOAT, [3, 15])
+    y4 = helper.make_tensor_value_info('y4', TensorProto.FLOAT, [3, 15])
+    y5 = helper.make_tensor_value_info('y5', TensorProto.FLOAT, [0, 15])
 
     node = onnx.helper.make_node(
         'Split',

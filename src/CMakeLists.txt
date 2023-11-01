@@ -28,7 +28,11 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
- 
+
+if(WIN32)
+    # Due to compilation crashing, we need to use type-erased matchers on Windows.
+    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1>)
+endif()
 
 add_library(migraphx 
     adjust_allocation.cpp
@@ -246,13 +250,13 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
-if(HAS_LIB_STD_FILESYSTEM)
-target_link_libraries(migraphx PRIVATE -lstdc++fs)
+if(NOT WIN32)
+    check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+    if(HAS_LIB_STD_FILESYSTEM)
+        target_link_libraries(migraphx PRIVATE -lstdc++fs)
+    endif()
+    target_link_libraries(migraphx PRIVATE -ldl)
 endif()
-
-target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
@@ -273,8 +277,6 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
-
-set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
 add_subdirectory(driver)

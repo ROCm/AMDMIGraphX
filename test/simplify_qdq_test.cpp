@@ -93,7 +93,7 @@ migraphx::instruction_ref add_scale_mul(migraphx::module& m,
                                         migraphx::instruction_ref scale2,
                                         std::size_t axis1,
                                         std::size_t axis2,
-                                        std::vector<std::size_t> out_lens)
+                                        const std::vector<std::size_t>& out_lens)
 {
     auto scale1_mb = broadcast_scale(m, scale1, out_lens, axis1);
     auto scale2_mb = broadcast_scale(m, scale2, out_lens, axis2);

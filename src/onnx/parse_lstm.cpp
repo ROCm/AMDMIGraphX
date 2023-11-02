@@ -116,6 +116,37 @@ void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv
     }
 }
 
+void transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+{
+    std::vector<int64_t> perm{1, 0, 2};
+    args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
+
+    if(args.size() >= 6 and not args[5]->is_undefined())
+    {
+        args[5] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[5]);
+    }
+
+    if(args.size() >= 7 and not args[6]->is_undefined())
+    {
+        args[6] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[6]);
+    }
+}
+
+void transpose_outputs(onnx_parser::node_info& info,
+                       instruction_ref& hidden_states,
+                       instruction_ref& last_output,
+                       instruction_ref& last_cell_output)
+{
+    std::vector<int64_t> perm_hs{2, 0, 1, 3};
+    hidden_states =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_hs}}), hidden_states);
+    std::vector<int64_t> perm_last{1, 0, 2};
+    last_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_output);
+    last_cell_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_cell_output);
+}
+
 struct parse_lstm : op_parser<parse_lstm>
 {
     std::vector<op_desc> operators() const { return {{"LSTM"}}; }
@@ -215,22 +246,30 @@ struct parse_lstm : op_parser<parse_lstm>
             args.insert(args.end(), 8 - args.size(), ins);
         }
 
+        if(layout != 0)
+        {
+            transpose_inputs(info, args);
+        }
+
         // first output for concatenation of hidden states
         auto hidden_states = info.add_instruction(make_op("lstm",
                                                           {{"hidden_size", hidden_size},
                                                            {"actv_func", to_value(vec_actv_funcs)},
                                                            {"direction", dirct},
                                                            {"clip", clip},
-                                                           {"input_forget", input_forget},
-                                                           {"layout", layout}}),
+                                                           {"input_forget", input_forget}}),
                                                   args);
 
-        auto last_output = info.add_instruction(make_op("rnn_last_hs_output", {{"layout", layout}}),
-                                                hidden_states);
+        auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
 
         // third output for last cell output
-        auto last_cell_output = info.add_instruction(
-            make_op("rnn_last_cell_output", {{"layout", layout}}), hidden_states);
+        auto last_cell_output =
+            info.add_instruction(make_op("rnn_last_cell_output"), hidden_states);
+
+        if(layout != 0)
+        {
+            transpose_outputs(info, hidden_states, last_output, last_cell_output);
+        }
 
         return {hidden_states, last_output, last_cell_output};
     }

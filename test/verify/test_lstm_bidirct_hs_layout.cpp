@@ -41,7 +41,6 @@ struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
-        int layout              = 1;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -62,7 +61,11 @@ struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
         std::vector<int> sl_data{3, 2};
         auto sql = mm->add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
 
-        mm->add_instruction(
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+        ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
+
+        auto output = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
@@ -70,14 +73,15 @@ struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip},
-                 {"layout", layout}}),
+                 {"clip", clip}}),
             seq,
             w,
             r,
             bias,
             sql,
             ih);
+        std::vector<int64_t> perm_hid{2, 0, 1, 3};
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), output);
 
         return p;
     }

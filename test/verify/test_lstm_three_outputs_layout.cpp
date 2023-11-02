@@ -41,7 +41,6 @@ struct test_lstm_three_outputs_layout : verify_program<test_lstm_three_outputs_l
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
-        int layout              = 1;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -53,24 +52,31 @@ struct test_lstm_three_outputs_layout : verify_program<test_lstm_three_outputs_l
         auto seq = mm->add_parameter("seq", in_shape);
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
-        auto hs  = mm->add_instruction(
+
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
-                  {"actv_func",
-                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                       migraphx::make_op("tanh"),
-                                                                       migraphx::make_op("tanh")})},
-                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                  {"clip", clip},
-                  {"layout", layout}}),
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                 {"clip", clip}}),
             seq,
             w,
             r);
-        auto last_hs =
-            mm->add_instruction(migraphx::make_op("rnn_last_hs_output", {{"layout", layout}}), hs);
-        auto last_cell = mm->add_instruction(
-            migraphx::make_op("rnn_last_cell_output", {{"layout", layout}}), hs);
+        auto last_hs   = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+        auto last_cell = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+        std::vector<int64_t> perm_hid{2, 0, 1, 3};
+        hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
+        last_hs =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_hs);
+        last_cell =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_cell);
         mm->add_return({hs, last_hs, last_cell});
 
         return p;

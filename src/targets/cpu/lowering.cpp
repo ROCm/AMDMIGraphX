@@ -236,25 +236,21 @@ struct cpu_rnn_var_sl_last_output
     {
         argument result{output_shape};
         auto out_comp_lens = args[0].get_shape().lens();
-        // layout = 0 [seq_length, num_directions, batch_size, hidden_size]
-        // layout = 1 [batch_size, seq_length, num_directions, hidden_size]
-        int seq_index            = (op.layout == 0) ? 0 : 1;
-        int batch_index          = (op.layout == 0) ? 2 : 0;
-        out_comp_lens[seq_index] = 1;
+        out_comp_lens[0]   = 1;
         shape out_comp_s{output_shape.type(), out_comp_lens};
 
         visit_all(result, args[0])([&](auto output, auto input) {
             args[1].visit([&](auto seq_lens) {
                 par_for(output_shape.elements(), [&](auto i) {
                     auto idx = out_comp_s.multi(i);
-                    auto b   = idx[batch_index];
-                    if(op.direction == op::rnn_direction::reverse or idx[seq_index + 1] == 1)
+                    auto b   = idx[2];
+                    if(op.direction == op::rnn_direction::reverse or idx[1] == 1)
                     {
-                        idx[seq_index] = 0;
+                        idx[0] = 0;
                     }
                     else
                     {
-                        idx[seq_index] = seq_lens[b] - 1;
+                        idx[0] = seq_lens[b] - 1;
                     }
                     output[i] = input(idx.begin(), idx.end());
                 });

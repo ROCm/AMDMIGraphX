@@ -41,7 +41,6 @@ struct test_lstm_bidirct_last_layout : verify_program<test_lstm_bidirct_last_lay
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 2;
         float clip              = 0.0f;
-        int layout              = 1;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -64,6 +63,11 @@ struct test_lstm_bidirct_last_layout : verify_program<test_lstm_bidirct_last_lay
         auto pph  = mm->add_parameter("pph", pph_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+        ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
+        ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
+
         auto output = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
@@ -73,8 +77,7 @@ struct test_lstm_bidirct_last_layout : verify_program<test_lstm_bidirct_last_lay
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip},
-                 {"layout", layout}}),
+                 {"clip", clip}}),
             seq,
             w,
             r,
@@ -83,7 +86,8 @@ struct test_lstm_bidirct_last_layout : verify_program<test_lstm_bidirct_last_lay
             ih,
             ic,
             pph);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output", {{"layout", layout}}), output);
+        auto last_output = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
 
         return p;
     }

@@ -41,7 +41,6 @@ struct test_lstm_reverse_3args_cell_layout : verify_program<test_lstm_reverse_3a
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
-        int layout              = 1;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -53,21 +52,25 @@ struct test_lstm_reverse_3args_cell_layout : verify_program<test_lstm_reverse_3a
         auto seq = mm->add_parameter("seq", in_shape);
         auto w   = mm->add_parameter("w", w_shape);
         auto r   = mm->add_parameter("r", r_shape);
-        auto hs  = mm->add_instruction(
+
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
-                  {"actv_func",
-                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                       migraphx::make_op("tanh"),
-                                                                       migraphx::make_op("tanh")})},
-                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                  {"clip", clip},
-                  {"layout", layout}}),
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+                 {"clip", clip}}),
             seq,
             w,
             r);
-        mm->add_instruction(migraphx::make_op("rnn_last_cell_output", {{"layout", layout}}), hs);
+        auto cell_output = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), cell_output);
 
         return p;
     }

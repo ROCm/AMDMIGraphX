@@ -238,8 +238,8 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
 
     // in case of all sequences are of the same lengths and shorter than the
     // max sequence length, need to pad 0's at the end for output hidden states
-    ins = pad_hidden_states(m, args[0], seq_lens, ins, 0);
-    replace_last_hs_output(m, ins, seq_lens, last_output, dirct, 0);
+    ins = pad_hidden_states(m, args[0], seq_lens, ins);
+    replace_last_hs_output(m, ins, seq_lens, last_output, dirct);
 }
 
 std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
@@ -287,7 +287,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref hidden_out = m.end();
     instruction_ref last_out{};
     last_out     = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), sih);
-    long seq_len = get_seq_len(m, seq, seq_lens, 0);
+    long seq_len = get_seq_len(m, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -547,8 +547,8 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
 
     // in case of all sequences are of the same lengths and shorter than the
     // max sequence length, need to pad 0's at the end for output hidden states
-    ins = pad_hidden_states(m, args[0], seq_lens, ins, 0);
-    replace_last_hs_output(m, ins, seq_lens, last_output, dirct, 0);
+    ins = pad_hidden_states(m, args[0], seq_lens, ins);
+    replace_last_hs_output(m, ins, seq_lens, last_output, dirct);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -629,7 +629,7 @@ std::vector<instruction_ref> rewrite_rnn::gru_cell(bool is_forward,
             rb_h);
     }
 
-    long seq_len = get_seq_len(m, seq, seq_lens, 0);
+    long seq_len = get_seq_len(m, seq, seq_lens);
     for(long i = 0; i < seq_len; i++)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
@@ -768,26 +768,18 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 {
     assert(ins->name() == "lstm");
     auto args = ins->inputs();
-    auto lstm_op = any_cast<op::lstm>(ins->get_operator());
 
-    int layout                      = lstm_op.layout;
     shape seq_shape         = args[0]->get_shape();
     std::size_t hidden_size = args[2]->get_shape().lens()[2];
-    std::size_t batch_size          = (layout == 0) ? seq_shape.lens()[1] : seq_shape.lens()[0];
-    std::size_t ihc_shape_dim1      = (layout == 0) ? 1 : batch_size;
-    std::size_t ihc_shape_dim2      = (layout == 0) ? batch_size : 1;
-    std::size_t ihc_ndir_axes_index = (layout == 0) ? 0 : 1;
-    std::size_t seq_len_axes_index  = (layout == 0) ? 0 : 1;
-    std::size_t hs_ndir_axes_index  = (layout == 0) ? 1 : 2;
-
+    std::size_t batch_size  = seq_shape.lens()[1];
     shape::type_t type      = seq_shape.type();
-    migraphx::shape ihc_shape{type, {ihc_shape_dim1, ihc_shape_dim2, hidden_size}};
-
+    migraphx::shape ihc_shape{type, {1, batch_size, hidden_size}};
     std::vector<float> ihc_data(ihc_shape.elements(), 0.0);
 
     migraphx::shape pph_shape{type, {1, 3 * hidden_size}};
 
     auto actv_funcs         = lstm_actv_funcs(ins);
+    auto lstm_op            = any_cast<op::lstm>(ins->get_operator());
     op::rnn_direction dirct = lstm_op.direction;
 
     // process sequence length
@@ -835,13 +827,9 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         if(args.size() >= 6 and not args[5]->is_undefined())
         {
             ih_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {ihc_ndir_axes_index}}, {"starts", {0}}, {"ends", {1}}}),
-                args[5]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
             ih_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {ihc_ndir_axes_index}}, {"starts", {1}}, {"ends", {2}}}),
-                args[5]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[5]);
         }
         else
         {
@@ -855,13 +843,9 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         if(args.size() >= 7 and not args[6]->is_undefined())
         {
             ic_forward = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {ihc_ndir_axes_index}}, {"starts", {0}}, {"ends", {1}}}),
-                args[6]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[6]);
             ic_reverse = m.insert_instruction(
-                ins,
-                make_op("slice", {{"axes", {ihc_ndir_axes_index}}, {"starts", {1}}, {"ends", {2}}}),
-                args[6]);
+                ins, make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), args[6]);
         }
         else
         {
@@ -881,7 +865,6 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         }
 
         auto ret_forward = lstm_cell(true,
-                                     layout,
                                      m,
                                      ins,
                                      {args[0],
@@ -898,11 +881,10 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         if(variable_seq_len)
         {
-            args[0] = m.insert_instruction(
-                ins, make_op("rnn_var_sl_shift_sequence", {{"layout", layout}}), args[0], seq_lens);
+            args[0] =
+                m.insert_instruction(ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
         auto ret_reverse = lstm_cell(false,
-                                     layout,
                                      m,
                                      ins,
                                      {args[0],
@@ -918,13 +900,13 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
                                      actv_funcs.at(5));
 
         auto concat_hs_output = m.insert_instruction(
-            ins, make_op("concat", {{"axis", hs_ndir_axes_index}}), ret_forward[1], ret_reverse[1]);
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[1], ret_reverse[1]);
         auto concat_cell_output = m.insert_instruction(
-            ins, make_op("concat", {{"axis", hs_ndir_axes_index}}), ret_forward[3], ret_reverse[3]);
-        last_hs_output = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", {seq_len_axes_index}}}), concat_hs_output);
-        last_cell_output = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", {seq_len_axes_index}}}), concat_cell_output);
+            ins, make_op("concat", {{"axis", 1}}), ret_forward[3], ret_reverse[3]);
+        last_hs_output =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_hs_output);
+        last_cell_output =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), concat_cell_output);
 
         // the following logic is to ensure the last instruction is a concat
         if(ret_forward[0] == m.end())
@@ -933,32 +915,21 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         }
         else
         {
-            ret_forward[1] = m.insert_instruction(ins,
-                                                  make_op("concat", {{"axis", seq_len_axes_index}}),
-                                                  ret_forward[0],
-                                                  ret_forward[1]);
-            ret_reverse[1] = m.insert_instruction(ins,
-                                                  make_op("concat", {{"axis", seq_len_axes_index}}),
-                                                  ret_reverse[1],
-                                                  ret_reverse[0]);
+            ret_forward[1] = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[0], ret_forward[1]);
+            ret_reverse[1] = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[1], ret_reverse[0]);
 
-            ret_forward[3] = m.insert_instruction(ins,
-                                                  make_op("concat", {{"axis", seq_len_axes_index}}),
-                                                  ret_forward[2],
-                                                  ret_forward[3]);
-            ret_reverse[3] = m.insert_instruction(ins,
-                                                  make_op("concat", {{"axis", seq_len_axes_index}}),
-                                                  ret_reverse[3],
-                                                  ret_reverse[2]);
-            cell_outputs   = m.insert_instruction(ins,
-                                                make_op("concat", {{"axis", hs_ndir_axes_index}}),
-                                                ret_forward[3],
-                                                ret_reverse[3]);
+            ret_forward[3] = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_forward[2], ret_forward[3]);
+            ret_reverse[3] = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), ret_reverse[3], ret_reverse[2]);
+            cell_outputs = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 1}}), ret_forward[3], ret_reverse[3]);
         }
 
-        hidden_state = m.replace_instruction(ins,
-                                             make_op("concat", {{"axis", hs_ndir_axes_index}}),
-                                             {ret_forward[1], ret_reverse[1]});
+        hidden_state = m.replace_instruction(
+            ins, make_op("concat", {{"axis", 1}}), {ret_forward[1], ret_reverse[1]});
     }
     else
     {
@@ -1005,12 +976,10 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         if(not is_forward and variable_seq_len)
         {
-            args[0] = m.insert_instruction(
-                ins, make_op("rnn_var_sl_shift_sequence", {{"layout", layout}}), args[0], seq_lens);
+            args[0] =
+                m.insert_instruction(ins, make_op("rnn_var_sl_shift_sequence"), args[0], seq_lens);
         }
-
         auto ret = lstm_cell(is_forward,
-                             layout,
                              m,
                              ins,
                              {args[0], w, r, bias, seq_lens, ih, ic, pph},
@@ -1018,46 +987,41 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
                              actv_funcs.at(1),
                              actv_funcs.at(2));
 
-        last_hs_output =
-            m.insert_instruction(ins, make_op("squeeze", {{"axes", {seq_len_axes_index}}}), ret[1]);
-        last_cell_output =
-            m.insert_instruction(ins, make_op("squeeze", {{"axes", {seq_len_axes_index}}}), ret[3]);
+        last_hs_output   = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[1]);
+        last_cell_output = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ret[3]);
+
         if(ret[0] == m.end())
         {
             cell_outputs = ret[3];
-            hidden_state = m.replace_instruction(
-                ins, make_op("concat", {{"axis", seq_len_axes_index}}), ret[1]);
+            hidden_state = m.replace_instruction(ins, make_op("concat", {{"axis", 0}}), ret[1]);
         }
         else
         {
             auto concat_cell_arg0 = is_forward ? ret[2] : ret[3];
             auto concat_cell_arg1 = is_forward ? ret[3] : ret[2];
-            cell_outputs          = m.insert_instruction(ins,
-                                                make_op("concat", {{"axis", seq_len_axes_index}}),
-                                                concat_cell_arg0,
-                                                concat_cell_arg1);
+            cell_outputs          = m.insert_instruction(
+                ins, make_op("concat", {{"axis", 0}}), concat_cell_arg0, concat_cell_arg1);
 
             auto concat_arg0 = is_forward ? ret[0] : ret[1];
             auto concat_arg1 = is_forward ? ret[1] : ret[0];
             hidden_state     = m.replace_instruction(
-                ins, make_op("concat", {{"axis", seq_len_axes_index}}), concat_arg0, concat_arg1);
+                ins, make_op("concat", {{"axis", 0}}), concat_arg0, concat_arg1);
         }
     }
 
     // in case of all sequences are of the same lengths and shorter than the
     // max sequence length, need to pad 0's at the end for output hidden states
-    hidden_state = pad_hidden_states(m, args[0], seq_lens, hidden_state, layout);
+    hidden_state = pad_hidden_states(m, args[0], seq_lens, hidden_state);
 
     // replace last hidden states with corresponding instructions
-    ins = replace_last_hs_output(m, hidden_state, seq_lens, last_hs_output, dirct, layout);
+    ins = replace_last_hs_output(m, hidden_state, seq_lens, last_hs_output, dirct);
 
     // replace last cell outputs with corresponding instructions
-    replace_last_cell_output(m, ins, seq_lens, cell_outputs, last_cell_output, dirct, layout);
+    replace_last_cell_output(m, ins, seq_lens, cell_outputs, last_cell_output, dirct);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
-                                                    int layout,
                                                     module& m,
                                                     instruction_ref ins,
                                                     std::vector<instruction_ref> inputs,
@@ -1082,12 +1046,9 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     instruction_ref last_hs_output{};
     instruction_ref last_cell_output{};
 
-    std::size_t ihc_ndir_axes_index = (layout == 0) ? 0 : 1;
-    std::size_t seq_len_axes_index  = (layout == 0) ? 0 : 1;
-
     migraphx::shape r_shape = r->get_shape();
     long hs                 = r_shape.lens()[2];
-    auto bs                 = (layout == 0) ? ih->get_shape().lens()[1] : ih->get_shape().lens()[0];
+    auto bs                 = ih->get_shape().lens()[1];
 
     std::vector<int64_t> perm{1, 0};
     // w matrix, squeeze and transpose
@@ -1099,10 +1060,10 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
     auto tsr = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), sr);
 
     // initial hidden state
-    auto sih = m.insert_instruction(ins, make_op("squeeze", {{"axes", {ihc_ndir_axes_index}}}), ih);
+    auto sih = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ih);
 
     // initial cell state
-    auto sic = m.insert_instruction(ins, make_op("squeeze", {{"axes", {ihc_ndir_axes_index}}}), ic);
+    auto sic     = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), ic);
     auto ic_lens = sic->get_shape().lens();
 
     // bias
@@ -1148,19 +1109,17 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
             ins, make_op("broadcast", {{"axis", 1}, {"out_lens", ic_lens}}), pphf);
     }
 
-    long seq_len = get_seq_len(m, seq, seq_lens, layout);
+    long seq_len = get_seq_len(m, seq, seq_lens);
     for(long i = 0; i < seq_len; ++i)
     {
         long seq_index = is_forward ? i : (seq_len - 1 - i);
-        auto xt        = m.insert_instruction(ins,
-                                       make_op("slice",
-                                                      {{"axes", {seq_len_axes_index}},
-                                                       {"starts", {seq_index}},
-                                                       {"ends", {seq_index + 1}}}),
-                                       seq);
+        auto xt        = m.insert_instruction(
+            ins,
+            make_op("slice", {{"axes", {0}}, {"starts", {seq_index}}, {"ends", {seq_index + 1}}}),
+            seq);
         auto cont_xt = m.insert_instruction(ins, make_op("contiguous"), xt);
-        xt             = m.insert_instruction(
-            ins, make_op("squeeze", {{"axes", {seq_len_axes_index}}}), cont_xt);
+        xt           = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), cont_xt);
+
         auto xt_tsw  = m.insert_instruction(ins, make_op("dot"), xt, tsw);
         auto sih_tsr = m.insert_instruction(ins, make_op("dot"), sih, tsr);
         auto xt_sih  = m.insert_instruction(ins, make_op("add"), xt_tsw, sih_tsr);
@@ -1213,14 +1172,9 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
         sic = cellt;
         sih = ht;
 
-        last_hs_output = m.insert_instruction(
-            ins,
-            make_op("unsqueeze", {{"axes", {seq_len_axes_index, seq_len_axes_index + 1}}}),
-            ht);
-        last_cell_output = m.insert_instruction(
-            ins,
-            make_op("unsqueeze", {{"axes", {seq_len_axes_index, seq_len_axes_index + 1}}}),
-            cellt);
+        last_hs_output = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), ht);
+        last_cell_output =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0, 1}}}), cellt);
 
         if(i < seq_len - 1)
         {
@@ -1233,19 +1187,13 @@ std::vector<instruction_ref> rewrite_rnn::lstm_cell(bool is_forward,
             {
                 auto concat_hs_arg0 = is_forward ? hidden_states : last_hs_output;
                 auto concat_hs_arg1 = is_forward ? last_hs_output : hidden_states;
-                hidden_states =
-                    m.insert_instruction(ins,
-                                         make_op("concat", {{"axis", seq_len_axes_index}}),
-                                         concat_hs_arg0,
-                                         concat_hs_arg1);
+                hidden_states       = m.insert_instruction(
+                    ins, make_op("concat", {{"axis", 0}}), concat_hs_arg0, concat_hs_arg1);
 
                 auto concat_cell_arg0 = is_forward ? cell_outputs : last_cell_output;
                 auto concat_cell_arg1 = is_forward ? last_cell_output : cell_outputs;
-                cell_outputs =
-                    m.insert_instruction(ins,
-                                         make_op("concat", {{"axis", seq_len_axes_index}}),
-                                         concat_cell_arg0,
-                                         concat_cell_arg1);
+                cell_outputs          = m.insert_instruction(
+                    ins, make_op("concat", {{"axis", 0}}), concat_cell_arg0, concat_cell_arg1);
             }
         }
     }
@@ -1361,15 +1309,12 @@ bool rewrite_rnn::is_variable_seq_lens(const module& m, instruction_ref seq_lens
     return is_var_lens;
 }
 
-std::size_t rewrite_rnn::get_seq_len(const module& m,
-                                     instruction_ref input,
-                                     instruction_ref seq_lens,
-                                     int layout) const
+std::size_t
+rewrite_rnn::get_seq_len(const module& m, instruction_ref input, instruction_ref seq_lens) const
 {
-    int seq_index    = (layout == 0) ? 0 : 1;
     bool is_var_lens = is_variable_seq_lens(m, seq_lens);
     auto input_shape = input->get_shape();
-    auto length      = input_shape.lens()[seq_index];
+    auto length      = input_shape.lens()[0];
     if(not is_var_lens and seq_lens != m.end())
     {
         auto arg_len = seq_lens->eval();
@@ -1385,19 +1330,18 @@ instruction_ref rewrite_rnn::replace_last_hs_output(module& m,
                                                     instruction_ref ins,
                                                     instruction_ref seq_lens,
                                                     instruction_ref last_hs_output,
-                                                    op::rnn_direction dirct,
-                                                    int layout) const
+                                                    op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(m, seq_lens);
     instruction_ref result_ins{};
     if(variable_seq_len)
     {
-        result_ins = m.insert_instruction(
-            std::next(ins),
-            make_op("rnn_var_sl_shift_output",
-                    {{"output_name", "hidden_states"}, {"direction", dirct}, {"layout", layout}}),
-            ins,
-            seq_lens);
+        result_ins =
+            m.insert_instruction(std::next(ins),
+                                 make_op("rnn_var_sl_shift_output",
+                                         {{"output_name", "hidden_states"}, {"direction", dirct}}),
+                                 ins,
+                                 seq_lens);
         m.replace_instruction(ins, result_ins);
         auto hs_outputs = find_all(result_ins->outputs(),
                                    [&](auto i) { return i->name() == "rnn_last_hs_output"; });
@@ -1405,11 +1349,10 @@ instruction_ref rewrite_rnn::replace_last_hs_output(module& m,
         for(auto& hs_out : hs_outputs)
         {
             auto inputs = hs_out->inputs();
-            m.replace_instruction(
-                hs_out,
-                make_op("rnn_var_sl_last_output", {{"direction", dirct}, {"layout", layout}}),
-                inputs.front(),
-                seq_lens);
+            m.replace_instruction(hs_out,
+                                  make_op("rnn_var_sl_last_output", {{"direction", dirct}}),
+                                  inputs.front(),
+                                  seq_lens);
         }
     }
     else
@@ -1433,8 +1376,7 @@ void rewrite_rnn::replace_last_cell_output(module& m,
                                            instruction_ref seq_lens,
                                            instruction_ref cell_outputs,
                                            instruction_ref last_cell_output,
-                                           op::rnn_direction dirct,
-                                           int layout) const
+                                           op::rnn_direction dirct) const
 {
     bool variable_seq_len = is_variable_seq_lens(m, seq_lens);
     auto ins_outputs =
@@ -1446,20 +1388,18 @@ void rewrite_rnn::replace_last_cell_output(module& m,
         {
             cell_outputs = m.insert_instruction(
                 std::next(ins),
-                make_op(
-                    "rnn_var_sl_shift_output",
-                    {{"output_name", "cell_outputs"}, {"direction", dirct}, {"layout", layout}}),
+                make_op("rnn_var_sl_shift_output",
+                        {{"output_name", "cell_outputs"}, {"direction", dirct}}),
                 cell_outputs,
                 seq_lens);
         }
 
         for(auto co : ins_outputs)
         {
-            m.replace_instruction(
-                co,
-                make_op("rnn_var_sl_last_output", {{"direction", dirct}, {"layout", layout}}),
-                cell_outputs,
-                seq_lens);
+            m.replace_instruction(co,
+                                  make_op("rnn_var_sl_last_output", {{"direction", dirct}}),
+                                  cell_outputs,
+                                  seq_lens);
         }
     }
     // replace the rnn_last_cell_output with the last_cell_output. The while
@@ -1473,12 +1413,14 @@ void rewrite_rnn::replace_last_cell_output(module& m,
     }
 }
 
-instruction_ref rewrite_rnn::pad_hidden_states(
-    module& m, instruction_ref seq, instruction_ref seq_lens, instruction_ref hs, int layout) const
+instruction_ref rewrite_rnn::pad_hidden_states(module& m,
+                                               instruction_ref seq,
+                                               instruction_ref seq_lens,
+                                               instruction_ref hs) const
 {
-    int seq_index    = (layout == 0) ? 0 : 1;
-    auto max_seq_len = seq->get_shape().lens()[seq_index];
-    auto seq_len     = get_seq_len(m, seq, seq_lens, layout);
+    auto max_seq_len = seq->get_shape().lens()[0];
+    auto seq_len     = get_seq_len(m, seq, seq_lens);
+
     // condition of all sequence are of the same length and
     // less than max_seq_len, we need to append the hs outputs
     auto hs_padded = hs;
@@ -1486,14 +1428,14 @@ instruction_ref rewrite_rnn::pad_hidden_states(
     {
         auto s        = hs->get_shape();
         auto pad_lens = s.lens();
-        pad_lens[seq_index] = static_cast<std::size_t>(max_seq_len - seq_len);
+        pad_lens[0]   = static_cast<std::size_t>(max_seq_len - seq_len);
         shape pad_s{s.type(), pad_lens};
         std::vector<float> pad_data(pad_s.elements(), 0.0f);
         auto pl   = m.add_literal(pad_s, pad_data.begin(), pad_data.end());
-        hs_padded =
-            m.insert_instruction(std::next(hs), make_op("concat", {{"axis", seq_index}}), hs, pl);
+        hs_padded = m.insert_instruction(std::next(hs), make_op("concat", {{"axis", 0}}), hs, pl);
         m.replace_instruction(hs, hs_padded);
     }
+
     return hs_padded;
 }
 

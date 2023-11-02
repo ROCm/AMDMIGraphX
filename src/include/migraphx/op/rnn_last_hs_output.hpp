@@ -35,29 +35,14 @@ namespace op {
 
 struct rnn_last_hs_output
 {
-    int layout = 0;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.layout, "layout"));
-    }
-
     std::string name() const { return "rnn_last_hs_output"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         auto dims = inputs[0].lens();
 
-        // remove seq_len dimension, remaining are output shape
-        if(layout == 0)
-        {
-            dims.erase(dims.begin());
-        }
-        else
-        {
-            dims.erase(std::next(dims.begin()));
-        }
+        // remove the first dimension, remaing are output shape
+        dims.erase(dims.begin());
         return {inputs[0].type(), dims};
     }
 };

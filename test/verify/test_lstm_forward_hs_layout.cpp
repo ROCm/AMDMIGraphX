@@ -41,7 +41,6 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
         std::size_t input_size  = 8;
         std::size_t num_dirct   = 1;
         float clip              = 0.0f;
-        int layout              = 1;
 
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -64,7 +63,12 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
         auto pph  = mm->add_parameter("pph", pph_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+        ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
+        ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
+
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
@@ -73,8 +77,7 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
-                 {"clip", clip},
-                 {"layout", layout}}),
+                 {"clip", clip}}),
             seq,
             w,
             r,
@@ -83,6 +86,8 @@ struct test_lstm_forward_hs_layout : verify_program<test_lstm_forward_hs_layout>
             ih,
             ic,
             pph);
+        std::vector<int64_t> perm_hid{2, 0, 1, 3};
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
 
         return p;
     }

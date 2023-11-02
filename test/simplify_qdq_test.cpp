@@ -46,7 +46,7 @@ void run_pass(migraphx::module& m)
 
 migraphx::instruction_ref broadcast_scale(migraphx::module& m,
                                           migraphx::instruction_ref scale,
-                                          std::vector<std::size_t> out_lens,
+                                          const std::vector<std::size_t>& out_lens,
                                           std::size_t axis)
 {
     if(scale->get_shape().lens() == out_lens)

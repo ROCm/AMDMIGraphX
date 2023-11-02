@@ -564,7 +564,6 @@ int32_t gemm_finalize(context& ctx,
         solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
-    // suppress compiler warnings
     (void)ctx, (void)output_shape, (void)input_shapes;
     (void)alpha, (void)beta, (void)compute_fp32;
 #endif
@@ -600,7 +599,6 @@ int32_t gemm_finalize(context& ctx,
         solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
-    // suppress compiler warnings
     (void)ctx, (void)output_shape, (void)input_shapes;
     (void)alpha, (void)beta, (void)compute_fp32;
 #endif

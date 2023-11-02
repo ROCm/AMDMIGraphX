@@ -41,8 +41,6 @@ struct context;
 
 MIGRAPHX_GPU_EXPORT bool get_compute_fp32_flag();
 
-MIGRAPHX_GPU_EXPORT bool get_int8_x4_format(context& ctx);
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

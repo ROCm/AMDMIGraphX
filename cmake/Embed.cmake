@@ -57,21 +57,21 @@ endfunction()
 function(generate_embed_source EMBED_NAME)
     set(options)
     set(oneValueArgs SRC HEADER RELATIVE)
-    set(multiValueArgs OBJECTS SYMBOLS FILES)
+    set(multiValueArgs OBJECTS SYMBOLS FILES EXTRA_FILES EXTRA_RELATIVE)
 
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
     set(EXTERNS)
     set(INIT_KERNELS)
-
     list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
     list(LENGTH PARSE_OBJECTS OBJECTS_LEN)
+    list(LENGTH PARSE_FILES PARSE_FILES_LEN)
+    list(LENGTH PARSE_EXTRA_FILES EXTRA_FILES_LEN)
     if(NOT ${SYMBOLS_LEN} EQUAL ${OBJECTS_LEN})
         message(FATAL_ERROR "Symbols and objects dont match: ${SYMBOLS_LEN} != ${OBJECTS_LEN}")
     endif()
-    math(EXPR LEN "${SYMBOLS_LEN} - 1")
-
-    foreach(idx RANGE ${LEN})
+    math(EXPR FILES_LEN "${SYMBOLS_LEN} - ${EXTRA_FILES_LEN} - 1")
+    
+    foreach(idx RANGE ${FILES_LEN})
         list(GET PARSE_SYMBOLS ${idx} SYMBOL)
         list(GET PARSE_OBJECTS ${idx} OBJECT)
         list(GET PARSE_FILES ${idx} FILE)
@@ -100,6 +100,39 @@ extern const size_t ${LENGTH_SYMBOL};
         string(APPEND INIT_KERNELS "
             { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
     endforeach()
+
+    math(EXPR EXTRA_FILES_LEN "${EXTRA_FILES_LEN} -1")
+    foreach(offset RANGE ${EXTRA_FILES_LEN})
+        math(EXPR idx "${offset} + ${PARSE_FILES_LEN}")
+        list(GET PARSE_SYMBOLS ${idx} SYMBOL)
+        list(GET PARSE_OBJECTS ${idx} OBJECT)
+        list(GET PARSE_EXTRA_FILES ${offset} FILE)
+        list(GET PARSE_EXTRA_RELATIVE ${offset} EXTRA_RELATIVE_PATH)
+
+        set(START_SYMBOL "_binary_${SYMBOL}_start")
+        set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
+        if(EMBED_USE_LD)
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const size_t _binary_${SYMBOL}_size;
+const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
+            ")
+        else()
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const size_t ${LENGTH_SYMBOL};
+            ")
+        endif()
+        if(EXTRA_RELATIVE_PATH)
+            file(RELATIVE_PATH BASE_NAME ${EXTRA_RELATIVE_PATH} "${FILE}")
+        else()
+            get_filename_component(BASE_NAME "${FILE}" NAME)
+        endif()
+
+        string(APPEND INIT_KERNELS "
+            { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
+    endforeach()
+
 
     file(WRITE "${PARSE_HEADER}" "
 #include <string_view>
@@ -165,7 +198,7 @@ endfunction()
 function(add_embed_library EMBED_NAME)
     set(options)
     set(oneValueArgs RELATIVE)
-    set(multiValueArgs)
+    set(multiValueArgs EXTRA_HEADERS EXTRA_HEADERS_RELATIVE)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/embed)
@@ -182,8 +215,14 @@ function(add_embed_library EMBED_NAME)
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
+    foreach(FILE ${PARSE_EXTRA_HEADERS})
+        embed_file(OUTPUT_FILE OUTPUT_SYMBOL ${FILE})
+        list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
+        list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
+    endforeach()
+
     message(STATUS "Generating embedding library ${EMBED_NAME}")
-    generate_embed_source(${EMBED_NAME} SRC ${SRC_FILE} HEADER ${HEADER_FILE} OBJECTS ${OUTPUT_FILES} SYMBOLS ${SYMBOLS} RELATIVE ${PARSE_RELATIVE} FILES ${PARSE_UNPARSED_ARGUMENTS})
+    generate_embed_source(${EMBED_NAME} SRC ${SRC_FILE} HEADER ${HEADER_FILE} OBJECTS ${OUTPUT_FILES} SYMBOLS ${SYMBOLS} RELATIVE ${PARSE_RELATIVE} FILES ${PARSE_UNPARSED_ARGUMENTS} EXTRA_FILES ${PARSE_EXTRA_HEADERS} EXTRA_RELATIVE ${PARSE_EXTRA_HEADERS_RELATIVE})
     
     set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
     add_library(${INTERNAL_EMBED_LIB} OBJECT "${SRC_FILE}")

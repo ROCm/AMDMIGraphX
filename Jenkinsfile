@@ -26,9 +26,6 @@ def rocmtestnode(Map conf) {
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
-            ls -la /
-            ls -la /.onnx
-            pip3 list
             env
             rm -rf build
             mkdir build

@@ -115,7 +115,7 @@ struct rocblas_gemm
         if(this->name() == "gpu::gemm")
         {
             gemm_compute(
-                ctx, output_shape, args, alpha, beta, int8_x4_format, compute_fp32, solution_idx);
+                ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
         }
         else
         {
@@ -124,7 +124,6 @@ struct rocblas_gemm
                          args,
                          int32_t(alpha),
                          int32_t(beta),
-                         int8_x4_format,
                          compute_fp32,
                          solution_idx);
         }
@@ -148,7 +147,6 @@ struct rocblas_gemm
                                              input_shapes,
                                              alpha,
                                              beta,
-                                             int8_x4_format,
                                              compute_fp32,
                                              solution_idx);
             }
@@ -159,7 +157,6 @@ struct rocblas_gemm
                                              input_shapes,
                                              int32_t(alpha),
                                              int32_t(beta),
-                                             int8_x4_format,
                                              compute_fp32,
                                              solution_idx);
             }

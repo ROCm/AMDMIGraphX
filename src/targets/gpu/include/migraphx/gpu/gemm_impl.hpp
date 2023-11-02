@@ -60,7 +60,6 @@ using flag_type = int;
  * @param args .
  * @param alpha .
  * @param beta .
- * @param int8_x4_format .
  * @param compute_fp32 .
  */
 void gemm_compute(context& ctx,
@@ -68,7 +67,6 @@ void gemm_compute(context& ctx,
                   const std::vector<argument>& args,
                   float alpha,
                   float beta,
-                  bool int8_x4_format,
                   bool compute_fp32,
                   int32_t solution_idx);
 
@@ -77,7 +75,6 @@ void gemm_compute(context& ctx,
                   const std::vector<argument>& args,
                   int32_t alpha,
                   int32_t beta,
-                  bool int8_x4_format,
                   bool compute_fp32,
                   int32_t solution_idx);
 
@@ -86,7 +83,6 @@ int32_t gemm_finalize(context& ctx,
                       const std::vector<shape>& input_shapes,
                       float alpha,
                       float beta,
-                      bool int8_x4_format,
                       bool compute_fp32);
 
 int32_t gemm_finalize(context& ctx,
@@ -94,7 +90,6 @@ int32_t gemm_finalize(context& ctx,
                       const std::vector<shape>& input_shapes,
                       int32_t alpha,
                       int32_t beta,
-                      bool int8_x4_format,
                       bool compute_fp32,
                       int32_t solution_idx);
 

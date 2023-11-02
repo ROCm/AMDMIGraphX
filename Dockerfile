@@ -80,6 +80,10 @@ ADD rbuild.ini /rbuild.ini
 # Temporarily install a new cmake until switching to ubuntu 22.04
 RUN pip3 install cmake==3.22.1
 
+# Location where onnx unit tests models are cached
+ENV ONNX_HOME=/.onnx
+RUN mkdir -p $ONNX_HOME/.onnx && chmod 777 $ONNX_HOME/.onnx
+
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 RUN test -f /usr/local/hash || exit 1

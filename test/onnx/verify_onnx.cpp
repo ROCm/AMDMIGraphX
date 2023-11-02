@@ -1827,9 +1827,10 @@ TEST_CASE(resize_downsample_f_dyn_test)
 
     auto reference_result = reference_p.eval(pp).back();
     std::vector<float> reference_vector;
-    reference_result.visit([&](auto output) { reference_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
-                                                         migraphx::verify::expected{reference_vector}));
+    reference_result.visit(
+        [&](auto output) { reference_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        result_vector, migraphx::verify::expected{reference_vector}));
 }
 
 TEST_CASE(resize_upsample_f_dyn_test)

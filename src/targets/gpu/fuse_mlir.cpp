@@ -482,7 +482,7 @@ struct find_mlir_standalone_attention_op
                 {
                     continue;
                 }
-                if(scale_ins.name() == "mul" && !found_mul)
+                if(scale_ins.name() == "mul" && not found_mul)
                 {
                     found_mul = true;
                     continue;
@@ -504,7 +504,7 @@ struct find_mlir_standalone_attention_op
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        if(!check(r))
+        if(not check(r))
         {
             return;
         }
@@ -524,23 +524,21 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 
     bool check(const match::matcher_result& r) const
     {
-        if(!find_mlir_standalone_attention_op::check(r))
+        if(not find_mlir_standalone_attention_op::check(r))
         {
             return false;
         }
         auto trailing_pm_ins = r.instructions["trailing_pm"]; // input after contiguous
         auto* trailing_pm    = trailing_pm_ins->module_inputs().front();
         // Whitelist pointwise operators.
-        if(std::any_of(trailing_pm->begin(), trailing_pm->end(), [&](const auto& i) {
-               return not is_pointwise_op_supported_by_mlir(i);
-           }))
-            return false;
-        return true;
+        return not(std::any_of(trailing_pm->begin(), trailing_pm->end(), [&](const auto& i) {
+            return not is_pointwise_op_supported_by_mlir(i);
+        }));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        if(!check(r))
+        if(not check(r))
         {
             return;
         }

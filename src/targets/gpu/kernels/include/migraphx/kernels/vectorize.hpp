@@ -78,6 +78,8 @@ __device__ __host__ auto as_vec(T x, Axis axis)
 {
     if constexpr(N < 2)
         return x;
+    else if constexpr(is_same<decltype(x), migraphx::fp8e4m3fnuz>{})
+        return x;
     else
         return make_tensor_view(as_vec<N>(remove_bool(x.data())),
                                 shape_step<N>(x.get_shape(), axis));

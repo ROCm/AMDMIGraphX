@@ -345,7 +345,7 @@ TEST_CASE(compile_math)
         // clang-format on
     };
     std::vector<std::string> data_types;
-    // auto vec_sizes = {2, 4, 6};
+    auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
@@ -354,9 +354,12 @@ TEST_CASE(compile_math)
         if(t == migraphx::shape::half_type or t == migraphx::shape::float8_type)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
-        // migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
-        //     return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
-        // });
+        if(t != migraphx::shape::float8_type)
+        {
+            migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
+                return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
+            });
+        }
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;

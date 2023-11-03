@@ -357,6 +357,12 @@ struct alignas(1) fp8e4m3fnuz
     }
 };
 
+MIGRAPHX_HIP_HOST_DEVICE inline migraphx::fp8e4m3fnuz operator+(migraphx::fp8e4m3fnuz x,
+                                                                migraphx::fp8e4m3fnuz y)
+{
+    return migraphx::fp8e4m3fnuz(float(x) + float(y));
+}
+
 inline std::ostream& operator<<(std::ostream& out, const fp8e4m3fnuz& value)
 {
     out << (float)(value);

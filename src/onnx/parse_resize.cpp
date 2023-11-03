@@ -299,14 +299,14 @@ struct parse_resize : op_parser<parse_resize>
 
         // input data shape info.  Convert static lens to dynamic to simplify referencing them later
         auto in_s = args[0]->get_shape().to_dynamic();
-        if(in_s.ndim() < 2)
+        if(args[0]->get_shape().dynamic() and in_s.ndim() < 2)
             MIGRAPHX_THROW(
                 "PARSE_" + opd.op_name +
                 ": requires 2 or more dimensions input, where first dimension is batch #");
         std::vector<migraphx::shape::dynamic_dimension> in_dims = in_s.dyn_dims();
 
         // output shape is explicitly specified
-        std::vector<size_t> out_lens(in_dims.size());
+        std::vector<size_t> out_lens(in_s.ndim());
 
         // scale
         std::vector<double> vec_scale;
@@ -339,14 +339,14 @@ struct parse_resize : op_parser<parse_resize>
                 out_lens.clear();
                 arg_out_s.visit([&](auto ol) { out_lens.assign(ol.begin(), ol.end()); });
 
-                if(out_lens.size() != in_dims.size())
+                if(out_lens.size() != in_s.ndim())
                 {
                     MIGRAPHX_THROW("PARSE_" + opd.op_name +
                                    ": specified output rank does not match input rank");
                 }
 
                 // compute the scale in each dimension
-                vec_scale.resize(in_dims.size());
+                vec_scale.resize(in_s.ndim());
 
                 std::transform(in_dims.begin(),
                                in_dims.end(),
@@ -358,29 +358,25 @@ struct parse_resize : op_parser<parse_resize>
             else
             {
                 // scale input
-                if(lens[0] == in_dims.size())
+                auto arg_scale = arg->eval();
+                check_arg_empty(arg_scale,
+                                "PARSE_" + opd.op_name + ": dynamic input scale is not supported!");
+
+                arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
+                if(in_dims.size() != vec_scale.size())
                 {
-                    auto arg_scale = arg->eval();
-                    check_arg_empty(arg_scale,
-                                    "PARSE_" + opd.op_name +
-                                        ": dynamic input scale is not supported!");
-
-                    arg_scale.visit([&](auto v) { vec_scale.assign(v.begin(), v.end()); });
-                    if(in_dims.size() != vec_scale.size())
-                    {
-                        MIGRAPHX_THROW("PARSE_" + opd.op_name +
-                                       ": specified scale rank does not match input rank");
-                    }
-
-                    std::transform(in_dims.begin(),
-                                   in_dims.end(),
-                                   vec_scale.begin(),
-                                   out_lens.begin(),
-                                   [&](auto idx, auto scale) {
-                                       // inferred output size is floor(idx.max * scale)
-                                       return idx.max * scale;
-                                   });
+                    MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                                   ": specified scale rank does not match input rank");
                 }
+
+                std::transform(in_dims.begin(),
+                               in_dims.end(),
+                               vec_scale.begin(),
+                               out_lens.begin(),
+                               [&](auto idx, auto scale) {
+                                   // inferred output size is floor(idx.max * scale)
+                                   return idx.max * scale;
+                               });
                 break;
             }
         }

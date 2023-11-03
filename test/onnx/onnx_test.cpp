@@ -6300,6 +6300,36 @@ TEST_CASE(resize_downsample_f_dyn_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(resize_dyn_err1_test)
+{
+    // wrong dimension is dynamic
+    migraphx::shape::dynamic_dimension dd{1, 10};
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+
+    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err1_test.onnx", options); }));
+}
+
+TEST_CASE(resize_dyn_err2_test)
+{
+    // 1-d dynamic input
+    migraphx::shape::dynamic_dimension dd{1, 10};
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+
+    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err2_test.onnx", options); }));
+}
+
+TEST_CASE(resize_dyn_err3_test)
+{
+    // dimensions of input and scales don't match
+    migraphx::shape::dynamic_dimension dd{1, 10};
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+
+    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err3_test.onnx", options); }));
+}
+
 TEST_CASE(resize_downsample_linear_test)
 {
     migraphx::program p;

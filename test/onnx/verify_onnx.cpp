@@ -1791,7 +1791,6 @@ TEST_CASE(resize_downsample_f_dyn_test)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
-    options.use_dyn_output        = true;
 
     auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
@@ -1838,7 +1837,6 @@ TEST_CASE(resize_upsample_f_dyn_test)
     // resize with half_pixel and round_prefer_ceil, with scale > 1
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
-    options.use_dyn_output        = true;
 
     auto p = migraphx::parse_onnx("resize_upsample_f_dyn_test.onnx", options);
     p.compile(migraphx::make_target("ref"));

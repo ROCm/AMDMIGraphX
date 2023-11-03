@@ -316,20 +316,22 @@ struct alignas(1) fp8e4m3fnuz
     {
     }
 
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(const fp8e4m3fnuz& rhs) = default;
-
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(fp8e4m3fnuz&& rhs) = default;
-
-    inline constexpr MIGRAPHX_HIP_HOST_DEVICE operator float() const
-    {
-        return detail::fp8e4m3fnuz_to_fp32_value(x);
-    }
-
+#if !defined(__HIP_NO_F8_CONVERSIONS__)
+    // for the device kernels, this needs to be disabled since implicit_conversion op can type cast
+    // any type to any other type and that results in conflicts in candidate overload resolutions.
     fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(float rhs)
     {
         x = detail::fp8e4m3fnuz_from_fp32_value(rhs);
         return *this;
     }
+#endif
+    inline constexpr MIGRAPHX_HIP_HOST_DEVICE operator float() const
+    {
+        return detail::fp8e4m3fnuz_to_fp32_value(x);
+    }
+    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(const fp8e4m3fnuz& rhs) = default;
+
+    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator=(fp8e4m3fnuz&& rhs) = default;
 
     inline bool MIGRAPHX_HIP_HOST_DEVICE isnan() const { return x == 0b10000000; }
 

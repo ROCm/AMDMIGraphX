@@ -577,7 +577,7 @@ __device__ void fused_reduce(Output output, F f)
         }
         else
         {
-            r.outer([&] { output[out_idx] = result; });
+            r.outer([&] { output[out_idx] = implicit_conversion(result); });
         }
     });
 }

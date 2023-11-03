@@ -22,12 +22,6 @@
  * THE SOFTWARE.
  */
 
-/**
- * Contains a templated struct implementation that wraps several rocBLAS API calls
- * used by the GEMM operator.  These are accessed by methods declared in gemm_impl.hpp
- *
- */
-
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -446,9 +440,6 @@ struct gemm_impl
                 ctx.finish();
             });
 
-            // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
-            // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
-            // and increasing cold_calls makes little or no difference.  Why?
             host_time /= hot_calls;
 
             // dev/evaluation only: track time for first solution.
@@ -579,9 +570,6 @@ int32_t gemm_finalize(context& ctx,
                       int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
-
-    // This code should be called only if either the environment var.
-    // MIGRAPHX_ENABLE_GEMM_TUNING, or option --exhaustive-tune, is set
     if(solution_idx == 0)
     {
         auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);

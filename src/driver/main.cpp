@@ -32,7 +32,9 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -281,10 +283,12 @@ struct loader
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
                 p = migraphx::load_py(file);
             }
+#endif
             else if(file_type == "migraphx")
             {
                 p = migraphx::load(file);
@@ -536,19 +540,17 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    migraphx::verify::tolerance tols;
+    std::optional<double> rms_tol;
+    std::optional<double> atol;
+    std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(tols.rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
-        ap(tols.atol,
-           {"--atol"},
-           ap.help("Tolerance for the elementwise absolute difference (Default: 0.001)"));
-        ap(tols.rtol,
-           {"--rtol"},
-           ap.help("Tolerance for the elementwise relative difference (Default: 0.001)"));
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+        ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+        ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
@@ -567,9 +569,18 @@ struct verify : command<verify>
 
         auto quantize = precision::fp32;
         if(c.to_fp16)
+        {
             quantize = precision::fp16;
+        }
         if(c.to_int8)
+        {
             quantize = precision::int8;
+        }
+
+        auto tols = get_tolerances(p, quantize, rms_tol, atol, rtol);
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {

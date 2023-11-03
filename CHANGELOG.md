@@ -2,6 +2,49 @@
 
 Full documentation for MIGraphX is available at [MIGraphX Documentation](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.8 for ROCm 6.0.0
+### Added
+- Support for MI300 GPUs
+- Support for TorchMIGraphX via PyTorch
+- Boosted overall performance by integrating rocMLIR 
+- INT8 support for ONNX Runtime
+- Support for ONNX version 1.14.1
+- Added operators Qlinearadd, QlinearGlobalAveragePool, Qlinearconv, Shrink, CastLike, and RandomUniform operators
+- Added an error message when gpu_targets is not set when compiling migraphx
+- Added parameter to set tolerances with migraphx-driver verify 
+- Added support for MXR files >4 GB 
+- Added MIGRAPHX_TRACE_MLIR flag
+- BETA added capability to use ROCm Composable Kernels via environment variable MIGRAPHX_ENABLE_CK=1
+
+### Optimizations
+- Improved performance support for INT8
+- Improved time percision while benchmarking candidate kernels from CK or MLIR 
+- Remove contiguous from reshape parsing
+- Updated ConstantOfShape operator to support Dynamic Batch
+- Simplifies dynamic shapes related operators to their static versions if possible
+- Improved debugging tools for accuracy issues
+- Print warning about miopen_fusion while generating mxr 
+- General reduction in system memory usage during model compilation
+- Created additional fusion opportunities during model compilation
+- Improved debugging for matchers
+- Improved general debug messages 
+
+### Fixed
+- Fixed scatter operator for nonstandard shapes with some models from ONNX Model Zoo
+- Provided a compile option to improve accuracy of some models by disabling Fast-Math
+- Improved layernorm + pointwise fusion matching to ignore arguments order
+- Fixed accuracy issue with ROIAlign operator 
+- Fixed Trilu operator computation logic
+- Fixed support for the DETR model 
+
+### Changed
+- Changed migraphx version to 2.8
+- Extracted test packages as its own separate deb file when building migraphx from source
+
+### Removed
+- Removed building Python 2.7 bindings
+
+
 ## MIGraphX 2.7 for ROCm 5.7.0
 ### Added
 - Enabled hipRTC to not require dev packages for migraphx runtime and allow the ROCm install to be in a different directory than it was during build time

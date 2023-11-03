@@ -220,7 +220,7 @@ struct gemm_impl
             auto common_args = create_strided_batched_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                            common_args,
-                           rocblas_gemm_algo_standard,
+                           rocblas_gemm_algo_solution_index,
                            solution_idx,
                            gemm_flags);
         }
@@ -229,7 +229,7 @@ struct gemm_impl
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_ex,
                            common_args,
-                           rocblas_gemm_algo_standard,
+                           rocblas_gemm_algo_solution_index,
                            solution_idx,
                            gemm_flags);
         }

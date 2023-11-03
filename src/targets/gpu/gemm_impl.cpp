@@ -30,15 +30,11 @@
 
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/reduce_dims.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 
 using microseconds = std::chrono::duration<double, std::micro>;
-
-#if ROCBLAS_VERSION_MAJOR > 2 or (ROCBLAS_VERSION_MAJOR == 2 and ROCBLAS_VERSION_MINOR >= 38)
-using flag_type = rocblas_gemm_flags;
-#else
-using flag_type = int;
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

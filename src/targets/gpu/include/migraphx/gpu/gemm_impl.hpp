@@ -27,11 +27,8 @@
 #include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/reduce_dims.hpp>
-#include <migraphx/gpu/hip.hpp>
-#include <migraphx/time.hpp>
+
 
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
@@ -43,12 +40,6 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-#if ROCBLAS_VERSION_MAJOR >= 2 && ROCBLAS_VERSION_MINOR >= 38
-using flag_type = rocblas_gemm_flags;
-#else
-using flag_type = int;
-#endif
 
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.

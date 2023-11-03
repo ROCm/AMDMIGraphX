@@ -4883,9 +4883,9 @@ def mod_test_fmod_different_dtypes():
 
 @onnx_test()
 def multinomial_test():
-    sample_size = 10
-    seed = 0.0
-    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 10])
+    sample_size = 13
+    seed = 0.
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT, [3, 10])
     output = helper.make_tensor_value_info("output", TensorProto.INT32,
                                            [1, 10])
 
@@ -4893,6 +4893,44 @@ def multinomial_test():
                                  inputs=['input'],
                                  sample_size=sample_size,
                                  seed=seed,
+                                 outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
+def multinomial_dyn_test():
+    sample_size = 100000
+    seed = 1.3
+    categories = 5
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
+                                          [None, categories])
+    output = helper.make_tensor_value_info("output", TensorProto.FLOAT,
+                                           [None, categories])
+
+    node = onnx.helper.make_node(
+        'Multinomial',
+        inputs=['input'],
+        sample_size=sample_size,
+        dtype=1,  # shape::float_type
+        seed=seed,
+        outputs=['output'])
+
+    return ([node], [input], [output])
+
+
+@onnx_test()
+def multinomial_autoseed_dyn_test():
+    # If seed attribute is not given, device should auto generate one at runtime
+    sample_size = 12
+    input = helper.make_tensor_value_info("input", TensorProto.FLOAT,
+                                          [None, 10])
+    output = helper.make_tensor_value_info("output", TensorProto.INT32,
+                                           [None, 10])
+
+    node = onnx.helper.make_node('Multinomial',
+                                 inputs=['input'],
+                                 sample_size=sample_size,
                                  outputs=['output'])
 
     return ([node], [input], [output])

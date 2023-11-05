@@ -71,20 +71,24 @@ struct pad_compiler : compiler<pad_compiler>
         std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
 
         auto offset_lens = input_lens;
-        std::transform(input_lens.begin(), input_lens.end(), offsets.begin(), offset_lens.begin(), [&](auto input, auto offset) {
-            return input+offset;
-        });
+        std::transform(input_lens.begin(),
+                       input_lens.end(),
+                       offsets.begin(),
+                       offset_lens.begin(),
+                       [&](auto input, auto offset) { return input + offset; });
 
         auto vinputs = inputs;
         vinputs.push_back(inputs.front().with_lens(offset_lens));
         auto rinputs = reduce_dims(vinputs);
 
-        auto rinput_lens = rinputs.front().lens();
+        auto rinput_lens  = rinputs.front().lens();
         auto roffset_lens = rinputs.back().lens();
         std::vector<size_t> roffsets(roffset_lens.size());
-        std::transform(rinput_lens.begin(), rinput_lens.end(), roffset_lens.begin(), roffsets.begin(), [](auto input, auto offset_dim) {
-            return offset_dim - input;
-        });
+        std::transform(rinput_lens.begin(),
+                       rinput_lens.end(),
+                       roffset_lens.begin(),
+                       roffsets.begin(),
+                       [](auto input, auto offset_dim) { return offset_dim - input; });
         rinputs.pop_back();
 
         hip_compile_options options;

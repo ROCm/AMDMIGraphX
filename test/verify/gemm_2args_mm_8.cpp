@@ -36,7 +36,7 @@ struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
         migraphx::shape a_shape{migraphx::shape::float_type, {2, 4096, 320}, {1310720, 1, 4096}};
         migraphx::shape b_shape{migraphx::shape::float_type, {320, 320}};
         auto a  = mm->add_parameter("a", a_shape);
-        auto b = mm->add_parameter("b", b_shape);
+        auto b  = mm->add_parameter("b", b_shape);
         auto bb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 320, 320}}}), b);
 

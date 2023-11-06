@@ -92,6 +92,10 @@ constexpr auto tensor_step(T x, Axis axis)
     {
         return x;
     }
+    else if(is_same<T, migraphx::fp8e4m3fnuz>{})
+    {
+        return x;
+    }
     else
     {
         constexpr auto s = decltype(x.get_shape()){};
@@ -253,10 +257,6 @@ __device__ __host__ auto vectorize()
         if constexpr(N < 2)
         {
             f(xs...);
-        }
-        else if constexpr(is_same<decltype(any_of(xs...)), migraphx::fp8e4m3fnuz>{})
-        {
-            return f(xs...);
         }
         else
         {

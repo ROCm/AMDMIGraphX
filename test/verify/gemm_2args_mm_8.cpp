@@ -33,12 +33,12 @@ struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::float_type, {2, 4096, 320}, {1310720, 1, 4096}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {320, 320}};
+        migraphx::shape a_shape{migraphx::shape::float_type, {2, 128, 32}, {4096, 1, 128}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {32, 32}};
         auto a  = mm->add_parameter("a", a_shape);
         auto b  = mm->add_parameter("b", b_shape);
         auto bb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 320, 320}}}), b);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), b);
 
         mm->add_instruction(migraphx::make_op("dot"), a, bb);
 

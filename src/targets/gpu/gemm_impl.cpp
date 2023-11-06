@@ -203,13 +203,13 @@ struct gemm_impl
         d_stride     = is_3inputs ? get_batch_stride(input_shapes[3]) : c_stride;
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        if(num_matrices == 1 or (num_matrices > 1 and b_stride == 0))
+        strided_batched = num_matrices > 1;
+        if(strided_batched and b_stride == 0 and input_shapes[0].standard())
         {
             // If the batch dimension of B is broadcasted, then we can
             // multiply m by the batch_size and use rocblas_gemm_ex
             // instead of rocblas_gemm_strided_batched_ex.
             m *= num_matrices;
-            strided_batched = false;
         }
     }
 

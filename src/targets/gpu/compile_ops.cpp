@@ -179,9 +179,9 @@ struct compile_plan
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
-        if (trace_level > 0)
+        if(trace_level > 0)
             std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
-                    << std::endl;
+                      << std::endl;
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
@@ -206,7 +206,7 @@ struct compile_plan
                            return t;
                        });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        if (trace_level > 0)
+        if(trace_level > 0)
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())

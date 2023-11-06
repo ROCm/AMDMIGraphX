@@ -116,7 +116,7 @@ void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv
     }
 }
 
-void transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+void lstm_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
 {
     std::vector<int64_t> perm{1, 0, 2};
     args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
@@ -132,10 +132,10 @@ void transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>
     }
 }
 
-void transpose_outputs(onnx_parser::node_info& info,
-                       instruction_ref& hidden_states,
-                       instruction_ref& last_output,
-                       instruction_ref& last_cell_output)
+void lstm_transpose_outputs(onnx_parser::node_info& info,
+                            instruction_ref& hidden_states,
+                            instruction_ref& last_output,
+                            instruction_ref& last_cell_output)
 {
     std::vector<int64_t> perm_hs{2, 0, 1, 3};
     hidden_states =
@@ -248,7 +248,7 @@ struct parse_lstm : op_parser<parse_lstm>
 
         if(layout != 0)
         {
-            transpose_inputs(info, args);
+            lstm_transpose_inputs(info, args);
         }
 
         // first output for concatenation of hidden states
@@ -268,7 +268,7 @@ struct parse_lstm : op_parser<parse_lstm>
 
         if(layout != 0)
         {
-            transpose_outputs(info, hidden_states, last_output, last_cell_output);
+            lstm_transpose_outputs(info, hidden_states, last_output, last_cell_output);
         }
 
         return {hidden_states, last_output, last_cell_output};

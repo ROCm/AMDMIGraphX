@@ -142,11 +142,6 @@ MIGRAPHX_BUILTIN_TYPE_TRAITN(is_constructible);
 MIGRAPHX_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
 MIGRAPHX_BUILTIN_TYPE_TRAITN(is_trivially_constructible);
 
-template <>
-struct is_fundamental<migraphx::fp8e4m3fnuz> : false_type
-{
-};
-
 template <class T>
 struct remove_cv
 {

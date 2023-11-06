@@ -35,10 +35,12 @@ struct test_isinf : verify_program<test_isinf<T>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto max = std::numeric_limits<T>::max();
+        auto min = std::numeric_limits<T>::min();
         auto inf = std::numeric_limits<T>::infinity();
-        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::get_type<T>(), {4}});
-        std::vector<T> data0{inf, -inf, max * max, -max * max};
-        migraphx::shape s1{migraphx::shape::get_type<T>(), {4}};
+        auto nan = std::numeric_limits<T>::quiet_NaN();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::get_type<T>(), {5}});
+        std::vector<T> data0{inf, -inf, max, min, nan};
+        migraphx::shape s1{migraphx::shape::get_type<T>(), {5}};
         auto l0 = mm->add_literal(migraphx::literal{s1, data0});
         x       = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
         mm->add_instruction(migraphx::make_op("isinf"), x);

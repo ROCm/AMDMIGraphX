@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_VECTORIZE_HPP
 #define MIGRAPHX_GUARD_KERNELS_VECTORIZE_HPP
 
+#include "migraphx/kernels/type_traits.hpp"
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
 
@@ -78,8 +79,6 @@ __device__ __host__ auto as_vec(T x, Axis axis)
 {
     if constexpr(N < 2)
         return x;
-    else if constexpr(is_same<decltype(x), migraphx::fp8e4m3fnuz>{})
-        return x;
     else
         return make_tensor_view(as_vec<N>(remove_bool(x.data())),
                                 shape_step<N>(x.get_shape(), axis));
@@ -89,10 +88,6 @@ template <index_int N, class T, class Axis>
 constexpr auto tensor_step(T x, Axis axis)
 {
     if constexpr(N < 2)
-    {
-        return x;
-    }
-    else if(is_same<T, migraphx::fp8e4m3fnuz>{})
     {
         return x;
     }
@@ -242,7 +237,9 @@ template <index_int N, index_int Axis, class T>
 __device__ __host__ auto vectorize_tensor(T x)
 {
     constexpr auto shape = get_shape_c<T>{};
-    if constexpr(shape.lens[Axis] == 1)
+    if constexpr(is_same<typename T::type, migraphx::fp8e4m3fnuz>{})
+        return x;
+    else if constexpr(shape.lens[Axis] == 1)
         return x;
     else if constexpr(shape.strides[Axis] == 0)
         return tensor_step<N>(x, _c<Axis>);

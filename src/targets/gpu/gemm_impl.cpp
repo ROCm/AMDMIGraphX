@@ -22,23 +22,13 @@
  * THE SOFTWARE.
  */
 
-/**
- * Contains a templated struct implementation that wraps several rocBLAS API calls
- * used by the GEMM operator.  These are accessed by methods declared in gemm_impl.hpp
- *
- */
-
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/reduce_dims.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
 
 using microseconds = std::chrono::duration<double, std::micro>;
-
-#if ROCBLAS_VERSION_MAJOR > 2 or (ROCBLAS_VERSION_MAJOR == 2 and ROCBLAS_VERSION_MINOR >= 38)
-using flag_type = rocblas_gemm_flags;
-#else
-using flag_type = int;
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -230,7 +220,7 @@ struct gemm_impl
             auto common_args = create_strided_batched_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                            common_args,
-                           rocblas_gemm_algo_standard,
+                           rocblas_gemm_algo_solution_index,
                            solution_idx,
                            gemm_flags);
         }
@@ -239,7 +229,7 @@ struct gemm_impl
             auto common_args = create_gemm_ex_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_ex,
                            common_args,
-                           rocblas_gemm_algo_standard,
+                           rocblas_gemm_algo_solution_index,
                            solution_idx,
                            gemm_flags);
         }
@@ -450,9 +440,6 @@ struct gemm_impl
                 ctx.finish();
             });
 
-            // todo:  Measured time dropped from 20 us to about 6.7 us when I raised hot_calls from
-            // 1 to 11. The higher the hot_calls value, the faster per-call time up to at least 25,
-            // and increasing cold_calls makes little or no difference.  Why?
             host_time /= hot_calls;
 
             // dev/evaluation only: track time for first solution.
@@ -554,17 +541,16 @@ int32_t gemm_finalize(context& ctx,
     if(solution_idx == 0)
     {
         auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx = gemm_item.tune(ctx, input_shapes);
+        solution_idx   = gemm_item.tune(ctx, input_shapes);
     }
     else
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
         auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
+        solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
-    // suppress compiler warnings
     (void)ctx, (void)output_shape, (void)input_shapes;
     (void)alpha, (void)beta, (void)compute_fp32;
 #endif
@@ -584,23 +570,19 @@ int32_t gemm_finalize(context& ctx,
                       int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
-
-    // This code should be called only if either the environment var.
-    // MIGRAPHX_ENABLE_GEMM_TUNING, or option --exhaustive-tune, is set
     if(solution_idx == 0)
     {
         auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx = gemm_item.tune(ctx, input_shapes);
+        solution_idx   = gemm_item.tune(ctx, input_shapes);
     }
     else
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
         auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx = gemm_item.validate(ctx, input_shapes, solution_idx);
+        solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
-    // suppress compiler warnings
     (void)ctx, (void)output_shape, (void)input_shapes;
     (void)alpha, (void)beta, (void)compute_fp32;
 #endif

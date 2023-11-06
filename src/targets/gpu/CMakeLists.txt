@@ -253,7 +253,7 @@ get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 # Beta API for automated GEMM tuning
-check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_BETA_FEATURES_API)
+check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -276,11 +276,11 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-if(HAS_ROCBLAS_BETA_FEATURES_API)
+if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_TUNING_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
     message(STATUS "MIGraphx is using Beta API of rocBLAS")
 else()
-    message(STATUS "rocBLAS does not have Beta API")
+    message(STATUS "rocBLAS does not have User Tuning Beta API")
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)

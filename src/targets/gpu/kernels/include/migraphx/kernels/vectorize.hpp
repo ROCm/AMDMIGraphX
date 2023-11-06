@@ -254,6 +254,10 @@ __device__ __host__ auto vectorize()
         {
             f(xs...);
         }
+        else if constexpr(is_same<decltype(any_of(xs...)), migraphx::fp8e4m3fnuz>{})
+        {
+            return f(xs...);
+        }
         else
         {
             f(vectorize_tensor<N, Axis>(xs)...);

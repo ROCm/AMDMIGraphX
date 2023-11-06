@@ -38,6 +38,9 @@ struct and_ : std::is_same<and_<Bs...>, and_<(Bs or true)...>> // NOLINT
 template <bool B>
 using bool_c = std::integral_constant<bool, B>;
 
+template <class From, class To>
+using is_convertible = std::is_convertible<From, To>;
+
 #define MIGRAPHX_REQUIRES_PRIMITIVE_CAT(x, y) x##y
 #define MIGRAPHX_REQUIRES_CAT(x, y) MIGRAPHX_REQUIRES_PRIMITIVE_CAT(x, y)
 

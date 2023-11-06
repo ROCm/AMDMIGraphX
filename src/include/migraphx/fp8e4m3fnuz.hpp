@@ -55,6 +55,11 @@
 #include <migraphx/config.hpp>
 #include <string>
 #include <utility>
+#if !defined(__HIP_NO_F8_CONVERSIONS__)
+#include <migraphx/requires.hpp>
+#else
+#include <migraphx/kernels/type_traits.hpp>
+#endif
 
 #if defined(__HIP_PLATFORM_AMD__) || defined(__HIP_PLATFORM_HCC__)
 // MIGraphX by default does not have device code in the regular compilation paths,
@@ -72,6 +77,7 @@
 #pragma clang diagnostic ignored "-Wimplicit-int-float-conversion"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wreserved-identifier"
+#pragma clang diagnostic ignored "-Wfloat-equal"
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace detail {
@@ -276,25 +282,65 @@ inline MIGRAPHX_HIP_HOST_DEVICE uint8_t fp8e4m3fnuz_from_fp32_value(float f)
     return result;
 }
 
-/// Temporary half-precision expression.
-/// This class represents a half-precision expression which just stores a single-precision value
-/// internally.
-struct expr
-{
-    /// Conversion constructor.
-    /// \param f single-precision value to convert
-    explicit expr(float f) : value_(f) {}
-
-    /// Conversion to single-precision.
-    /// \return single precision value representing expression value
-    operator float() const { return value_; }
-
-    private:
-    /// Internal expression value stored in single-precision.
-    float value_;
-};
-
 } // namespace detail
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_FP8_BINARY_OP(op, binary_op)                                           \
+    constexpr migraphx::fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator op(              \
+        const migraphx::fp8e4m3fnuz& rhs)                                               \
+    {                                                                                   \
+        float y = float(x);                                                             \
+        y op float(rhs);                                                                \
+        x = detail::fp8e4m3fnuz_from_fp32_value(y);                                     \
+        return *this;                                                                   \
+    }                                                                                   \
+    template <class U, MIGRAPHX_REQUIRES(migraphx::is_convertible<U, float>{})>         \
+    constexpr migraphx::fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator op(const U& rhs) \
+    {                                                                                   \
+        float y = float(x);                                                             \
+        y op float(rhs);                                                                \
+        x = detail::fp8e4m3fnuz_from_fp32_value(y);                                     \
+        return *this;                                                                   \
+    }                                                                                   \
+    friend constexpr float MIGRAPHX_HIP_HOST_DEVICE operator binary_op(                 \
+        const migraphx::fp8e4m3fnuz& lhs, const migraphx::fp8e4m3fnuz& rhs)             \
+    {                                                                                   \
+        return (float(lhs) binary_op float(rhs));                                       \
+    }                                                                                   \
+    template <class U, MIGRAPHX_REQUIRES(migraphx::is_convertible<U, float>{})>         \
+    friend constexpr float MIGRAPHX_HIP_HOST_DEVICE operator binary_op(                 \
+        const migraphx::fp8e4m3fnuz& lhs, const U& rhs)                                 \
+    {                                                                                   \
+        return (float(lhs) binary_op float(rhs));                                       \
+    }                                                                                   \
+    template <class U, MIGRAPHX_REQUIRES(migraphx::is_convertible<U, float>{})>         \
+    friend constexpr float MIGRAPHX_HIP_HOST_DEVICE operator binary_op(                 \
+        const U& lhs, const migraphx::fp8e4m3fnuz& rhs)                                 \
+    {                                                                                   \
+        return (float(lhs) binary_op float(rhs));                                       \
+    }
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_FP8_COMP_OP(comp_op)                                           \
+    friend constexpr bool MIGRAPHX_HIP_HOST_DEVICE operator comp_op(            \
+        const migraphx::fp8e4m3fnuz& lhs, const migraphx::fp8e4m3fnuz& rhs)     \
+    {                                                                           \
+        return ((float)(lhs)comp_op(float)(rhs));                               \
+    }                                                                           \
+    template <class U, MIGRAPHX_REQUIRES(migraphx::is_convertible<U, float>{})> \
+    friend constexpr bool MIGRAPHX_HIP_HOST_DEVICE operator comp_op(            \
+        const migraphx::fp8e4m3fnuz& lhs, const U& rhs)                         \
+    {                                                                           \
+        return (float(lhs) comp_op float(rhs));                                 \
+    }                                                                           \
+    template <class U, MIGRAPHX_REQUIRES(migraphx::is_convertible<U, float>{})> \
+    friend constexpr bool MIGRAPHX_HIP_HOST_DEVICE operator comp_op(            \
+        const U& lhs, const migraphx::fp8e4m3fnuz& rhs)                         \
+    {                                                                           \
+        return (float(lhs) comp_op float(rhs));                                 \
+    }
+
+} // namespace MIGRAPHX_INLINE_NS
 
 struct alignas(1) fp8e4m3fnuz
 {
@@ -335,41 +381,25 @@ struct alignas(1) fp8e4m3fnuz
 
     inline bool MIGRAPHX_HIP_HOST_DEVICE isnan() const { return x == 0b10000000; }
 
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator+=(float rhs)
+    MIGRAPHX_FP8_BINARY_OP(+=, +)
+    MIGRAPHX_FP8_BINARY_OP(-=, -)
+    MIGRAPHX_FP8_BINARY_OP(*=, *)
+    MIGRAPHX_FP8_BINARY_OP(/=, /)
+
+    MIGRAPHX_FP8_COMP_OP(==)
+    MIGRAPHX_FP8_COMP_OP(!=)
+    MIGRAPHX_FP8_COMP_OP(>=)
+    MIGRAPHX_FP8_COMP_OP(<=)
+    MIGRAPHX_FP8_COMP_OP(>)
+    MIGRAPHX_FP8_COMP_OP(<)
+
+    friend inline std::ostream& operator<<(std::ostream& out, const fp8e4m3fnuz& value)
     {
-        x = detail::fp8e4m3fnuz_from_fp32_value(rhs + float(x));
-        return *this;
-    }
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator-=(float rhs)
-    {
-        x = detail::fp8e4m3fnuz_from_fp32_value(rhs - float(x));
-        return *this;
-    }
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator*=(float rhs)
-    {
-        x = detail::fp8e4m3fnuz_from_fp32_value(rhs * float(x));
-        return *this;
-    }
-    fp8e4m3fnuz& MIGRAPHX_HIP_HOST_DEVICE operator/=(float rhs)
-    {
-        x = detail::fp8e4m3fnuz_from_fp32_value(rhs / float(x));
-        return *this;
+        out << (float)(value);
+        return out;
     }
 };
 
-MIGRAPHX_HIP_HOST_DEVICE inline migraphx::fp8e4m3fnuz operator+(migraphx::fp8e4m3fnuz x,
-                                                                migraphx::fp8e4m3fnuz y)
-{
-    return migraphx::fp8e4m3fnuz(float(x) + float(y));
-}
-
-inline std::ostream& operator<<(std::ostream& out, const fp8e4m3fnuz& value)
-{
-    out << (float)(value);
-    return out;
-}
-
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 namespace std {

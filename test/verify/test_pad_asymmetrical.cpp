@@ -34,7 +34,7 @@ struct test_pad_asymmetrical : verify_program<test_pad_asymmetrical>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::int32_type, {1, 16, 1, 1}};
-        auto x                    = mm->add_parameter("x", s);
+        auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), x);
         return p;
     }

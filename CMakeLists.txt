@@ -57,6 +57,12 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+if(WIN32) # CK is not yet ported to Windows
+option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
+else()
+option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
+endif()
+
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
@@ -75,7 +81,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.8.0)
+rocm_setup_version(VERSION 2.9.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 

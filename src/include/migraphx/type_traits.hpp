@@ -49,6 +49,16 @@ MIGRAPHX_DETAIL_DEFINE_TRAIT(is_floating_point);
 MIGRAPHX_DETAIL_DEFINE_TRAIT(is_arithmetic);
 MIGRAPHX_DETAIL_DEFINE_TRAIT(is_signed);
 
+template <class T, class U>
+struct is_same : std::is_same<T, U>
+{
+};
+
+template <bool B, class T, class U>
+struct conditional : std::conditional<B, T, U>
+{
+};
+
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)

@@ -210,6 +210,7 @@ struct gemm_impl
             // multiply m by the batch_size and use rocblas_gemm_ex
             // instead of rocblas_gemm_strided_batched_ex.
             m *= num_matrices;
+            strided_batched = false;
         }
     }
 

@@ -27,16 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_nearbyint : verify_program<test_nearbyint>
+template <class T>
+struct test_nearbyint : verify_program<test_nearbyint<T>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
+        std::vector<float> tmp{-4.5, -3.5, 0.5, 2.5, 3.5};
+        std::vector<T> data{tmp.cbegin(), tmp.cend()};
+        migraphx::shape s1{migraphx::shape::get_type<T>(), {5}};
         auto* mm = p.get_main_module();
-
-        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
-        auto param = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::make_op("nearbyint"), param);
+        auto l0  = mm->add_literal(migraphx::literal{s1, data});
+        mm->add_instruction(migraphx::make_op("isinf"), l0);
         return p;
     };
 };
+
+template struct test_nearbyint<migraphx::half>;
+template struct test_nearbyint<float>;

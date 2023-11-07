@@ -290,4 +290,33 @@ TEST_CASE(static_dimensions_of1)
     EXPECT(m0 == m1);
 }
 
+// Does nothing because the dynamic_dimensions from start to end
+// are not all fixed
+TEST_CASE(static_dimensions_of_nonfixed)
+{
+    // dead_code_elimination will get rid of atan
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {{2, 4, {2, 4}}, {4, 8}, {4, 8}}};
+        auto input             = m0.add_parameter("data", s);
+        auto atan_ins          = m0.add_instruction(migraphx::make_op("atan"), input);
+        auto dimensions_of_ins = m0.add_instruction(
+            migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), atan_ins);
+        m0.add_return({dimensions_of_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {{2, 4, {2, 4}}, {4, 8}, {4, 8}}};
+        auto input             = m1.add_parameter("data", s);
+        auto atan_ins          = m1.add_instruction(migraphx::make_op("atan"), input);
+        auto dimensions_of_ins = m1.add_instruction(
+            migraphx::make_op("dimensions_of", {{"start", 1}, {"end", 3}}), atan_ins);
+        m1.add_return({dimensions_of_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -35,13 +35,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
-
-#ifndef _WIN32
-#pragma STDC FENV_ACCESS ON
-#else
-#pragma fenv_access(on)
-#endif
-
 struct quantizelinear
 {
     std::string name() const { return "quantizelinear"; }
@@ -98,13 +91,6 @@ struct quantizelinear
         return result;
     }
 };
-
-#ifndef _WIN32
-#pragma STDC FENV_ACCESS OFF
-#else
-#pragma fenv_access(off)
-#endif
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

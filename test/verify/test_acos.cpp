@@ -27,15 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_acos : verify_program<test_acos>
+template<migraphx::shape::type_t DType>
+struct test_acos : verify_program<test_acos<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {16}};
+        migraphx::shape s{DType, {16}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("acos"), x);
         return p;
     }
 };
+
+template struct test_acos<migraphx::shape::float8_type>;
+template struct test_acos<migraphx::shape::half_type>;
+template struct test_acos<migraphx::shape::float_type>;
+

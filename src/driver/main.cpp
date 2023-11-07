@@ -832,11 +832,12 @@ int main(int argc, const char* argv[])
     }
     else
     {
-        std::string driver_invocation = std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::string driver_invocation =
+            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         m.at(cmd)(argv[0],
-                       {args.begin() + 1, args.end()}); // run driver command found in commands map
+                  {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         std::cout << "[ " << get_version() << " ] Success: " << driver_invocation << std::endl;
     }

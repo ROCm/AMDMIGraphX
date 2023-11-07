@@ -37,20 +37,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Named arrays for the set attribute possibilities.
- */
-namespace attr_cases {
-inline constexpr std::array<bool, 3> all_set     = {true, true, true};
-inline constexpr std::array<bool, 3> ends_axes   = {false, true, true};
-inline constexpr std::array<bool, 3> starts_axes = {true, false, true};
-inline constexpr std::array<bool, 3> starts_ends = {true, true, false};
-inline constexpr std::array<bool, 3> axes_only   = {false, false, true};
-inline constexpr std::array<bool, 3> ends_only   = {false, true, false};
-inline constexpr std::array<bool, 3> starts_only = {true, false, false};
-inline constexpr std::array<bool, 3> none_set    = {false, false, false};
-} // namespace attr_cases
-
-/**
  * Slice operator that accepts variable axes, starts and ends.
  * All of `starts`, `ends`, and `axes` must be supplied by either
  * their attribute or an input (but not both).
@@ -81,6 +67,18 @@ struct slice
     std::vector<int64_t> axes{};
     std::vector<int64_t> starts{};
     std::vector<int64_t> ends{};
+
+    /**
+     * Named arrays for the set attribute possibilities.
+     */
+    static constexpr std::array<bool, 3> all_set     = {true, true, true};
+    static constexpr std::array<bool, 3> ends_axes   = {false, true, true};
+    static constexpr std::array<bool, 3> starts_axes = {true, false, true};
+    static constexpr std::array<bool, 3> starts_ends = {true, true, false};
+    static constexpr std::array<bool, 3> axes_only   = {false, false, true};
+    static constexpr std::array<bool, 3> ends_only   = {false, true, false};
+    static constexpr std::array<bool, 3> starts_only = {true, false, false};
+    static constexpr std::array<bool, 3> none_set    = {false, false, false};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -142,16 +140,120 @@ struct slice
         return bool_vec;
     }
 
+    /// Helper function for normalize_compute_shape()
+    shape compute_two_or_more(std::vector<shape> inputs) const
+    {
+        auto input_shape    = inputs[0];
+        auto set_attributes = get_set_attributes();
+        // check that inputs [1, end) are all 1D, have the same
+        // dimension, and are static
+        check_shapes{inputs.begin() + 1,
+                     inputs.end(),
+                     std::string("SLICE: inputs (starts, ends, and input_axes)"),
+                     false}
+            .only_dims(1)
+            .same_dims();
+        auto dds = input_shape.to_dynamic().dyn_dims();
+        if(inputs.size() == 2)
+        {
+            if(set_attributes == ends_axes)
+            {
+                // attr ends and axes set; inputs are (data, input_starts)
+                if(inputs[1].lens().at(0) != axes.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                }
+                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                    dds.at(axis) = {0, dds.at(axis).max};
+                });
+            }
+            else if(set_attributes == starts_axes)
+            {
+                // attr starts and axes set; inputs are (data, input_ends)
+                if(inputs[1].lens().at(0) != axes.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                }
+                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                    dds.at(axis) = {0, dds.at(axis).max};
+                });
+            }
+            else if(set_attributes == starts_ends)
+            {
+                // attr starts and ends set; inputs are (data, input_axes)
+                if(inputs[1].lens().at(0) != starts.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
+                }
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                    return shape::dynamic_dimension{0, dd.max};
+                });
+            }
+            else
+            {
+                MIGRAPHX_THROW("SLICE: Invalid 2 input and attributes configuration");
+            }
+        }
+        else if(inputs.size() == 3)
+        {
+            if(set_attributes == axes_only)
+            {
+                // attr axes set; inputs are (data, input_starts, input_ends)
+                if(inputs[1].lens().at(0) != axes.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                }
+                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                    dds.at(axis) = {0, dds.at(axis).max};
+                });
+            }
+            else if(set_attributes == ends_only)
+            {
+                // attr ends set; inputs are (data, input_starts, input_axes)
+                if(inputs[1].lens().at(0) != ends.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                }
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                    return shape::dynamic_dimension{0, dd.max};
+                });
+            }
+            else if(set_attributes == starts_only)
+
+            {
+                // attr starts set; inputs are (data, input_ends, input_axes)
+                if(inputs[1].lens().at(0) != starts.size())
+                {
+                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
+                }
+                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                    return shape::dynamic_dimension{0, dd.max};
+                });
+            }
+            else
+            {
+                MIGRAPHX_THROW("Invalid 3 input and attributes configuration");
+            }
+        }
+        else
+        {
+            // all 4 inputs (data, inputs_starts, input_ends, input_axes)
+            std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
+                return shape::dynamic_dimension{0, dd.max};
+            });
+        }
+        return shape{input_shape.type(), dds};
+    }
+
     // uses the normalize_axes flag to normalize axes, starts, and ends
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
-        auto input_shape = inputs[0];
-        auto t              = input_shape.type();
-        auto set_attributes = get_set_attributes();
         if(inputs.size() == 1)
         {
-            if(set_attributes != attr_cases::all_set)
+            auto input_shape    = inputs[0];
+            auto set_attributes = get_set_attributes();
+            if(set_attributes != all_set)
             {
                 MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
             }
@@ -167,118 +269,21 @@ struct slice
             if(input_shape.dynamic())
             {
                 return shape{
-                    t,
+                    input_shape.type(),
                     lens_calc(input_shape.min_lens(), this->starts, this->ends, this->axes),
                     lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes),
                     {}};
             }
             else
             {
-                return shape{t,
+                return shape{input_shape.type(),
                              lens_calc(input_shape.lens(), this->starts, this->ends, this->axes),
                              input_shape.strides()};
             }
         }
         else
         {
-            // check that inputs [1, end) are all 1D, have the same
-            // dimension, and are static
-            check_shapes{inputs.begin() + 1,
-                         inputs.end(),
-                         std::string("SLICE: inputs (starts, ends, and input_axes)"),
-                         false}
-                .only_dims(1)
-                .same_dims();
-            auto dds = input_shape.to_dynamic().dyn_dims();
-            if(inputs.size() == 2)
-            {
-                if(set_attributes == attr_cases::ends_axes)
-                {
-                    // attr ends and axes set; inputs are (data, input_starts)
-                    if(inputs[1].lens().at(0) != axes.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                    }
-                    std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                        dds.at(axis) = {0, dds.at(axis).max};
-                    });
-                }
-                else if(set_attributes == attr_cases::starts_axes)
-                {
-                    // attr starts and axes set; inputs are (data, input_ends)
-                    if(inputs[1].lens().at(0) != axes.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                    }
-                    std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                        dds.at(axis) = {0, dds.at(axis).max};
-                    });
-                }
-                else if(set_attributes == attr_cases::starts_ends)
-                {
-                    // attr starts and ends set; inputs are (data, input_axes)
-                    if(inputs[1].lens().at(0) != starts.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                    }
-                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
-                        return shape::dynamic_dimension{0, dd.max};
-                    });
-                }
-                else
-                {
-                    MIGRAPHX_THROW("SLICE: Invalid 2 input and attributes configuration");
-                }
-            }
-            else if(inputs.size() == 3)
-            {
-                if(set_attributes == attr_cases::axes_only)
-                {
-                    // attr axes set; inputs are (data, input_starts, input_ends)
-                    if(inputs[1].lens().at(0) != axes.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                    }
-                    std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                        dds.at(axis) = {0, dds.at(axis).max};
-                    });
-                }
-                else if(set_attributes == attr_cases::ends_only)
-                {
-                    // attr ends set; inputs are (data, input_starts, input_axes)
-                    if(inputs[1].lens().at(0) != ends.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                    }
-                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
-                        return shape::dynamic_dimension{0, dd.max};
-                    });
-                }
-                else if(set_attributes == attr_cases::starts_only)
-
-                {
-                    // attr starts set; inputs are (data, input_ends, input_axes)
-                    if(inputs[1].lens().at(0) != starts.size())
-                    {
-                        MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                    }
-                    std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
-                        return shape::dynamic_dimension{0, dd.max};
-                    });
-                }
-                else
-                {
-                    MIGRAPHX_THROW("Invalid 3 input and attributes configuration");
-                }
-            }
-            else
-            {
-                // all 4 inputs (data, inputs_starts, input_ends, input_axes)
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](auto dd) {
-                    return shape::dynamic_dimension{0, dd.max};
-                });
-            }
-            return shape{input_shape.type(), dds};
+            return compute_two_or_more(inputs);
         }
     }
 
@@ -405,7 +410,7 @@ struct slice
             // non-fixed dynamic_dimensions.
             auto set_attributes = get_set_attributes();
             std::unordered_map<std::string, std::vector<int64_t>> norm_inputs;
-            if(set_attributes == attr_cases::ends_axes)
+            if(set_attributes == ends_axes)
             {
                 // attr ends and axes set; inputs are (data, input_starts)
                 args[1].visit([&](auto input_starts) {
@@ -416,7 +421,7 @@ struct slice
                                                    this->axes);
                 });
             }
-            else if(set_attributes == attr_cases::starts_axes)
+            else if(set_attributes == starts_axes)
             {
                 // attr starts and axes set; inputs are (data, input_ends)
                 args[1].visit([&](auto input_ends) {
@@ -427,7 +432,7 @@ struct slice
                                                    this->axes);
                 });
             }
-            else if(set_attributes == attr_cases::starts_ends)
+            else if(set_attributes == starts_ends)
             {
                 // attr starts and ends set; inputs are (data, input_axes)
                 args[1].visit([&](auto input_axes) {
@@ -438,7 +443,7 @@ struct slice
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
-            else if(set_attributes == attr_cases::axes_only)
+            else if(set_attributes == axes_only)
             {
                 // attr axes set; inputs are (data, input_starts, input_ends)
                 visit_all(args[1], args[2])([&](auto input_starts, auto input_ends) {
@@ -449,7 +454,7 @@ struct slice
                                                    this->axes);
                 });
             }
-            else if(set_attributes == attr_cases::ends_only)
+            else if(set_attributes == ends_only)
             {
                 // attr ends set; inputs are (data, input_starts, input_axes)
                 visit_all(args[1], args[2])([&](auto input_starts, auto input_axes) {
@@ -460,7 +465,7 @@ struct slice
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
-            else if(set_attributes == attr_cases::starts_only)
+            else if(set_attributes == starts_only)
             {
                 // attr starts set; inputs are (data, input_ends, input_axes)
                 visit_all(args[1], args[2])([&](auto input_ends, auto input_axes) {

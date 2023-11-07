@@ -836,7 +836,6 @@ int main(int argc, const char* argv[])
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
-        
     }
     else
     {

@@ -158,7 +158,7 @@ struct find_static_dimensions_of
                 return;
             }
         }
-        std::size_t output_ndim  = end - start;
+        std::size_t output_ndim = end - start;
         std::vector<int64_t> vec_shape(output_ndim);
         migraphx::shape s(migraphx::shape::int64_type, {output_ndim});
         std::vector<std::size_t> input_lens = input->get_shape().to_static(1).lens();

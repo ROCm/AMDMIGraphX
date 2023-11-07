@@ -805,10 +805,7 @@ struct main_command
 using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
-    std::vector<std::string> cmd_args(argv, argv + argc);
-
-    std::vector<std::string> args(cmd_args.begin() + 1, cmd_args.end());
-
+    std::vector<std::string> args(argv + 1, argv + argc);
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -816,32 +813,32 @@ int main(int argc, const char* argv[])
     }
 
     auto&& m = get_commands();
-    auto cmd_migx = args.front();
+    auto cmd = args.front();
 
-    if(cmd_migx == "--ort-sha")
+    if(cmd == "--ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
         return 0;
     }
-    if(cmd_migx == "-v" or cmd_migx == "--version")
+    if(cmd == "-v" or cmd == "--version")
     {
         std::cout << get_version() << std::endl;
         return 0;
     }
 
-    if(m.count(cmd_migx) == 0)
+    if(m.count(cmd) == 0)
     {
         run_command<main_command>(argv[0], args);
     }
     else
     {
-        std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
-        std::cout << "Running [ " << get_version() << " ]: " << cmd_string << std::endl;
+        std::string driver_invocation = std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
-        m.at(cmd_migx)(argv[0],
+        m.at(cmd)(argv[0],
                        {args.begin() + 1, args.end()}); // run driver command found in commands map
 
-        std::cout << "[ " << get_version() << " ] Success: " << cmd_string << std::endl;
+        std::cout << "[ " << get_version() << " ] Success: " << driver_invocation << std::endl;
     }
 
     return 0;

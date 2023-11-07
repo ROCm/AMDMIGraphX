@@ -3413,6 +3413,82 @@ TEST_CASE(if_tuple_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(isinf_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    auto t1  = mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_neg_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("less"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_neg_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_double_pos_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::double_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("greater"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_double_pos_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_no_detect_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::bool_type}, {false}}));
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_no_detect_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(isnan_float_test)
 {
     migraphx::program p;
@@ -4679,29 +4755,137 @@ TEST_CASE(multinomial_test)
 {
     migraphx::program p;
     auto* mm           = p.get_main_module();
-    size_t sample_size = 10;
-    float seed         = 0.0f;
+    size_t sample_size = 13;
+    size_t batch_size  = 3;
+    size_t categories  = 10;
+    float seed         = 0;
 
-    auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
-    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
+    auto input = mm->add_parameter(
+        "input", migraphx::shape{migraphx::shape::float_type, {batch_size, categories}});
+    auto maxes    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+    auto mb_maxes = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 10}}}), maxes);
     auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<float> seed_data = {seed};
+    auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
+    auto rand_dummy =
+        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
 
-    mm->add_instruction(migraphx::make_op("multinomial"), cdf, rs_lit);
-
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
+    mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
     auto prog = optimize_onnx("multinomial_test.onnx");
 
+    EXPECT(p == prog);
+}
+
+TEST_CASE(multinomial_dyn_test)
+{
+    // compile-time random seed
+    migraphx::program p;
+    auto* mm           = p.get_main_module();
+    size_t sample_size = 100000;
+    size_t categories  = 5;
+    float seed         = 1.3f;
+
+    auto input = mm->add_parameter(
+        "input",
+        migraphx::shape{migraphx::shape::float_type, {{1, categories}, {categories, categories}}});
+
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<float> seed_data = {seed};
+    auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
+
+    // dynamic input only:  must calculate alloc_shape as (batch_size, sample_size)
+    //                read the runtime input dimensions
+    auto dim_of = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), input);
+    // make an argument of (1, 0)
+    migraphx::shape lit_shape(migraphx::shape::int64_type, {2});
+    std::vector<int64_t> data1{1, 0};
+    auto l1        = mm->add_literal(lit_shape, data1);
+    auto batch_arg = mm->add_instruction(migraphx::make_op("mul"), dim_of, l1);
+    std::vector<int64_t> data2(2, 0);
+    // make an argument of (0, sample_size)
+    data2[1]         = sample_size;
+    auto l2          = mm->add_literal(lit_shape, data2);
+    auto alloc_shape = mm->add_instruction(migraphx::make_op("add"), batch_arg, l2);
+    migraphx::shape compile_shape =
+        migraphx::shape(migraphx::shape::float_type,
+                        {input->get_shape().dyn_dims().front(), {sample_size, sample_size}});
+
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}}), alloc_shape);
+
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
+    auto ret     = mm->add_instruction(
+        migraphx::make_op("multinomial", {{"dtype", migraphx::shape::float_type}}), cdf, randoms);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value  = {1, categories};
+    options.print_program_on_error = true;
+    auto prog                      = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(multinomial_autoseed_dyn_test)
+{
+    // runtime random seed
+    migraphx::program p;
+    auto* mm           = p.get_main_module();
+    size_t sample_size = 12;
+    size_t categories  = 10;
+
+    auto input = mm->add_parameter(
+        "input", migraphx::shape{migraphx::shape::float_type, {{1, 10}, {10, 10}}});
+
+    auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
+    cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
+    cdf      = mm->add_instruction(
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
+    auto seed_input = mm->add_instruction(migraphx::make_op("random_seed"));
+
+    // dynamic input only:  must calculate alloc_shape as (batch_size, sample_size)
+    //                read the runtime input dimensions
+    auto dim_of = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 2}}), input);
+    // make an argument of (1, 0)
+    migraphx::shape lit_shape(migraphx::shape::int64_type, {2});
+    std::vector<int64_t> data1{1, 0};
+    auto l1        = mm->add_literal(lit_shape, data1);
+    auto batch_arg = mm->add_instruction(migraphx::make_op("mul"), dim_of, l1);
+    std::vector<int64_t> data2(2, 0);
+    // make an argument of (0, sample_size)
+    data2[1]         = sample_size;
+    auto l2          = mm->add_literal(lit_shape, data2);
+    auto alloc_shape = mm->add_instruction(migraphx::make_op("add"), batch_arg, l2);
+    migraphx::shape compile_shape =
+        migraphx::shape(migraphx::shape::float_type,
+                        {input->get_shape().dyn_dims().front(), {sample_size, sample_size}});
+
+    auto alloc = mm->add_instruction(
+        migraphx::make_op("allocate", {{"shape", to_value(compile_shape)}}), alloc_shape);
+
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, alloc);
+    auto ret     = mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value  = {1, categories};
+    options.print_program_on_error = true;
+    auto prog = migraphx::parse_onnx("multinomial_autoseed_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -4712,10 +4896,11 @@ TEST_CASE(multinomial_dtype_error_test)
 
 TEST_CASE(multinomial_generated_seed_test)
 {
+    // multinomial op. no longer generates its own randoms
     auto p1 = optimize_onnx("multinomial_generated_seed_test.onnx");
     auto p2 = optimize_onnx("multinomial_generated_seed_test.onnx");
 
-    EXPECT(p1 != p2);
+    EXPECT(p1 == p2);
 }
 
 TEST_CASE(multinomial_int64_test)
@@ -4723,27 +4908,27 @@ TEST_CASE(multinomial_int64_test)
     migraphx::program p;
     auto* mm                      = p.get_main_module();
     size_t sample_size            = 10;
-    float seed                    = 1.0f;
+    float seed                    = 1.0;
+    uint32_t batch_size           = 1;
     migraphx::shape::type_t dtype = migraphx::shape::type_t::int64_type;
 
     auto input = mm->add_parameter("input", migraphx::shape{migraphx::shape::float_type, {1, 10}});
     auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
-    auto mb_maxes =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 10}}}), maxes);
-    auto cdf = mm->add_instruction(migraphx::make_op("sub"), input, mb_maxes);
+
+    auto cdf = add_common_op(*mm, migraphx::make_op("sub"), {input, maxes});
     cdf      = mm->add_instruction(migraphx::make_op("exp"), cdf);
     cdf      = mm->add_instruction(
         migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", false}}), cdf);
 
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    std::vector<float> rand_samples(sample_size);
-    std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-    migraphx::shape rs{migraphx::shape::float_type, {1, sample_size}};
-    auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    std::vector<float> data = {seed};
+    auto seed_input         = mm->add_literal(migraphx::literal(s, data));
 
-    mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, rs_lit);
-
+    // static size
+    auto rand_dummy =
+        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
+    mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, randoms);
     auto prog = optimize_onnx("multinomial_int64_test.onnx");
 
     EXPECT(p == prog);
@@ -7690,6 +7875,46 @@ TEST_CASE(split_test_default)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_test_uneven)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {12, 15}});
+    auto r1    = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), input);
+    auto r2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {6}}}), input);
+    auto r3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {9}}}), input);
+    auto r4 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {12}}}), input);
+    auto r5 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {12}}, {"ends", {12}}}), input);
+    mm->add_return({r1, r2, r3, r4, r5});
+
+    auto prog = migraphx::parse_onnx("split_test_uneven.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_uneven_num_outputs)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {11, 15}});
+    auto r1    = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), input);
+    auto r2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {6}}}), input);
+    auto r3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {9}}}), input);
+    auto r4 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {11}}}), input);
+    mm->add_return({r1, r2, r3, r4});
+
+    auto prog = migraphx::parse_onnx("split_test_uneven_num_outputs.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(split_test_no_attribute_invalid_split)
 {
     EXPECT(
@@ -7705,6 +7930,11 @@ TEST_CASE(split_test_no_attribute_invalid_input_split)
 {
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("split_test_no_attribute_invalid_input_split.onnx"); }));
+}
+
+TEST_CASE(split_test_invalid_num_outputs)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("split_test_invalid_num_outputs.onnx"); }));
 }
 
 TEST_CASE(sqrt_test)

@@ -826,11 +826,7 @@ int main(int argc, const char* argv[])
         return 0;
     }
 
-    if(m.count(cmd) == 0)
-    {
-        run_command<main_command>(argv[0], args);
-    }
-    else
+    if(m.count(cmd) > 0)
     {
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
@@ -839,7 +835,12 @@ int main(int argc, const char* argv[])
         m.at(cmd)(argv[0],
                   {args.begin() + 1, args.end()}); // run driver command found in commands map
 
-        std::cout << "[ " << get_version() << " ] Success: " << driver_invocation << std::endl;
+        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
+        
+    }
+    else
+    {
+        run_command<main_command>(argv[0], args);
     }
 
     return 0;

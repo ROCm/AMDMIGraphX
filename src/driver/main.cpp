@@ -59,6 +59,14 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+inline std::string get_version()
+{
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
+                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
+                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+}
+
 struct loader
 {
     std::string model;
@@ -597,17 +605,6 @@ struct verify : command<verify>
     }
 };
 
-struct version : command<version>
-{
-    void parse(const argument_parser&) {}
-    void run() const
-    {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << "." << MIGRAPHX_VERSION_PATCH << "."
-                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
-    }
-};
-
 struct compile : command<compile>
 {
     compiler c;
@@ -760,16 +757,16 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
-                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+        std::string version_str = get_version();
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+        ap(nullptr,
+           {"--ort-sha"},
+           ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -812,8 +809,8 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> cmd_args(argv, argv + argc);
-    std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
-    std::cout << "Running " << cmd_string << std::endl;
+    
+    
 
     std::vector<std::string> args(cmd_args.begin() + 1, cmd_args.end());
 
@@ -826,21 +823,30 @@ int main(int argc, const char* argv[])
     auto&& m = get_commands();
     auto cmd_migx = args.front();
 
-    if(cmd_migx == "ort-sha")
+    if(cmd_migx == "--ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
         return 0;
     }
-
-    if(m.count(cmd_migx) > 0)
+    if(cmd_migx == "-v" or cmd_migx == "--version")
     {
-        m.at(cmd_migx)(argv[0], {args.begin() + 1, args.end()});
+        std::cout << get_version() << std::endl;
+        return 0;
     }
-    else
+
+    if(m.count(cmd_migx) == 0)
     {
         run_command<main_command>(argv[0], args);
     }
+    else
+    {
+        std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << cmd_string << std::endl;
 
-    std::cout << "command [ " << cmd_string << " ] was successful." << std::endl;
+        m.at(cmd_migx)(argv[0], {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        std::cout << "[ " << get_version() << " ] Success: " << cmd_string << std::endl;
+    }
+        
     return 0;
 }

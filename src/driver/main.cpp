@@ -61,10 +61,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 inline std::string get_version()
 {
-    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
-                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+           "." + MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
 }
 
 struct loader
@@ -764,9 +763,7 @@ struct main_command
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
-        ap(nullptr,
-           {"--ort-sha"},
-           ap.help("Show MIGraphX onnx runtime SHA"));
+        ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -809,8 +806,6 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> cmd_args(argv, argv + argc);
-    
-    
 
     std::vector<std::string> args(cmd_args.begin() + 1, cmd_args.end());
 
@@ -843,10 +838,11 @@ int main(int argc, const char* argv[])
         std::string cmd_string = migraphx::to_string_range(cmd_args, " ");
         std::cout << "Running [ " << get_version() << " ]: " << cmd_string << std::endl;
 
-        m.at(cmd_migx)(argv[0], {args.begin() + 1, args.end()}); // run driver command found in commands map
+        m.at(cmd_migx)(argv[0],
+                       {args.begin() + 1, args.end()}); // run driver command found in commands map
 
         std::cout << "[ " << get_version() << " ] Success: " << cmd_string << std::endl;
     }
-        
+
     return 0;
 }

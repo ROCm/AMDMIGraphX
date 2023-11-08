@@ -22,7 +22,7 @@
 
 #ifndef MIGRAPHX_HIP_FP8_IMPL_HPP
 #define MIGRAPHX_HIP_FP8_IMPL_HPP
-#if !defined(__GNUC__)
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 #endif
@@ -313,7 +313,7 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr T cast_from_f8(uint8_t x)
 }
 
 } // namespace migraphx_hip_f8_impl
-#if !defined(__GNUC__)
+#if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
 #endif // MIGRAPHX_HIP_FP8_IMPL_HPP

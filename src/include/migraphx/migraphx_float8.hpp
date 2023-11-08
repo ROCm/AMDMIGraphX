@@ -22,7 +22,7 @@
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
-#if defined(__clang__) and !defined(__GNUC__)
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wfloat-equal"
@@ -604,7 +604,7 @@ struct common_type<migraphx_fp8::fp8e4m3fnuz, migraphx_fp8::fp8e4m3fnuz>
 
 } // namespace std
 // =================================================================================================
-#if defined(__clang__) and !defined(__GNUC__)
+#if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
 #endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP

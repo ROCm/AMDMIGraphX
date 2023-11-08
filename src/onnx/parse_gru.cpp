@@ -33,6 +33,67 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+void gru_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+{
+    // need 4 activation functions
+    if(dirct == op::rnn_direction::bidirectional)
+    {
+        // 4 activation functions are used in the bidirectional
+        // scenario. No spec is provided in onnx::operator. we
+        // use the algorithm that: if 1 actv function is provided,
+        // repeat 1 four times. If 2 actv functins are provided,
+        // assume forward and reverse use the same pair of actv
+        // functions. For the case of 3 actv functions provided,
+        // assume the 3rd one is repeated once and used by the
+        // reverse direction.
+        // This may need change later
+        if(actv_func_names.size() == 1)
+        {
+            actv_func_names.insert(actv_func_names.end(), 3, actv_func_names.at(0));
+        }
+        else if(actv_func_names.size() == 2)
+        {
+            // repeat the activation functions
+            actv_func_names.push_back(actv_func_names.at(0));
+            actv_func_names.push_back(actv_func_names.at(1));
+        }
+        else if(actv_func_names.size() == 3)
+        {
+            actv_func_names.push_back(actv_func_names.at(2));
+        }
+    }
+    else
+    {
+        if(actv_func_names.size() == 1)
+        {
+            actv_func_names.push_back(actv_func_names.at(0));
+        }
+    }
+}
+
+void gru_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+{
+    std::vector<int64_t> perm{1, 0, 2};
+    args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
+
+    if(args.size() == 6 and not args[5]->is_undefined())
+    {
+        args[5] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[5]);
+    }
+}
+
+void gru_transpose_outputs(onnx_parser::node_info& info,
+                           instruction_ref& hidden_states,
+                           instruction_ref& last_output)
+{
+    std::vector<int64_t> perm_hs{2, 0, 1, 3};
+    hidden_states =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_hs}}), hidden_states);
+    std::vector<int64_t> perm_last{1, 0, 2};
+    last_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_output);
+}
+
 struct parse_gru : op_parser<parse_gru>
 {
     std::vector<op_desc> operators() const { return {{"GRU"}}; }
@@ -83,40 +144,7 @@ struct parse_gru : op_parser<parse_gru>
             });
         }
 
-        // need 4 activation functions
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            // 4 activation functions are used in the bidirectional
-            // scenario. No spec is provided in onnx::operator. we
-            // use the algorithm that: if 1 actv function is provided,
-            // repeat 1 four times. If 2 actv functins are provided,
-            // assume forward and reverse use the same pair of actv
-            // functions. For the case of 3 actv functions provided,
-            // assume the 3rd one is repeated once and used by the
-            // reverse direction.
-            // This may need change later
-            if(vec_names.size() == 1)
-            {
-                vec_names.insert(vec_names.end(), 3, vec_names.at(0));
-            }
-            else if(vec_names.size() == 2)
-            {
-                // repeat the activation functions
-                vec_names.push_back(vec_names.at(0));
-                vec_names.push_back(vec_names.at(1));
-            }
-            else if(vec_names.size() == 3)
-            {
-                vec_names.push_back(vec_names.at(2));
-            }
-        }
-        else
-        {
-            if(vec_names.size() == 1)
-            {
-                vec_names.push_back(vec_names.at(0));
-            }
-        }
+        gru_actv_functions(dirct, vec_names);
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_activation_functions().count(name) == 0);
@@ -138,6 +166,12 @@ struct parse_gru : op_parser<parse_gru>
             clip = parser.parse_value(info.attributes.at("clip")).at<float>();
         }
 
+        int layout = 0;
+        if(contains(info.attributes, "layout"))
+        {
+            layout = parser.parse_value(info.attributes.at("layout")).at<int>();
+        }
+
         int linear_before_reset = 0;
         if(contains(info.attributes, "linear_before_reset"))
         {
@@ -152,6 +186,11 @@ struct parse_gru : op_parser<parse_gru>
             args.insert(args.end(), 6 - args.size(), ins);
         }
 
+        if(layout != 0)
+        {
+            gru_transpose_inputs(info, args);
+        }
+
         // first output for concatenation of hidden states
         auto hidden_states =
             info.add_instruction(make_op("gru",
@@ -164,6 +203,11 @@ struct parse_gru : op_parser<parse_gru>
 
         // second output for last gru output
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+
+        if(layout != 0)
+        {
+            gru_transpose_outputs(info, hidden_states, last_output);
+        }
 
         return {hidden_states, last_output};
     }

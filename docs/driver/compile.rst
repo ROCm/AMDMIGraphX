@@ -1,5 +1,3 @@
-.. include:: ./driver/read.rst
-
 .. option::  --fill0 [std::vector<std::string>]
 
 Fill parameter with 0s

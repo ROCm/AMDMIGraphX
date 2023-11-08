@@ -66,7 +66,7 @@ if(MIGRAPHX_ENABLE_ZENDNN)
     else()
         find_library(BLIS_LIB blis)
     endif()
-elif(NOT WIN32)
+elseif(NOT WIN32)
     find_package(dnnl REQUIRED)
 endif()
 

@@ -60,7 +60,7 @@ endif()
 
 
 include(Embed)
-add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/ EXTRA_HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/fp8e4m3fnuz.hpp EXTRA_HEADERS_RELATIVE ${CMAKE_SOURCE_DIR}/src/include)
+add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/ EXTRA_HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/migraphx_float8.hpp ${CMAKE_SOURCE_DIR}/src/include/migraphx/migraphx_hip_f8_impl.hpp EXTRA_HEADERS_RELATIVE ${CMAKE_SOURCE_DIR}/src/include ${CMAKE_SOURCE_DIR}/src/include)
 
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)

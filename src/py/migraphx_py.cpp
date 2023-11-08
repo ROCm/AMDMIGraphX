@@ -40,7 +40,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
-#include <migraphx/fp8e4m3fnuz.hpp>
+#include <migraphx/migraphx_float8.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -145,7 +145,7 @@ struct npy_format_descriptor<half>
 };
 
 template <>
-struct npy_format_descriptor<migraphx::fp8e4m3fnuz>
+struct npy_format_descriptor<migraphx_fp8::fp8e4m3fnuz>
 {
     static std::string format()
     {

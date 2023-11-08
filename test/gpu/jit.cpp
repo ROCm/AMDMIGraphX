@@ -351,7 +351,7 @@ TEST_CASE(compile_math)
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type or t == migraphx::shape::float8_type)
+        if(t == migraphx::shape::half_type)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         if(t != migraphx::shape::float8_type)
@@ -402,7 +402,7 @@ TEST_CASE(assert_type_min_max)
         if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type or t == migraphx::shape::float8_type)
+        if(t == migraphx::shape::half_type)
             name.insert(0, "migraphx::");
 
         migraphx::shape::visit(t, [&](auto as) {

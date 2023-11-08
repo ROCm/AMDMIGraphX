@@ -25,8 +25,22 @@
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
+#pragma clang diagnostic ignored "-Wreserved-identifier"
 
 namespace migraphx_hip_f8_impl {
+namespace detail {
+template <bool B, class T, class F>
+struct conditional
+{
+    using type = T;
+};
+
+template <class T, class F>
+struct conditional<false, T, F>
+{
+    using type = F;
+};
+} // namespace detail
 
 // #ifdef __HIP_PLATFORM_HCC__
 // __device__ inline int clz(uint32_t x) { return __clz(x); }
@@ -35,12 +49,10 @@ namespace migraphx_hip_f8_impl {
 // #endif
 
 template <int wm, int we, typename T, bool negative_zero_nan, bool clip>
-MIGRAPHX_HIP_HOST_DEVICE uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
+MIGRAPHX_HIP_HOST_DEVICE constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
 {
-    constexpr bool is_half  = migraphx::is_same<T, migraphx::half>{};
-    constexpr bool is_float = migraphx::is_same<T, float>{};
+
     static_assert(wm + we == 7, "wm+we==7");
-    static_assert(is_half || is_float, "Only half and float can be cast to f8");
 
     const int mfmt = (sizeof(T) == 4) ? 23 : 10;
     uint32_t x;
@@ -215,38 +227,20 @@ this case, the fp16 mantissa should be shift left by 1  */
 }
 
 template <int wm, int we, typename T, bool negative_zero_nan>
-MIGRAPHX_HIP_HOST_DEVICE T cast_from_f8(uint8_t x)
+MIGRAPHX_HIP_HOST_DEVICE constexpr T cast_from_f8(uint8_t x)
 {
-    constexpr bool is_half  = migraphx::is_same<T, migraphx::half>{};
-    constexpr bool is_float = migraphx::is_same<T, float>{};
-    static_assert(is_half || is_float, "only half and float are supported");
-
-    constexpr int weo = is_half ? 5 : 8;
-    constexpr int wmo = is_half ? 10 : (is_float ? 23 : 7);
+    constexpr int weo = 8;
+    constexpr int wmo = 23;
 
     T fInf, fNegInf, fNaN, fNeg0;
-    if(is_half)
-    {
-        const uint16_t ihInf    = 0x7C00;
-        const uint16_t ihNegInf = 0xFC00;
-        const uint16_t ihNaN    = 0x7C01;
-        const uint16_t ihNeg0   = 0x8000;
-        fInf                    = reinterpret_cast<const migraphx::half&>(ihInf);
-        fNegInf                 = reinterpret_cast<const migraphx::half&>(ihNegInf);
-        fNaN                    = reinterpret_cast<const migraphx::half&>(ihNaN);
-        fNeg0                   = reinterpret_cast<const migraphx::half&>(ihNeg0);
-    }
-    else if(is_float)
-    {
-        const uint32_t ifInf    = 0x7F800000;
-        const uint32_t ifNegInf = 0xFF800000;
-        const uint32_t ifNaN    = 0x7F800001;
-        const uint32_t ifNeg0   = 0x80000000;
-        fInf                    = reinterpret_cast<const float&>(ifInf);
-        fNegInf                 = reinterpret_cast<const float&>(ifNegInf);
-        fNaN                    = reinterpret_cast<const float&>(ifNaN);
-        fNeg0                   = reinterpret_cast<const float&>(ifNeg0);
-    }
+    const uint32_t ifInf    = 0x7F800000;
+    const uint32_t ifNegInf = 0xFF800000;
+    const uint32_t ifNaN    = 0x7F800001;
+    const uint32_t ifNeg0   = 0x80000000;
+    fInf                    = reinterpret_cast<const float&>(ifInf);
+    fNegInf                 = reinterpret_cast<const float&>(ifNegInf);
+    fNaN                    = reinterpret_cast<const float&>(ifNaN);
+    fNeg0                   = reinterpret_cast<const float&>(ifNeg0);
 
     if(x == 0)
         return 0;
@@ -266,12 +260,7 @@ MIGRAPHX_HIP_HOST_DEVICE T cast_from_f8(uint8_t x)
         if(exponent == ((1 << we) - 1))
             return (mantissa == 0) ? (sign ? fNegInf : fInf) : fNaN;
     }
-    typename migraphx::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
-    if(we == 5 && is_half && !negative_zero_nan)
-    {
-        retval = x << 8;
-        return reinterpret_cast<const T&>(retval);
-    }
+    typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
 
     const int exp_low_cutoff = (1 << (weo - 1)) - (1 << (we - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 

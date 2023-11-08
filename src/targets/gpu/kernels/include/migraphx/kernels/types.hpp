@@ -23,7 +23,7 @@
  */
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
-#include <migraphx/fp8e4m3fnuz.hpp>
+#include <migraphx/migraphx_float8.hpp>
 #include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {

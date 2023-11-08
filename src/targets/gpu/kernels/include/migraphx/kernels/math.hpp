@@ -35,7 +35,7 @@ namespace migraphx {
 namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
 
-constexpr float as_float(migraphx::fp8e4m3fnuz x) { return x; }
+constexpr float as_float(migraphx_fp8::fp8e4m3fnuz x) { return x; }
 
 template <class T>
 constexpr T as_float(T x)
@@ -76,17 +76,17 @@ constexpr T as_float(T x)
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_FP8(name, fname)                          \
-    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
-    auto __device__ name(migraphx::fp8e4m3fnuz x, Ts... xs)            \
-        MIGRAPHX_RETURNS(migraphx::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(xs)...)))
+#define MIGRAPHX_DEVICE_MATH_FP8(name, fname)                                     \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>            \
+    auto __device__ name(migraphx_fp8::fp8e4m3fnuz x, Ts... xs) MIGRAPHX_RETURNS( \
+        migraphx_fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(xs)...)))
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_BINARY_FOR_FP8(name, fname)                           \
-    inline auto __device__ name(migraphx::fp8e4m3fnuz x, migraphx::fp8e4m3fnuz y)  \
-        -> migraphx::fp8e4m3fnuz                                                   \
-    {                                                                              \
-        return migraphx::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(y))); \
+#define MIGRAPHX_DEVICE_MATH_BINARY_FOR_FP8(name, fname)                                  \
+    inline auto __device__ name(migraphx_fp8::fp8e4m3fnuz x, migraphx_fp8::fp8e4m3fnuz y) \
+        -> migraphx_fp8::fp8e4m3fnuz                                                      \
+    {                                                                                     \
+        return migraphx_fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(y)));    \
     }
 
 // Template with two overloads for math functions, one for half2 type and one for more generic

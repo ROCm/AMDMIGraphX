@@ -46,7 +46,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
 {
     argument() = default;
 
-    argument(const shape& s);
+    explicit argument(const shape& s);
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)

@@ -425,7 +425,7 @@ struct find_conv_add
     }
 };
 
-struct find_add_lit_broadcast
+struct find_mul_or_add_lit_broadcast
 {
     static auto match_op(const std::string& name)
     {
@@ -447,7 +447,7 @@ struct find_add_lit_broadcast
     }
 };
 
-struct find_double_add_lit_broadcast
+struct find_double_mul_or_add_lit_broadcast
 {
     static auto match_op(const std::string& name)
     {
@@ -1579,8 +1579,8 @@ void simplify_algebra::apply(module& m) const
         match::find_matches(m,
                             find_inner_broadcast{},
                             find_dot_broadcast{},
-                            find_double_add_lit_broadcast{},
-                            find_add_lit_broadcast{},
+                            find_double_mul_or_add_lit_broadcast{},
+                            find_mul_or_add_lit_broadcast{},
                             find_add_convs{},
                             find_conv_dot_horiz_fusion{},
                             find_mul_conv{},

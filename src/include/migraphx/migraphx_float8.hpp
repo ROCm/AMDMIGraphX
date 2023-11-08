@@ -22,12 +22,13 @@
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
-
+#if defined(__clang__) and !defined(__GNUC__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wfloat-equal"
 #pragma clang diagnostic ignored "-Wmacro-redefined"
 #pragma clang diagnostic ignored "-Wc++20-extensions"
+#endif
 
 #if(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__))
 // need to include hip_runtime.h otherwise it complains about __host__ and __device__
@@ -428,6 +429,7 @@ inline std::ostream& operator<<(std::ostream& os, const migraphx_fp8::hip_f8<T>&
         return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));    \
     }
 
+// TODO: these should return floats
 MIGRAPHX_FP8_BINARY_OP(*, migraphx_fp8::hip_f8<T>)
 MIGRAPHX_FP8_BINARY_OP(-, migraphx_fp8::hip_f8<T>)
 MIGRAPHX_FP8_BINARY_OP(/, migraphx_fp8::hip_f8<T>)
@@ -602,5 +604,7 @@ struct common_type<migraphx_fp8::fp8e4m3fnuz, migraphx_fp8::fp8e4m3fnuz>
 
 } // namespace std
 // =================================================================================================
+#if defined(__clang__) and !defined(__GNUC__)
 #pragma clang diagnostic pop
+#endif
 #endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP

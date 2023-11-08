@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-
 #include "passes.hpp"
 
 #include <migraphx/auto_contiguous.hpp>
@@ -84,7 +83,7 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_qdq{},
         simplify_reshapes{},
     };
-    for(const auto& pass:passes)
+    for(const auto& pass : passes)
         result[pass.name()] = pass;
     result["eliminate_dead_code"] = dead_code_elimination{};
     return result;
@@ -94,15 +93,15 @@ std::vector<pass> get_passes(const std::vector<std::string>& names)
 {
     std::vector<pass> result;
     static const std::unordered_map<std::string, pass> lookup = create_passes_lookup();
-    std::transform(names.begin(), names.end(), std::back_inserter(result), [](const std::string& name) {
-        if(not contains(lookup, name))
-            MIGRAPHX_THROW("Unknown pass: " + name);
-        return lookup.at(name);
-    });
+    std::transform(
+        names.begin(), names.end(), std::back_inserter(result), [](const std::string& name) {
+            if(not contains(lookup, name))
+                MIGRAPHX_THROW("Unknown pass: " + name);
+            return lookup.at(name);
+        });
     return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver
 } // namespace migraphx
-

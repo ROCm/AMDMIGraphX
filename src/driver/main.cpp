@@ -26,6 +26,7 @@
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
+#include "passes.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
@@ -76,6 +77,7 @@ struct loader
     std::vector<std::string> param_dims;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
+    std::vector<std::string> passes;
 
     void parse(argument_parser& ap)
     {
@@ -123,6 +125,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -330,6 +333,8 @@ struct loader
                                      migraphx::dead_code_elimination{},
                                  });
         }
+        if(not passes.empty())
+            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
         return p;
     }
 

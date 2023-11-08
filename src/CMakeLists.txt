@@ -155,6 +155,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isinf
     isnan
     layout
     leaky_relu

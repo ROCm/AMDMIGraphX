@@ -647,8 +647,8 @@ struct find_broadcast_transpose
     {
         auto transpose      = r.result;
         auto transpose_lens = transpose->get_shape().lens();
-        auto bcast_ins = r.instructions["bcast_ins"];
-        auto input     = bcast_ins->inputs().front();
+        auto bcast_ins      = r.instructions["bcast_ins"];
+        auto input          = bcast_ins->inputs().front();
         // scalar transformation does not need extra transpose
         if(not input->get_shape().scalar())
         {

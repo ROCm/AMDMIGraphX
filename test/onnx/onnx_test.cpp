@@ -3413,6 +3413,82 @@ TEST_CASE(if_tuple_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(isinf_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    auto t1  = mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_neg_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("less"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_neg_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_double_pos_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::double_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("greater"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_double_pos_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_no_detect_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::bool_type}, {false}}));
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_no_detect_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(isnan_float_test)
 {
     migraphx::program p;
@@ -6481,9 +6557,8 @@ TEST_CASE(resize_nonstd_input_test)
     auto tx =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inx);
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto tx_cont = mm->add_instruction(migraphx::make_op("contiguous"), tx);
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx_cont);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -8338,6 +8413,27 @@ TEST_CASE(upsample_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("upsample_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(upsample_ver7_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto ix = mm->add_parameter("X", sx);
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+
+    auto li  = mm->add_literal(migraphx::literal(si, ind));
+    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
+    auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("upsample_ver7_test.onnx");
 
     EXPECT(p == prog);
 }

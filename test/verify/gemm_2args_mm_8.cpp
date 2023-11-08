@@ -21,9 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-// clang-format off
-#define MIGRAPHX_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
-#define MIGRAPHX_VERSION_MINOR @PROJECT_VERSION_MINOR@
-#define MIGRAPHX_VERSION_PATCH @PROJECT_VERSION_PATCH@
-#define MIGRAPHX_VERSION_TWEAK "@PROJECT_VERSION_TWEAK@"
-// clang-format on
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
+struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::float_type, {2, 128, 32}, {4096, 1, 128}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {32, 32}};
+        auto a  = mm->add_parameter("a", a_shape);
+        auto b  = mm->add_parameter("b", b_shape);
+        auto bb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), b);
+
+        mm->add_instruction(migraphx::make_op("dot"), a, bb);
+
+        return p;
+    }
+};

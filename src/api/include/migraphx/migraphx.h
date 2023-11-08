@@ -515,6 +515,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_dyn_dim_valu
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
+    migraphx_onnx_options_t onnx_options, int64_t value);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
 

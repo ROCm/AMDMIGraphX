@@ -58,6 +58,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 std::unordered_map<std::string, pass> create_passes_lookup()
 {
     std::unordered_map<std::string, pass> result;
+    // clang-format off
     std::initializer_list<pass> passes = {
         auto_contiguous{},
         dead_code_elimination{},
@@ -83,6 +84,7 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_qdq{},
         simplify_reshapes{},
     };
+    // clang-format on
     for(const auto& pass : passes)
         result[pass.name()] = pass;
     result["eliminate_dead_code"] = dead_code_elimination{};

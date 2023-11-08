@@ -745,7 +745,7 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
 
 optional<std::size_t> find_split_axis(const std::vector<instruction_ref>& slices)
 {
-    auto first     = slices.front();
+    auto first               = slices.front();
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto get_start = [&](auto& i) -> auto& { return get_slice(i).starts; };
     auto get_end   = [&](auto& i) -> auto& { return get_slice(i).ends; };

@@ -66,16 +66,6 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
 def disabled_tests_onnx_1_7_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_argmax_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmax_no_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(r'test_argmin_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_negative_axis_keepdims_example_select_last_index_cpu')
-    backend_test.exclude(
-        r'test_argmin_no_keepdims_example_select_last_index_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_0_cpu')
     backend_test.exclude(r'test_logsoftmax_axis_1_cpu')
     backend_test.exclude(r'test_logsoftmax_default_axis_cpu')
@@ -145,9 +135,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_hardmax_example_cpu')
     backend_test.exclude(r'test_hardmax_negative_axis_cpu')
     backend_test.exclude(r'test_hardmax_one_hot_cpu')
-    backend_test.exclude(r'test_isinf_cpu')
-    backend_test.exclude(r'test_isinf_negative_cpu')
-    backend_test.exclude(r'test_isinf_positive_cpu')
     backend_test.exclude(r'test_matmulinteger_cpu')
     backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
@@ -846,10 +833,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_larger_cpu')
     backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
     backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
-
-    # The following tests fail due to the CastLike operator being unsupported
-    backend_test.exclude(r'test_split_1d_uneven_split_opset18_cpu')
-    backend_test.exclude(r'test_split_2d_uneven_split_opset18_cpu')
 
 
 def disabled_tests_onnx_1_14_0(backend_test):

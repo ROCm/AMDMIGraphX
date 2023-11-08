@@ -164,6 +164,11 @@ void set_default_loop_iterations(onnx_options& options, int64_t value)
     options.max_loop_iterations = value;
 }
 
+void set_limit_loop_iterations(onnx_options& options, int64_t value)
+{
+    options.limit_max_iterations = value;
+}
+
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }

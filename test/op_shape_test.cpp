@@ -88,7 +88,7 @@ TEST_CASE(allocate_static)
     expect_shape(out_shape, migraphx::make_op("allocate", {{"shape", to_value(out_shape)}}));
 }
 
-TEST_CASE(allocate_static_input_error)
+TEST_CASE(allocate_static_input)
 {
     migraphx::shape input{migraphx::shape::int64_type, {3}};
     migraphx::shape out_shape{migraphx::shape::float_type, {2, 3, 4}};
@@ -116,12 +116,27 @@ TEST_CASE(allocate_dyn_with_shape_attr)
                  input);
 }
 
-TEST_CASE(allocate_dyn_no_input_error)
+TEST_CASE(allocate_dyn_no_input)
 {
     migraphx::shape shape_attr{migraphx::shape::float_type,
                                {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
     expect_shape(shape_attr,
                  migraphx::make_op("allocate", {{"shape", migraphx::to_value(shape_attr)}}));
+}
+
+TEST_CASE(allocate_shape_and_buf_type_error)
+{
+    migraphx::shape shape_attr{migraphx::shape::float_type,
+                               {{1, 4}, {3, 3}, {4, 8, {4, 6}}, {4, 8}, {4, 6}}};
+    throws_shape(migraphx::make_op(
+        "allocate",
+        {{"shape", migraphx::to_value(shape_attr)}, {"buf_type", migraphx::shape::half_type}}));
+}
+
+TEST_CASE(allocate_no_attr_error)
+{
+    migraphx::shape input{migraphx::shape::int64_type, {4}};
+    throws_shape(migraphx::make_op("allocate"), input);
 }
 
 TEST_CASE(argmax_axis0)
@@ -1942,12 +1957,42 @@ TEST_CASE(multibroadcast_3in_dyn_dyn)
     expect_shape(expected_shape, migraphx::make_op("multibroadcast"), c_shape, a_shape, b_shape);
 }
 
-TEST_CASE(multinomial)
+TEST_CASE(multinomial_bool_type)
 {
-    migraphx::shape s{migraphx::shape::float_type, {2, 5}};
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
     int dtype = 0;
 
-    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s, s);
+    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
+}
+
+TEST_CASE(multinomial)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::float_type, {1, 4}};
+    int dtype = 2;
+
+    expect_shape(s3, migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
+}
+
+TEST_CASE(multinomial_0size_input)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+    migraphx::shape s2{migraphx::shape::float_type, {}};
+    int dtype = 2;
+
+    throws_shape(migraphx::make_op("multinomial", {{"dtype", dtype}}), s1, s2);
+}
+
+TEST_CASE(multinomial_dyn)
+{
+    migraphx::shape s1{migraphx::shape::int32_type, {{2, 3}, {5, 6}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {{7, 8}, {9, 10}}};
+    migraphx::shape s3{migraphx::shape::int32_type, {{2, 3}, {9, 10}}};
+
+    expect_shape(
+        s3, migraphx::make_op("multinomial", {{"dtype", migraphx::shape::int32_type}}), s1, s2);
 }
 
 TEST_CASE(nms_shape)
@@ -2684,7 +2729,7 @@ TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_dyn_shape)
+TEST_CASE(reshape_dyn_1in)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{
@@ -2706,6 +2751,27 @@ TEST_CASE(reshape_dyn_shape)
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
+
+TEST_CASE(reshape_dyn_2in_0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {8, 8}, {3, 3}, {1, 1}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
+}
+
+TEST_CASE(reshape_dyn_2in_1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{12, 12}, {2, 2}, {1, 1}, {1, 4}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
+}
+
+TEST_CASE(reshape_dyn_2in_2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 24, 1, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 2}, {6, 12}, {1, 1}, {4, 4}}};
+    expect_shape(output, migraphx::make_op("reshape"), input, output);
 }
 
 TEST_CASE(reshape_multiple_non_fixed_error)

@@ -6629,8 +6629,9 @@ TEST_CASE(resize_nonstd_input_test)
     auto tx =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inx);
     mm->add_instruction(migraphx::make_op("undefined"));
+    auto tx_cont = mm->add_instruction(migraphx::make_op("contiguous"), tx);
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx_cont);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 

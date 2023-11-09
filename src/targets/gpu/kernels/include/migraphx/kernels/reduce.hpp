@@ -244,8 +244,9 @@ struct reducer_base
         {
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
-            return make_storage_access<typename decltype(t)::type>(
-                [=](auto i, auto...) -> auto& { return t[i]; });
+            return make_storage_access<typename decltype(t)::type>([=](auto i, auto...) -> auto& {
+                return t[i];
+            });
         }
     }
 

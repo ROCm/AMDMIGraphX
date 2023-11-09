@@ -36,7 +36,8 @@ namespace migraphx {
 template <class F, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
 {
-    idx.global_stride(out.get_shape().elements(), [&](auto i) { out[i] = f(xs[i]...); });
+    idx.global_stride(out.get_shape().elements(),
+                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
 }
 
 template <class... Transforms>

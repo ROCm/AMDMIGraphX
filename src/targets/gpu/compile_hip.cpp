@@ -199,7 +199,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 {
     hiprtc_program prog(std::move(srcs));
     auto options = split_string(params, ' ');
-    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
+    options.push_back("-DMIGRAPHX_JIT_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
     if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {

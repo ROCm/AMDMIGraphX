@@ -24,9 +24,9 @@
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPE_TRAITS_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPE_TRAITS_HPP
 
-#include <migraphx/migraphx_float8.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/migraphx_float8.hpp>
 
 namespace migraphx {
 

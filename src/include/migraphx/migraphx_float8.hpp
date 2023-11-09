@@ -28,32 +28,36 @@
 #pragma clang diagnostic ignored "-Wfloat-equal"
 #pragma clang diagnostic ignored "-Wmacro-redefined"
 #pragma clang diagnostic ignored "-Wc++20-extensions"
-#endif
+#endif // __clang__
 
 #if(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__))
 // need to include hip_runtime.h otherwise it complains about __host__ and __device__
-#ifndef __HIPCC_RTC__
-#include <hip/hip_runtime.h>
-#else
+#if defined(MIGRAPHX_JIT_USE_HIPRTC)
 #include <migraphx/kernels/hip.hpp>
+#else
+#include <hip/hip_runtime.h>
 #endif
 #define MIGRAPHX_HIP_HOST_DEVICE __host__ __device__
 #define MIGRAPHX_HIP_HOST __host__
 #else
 #define MIGRAPHX_HIP_HOST_DEVICE
 #define MIGRAPHX_HIP_HOST
-#endif
+#endif // HIP_PLATFORM_AMD
 
 #define MIGRAPHX_HIP_DEVICE __device__
 
 #ifndef MIGRAPHX_FP8_FNUZ
 #define MIGRAPHX_FP8_FNUZ true
-#endif
+#endif // MIGRAPHX_FP8_FNUZ
 
 // We are clipping in down conversion by default
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
-
-#ifndef __HIPCC_RTC__
+#if defined(MIGRAPHX_JIT_USE_HIPRTC)
+#include <migraphx/kernels/types.hpp>
+using uint8_t  = migraphx::uint8_t;
+using uint16_t = migraphx::uint16_t;
+using uint32_t = migraphx::uint32_t;
+#else
 #include <cmath>
 #include <cstdint>
 #include <climits>
@@ -91,6 +95,9 @@ enum class hip_f8_type
     bf8 = 0, // s1e5m2
     fp8 = 1  // s1e4m3
 };
+
+template <typename T>
+class NumericLimits;
 
 template <migraphx_fp8::hip_f8_type T = migraphx_fp8::hip_f8_type::fp8>
 struct hip_f8
@@ -388,7 +395,7 @@ struct hip_f8
     inline MIGRAPHX_HIP_HOST_DEVICE constexpr bool operator==(const hip_f8& rhs) const
     {
         if((rhs.is_zero() && this->is_zero()) ||
-           (fabs(rhs - *this) < std::numeric_limits<hip_f8<T>>::epsilon()))
+           (fabs(rhs - *this) < migraphx_fp8::NumericLimits<hip_f8<T>>::epsilon()))
             return true;
         else if(rhs.is_nan() || rhs.is_inf() || this->is_nan() || this->is_inf())
             return false;
@@ -411,7 +418,7 @@ struct hip_f8
     }
 };
 
-#ifndef __HIPCC_RTC__
+#ifndef MIGRAPHX_JIT_USE_HIPRTC
 // Special operator overloading
 template <migraphx_fp8::hip_f8_type T>
 inline std::ostream& operator<<(std::ostream& os, const migraphx_fp8::hip_f8<T>& rhs)
@@ -463,6 +470,69 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr T F8_Lowest()
 
 using fp8e4m3fnuz = hip_f8<migraphx_fp8::hip_f8_type::fp8>;
 
+template <>
+class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
+{
+    public:
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> epsilon()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(float(0.0625));
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> quiet_NaN()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(
+            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0X80 : 0x79));
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> max()
+    {
+        return migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> min()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(-1.0f) *
+               migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> lowest()
+    {
+        return migraphx_fp8::F8_Lowest<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
+    }
+};
+
+template <>
+class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
+{
+    public:
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> epsilon()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(float(0.125));
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> quiet_NaN()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
+            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0X80 : 0x7d));
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> max()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
+            migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>());
+    }
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> min()
+    {
+        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(float(-1.0f)) *
+               migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>();
+    }
+
+    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> lowest()
+    {
+        return migraphx_fp8::F8_Lowest<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>();
+    }
+};
 /*
 // Use h/w intrinsic and optimized version when __gfx940__
 template <typename T,
@@ -511,6 +581,7 @@ inline __host__ __device__ T explicit_downcast(Ta a, uint32_t rng)
 */
 } // namespace migraphx_fp8
 // define numeric limits for the new data type
+#ifndef MIGRAPHX_JIT_USE_HIPRTC
 namespace std {
 inline bool isfinite(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> x) // NOLINT
 {
@@ -524,66 +595,14 @@ inline bool isfinite(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> x) // 
 
 template <>
 class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
+    : public migraphx_fp8::NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 {
-    public:
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> epsilon()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(float(0.0625));
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> quiet_NaN()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(
-            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0X80 : 0x79));
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> max()
-    {
-        return migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> min()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(-1.0f) *
-               migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> lowest()
-    {
-        return migraphx_fp8::F8_Lowest<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>();
-    }
 };
 
 template <>
 class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
+    : public migraphx_fp8::NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
 {
-    public:
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> epsilon()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(float(0.125));
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> quiet_NaN()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
-            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0X80 : 0x7d));
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> max()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
-            migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>());
-    }
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> min()
-    {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(float(-1.0f)) *
-               migraphx_fp8::F8_Max<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>();
-    }
-
-    static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> lowest()
-    {
-        return migraphx_fp8::F8_Lowest<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>();
-    }
 };
 
 template <class T>
@@ -603,6 +622,7 @@ struct common_type<migraphx_fp8::fp8e4m3fnuz, migraphx_fp8::fp8e4m3fnuz>
 };
 
 } // namespace std
+#endif
 // =================================================================================================
 #if defined(__clang__)
 #pragma clang diagnostic pop

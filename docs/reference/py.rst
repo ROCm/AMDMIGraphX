@@ -95,7 +95,7 @@ shape
     :rtype: bool
 
 dynamic_dimension
---------
+-----------------
 
 .. py:class:: dynamic_dimension(min, max, optimals)
 

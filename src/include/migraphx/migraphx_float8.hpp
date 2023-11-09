@@ -615,6 +615,16 @@ inline bool isfinite(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> x) // 
     return x.is_inf();
 }
 
+inline bool isnan(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> x) // NOLINT
+{
+    return x.is_nan();
+}
+
+inline bool isnan(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> x) // NOLINT
+{
+    return x.is_nan();
+}
+
 template <>
 class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
     : public migraphx_fp8::NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>

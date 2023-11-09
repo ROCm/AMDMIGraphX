@@ -132,11 +132,11 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t
     // handle negative zero
     if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
     {
-        if(we == 4 or (we == 5 and negative_zero_nan))
+        if(negative_zero_nan)
         {
             return 0;
         }
-        else if(we == 5) // E5M2
+        else
         {
             return 0x80;
         }

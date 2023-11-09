@@ -106,13 +106,13 @@ struct hip_f8
     // default constructor
     MIGRAPHX_HIP_HOST_DEVICE constexpr hip_f8() = default;
     // default copy constructor
-    MIGRAPHX_HIP_HOST_DEVICE constexpr hip_f8(const hip_f8& y) = default;
+    MIGRAPHX_HIP_HOST_DEVICE constexpr hip_f8(const hip_f8<T>& y) = default;
     struct from_bits_t
     {
     };
     static constexpr MIGRAPHX_HIP_HOST_DEVICE from_bits_t from_bits() { return from_bits_t(); }
 
-    MIGRAPHX_HIP_HOST_DEVICE constexpr hip_f8(uint8_t bits, from_bits_t) : data(bits) {}
+    MIGRAPHX_HIP_HOST_DEVICE explicit constexpr hip_f8(uint8_t bits, from_bits_t) : data(bits) {}
 
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     // device specific optimized F8 down-conversion code
@@ -481,8 +481,8 @@ class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> quiet_NaN()
     {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(
-            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0x80 : 0x79));
+        return migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>(
+            MIGRAPHX_FP8_FNUZ ? 0x80 : 0x7F, migraphx_fp8::hip_f8<>::from_bits());
     }
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> max()
@@ -503,13 +503,8 @@ class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8> infinity()
     {
-        if constexpr(MIGRAPHX_FP8_FNUZ)
-        {
-            return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(
-                static_cast<uint8_t>(0x80));
-        }
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>(
-            static_cast<uint8_t>(0x78));
+        return migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>(
+            MIGRAPHX_FP8_FNUZ ? 0x80 : 0x7F, migraphx_fp8::hip_f8<>::from_bits());
     }
 };
 
@@ -524,8 +519,9 @@ class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> quiet_NaN()
     {
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
-            static_cast<uint8_t>(MIGRAPHX_FP8_FNUZ ? 0x80 : 0x7d));
+        return migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>(
+            MIGRAPHX_FP8_FNUZ ? 0x80 : 0x7d,
+            migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>::from_bits());
     }
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> max()
@@ -546,13 +542,9 @@ class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
 
     static MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> infinity()
     {
-        if constexpr(MIGRAPHX_FP8_FNUZ)
-        {
-            return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
-                static_cast<uint8_t>(0x80));
-        }
-        return static_cast<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>(
-            static_cast<uint8_t>(0x7c));
+        return migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>(
+            MIGRAPHX_FP8_FNUZ ? 0x80 : 0x7c,
+            migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>::from_bits());
     }
 };
 /*

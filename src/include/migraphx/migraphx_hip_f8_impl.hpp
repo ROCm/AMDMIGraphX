@@ -126,8 +126,21 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t
                 return signed_inf + (mantissa != 0 ? 1 : 0);
         }
     }
+    // handle positive zero
     if(x == 0)
         return 0;
+    // handle negative zero
+    if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
+    {
+        if(we == 4 or (we == 5 and negative_zero_nan))
+        {
+            return 0;
+        }
+        else if(we == 5) // E5M2
+        {
+            return 0x80;
+        }
+    }
 
     // First need to check if it is normal or denorm as there is a difference of implict 1
     // Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift

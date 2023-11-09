@@ -151,7 +151,7 @@ Set to "1", "enable", "enabled", "yes", or "true" to use.
 Time the compile passes.
 
 
-GPU Kernels JIT compilation debugging
+GPU Kernels JIT compilation debugging (applicable for both hiprtc and hipclang)
 -----------------------------------------
 
 **MIGRAPHX_TRACE_CMD_EXECUTE**

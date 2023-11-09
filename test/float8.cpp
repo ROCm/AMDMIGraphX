@@ -167,9 +167,7 @@ TEST_CASE(test_nan_1)
 TEST_CASE(test_nan_2)
 {
     auto fnan = std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::quiet_NaN();
-    std::cout << uint32_t(fnan.data) << std::endl;
     migraphx_fp8::fp8e4m3fnuz fp8_nan(fnan.data, migraphx_fp8::fp8e4m3fnuz::from_bits());
-    std::cout << uint32_t(fp8_nan.data) << std::endl;
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(fp8_nan));
     EXPECT(std::isnan(float(fp8_nan)));

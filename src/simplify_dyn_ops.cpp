@@ -33,6 +33,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Convert 2 input static shape broadcast/multibroadcast into 1 input version.
  * Some compiler passes (ex. simplify_algebra) only support the 1 input versions
  * of the broadcasting operators.
+ * From:
+ * broadcast_op(argument_with_static_shape, argument_with_static_shape)
+ * To:
+ * broadcast_op(argument_with_static_shape); broadcast_op.out_lens = constant_output_dims
  */
 struct find_static_2in_broadcasts
 {
@@ -172,11 +176,43 @@ struct find_static_dimensions_of
     }
 };
 
+/**
+ * Simplify allocate into 2 argument reshape that has constant output dimensions into a static 1
+ * argument reshape. Intended to simplify what ONNX parse_reshape creates for dynamic reshapes.
+ * From:
+ * x = allocate(constant_output_dims) -> reshape(data, x)
+ * To:
+ * reshape(data); reshape.dims = constant_output_dims
+ */
+struct find_const_alloc_reshapes
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(match::nargs(2),
+                                      match::arg(1)(match::name("allocate")(match::is_constant())));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto reshape_ins         = mr.result;
+        auto reshape_inputs      = reshape_ins->inputs();
+        auto alloc_ins           = reshape_inputs.at(1);
+        argument output_dims_arg = alloc_ins->inputs().at(0)->eval();
+        std::vector<int64_t> output_dims_vec;
+        output_dims_arg.visit(
+            [&](auto output) { output_dims_vec.assign(output.begin(), output.end()); });
+        m.replace_instruction(
+            reshape_ins, make_op("reshape", {{"dims", output_dims_vec}}), reshape_inputs.at(0));
+        // have dead_code_elimination remove the previous allocate
+    }
+};
+
 void simplify_dyn_ops::apply(module& m) const
 {
+    match::find_matches(m, find_static_dimensions_of{});
     match::find_matches(m,
+                        find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
-                        find_static_dimensions_of{},
                         find_const_3in_slice{},
                         find_const_4in_slice{});
 }

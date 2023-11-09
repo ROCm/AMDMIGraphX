@@ -319,4 +319,71 @@ TEST_CASE(static_dimensions_of_nonfixed)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(constant_alloc_reshape)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {3, 32}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape lit_s{migraphx::shape::int64_type, {3}};
+        auto literal_ins = m0.add_literal(migraphx::literal{lit_s, {3, 4, 8}});
+        auto alloc_ins   = m0.add_instruction(
+            migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}),
+            literal_ins);
+        auto reshape_ins = m0.add_instruction(migraphx::make_op("reshape"), input, alloc_ins);
+        m0.add_return({reshape_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {3, 32}};
+        auto input = m1.add_parameter("data", s);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 8}}}), input);
+        m1.add_return({reshape_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+// A more contrived example to test static dimensions_of and constant reshape
+TEST_CASE(static_dimensions_of_to_constant_alloc_reshape)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {3, 4, 8}};
+        auto x_param = m0.add_parameter("x", input_shape);
+        auto dimensions_of_ins =
+            m0.add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), x_param);
+        migraphx::shape lit_shape{migraphx::shape::int64_type, {1}};
+        auto lit0 = m0.add_literal(migraphx::literal{lit_shape, {0}});
+        auto gather_ins =
+            m0.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), dimensions_of_ins, lit0);
+        auto slice_ins = m0.add_instruction(
+            migraphx::make_op("slice", {{"starts", {1}}, {"ends", {3}}, {"axes", {0}}}),
+            dimensions_of_ins);
+        auto reduce_ins =
+            m0.add_instruction(migraphx::make_op("reduce_prod", {{"axes", {0}}}), slice_ins);
+        auto concat_ins =
+            m0.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), gather_ins, reduce_ins);
+        auto alloc_ins = m0.add_instruction(
+            migraphx::make_op("allocate", {{"buf_type", migraphx::shape::float_type}}), concat_ins);
+        auto reshape_ins = m0.add_instruction(migraphx::make_op("reshape"), x_param, alloc_ins);
+        m0.add_return({reshape_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {3, 4, 8}};
+        auto x_param = m1.add_parameter("x", s);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 32}}}), x_param);
+        m1.add_return({reshape_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

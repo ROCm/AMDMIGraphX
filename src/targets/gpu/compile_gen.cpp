@@ -56,7 +56,7 @@ vectorize vectorize::elements(std::size_t axis,
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::float8_type;
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
        }))
         return {1, axis};
     if(std::all_of(
@@ -93,7 +93,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
 {
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
-           return ishape.type() == migraphx::shape::float8_type;
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
        }))
         return {1, axis};
     if(inputs.empty())

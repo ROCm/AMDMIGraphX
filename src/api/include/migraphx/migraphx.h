@@ -45,7 +45,7 @@
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
-    m(float8_type, fp8e4m3fnuz)
+    m(fp8e4m3fnuz_type, fp8e4m3fnuz)
 // clang-format on
 
 #ifdef __cplusplus

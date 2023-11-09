@@ -40,7 +40,6 @@ struct test_abs : verify_program<test_abs<DType>>
     }
 };
 
-template struct test_abs<migraphx::shape::float8_type>;
+template struct test_abs<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_abs<migraphx::shape::half_type>;
 template struct test_abs<migraphx::shape::float_type>;
-

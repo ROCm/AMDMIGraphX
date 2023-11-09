@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template<migraphx::shape::type_t DType>
+template <migraphx::shape::type_t DType>
 struct test_acos : verify_program<test_acos<DType>>
 {
     migraphx::program create_program() const
@@ -41,7 +41,6 @@ struct test_acos : verify_program<test_acos<DType>>
     }
 };
 
-template struct test_acos<migraphx::shape::float8_type>;
+template struct test_acos<migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_acos<migraphx::shape::half_type>;
 template struct test_acos<migraphx::shape::float_type>;
-

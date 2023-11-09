@@ -1,11 +1,11 @@
 Contributor Guide
-===============
+=================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   dev_intro
+   dev/dev_intro
    dev/data
    dev/operators
    dev/program

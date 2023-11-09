@@ -172,7 +172,7 @@ Make it so the created temporary directories are not deleted.
 **MIGRAPHX_GPU_DEBUG**
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Adds the option ``-DMIGRAPHX_DEBUG`` when compiling HIPRTC.
+Internally, this adds the option ``-DMIGRAPHX_DEBUG`` when compiling GPU kernels. It enables assertions and capture of source locations for the errors. 
 
 **MIGRAPHX_GPU_DEBUG_SYM**
 

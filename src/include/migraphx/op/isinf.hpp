@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PACK_INT8_ARGS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PACK_INT8_ARGS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_ISINF_HPP
+#define MIGRAPHX_GUARD_OPERATORS_ISINF_HPP
 
-#include <migraphx/program.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/op/unary.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT pack_int8_args
+struct isinf : unary<isinf>
 {
-    std::string name() const { return "gpu::pack_int8_args"; }
-    void apply(module& m) const;
-    shape pack_int8_shape(const shape& s) const;
+    auto apply() const
+    {
+        return [&](auto x) { return std::isinf(x); };
+    }
+
+    std::string name() const { return "isinf"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return unary<isinf>::compute_shape(std::move(inputs)).with_type(shape::bool_type);
+    }
 };
 
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

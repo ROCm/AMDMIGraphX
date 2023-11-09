@@ -226,7 +226,6 @@ TEST_CASE(reshape_2in_test1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
-
 TEST_CASE(reshape_2in_elements_runtime_error)
 {
     migraphx::program p;

@@ -22,12 +22,8 @@
 
 #ifndef MIGRAPHX_FP8_IMPL_HPP
 #define MIGRAPHX_FP8_IMPL_HPP
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreserved-identifier"
-#endif
 
-#define CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
+#define MIGRAPHX_CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
 namespace migraphx_f8_impl {
 namespace detail {
 template <bool B, class T, class F>
@@ -47,11 +43,10 @@ inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));
 #if defined(__GNUC__) and !defined(__clang__)
-    To x = CONST_FOLD(*reinterpret_cast<To*>(&fr));
+    return MIGRAPHX_CONST_FOLD(*reinterpret_cast<To*>(&fr));
 #else
-    To x = __builtin_bit_cast(To, fr);
+    return __builtin_bit_cast(To, fr);
 #endif
-    return x;
 }
 } // namespace detail
 
@@ -102,7 +97,6 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
         }
         else
         {
-            // if(__hisinf(x) || __hisnan(x))
             if((x & 0x7C00) == 0x7C00)
                 return 0x80;
         }
@@ -112,12 +106,12 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
         if(sizeof(T) == 4)
         {
             if((x & 0x7F800000) == 0x7F800000)
-                return signed_inf + (mantissa != 0 ? 1 : 0);
+                return signed_inf + (mantissa != 0 ? 1 : 0); // cppcheck-suppress InvertedLogic
         }
         else
         {
             if((x & 0x7C00) == 0x7C00)
-                return signed_inf + (mantissa != 0 ? 1 : 0);
+                return signed_inf + (mantissa != 0 ? 1 : 0); // cppcheck-suppress InvertedLogic
         }
     }
     // handle positive zero
@@ -241,7 +235,7 @@ this case, the fp16 mantissa should be shift left by 1  */
         }
     }
 
-    if(f8_exponent == 0 && mantissa == 0)
+    if(f8_exponent == 0 and mantissa == 0)
         return negative_zero_nan ? 0 : (sign << 7);
     mantissa &= (1 << wm) - 1;
     return (sign << 7) | (f8_exponent << wm) | mantissa;
@@ -314,7 +308,4 @@ constexpr T cast_from_f8(uint8_t x)
 }
 
 } // namespace migraphx_f8_impl
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 #endif // MIGRAPHX_FP8_IMPL_HPP

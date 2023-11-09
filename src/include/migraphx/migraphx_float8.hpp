@@ -26,7 +26,6 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wfloat-equal"
-#pragma clang diagnostic ignored "-Wmacro-redefined"
 #pragma clang diagnostic ignored "-Wc++20-extensions"
 #endif // __clang__
 
@@ -36,6 +35,7 @@
 
 // We are clipping in down conversion by default
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
+
 #include <cmath>
 #include <cstdint>
 #include <climits>
@@ -79,7 +79,7 @@ class numeric_limits;
 template <migraphx_fp8::f8_type T = migraphx_fp8::f8_type::fp8>
 struct float8
 {
-    uint8_t data;
+    uint8_t data = 0x00;
     // default constructor
     constexpr float8() = default;
     // default copy constructor
@@ -141,7 +141,7 @@ struct float8
         }
         else
         {
-            return (data == 0x00) || (data == 0x80);
+            return (data == 0x00) or (data == 0x80);
         }
     }
 
@@ -155,15 +155,15 @@ struct float8
         {
             if(T == migraphx_fp8::f8_type::bf8)
             {
-                return (data == 0x7d) || (data == 0x7e) || (data == 0x7f) || (data == 0xfd) ||
-                       (data == 0xfe) || (data == 0xff);
+                return (data == 0x7d) or (data == 0x7e) or (data == 0x7f) or (data == 0xfd) or
+                       (data == 0xfe) or (data == 0xff);
             }
             else
             {
-                return (data == 0x79) || (data == 0x7a) || (data == 0x7b) || (data == 0x7c) ||
-                       (data == 0x7d) || (data == 0x7e) || (data == 0x7f) || (data == 0xf9) ||
-                       (data == 0xfa) || (data == 0xfb) || (data == 0xfc) || (data == 0xfd) ||
-                       (data == 0xfe) || (data == 0xff);
+                return (data == 0x79) or (data == 0x7a) or (data == 0x7b) or (data == 0x7c) or
+                       (data == 0x7d) or (data == 0x7e) or (data == 0x7f) or (data == 0xf9) or
+                       (data == 0xfa) or (data == 0xfb) or (data == 0xfc) or (data == 0xfd) or
+                       (data == 0xfe) or (data == 0xff);
             }
         }
     }
@@ -178,11 +178,11 @@ struct float8
         {
             if(T == migraphx_fp8::f8_type::bf8)
             {
-                return (data == 0x7c) || (data == 0xfc);
+                return (data == 0x7c) or (data == 0xfc);
             }
             else
             {
-                return (data == 0x78) || (data == 0xf8);
+                return (data == 0x78) or (data == 0xf8);
             }
         }
     }
@@ -217,10 +217,10 @@ struct float8
 
     inline constexpr bool operator==(const float8& rhs) const
     {
-        if((rhs.is_zero() && this->is_zero()) ||
+        if((rhs.is_zero() and this->is_zero()) or
            (fabs(rhs - *this) < migraphx_fp8::numeric_limits<float8<T>>::epsilon()))
             return true;
-        else if(rhs.is_nan() || rhs.is_inf() || this->is_nan() || this->is_inf())
+        else if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
             return false;
 
         return false;
@@ -373,6 +373,8 @@ class numeric_limits<migraphx_fp8::float8<migraphx_fp8::f8_type::bf8>>
     }
 };
 } // namespace migraphx_fp8
+
+// =================================================================================================
 // define numeric limits for the new data type
 namespace std {
 inline bool isfinite(migraphx_fp8::float8<migraphx_fp8::f8_type::fp8> x) // NOLINT

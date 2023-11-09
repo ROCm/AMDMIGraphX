@@ -131,10 +131,24 @@ struct find_const_4in_slice
     }
 };
 
+/**
+ * Find allocate into reshape instructions that can be simplified to a static reshape.
+ * Example:
+ * x = allocate(constant_dims) -> reshape(input_data, x)
+ */
+struct find_static_reshape
+{
+    auto matcher const {return match::name("allocate")(match::nargs(1), }
+};
+
 void simplify_dyn_ops::apply(module& m) const
 {
-    match::find_matches(
-        m, find_static_2in_broadcasts{}, find_const_3in_slice{}, find_const_4in_slice{});
+    match::find_matches(m,
+                        find_static_2in_broadcasts{},
+                        find_static_alloc_reshape,
+                        find_const_3in_slice{},
+                        find_const_4in_slice{});
+    match::find_matches(m, find_static_reshape);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

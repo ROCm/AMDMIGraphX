@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/float_equal.hpp>
+#include <migraphx/migraphx_float8.hpp>
 #include <migraphx/half.hpp>
 #include "test.hpp"
 
@@ -53,7 +54,7 @@ auto test_float_equal(T x, U y)
 template <class T, class U>
 void test_equality()
 {
-    auto x1 = T(0.1);
+    auto x1 = T(0.125);
     auto x2 = U(0.0);
     auto x3 = U(1.0);
     EXPECT(test_float_equal(x1, x1));
@@ -71,8 +72,12 @@ void test_equality()
 TEST_CASE_REGISTER(test_equality<double, float>);
 TEST_CASE_REGISTER(test_equality<double, int>);
 TEST_CASE_REGISTER(test_equality<double, migraphx::half>);
+TEST_CASE_REGISTER(test_equality<double, migraphx_fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(test_equality<float, int>);
+TEST_CASE_REGISTER(test_equality<float, migraphx_fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(test_equality<migraphx::half, int>);
+TEST_CASE_REGISTER(test_equality<migraphx::half, migraphx_fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_equality<migraphx_fp8::fp8e4m3fnuz, int>);
 
 template <class T, class U>
 void test_limits()
@@ -110,8 +115,13 @@ void test_limits()
 TEST_CASE_REGISTER(test_limits<double, float>);
 TEST_CASE_REGISTER(test_limits<double, int>);
 TEST_CASE_REGISTER(test_limits<double, migraphx::half>);
+TEST_CASE_REGISTER(test_limits<double, migraphx_fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(test_limits<float, int>);
+TEST_CASE_REGISTER(test_limits<float, migraphx_fp8::fp8e4m3fnuz>);
 TEST_CASE_REGISTER(test_limits<int, migraphx::half>);
+TEST_CASE_REGISTER(test_limits<int, migraphx_fp8::fp8e4m3fnuz>);
+TEST_CASE_REGISTER(test_limits<migraphx_fp8::fp8e4m3fnuz, migraphx::half>);
+
 #ifndef _WIN32
 // On Windows, types int and long have the same min and max values.
 TEST_CASE_REGISTER(test_limits<long, int>);

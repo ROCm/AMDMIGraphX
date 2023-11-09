@@ -3413,6 +3413,82 @@ TEST_CASE(if_tuple_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(isinf_half_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    auto t1  = mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_half_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_neg_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("less"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_neg_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_double_pos_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::double_type, {2, 3}};
+    auto t1     = mm->add_parameter("t1", s);
+    auto is_inf = mm->add_instruction(migraphx::make_op("isinf"), t1);
+    auto zero_l = mm->add_literal(migraphx::literal{migraphx::shape::double_type, {0}});
+    auto mb_zero =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), zero_l);
+
+    auto is_neg = mm->add_instruction(migraphx::make_op("greater"), t1, mb_zero);
+    if(is_neg->get_shape().type() != migraphx::shape::bool_type)
+    {
+        is_neg = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), is_neg);
+    }
+    auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_double_pos_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(isinf_no_detect_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    mm->add_parameter("t1", s);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::bool_type}, {false}}));
+    mm->add_return({ret});
+
+    auto prog = migraphx::parse_onnx("isinf_no_detect_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(isnan_float_test)
 {
     migraphx::program p;
@@ -5712,9 +5788,9 @@ TEST_CASE(quantizelinear_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5737,9 +5813,9 @@ TEST_CASE(quantizelinear_int32_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5759,7 +5835,7 @@ TEST_CASE(quantizelinear_zero_point_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l2);
     l2_mbcast = mm->add_instruction(
@@ -5792,7 +5868,7 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l1);
 
     auto div      = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
-    auto round    = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round    = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l2);
     l2_bcast = mm->add_instruction(
@@ -6481,9 +6557,8 @@ TEST_CASE(resize_nonstd_input_test)
     auto tx =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inx);
     mm->add_instruction(migraphx::make_op("undefined"));
-    auto tx_cont = mm->add_instruction(migraphx::make_op("contiguous"), tx);
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx_cont);
+    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx);
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
@@ -6922,7 +6997,7 @@ TEST_CASE(round_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
-    mm->add_instruction(migraphx::make_op("round"), input);
+    mm->add_instruction(migraphx::make_op("nearbyint"), input);
 
     auto prog = optimize_onnx("round_test.onnx");
     EXPECT(p == prog);
@@ -7578,6 +7653,25 @@ TEST_CASE(slice_var_input_dyn1)
     EXPECT(p == prog);
 }
 
+TEST_CASE(slice_var_input_default_steps)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto data =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{3, 8}, {2, 2}}});
+    auto starts = mm->add_parameter("starts", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto ends   = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto axes   = mm->add_parameter("axes", migraphx::shape{migraphx::shape::int64_type, {2}});
+    mm->add_literal({{migraphx::shape::int64_type, {2}}, {1, 1}});
+    auto ret = mm->add_instruction(migraphx::make_op("slice"), data, starts, ends, axes);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {3, 8};
+    auto prog                     = parse_onnx("slice_var_input_default_steps.onnx", options);
+    EXPECT(p == prog);
+}
+
 TEST_CASE(slice_var_input_steps_error)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("slice_var_input_steps_error.onnx"); }));
@@ -7780,6 +7874,46 @@ TEST_CASE(split_test_default)
     EXPECT(p == prog);
 }
 
+TEST_CASE(split_test_uneven)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {12, 15}});
+    auto r1    = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), input);
+    auto r2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {6}}}), input);
+    auto r3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {9}}}), input);
+    auto r4 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {12}}}), input);
+    auto r5 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {12}}, {"ends", {12}}}), input);
+    mm->add_return({r1, r2, r3, r4, r5});
+
+    auto prog = migraphx::parse_onnx("split_test_uneven.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(split_test_uneven_num_outputs)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {11, 15}});
+    auto r1    = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), input);
+    auto r2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {6}}}), input);
+    auto r3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {9}}}), input);
+    auto r4 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {11}}}), input);
+    mm->add_return({r1, r2, r3, r4});
+
+    auto prog = migraphx::parse_onnx("split_test_uneven_num_outputs.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(split_test_no_attribute_invalid_split)
 {
     EXPECT(
@@ -7795,6 +7929,11 @@ TEST_CASE(split_test_no_attribute_invalid_input_split)
 {
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("split_test_no_attribute_invalid_input_split.onnx"); }));
+}
+
+TEST_CASE(split_test_invalid_num_outputs)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("split_test_invalid_num_outputs.onnx"); }));
 }
 
 TEST_CASE(sqrt_test)
@@ -8293,6 +8432,27 @@ TEST_CASE(upsample_test)
     mm->add_return({r});
 
     auto prog = migraphx::parse_onnx("upsample_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(upsample_ver7_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto ix = mm->add_parameter("X", sx);
+
+    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
+    std::vector<int> ind = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+
+    auto li  = mm->add_literal(migraphx::literal(si, ind));
+    auto rsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), ix);
+    auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
+    mm->add_return({r});
+
+    auto prog = migraphx::parse_onnx("upsample_ver7_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -27,8 +27,7 @@ Set to "2" and use the ``MIGRAPHX_TRACE_MATHCES_FOR`` flag to filter out results
 
 **MIGRAPHX_TRACE_MATCHES_FOR**
 
-Set to a string of what you want to filter matched results of.
-TODO: need to figure out what this can do
+Set to the name of any matcher and only traces for that matcher will be printed out.
 
 **MIGRAPHX_VALIDATE_MATCHES**
 
@@ -157,45 +156,105 @@ GPU Kernels JIT compilation debugging
 
 **MIGRAPHX_TRACE_CMD_EXECUTE**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Print commands executed by the MIGraphX ``process``.
+
 **MIGRAPHX_TRACE_HIPRTC**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Print HIPRTC options and C++ file executed.
 
 **MIGRAPHX_DEBUG_SAVE_TEMP_DIR**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Make it so the created temporary directories are not deleted.
+
 **MIGRAPHX_GPU_DEBUG**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Adds the option ``-DMIGRAPHX_DEBUG`` when compiling HIPRTC.
 
 **MIGRAPHX_GPU_DEBUG_SYM**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Adds the option ``-g`` when compiling HIPRTC.
+
 **MIGRAPHX_GPU_DUMP_SRC**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Dump the HIPRTC source files compiled.
 
 **MIGRAPHX_GPU_DUMP_ASM**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Dump the HIPRTC assembly.
+
 **MIGRAPHX_GPU_OPTIMIZE**
+
+Set the optimization mode for GPU compile (``-O`` option).
+Defaults to ``-O3``.
 
 **MIGRAPHX_GPU_COMPILE_PARALLEL**
 
+Set to the number of threads to use.
+Compile GPU code in parallel with the given number of threads.
+
 **MIGRAPHX_TRACE_NARY**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Print the ``nary`` device functions used.
 
 **MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable HIPRTC workarounds for bugs in HIPRTC.
+
 **MIGRAPHX_USE_FAST_SOFTMAX**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Use the fast softmax optimization.
 
 **MIGRAPHX_ENABLE_NULL_STREAM**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Allow using null stream for miopen and hipStream.
+
 **MIGRAPHX_NSTREAMS**
 
+Set to the number of streams to use.
+Defaults to 1.
+
+**MIGRAPHX_TRACE_BENCHMARKING**
+
+Set to "1" to print benchmarching trace.
+Set to "2" to print benchmarching trace with more detail.
 
 MLIR vars
 -------------
 
 **MIGRAPHX_TRACE_MLIR**
 
+Set to "1" to trace MLIR and print any failures.
+Set to "2" to additionally print all MLIR operations.
+
 **MIGRAPHX_MLIR_USE_SPECIFIC_OPS**
+
+Set to the name of the operations you want to always use MLIR regardless of GPU architecture.
+Accepts a list of operators separated by commas (ex: "fused", "convolution", "dot").
 
 **MIGRAPHX_MLIR_TUNING_DB**
 
+Set to the path of the MLIR tuning database to load.
+
 **MIGRAPHX_MLIR_TUNING_CFG**
 
-**MIGRAPHX_TUNE_EXHAUSTIVE**
+Set to the path of the tuning configuration.
+Appends to tuning cfg file that could be used with rocMLIR tuning scripts.
+
+**MIGRAPHX_MLIR_TUNE_EXHAUSTIVE**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Do exhaustive tuning for MLIR.
 
 
 CK vars
@@ -203,10 +262,18 @@ CK vars
 
 **MIGRAPHX_LOG_CK_GEMM**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Print Composable Kernels GEMM traces.
+
 **MIGRAPHX_CK_DEBUG**
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Always add the ``-DMIGRAPHX_CK_CHECK=1`` for compiling Composable Kernels operators.
 
 **MIGRAPHX_TUNE_CK**
 
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Use tuning for Composable Kernels.
 
 Testing 
 ------------

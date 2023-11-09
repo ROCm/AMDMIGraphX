@@ -63,7 +63,7 @@ inline std::string get_version()
 {
     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
-           "." + MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+           "." MIGRAPHX_VERSION_TWEAK;
 }
 
 struct loader

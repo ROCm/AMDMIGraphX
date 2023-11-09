@@ -60,7 +60,7 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Neg", "neg"},
                 {"Reciprocal", "recip"},
                 {"Relu", "relu"},
-                {"Round", "round"},
+                {"Round", "nearbyint"},
                 {"Sigmoid", "sigmoid"},
                 {"Sign", "sign"},
                 {"Sin", "sin"},

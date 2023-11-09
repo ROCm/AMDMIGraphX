@@ -97,7 +97,7 @@ enum class hip_f8_type
 };
 
 template <typename T>
-class NumericLimits;
+class numeric_limits;
 
 template <migraphx_fp8::hip_f8_type T = migraphx_fp8::hip_f8_type::fp8>
 struct hip_f8
@@ -395,7 +395,7 @@ struct hip_f8
     inline MIGRAPHX_HIP_HOST_DEVICE constexpr bool operator==(const hip_f8& rhs) const
     {
         if((rhs.is_zero() && this->is_zero()) ||
-           (fabs(rhs - *this) < migraphx_fp8::NumericLimits<hip_f8<T>>::epsilon()))
+           (fabs(rhs - *this) < migraphx_fp8::numeric_limits<hip_f8<T>>::epsilon()))
             return true;
         else if(rhs.is_nan() || rhs.is_inf() || this->is_nan() || this->is_inf())
             return false;
@@ -471,7 +471,7 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr T F8_Lowest()
 using fp8e4m3fnuz = hip_f8<migraphx_fp8::hip_f8_type::fp8>;
 
 template <>
-class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
+class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 {
     public:
     // TODO :figure out epsilon in Hex to make it constexpr
@@ -517,7 +517,7 @@ class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 };
 
 template <>
-class NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
+class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
 {
     public:
     static constexpr MIGRAPHX_HIP_HOST_DEVICE migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>
@@ -633,13 +633,13 @@ inline bool isnan(migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8> x) // NOL
 
 template <>
 class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
-    : public migraphx_fp8::NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
+    : public migraphx_fp8::numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::fp8>>
 {
 };
 
 template <>
 class numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
-    : public migraphx_fp8::NumericLimits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
+    : public migraphx_fp8::numeric_limits<migraphx_fp8::hip_f8<migraphx_fp8::hip_f8_type::bf8>>
 {
 };
 

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/migraphx_float8.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -52,3 +53,4 @@ template struct test_literal_limits<migraphx::shape::double_type, double>;
 template struct test_literal_limits<migraphx::shape::half_type, migraphx::half>;
 template struct test_literal_limits<migraphx::shape::int32_type, int32_t>;
 template struct test_literal_limits<migraphx::shape::int8_type, int8_t>;
+template struct test_literal_limits<migraphx::shape::float8_type, migraphx_fp8::fp8e4m3fnuz>;

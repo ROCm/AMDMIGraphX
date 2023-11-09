@@ -251,7 +251,7 @@ MIGRAPHX_HIP_HOST_DEVICE constexpr T cast_from_f8(uint8_t x)
     uint32_t ifNegInf = 0xFF800000;
     uint32_t ifNaN    = 0x7F800001;
     uint32_t ifNeg0   = 0x80000000;
-    // TODO: need to change T for half but right now it would never be called with half
+    // TODO: need to change T for half but right now it would never  called with half
     fInf    = detail::bit_cast<float>(ifInf);
     fNegInf = detail::bit_cast<float>(ifNegInf);
     fNaN    = detail::bit_cast<float>(ifNaN);

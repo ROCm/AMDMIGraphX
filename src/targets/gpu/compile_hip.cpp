@@ -259,10 +259,10 @@ compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std
     auto driver = p.parent_path() / fname;
 
     bool found = fs::exists(driver);
-    if (not found)
+    if(not found)
     {
         driver = p.parent_path().parent_path() / "bin" / fname;
-        found = fs::exists(driver);
+        found  = fs::exists(driver);
     }
 
     if(found)

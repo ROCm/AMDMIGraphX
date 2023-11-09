@@ -144,15 +144,14 @@ struct parse_slice : op_parser<parse_slice>
             sd.op.axes = axes;
         }
 
-        if(not sd.steps.empty())
+        if(std::any_of(sd.steps.begin(), sd.steps.end(), [](auto s) { return s != 1; }))
         {
             if(sd.op.starts.empty() or sd.op.ends.empty())
-                MIGRAPHX_THROW("PARSE_SLICE: steps and variable starts and ends is not supported");
+                MIGRAPHX_THROW(
+                    "PARSE_SLICE: steps and variable starts and/or ends is not supported");
             if(sd.op.axes.empty())
                 MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
         }
-
-        assert(sd.steps.empty() or sd.steps.size() == sd.op.axes.size());
 
         // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(sd.steps.size()))

@@ -21,26 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
-#include <migraphx/manage_ptr.hpp>
-#include <migraphx/gpu/config.hpp>
-#include <rocblas/rocblas.h>
+#ifndef MIGRAPHX_GUARD_OPERATORS_NEARBYINT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_NEARBYINT_HPP
+
+#include <migraphx/op/unary.hpp>
+#include <migraphx/config.hpp>
+#include <fenv.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
-
-rocblas_handle_ptr create_rocblas_handle_ptr();
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
-
-struct context;
-
-MIGRAPHX_GPU_EXPORT bool get_compute_fp32_flag();
-
-} // namespace gpu
+namespace op {
+struct nearbyint : unary<nearbyint>
+{
+    auto apply() const
+    {
+        return [](auto x) {
+            auto rounding_mode = fegetround();
+            fesetround(FE_TONEAREST);
+            return std::nearbyint(x);
+            fesetround(rounding_mode);
+        };
+    }
+};
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -237,9 +237,7 @@ template <index_int N, index_int Axis, class T>
 __device__ __host__ auto vectorize_tensor(T x)
 {
     constexpr auto shape = get_shape_c<T>{};
-    if constexpr(is_same<typename T::type, migraphx_fp8::fp8e4m3fnuz>{})
-        return x;
-    else if constexpr(shape.lens[Axis] == 1)
+    if constexpr(shape.lens[Axis] == 1)
         return x;
     else if constexpr(shape.strides[Axis] == 0)
         return tensor_step<N>(x, _c<Axis>);

@@ -27,6 +27,7 @@
 
 #include <half/half.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/migraphx_float8.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,6 +66,18 @@ struct common_type<migraphx::half, T> : std::common_type<float, T> // NOLINT
 template <class T>
 struct common_type<T, migraphx::half> : std::common_type<float, T> // NOLINT
 {
+};
+
+template <>
+struct common_type<migraphx_fp8::fp8e4m3fnuz, migraphx::half>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::half, migraphx_fp8::fp8e4m3fnuz>
+{
+    using type = float;
 };
 
 template <>

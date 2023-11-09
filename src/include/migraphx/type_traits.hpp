@@ -28,24 +28,44 @@
 #include <type_traits>
 #include <migraphx/half.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/migraphx_float8.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#define MIGRAPHX_DETAIL_DEFINE_TRAIT(trait) \
+    template <class X>                      \
+    struct trait : std::trait<X>            \
+    {                                       \
+    };
+
 #define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                             \
-    struct trait : std::trait<X>                   \
-    {                                              \
-    };                                             \
-                                                   \
     template <>                                    \
     struct trait<T> : std::true_type               \
     {                                              \
     };
 
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_floating_point);
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_arithmetic);
+MIGRAPHX_DETAIL_DEFINE_TRAIT(is_signed);
+
+template <class T, class U>
+struct is_same : std::is_same<T, U>
+{
+};
+
+template <bool B, class T, class U>
+struct conditional : std::conditional<B, T, U>
+{
+};
+
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, half)
 MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, half)
+
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, migraphx_fp8::fp8e4m3fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, migraphx_fp8::fp8e4m3fnuz)
+MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, migraphx_fp8::fp8e4m3fnuz)
 
 template <class T>
 using accumulator_type =

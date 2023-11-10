@@ -183,7 +183,9 @@ static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
 
 struct parse_resize : op_parser<parse_resize>
 {
-    std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
+    std::vector<op_desc> operators() const { 
+        return {{"Resize"}, {"Upsample"}}; 
+        }
 
     // A helper for one case of parse().
     // Dynamic batch:  Only args[0] can have a dynamic shape, only the 0'th
@@ -320,9 +322,9 @@ struct parse_resize : op_parser<parse_resize>
                                ": no dynamic input shapes allowed except the first one");
             }
 
-            // skip first input and any empty inputs
+            // skip first input (if dynamic) and any empty inputs
             auto lens = arg->get_shape().to_static(1).lens();
-            if(arg->name() == "undefined" or arg == args.front() or lens.empty())
+            if(arg->name() == "undefined" or (arg == args[0] and arg->get_shape().dynamic()) or lens.empty())
             {
                 continue;
             }
@@ -379,7 +381,9 @@ struct parse_resize : op_parser<parse_resize>
                                });
                 break;
             }
-        }
+         }
+        if(out_lens.size() == 0)
+            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": no input was given for scale or output size");
 
         // Dynamic batch:  Only args[0] can have a dynamic shape, only the 0'th
         // dimension--batch size--can be non-fixed, and the only resize mode allowed is "nearest"

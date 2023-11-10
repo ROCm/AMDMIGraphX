@@ -6094,6 +6094,26 @@ def qlinearglobalavgpool_test():
     return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
 
 
+@onnx_test()
+def qlinearleakyrelu_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT8, [64])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.INT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.INT8, [], [10])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.INT8, [64])
+
+    node = onnx.helper.make_node(
+        'QLinearLeakyRelu',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'],
+        alpha=1.1,
+    )
+    return ([node], [x], [y], [sc_x, zero_pt_x, sc_y, zero_pt_y])
+
+
 def qlinearmatmul_1D_test():
     a = helper.make_tensor_value_info('A', TensorProto.UINT8, [8])
     sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.05])
@@ -6232,6 +6252,26 @@ def qlinearmul_bcast_test():
     )
     return ([node], [a, b], [c],
             [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def qlinearsigmoid_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT8, [64])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.INT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0035])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.INT8, [],
+                                   [-128])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.INT8, [64])
+
+    node = onnx.helper.make_node(
+        'QLinearSigmoid',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'],
+    )
+    return ([node], [x], [y], [sc_x, zero_pt_x, sc_y, zero_pt_y])
 
 
 @onnx_test()

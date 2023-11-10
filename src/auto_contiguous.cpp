@@ -26,7 +26,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
-
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
@@ -62,9 +61,16 @@ void auto_contiguous::apply(module& m) const
     {
         if(contains({"layout", "contiguous", "@return", "@param", "@outline"}, ins->name()))
             continue;
+        auto outputs = ins->outputs();
         // for last instruction that is NOT a return
-        if(ins->outputs().empty() and ins != last)
+        if(outputs.empty() and ins != last)
             continue;
+        if(not outputs.empty())
+            // if contiguous was already inserted, skip
+            if(std::all_of(outputs.begin(), outputs.end(), [](auto output) {
+                   return output->name() == "contiguous";
+               }))
+                continue;
         shape s = ins->get_shape();
         if(s.dynamic())
             continue;
@@ -73,9 +79,8 @@ void auto_contiguous::apply(module& m) const
         if(s.standard() and ins->name() == "@literal")
             continue;
         if(s.scalar() and not contains(ins->name(), "broadcast"))
-        {
             continue;
-        }
+
         auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
         m.replace_instruction(ins, c);
     }

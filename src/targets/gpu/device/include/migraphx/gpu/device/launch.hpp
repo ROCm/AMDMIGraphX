@@ -43,7 +43,7 @@ struct index
 
     __device__ index_int nglobal() const { return blockDim.x * gridDim.x; } // NOLINT
 
-    __device__ index_int nlocal() const { return blockDim.x; }              // NOLINT
+    __device__ index_int nlocal() const { return blockDim.x; } // NOLINT
 
     template <class F>
     __device__ void global_stride(index_int n, F f) const

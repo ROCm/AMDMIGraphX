@@ -50,13 +50,14 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
     }
+
     shape_impl(shape::type_t t, std::vector<std::size_t> l)
         : m_type(t), m_lens(std::move(l)), m_standard(true)
     {
         assert(t != shape::tuple_type);
         this->calculate_strides();
-        assert(m_lens.size() == m_strides.size());
     }
+
     shape_impl(shape::type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
         : m_type(t), m_lens(std::move(l)), m_strides(std::move(s))
     {
@@ -151,6 +152,22 @@ struct shape_impl
             m_lens.begin(), m_lens.end(), std::size_t{1}, std::multiplies<std::size_t>());
     }
 
+    std::size_t get_index(size_t i) const
+    {
+        std::size_t result = 0;
+        std::size_t s      = 1;
+
+        for(auto k : migraphx::reverse(migraphx::range(m_lens.size())))
+        {
+            std::size_t stride = m_strides[k];
+            std::size_t len    = m_lens[k];
+            std::size_t idx    = (i % (s * len)) / s;
+            result += stride * idx;
+            s *= len;
+        }
+        return result;
+    }
+
     std::vector<std::size_t> min_lens() const
     {
         std::vector<std::size_t> ret(m_dyn_dims.size());
@@ -213,6 +230,7 @@ std::string shape::name(shape::type_t t)
     }
     MIGRAPHX_THROW("Invalid type");
 }
+
 std::string shape::cpp_type(shape::type_t t)
 {
     switch(t)
@@ -229,10 +247,12 @@ std::string shape::cpp_type(shape::type_t t)
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}
+
 shape::shape(type_t t, std::vector<std::size_t> l)
     : impl(std::make_shared<shape_impl>(t, std::move(l)))
 {
 }
+
 shape::shape(type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
     : impl(std::make_shared<shape_impl>(t, std::move(l), std::move(s)))
 {
@@ -358,21 +378,8 @@ std::size_t shape::index(std::size_t i) const
     assert(this->lens().size() == this->strides().size());
     if(this->standard())
         return i;
-    else
-    {
-        std::size_t s      = 1;
-        std::size_t result = 0;
-        for(std::size_t j = 0; j < this->lens().size(); j++)
-        {
-            const std::size_t k      = this->lens().size() - j - 1;
-            const std::size_t stride = this->strides()[k];
-            const std::size_t len    = this->lens()[k];
-            const std::size_t idx    = (i % (s * len)) / s;
-            result += stride * idx;
-            s *= len;
-        }
-        return result;
-    }
+
+    return impl->get_index(i);
 }
 
 std::vector<std::size_t> shape::multi(std::size_t idx) const

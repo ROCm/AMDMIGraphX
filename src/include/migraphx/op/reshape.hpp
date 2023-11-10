@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,12 +29,29 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
-#include <migraphx/optional.hpp>
+
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * 1 input version:
+ * reshape(input_data)
+ * this.dims = output_dims
+ * Makes a copy of input_data to the output shape.
+ *
+ * 2 input version:
+ * reshape(input_data, output_buffer)
+ * this.dims = unset
+ * Copies input_data to output_buffer; output_buffer already has the output shape.
+ * This version will not fail gracefully if the input shape and output_buffer shape are
+ * incompatible. There's a throw that will catch when the number of elements do not match at
+ * runtime. This version should only be used for dynamic reshapes (output dimensions only known at
+ * runtime). If output_buffer has a static shape during compile/parse, you can use the 1 input
+ * version.
+ */
 struct reshape
 {
     std::vector<int64_t> dims;
@@ -44,8 +61,6 @@ struct reshape
     {
         return pack(f(self.dims, "dims"));
     }
-
-    value attributes() const { return {{"require_std_shape", true}}; }
 
     std::string name() const { return "reshape"; }
 
@@ -110,27 +125,9 @@ struct reshape
         return it;
     }
 
-    template <class DimIterator, class StrideIterator>
-    static auto can_strides_merge(DimIterator dim_start,
-                                  DimIterator dim_last,
-                                  StrideIterator stride_start,
-                                  StrideIterator stride_last)
-    {
-        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
-        auto cstride = *std::prev(stride_last);
-        return std::equal(std::make_reverse_iterator(dim_last),
-                          std::make_reverse_iterator(dim_start + 1),
-                          std::make_reverse_iterator(stride_last - 1),
-                          std::make_reverse_iterator(stride_start),
-                          [&](auto dim, auto stride) {
-                              cstride *= dim;
-                              return stride == cstride;
-                          });
-    }
-
-    // This will reshape the dimesions of the input shape to use the lens of
-    // `rdims`. If this can't be done without changing memory layout then it
-    // will return nullopt
+    // This will attempt to alias the dimensions of the input shape to the lens of
+    // `rdims`. Unlike reshape_lazy though we can modify memory layout with copies and this
+    // can remove previous nullopts that were sent back for the alias case
     static optional<shape> reshape_dims(const shape& input, const std::vector<std::size_t>& rdims)
     {
         if(input.standard())
@@ -155,13 +152,8 @@ struct reshape
             {
                 auto start = idims.begin() + i;
                 auto it    = compute_end_dim(start, idims.end(), rdim);
-                if(it == start)
-                    return nullopt;
                 auto n = it - start;
                 assert((i + n) <= istrides.size());
-                if(not can_strides_merge(
-                       start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
-                    return nullopt;
                 i += n;
                 rstrides.push_back(istrides[i]);
             }
@@ -170,8 +162,7 @@ struct reshape
             {
                 auto start = rdims.begin() + i;
                 auto it    = compute_end_dim(start, rdims.end(), idim);
-                if(it == start)
-                    return nullopt;
+
                 auto n = it - start;
                 assert((r + n) <= rdims.size());
                 auto stride = istrides[i] * idim;
@@ -191,14 +182,10 @@ struct reshape
             auto stride = rstrides.back();
             for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
             {
-                if(d != 1)
-                    return nullopt;
+                (void)d;
                 rstrides.push_back(stride);
             }
         }
-
-        if(rdims.size() != rstrides.size())
-            return nullopt;
 
         return shape{input.type(), rdims, rstrides};
     }
@@ -233,41 +220,68 @@ struct reshape
         }
 
         auto s = reshape_dims(inputs.front(), rdims);
-        if(not s.has_value())
-            MIGRAPHX_THROW("Reshape on axis that is not packed.");
 
         if(s->elements() != inputs.front().elements())
-            MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
+            MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
                            std::to_string(s->elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        assert(s->bytes() == inputs.front().bytes());
         return *s;
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1);
+        check_shapes{inputs, *this, true}.has(1, 2);
+
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
-        auto s0 = inputs[0];
-        if(s0.dynamic())
+            MIGRAPHX_THROW("reshape: Dimensions for reshape can only have one -1 dim");
+
+        auto s0 = inputs.front();
+        if(inputs.size() == 1)
         {
-            return dyn_compute_shape(s0);
+            if(s0.dynamic())
+            {
+                return dyn_compute_shape(s0);
+            }
+            else
+            {
+                return static_compute_shape(inputs, n_neg_dims);
+            }
         }
         else
         {
-            return static_compute_shape(inputs, n_neg_dims);
+            return inputs.back();
         }
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(dyn_out.computed_shape);
-    }
+        assert(dyn_out.computed_shape.standard());
+        if(args.size() == 1)
+        {
+            argument result{dyn_out.computed_shape};
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+            visit_all(result, args[0])([&](auto output, auto input) {
+                std::copy(input.begin(), input.end(), output.begin());
+            });
+            return result;
+        }
+        else
+        {
+            // 2 arg
+            if(args[0].get_shape().elements() != args[1].get_shape().elements())
+            {
+                MIGRAPHX_THROW("Reshape: Number of elements must match at runtime. Input: " +
+                               std::to_string(args[0].get_shape().elements()) +
+                               " Output buffer: " + std::to_string(args[1].get_shape().elements()));
+            }
+            visit_all(args[1], args[0])([&](auto output, auto input) {
+                std::copy(input.begin(), input.end(), output.begin());
+            });
+            return args[1];
+        }
+    }
 };
 
 } // namespace op

@@ -49,6 +49,7 @@
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
@@ -63,7 +64,6 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -110,6 +110,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         split_single_dyn_dim{},
         dead_code_elimination{},
+        simplify_dyn_ops{},
+        dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},
@@ -153,7 +155,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         compile_miopen{&gctx},
         dead_code_elimination{},
-        pack_int8_args{},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

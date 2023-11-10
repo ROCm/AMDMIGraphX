@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,10 @@
 # ####################################################################################
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+find_package(hip)
+if(NOT GPU_TARGETS)
+    message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
+endif()
 find_package(miopen)
 
 # rocblas
@@ -33,8 +37,7 @@ if(NOT TARGET MIOpen)
     message(SEND_ERROR "Cant find miopen")
 endif()
 
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
 
@@ -44,12 +47,21 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-include(Embed)
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
+
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+    list(REMOVE_ITEM KERNEL_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck_gemm_softmax_gemm.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/ck.hpp)
+endif()
+
+include(Embed)
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
+configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
@@ -69,6 +81,7 @@ rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
@@ -89,9 +102,10 @@ rocm_clang_tidy_check(kernel_file_check)
 
 file(GLOB JIT_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jit/*.cpp)
 
-if(WIN32)
-    # TODO: re-enable when CK is ported to Windows
-    list(REMOVE_ITEM JIT_GPU_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp)
+if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+    list(REMOVE_ITEM JIT_GPU_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
 add_library(migraphx_gpu
@@ -114,8 +128,6 @@ add_library(migraphx_gpu
     gather.cpp
     gemm_impl.cpp
     hip.cpp
-    int8_conv_pack.cpp
-    int8_gemm_pack.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -123,9 +135,9 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     multinomial.cpp
+    no_device.cpp
     nonzero.cpp
     pack_args.cpp
-    pack_int8_args.cpp
     prefuse_ops.cpp
     pad.cpp
     perfdb.cpp
@@ -169,17 +181,12 @@ register_migraphx_gpu_ops(hip_
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
-    int8_conv_pack
     lrn
     pooling
 )
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/int8_gemm_pack.hpp
-    OPERATORS gpu::hip_int8_gemm_pack_a gpu::hip_int8_gemm_pack_b
     INCLUDES migraphx/gpu/context.hpp)
 register_op(migraphx_gpu
     HEADER migraphx/gpu/gemm.hpp
@@ -191,7 +198,7 @@ register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
-set(MIGRAPHX_ENABLE_MLIR OFF CACHE BOOL "")
+set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
     # Find package rocMLIR
@@ -224,24 +231,28 @@ else()
         string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endforeach()
 
-    message(STATUS "Hip compiler flags: ${HIP_COMPILER_FLAGS}")
+    message(STATUS "Hip compiler flags: \"${HIP_COMPILER_FLAGS}\"")
     target_compile_definitions(migraphx_gpu PRIVATE
-        "-DMIGRAPHX_HIP_COMPILER=${CMAKE_CXX_COMPILER}"
-        "-DMIGRAPHX_HIP_COMPILER_FLAGS=${HIP_COMPILER_FLAGS}"
+        -DMIGRAPHX_HIP_COMPILER="${CMAKE_CXX_COMPILER}"
+        -DMIGRAPHX_HIP_COMPILER_FLAGS="${HIP_COMPILER_FLAGS}"
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
         execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
-        target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_HIP_COMPILER_LAUNCHER=${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
+        target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()
 endif()
 
 # Check miopen find mode api
+
 include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
+# Beta API for automated GEMM tuning
+check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -264,10 +275,16 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
+if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_TUNING_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+    message(STATUS "MIGraphx is using Beta API of rocBLAS")
+else()
+    message(STATUS "rocBLAS does not have User Tuning Beta API")
+endif()
+
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
-if(NOT WIN32)
-    # TODO: re-enable when CK is ported to Windows
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
 endif()
 

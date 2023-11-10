@@ -86,7 +86,7 @@ inline std::string join_strings(Strings strings, const std::string& delim)
 inline std::vector<std::string> split_string(const std::string& s, char delim)
 {
     std::vector<std::string> elems;
-    std::stringstream ss(s + ' ');
+    std::stringstream ss(s + delim);
     std::string item;
     while(std::getline(ss, item, delim))
     {
@@ -149,6 +149,10 @@ interpolate_string(const std::string& input, F f, std::string start = "${", std:
         result.append(it, next_start);
         if(next_start == input.end())
             break;
+        if(next_end == input.end())
+        {
+            throw std::runtime_error("Unbalanced brackets");
+        }
         auto r = f(next_start + start.size(), next_end);
         result.append(r.begin(), r.end());
         it = next_end + end.size();

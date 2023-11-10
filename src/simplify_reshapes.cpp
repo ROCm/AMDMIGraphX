@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -122,6 +122,11 @@ struct find_nop_reshapes
         reshapes.insert("pad");
         reshapes.insert("slice");
         reshapes.insert("transpose");
+        reshapes.insert("reduce_mean");
+        reshapes.insert("reduce_max");
+        reshapes.insert("reduce_min");
+        reshapes.insert("reduce_sum");
+        reshapes.insert("reduce_prod");
         return match::name(reshapes)(match::same_shape(match::arg(0)));
     }
 
@@ -627,6 +632,46 @@ struct find_transpose_contiguous_reshaper_unary
     }
 };
 
+// simplifies broadcast->transpose to transpose->broadcast
+// in the case of a scalar, simply rewrite to broadcast
+// this can allow for further optimizations with find_inner_broadcast() in simplify_algebra.cpp
+struct find_broadcast_transpose
+{
+    auto matcher() const
+    {
+        return match::name("transpose")(
+            match::arg(0)(match::name("multibroadcast").bind("bcast_ins")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto transpose      = r.result;
+        auto transpose_lens = transpose->get_shape().lens();
+        auto bcast_ins      = r.instructions["bcast_ins"];
+        auto input          = bcast_ins->inputs().front();
+        // scalar transformation does not need extra transpose
+        if(not input->get_shape().scalar())
+        {
+            // find common shape
+            auto in_lens  = input->get_shape().lens();
+            int lens_diff = transpose_lens.size() - in_lens.size();
+            // insert unsqueeze if input lens < transpose lens
+            if(lens_diff > 0)
+            {
+                std::vector<size_t> unsqueeze_axes(lens_diff);
+                std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
+                input = m.insert_instruction(
+                    bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
+            }
+            // apply transpose before the multibroadcast
+            input = m.insert_instruction(bcast_ins, transpose->get_operator(), input);
+        }
+        auto new_mbcast = m.insert_instruction(
+            bcast_ins, make_op("multibroadcast", {{"out_lens", transpose_lens}}), input);
+        m.replace_instruction(transpose, new_mbcast);
+    }
+};
+
 struct find_slice_transpose
 {
     auto matcher() const
@@ -784,7 +829,7 @@ struct find_transpose_slice
 
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < depth; i++)
     {
         match::find_matches(m,
                             find_where_op{},
@@ -799,6 +844,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},
+                            find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(m);

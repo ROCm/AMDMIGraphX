@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,11 +41,7 @@ TEST_CASE(make_invalid_target)
 
 TEST_CASE(targets)
 {
-    // GCC doesn't load libmigraphx_ref unless necesssary even though it is linked to the test.
-    // Force it to load by making ref target
-#if defined(__GNUC__) && !defined(__clang__)
     auto ref_target = migraphx::make_target("ref");
-#endif
     auto ts = migraphx::get_targets();
     EXPECT(ts.size() >= 1);
 }

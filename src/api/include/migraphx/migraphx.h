@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <migraphx/api/export.h>
 
@@ -511,6 +512,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_dyn_dim_valu
     migraphx_onnx_options_t onnx_options, const_migraphx_dynamic_dimension_t dd);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterations(
+    migraphx_onnx_options_t onnx_options, int64_t value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
 
 MIGRAPHX_C_EXPORT migraphx_status

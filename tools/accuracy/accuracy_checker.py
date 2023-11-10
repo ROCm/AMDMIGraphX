@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -52,6 +52,12 @@ def parse_args():
     parser.add_argument('--fill0',
                         action='store_true',
                         help='fill all arguments with a value of 0')
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        help='quantize MIGraphX model to fp16')
+    parser.add_argument('--argmax',
+                        action='store_true',
+                        help='use argmax for accuracy')
     parser.add_argument('--verbose',
                         action='store_true',
                         help='show verbose information (for debugging)')
@@ -82,9 +88,30 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
+    parser.add_argument(
+        '--disable-offload-copy',
+        dest="offload_copy",
+        action='store_false',
+        default=True,
+        help=
+        'Disable offload copying (user must handle copy to and from device)')
+
+    parser.add_argument(
+        '--disable-fast-math',
+        dest="fast_math",
+        action='store_false',
+        default=True,
+        help='Disable fast math optimizations (etc: rewrite_gelu)')
+
+    parser.add_argument('--exhaustive_tune',
+                        dest="exhaustive_tune",
+                        action='store_true',
+                        default=False,
+                        help='Enable exhaustive tuning for solutions')
+
     args = parser.parse_args()
 
-    return args
+    return args, parser
 
 
 # taken from ../test_runner.py
@@ -92,6 +119,7 @@ def check_correctness(gold_outputs,
                       outputs,
                       rtol=1e-3,
                       atol=1e-3,
+                      use_argmax=False,
                       verbose=False):
     if len(gold_outputs) != len(outputs):
         print('Number of outputs {} is not equal to expected number {}'.format(
@@ -100,18 +128,29 @@ def check_correctness(gold_outputs,
 
     out_num = len(gold_outputs)
     ret = True
-    for i in range(out_num):
-        if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
-            ret = False
-            if verbose:
-                print('\nOutput {} is incorrect ...'.format(i))
-                print('Expected value: \n{}'.format(gold_outputs[i]))
-                print('......')
-                print('Actual value: \n{}\n'.format(outputs[i]))
-            else:
-                print('Outputs do not match')
-                break
 
+    if not use_argmax:
+        for i in range(out_num):
+            if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
+                ret = False
+                if verbose:
+                    print('\nOutput {} is incorrect ...'.format(i))
+                    print('Expected value: \n{}'.format(gold_outputs[i]))
+                    print('......')
+                    print('Actual value: \n{}\n'.format(outputs[i]))
+                else:
+                    print('Outputs do not match')
+                    break
+    else:
+        golden_argmax = np.argmax(gold_outputs)
+        actual_argmax = np.argmax(outputs)
+        if actual_argmax != golden_argmax:
+            ret = False
+            print('\nOutput argmax is incorrect ...')
+            if verbose:
+                print('Expected argmax value: \n{}'.format(golden_argmax))
+                print('......')
+                print('Actual argmax value: \n{}\n'.format(actual_argmax))
     return ret
 
 
@@ -134,13 +173,14 @@ def get_np_datatype(in_type):
 
 
 def main():
-    args = parse_args()
+    args, parser = parse_args()
 
     use_onnx = True
     if args.onnx == None:
         use_onnx = False
     if not use_onnx and args.tf == None:
         print('Error: please specify either an onnx or tf pb file')
+        parser.print_help()
         sys.exit(-1)
 
     model_name = args.onnx
@@ -173,11 +213,19 @@ def main():
                                       batch_size=batch,
                                       map_input_dims=input_dims)
 
+    if (args.fp16):
+        migraphx.quantize_fp16(model)
+
     if args.verbose:
         print(model)
 
     if not args.ort_run:
-        model.compile(migraphx.get_target(args.target))
+        model.compile(
+            migraphx.get_target(args.target),
+            offload_copy=args.offload_copy,
+            fast_math=args.fast_math,
+            exhaustive_tune=args.exhaustive_tune,
+        )
 
     params = {}
     test_inputs = {}
@@ -194,10 +242,16 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        params[name] = migraphx.argument(test_input)
+        migraphx_arg = migraphx.argument(test_input)
+        if not args.offload_copy:
+            migraphx_arg = migraphx.to_gpu(migraphx_arg)
+        params[name] = migraphx_arg
 
     if not args.ort_run:
-        pred_migx = np.array(model.run(params)[-1])
+        if not args.offload_copy:
+            pred_migx = np.array(migraphx.from_gpu(model.run(params)[-1]))
+        else:
+            pred_migx = np.array(model.run(params)[-1])
 
     if use_onnx:
         sess_op = ort.SessionOptions()
@@ -268,7 +322,8 @@ def main():
 
     if not args.ort_run:
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
-                                       args.tolerance, args.verbose)
+                                       args.tolerance, args.argmax,
+                                       args.verbose)
         verbose_string = ' Rerun with --verbose for detailed information.' \
                 if not args.verbose else ''
         if is_correct:

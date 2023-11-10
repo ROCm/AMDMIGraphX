@@ -5787,7 +5787,7 @@ TEST_CASE(quantizelinear_test)
     auto l1  = mm->add_parameter("1", {migraphx::shape::float_type, {1}});
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto div       = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto s         = nearbyint->get_shape();
     auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
@@ -5812,7 +5812,7 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto div       = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto s         = nearbyint->get_shape();
     auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);

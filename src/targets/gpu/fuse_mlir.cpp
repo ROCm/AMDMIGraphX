@@ -121,9 +121,16 @@ fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
     for(instruction_ref input : gemm_based_op->inputs())
     {
         std::vector<operation> op_stream;
-        while(contains(
-            {"slice", "transpose", "contiguous", "reshape", "squeeze", "flatten", "unsqueeze"},
-            input->name()))
+        while(contains({"slice",
+                        "transpose",
+                        "multibroadcast",
+                        "broadcast",
+                        "contiguous",
+                        "reshape",
+                        "squeeze",
+                        "flatten",
+                        "unsqueeze"},
+                       input->name()))
         {
             operation op = input->get_operator();
             if(contains({"squeeze", "flatten", "unsqueeze"}, input->name()))

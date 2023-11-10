@@ -176,7 +176,7 @@ TEST_CASE(test_nan_2)
 TEST_CASE(test_infinity_1)
 {
     float finf = std::numeric_limits<float>::infinity();
-    // no inf in fp8e4m3fnuz
+    // no inf in fp8e4m3fnuz it gets clipped to Nans
     migraphx_fp8::fp8e4m3fnuz fp8_nan(finf);
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(float(fp8_nan)));
@@ -184,17 +184,9 @@ TEST_CASE(test_infinity_1)
 
 TEST_CASE(test_infinity_2)
 {
-    // no inf in fp8e4m3fnuz, it gets converted to NaNs
-    migraphx_fp8::fp8e4m3fnuz fp8_nan(std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::infinity());
-    EXPECT(fp8_nan.is_nan());
-    EXPECT(std::isnan(float(fp8_nan)));
-}
-
-TEST_CASE(test_infinity_3)
-{
     // neg inf
     float finf = -1.0 * std::numeric_limits<float>::infinity();
-    // no inf in fp8e4m3fnuz
+    // no inf in fp8e4m3fnuz it gets clipped to NaNs
     migraphx_fp8::fp8e4m3fnuz fp8_nan(finf);
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(float(fp8_nan)));

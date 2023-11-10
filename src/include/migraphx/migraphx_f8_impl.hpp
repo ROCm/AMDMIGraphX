@@ -86,6 +86,11 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
     }
 
     uint32_t signed_inf = (sign << 7) + (((1 << we) - 1) << wm);
+    uint32_t signed_max = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
+    if(not negative_zero_nan)
+    {
+        signed_max = (wm == 2) ? (signed_max - 4) : (signed_max - 1);
+    }
 
     // Deal with inf and NaNs
     if(negative_zero_nan)
@@ -103,15 +108,50 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
     }
     else
     {
-        if(sizeof(T) == 4)
+        // calculate most common NaN mantissa for FP8, which is all Ones in binary
+        uint32_t nan_mantissa = 1;
+        for(auto i = 1; i < wm; ++i)
         {
-            if((x & 0x7F800000) == 0x7F800000)
-                return signed_inf + (mantissa != 0 ? 1 : 0); // cppcheck-suppress InvertedLogic
+            nan_mantissa |= (nan_mantissa << 1);
         }
-        else
+        // TODO: abstract duplicate branches
+        if(sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000))
         {
-            if((x & 0x7C00) == 0x7C00)
-                return signed_inf + (mantissa != 0 ? 1 : 0); // cppcheck-suppress InvertedLogic
+            // infinity
+            if(mantissa == 0)
+            {
+                if(sign == 0)
+                {
+                    return (wm == 2) ? 0x7B : 0x7E;
+                }
+                else
+                {
+                    return (wm == 2) ? 0xFB : 0xFE;
+                }
+            }
+            else
+            { // NaNs
+                return signed_inf + nan_mantissa;
+            }
+        }
+        else if(sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00))
+        {
+            // infinity
+            if(mantissa == 0)
+            {
+                if(sign == 0)
+                {
+                    return (wm == 2) ? 0x7B : 0x7E;
+                }
+                else
+                {
+                    return (wm == 2) ? 0xFB : 0xFE;
+                }
+            }
+            else
+            { // NaNs
+                return signed_inf + nan_mantissa;
+            }
         }
     }
     // handle positive zero
@@ -222,16 +262,24 @@ this case, the fp16 mantissa should be shift left by 1  */
 
     // above range: quantize to maximum possible float of the same sign
     const int max_exp = (1 << we) - (negative_zero_nan ? 1 : 2);
+    // TODO: this is ugly, need better way to handle out of range values
     if(f8_exponent > max_exp)
     {
         if(clip)
         {
-            mantissa    = (1 << wm) - 1;
-            f8_exponent = max_exp;
+            return signed_max;
         }
         else
         {
-            return signed_inf;
+            if(negative_zero_nan)
+            {
+                return 0x80;
+            }
+            else
+            {
+                uint32_t tmp_signed_max = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
+                return (wm == 2) ? signed_inf : tmp_signed_max;
+            }
         }
     }
 
@@ -273,8 +321,10 @@ constexpr T cast_from_f8(uint8_t x)
     {
         if(x == 0x80)
             return fNeg0;
-        if(exponent == ((1 << we) - 1))
+        if(exponent == ((1 << we) - 1) and wm == 2)
             return (mantissa == 0) ? (sign ? fNegInf : fInf) : fNaN;
+        else if(wm == 3 and (x == 0x7F or x == 0xFF))
+            return fNaN;
     }
     typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
 

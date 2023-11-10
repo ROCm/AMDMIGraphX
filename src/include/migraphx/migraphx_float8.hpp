@@ -79,7 +79,7 @@ struct float8
     // default constructor
     constexpr float8() = default;
     // default copy constructor
-    constexpr float8(const float8<T>& y) = default;
+    constexpr float8(const float8& y) = default;
     struct from_bits_t
     {
     };
@@ -149,15 +149,12 @@ struct float8
         {
             if(T == migraphx_fp8::f8_type::bf8)
             {
-                return (data == 0x7d) or (data == 0x7e) or (data == 0x7f) or (data == 0xfd) or
-                       (data == 0xfe) or (data == 0xff);
+                return (data == 0x7D) or (data == 0x7E) or (data == 0x7F) or (data == 0xFD) or
+                       (data == 0xFE) or (data == 0xFF);
             }
             else
             {
-                return (data == 0x79) or (data == 0x7a) or (data == 0x7b) or (data == 0x7c) or
-                       (data == 0x7d) or (data == 0x7e) or (data == 0x7f) or (data == 0xf9) or
-                       (data == 0xfa) or (data == 0xfb) or (data == 0xfc) or (data == 0xfd) or
-                       (data == 0xfe) or (data == 0xff);
+                return (data == 0x7F) or (data == 0xFF);
             }
         }
     }
@@ -172,11 +169,12 @@ struct float8
         {
             if(T == migraphx_fp8::f8_type::bf8)
             {
-                return (data == 0x7c) or (data == 0xfc);
+                return (data == 0x7C) or (data == 0xFC);
             }
             else
             {
-                return (data == 0x78) or (data == 0xf8);
+                // no infinities in e4m3fn, represent them as NaNs
+                return (data == 0x7F) or (data == 0xFF);
             }
         }
     }
@@ -211,12 +209,12 @@ struct float8
 
     inline constexpr bool operator==(const float8& rhs) const
     {
-        if((rhs.is_zero() and this->is_zero()) or
-           (fabs(rhs - *this) < migraphx_fp8::numeric_limits<float8<T, FNUZ>>::epsilon()))
+        if(rhs.is_zero() and this->is_zero())
             return true;
         else if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
             return false;
-
+        else if(this->data == rhs.data)
+            return true;
         return false;
     }
 
@@ -272,8 +270,6 @@ inline migraphx_fp8::float8<T> fabs(migraphx_fp8::float8<T> v)
 }
 
 // https://onnx.ai/onnx/technical/float8.html
-// these types are not exactly same as GraphCore's FNUZ types. GraphCore's FNUZ types assumes
-// exponent bias of 8 and 16 for the FNUZ types, ONNX spec
 using fp8e4m3fn   = float8<migraphx_fp8::f8_type::fp8, false>;
 using fp8e5m2     = float8<migraphx_fp8::f8_type::bf8, false>;
 using fp8e4m3fnuz = float8<migraphx_fp8::f8_type::fp8, true>;
@@ -282,6 +278,8 @@ using fp8e5m2fnuz = float8<migraphx_fp8::f8_type::bf8, true>;
 template <>
 class numeric_limits<fp8e4m3fnuz>
 {
+    static constexpr bool has_infinity = false;
+
     public:
     static constexpr fp8e4m3fnuz epsilon() { return fp8e4m3fnuz(0x28, fp8e4m3fnuz::from_bits()); }
 
@@ -292,13 +290,30 @@ class numeric_limits<fp8e4m3fnuz>
     static constexpr fp8e4m3fnuz min() { return fp8e4m3fnuz(0x08, fp8e4m3fnuz::from_bits()); }
 
     static constexpr fp8e4m3fnuz lowest() { return fp8e4m3fnuz(0xFF, fp8e4m3fnuz::from_bits()); }
+};
 
-    static constexpr fp8e4m3fnuz infinity() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
+template <>
+class numeric_limits<fp8e4m3fn>
+{
+    static constexpr bool has_infinity = false;
+
+    public:
+    static constexpr fp8e4m3fn epsilon() { return fp8e4m3fn(0x20, fp8e4m3fn::from_bits()); }
+
+    static constexpr fp8e4m3fn quiet_NaN() { return fp8e4m3fn(0x7F, fp8e4m3fn::from_bits()); }
+
+    static constexpr fp8e4m3fn max() { return fp8e4m3fn(0x7E, fp8e4m3fn::from_bits()); }
+    // this is min value that is not DeNorm. DeNorm min is 0x01
+    static constexpr fp8e4m3fn min() { return fp8e4m3fn(0x08, fp8e4m3fn::from_bits()); }
+
+    static constexpr fp8e4m3fn lowest() { return fp8e4m3fn(0xFE, fp8e4m3fn::from_bits()); }
 };
 
 template <>
 class numeric_limits<fp8e5m2fnuz>
 {
+    static constexpr bool has_infinity = false;
+
     public:
     static constexpr fp8e5m2fnuz epsilon() { return fp8e5m2fnuz(0x34, fp8e5m2fnuz::from_bits()); }
 
@@ -310,8 +325,24 @@ class numeric_limits<fp8e5m2fnuz>
     static constexpr fp8e5m2fnuz min() { return fp8e5m2fnuz(0x4, fp8e5m2fnuz::from_bits()); }
 
     static constexpr fp8e5m2fnuz lowest() { return fp8e5m2fnuz(0xFF, fp8e5m2fnuz::from_bits()); }
+};
 
-    static constexpr fp8e5m2fnuz infinity() { return fp8e5m2fnuz(0x80, fp8e5m2fnuz::from_bits()); }
+template <>
+class numeric_limits<fp8e5m2>
+{
+    public:
+    static constexpr fp8e5m2 epsilon() { return fp8e5m2(0x34, fp8e5m2::from_bits()); }
+    // 7D, 7E, 7F are positive NaNs and FD, FE, FF are negative NaNs
+    static constexpr fp8e5m2 quiet_NaN() { return fp8e5m2(0xFF, fp8e5m2::from_bits()); }
+
+    static constexpr fp8e5m2 max() { return fp8e5m2(0x7B, fp8e5m2::from_bits()); }
+    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
+    // this distinction. For the floating points we would end up using lowest most of the times.
+    static constexpr fp8e5m2 min() { return fp8e5m2(0x4, fp8e5m2::from_bits()); }
+
+    static constexpr fp8e5m2 lowest() { return fp8e5m2(0xFB, fp8e5m2::from_bits()); }
+    // 7C and FC both are infinity
+    static constexpr fp8e5m2 infinity() { return fp8e5m2(0x7C, fp8e5m2::from_bits()); }
 };
 } // namespace migraphx_fp8
 
@@ -319,53 +350,31 @@ class numeric_limits<fp8e5m2fnuz>
 // define numeric limits for the new data type
 namespace std {
 
-inline bool isfinite(migraphx_fp8::fp8e4m3fnuz x) // NOLINT
-{
-    return x.is_inf();
-}
+#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                \
+    inline bool isfinite(T x) { return x.is_inf(); }                 \
+    inline bool isnan(T x) { return x.is_nan(); }                    \
+    template <>                                                      \
+    class numeric_limits<T> : public migraphx_fp8::numeric_limits<T> \
+    {                                                                \
+    };                                                               \
+    template <class U>                                               \
+    struct common_type<T, U> : std::common_type<float, U>            \
+    {                                                                \
+    };                                                               \
+    template <class U>                                               \
+    struct common_type<U, T> : std::common_type<float, U>            \
+    {                                                                \
+    };                                                               \
+    template <>                                                      \
+    struct common_type<T, T>                                         \
+    {                                                                \
+        using type = T;                                              \
+    };
 
-inline bool isfinite(migraphx_fp8::fp8e5m2fnuz x) // NOLINT
-{
-    return x.is_inf();
-}
-
-inline bool isnan(migraphx_fp8::fp8e4m3fnuz x) // NOLINT
-{
-    return x.is_nan();
-}
-
-inline bool isnan(migraphx_fp8::fp8e5m2fnuz x) // NOLINT
-{
-    return x.is_nan();
-}
-
-template <>
-class numeric_limits<migraphx_fp8::fp8e4m3fnuz>
-    : public migraphx_fp8::numeric_limits<migraphx_fp8::fp8e4m3fnuz>
-{
-};
-
-template <>
-class numeric_limits<migraphx_fp8::fp8e5m2fnuz>
-    : public migraphx_fp8::numeric_limits<migraphx_fp8::fp8e5m2fnuz>
-{
-};
-
-template <class T>
-struct common_type<migraphx_fp8::fp8e4m3fnuz, T> : std::common_type<float, T> // NOLINT
-{
-};
-
-template <class T>
-struct common_type<T, migraphx_fp8::fp8e4m3fnuz> : std::common_type<float, T> // NOLINT
-{
-};
-
-template <>
-struct common_type<migraphx_fp8::fp8e4m3fnuz, migraphx_fp8::fp8e4m3fnuz>
-{
-    using type = float;
-};
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e4m3fn)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e5m2)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e5m2fnuz)
 
 } // namespace std
 // =================================================================================================

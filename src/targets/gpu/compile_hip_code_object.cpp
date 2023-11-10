@@ -139,6 +139,12 @@ void hip_compile_options::set_launch_params(
         global = compute_global(local);
 }
 
+static bool hip_accept_non_uniform_wg()
+{
+    static bool non_uniform_wg = hip_has_flags({"-fno-offload-uniform-block"});
+    return non_uniform_wg;
+}
+
 std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over)
 {
@@ -146,13 +152,14 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        // hip require global workitems multiple of local workitems. It may degrade performance.
-        // [TODO]: consider adding "fno-hip-uniform-block" flag when it becomes available.
-        // https://reviews.llvm.org/D155213
-        std::size_t num_elements = ((n + local - 1) / local) * local;
-        std::size_t groups       = (num_elements + local - 1) / local;
-        std::size_t max_blocks   = max_global / local;
-        std::size_t nglobal      = std::min(max_blocks * over, groups) * local;
+        std::size_t num_elements = n;
+        if(not hip_accept_non_uniform_wg())
+        {
+            num_elements = (1 + (n - 1) / local) * local;
+        }
+        std::size_t groups     = 1 + (num_elements - 1) / local;
+        std::size_t max_blocks = max_global / local;
+        std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
         return std::min(nglobal, num_elements);
     };
 }
@@ -172,21 +179,22 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
     std::vector<src_file> srcs = options.additional_src_files;
-    std::transform(migraphx_kernels().begin(),
-                   migraphx_kernels().end(),
-                   std::back_inserter(srcs),
-                   [](auto&& p) {
-                       auto&& name = p.first;
-                       auto&& c    = p.second;
-                       auto path   = name;
-                       return src_file{path, c};
-                   });
-    srcs.push_back(src_file{fs::path{"main.cpp"},
-                            std::make_pair(content.data(), content.data() + content.size())});
+    static auto kernels{::migraphx_kernels()};
+    std::transform(
+        kernels.begin(),
+        kernels.end(),
+        std::back_inserter(srcs),
+        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
+    srcs.emplace_back("main.cpp", content);
     auto args_hpp =
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
-    srcs.push_back(src_file{fs::path{"args.hpp"},
-                            std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
+    srcs.emplace_back("args.hpp", args_hpp);
+
+    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+        options.params += " -fno-offload-uniform-block";
+    else
+        assert(options.global % options.local == 0);
+
     options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
     options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
     options.params += " " + join_strings(compiler_warnings(), " ");

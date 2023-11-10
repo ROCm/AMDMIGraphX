@@ -38,26 +38,32 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <array>
 #include <algorithm>
 #include <cstdarg>
+
 namespace migraphx {
 
+#ifdef MIGRAPHX_BUILD_TESTING
 static thread_local bool disable_exception_catch = false; // NOLINT
 
 extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(bool b)
 {
     disable_exception_catch = b;
 }
+#endif
 
 template <class F>
 migraphx_status try_(F f, bool output = true) // NOLINT
 {
+#ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
     {
         f();
     }
     else
     {
+#endif
         try
         {
             f();
@@ -81,7 +87,9 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         {
             return migraphx_status_unknown_error;
         }
+#ifdef MIGRAPHX_BUILD_TESTING
     }
+#endif
     return migraphx_status_success;
 }
 
@@ -154,6 +162,11 @@ void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimen
 void set_default_loop_iterations(onnx_options& options, int64_t value)
 {
     options.max_loop_iterations = value;
+}
+
+void set_limit_loop_iterations(onnx_options& options, int64_t value)
+{
+    options.limit_max_iterations = value;
 }
 
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -1892,6 +1905,17 @@ migraphx_onnx_options_set_default_loop_iterations(migraphx_onnx_options_t onnx_o
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_default_loop_iterations((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_limit_loop_iterations(migraphx_onnx_options_t onnx_options, int64_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_limit_loop_iterations((onnx_options->object), (value));
     });
     return api_error_result;
 }

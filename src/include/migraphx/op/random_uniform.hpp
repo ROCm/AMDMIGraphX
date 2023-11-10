@@ -65,11 +65,10 @@ struct random_uniform
         return inputs.at(1);
     }
 
-    argument compute(const shape&, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         // Output goes into the passed buffer, not the shape output.
-        auto result = args[1];
-
+        argument result{dyn_out.computed_shape};
         uint64_t local_seed = args[0].at<uint64_t>(0);
         std::mt19937 gen(local_seed);
 
@@ -77,11 +76,26 @@ struct random_uniform
             using type = typename decltype(output)::value_type;
             if constexpr(std::is_integral<type>{})
             {
-                // default range for all integer types is
-                // (0, std::uniform_int_distribution<type>::max()).
-                // Todo:  enable different ranges
-                std::uniform_int_distribution<type> dis;
-                std::generate(output.begin(), output.end(), [&] { return dis(gen); });
+#ifdef _MSC_VER
+                // According to the C++ specification, the effect is undefined if the result type
+                // for the generator is not one of short, int, long, long long, unsigned short,
+                // unsigned int, unsigned long, or unsigned long long. See
+                // https://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution.
+                if constexpr(sizeof(type) == 1)
+                {
+                    std::uniform_int_distribution<int> dis{std::numeric_limits<type>::min(),
+                                                           std::numeric_limits<type>::max()};
+                    std::generate(output.begin(), output.end(), [&] { return dis(gen); });
+                }
+                else
+#endif
+                {
+                    // default range for all integer types is
+                    // (0, std::uniform_int_distribution<type>::max()).
+                    // Todo:  enable different ranges
+                    std::uniform_int_distribution<type> dis;
+                    std::generate(output.begin(), output.end(), [&] { return dis(gen); });
+                }
             }
             else
             {

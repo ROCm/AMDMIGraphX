@@ -317,4 +317,59 @@ TEST_CASE(loop_test)
     }
 }
 
+TEST_CASE(loop_test_limit_max_iter)
+{
+    auto run_prog = [&](int64_t limit_max_iterations) {
+        migraphx::onnx_options parse_options;
+        parse_options.set_limit_loop_iterations(limit_max_iterations);
+        auto p             = migraphx::parse_onnx("loop_test_implicit_tripcnt.onnx", parse_options);
+        auto shapes_before = p.get_output_shapes();
+        migraphx::compile_options options;
+        options.set_offload_copy();
+        p.compile(migraphx::target("gpu"), options);
+        auto shapes_after = p.get_output_shapes();
+        CHECK(shapes_before.size() == 2);
+        CHECK(bool{shapes_before.front() == shapes_after.front()});
+
+        migraphx::program_parameters pp;
+        auto param_shapes     = p.get_parameter_shapes();
+        auto aas              = param_shapes["a"];
+        std::vector<float> xd = {1.0f};
+        pp.add("a", migraphx::argument(aas, xd.data()));
+        auto bbs              = param_shapes["b"];
+        std::vector<float> yd = {2.0};
+        pp.add("b", migraphx::argument(bbs, yd.data()));
+
+        auto cs   = param_shapes["keep_going_cond"];
+        bool cond = true;
+        pp.add("keep_going_cond", migraphx::argument(cs, &cond));
+
+        auto outputs = p.eval(pp);
+        auto output  = outputs[0];
+        std::vector<std::vector<float>> ret;
+        ret.push_back(output.as_vector<float>());
+
+        output = outputs[1];
+        ret.push_back(output.as_vector<float>());
+
+        return ret;
+    };
+
+    {
+        auto result_vector       = run_prog(5);
+        std::vector<float> gold0 = {2.0f};
+        EXPECT(result_vector.at(0) == gold0);
+        std::vector<float> gold1 = {-2, 4, 0, 0, 0};
+        EXPECT(result_vector.at(1) == gold1);
+    }
+
+    {
+        auto result_vector       = run_prog(20);
+        std::vector<float> gold0 = {2.0f};
+        EXPECT(result_vector.at(0) == gold0);
+        std::vector<float> gold1 = {-2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        EXPECT(result_vector.at(1) == gold1);
+    }
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

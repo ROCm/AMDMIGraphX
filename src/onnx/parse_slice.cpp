@@ -46,6 +46,9 @@ struct parse_slice : op_parser<parse_slice>
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
+        /**
+         * Either insert argument into `this->op_args` or return the constant value of the argument
+         */
         std::vector<int64_t> insert(instruction_ref arg)
         {
             std::vector<int64_t> result;
@@ -137,22 +140,21 @@ struct parse_slice : op_parser<parse_slice>
         sd.always_insert(args.at(0));
 
         // If axes arg is not given, the default is all of them.
-        if(sd.op.axes.empty() and sd.op_args.size() < 3)
+        if(sd.op.axes.empty() and sd.op_args.size() <= 3)
         {
             std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});
             sd.op.axes = axes;
         }
 
-        if(not sd.steps.empty())
+        if(std::any_of(sd.steps.begin(), sd.steps.end(), [](auto s) { return s != 1; }))
         {
             if(sd.op.starts.empty() or sd.op.ends.empty())
-                MIGRAPHX_THROW("PARSE_SLICE: steps and variable starts and ends is not supported");
+                MIGRAPHX_THROW(
+                    "PARSE_SLICE: steps and variable starts and/or ends is not supported");
             if(sd.op.axes.empty())
                 MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
         }
-
-        assert(sd.steps.empty() or sd.steps.size() == sd.op.axes.size());
 
         // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(sd.steps.size()))

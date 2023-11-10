@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,12 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import sys
 import migraphx
-try:
-    import numpy as np
-except:
-    sys.exit()
 
 
 def test_conv_relu():
@@ -55,8 +50,12 @@ def test_sub_uint64():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["0"] = np.arange(120).reshape(shapes["0"].lens()).astype(np.uint64)
-    params["1"] = np.arange(20).reshape(shapes["1"].lens()).astype(np.uint64)
+    params["0"] = migraphx.create_argument(
+        migraphx.shape(type='uint64_type', lens=shapes["0"].lens()),
+        list(range(120)))
+    params["1"] = migraphx.create_argument(
+        migraphx.shape(type='uint64_type', lens=shapes["1"].lens()),
+        list(range(20)))
 
     r = p.run(params)
     print(r)
@@ -71,7 +70,9 @@ def test_neg_int64():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["0"] = np.arange(6).reshape(shapes["0"].lens()).astype(np.int64)
+    params["0"] = migraphx.create_argument(
+        migraphx.shape(type='int64_type', lens=shapes["0"].lens()),
+        list(range(6)))
 
     r = p.run(params)
     print(r)
@@ -86,8 +87,9 @@ def test_nonzero():
     params = {}
 
     shapes = p.get_parameter_shapes()
-    params["data"] = np.array([1, 1, 0,
-                               1]).reshape(shapes["data"].lens()).astype(bool)
+    params["data"] = migraphx.create_argument(
+        migraphx.shape(type='bool_type', lens=shapes["data"].lens()),
+        [1, 1, 0, 1])
 
     r = p.run(params)
     print(r)
@@ -105,8 +107,8 @@ def test_fp16_imagescaler():
 
     params = {}
     shapes = p.get_parameter_shapes()
-    params["0"] = np.random.randn(768).reshape(shapes["0"].lens()).astype(
-        np.float16)
+    params["0"] = migraphx.generate_argument(
+        migraphx.shape(type='half_type', lens=shapes["0"].lens()), 768)
 
     r = p.run(params)[-1]
     print(r)
@@ -124,10 +126,12 @@ def test_if_pl():
 
     params = {}
     shapes = p.get_parameter_shapes()
-    params["x"] = np.ones(6).reshape(shapes["x"].lens()).astype(np.float32)
-    params["y"] = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0
-                            ]).reshape(shapes["y"].lens()).astype(np.float32)
-    params["cond"] = np.array([1]).reshape(()).astype(bool)
+    params["x"] = migraphx.fill_argument(
+        migraphx.shape(type='float_type', lens=shapes["x"].lens()), 1)
+    params["y"] = migraphx.fill_argument(
+        migraphx.shape(type='float_type', lens=shapes["y"].lens()), 2.0)
+    params["cond"] = migraphx.fill_argument(
+        migraphx.shape(type="bool", lens=[1], strides=[0]), 1)
 
     r = p.run(params)[-1]
     print(r)

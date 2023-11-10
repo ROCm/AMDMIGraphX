@@ -29,7 +29,9 @@
 #pragma clang diagnostic ignored "-Wc++20-extensions"
 #endif // __clang__
 
-// We are clipping in down conversion by default
+// We are clipping/saturation in down conversion by default. Unclipped version is not tested and
+// shouldn't be used without having enough tests.
+// logic is based on clipping table from here : https://onnx.ai/onnx/technical/float8.html#cast
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
 
 #include <cmath>
@@ -254,7 +256,8 @@ MIGRAPHX_FP8_BINARY_OP(*, migraphx_fp8::float8<T>)
 MIGRAPHX_FP8_BINARY_OP(-, migraphx_fp8::float8<T>)
 MIGRAPHX_FP8_BINARY_OP(/, migraphx_fp8::float8<T>)
 MIGRAPHX_FP8_BINARY_OP(+, migraphx_fp8::float8<T>)
-// TODO: Comparison ops shouldn't convert to float, maybe need to take care of rounding effects.
+// TODO: Comparison ops shouldn't convert to float, need to check if need to take care of rounding
+// effects.
 MIGRAPHX_FP8_BINARY_OP(==, bool)
 MIGRAPHX_FP8_BINARY_OP(>=, bool)
 MIGRAPHX_FP8_BINARY_OP(<=, bool)

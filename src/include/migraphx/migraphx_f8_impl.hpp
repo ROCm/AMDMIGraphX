@@ -85,15 +85,18 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
         bias     = 15;
     }
 
-    uint32_t signed_inf = (sign << 7) + (((1 << we) - 1) << wm);
-    uint32_t signed_max = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
+    uint32_t signed_inf      = (sign << 7) + (((1 << we) - 1) << wm);
+    uint32_t signed_all_ones = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
+
+    // Calcualte maximum singed value FLT_MAX, FLT_MIN
+    uint32_t signed_max = signed_all_ones;
     if(not negative_zero_nan)
     {
         signed_max = (wm == 2) ? (signed_max - 4) : (signed_max - 1);
     }
 
     // Deal with inf and NaNs
-    if(negative_zero_nan)
+    if(negative_zero_nan) // For the FNUZ cases, it is simple just return NaNs
     {
         if(sizeof(T) == 4)
         {
@@ -114,27 +117,8 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
         {
             nan_mantissa |= (nan_mantissa << 1);
         }
-        // TODO: abstract duplicate branches
-        if(sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000))
-        {
-            // infinity
-            if(mantissa == 0)
-            {
-                if(sign == 0)
-                {
-                    return (wm == 2) ? 0x7B : 0x7E;
-                }
-                else
-                {
-                    return (wm == 2) ? 0xFB : 0xFE;
-                }
-            }
-            else
-            { // NaNs
-                return signed_inf + nan_mantissa;
-            }
-        }
-        else if(sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00))
+        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or
+           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))
         {
             // infinity
             if(mantissa == 0)
@@ -160,7 +144,7 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
     // handle negative zero
     if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
     {
-        if(negative_zero_nan)
+        if(negative_zero_nan) // For FNUZ types neg zero is just positive zero
         {
             return 0;
         }
@@ -170,29 +154,29 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
         }
     }
 
-    // First need to check if it is normal or denorm as there is a difference of implict 1
-    // Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
-    // The mantissa. Then for stochastic rounding, add rng to mantissa and truncate. And for
-    // RNE, no need to add rng. Then probably need to check whether there is carry and adjust
-    // exponent and mantissa again
+    /* First need to check if it is normal or denorm as there is a difference of implict 1
+    Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
+    The mantissa. Then for stochastic rounding, add rng to mantissa and truncate. And for
+    RNE, no need to add rng. Then probably need to check whether there is carry and adjust
+    exponent and mantissa again*/
 
     // For IEEE bias mode, the bias is 2^(k-1) -1 where k is the width of exponent bits
     const int f8_bias                  = (1 << (we - 1)) - 1 + (negative_zero_nan ? 1 : 0);
     const int f8_denormal_act_exponent = 1 - f8_bias; // actual exponent of f8 denormal
-    // act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
-    // f8_exponent is the converted f8 exponent with bias encoding
-    // exponent_diff is the diff between fp32/fp16 exponent and f8 exponent,
-    // the difference needs to be adjusted and mantissa shifted
+    /* act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
+    f8_exponent is the converted f8 exponent with bias encoding
+    exponent_diff is the diff between fp32/fp16 exponent and f8 exponent,
+    the difference needs to be adjusted and mantissa shifted*/
     int act_exponent, f8_exponent, exponent_diff;
 
     if(exponent == 0)
     { // fp32/fp16 is in denormal.
         /* fp32 denormal is below 2^-127 so it is usually not a concern here, we mostly concern fp16
-here. In this case, f8 is usually in denormal. But there could be exceptions. fp16 denormal has
-exponent bias 15 while bf8 with NANOO has exponent bias 16. It means that there are some numbers in
-fp16 denormal but they are bf8 (NANOO) normals - smallest bf8 (NANOO) normal is 2^-15. fp16 numbers
-where exponent==0 (actual exponent -14) and highest bit of mantissa is 1 are bf8 (NANOO) normal. In
-this case, the fp16 mantissa should be shift left by 1  */
+        here. In this case, f8 is usually in denormal. But there could be exceptions. fp16 denormal
+        has exponent bias 15 while bf8 with NANOO has exponent bias 16. It means that there are some
+        numbers in fp16 denormal but they are bf8 (NANOO) normals - smallest bf8 (NANOO) normal is
+        2^-15. fp16 numbers where exponent==0 (actual exponent -14) and highest bit of mantissa is 1
+        are bf8 (NANOO) normal. In this case, the fp16 mantissa should be shift left by 1  */
         act_exponent  = exponent - bias + 1;
         exponent_diff = f8_denormal_act_exponent -
                         act_exponent; // actual exponent is exponent-bias+1 as it is denormal
@@ -203,10 +187,10 @@ this case, the fp16 mantissa should be shift left by 1  */
         if(act_exponent <= f8_denormal_act_exponent)
         {
             /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
-   For example fp8 nanoo mode, denormal exponent is -7, but if the fp32/fp16
-   actual exponent is -7, it is actually larger due to the implict 1,
-   Therefore it needs to be adjust to -6 and mantissa shift right by 1.
-   So for fp32/fp16, exponent -8 is the cut point to convert to fp8 nanoo */
+            For example fp8 nanoo mode, denormal exponent is -7, but if the fp32/fp16
+            actual exponent is -7, it is actually larger due to the implict 1,
+            Therefore it needs to be adjust to -6 and mantissa shift right by 1.
+            So for fp32/fp16, exponent -8 is the cut point to convert to fp8 nanoo */
             exponent_diff = f8_denormal_act_exponent - act_exponent;
         }
         else
@@ -221,10 +205,10 @@ this case, the fp16 mantissa should be shift left by 1  */
     bool midpoint = (mantissa & ((1 << (mfmt - wm + exponent_diff)) - 1)) ==
                     (1 << (mfmt - wm + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
- shift right as shift right could rip off some residual part and make something not midpoint look
- like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
- midpoint, but after shift right by 4 bits, it would look like midpoint.
-*/
+    shift right as shift right could rip off some residual part and make something not midpoint look
+    like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
+    midpoint, but after shift right by 4 bits, it would look like midpoint.
+    */
 
     if(exponent_diff > 0)
         mantissa >>= exponent_diff;
@@ -262,7 +246,6 @@ this case, the fp16 mantissa should be shift left by 1  */
 
     // above range: quantize to maximum possible float of the same sign
     const int max_exp = (1 << we) - (negative_zero_nan ? 1 : 2);
-    // TODO: this is ugly, need better way to handle out of range values
     if(f8_exponent > max_exp)
     {
         if(clip)
@@ -271,15 +254,11 @@ this case, the fp16 mantissa should be shift left by 1  */
         }
         else
         {
+            // https://onnx.ai/onnx/technical/float8.html#cast
             if(negative_zero_nan)
-            {
                 return 0x80;
-            }
             else
-            {
-                uint32_t tmp_signed_max = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
-                return (wm == 2) ? signed_inf : tmp_signed_max;
-            }
+                return (wm == 2) ? signed_inf : signed_all_ones;
         }
     }
 
@@ -300,7 +279,7 @@ constexpr T cast_from_f8(uint8_t x)
     uint32_t ifNegInf = 0xFF800000;
     uint32_t ifNaN    = 0x7F800001;
     uint32_t ifNeg0   = 0x80000000;
-    // TODO: need to change T for half but right now it would never  called with half
+
     fInf    = detail::bit_cast<float>(ifInf);
     fNegInf = detail::bit_cast<float>(ifNegInf);
     fNaN    = detail::bit_cast<float>(ifNaN);

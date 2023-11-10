@@ -198,5 +198,9 @@ TEST_CASE(test_numeric_lowest_2)
     EXPECT(fp8_lowest == std::numeric_limits<migraphx_fp8::fp8e4m3fn>::lowest());
 }
 
-TEST_CASE(test_max_eq_lowest) {}
+TEST_CASE(test_max_eq_lowest)
+{
+    EXPECT(migraphx::float_equal(std::numeric_limits<migraphx_fp8::fp8e4m3fn>::lowest(),
+                                 -1 * std::numeric_limits<migraphx_fp8::fp8e4m3fn>::max()));
+}
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

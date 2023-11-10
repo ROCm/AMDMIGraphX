@@ -27,16 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_round : verify_program<test_round>
+struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::float_type, {2, 128, 32}, {4096, 1, 128}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {32, 32}};
+        auto a  = mm->add_parameter("a", a_shape);
+        auto b  = mm->add_parameter("b", b_shape);
+        auto bb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), b);
 
-        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
-        auto param = mm->add_parameter("x", s);
-        mm->add_instruction(migraphx::make_op("round"), param);
+        mm->add_instruction(migraphx::make_op("dot"), a, bb);
+
         return p;
-    };
+    }
 };

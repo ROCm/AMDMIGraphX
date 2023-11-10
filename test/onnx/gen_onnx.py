@@ -7088,6 +7088,16 @@ def roialign_test():
 
 
 @onnx_test()
+def round_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [4, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [4, 4])
+
+    node = onnx.helper.make_node('Round', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def scatter_add_test():
     x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 4, 5, 6])
     i = helper.make_tensor_value_info('indices', TensorProto.INT32,
@@ -8007,6 +8017,32 @@ def slice_var_input_dyn1():
 
 
 @onnx_test()
+def slice_var_input_default_steps():
+    step = np.array([1, 1])
+    step_tensor = helper.make_tensor(name="step",
+                                     data_type=TensorProto.INT64,
+                                     dims=step.shape,
+                                     vals=step.astype(int))
+    arg_step = helper.make_node("Constant",
+                                inputs=[],
+                                outputs=['arg_step'],
+                                value=step_tensor)
+
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [None, 2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT64, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT64, [2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [2])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
+
+    node = onnx.helper.make_node(
+        'Slice',
+        inputs=['data', 'starts', 'ends', 'axes', 'arg_step'],
+        outputs=['output'])
+
+    return ([arg_step, node], [data, starts, ends, axes], [output])
+
+
+@onnx_test()
 def slice_var_input_steps_error():
     step = np.array([2, 1])
     step_tensor = helper.make_tensor(name="step",
@@ -8019,9 +8055,9 @@ def slice_var_input_steps_error():
                                 value=step_tensor)
 
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [3, 2])
-    starts = helper.make_tensor_value_info('starts', TensorProto.FLOAT, [2])
-    ends = helper.make_tensor_value_info('ends', TensorProto.FLOAT, [2])
-    axes = helper.make_tensor_value_info('axes', TensorProto.FLOAT, [2])
+    starts = helper.make_tensor_value_info('starts', TensorProto.INT64, [2])
+    ends = helper.make_tensor_value_info('ends', TensorProto.INT64, [2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [2])
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 2])
 
     node = onnx.helper.make_node(
@@ -9029,6 +9065,20 @@ def upsample_test():
     )
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def upsample_ver7_test():
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 2])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 6])
+
+    node = onnx.helper.make_node('Upsample',
+                                 inputs=['X'],
+                                 outputs=['Y'],
+                                 mode='nearest',
+                                 scales=[1.0, 1.0, 2.0, 3.0])
+
+    return ([node], [X], [Y])
 
 
 @onnx_test()

@@ -30,39 +30,71 @@
 
 #include <test.hpp>
 
-TEST_CASE(round_test)
+TEST_CASE(nearbyint_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {9}};
-    auto l =
-        mm->add_literal(migraphx::literal{s, {1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0}});
-    mm->add_instruction(migraphx::make_op("round"), l);
+    migraphx::shape s{migraphx::shape::float_type, {4, 4}};
+    auto l = mm->add_literal(migraphx::literal{s,
+                                               {-3.51,
+                                                -3.5,
+                                                -3.49,
+                                                -2.51,
+                                                -2.50,
+                                                -2.49,
+                                                -1.6,
+                                                -1.5,
+                                                -0.51,
+                                                -0.5,
+                                                0.5,
+                                                0.6,
+                                                2.4,
+                                                2.5,
+                                                3.5,
+                                                4.5}});
+    mm->add_instruction(migraphx::make_op("nearbyint"), l);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
+    std::vector<float> gold = {
+        -4.0, -4.0, -3.0, -3.0, -2.0, -2.0, -2.0, -2.0, -1.0, 0.0, 0.0, 1.0, 2.0, 2.0, 4.0, 4.0};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(round_dyn_test)
+TEST_CASE(nearbyint_dyn_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape::dynamic_dimension dd{4, 10};
     migraphx::shape s{migraphx::shape::float_type, {dd}};
     auto input = mm->add_parameter("X", s);
-    mm->add_instruction(migraphx::make_op("round"), input);
+    mm->add_instruction(migraphx::make_op("nearbyint"), input);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<float> input_data{1.1, 1.5, 1.6, -1.1, -1.5, -1.6, 0.0, 2.0, -2.0};
+    std::vector<float> input_data{-3.51,
+                                  -3.5,
+                                  -3.49,
+                                  -2.51,
+                                  -2.50,
+                                  -2.49,
+                                  -1.6,
+                                  -1.5,
+                                  -0.51,
+                                  -0.5,
+                                  0.5,
+                                  0.6,
+                                  2.4,
+                                  2.5,
+                                  3.5,
+                                  4.5};
     migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {9}};
+    migraphx::shape input_fixed_shape0{migraphx::shape::float_type, {16}};
     params0["X"] = migraphx::argument(input_fixed_shape0, input_data.data());
     auto result  = p.eval(params0).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.0, 2.0, 2.0, -1.0, -2.0, -2.0, 0.0, 2.0, -2.0};
+    std::vector<float> gold = {
+        -4.0, -4.0, -3.0, -3.0, -2.0, -2.0, -2.0, -2.0, -1.0, 0.0, 0.0, 1.0, 2.0, 2.0, 4.0, 4.0};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

@@ -271,18 +271,9 @@ inline migraphx_fp8::float8<T> fabs(migraphx_fp8::float8<T> v)
     return v;
 }
 
-template <class T>
-constexpr T F8_Max()
-{
-    return T{0x7F, T::from_bits()};
-}
-
-template <class T>
-constexpr T F8_Lowest()
-{
-    return T{0xFF, T::from_bits()};
-}
-
+// https://onnx.ai/onnx/technical/float8.html
+// these types are not exactly same as GraphCore's FNUZ types. GraphCore's FNUZ types assumes
+// exponent bias of 8 and 16 for the FNUZ types, ONNX spec
 using fp8e4m3fn   = float8<migraphx_fp8::f8_type::fp8, false>;
 using fp8e5m2     = float8<migraphx_fp8::f8_type::bf8, false>;
 using fp8e4m3fnuz = float8<migraphx_fp8::f8_type::fp8, true>;
@@ -292,22 +283,15 @@ template <>
 class numeric_limits<fp8e4m3fnuz>
 {
     public:
-    static constexpr fp8e4m3fnuz epsilon()
-    {
-        return fp8e4m3fnuz(0x28, migraphx_fp8::float8<>::from_bits());
-    }
+    static constexpr fp8e4m3fnuz epsilon() { return fp8e4m3fnuz(0x28, fp8e4m3fnuz::from_bits()); }
 
     static constexpr fp8e4m3fnuz quiet_NaN() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
 
-    static constexpr fp8e4m3fnuz max() { return migraphx_fp8::F8_Max<fp8e4m3fnuz>(); }
+    static constexpr fp8e4m3fnuz max() { return fp8e4m3fnuz(0x7F, fp8e4m3fnuz::from_bits()); }
+    // this is min value that is not DeNorm. DeNorm min is 0x01
+    static constexpr fp8e4m3fnuz min() { return fp8e4m3fnuz(0x08, fp8e4m3fnuz::from_bits()); }
 
-    // TODO figure out Hex value
-    static fp8e4m3fnuz min()
-    {
-        return static_cast<fp8e4m3fnuz>(-1.0f) * migraphx_fp8::F8_Max<fp8e4m3fnuz>();
-    }
-
-    static constexpr fp8e4m3fnuz lowest() { return migraphx_fp8::F8_Lowest<fp8e4m3fnuz>(); }
+    static constexpr fp8e4m3fnuz lowest() { return fp8e4m3fnuz(0xFF, fp8e4m3fnuz::from_bits()); }
 
     static constexpr fp8e4m3fnuz infinity() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
 };
@@ -320,16 +304,12 @@ class numeric_limits<fp8e5m2fnuz>
 
     static constexpr fp8e5m2fnuz quiet_NaN() { return fp8e5m2fnuz(0x80, fp8e5m2fnuz::from_bits()); }
 
-    static constexpr fp8e5m2fnuz max()
-    {
-        return static_cast<fp8e5m2fnuz>(migraphx_fp8::F8_Max<fp8e5m2fnuz>());
-    }
-    // TODO figure  out constexpr value
-    static fp8e5m2fnuz min()
-    {
-        return static_cast<fp8e5m2fnuz>(float(-1.0f)) * migraphx_fp8::F8_Max<fp8e5m2fnuz>();
-    }
-    static constexpr fp8e5m2fnuz lowest() { return migraphx_fp8::F8_Lowest<fp8e5m2fnuz>(); }
+    static constexpr fp8e5m2fnuz max() { return fp8e5m2fnuz(0x7F, fp8e5m2fnuz::from_bits()); }
+    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
+    // this distinction. For the floating points we would end up using lowest most of the times.
+    static constexpr fp8e5m2fnuz min() { return fp8e5m2fnuz(0x4, fp8e5m2fnuz::from_bits()); }
+
+    static constexpr fp8e5m2fnuz lowest() { return fp8e5m2fnuz(0xFF, fp8e5m2fnuz::from_bits()); }
 
     static constexpr fp8e5m2fnuz infinity() { return fp8e5m2fnuz(0x80, fp8e5m2fnuz::from_bits()); }
 };
@@ -338,6 +318,7 @@ class numeric_limits<fp8e5m2fnuz>
 // =================================================================================================
 // define numeric limits for the new data type
 namespace std {
+
 inline bool isfinite(migraphx_fp8::fp8e4m3fnuz x) // NOLINT
 {
     return x.is_inf();

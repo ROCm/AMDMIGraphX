@@ -197,7 +197,7 @@ struct find_const_alloc_reshapes
         auto reshape_ins         = mr.result;
         auto reshape_inputs      = reshape_ins->inputs();
         auto alloc_ins           = reshape_inputs.at(1);
-        argument output_dims_arg = alloc_ins->inputs().at(0)->eval();
+        argument output_dims_arg = alloc_ins->inputs().at(0)->eval(false);
         std::vector<int64_t> output_dims_vec;
         output_dims_arg.visit(
             [&](auto output) { output_dims_vec.assign(output.begin(), output.end()); });

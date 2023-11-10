@@ -116,11 +116,15 @@ Enable the ``layout_nhwc`` pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable using the Composable Kernels library.
+Should be used in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 
-**MIGRAPHX_ENABLE_MLIR**
-
+**MIGRAPHX_DISABLE_MLIR** 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enable using the rocMLIR library.
+Disable using the rocMLIR library.
+
+**MIGRAPHX_ENABLE_EXTRA_MLIR**
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enables additional opportunities to use MLIR that may improve performance.
 
 **MIGRAPHX_COPY_LITERALS**
 
@@ -187,7 +191,7 @@ Dump the HIPRTC source files compiled.
 **MIGRAPHX_GPU_DUMP_ASM**
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Dump the HIPRTC assembly.
+Dump the hip-clang assembly.
 
 **MIGRAPHX_GPU_OPTIMIZE**
 
@@ -282,6 +286,8 @@ Testing
 
 Set to the target that you want to trace the compilation of (ex. "gpu", "cpu").
 Prints the compile trace for the given target for the verify tests.
+This flag shouldn't be used in conjunction with ``MIGRAPHX_TRACE_COMPILE``.
+For the verify tests only use ``MIGRAPHX_TRACE_TEST_COMPILE``.
 
 **MIGRAPHX_TRACE_TEST**
 

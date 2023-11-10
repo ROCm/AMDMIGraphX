@@ -155,6 +155,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isinf
     isnan
     layout
     leaky_relu
@@ -174,6 +175,7 @@ register_migraphx_ops(
     mul
     multibroadcast
     multinomial
+    nearbyint
     neg
     nonmaxsuppression
     nonzero
@@ -204,7 +206,6 @@ register_migraphx_ops(
     rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
-    round
     rsqrt
     run_on_target
     scalar

@@ -46,6 +46,9 @@ struct parse_slice : op_parser<parse_slice>
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
+        /**
+         * Either insert argument into `this->op_args` or return the constant value of the argument
+         */
         std::vector<int64_t> insert(instruction_ref arg)
         {
             std::vector<int64_t> result;

@@ -219,9 +219,8 @@ struct find_pointwise_reshape_pointwise
 
         auto reshape_input = [&](const auto& ins_to_insert) {
             return [&](auto input) {
-                auto c = m.insert_instruction(ins_to_insert, make_op("contiguous"), input);
                 return m.insert_instruction(
-                    ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), c);
+                    ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), input);
             };
         };
         auto x_inputs = x_ins->inputs();

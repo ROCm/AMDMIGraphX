@@ -414,8 +414,7 @@ TEST_CASE(add_reshape_add_nonstandard)
         auto y       = mm->add_parameter("y", s1);
         auto z       = mm->add_parameter("z", s2);
         auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
-        auto c       = mm->add_instruction(migraphx::make_op("contiguous"), add1);
-        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), c);
+        auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add1);
         auto add2    = mm->add_instruction(migraphx::make_op("add"), reshape, z);
         mm->add_return({add2});
     }
@@ -426,10 +425,8 @@ TEST_CASE(add_reshape_add_nonstandard)
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
         auto z   = mm->add_parameter("z", s2);
-        auto cx  = mm->add_instruction(migraphx::make_op("contiguous"), x);
-        auto cy  = mm->add_instruction(migraphx::make_op("contiguous"), y);
-        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), cx);
-        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), cy);
+        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
         auto z2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), z);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x2, y2, z2}, [=](auto* pm, const auto& inputs) {
@@ -466,10 +463,8 @@ TEST_CASE(add_unsqueeze_add_nonstandard)
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s1);
         auto z   = mm->add_parameter("z", s2);
-        auto cx  = mm->add_instruction(migraphx::make_op("contiguous"), x);
-        auto cy  = mm->add_instruction(migraphx::make_op("contiguous"), y);
-        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), cx);
-        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), cy);
+        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
+        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), y);
         auto fadd =
             add_pointwise(p2, "main:pointwise0", {x2, y2, z}, [=](auto* pm, const auto& inputs) {
                 auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);

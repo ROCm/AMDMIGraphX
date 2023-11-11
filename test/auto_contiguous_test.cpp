@@ -203,7 +203,7 @@ TEST_CASE(standard_reshape)
         auto add  = m2.add_instruction(migraphx::make_op("add"), data, data);
         auto ca   = m2.add_instruction(migraphx::make_op("contiguous"), add);
         auto r    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), ca);
-        auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        auto cr   = m2.add_instruction(migraphx::make_op("contiguous"), r);
         m2.add_return({cr});
     }
 

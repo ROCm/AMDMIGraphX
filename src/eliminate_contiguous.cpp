@@ -30,6 +30,7 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/par_for.hpp>
+#include <type_traits>
 #include <utility>
 
 namespace migraphx {
@@ -180,6 +181,18 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
     }
 }
 
+static void remove_contiguous_nops(const std::string& op_name, module& m)
+{
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != op_name)
+            continue;
+        if(ins->inputs().front()->get_shape() != ins->get_shape())
+            continue;
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+}
+
 void eliminate_contiguous::apply(module& m) const
 {
     // Skip contiguous from splits first
@@ -189,6 +202,7 @@ void eliminate_contiguous::apply(module& m) const
         return (ins->inputs().front()->outputs().size() == 1);
     });
     remove_contiguous(op_name, m, [](auto) { return true; });
+    remove_contiguous_nops(op_name, m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

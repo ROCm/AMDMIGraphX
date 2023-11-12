@@ -134,6 +134,12 @@ struct index
 #endif
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+
+    constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
+    constexpr auto local_wave() const { return local % nlocal_wave(); }
+    constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
+    constexpr auto wave() const { return local / nlocal_wave(); }
+
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {
@@ -150,6 +156,12 @@ struct index
     constexpr auto max_local_stride_iterations(N n) const
     {
         return max_stride_iterations(n, nlocal());
+    }
+
+    template <class N>
+    constexpr auto max_local_wave_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal_wave());
     }
 
     template <class F, class I, class D>
@@ -240,6 +252,12 @@ struct index
     __device__ void group_stride(N n, F f) const
     {
         for_stride<false>(group, n, ngroup(), f);
+    }
+
+    template <class F, class N>
+    __device__ void local_wave_stride(N n, F f) const
+    {
+        for_stride<false>(local_wave(), n, nlocal_wave(), f);
     }
 };
 

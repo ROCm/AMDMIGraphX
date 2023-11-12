@@ -520,7 +520,7 @@ struct wave
         template <class F>
         __device__ void outer(F f) const
         {
-            if(idx.local == 0)
+            if(idx.local_wave() == 0)
                 f();
         }
 

@@ -95,13 +95,12 @@ MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
-
 template <class Op, class T, class Index, class F>
 __device__ auto wave_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    type x = init;
+    type x     = init;
     idx.local_wave_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
     return x;
@@ -111,7 +110,7 @@ template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-    if (idx.max_nlocal() == idx.nlocal_wave())
+    if(idx.max_nlocal() == idx.nlocal_wave())
         return wave_reduce(idx, op, init, n, f);
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     constexpr index_int lanes_per_thread = 16;

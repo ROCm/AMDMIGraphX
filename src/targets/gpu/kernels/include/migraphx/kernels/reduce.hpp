@@ -45,7 +45,10 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
     in  = op(in, out);
-#if __AMDGCN_WAVEFRONT_SIZE == 64
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+    out = dpp_swizzle<dpp_row_bcast(15)>(in);
+    in  = op(in, out);
+#else
     out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);

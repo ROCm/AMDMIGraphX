@@ -31,30 +31,66 @@
 
 namespace migraphx {
 
+
+constexpr bool is_power_of_2(unsigned int x)
+{
+    return x > 0 && !(x & (x - 1));
+}
+
 #if MIGRAPHX_HAS_DPP
+
+template <unsigned int SubWaveSize, class T, class Op>
+__device__ void dpp_reduce(T& in, Op op)
+{
+    static_assert(SubWaveSize <= __AMDGCN_WAVEFRONT_SIZE, "Too large subwave size");
+    static_assert(is_power_of_2(SubWaveSize), "SubWaveSize is not a power of 2");
+    T out{};
+    if constexpr(SubWaveSize > 1)
+    {
+        out = dpp_mov<dpp_row_shr(1)>(in);
+        in  = op(in, out);
+    }
+    if constexpr(SubWaveSize > 2)
+    {
+        out = dpp_mov<dpp_row_shr(2)>(in);
+        in  = op(in, out);
+    }
+    if constexpr(SubWaveSize > 4)
+    {
+        out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
+        in  = op(in, out);
+    }
+    if constexpr(SubWaveSize > 8)
+    {
+        out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
+        in  = op(in, out);
+    }
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+    if constexpr(SubWaveSize > 16)
+    {
+        out = dpp_swizzle<dpp_row_bcast(15)>(in);
+        in  = op(in, out);
+    }
+#else
+    if constexpr(SubWaveSize > 16)
+    {
+        out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
+        in  = op(in, out);
+    }
+    if constexpr(SubWaveSize > 32)
+    {
+        out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
+        in  = op(in, out);
+    }
+#endif
+}
 
 template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)
 {
-    T out{};
-    out = dpp_mov<dpp_row_shr(1)>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(2)>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
-    in  = op(in, out);
-#if __AMDGCN_WAVEFRONT_SIZE == 32
-    out = dpp_swizzle<dpp_row_bcast(15)>(in);
-    in  = op(in, out);
-#else
-    out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
-    in  = op(in, out);
-#endif
+    dpp_reduce<__AMDGCN_WAVEFRONT_SIZE>(in, op);
 }
+
 #if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE_ASM(x, ins) x = 1
@@ -98,15 +134,22 @@ MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
-template <class Op, class T, class Index, class F>
-__device__ auto wave_reduce(index idx, Op op, T init, Index n, F f)
+
+template <unsigned int SubWaveSize, class Op, class T, class Index, class F>
+__device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     type x     = init;
-    idx.local_wave_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
-    dpp_reduce(x, op);
+    idx.local_subwave_stride<SubWaveSize>(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
+    dpp_reduce<SubWaveSize>(x, op);
     return x;
+}
+
+template <class Op, class T, class Index, class F>
+__device__ auto wave_reduce(index idx, Op op, T init, Index n, F f)
+{
+    return subwave_reduce<__AMDGCN_WAVEFRONT_SIZE>(idx, op, init, n, f);
 }
 
 template <class Op, class T, class Index, class F>
@@ -486,7 +529,8 @@ struct block_large
     }
 };
 
-struct wave
+template<unsigned int SubWaveSize>
+struct subwave
 {
     template <class Slicer>
     struct reducer : reducer_base<reducer<Slicer>>
@@ -515,7 +559,7 @@ struct wave
         template <class Op, class T, class Read, class N, class... Ts>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
-            return wave_reduce(idx, op, init, n, [&](auto j, auto d) {
+            return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
                 return vec_reduce(read(xs(j, d)...), op);
             });
         }
@@ -523,7 +567,7 @@ struct wave
         template <class F>
         __device__ void outer(F f) const
         {
-            if(idx.local_wave() == 0)
+            if(idx.local_subwave<SubWaveSize>() == 0)
                 f();
         }
 
@@ -536,9 +580,9 @@ struct wave
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            using max_iterations = decltype(idx.max_local_wave_stride_iterations(n));
+            using max_iterations = decltype(idx.max_local_subwave_stride_iterations<SubWaveSize>(n));
             inner_storage<R, max_iterations{}, N> storage;
-            idx.local_wave_stride(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            idx.local_subwave_stride<SubWaveSize>(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
             return storage;
         }
     };
@@ -554,12 +598,14 @@ struct wave
     {
         auto idx                 = make_index();
         constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements * idx.nlocal_wave(), [&](auto i) {
-            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_wave());
+        idx.global_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_subwave<SubWaveSize>());
             f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
         });
     }
 };
+
+using wave = subwave<__AMDGCN_WAVEFRONT_SIZE>;
 
 struct lane
 {

@@ -97,9 +97,10 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
 }
 
 template <class ReduceLens>
-static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens rlens)
+static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs, ReduceLens rlens)
 {
     const auto init = std::numeric_limits<std::size_t>::max();
+    auto relements = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
     // The minimum stride
     auto min_stride = std::inner_product(
         rlens.begin(),
@@ -110,13 +111,24 @@ static std::string get_reduce_algo(const std::vector<shape>& inputs, ReduceLens 
         [](auto len, auto stride) { return len == 1 ? init : stride; });
     if(min_stride > 2)
         return "lane";
+    if (relements <= ctx.get_current_device().get_wavefront_size())
+        return "wave";
     return "block";
 }
 
-static std::string get_reduce_algo(const std::vector<shape>& inputs)
+static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs)
 {
     auto rlens = get_reduce_lens(inputs.front().lens(), inputs.back().lens());
-    return get_reduce_algo(inputs, rlens);
+    return get_reduce_algo(ctx, inputs, rlens);
+}
+
+static std::size_t compute_subwave_size(context& ctx, std::size_t n)
+{
+    std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+    std::size_t wavefront_size = 1;
+    while(wavefront_size < n and wavefront_size < max_wavefront_size)
+        wavefront_size *= 2;
+    return wavefront_size;
 }
 
 struct simple_reduce_compiler : compiler<simple_reduce_compiler>
@@ -145,18 +157,28 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = options.virtual_inputs.back().elements();
-        auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs));
-        if(algo == "block")
+        auto algo      = v.get("algo", get_reduce_algo(ctx, options.virtual_inputs));
+        if(algo == "block" or algo == "wave")
         {
             // Vectorize if the axis is a reduction axis
             if(options.virtual_inputs.back().lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
-            auto block_size = compute_block_size(relements, 256);
-            if(relements >= block_size * 256)
-                algo = "block_large";
-            options.set_launch_params(
-                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            if(algo == "block")
+            {
+                auto block_size = compute_block_size(relements, 256);
+                if(relements >= block_size * 256)
+                    algo = "block_large";
+                options.set_launch_params(
+                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            }
+            else
+            {
+                auto subwave_size = compute_subwave_size(ctx, relements);
+                algo = "subwave<" + std::to_string(subwave_size) + ">";
+                options.set_launch_params(
+                    v, compute_global_for(ctx, nelements * subwave_size, 256), ctx.get_current_device().get_wavefront_size());
+            }
         }
         else if(algo == "lane")
         {
@@ -241,18 +263,28 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = reduce_output_shape.elements();
-        auto algo = v.get("algo", get_reduce_algo(options.virtual_inputs, reduction_shape.lens()));
-        if(algo == "block")
+        auto algo = v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
+        if(algo == "block" or algo == "wave")
         {
             // Vectorize if the axis is a reduction axis
             if(reduce_output_shape.lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
             auto relements  = reduction_shape.elements() / vec.size;
-            auto block_size = compute_block_size(relements, 256);
-            if(relements >= block_size * 256)
-                algo = "block_large";
-            options.set_launch_params(
-                v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            if (algo == "block")
+            {
+                auto block_size = compute_block_size(relements, 256);
+                if(relements >= block_size * 256)
+                    algo = "block_large";
+                options.set_launch_params(
+                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            }
+            else
+            {
+                auto subwave_size = compute_subwave_size(ctx, relements);
+                algo = "subwave<" + std::to_string(subwave_size) + ">";
+                options.set_launch_params(
+                    v, compute_global_for(ctx, nelements * subwave_size, 256), ctx.get_current_device().get_wavefront_size());
+            }
         }
         else if(algo == "lane")
         {

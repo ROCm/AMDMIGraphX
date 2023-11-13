@@ -135,6 +135,13 @@ struct index
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
 
+    template<unsigned int SubWaveSize>
+    constexpr index_constant<SubWaveSize> nlocal_subwave() const { return {}; }
+    template<unsigned int SubWaveSize>
+    constexpr auto local_subwave() const { return local % nlocal_subwave<SubWaveSize>(); }
+    template<unsigned int SubWaveSize>
+    constexpr auto nwave() const { return max_nlocal() / nlocal_subwave<SubWaveSize>(); }
+
     constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
     constexpr auto local_wave() const { return local % nlocal_wave(); }
     constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
@@ -162,6 +169,12 @@ struct index
     constexpr auto max_local_wave_stride_iterations(N n) const
     {
         return max_stride_iterations(n, nlocal_wave());
+    }
+
+    template <unsigned int SubWaveSize, class N>
+    constexpr auto max_local_subwave_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal_subwave<SubWaveSize>());
     }
 
     template <class F, class I, class D>
@@ -254,10 +267,16 @@ struct index
         for_stride<false>(group, n, ngroup(), f);
     }
 
+    template <unsigned int SubWaveSize, class F, class N>
+    __device__ void local_subwave_stride(N n, F f) const
+    {
+        for_stride<true>(local_subwave<SubWaveSize>(), n, nlocal_subwave<SubWaveSize>(), f);
+    }
+
     template <class F, class N>
     __device__ void local_wave_stride(N n, F f) const
     {
-        for_stride<false>(local_wave(), n, nlocal_wave(), f);
+        for_stride<true>(local_wave(), n, nlocal_wave(), f);
     }
 };
 

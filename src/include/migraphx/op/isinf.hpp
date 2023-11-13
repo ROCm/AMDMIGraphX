@@ -35,7 +35,7 @@ struct isinf : unary<isinf>
 {
     auto apply() const
     {
-        return [&](auto x) { return std::isinf(x); };
+        return [&](auto x) { return std::isinf(static_cast<double>(x)); };
     }
 
     std::string name() const { return "isinf"; }

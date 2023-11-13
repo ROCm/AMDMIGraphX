@@ -61,26 +61,27 @@ __device__ void dpp_reduce(T& in, Op op)
     (void)f;                               \
     x = 1
 #elif __AMDGCN_WAVEFRONT_SIZE == 64
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                       \
-    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"                    \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"                    \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"      \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n"      \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:15 row_mask:0xa\n"    \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n"    \
-                     "s_nop 1\n"                                                 \
-                     : "=v"(x)                                                   \
-                     : "0"(x)); (void)f
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                    \
+    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"                 \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"                 \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"   \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n"   \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:15 row_mask:0xa\n" \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n" \
+                     "s_nop 1\n"                                              \
+                     : "=v"(x)                                                \
+                     : "0"(x));                                               \
+    (void)f
 #else
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                     \
-    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"                  \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"                  \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"    \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n"    \
-                     : "=v"(x)                                                 \
-                     : "0"(x));  \
-                     auto y = dpp_swizzle<0x1e0>(x);  \
-                     x = f(x, y)
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                  \
+    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"               \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"               \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n" \
+                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n" \
+                     : "=v"(x)                                              \
+                     : "0"(x));                                             \
+    auto y = dpp_swizzle<0x1e0>(x);                                         \
+    x      = f(x, y)
 #endif
 
 // NOLINTNEXTLINE

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
+#include <limits>
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/make_op.hpp>
 
-struct quant_conv_default_mode : verify_program<quant_conv_default_mode>
+struct test_isinf_broadcast : verify_program<test_isinf_broadcast>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
-        auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
-        auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2}});
+        auto s0  = migraphx::shape{migraphx::shape::float_type, {2, 2}};
+        x        = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s0.lens()}}), x);
+        auto inf = std::numeric_limits<float>::infinity();
+        std::vector<float> data0{-inf, inf};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 2}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data0});
+        x       = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
+        mm->add_instruction(migraphx::make_op("isinf"), x);
         return p;
     }
 };

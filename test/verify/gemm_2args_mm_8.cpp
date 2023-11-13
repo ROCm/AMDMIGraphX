@@ -21,29 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_INT8_GEMM_PACK_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_INT8_GEMM_PACK_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::float_type, {2, 128, 32}, {4096, 1, 128}};
+        migraphx::shape b_shape{migraphx::shape::float_type, {32, 32}};
+        auto a  = mm->add_parameter("a", a_shape);
+        auto b  = mm->add_parameter("b", b_shape);
+        auto bb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), b);
 
-void MIGRAPHX_DEVICE_EXPORT int8_gemm_pack_a(hipStream_t stream,
-                                             const argument& result,
-                                             const argument& arg);
+        mm->add_instruction(migraphx::make_op("dot"), a, bb);
 
-void MIGRAPHX_DEVICE_EXPORT int8_gemm_pack_b(hipStream_t stream,
-                                             const argument& result,
-                                             const argument& arg);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+        return p;
+    }
+};

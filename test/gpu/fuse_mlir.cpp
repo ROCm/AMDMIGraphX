@@ -152,6 +152,9 @@ TEST_CASE(int_quant_dot_tanh_fails)
 
 int main(int argc, const char* argv[])
 {
-    test::run(argc, argv);
+    if(migraphx::gpu::mlir_enabled())
+    {
+        test::run(argc, argv);
+    }
     return 0;
 }

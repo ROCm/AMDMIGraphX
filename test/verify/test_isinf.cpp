@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
+#include <limits>
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/quant_convolution.hpp>
+#include <migraphx/make_op.hpp>
 
-struct quant_conv_int8x4_default : verify_program<quant_conv_int8x4_default>
+template <class T>
+struct test_isinf : verify_program<test_isinf<T>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {16, 16, 4, 4}};
-        auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {16, 16, 3, 3}};
-        auto pc = mm->add_parameter("c", c_shape);
-        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        auto max = std::numeric_limits<T>::max();
+        auto min = std::numeric_limits<T>::min();
+        auto inf = std::numeric_limits<T>::infinity();
+        auto nan = std::numeric_limits<T>::quiet_NaN();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::get_type<T>(), {5}});
+        std::vector<T> data0{inf, -inf, max, min, nan};
+        migraphx::shape s1{migraphx::shape::get_type<T>(), {5}};
+        auto l0 = mm->add_literal(migraphx::literal{s1, data0});
+        x       = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
+        mm->add_instruction(migraphx::make_op("isinf"), x);
         return p;
     }
 };
+
+template struct test_isinf<migraphx::half>;
+template struct test_isinf<float>;

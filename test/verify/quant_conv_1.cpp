@@ -21,40 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/int8_gemm_pack.hpp>
-#include <migraphx/gpu/device/int8_gemm_pack.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/quant_convolution.hpp>
 
-shape hip_int8_gemm_pack_a::compute_shape(const std::vector<shape>& inputs) const
+struct quant_conv_1 : verify_program<quant_conv_1>
 {
-    check_shapes{{inputs.at(0)}, *this}.has(1).not_broadcasted().packed();
-    return inputs.at(0);
-}
-
-argument
-hip_int8_gemm_pack_a::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    device::int8_gemm_pack_a(ctx.get_stream().get(), args[1], args[0]);
-    return args[1];
-}
-
-shape hip_int8_gemm_pack_b::compute_shape(const std::vector<shape>& inputs) const
-{
-    check_shapes{{inputs.at(0)}, *this}.has(1).not_broadcasted().packed();
-    return inputs.at(0);
-}
-
-argument
-hip_int8_gemm_pack_b::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    device::int8_gemm_pack_b(ctx.get_stream().get(), args[1], args[0]);
-    return args[1];
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        return p;
+    }
+};

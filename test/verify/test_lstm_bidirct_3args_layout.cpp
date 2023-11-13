@@ -31,7 +31,7 @@
 
 #include <migraphx/op/common.hpp>
 
-struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
+struct test_lstm_bidirct_3args_layout : verify_program<test_lstm_bidirct_3args_layout>
 {
     migraphx::program create_program() const
     {
@@ -49,23 +49,14 @@ struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
                                 {num_dirct, 4 * hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type,
                                 {num_dirct, 4 * hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 8 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {batch_size, num_dirct, hidden_size}};
-        migraphx::shape sl_shape{migraphx::shape::int32_type, {batch_size}};
-
-        auto seq  = mm->add_parameter("seq", in_shape);
-        auto w    = mm->add_parameter("w", w_shape);
-        auto r    = mm->add_parameter("r", r_shape);
-        auto bias = mm->add_parameter("bias", b_shape);
-        auto ih   = mm->add_parameter("ih", ih_shape);
-        std::vector<int> sl_data{3, 2};
-        auto sql = mm->add_literal(migraphx::literal{migraphx::literal{sl_shape, sl_data}});
+        auto seq = mm->add_parameter("seq", in_shape);
+        auto w   = mm->add_parameter("w", w_shape);
+        auto r   = mm->add_parameter("r", r_shape);
 
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
-        ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
 
-        auto output = mm->add_instruction(
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
@@ -76,12 +67,9 @@ struct test_lstm_bidirct_hs_layout : verify_program<test_lstm_bidirct_hs_layout>
                  {"clip", clip}}),
             seq,
             w,
-            r,
-            bias,
-            sql,
-            ih);
+            r);
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), output);
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), hs);
 
         return p;
     }

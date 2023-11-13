@@ -797,7 +797,8 @@ struct mlir_program
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
-        const auto limit = value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
         for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};

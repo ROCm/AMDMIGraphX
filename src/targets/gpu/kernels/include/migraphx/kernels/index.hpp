@@ -135,12 +135,21 @@ struct index
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
 
-    template<unsigned int SubWaveSize>
-    constexpr index_constant<SubWaveSize> nlocal_subwave() const { return {}; }
-    template<unsigned int SubWaveSize>
-    constexpr auto local_subwave() const { return local % nlocal_subwave<SubWaveSize>(); }
-    template<unsigned int SubWaveSize>
-    constexpr auto nwave() const { return max_nlocal() / nlocal_subwave<SubWaveSize>(); }
+    template <unsigned int SubWaveSize>
+    constexpr index_constant<SubWaveSize> nlocal_subwave() const
+    {
+        return {};
+    }
+    template <unsigned int SubWaveSize>
+    constexpr auto local_subwave() const
+    {
+        return local % nlocal_subwave<SubWaveSize>();
+    }
+    template <unsigned int SubWaveSize>
+    constexpr auto nwave() const
+    {
+        return max_nlocal() / nlocal_subwave<SubWaveSize>();
+    }
 
     constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
     constexpr auto local_wave() const { return local % nlocal_wave(); }

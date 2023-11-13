@@ -31,11 +31,7 @@
 
 namespace migraphx {
 
-
-constexpr bool is_power_of_2(unsigned int x)
-{
-    return x > 0 && !(x & (x - 1));
-}
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 && !(x & (x - 1)); }
 
 #if MIGRAPHX_HAS_DPP
 
@@ -134,14 +130,14 @@ MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
-
 template <unsigned int SubWaveSize, class Op, class T, class Index, class F>
 __device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     type x     = init;
-    idx.local_subwave_stride<SubWaveSize>(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
+    idx.local_subwave_stride<SubWaveSize>(
+        n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce<SubWaveSize>(x, op);
     return x;
 }
@@ -529,7 +525,7 @@ struct block_large
     }
 };
 
-template<unsigned int SubWaveSize>
+template <unsigned int SubWaveSize>
 struct subwave
 {
     template <class Slicer>
@@ -580,9 +576,11 @@ struct subwave
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            using max_iterations = decltype(idx.max_local_subwave_stride_iterations<SubWaveSize>(n));
+            using max_iterations =
+                decltype(idx.max_local_subwave_stride_iterations<SubWaveSize>(n));
             inner_storage<R, max_iterations{}, N> storage;
-            idx.local_subwave_stride<SubWaveSize>(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            idx.local_subwave_stride<SubWaveSize>(
+                n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
             return storage;
         }
     };

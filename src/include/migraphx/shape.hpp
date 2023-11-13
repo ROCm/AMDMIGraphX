@@ -34,7 +34,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/half.hpp>
-#include <migraphx/migraphx_float8.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/config.hpp>
 
@@ -62,7 +62,7 @@ struct MIGRAPHX_EXPORT shape
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
     m(uint64_type, uint64_t) \
-    m(fp8e4m3fnuz_type, migraphx_fp8::fp8e4m3fnuz)
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
     // clang-format on
 
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,

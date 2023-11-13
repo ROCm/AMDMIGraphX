@@ -23,7 +23,7 @@
  */
 #include <cmath>
 #include <migraphx/float_equal.hpp>
-#include <migraphx/migraphx_float8.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/half.hpp>
 #include <migraphx/ranges.hpp>
 #include "test.hpp"
@@ -129,7 +129,7 @@ TEST_CASE(test_fp8_cast_to_float)
     std::vector<uint8_t> bit_vals(256);
     std::iota(bit_vals.begin(), bit_vals.end(), 0);
     EXPECT(bool{std::all_of(bit_vals.begin(), bit_vals.end(), [](uint8_t bit_val) {
-        migraphx_fp8::fp8e4m3fnuz fp8_val(bit_val, migraphx_fp8::fp8e4m3fnuz::from_bits());
+        migraphx::fp8::fp8e4m3fnuz fp8_val(bit_val, migraphx::fp8::fp8e4m3fnuz::from_bits());
         if(std::isnan(float(fp8_val)) and std::isnan(fp8e4m3fnuz_to_fp32_value(bit_val)))
         {
             return true;
@@ -141,7 +141,7 @@ TEST_CASE(test_fp8_cast_to_float)
 TEST_CASE(test_positive_zero)
 {
     float zero = 0.0;
-    migraphx_fp8::fp8e4m3fnuz fp8_zero(zero);
+    migraphx::fp8::fp8e4m3fnuz fp8_zero(zero);
     EXPECT(fp8_zero.is_zero());
     EXPECT(migraphx::float_equal(zero, float(fp8_zero)));
 }
@@ -150,7 +150,7 @@ TEST_CASE(test_negative_zero)
 {
     float nzero = -0.0;
     float pzero = 0.0;
-    migraphx_fp8::fp8e4m3fnuz fp8_nzero(nzero);
+    migraphx::fp8::fp8e4m3fnuz fp8_nzero(nzero);
     EXPECT(fp8_nzero.is_zero());
     //  negative zero gets converted to positive zero
     EXPECT(migraphx::float_equal(pzero, float(fp8_nzero)));
@@ -159,15 +159,15 @@ TEST_CASE(test_negative_zero)
 TEST_CASE(test_nan_1)
 {
     float fnan = std::numeric_limits<float>::quiet_NaN();
-    migraphx_fp8::fp8e4m3fnuz fp8_nan(fnan);
+    migraphx::fp8::fp8e4m3fnuz fp8_nan(fnan);
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(fp8_nan));
 }
 
 TEST_CASE(test_nan_2)
 {
-    auto fnan = std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::quiet_NaN();
-    migraphx_fp8::fp8e4m3fnuz fp8_nan(fnan.data, migraphx_fp8::fp8e4m3fnuz::from_bits());
+    auto fnan = std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::quiet_NaN();
+    migraphx::fp8::fp8e4m3fnuz fp8_nan(fnan.data, migraphx::fp8::fp8e4m3fnuz::from_bits());
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(fp8_nan));
     EXPECT(std::isnan(float(fp8_nan)));
@@ -177,7 +177,7 @@ TEST_CASE(test_infinity_1)
 {
     float finf = std::numeric_limits<float>::infinity();
     // no inf in fp8e4m3fnuz it gets clipped to Nans
-    migraphx_fp8::fp8e4m3fnuz fp8_nan(finf);
+    migraphx::fp8::fp8e4m3fnuz fp8_nan(finf);
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(float(fp8_nan)));
 }
@@ -187,7 +187,7 @@ TEST_CASE(test_infinity_2)
     // neg inf
     float finf = -1.0 * std::numeric_limits<float>::infinity();
     // no inf in fp8e4m3fnuz it gets clipped to NaNs
-    migraphx_fp8::fp8e4m3fnuz fp8_nan(finf);
+    migraphx::fp8::fp8e4m3fnuz fp8_nan(finf);
     EXPECT(fp8_nan.is_nan());
     EXPECT(std::isnan(float(fp8_nan)));
 }
@@ -195,36 +195,36 @@ TEST_CASE(test_infinity_2)
 TEST_CASE(test_numeric_max_1)
 {
     float fmax = std::numeric_limits<float>::max();
-    migraphx_fp8::fp8e4m3fnuz fp8_max(fmax);
-    EXPECT(fp8_max == std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::max());
+    migraphx::fp8::fp8e4m3fnuz fp8_max(fmax);
+    EXPECT(fp8_max == std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::max());
 }
 
 TEST_CASE(test_numeric_max_2)
 {
     // gets clipped to max
-    float fmax = 2 * std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::max();
-    migraphx_fp8::fp8e4m3fnuz fp8_max(fmax);
-    EXPECT(fp8_max == std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::max());
+    float fmax = 2 * std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::max();
+    migraphx::fp8::fp8e4m3fnuz fp8_max(fmax);
+    EXPECT(fp8_max == std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::max());
 }
 
 TEST_CASE(test_numeric_lowest_1)
 {
     float flowest = std::numeric_limits<float>::lowest();
-    migraphx_fp8::fp8e4m3fnuz fp8_lowest(flowest);
-    EXPECT(fp8_lowest == std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::lowest());
+    migraphx::fp8::fp8e4m3fnuz fp8_lowest(flowest);
+    EXPECT(fp8_lowest == std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::lowest());
 }
 
 TEST_CASE(test_numeric_lowest_2)
 {
     // gets clipped to lowest
-    float fmin = 2.0 * std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::lowest();
-    migraphx_fp8::fp8e4m3fnuz fp8_lowest(fmin);
-    EXPECT(fp8_lowest == std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::lowest());
+    float fmin = 2.0 * std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::lowest();
+    migraphx::fp8::fp8e4m3fnuz fp8_lowest(fmin);
+    EXPECT(fp8_lowest == std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::lowest());
 }
 
 TEST_CASE(test_max_eq_lowest)
 {
-    EXPECT(migraphx::float_equal(std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::lowest(),
-                                 -1 * std::numeric_limits<migraphx_fp8::fp8e4m3fnuz>::max()));
+    EXPECT(migraphx::float_equal(std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::lowest(),
+                                 -1 * std::numeric_limits<migraphx::fp8::fp8e4m3fnuz>::max()));
 }
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

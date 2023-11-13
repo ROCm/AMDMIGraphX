@@ -44,20 +44,12 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <migraphx/config.hpp>
+#include <migraphx/float8_impl.hpp>
 
-namespace migraphx_f8_impl {
-
-template <int wm, int we, typename T, bool negative_zero_nan, bool clip>
-constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0);
-
-template <int wm, int we, typename T, bool negative_zero_nan>
-constexpr T cast_from_f8(uint8_t x);
-
-} // namespace migraphx_f8_impl
-
-#include <migraphx/migraphx_f8_impl.hpp>
-
-namespace migraphx_fp8 {
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace fp8 {
 
 enum class migraphx_f8_rounding_mode
 {
@@ -74,7 +66,7 @@ enum class f8_type
 template <typename T, bool FNUZ = true>
 class numeric_limits;
 
-template <migraphx_fp8::f8_type T = migraphx_fp8::f8_type::fp8, bool FNUZ = true>
+template <migraphx::fp8::f8_type T = migraphx::fp8::f8_type::fp8, bool FNUZ = true>
 struct float8
 {
     uint8_t data = 0x00;
@@ -90,43 +82,43 @@ struct float8
     explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
     explicit constexpr float8(float v,
-                              migraphx_fp8::migraphx_f8_rounding_mode rm =
-                                  migraphx_fp8::migraphx_f8_rounding_mode::standard,
+                              migraphx::fp8::migraphx_f8_rounding_mode rm =
+                                  migraphx::fp8::migraphx_f8_rounding_mode::standard,
                               uint32_t rng = 0)
     {
-        if constexpr(T == migraphx_fp8::f8_type::fp8)
+        if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
-            data = migraphx_f8_impl::
+            data = migraphx::fp8::impl::
                 cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                    v, (rm == migraphx_fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
-            data = migraphx_f8_impl::
+            data = migraphx::fp8::impl::
                 cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                    v, (rm == migraphx_fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
         }
         else
         {
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
-            data = migraphx_f8_impl::
+            data = migraphx::fp8::impl::
                 cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                    v, (rm == migraphx_fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
-            data = migraphx_f8_impl::
+            data = migraphx::fp8::impl::
                 cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                    v, (rm == migraphx_fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
 #endif // rocblas_F8_downcast_clipping}
         }
     }
 
     inline constexpr operator float() const
     {
-        if constexpr(T == migraphx_fp8::f8_type::fp8)
+        if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
-            return migraphx_f8_impl::cast_from_f8<3, 4, float, FNUZ /*negative_zero_nan*/>(data);
+            return migraphx::fp8::impl::cast_from_f8<3, 4, float, FNUZ /*negative_zero_nan*/>(data);
         } // else
-        return migraphx_f8_impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
+        return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
 
     inline constexpr bool is_zero() const
@@ -149,7 +141,7 @@ struct float8
         }
         else
         {
-            if(T == migraphx_fp8::f8_type::bf8)
+            if(T == migraphx::fp8::f8_type::bf8)
             {
                 return (data == 0x7D) or (data == 0x7E) or (data == 0x7F) or (data == 0xFD) or
                        (data == 0xFE) or (data == 0xFF);
@@ -169,7 +161,7 @@ struct float8
         }
         else
         {
-            if(T == migraphx_fp8::f8_type::bf8)
+            if(T == migraphx::fp8::f8_type::bf8)
             {
                 return (data == 0x7C) or (data == 0xFC);
             }
@@ -236,26 +228,26 @@ struct float8
 };
 
 // Special operator overloading
-template <migraphx_fp8::f8_type T>
-inline std::ostream& operator<<(std::ostream& os, const migraphx_fp8::float8<T>& rhs)
+template <migraphx::fp8::f8_type T>
+inline std::ostream& operator<<(std::ostream& os, const migraphx::fp8::float8<T>& rhs)
 {
     return os << static_cast<float>(rhs);
 }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_BINARY_OP(binary_op, U)                                  \
-    template <migraphx_fp8::f8_type T>                                        \
-    inline constexpr U operator binary_op(const migraphx_fp8::float8<T>& lhs, \
-                                          const migraphx_fp8::float8<T>& rhs) \
-    {                                                                         \
-        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));  \
+#define MIGRAPHX_FP8_BINARY_OP(binary_op, U)                                   \
+    template <migraphx::fp8::f8_type T>                                        \
+    inline constexpr U operator binary_op(const migraphx::fp8::float8<T>& lhs, \
+                                          const migraphx::fp8::float8<T>& rhs) \
+    {                                                                          \
+        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));   \
     }
 
 // TODO: these should return floats
-MIGRAPHX_FP8_BINARY_OP(*, migraphx_fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(-, migraphx_fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(/, migraphx_fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(+, migraphx_fp8::float8<T>)
+MIGRAPHX_FP8_BINARY_OP(*, migraphx::fp8::float8<T>)
+MIGRAPHX_FP8_BINARY_OP(-, migraphx::fp8::float8<T>)
+MIGRAPHX_FP8_BINARY_OP(/, migraphx::fp8::float8<T>)
+MIGRAPHX_FP8_BINARY_OP(+, migraphx::fp8::float8<T>)
 // TODO: Comparison ops shouldn't convert to float, need to check if need to take care of rounding
 // effects.
 MIGRAPHX_FP8_BINARY_OP(==, bool)
@@ -265,18 +257,18 @@ MIGRAPHX_FP8_BINARY_OP(>, bool)
 MIGRAPHX_FP8_BINARY_OP(<, bool)
 MIGRAPHX_FP8_BINARY_OP(!=, bool)
 
-template <migraphx_fp8::f8_type T>
-inline migraphx_fp8::float8<T> fabs(migraphx_fp8::float8<T> v)
+template <migraphx::fp8::f8_type T>
+inline migraphx::fp8::float8<T> fabs(migraphx::fp8::float8<T> v)
 {
     v.data = v.data & 0x7f;
     return v;
 }
 
 // https://onnx.ai/onnx/technical/float8.html
-using fp8e4m3fn   = float8<migraphx_fp8::f8_type::fp8, false>;
-using fp8e5m2     = float8<migraphx_fp8::f8_type::bf8, false>;
-using fp8e4m3fnuz = float8<migraphx_fp8::f8_type::fp8, true>;
-using fp8e5m2fnuz = float8<migraphx_fp8::f8_type::bf8, true>;
+using fp8e4m3fn   = float8<migraphx::fp8::f8_type::fp8, false>;
+using fp8e5m2     = float8<migraphx::fp8::f8_type::bf8, false>;
+using fp8e4m3fnuz = float8<migraphx::fp8::f8_type::fp8, true>;
+using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
 
 template <>
 class numeric_limits<fp8e4m3fnuz>
@@ -347,37 +339,39 @@ class numeric_limits<fp8e5m2>
     // 7C and FC both are infinity
     static constexpr fp8e5m2 infinity() { return fp8e5m2(0x7C, fp8e5m2::from_bits()); }
 };
-} // namespace migraphx_fp8
+} // namespace fp8
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 // =================================================================================================
 // define numeric limits for the new data type
 namespace std {
 
-#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                \
-    inline bool isfinite(T x) { return x.is_inf(); }                 \
-    inline bool isnan(T x) { return x.is_nan(); }                    \
-    template <>                                                      \
-    class numeric_limits<T> : public migraphx_fp8::numeric_limits<T> \
-    {                                                                \
-    };                                                               \
-    template <class U>                                               \
-    struct common_type<T, U> : std::common_type<float, U>            \
-    {                                                                \
-    };                                                               \
-    template <class U>                                               \
-    struct common_type<U, T> : std::common_type<float, U>            \
-    {                                                                \
-    };                                                               \
-    template <>                                                      \
-    struct common_type<T, T>                                         \
-    {                                                                \
-        using type = T;                                              \
+#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                 \
+    inline bool isfinite(T x) { return x.is_inf(); }                  \
+    inline bool isnan(T x) { return x.is_nan(); }                     \
+    template <>                                                       \
+    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T> \
+    {                                                                 \
+    };                                                                \
+    template <class U>                                                \
+    struct common_type<T, U> : std::common_type<float, U>             \
+    {                                                                 \
+    };                                                                \
+    template <class U>                                                \
+    struct common_type<U, T> : std::common_type<float, U>             \
+    {                                                                 \
+    };                                                                \
+    template <>                                                       \
+    struct common_type<T, T>                                          \
+    {                                                                 \
+        using type = T;                                               \
     };
 
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e4m3fn)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e5m2)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e4m3fnuz)
-MIGRAPHX_FP8_STD_OVERLOADS(migraphx_fp8::fp8e5m2fnuz)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fnuz)
+MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
 
 } // namespace std
 // =================================================================================================

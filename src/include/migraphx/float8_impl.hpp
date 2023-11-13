@@ -20,49 +20,32 @@
  *
  * ************************************************************************ */
 
-#ifndef MIGRAPHX_FP8_IMPL_HPP
-#define MIGRAPHX_FP8_IMPL_HPP
-
-#define MIGRAPHX_CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
-namespace migraphx_f8_impl {
-namespace detail {
-template <bool B, class T, class F>
-struct conditional
-{
-    using type = T;
-};
-
-template <class T, class F>
-struct conditional<false, T, F>
-{
-    using type = F;
-};
-
-template <typename To, typename From>
-inline constexpr To bit_cast(From fr) noexcept
-{
-    static_assert(sizeof(To) == sizeof(From));
-#if defined(__GNUC__) and !defined(__clang__)
-    return MIGRAPHX_CONST_FOLD(*reinterpret_cast<To*>(&fr));
-#else
-    return __builtin_bit_cast(To, fr);
-#endif
-}
-} // namespace detail
+#ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
+#include <type_traits>
+#include <migraphx/config.hpp>
+#include <migraphx/bit_cast.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace fp8 {
+namespace impl {
 
 template <int wm, int we, typename T, bool negative_zero_nan, bool clip>
-constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
+constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0)
 {
-
+    constexpr bool is_float = std::is_same<T, float>::value;
+    // half is not supported for now
+    constexpr bool is_half = false;
     static_assert(wm + we == 7, "wm+we==7");
+    static_assert(is_float or is_half, "Only float can be cast to f8");
 
     const int mfmt = (sizeof(T) == 4) ? 23 : 10;
-    typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
+    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
 
     if constexpr(sizeof(T) == 4)
-        x = detail::bit_cast<uint32_t>(_x);
+        x = migraphx::bit_cast<uint32_t>(_x);
     else
-        x = detail::bit_cast<uint16_t>(_x);
+        x = migraphx::bit_cast<uint16_t>(_x);
 
     uint32_t head, mantissa;
     int exponent, bias;
@@ -271,19 +254,27 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
 template <int wm, int we, typename T, bool negative_zero_nan>
 constexpr T cast_from_f8(uint8_t x)
 {
-    constexpr int weo = 8;
-    constexpr int wmo = 23;
+    // half is not supported for now
+    constexpr bool is_half  = false;
+    constexpr bool is_float = std::is_same<T, float>::value;
+    static_assert(is_float or is_half, "Only float are supported");
+
+    constexpr int weo = is_half ? 5 : 8;
+    constexpr int wmo = is_half ? 10 : (is_float ? 23 : 7);
 
     T fInf, fNegInf, fNaN, fNeg0;
-    uint32_t ifInf    = 0x7F800000;
-    uint32_t ifNegInf = 0xFF800000;
-    uint32_t ifNaN    = 0x7F800001;
-    uint32_t ifNeg0   = 0x80000000;
 
-    fInf    = detail::bit_cast<float>(ifInf);
-    fNegInf = detail::bit_cast<float>(ifNegInf);
-    fNaN    = detail::bit_cast<float>(ifNaN);
-    fNeg0   = detail::bit_cast<float>(ifNeg0);
+    if constexpr(is_float)
+    {
+        const uint32_t ifInf    = 0x7F800000;
+        const uint32_t ifNegInf = 0xFF800000;
+        const uint32_t ifNaN    = 0x7F800001;
+        const uint32_t ifNeg0   = 0x80000000;
+        fInf                    = migraphx::bit_cast<float>(ifInf);
+        fNegInf                 = migraphx::bit_cast<float>(ifNegInf);
+        fNaN                    = migraphx::bit_cast<float>(ifNaN);
+        fNeg0                   = migraphx::bit_cast<float>(ifNeg0);
+    }
 
     if(x == 0)
         return 0;
@@ -305,7 +296,7 @@ constexpr T cast_from_f8(uint8_t x)
         else if(wm == 3 and (x == 0x7F or x == 0xFF))
             return fNaN;
     }
-    typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
+    typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
 
     const int exp_low_cutoff = (1 << (weo - 1)) - (1 << (we - 1)) + 1 - (negative_zero_nan ? 1 : 0);
 
@@ -333,8 +324,11 @@ constexpr T cast_from_f8(uint8_t x)
         retval = (sign << 15) | (exponent << 10) | mantissa;
     else
         retval = (sign << 31) | (exponent << 23) | mantissa;
-    return detail::bit_cast<T>(retval);
+    return migraphx::bit_cast<T>(retval);
 }
 
-} // namespace migraphx_f8_impl
-#endif // MIGRAPHX_FP8_IMPL_HPP
+} // namespace impl
+} // namespace fp8
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL

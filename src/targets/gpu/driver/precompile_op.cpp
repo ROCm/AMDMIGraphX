@@ -41,7 +41,7 @@ struct precompile_op : action<precompile_op>
     static program create_preop_program(const operation& preop, std::vector<shape> inputs)
     {
         program p;
-        const auto* mm = p.get_main_module();
+        auto* mm = p.get_main_module();
         std::vector<instruction_ref> args;
         inputs.pop_back();
         transform(inputs, range(inputs.size()), std::back_inserter(args), [&](auto input, auto i) {
@@ -53,7 +53,7 @@ struct precompile_op : action<precompile_op>
 
     static operation get_code_object(const program& p)
     {
-        const auto* mm = p.get_main_module();
+        MIGRAPHX_TIDY_CONST auto* mm = p.get_main_module();
         auto it = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
             return (ins.name() == "gpu::code_object");
         });

@@ -166,7 +166,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(relements, 256);
+                auto block_size = compute_block_size(ctx, relements, 256);
                 if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(
@@ -274,7 +274,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements  = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = compute_block_size(relements, 256);
+                auto block_size = compute_block_size(ctx, relements, 256);
                 if(relements >= block_size * 256)
                     algo = "block_large";
                 options.set_launch_params(

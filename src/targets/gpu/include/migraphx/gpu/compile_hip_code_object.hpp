@@ -72,7 +72,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(const std::string& content,
                                                       hip_compile_options options);
 
-MIGRAPHX_GPU_EXPORT std::size_t compute_block_size(std::size_t n,
+MIGRAPHX_GPU_EXPORT std::size_t compute_block_size(context& ctx, std::size_t n,
                                                    std::size_t max_block_size = 1024);
 
 MIGRAPHX_GPU_EXPORT std::string generate_make_shape(const shape& s);

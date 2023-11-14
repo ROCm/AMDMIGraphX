@@ -273,9 +273,8 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
 template <>
 class numeric_limits<fp8e4m3fnuz>
 {
-    static constexpr bool has_infinity = false;
-
     public:
+    static constexpr bool has_infinity = false;
     static constexpr fp8e4m3fnuz epsilon() { return fp8e4m3fnuz(0x28, fp8e4m3fnuz::from_bits()); }
     // NOLINTNEXTLINE
     static constexpr fp8e4m3fnuz quiet_NaN() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
@@ -290,9 +289,8 @@ class numeric_limits<fp8e4m3fnuz>
 template <>
 class numeric_limits<fp8e4m3fn>
 {
-    static constexpr bool has_infinity = false;
-
     public:
+    static constexpr bool has_infinity = false;
     static constexpr fp8e4m3fn epsilon() { return fp8e4m3fn(0x20, fp8e4m3fn::from_bits()); }
     // NOLINTNEXTLINE
     static constexpr fp8e4m3fn quiet_NaN() { return fp8e4m3fn(0x7F, fp8e4m3fn::from_bits()); }
@@ -307,9 +305,8 @@ class numeric_limits<fp8e4m3fn>
 template <>
 class numeric_limits<fp8e5m2fnuz>
 {
-    static constexpr bool has_infinity = false;
-
     public:
+    static constexpr bool has_infinity = false;
     static constexpr fp8e5m2fnuz epsilon() { return fp8e5m2fnuz(0x34, fp8e5m2fnuz::from_bits()); }
 
     static constexpr fp8e5m2fnuz quiet_NaN() // NOLINT
@@ -329,6 +326,7 @@ template <>
 class numeric_limits<fp8e5m2>
 {
     public:
+    static constexpr bool has_infinity = true;
     static constexpr fp8e5m2 epsilon() { return fp8e5m2(0x34, fp8e5m2::from_bits()); }
     // 7D, 7E, 7F are positive NaNs and FD, FE, FF are negative NaNs
     static constexpr fp8e5m2 quiet_NaN() { return fp8e5m2(0xFF, fp8e5m2::from_bits()); } // NOLINT

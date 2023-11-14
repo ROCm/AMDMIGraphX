@@ -409,4 +409,17 @@ TEST_CASE(test_max_eq_lowest)
     EXPECT(migraphx::float_equal(std::numeric_limits<migraphx::fp8::fp8e5m2>::lowest(),
                                  -1 * std::numeric_limits<migraphx::fp8::fp8e5m2>::max()));
 }
+
+TEST_CASE(test_isfinite)
+{
+    EXPECT(std::isfinite(migraphx::fp8::fp8e5m2(0.0)));
+    EXPECT(std::isfinite(migraphx::fp8::fp8e5m2(-0.0)));
+    EXPECT(not std::isfinite(
+        migraphx::fp8::fp8e5m2(std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
+    EXPECT(not std::isfinite(
+        migraphx::fp8::fp8e5m2(-1.0 * std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
+    EXPECT(not std::isfinite(
+        migraphx::fp8::fp8e5m2(std::numeric_limits<migraphx::fp8::fp8e5m2>::quiet_NaN())));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

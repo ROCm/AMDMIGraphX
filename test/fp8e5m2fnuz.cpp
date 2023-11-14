@@ -413,17 +413,17 @@ TEST_CASE(test_no_infinity)
 
 TEST_CASE(test_binary_ops)
 {
-    auto a = migraphx::fp8::fp8e5m2(-1.0);
-    auto b = migraphx::fp8::fp8e5m2(1.0);
-    auto c = migraphx::fp8::fp8e5m2(0.0);
-    auto d = migraphx::fp8::fp8e5m2(-0.0);
+    auto a = migraphx::fp8::fp8e5m2fnuz(-1.0);
+    auto b = migraphx::fp8::fp8e5m2fnuz(1.0);
+    auto c = migraphx::fp8::fp8e5m2fnuz(0.0);
+    auto d = migraphx::fp8::fp8e5m2fnuz(-0.0);
     EXPECT(migraphx::float_equal((c + d), c));
     EXPECT(migraphx::float_equal((c + d), d));
     EXPECT(migraphx::float_equal((a + b), c));
     EXPECT(migraphx::float_equal((a + b), d));
 
-    auto e = migraphx::fp8::fp8e5m2(10.0);
-    auto f = migraphx::fp8::fp8e5m2(-10.0);
+    auto e = migraphx::fp8::fp8e5m2fnuz(10.0);
+    auto f = migraphx::fp8::fp8e5m2fnuz(-10.0);
     EXPECT(bool{e > f});
     EXPECT(bool{f < e});
     EXPECT(bool(f <= e));

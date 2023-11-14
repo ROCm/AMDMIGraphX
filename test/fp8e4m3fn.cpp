@@ -134,6 +134,15 @@ TEST_CASE(test_negative_zero)
     EXPECT(migraphx::float_equal(nzero, float(fp8_nzero)));
 }
 
+TEST_CASE(test_pos_zero_eq_neg_zero)
+{
+    float nzero = -0.0;
+    float pzero = 0.0;
+    migraphx::fp8::fp8e5m2 fp8_nzero(nzero);
+    migraphx::fp8::fp8e5m2 fp8_pzero(pzero);
+    EXPECT(fp8_nzero == fp8_pzero);
+}
+
 TEST_CASE(test_nan_1)
 {
     float fnan = std::numeric_limits<float>::quiet_NaN();

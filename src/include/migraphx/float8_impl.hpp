@@ -30,111 +30,91 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace fp8 {
 namespace impl {
 
-template <int wm, int we, typename T, bool negative_zero_nan, bool clip>
-constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0)
+// NOLINTBEGIN
+template <uint32_t Wm, uint32_t We, typename T, bool NegativeZeroNan, bool Clip>
+constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
 {
     constexpr bool is_float = std::is_same<T, float>::value;
     // half is not supported for now
     constexpr bool is_half = false;
-    static_assert(wm + we == 7, "wm+we==7");
+    static_assert(Wm + We == 7, "Wm+We==7");
     static_assert(is_float or is_half, "Only float can be cast to f8");
 
-    const int mfmt = (sizeof(T) == 4) ? 23 : 10;
+    const uint32_t mfmt = (sizeof(T) == 4) ? 23 : 10;
     typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
 
     if constexpr(sizeof(T) == 4)
-        x = migraphx::bit_cast<uint32_t>(_x);
+        x = migraphx::bit_cast<uint32_t>(f_x);
     else
-        x = migraphx::bit_cast<uint16_t>(_x);
+        x = migraphx::bit_cast<uint16_t>(f_x);
 
-    uint32_t head, mantissa;
-    int exponent, bias;
-    uint32_t sign;
-
+    uint32_t head     = 0;
+    uint32_t mantissa = 0;
+    int exponent      = 0;
+    uint32_t bias     = 0;
+    uint32_t sign     = 0;
     if constexpr(sizeof(T) == 4)
     {
-        head     = x & 0xFF800000;
-        mantissa = x & 0x7FFFFF;
-        exponent = (head >> 23) & 0xFF;
-        sign     = head >> 31;
+        head     = x & 0xFF800000;      // NOLINT
+        mantissa = x & 0x7FFFFF;        // NOLINT
+        exponent = (head >> 23) & 0xFF; // NOLINT
+        sign     = head >> 31;          // NOLINT
         bias     = 127;
     }
     else
     {
-        head     = x & 0xFC00;
-        mantissa = x & 0x3FF;
-        exponent = (head >> 10) & 0x1F;
-        sign     = head >> 15;
+        head     = x & 0xFC00;          // NOLINT
+        mantissa = x & 0x3FF;           // NOLINT
+        exponent = (head >> 10) & 0x1F; // NOLINT
+        sign     = head >> 15;          // NOLINT
         bias     = 15;
     }
 
-    uint32_t signed_inf      = (sign << 7) + (((1 << we) - 1) << wm);
-    uint32_t signed_all_ones = (sign << 7) + ((((1 << we) - 1) << wm) + ((1 << wm) - 1));
+    uint32_t signed_inf      = (sign << 7) + (((1 << We) - 1) << Wm);                     // NOLINT
+    uint32_t signed_all_ones = (sign << 7) + ((((1 << We) - 1) << Wm) + ((1 << Wm) - 1)); // NOLINT
 
     // Calcualte maximum singed value FLT_MAX, FLT_MIN
     uint32_t signed_max = signed_all_ones;
-    if(not negative_zero_nan)
-    {
-        signed_max = (wm == 2) ? (signed_max - 4) : (signed_max - 1);
-    }
+    if(not NegativeZeroNan)
+        signed_max = (Wm == 2) ? (signed_max - 4) : (signed_max - 1);
 
     // Deal with inf and NaNs
-    if(negative_zero_nan) // For the FNUZ cases, it is simple just return NaNs
+    if(NegativeZeroNan) // For the FNUZ cases, it is simple just return NaNs
     {
-        if(sizeof(T) == 4)
-        {
-            if((x & 0x7F800000) == 0x7F800000)
-                return 0x80;
-        }
-        else
-        {
-            if((x & 0x7C00) == 0x7C00)
-                return 0x80;
-        }
+        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or //  NOLINT
+           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))           // NOLINT
+            return 0x80;
     }
     else
     {
         // calculate most common NaN mantissa for FP8, which is all Ones in binary
         uint32_t nan_mantissa = 1;
-        for(auto i = 1; i < wm; ++i)
+        for(auto i = 1; i < Wm; ++i)
         {
-            nan_mantissa |= (nan_mantissa << 1);
+            nan_mantissa |= (nan_mantissa << 1);                    // NOLINT
         }
-        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or
-           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))
+        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or // NOLINT
+           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))           //  NOLINT
         {
             // infinity
             if(mantissa == 0)
             {
                 if(sign == 0)
-                {
-                    return (wm == 2) ? 0x7B : 0x7E;
-                }
+                    return (Wm == 2) ? 0x7B : 0x7E;
                 else
-                {
-                    return (wm == 2) ? 0xFB : 0xFE;
-                }
+                    return (Wm == 2) ? 0xFB : 0xFE;
             }
-            else
-            { // NaNs
+            else // NaNs
                 return signed_inf + nan_mantissa;
-            }
         }
     }
     // handle positive zero
     if(x == 0)
         return 0;
     // handle negative zero
-    if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
+    else if((sizeof(T) == 4 and x == 0x80000000) or (sizeof(T) == 2 and x == 0x8000))
     {
-        if(negative_zero_nan) // For FNUZ types neg zero is just positive zero
-        {
-            return 0;
-        }
-        else
-        {
-            return 0x80;
-        }
+        return NegativeZeroNan ? 0 : 0x80; // For FNUZ types neg zero is just positive zero
     }
 
     /* First need to check if it is normal or denorm as there is a difference of implict 1
@@ -144,13 +124,15 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0)
     exponent and mantissa again*/
 
     // For IEEE bias mode, the bias is 2^(k-1) -1 where k is the width of exponent bits
-    const int f8_bias                  = (1 << (we - 1)) - 1 + (negative_zero_nan ? 1 : 0);
+    const int f8_bias                  = (1 << (We - 1u)) - 1 + (NegativeZeroNan ? 1 : 0); // NOLINT
     const int f8_denormal_act_exponent = 1 - f8_bias; // actual exponent of f8 denormal
     /* act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
     f8_exponent is the converted f8 exponent with bias encoding
     exponent_diff is the diff between fp32/fp16 exponent and f8 exponent,
     the difference needs to be adjusted and mantissa shifted*/
-    int act_exponent, f8_exponent, exponent_diff;
+    int act_exponent  = 0;
+    int f8_exponent   = 0;
+    int exponent_diff = 0;
 
     if(exponent == 0)
     { // fp32/fp16 is in denormal.
@@ -182,11 +164,11 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0)
                 0; // exponent_diff=0 does not mean there is no difference for this case,
             // act_exponent could be larger. Just that it does not need shift mantissa
         }
-        mantissa += (1 << mfmt); // Add the implicit 1 into mantissa
+        mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
     }
-
-    bool midpoint = (mantissa & ((1 << (mfmt - wm + exponent_diff)) - 1)) ==
-                    (1 << (mfmt - wm + exponent_diff - 1));
+    // NOLINTNEXTLINE
+    bool midpoint = (mantissa & ((1 << (mfmt - Wm + exponent_diff)) - 1)) ==
+                    (1 << (mfmt - Wm + exponent_diff - 1)); // NOLINT
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
     shift right as shift right could rip off some residual part and make something not midpoint look
     like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
@@ -194,64 +176,58 @@ constexpr uint8_t cast_to_f8(T _x, bool stoch = false, uint32_t rng = 0)
     */
 
     if(exponent_diff > 0)
-        mantissa >>= exponent_diff;
+        mantissa >>= exponent_diff;             // NOLINT
     else if(exponent_diff == -1)
-        mantissa <<= -exponent_diff;
-    bool implicit_one = mantissa & (1 << mfmt);
+        mantissa <<= -exponent_diff;            // NOLINT
+    bool implicit_one = mantissa & (1 << mfmt); // NOLINT
     // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
     f8_exponent =
         (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
 
     // Now we have the exponent and mantissa adjusted
-    uint32_t drop_mask = (1 << (mfmt - wm)) - 1;
+    uint32_t drop_mask = (1u << (mfmt - Wm)) - 1; // NOLINT
     bool odd =
-        mantissa & (1 << (mfmt - wm)); // if the least significant bit that is not truncated is 1
-    mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & drop_mask;
+        mantissa & (1u << (mfmt - Wm)); // if the least significant bit that is not truncated is 1
+    mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & // NOLINT
+                drop_mask;                                                                // NOLINT
 
     // Now we deal with overflow
-    if(f8_exponent == 0)
+    if(f8_exponent == 0 and ((1 << mfmt) & mantissa)) // NOLINT
     {
-        if((1 << mfmt) & mantissa)
-        {
-            f8_exponent = 1; // denormal overflow to become normal, promote exponent
-        }
+        f8_exponent = 1;                  // denormal overflow to become normal, promote exponent
     }
-    else
+    else if((1 << (mfmt + 1)) & mantissa) // NOLINT
     {
-        if((1 << (mfmt + 1)) & mantissa)
-        {
-            mantissa >>= 1;
-            f8_exponent++;
-        }
+        mantissa >>= 1;                   // NOLINT
+        f8_exponent++;
     }
 
-    mantissa >>= (mfmt - wm);
+    mantissa >>= (mfmt - Wm); // NOLINT
 
     // above range: quantize to maximum possible float of the same sign
-    const int max_exp = (1 << we) - (negative_zero_nan ? 1 : 2);
+    const int max_exp = (1 << We) - (NegativeZeroNan ? 1 : 2); // NOLINT
     if(f8_exponent > max_exp)
     {
-        if(clip)
-        {
+        if(Clip)
             return signed_max;
-        }
         else
         {
             // https://onnx.ai/onnx/technical/float8.html#cast
-            if(negative_zero_nan)
+            if(NegativeZeroNan)
                 return 0x80;
             else
-                return (wm == 2) ? signed_inf : signed_all_ones;
+                return (Wm == 2) ? signed_inf : signed_all_ones;
         }
     }
 
     if(f8_exponent == 0 and mantissa == 0)
-        return negative_zero_nan ? 0 : (sign << 7);
-    mantissa &= (1 << wm) - 1;
-    return (sign << 7) | (f8_exponent << wm) | mantissa;
+        return NegativeZeroNan ? 0 : (sign << 7);        //  NOLINT
+    mantissa &= (1 << Wm) - 1;                           // NOLINT
+    return (sign << 7) | (f8_exponent << Wm) | mantissa; // NOLINT
 }
+// NOLINTEND
 
-template <int wm, int we, typename T, bool negative_zero_nan>
+template <uint32_t Wm, uint32_t We, typename T, bool NegativeZeroNan>
 constexpr T cast_from_f8(uint8_t x)
 {
     // half is not supported for now
@@ -261,69 +237,70 @@ constexpr T cast_from_f8(uint8_t x)
 
     constexpr int weo = is_half ? 5 : 8;
     constexpr int wmo = is_half ? 10 : (is_float ? 23 : 7);
-
-    T fInf, fNegInf, fNaN, fNeg0;
+    // NOLINTNEXTLINE
+    T f_inf, f_neg_inf, f_nan, f_neg0;
 
     if constexpr(is_float)
     {
-        const uint32_t ifInf    = 0x7F800000;
-        const uint32_t ifNegInf = 0xFF800000;
-        const uint32_t ifNaN    = 0x7F800001;
-        const uint32_t ifNeg0   = 0x80000000;
-        fInf                    = migraphx::bit_cast<float>(ifInf);
-        fNegInf                 = migraphx::bit_cast<float>(ifNegInf);
-        fNaN                    = migraphx::bit_cast<float>(ifNaN);
-        fNeg0                   = migraphx::bit_cast<float>(ifNeg0);
+        const uint32_t if_inf     = 0x7F800000;
+        const uint32_t if_neg_inf = 0xFF800000;
+        const uint32_t if_nan     = 0x7F800001;
+        const uint32_t if_neg0    = 0x80000000;
+        f_inf                     = migraphx::bit_cast<float>(if_inf);
+        f_neg_inf                 = migraphx::bit_cast<float>(if_neg_inf);
+        f_nan                     = migraphx::bit_cast<float>(if_nan);
+        f_neg0                    = migraphx::bit_cast<float>(if_neg0);
     }
 
     if(x == 0)
         return 0;
 
-    uint32_t sign     = x >> 7;
-    uint32_t mantissa = x & ((1 << wm) - 1);
-    int exponent      = (x & 0x7F) >> wm;
-    if(negative_zero_nan)
+    uint32_t sign     = x >> 7;              // NOLINT
+    uint32_t mantissa = x & ((1 << Wm) - 1); // NOLINT
+    int exponent      = (x & 0x7F) >> Wm;    // NOLINT
+    if(NegativeZeroNan)
     {
         if(x == 0x80)
-            return fNaN;
+            return f_nan;
     }
     else
     {
         if(x == 0x80)
-            return fNeg0;
-        if(exponent == ((1 << we) - 1) and wm == 2)
-            return (mantissa == 0) ? (sign ? fNegInf : fInf) : fNaN;
-        else if(wm == 3 and (x == 0x7F or x == 0xFF))
-            return fNaN;
+            return f_neg0;
+        if(exponent == ((1 << We) - 1) and Wm == 2) // NOLINT
+            return (mantissa == 0) ? (sign ? f_neg_inf : f_inf) : f_nan;
+        else if(Wm == 3 and (x == 0x7F or x == 0xFF))
+            return f_nan;
     }
     typename std::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
 
-    const int exp_low_cutoff = (1 << (weo - 1)) - (1 << (we - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    const int exp_low_cutoff =
+        (1 << (weo - 1)) - (1 << (We - 1)) + 1 - (NegativeZeroNan ? 1 : 0); // NOLINT
 
     // subnormal input
     if(exponent == 0)
     {
         // guaranteed mantissa!=0 since cases 0x0 and 0x80 are handled above
-        int sh = 1 + __builtin_clz(mantissa) - (32 - wm);
-        mantissa <<= sh;
+        int sh = 1 + __builtin_clz(mantissa) - (32 - Wm);
+        mantissa <<= sh;             // NOLINT
         exponent += 1 - sh;
-        mantissa &= ((1 << wm) - 1);
+        mantissa &= ((1 << Wm) - 1); // NOLINT
     }
     exponent += exp_low_cutoff - 1;
-    mantissa <<= wmo - wm;
+    mantissa <<= wmo - Wm; // NOLINT
 
-    // subnormal output (occurs when T=half, we=5, negative_zero_nan=true)
+    // subnormal output (occurs when T=half, We=5, negative_zero_nan=true)
     if(exponent <= 0)
     {
-        mantissa |= 1 << wmo;
-        mantissa >>= 1 - exponent;
+        mantissa |= 1 << wmo;      // NOLINT
+        mantissa >>= 1 - exponent; // NOLINT
         exponent = 0;
     }
 
     if(sizeof(T) == 2)
-        retval = (sign << 15) | (exponent << 10) | mantissa;
+        retval = (sign << 15) | (exponent << 10) | mantissa; // NOLINT
     else
-        retval = (sign << 31) | (exponent << 23) | mantissa;
+        retval = (sign << 31) | (exponent << 23) | mantissa; // NOLINT
     return migraphx::bit_cast<T>(retval);
 }
 

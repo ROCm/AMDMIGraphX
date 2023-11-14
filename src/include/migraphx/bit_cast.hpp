@@ -21,8 +21,13 @@
  * ************************************************************************ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
 #define MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
 #include <migraphx/config.hpp>
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
 
 namespace migraphx {
@@ -39,4 +44,7 @@ inline constexpr To bit_cast(From fr) noexcept
 }
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #endif // MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP

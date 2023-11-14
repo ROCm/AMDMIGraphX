@@ -32,6 +32,7 @@
 // We are clipping/saturation in down conversion by default. Unclipped version is not tested and
 // shouldn't be used without having enough tests.
 // logic is based on clipping table from here : https://onnx.ai/onnx/technical/float8.html#cast
+// NOLINTNEXTLINE
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
 
 #include <cmath>
@@ -173,6 +174,7 @@ struct float8
         }
     }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_FP8_UNARY_OP(unary_op, binary_op)                                    \
     constexpr float8& operator unary_op(const float8& rhs)                            \
     {                                                                                 \
@@ -192,8 +194,8 @@ struct float8
     MIGRAPHX_FP8_UNARY_OP(+=, +)
     MIGRAPHX_FP8_UNARY_OP(/=, /)
 
-    inline constexpr float8& operator=(const float8& rhs) = default;
-    inline constexpr float8& operator=(float8&& rhs)      = default;
+    inline constexpr float8& operator=(const float8& rhs)     = default;
+    inline constexpr float8& operator=(float8&& rhs) noexcept = default;
 
     inline constexpr float8& operator=(float rhs)
     {
@@ -203,11 +205,9 @@ struct float8
 
     inline constexpr bool operator==(const float8& rhs) const
     {
-        if(rhs.is_zero() and this->is_zero())
-            return true;
-        else if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
+        if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
             return false;
-        else if(this->data == rhs.data)
+        else if((rhs.is_zero() and this->is_zero()) or (this->data == rhs.data))
             return true;
         return false;
     }
@@ -260,7 +260,7 @@ MIGRAPHX_FP8_BINARY_OP(!=, bool)
 template <migraphx::fp8::f8_type T>
 inline migraphx::fp8::float8<T> fabs(migraphx::fp8::float8<T> v)
 {
-    v.data = v.data & 0x7f;
+    v.data = v.data & 0x7f; // NOLINT
     return v;
 }
 
@@ -277,7 +277,7 @@ class numeric_limits<fp8e4m3fnuz>
 
     public:
     static constexpr fp8e4m3fnuz epsilon() { return fp8e4m3fnuz(0x28, fp8e4m3fnuz::from_bits()); }
-
+    // NOLINTNEXTLINE
     static constexpr fp8e4m3fnuz quiet_NaN() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
 
     static constexpr fp8e4m3fnuz max() { return fp8e4m3fnuz(0x7F, fp8e4m3fnuz::from_bits()); }
@@ -294,7 +294,7 @@ class numeric_limits<fp8e4m3fn>
 
     public:
     static constexpr fp8e4m3fn epsilon() { return fp8e4m3fn(0x20, fp8e4m3fn::from_bits()); }
-
+    // NOLINTNEXTLINE
     static constexpr fp8e4m3fn quiet_NaN() { return fp8e4m3fn(0x7F, fp8e4m3fn::from_bits()); }
 
     static constexpr fp8e4m3fn max() { return fp8e4m3fn(0x7E, fp8e4m3fn::from_bits()); }
@@ -312,7 +312,10 @@ class numeric_limits<fp8e5m2fnuz>
     public:
     static constexpr fp8e5m2fnuz epsilon() { return fp8e5m2fnuz(0x34, fp8e5m2fnuz::from_bits()); }
 
-    static constexpr fp8e5m2fnuz quiet_NaN() { return fp8e5m2fnuz(0x80, fp8e5m2fnuz::from_bits()); }
+    static constexpr fp8e5m2fnuz quiet_NaN() // NOLINT
+    {
+        return fp8e5m2fnuz(0x80, fp8e5m2fnuz::from_bits());
+    }
 
     static constexpr fp8e5m2fnuz max() { return fp8e5m2fnuz(0x7F, fp8e5m2fnuz::from_bits()); }
     // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
@@ -328,7 +331,7 @@ class numeric_limits<fp8e5m2>
     public:
     static constexpr fp8e5m2 epsilon() { return fp8e5m2(0x34, fp8e5m2::from_bits()); }
     // 7D, 7E, 7F are positive NaNs and FD, FE, FF are negative NaNs
-    static constexpr fp8e5m2 quiet_NaN() { return fp8e5m2(0xFF, fp8e5m2::from_bits()); }
+    static constexpr fp8e5m2 quiet_NaN() { return fp8e5m2(0xFF, fp8e5m2::from_bits()); } // NOLINT
 
     static constexpr fp8e5m2 max() { return fp8e5m2(0x7B, fp8e5m2::from_bits()); }
     // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
@@ -345,8 +348,8 @@ class numeric_limits<fp8e5m2>
 
 // =================================================================================================
 // define numeric limits for the new data type
+// NOLINTBEGIN
 namespace std {
-
 #define MIGRAPHX_FP8_STD_OVERLOADS(T)                                 \
     inline bool isfinite(T x) { return x.is_inf(); }                  \
     inline bool isnan(T x) { return x.is_nan(); }                     \
@@ -372,8 +375,8 @@ MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fnuz)
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
-
 } // namespace std
+// NOLINTEND
 // =================================================================================================
 #if defined(__clang__)
 #pragma clang diagnostic pop

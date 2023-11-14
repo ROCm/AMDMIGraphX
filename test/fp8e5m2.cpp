@@ -422,4 +422,26 @@ TEST_CASE(test_isfinite)
     EXPECT(not std::isfinite(migraphx::fp8::fp8e5m2(0xFC, migraphx::fp8::fp8e5m2::from_bits())));
 }
 
+TEST_CASE(test_binary_ops)
+{
+    auto a = migraphx::fp8::fp8e5m2(-1.0);
+    auto b = migraphx::fp8::fp8e5m2(1.0);
+    auto c = migraphx::fp8::fp8e5m2(0.0);
+    auto d = migraphx::fp8::fp8e5m2(-0.0);
+    EXPECT(migraphx::float_equal((c + d), c));
+    EXPECT(migraphx::float_equal((c + d), d));
+    EXPECT(migraphx::float_equal((a + b), c));
+    EXPECT(migraphx::float_equal((a + b), d));
+
+    auto e = migraphx::fp8::fp8e5m2(10.0);
+    auto f = migraphx::fp8::fp8e5m2(-10.0);
+    EXPECT(bool{e > f});
+    EXPECT(bool{f < e});
+    EXPECT(bool(f <= e));
+    EXPECT(bool{e >= f});
+    EXPECT(bool{e <= e});
+    EXPECT(bool{f >= f});
+    EXPECT(not migraphx::float_equal(f, e));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

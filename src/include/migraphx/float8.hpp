@@ -227,49 +227,84 @@ struct float8
     }
 };
 
-// Special operator overloading
-template <migraphx::fp8::f8_type T>
-inline std::ostream& operator<<(std::ostream& os, const migraphx::fp8::float8<T>& rhs)
-{
-    return os << static_cast<float>(rhs);
-}
-
-// NOLINTNEXTLINE
-#define MIGRAPHX_FP8_BINARY_OP(binary_op, U)                                   \
-    template <migraphx::fp8::f8_type T>                                        \
-    inline constexpr U operator binary_op(const migraphx::fp8::float8<T>& lhs, \
-                                          const migraphx::fp8::float8<T>& rhs) \
-    {                                                                          \
-        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs));   \
-    }
-
-// TODO: these should return floats
-MIGRAPHX_FP8_BINARY_OP(*, migraphx::fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(-, migraphx::fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(/, migraphx::fp8::float8<T>)
-MIGRAPHX_FP8_BINARY_OP(+, migraphx::fp8::float8<T>)
-// TODO: Comparison ops shouldn't convert to float, need to check if need to take care of rounding
-// effects.
-MIGRAPHX_FP8_BINARY_OP(==, bool)
-MIGRAPHX_FP8_BINARY_OP(>=, bool)
-MIGRAPHX_FP8_BINARY_OP(<=, bool)
-MIGRAPHX_FP8_BINARY_OP(>, bool)
-MIGRAPHX_FP8_BINARY_OP(<, bool)
-MIGRAPHX_FP8_BINARY_OP(!=, bool)
-
-template <migraphx::fp8::f8_type T>
-inline migraphx::fp8::float8<T> fabs(migraphx::fp8::float8<T> v)
-{
-    v.data = v.data & 0x7f; // NOLINT
-    return v;
-}
-
 // https://onnx.ai/onnx/technical/float8.html
 using fp8e4m3fn   = float8<migraphx::fp8::f8_type::fp8, false>;
 using fp8e5m2     = float8<migraphx::fp8::f8_type::bf8, false>;
 using fp8e4m3fnuz = float8<migraphx::fp8::f8_type::fp8, true>;
 using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
+/*
+// NOLINTNEXTLINE
+#define MIGRAPHX_FP8_BINARY_OP(binary_op, T, U)                                     \
+    inline constexpr U operator binary_op(const T& lhs, const T& rhs)               \
+    {                                                                               \
+        return U(static_cast<float>(lhs) binary_op static_cast<float>(rhs)); \
+    }
 
+// TODO: these should return floats for binary ops
+// NOLINTNEXTLINE
+#define MIGRAPHX_FP8_BINARY_OP_GEN_FOR(T) \
+    MIGRAPHX_FP8_BINARY_OP(*, T, T)       \
+    MIGRAPHX_FP8_BINARY_OP(-, T, T)       \
+    MIGRAPHX_FP8_BINARY_OP(/, T, T)       \
+    MIGRAPHX_FP8_BINARY_OP(+, T, T)       \
+    MIGRAPHX_FP8_BINARY_OP(==, T, bool)   \
+    MIGRAPHX_FP8_BINARY_OP(>=, T, bool)   \
+    MIGRAPHX_FP8_BINARY_OP(<=, T, bool)   \
+    MIGRAPHX_FP8_BINARY_OP(>, T, bool)    \
+    MIGRAPHX_FP8_BINARY_OP(<, T, bool)    \
+    MIGRAPHX_FP8_BINARY_OP(!=, T, bool)
+
+MIGRAPHX_FP8_BINARY_OP_GEN_FOR(fp8e5m2)
+MIGRAPHX_FP8_BINARY_OP_GEN_FOR(fp8e4m3fn)
+MIGRAPHX_FP8_BINARY_OP_GEN_FOR(fp8e5m2fnuz)
+MIGRAPHX_FP8_BINARY_OP_GEN_FOR(fp8e4m3fnuz)
+*/
+
+// Special operator overloading
+inline std::ostream& operator<<(std::ostream& os, const fp8e4m3fnuz& rhs)
+{
+    return os << static_cast<float>(rhs);
+}
+
+inline fp8e4m3fnuz fabs(fp8e4m3fnuz v)
+{
+    v.data = v.data & 0x7f; // NOLINT
+    return v;
+}
+// Special operator overloading
+inline std::ostream& operator<<(std::ostream& os, const fp8e4m3fn& rhs)
+{
+    return os << static_cast<float>(rhs);
+}
+
+inline fp8e4m3fn fabs(fp8e4m3fn v)
+{
+    v.data = v.data & 0x7f; // NOLINT
+    return v;
+}
+
+// Special operator overloading
+inline std::ostream& operator<<(std::ostream& os, const fp8e5m2fnuz& rhs)
+{
+    return os << static_cast<float>(rhs);
+}
+
+inline fp8e5m2fnuz fabs(fp8e5m2fnuz v)
+{
+    v.data = v.data & 0x7f; // NOLINT
+    return v;
+}
+// Special operator overloading
+inline std::ostream& operator<<(std::ostream& os, const fp8e5m2& rhs)
+{
+    return os << static_cast<float>(rhs);
+}
+
+inline fp8e5m2 fabs(fp8e5m2 v)
+{
+    v.data = v.data & 0x7f; // NOLINT
+    return v;
+}
 template <>
 class numeric_limits<fp8e4m3fnuz>
 {

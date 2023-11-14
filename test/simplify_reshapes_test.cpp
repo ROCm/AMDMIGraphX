@@ -1299,7 +1299,7 @@ TEST_CASE(transpose_contiguous_reshape_unary)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
         auto transpose_ins = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
-        auto relu     = m2.add_instruction(migraphx::make_op("relu"), transpose_ins);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), transpose_ins);
         auto reshape_ins2 =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), relu);
         m2.add_instruction(pass_op{}, reshape_ins2);
@@ -1352,8 +1352,7 @@ TEST_CASE(transpose_contiguous_unsqueeze_unary)
         auto transpose_ins =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
         auto round    = m2.add_instruction(migraphx::make_op("nearbyint"), transpose_ins);
-        auto unsq_ins =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), round);
+        auto unsq_ins = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), round);
         m2.add_instruction(pass_op{}, unsq_ins);
     }
     EXPECT(m1 == m2);

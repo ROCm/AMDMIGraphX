@@ -1900,12 +1900,12 @@ TEST_CASE(simplify_split_add_relu_reshape)
         auto slc1    = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), relu);
 
-        auto rsp1    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc1);
+        auto rsp1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc1);
 
         auto slc2 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), relu);
 
-        auto rsp2    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc2);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4}}}), slc2);
 
         auto add = m2.add_instruction(migraphx::make_op("add"), rsp1, rsp2);
         m2.add_instruction(pass_op{}, add);
@@ -2328,8 +2328,7 @@ TEST_CASE(simplify_dot_horiz_reshape)
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), dot);
         auto y = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {4}}, {"ends", {8}}}), dot);
-        auto x_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
+        auto x_rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 4, 2, 2}}}), x);
         auto y_rsp =
             m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), y);
         auto sum = m2.add_instruction(migraphx::make_op("add"), {x_rsp, y_rsp});
@@ -2692,8 +2691,8 @@ void reorder_reshape_slice()
         {
             s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
-        auto input     = m2.add_parameter("input", s);
-        auto rsp_input = input;
+        auto input = m2.add_parameter("input", s);
+        auto rsp_input            = input;
         std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 30, 64};
         auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);
 

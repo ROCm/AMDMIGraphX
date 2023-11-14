@@ -574,7 +574,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')

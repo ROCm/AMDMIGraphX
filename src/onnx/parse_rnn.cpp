@@ -33,6 +33,29 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+void rnn_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+{
+    std::vector<int64_t> perm{1, 0, 2};
+    args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
+
+    if(args.size() == 6 and not args[5]->is_undefined())
+    {
+        args[5] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[5]);
+    }
+}
+
+void rnn_transpose_outputs(onnx_parser::node_info& info,
+                           instruction_ref& hidden_states,
+                           instruction_ref& last_output)
+{
+    std::vector<int64_t> perm_hs{2, 0, 1, 3};
+    hidden_states =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_hs}}), hidden_states);
+    std::vector<int64_t> perm_last{1, 0, 2};
+    last_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_output);
+}
+
 struct parse_rnn : op_parser<parse_rnn>
 {
     std::vector<op_desc> operators() const { return {{"RNN"}}; }
@@ -116,12 +139,23 @@ struct parse_rnn : op_parser<parse_rnn>
             clip = parser.parse_value(info.attributes.at("clip")).at<float>();
         }
 
+        int layout = 0;
+        if(contains(info.attributes, "layout"))
+        {
+            layout = parser.parse_value(info.attributes.at("layout")).at<int>();
+        }
+
         // if the number of arguments is less than 6, append
         // undefined operator to have 6 arguments
         if(args.size() < 6)
         {
             auto ins = info.add_instruction(make_op("undefined"));
             args.insert(args.end(), (6 - args.size()), ins);
+        }
+
+        if(layout != 0)
+        {
+            rnn_transpose_inputs(info, args);
         }
 
         // first output for the concatenation of hidden states
@@ -134,6 +168,11 @@ struct parse_rnn : op_parser<parse_rnn>
 
         // second output for the last hidden state
         auto last_output = info.add_instruction(make_op("rnn_last_hs_output"), hidden_states);
+
+        if(layout != 0)
+        {
+            rnn_transpose_outputs(info, hidden_states, last_output);
+        }
 
         return {hidden_states, last_output};
     }

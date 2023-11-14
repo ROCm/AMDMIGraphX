@@ -350,25 +350,25 @@ class numeric_limits<fp8e5m2>
 // define numeric limits for the new data type
 // NOLINTBEGIN
 namespace std {
-#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                 \
-    inline bool isfinite(T x) { return x.is_inf(); }                  \
-    inline bool isnan(T x) { return x.is_nan(); }                     \
-    template <>                                                       \
-    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T> \
-    {                                                                 \
-    };                                                                \
-    template <class U>                                                \
-    struct common_type<T, U> : std::common_type<float, U>             \
-    {                                                                 \
-    };                                                                \
-    template <class U>                                                \
-    struct common_type<U, T> : std::common_type<float, U>             \
-    {                                                                 \
-    };                                                                \
-    template <>                                                       \
-    struct common_type<T, T>                                          \
-    {                                                                 \
-        using type = T;                                               \
+#define MIGRAPHX_FP8_STD_OVERLOADS(T)                                       \
+    inline bool isfinite(T x) { return not x.is_inf() and not x.is_nan(); } \
+    inline bool isnan(T x) { return x.is_nan(); }                           \
+    template <>                                                             \
+    class numeric_limits<T> : public migraphx::fp8::numeric_limits<T>       \
+    {                                                                       \
+    };                                                                      \
+    template <class U>                                                      \
+    struct common_type<T, U> : std::common_type<float, U>                   \
+    {                                                                       \
+    };                                                                      \
+    template <class U>                                                      \
+    struct common_type<U, T> : std::common_type<float, U>                   \
+    {                                                                       \
+    };                                                                      \
+    template <>                                                             \
+    struct common_type<T, T>                                                \
+    {                                                                       \
+        using type = T;                                                     \
     };
 
 MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e4m3fn)

@@ -9013,6 +9013,23 @@ def unique_dynamic_sorted_test():
 
 
 @onnx_test()
+def unique_dynamic_sorted_3D_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT64, [4, 4, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [16])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [16])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [64])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [16])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        sorted=1)
+    return ([node], [x], [y, y_ind, x_ind, count])
+
+
+@onnx_test()
 def unique_dynamic_unsorted_test():
     x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [6])
     y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4])

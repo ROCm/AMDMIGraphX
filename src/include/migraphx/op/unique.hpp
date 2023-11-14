@@ -33,6 +33,7 @@
 #include <utility>
 #include <map>
 #include <limits>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -102,19 +103,15 @@ struct unique
         };
 
         auto idx_less_fn = [&](auto idx1, auto idx2) {
-            // for efficiency, loop is bypassed for single elements. ct = 1
-            for(size_t ct = chunk_sz; ct > 1; idx1++, idx2++, ct--)
-            {
-                if(input_data[idx1] < input_data[idx2])
-                    return true;
-                else if(input_data[idx1] > input_data[idx2])
-                    return false;
-            }
-            return input_data[idx1] < input_data[idx2];
+            return std::lexicographical_compare(input_data.begin() + idx1,
+                                                input_data.begin() + idx1 + chunk_sz,
+                                                input_data.begin() + idx2,
+                                                input_data.begin() + idx2 + chunk_sz);
         };
         std::map<size_t, y_info, decltype(idx_less_fn)> uniq_val_map(idx_less_fn);
 
-        std::vector<std::size_t> x_rev_indices;
+        std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::size_t>> rv;
+        auto& [y_indices, x_rev_indices, y_count] = rv;
 
         // go through all the elements and find the unique elements..
         size_t count_x = input_data.size();
@@ -126,9 +123,9 @@ struct unique
             x_rev_indices.push_back(itr->second.y_idx);
         }
 
-        std::vector<std::size_t> y_indices(uniq_val_map.size());
-        std::vector<std::size_t> y_count(uniq_val_map.size());
         std::vector<std::size_t> y2x_indices(uniq_val_map.size());
+        y_indices.resize(uniq_val_map.size());
+        y_count.resize(uniq_val_map.size());
         size_t idx = 0;
         // the unique elements are now sorted:
         // post-processing for all the return indices.
@@ -143,7 +140,7 @@ struct unique
         for(auto& i : x_rev_indices)
             i = y2x_indices[i];
 
-        return std::tuple{y_indices, x_rev_indices, y_count};
+        return rv;
     }
 
     // CASE UNSORTED:
@@ -166,21 +163,15 @@ struct unique
     auto unsorted_uniq_indices(const T& input_data, size_t chunk_sz) const
     {
         auto idx_less_fn = [&](auto idx1, auto idx2) {
-            // for efficiency, loop is bypassed for single elements. ct = 1
-            for(size_t ct = chunk_sz; ct > 1; idx1++, idx2++, ct--)
-            {
-                if(input_data[idx1] < input_data[idx2])
-                    return true;
-                else if(input_data[idx1] > input_data[idx2])
-                    return false;
-            }
-            return input_data[idx1] < input_data[idx2];
+            return std::lexicographical_compare(input_data.begin() + idx1,
+                                                input_data.begin() + idx1 + chunk_sz,
+                                                input_data.begin() + idx2,
+                                                input_data.begin() + idx2 + chunk_sz);
         };
         std::map<size_t, size_t, decltype(idx_less_fn)> uniq_val_map(idx_less_fn);
 
-        std::vector<std::size_t> y_indices;
-        std::vector<std::size_t> x_rev_indices;
-        std::vector<std::size_t> y_count;
+        std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::size_t>> rv;
+        auto& [y_indices, x_rev_indices, y_count] = rv;
 
         // go through all the elements and add the unique elements into the map..
         // inline processing for outputs: y_indices, x_rev_indices, y_count
@@ -197,15 +188,14 @@ struct unique
             x_rev_indices.push_back(itr->second);
         }
 
-        return std::tuple{y_indices, x_rev_indices, y_count};
+        return rv;
     }
 
-    // Default: none. Range: [-rank, rank-1]
-    static constexpr int64_t axis_none = std::numeric_limits<int64_t>::max();
-    int64_t axis                       = axis_none;
+    // Axis. Default: none. Range: [-rank, rank-1]
+    std::optional<int64_t> axis;
 
-    // Default: 1= sorted. 0 = unsorted.
-    int64_t sorted = 1;
+    // Sorted, Default: 1= sorted. 0 = unsorted.
+    bool sorted = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -217,47 +207,50 @@ struct unique
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
+        check_shapes{inputs, *this}.has(1);
 
         auto& sh_x         = inputs[0];
         auto lens_x        = sh_x.lens();
         size_t dim_x       = sh_x.ndim();
         size_t max_uniq_ct = sh_x.elements();
-
-        int64_t t_axis = axis;
-        if(t_axis != axis_none)
-        {
-            t_axis = migraphx::tune_axis(dim_x, t_axis, name());
-            if(t_axis != 0)
-                MIGRAPHX_THROW("Unique: Only supports axis = 0 or None");
-            max_uniq_ct /= sh_x.strides()[t_axis];
-        }
+        std::vector<shape::dynamic_dimension> d_out;
 
         // min = 1 unique element; max = full dimension along the axis
-        // The three outputted Indices are just 1-D:
-        std::vector<shape::dynamic_dimension> d_out{{1, max_uniq_ct}};
-        shape sh_idx{shape::int64_type, {d_out}};
+        if(axis)
+        {
+            int64_t t_axis = migraphx::tune_axis(dim_x, *axis, name());
+            if(t_axis != 0)
+                MIGRAPHX_THROW("Unique: Only supports axis = 0 or None");
 
-        // Unique elements themselves aren't necessarily 1-D.. fix its output shape:
-        for(size_t idx = 1; t_axis != axis_none && t_axis + idx < dim_x; idx++)
-            d_out.push_back({lens_x[t_axis + idx], lens_x[t_axis + idx]});
-        shape sh_y = {sh_x.type(), {d_out}};
+            // only axis = 0 is supported:
+            max_uniq_ct /= lens_x[0];
+            d_out.push_back({1, max_uniq_ct});
+            for(size_t idx = 1; idx < dim_x; idx++)
+                d_out.push_back({lens_x[idx], lens_x[idx]});
+        }
+        else
+        {
+            d_out.push_back({1, max_uniq_ct});
+        }
+
+        shape sh_y = {sh_x.type(), d_out};
+        // The three outputted Indices are just 1-D:
+        shape sh_idx{shape::int64_type, {d_out[0]}};
 
         return {{sh_y, sh_idx, sh_idx, sh_idx}};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        size_t uniq_ct     = 0;
         auto sh_x          = args.front().get_shape();
         size_t dim_x       = sh_x.ndim();
         auto lens_x        = sh_x.lens();
         shape output_shape = dyn_out.computed_shape;
         auto vec_ss        = output_shape.sub_shapes();
-        auto x_ct          = sh_x.elements();
-        shape sh_y         = {vec_ss[0].type(), {x_ct}};
-        shape sh_idx       = {vec_ss[1].type(), {x_ct}};
-        shape sh_x_idx     = {vec_ss[1].type(), {x_ct}};
+        auto ct_x          = sh_x.elements();
+        shape sh_y         = {vec_ss[0].type(), {ct_x}};
+        shape sh_idx       = {vec_ss[1].type(), {ct_x}};
+        shape sh_x_idx     = {vec_ss[1].type(), {ct_x}};
 
         argument res_y{sh_y};
         argument res_y_idx{sh_idx};
@@ -272,38 +265,34 @@ struct unique
         // then, the uniqueness of chunks of sub-tensors: a subsequence of built-ins..
         // For a built-in type, chunk_sz is of course = 1
         size_t chunk_sz = 1;
-        int64_t t_axis  = axis;
-        if(axis != axis_none)
-        {
-            t_axis   = tune_axis(dim_x, t_axis, name());
-            chunk_sz = sh_x.strides()[t_axis];
-        }
+        if(axis)
+            chunk_sz = ct_x / lens_x[0]; // axis = 0 is supported.
 
         visit_all(args.front(), res_y)([&](auto x, auto y_flat) {
             using o_type = typename decltype(x)::value_type;
-            std::vector<o_type> x_in(x_ct);
-            auto itr = x_in.begin();
-            shape_for_each(sh_x, [&](auto, auto idx) { *itr++ = x[idx]; });
+            std::vector<o_type> x_in(x.begin(), x.end());
 
-            const auto& [y_indices, x_rev_indices, y_count] =
-                sorted ? sorted_uniq_indices(x_in, chunk_sz)
-                       : unsorted_uniq_indices(x_in, chunk_sz);
-
-            uniq_ct = y_indices.size();
+            auto [y_indices, x_rev_indices, y_count] = sorted
+                                                           ? sorted_uniq_indices(x_in, chunk_sz)
+                                                           : unsorted_uniq_indices(x_in, chunk_sz);
+            const auto uniq_ct                       = y_indices.size();
 
             // construct y from x[indices] in flattened form
             // later we reshape y to the final shape..
-            for(size_t y_idx = 0, uniq_idx = 0; uniq_idx < uniq_ct; uniq_idx++)
-                for(size_t u_idx = y_indices[uniq_idx] * chunk_sz, ct = 0; ct < chunk_sz; ct++)
-                    y_flat[y_idx++] = x_in[u_idx++];
+            auto y_dst = y_flat.begin();
+            for(size_t idx = 0; idx < uniq_ct; idx++)
+                y_dst = copy_n(x_in.begin() + y_indices[idx] * chunk_sz, chunk_sz, y_dst);
 
             out_y_idx     = std::move(y_indices);
             out_x_rev_idx = std::move(x_rev_indices);
             out_y_ct      = std::move(y_count);
 
             std::vector<size_t> y_lens = {uniq_ct};
-            for(size_t idx = 1; t_axis != axis_none && t_axis + idx < dim_x; idx++)
-                y_lens.push_back(lens_x[t_axis + idx]);
+
+            // if axis is specified:
+            // the output shape has the n-1 dimensions of x
+            for(size_t idx = 1; axis && idx < dim_x; idx++)
+                y_lens.push_back(lens_x[idx]);
 
             sh_y   = {sh_y.type(), y_lens};
             sh_idx = {sh_idx.type(), {uniq_ct}};
@@ -311,18 +300,9 @@ struct unique
 
         visit_all(res_y_idx, res_x_rev_idx, res_y_ct_idx)(
             [&](auto y_indices, auto x_rev_indices, auto y_count) {
-                for(size_t i = 0; i < uniq_ct; i++)
-                {
-                    y_indices[i]     = out_y_idx[i];
-                    x_rev_indices[i] = out_x_rev_idx[i];
-                    y_count[i]       = out_y_ct[i];
-                }
-
-                // len(y uniq_values) <= len(input x)
-                // Fill x reverse-indices beyond the len(uniq_values), if any..
-                for(size_t i = uniq_ct; i < out_x_rev_idx.size(); i++)
-                    x_rev_indices[i] = out_x_rev_idx[i];
-
+                std::copy(out_y_idx.begin(), out_y_idx.end(), y_indices.begin());
+                std::copy(out_x_rev_idx.begin(), out_x_rev_idx.end(), x_rev_indices.begin());
+                std::copy(out_y_ct.begin(), out_y_ct.end(), y_count.begin());
                 sh_x_idx = {sh_idx.type(), {out_x_rev_idx.size()}};
             });
 

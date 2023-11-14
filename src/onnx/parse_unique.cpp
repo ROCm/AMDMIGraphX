@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,22 +66,22 @@ struct parse_unique : op_parser<parse_unique>
         if(contains(info.attributes, "sorted"))
             sorted = parser.parse_value(info.attributes.at("sorted")).at<int>();
 
-        constexpr int64_t axis_none = std::numeric_limits<int64_t>::max();
-        int64_t axis                = axis_none;
+        std::optional<int64_t> axis;
         if(contains(info.attributes, "axis"))
         {
             auto n_dim = args[0]->get_shape().ndim();
             axis       = parser.parse_value(info.attributes.at("axis")).at<int>();
-            axis       = tune_axis(n_dim, axis, opd.op_name);
+            axis       = tune_axis(n_dim, *axis, opd.op_name);
         }
         migraphx::argument data_arg = args.back()->eval();
 
-        auto op      = info.add_instruction(make_op("unique", {{"sorted", sorted}, {"axis", axis}}),
-                                       args.at(0));
-        auto i_y     = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), op);
-        auto i_y_idx = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), op);
-        auto i_x_idx = info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), op);
-        auto i_count = info.add_instruction(make_op("get_tuple_elem", {{"index", 3}}), op);
+        auto opr     = axis ? migraphx::make_op("unique", {{"axis", *axis}, {"sorted", sorted}})
+                            : migraphx::make_op("unique", {{"sorted", sorted}});
+        auto u_opr   = info.add_instruction(opr, args.at(0));
+        auto i_y     = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), u_opr);
+        auto i_y_idx = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), u_opr);
+        auto i_x_idx = info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), u_opr);
+        auto i_count = info.add_instruction(make_op("get_tuple_elem", {{"index", 3}}), u_opr);
 
         return {i_y, i_y_idx, i_x_idx, i_count};
     }

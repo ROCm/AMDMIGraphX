@@ -786,7 +786,7 @@ struct find_contiguous_pointwise
             // ensure pointwise shape is still valid for gemm call
             if(std::none_of(pw_strides.end() - 2, pw_strides.end(), [&](auto i) { return i == 1; }))
                 return;
-        }    
+        }
         auto alloc  = ins->inputs().back();
         auto args   = pw->inputs();
         args.back() = alloc;

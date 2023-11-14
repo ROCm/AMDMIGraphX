@@ -778,6 +778,15 @@ struct find_contiguous_pointwise
     {
         auto ins    = r.result;
         auto pw     = ins->inputs().front();
+        for(auto output : ins->outputs())
+        {
+            if(output->name() != "gpu::gemm")
+                continue;
+            auto pw_strides = pw->get_shape().strides();
+            // ensure pointwise shape is still valid for gemm call
+            if(std::none_of(pw_strides.end() - 2, pw_strides.end(), [&](auto i) { return i == 1; }))
+                return;
+        }    
         auto alloc  = ins->inputs().back();
         auto args   = pw->inputs();
         args.back() = alloc;

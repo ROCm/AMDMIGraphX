@@ -248,4 +248,23 @@ TEST_CASE(test_binary_ops)
     EXPECT(not migraphx::float_equal(f, e));
 }
 
+TEST_CASE(test_fabs)
+{
+    auto a = migraphx::fp8::fp8e4m3fn(-1.0);
+    auto b = migraphx::fp8::fp8e4m3fn(1.0);
+    EXPECT(migraphx::float_equal(b, migraphx::fp8::fabs(a)));
+}
+
+TEST_CASE(test_stream_op)
+{
+    auto a = migraphx::fp8::fp8e4m3fn(-1.0);
+    std::stringstream ss;
+    ss << a;
+    EXPECT(std::string("-1") == ss.str());
+    ss     = std::stringstream();
+    auto b = std::numeric_limits<migraphx::fp8::fp8e4m3fn>::quiet_NaN();
+    ss << b;
+    EXPECT(std::string("nan") == ss.str());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

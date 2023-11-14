@@ -268,9 +268,10 @@ inline std::ostream& operator<<(std::ostream& os, const fp8e4m3fnuz& rhs)
 
 inline fp8e4m3fnuz fabs(fp8e4m3fnuz v)
 {
-    v.data = v.data & 0x7f; // NOLINT
+    v.data = v.data & 0x7F; // NOLINT
     return v;
 }
+
 // Special operator overloading
 inline std::ostream& operator<<(std::ostream& os, const fp8e4m3fn& rhs)
 {
@@ -279,7 +280,7 @@ inline std::ostream& operator<<(std::ostream& os, const fp8e4m3fn& rhs)
 
 inline fp8e4m3fn fabs(fp8e4m3fn v)
 {
-    v.data = v.data & 0x7f; // NOLINT
+    v.data = v.data & 0x7F; // NOLINT
     return v;
 }
 
@@ -291,7 +292,7 @@ inline std::ostream& operator<<(std::ostream& os, const fp8e5m2fnuz& rhs)
 
 inline fp8e5m2fnuz fabs(fp8e5m2fnuz v)
 {
-    v.data = v.data & 0x7f; // NOLINT
+    v.data = v.data & 0x7F; // NOLINT
     return v;
 }
 // Special operator overloading
@@ -302,7 +303,7 @@ inline std::ostream& operator<<(std::ostream& os, const fp8e5m2& rhs)
 
 inline fp8e5m2 fabs(fp8e5m2 v)
 {
-    v.data = v.data & 0x7f; // NOLINT
+    v.data = v.data & 0x7F; // NOLINT
     return v;
 }
 template <>

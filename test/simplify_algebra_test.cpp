@@ -2691,7 +2691,7 @@ void reorder_reshape_slice()
         {
             s = migraphx::shape{migraphx::shape::float_type, {BS, 128, 1920}, {165120, 1, 128}};
         }
-        auto input = m2.add_parameter("input", s);
+        auto input                = m2.add_parameter("input", s);
         auto rsp_input            = input;
         std::vector<int64_t> lens = {static_cast<int64_t>(BS), 128, 30, 64};
         auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", lens}}), rsp_input);

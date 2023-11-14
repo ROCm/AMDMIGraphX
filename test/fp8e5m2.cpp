@@ -32,7 +32,7 @@
 
 float fp8e5m2_to_fp32_value(uint8_t input)
 {
-    constexpr std::array<float, 256> e4m3fnuz_lut = {{
+    constexpr std::array<float, 256> e4m3fnuz_lut = {
         0.0,
         1.52587890625e-05,
         3.0517578125e-05,
@@ -285,11 +285,10 @@ float fp8e5m2_to_fp32_value(uint8_t input)
         -40960.0,
         -49152.0,
         -57344.0,
-        -1.0 * std::numeric_limits<float>::infinity(),
+        -1.0f * std::numeric_limits<float>::infinity(),
         std::numeric_limits<float>::quiet_NaN(),
         std::numeric_limits<float>::quiet_NaN(),
         std::numeric_limits<float>::quiet_NaN(),
-    }
 
     };
 
@@ -420,7 +419,6 @@ TEST_CASE(test_isfinite)
     // -1.0 * inf  is float(-inf) which with clipping/saturation gets converted into fp8::lowest()
     EXPECT(std::isfinite(
         migraphx::fp8::fp8e5m2(-1.0 * std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
-    // fp8(-neg_inf)
     EXPECT(not std::isfinite(migraphx::fp8::fp8e5m2(0xFC, migraphx::fp8::fp8e5m2::from_bits())));
 }
 

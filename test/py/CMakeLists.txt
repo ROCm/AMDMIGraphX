@@ -41,13 +41,21 @@ function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
         set(PYTHON_EXECUTABLE ${PYTHON_${PYTHON_VERSION}_EXECUTABLE})
 
         if(NOT TEST py_${PYTHON_VERSION}_${FIXTURE_NAME}_initialize_env)
-            if (NOT (${PYTHON_VERSION} STREQUAL ${PYTHON_VERSION_TO_DISABLE_ONNX}))
+            if (NOT (${FIXTURE_NAME} STREQUAL "onnx" AND ${PYTHON_VERSION} STREQUAL ${PYTHON_VERSION_TO_DISABLE_ONNX}))
                 add_test(NAME py_${PYTHON_VERSION}_${FIXTURE_NAME}_initialize_env COMMAND ${PYTHON_EXECUTABLE} -m venv ${VIRTUAL_ENV_DIR}/${PYTHON_VERSION} --clear)
                 set_tests_properties(py_${PYTHON_VERSION}_${FIXTURE_NAME}_initialize_env PROPERTIES FIXTURES_SETUP ${FIXTURE_NAME}_${PYTHON_VERSION}_INIT_VENV)
                 set(PYTHON_EXECUTABLE ${VIRTUAL_ENV_DIR}/${PYTHON_VERSION}/bin/python)
-                add_test(
-                    NAME py_${PYTHON_VERSION}_${FIXTURE_NAME}_setup_env
-                    COMMAND ${PYTHON_EXECUTABLE} -m pip install -r ${REQUIREMENTS_FILE})
+                if(EXISTS ${REQUIREMENTS_FILE})
+                    add_test(
+                        NAME py_${PYTHON_VERSION}_${FIXTURE_NAME}_setup_env
+                        COMMAND ${PYTHON_EXECUTABLE} -m pip install -r ${REQUIREMENTS_FILE})
+                else()
+                    # If there is no requirements file, then there are no packages to install in the virtual env.
+                    # Just create a placeholder test for setting up the required fixture for running the tests.
+                    add_test(
+                        NAME py_${PYTHON_VERSION}_${FIXTURE_NAME}_setup_env
+                        COMMAND ${PYTHON_EXECUTABLE} -m pip install --help)
+                endif()
                 set_tests_properties(py_${PYTHON_VERSION}_${FIXTURE_NAME}_setup_env PROPERTIES FIXTURES_REQUIRED ${FIXTURE_NAME}_${PYTHON_VERSION}_INIT_VENV)
                 set_tests_properties(py_${PYTHON_VERSION}_${FIXTURE_NAME}_setup_env PROPERTIES FIXTURES_SETUP ${FIXTURE_NAME}_${PYTHON_VERSION}_VENV)
             endif()
@@ -67,7 +75,7 @@ function(add_py_test NAME SCRIPT FIXTURE_NAME VENV_DIR)
         else()
             set(PYTHON_EXECUTABLE ${VENV_DIR}/${PYTHON_VERSION}/bin/python)
         endif()
-        if(NOT ${PYTHON_VERSION} STREQUAL ${PYTHON_VERSION_TO_DISABLE_ONNX})
+        if(NOT (${FIXTURE_NAME} STREQUAL "onnx" AND ${PYTHON_VERSION} STREQUAL ${PYTHON_VERSION_TO_DISABLE_ONNX}))
             add_test(
                 NAME test_py_${PYTHON_VERSION}_${NAME}
                 COMMAND ${ENV_COMMAND} ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/${SCRIPT} ${ARGN})

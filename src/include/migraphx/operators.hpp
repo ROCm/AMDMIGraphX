@@ -84,6 +84,7 @@
 #include <migraphx/op/mod.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/nearbyint.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/nonmaxsuppression.hpp>
 #include <migraphx/op/nonzero.hpp>
@@ -110,7 +111,6 @@
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/roialign.hpp>
-#include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/scatter_add.hpp>

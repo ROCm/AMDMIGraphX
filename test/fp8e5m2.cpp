@@ -415,11 +415,13 @@ TEST_CASE(test_isfinite)
     EXPECT(std::isfinite(migraphx::fp8::fp8e5m2(0.0)));
     EXPECT(std::isfinite(migraphx::fp8::fp8e5m2(-0.0)));
     EXPECT(not std::isfinite(
-        migraphx::fp8::fp8e5m2(std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
-    EXPECT(not std::isfinite(
-        migraphx::fp8::fp8e5m2(-1.0 * std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
-    EXPECT(not std::isfinite(
         migraphx::fp8::fp8e5m2(std::numeric_limits<migraphx::fp8::fp8e5m2>::quiet_NaN())));
+    EXPECT(not std::isfinite(std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity()));
+    // -1.0 * inf  is float(-inf) which with clipping/saturation gets converted into fp8::lowest()
+    EXPECT(std::isfinite(
+        migraphx::fp8::fp8e5m2(-1.0 * std::numeric_limits<migraphx::fp8::fp8e5m2>::infinity())));
+    // fp8(-neg_inf)
+    EXPECT(not std::isfinite(migraphx::fp8::fp8e5m2(0xFC, migraphx::fp8::fp8e5m2::from_bits())));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

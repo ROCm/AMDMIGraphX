@@ -240,6 +240,7 @@ struct MIGRAPHX_EXPORT module
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     friend struct program;
+
     private:
     void set_name(const std::string& name);
     void assign(const module& m);

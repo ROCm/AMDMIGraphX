@@ -37,7 +37,7 @@ void run_pass(migraphx::program& p)
     migraphx::run_passes(p, {migraphx::fuse_concat{}, migraphx::dead_code_elimination{}});
 }
 
-template<class F>
+template <class F>
 struct concat_arg
 {
     std::string name;
@@ -45,35 +45,40 @@ struct concat_arg
     F f;
 };
 
-template<class F>
+template <class F>
 concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> inputs, F f)
 {
     return {std::move(name), std::move(inputs), std::move(f)};
 }
 
 template <class Arg, class... Args>
-migraphx::instruction_ref add_concat(migraphx::program& p,
-                                     std::size_t axis,
-                                     Arg post_arg,
-                                     Args... args)
+migraphx::instruction_ref
+add_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;
-    migraphx::each_args([&](auto arg) {
-        module_inputs.push_back(create_pointwise_module(p, arg.name, arg.inputs, arg.f));        
-        ins_inputs.insert(ins_inputs.end(), arg.inputs.begin(), arg.inputs.end());
-    }, args...);
+    migraphx::each_args(
+        [&](auto arg) {
+            module_inputs.push_back(create_pointwise_module(p, arg.name, arg.inputs, arg.f));
+            ins_inputs.insert(ins_inputs.end(), arg.inputs.begin(), arg.inputs.end());
+        },
+        args...);
     module_inputs.push_back(create_pointwise_module(p, post_arg.name, {}, [&](auto* pm, auto&&) {
         std::vector<migraphx::instruction_ref> params;
-        params.push_back(pm->add_parameter("!x0", migraphx::shape{ins_inputs.back()->get_shape().type()}));
-        std::transform(post_arg.inputs.begin(), post_arg.inputs.end(), std::back_inserter(params), [&](auto input) {
-            return pm->add_parameter("x" + std::to_string(params.size()),
-                                     migraphx::shape{input->get_shape().type()});
-        });
+        params.push_back(
+            pm->add_parameter("!x0", migraphx::shape{ins_inputs.back()->get_shape().type()}));
+        std::transform(post_arg.inputs.begin(),
+                       post_arg.inputs.end(),
+                       std::back_inserter(params),
+                       [&](auto input) {
+                           return pm->add_parameter("x" + std::to_string(params.size()),
+                                                    migraphx::shape{input->get_shape().type()});
+                       });
         return post_arg.f(pm, params);
     }));
     auto* mm = p.get_main_module();
-    return mm->add_instruction(migraphx::make_op("fused_concat", {{"axis", axis}}), ins_inputs, module_inputs);
+    return mm->add_instruction(
+        migraphx::make_op("fused_concat", {{"axis", axis}}), ins_inputs, module_inputs);
 }
 
 TEST_CASE(simple_pointwise_concat)
@@ -81,22 +86,27 @@ TEST_CASE(simple_pointwise_concat)
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
-        auto add = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
-        auto sub = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto y      = mm->add_parameter("y", s);
+        auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto sub    = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
-        auto relu = add_pointwise(p1, "main:pointwise2", {concat}, single_pointwise("relu"));
+        auto relu   = add_pointwise(p1, "main:pointwise2", {concat}, single_pointwise("relu"));
         mm->add_return({relu});
     }
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s);
-        auto y     = mm->add_parameter("y", s);
-        auto fused_concat = add_concat(p2, 1, arg("main:pointwise2:concat", {}, single_pointwise("relu")), arg("concat:main:pointwise0", {x, y}, single_pointwise("add")), arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused_concat =
+            add_concat(p2,
+                       1,
+                       arg("main:pointwise2:concat", {}, single_pointwise("relu")),
+                       arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                       arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
         mm->add_return({fused_concat});
     }
     EXPECT(p1 == p2);

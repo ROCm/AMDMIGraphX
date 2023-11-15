@@ -200,8 +200,9 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                                                        const generate_module_callback& g)
 {
     function f;
-    f.set_name(to_c_id(m.name())).set_types(m).set_body(
-        m, [&](instruction_ref ins, const auto& names) -> std::string {
+    f.set_name(to_c_id(m.name()))
+        .set_types(m)
+        .set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
                 std::string string_literal;

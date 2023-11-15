@@ -212,30 +212,28 @@ struct fused_concat_compiler : compiler<fused_concat_compiler>
                        [&](module_ref mod) { return mod_names_lookup.at(mod->name()); });
         v["ops"] = mod_names;
         module_ref last_mod = ins->module_inputs().back();
-        v["post"] = "MIGRAPHX_LIFT(" + mod_names_lookup.at(last_mod->name()) + ")";
+        v["post"]           = "MIGRAPHX_LIFT(" + mod_names_lookup.at(last_mod->name()) + ")";
         std::unordered_map<std::string, std::size_t> mod_args;
         std::transform(ins->module_inputs().begin(),
-                       ins->module_inputs().end()-1,
+                       ins->module_inputs().end() - 1,
                        std::inserter(mod_args, mod_args.end()),
                        [&](module_ref mod) {
                            const auto& name = mod_names_lookup.at(mod->name());
                            return std::make_pair(name, mod->get_parameter_names().size());
                        });
         v["args"]   = mod_args;
-        auto prefix_name = transform_accumulate(
-                          ins->module_inputs().begin(),
-                          ins->module_inputs().end() - 1,
-                          std::string{},
-                          std::plus<>{},
-                          [&](module_ref mod) -> std::string { 
-                            auto name = generate_name_from_ops(*mod);
-                            if(name.empty())
-                                return "";
-                            return name + "_";
-                        });
-        v["kernel"] = prefix_name +
-                      "concat_" + generate_name_from_ops(*(ins->module_inputs().back())) +
-                      "_kernel";
+        auto prefix_name = transform_accumulate(ins->module_inputs().begin(),
+                                                ins->module_inputs().end() - 1,
+                                                std::string{},
+                                                std::plus<>{},
+                                                [&](module_ref mod) -> std::string {
+                                                    auto name = generate_name_from_ops(*mod);
+                                                    if(name.empty())
+                                                        return "";
+                                                    return name + "_";
+                                                });
+        v["kernel"]      = prefix_name + "concat_" +
+                      generate_name_from_ops(*(ins->module_inputs().back())) + "_kernel";
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

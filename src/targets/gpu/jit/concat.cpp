@@ -145,7 +145,6 @@ struct fused_concat_compiler : compiler<fused_concat_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        std::cout << "**************** fused_concat_compiler" << std::endl;
         hip_compile_options options;
         options.inputs      = inputs;
         options.output      = inputs.back();

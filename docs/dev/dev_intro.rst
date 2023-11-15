@@ -1,4 +1,4 @@
-MIGraphX Fundamentals
+Developer Introduction
 ======================
 
 MIGraphX provides an optimized execution engine for deep learning neural networks.

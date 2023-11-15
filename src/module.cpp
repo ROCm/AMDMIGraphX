@@ -134,6 +134,11 @@ module& module::operator=(module m)
 
 std::string module::name() const { return impl->name; }
 
+void module::set_name(const std::string& name)
+{
+    impl->name = name;
+}
+
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
 
@@ -782,18 +787,6 @@ void module::print_graph(std::ostream& os, bool brief) const
         }
     });
     os << "}" << std::endl;
-}
-
-static std::string to_c_id(const std::string& name, char rep = '_')
-{
-    std::string id = transform_string(name, [&](auto c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return rep;
-    });
-    while(contains(id, "__"))
-        replace_string_inplace(id, "__", "_");
-    return id;
 }
 
 static std::string cpp_var_name(const std::string& name)

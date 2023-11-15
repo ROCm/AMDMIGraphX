@@ -177,6 +177,18 @@ inline std::string interpolate_string(const std::string& input,
         std::move(end));
 }
 
+inline std::string to_c_id(const std::string& name, char rep = '_')
+{
+    std::string id = transform_string(name, [&](auto c) {
+        if(with_char(::isalnum)(c) or c == '_')
+            return c;
+        return rep;
+    });
+    while(id.find("__") != std::string::npos)
+        replace_string_inplace(id, "__", "_");
+    return id;
+}
+
 template <class Iterator>
 inline std::string to_string_range(Iterator start, Iterator last, const char* delim = ", ")
 {

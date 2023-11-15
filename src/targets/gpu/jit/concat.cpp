@@ -27,6 +27,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/algorithm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,6 +60,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 } // namespace migraphx
 
 )__migraphx__";
+
 
 struct concat_compiler : compiler<concat_compiler>
 {
@@ -108,6 +110,109 @@ struct concat_compiler : compiler<concat_compiler>
             v["post"]          = "MIGRAPHX_LIFT(post_concat)";
             v["kernel"]        = "concat_" + generate_name_from_ops(*pm) + "_kernel";
         }
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+};
+
+// NOLINTNEXTLINE
+static const char* const fused_concat_kernel = R"__migraphx__(
+#include <migraphx/kernels/concat.hpp>
+#include <migraphx/kernels/vectorize.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+${preamble}
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void ${kernel}(${params}) 
+{
+    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, ${concat_params}, auto... xs) {
+        concat2<${axis}>(${concat_args})(${post}, y, xs...);
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+struct fused_concat_compiler : compiler<fused_concat_compiler>
+{
+    std::vector<std::string> names() const { return {"fused_concat"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        hip_compile_options options;
+        options.inputs      = inputs;
+        options.output      = inputs.back();
+        options.params      = "-Wno-float-equal";
+        options.kernel_name = v.get("kernel", "concat_kernel");
+        auto axis           = find_fast_axis(options.inputs);
+        auto op_names = v.at("ops").to_vector<std::string>();
+        auto args = v.at("args");
+        vectorize vec{};
+        if(axis != v.at("axis").to<std::size_t>())
+            vec = vectorize::elements(ctx, axis, options.inputs);
+        auto nelements_per_op = options.inputs.back().elements() / op_names.size();
+        options.set_launch_params(
+            v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
+        std::vector<std::string> concat_params;
+        std::vector<std::string> concat_args;
+        for(const auto& name:op_names)
+        {
+            auto n = args.at(name).to<std::size_t>();
+            auto prefix = name + "_concat_x";
+            transform(range(n), std::back_inserter(concat_params), [&](auto i) {
+                return "auto " + prefix + std::to_string(i);
+            });
+            std::vector<std::string> pack_args = {"MIGRAPHX_LIFT(" + name + ")"};
+            transform(range(n), std::back_inserter(pack_args), [&](auto i) {
+                return prefix + std::to_string(i);
+            });
+            concat_args.push_back("pack(" + join_strings(pack_args, ", ") + ")");
+        }
+        auto src = interpolate_string(
+            fused_concat_kernel,
+            {{"kernel", options.kernel_name},
+             {"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
+             {"concat_params", join_strings(concat_params, ", ")},
+             {"concat_args", join_strings(concat_args, ", ")},
+             {"post", v.get("post", std::string{"op::id{}"})},
+             {"transformers", make_transformer_args(vec)},
+             {"preamble", v.get("preamble", std::string{})},
+             {"axis", v.at("axis").to<std::string>()}});
+        return compile_hip_code_object(src, options);
+    }
+
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        auto v = op.to_value();
+        std::unordered_map<std::string, std::string> mod_names_lookup;
+        transform(range(ins->module_inputs().size()), std::inserter(mod_names_lookup, mod_names_lookup.end()), [&](auto i) {
+            return std::make_pair(ins->module_inputs()[i]->name(), "pointwise" + std::to_string(i));
+        });
+        v["preamble"] = transform_accumulate(ins->module_inputs().begin(), ins->module_inputs().end(), std::string{}, std::plus<>{}, [&](module_ref mod) {
+            return generate_pointwise(*mod, mod_names_lookup.at(mod->name())) + "\n";
+        });
+        std::vector<std::string> mod_names;
+        std::transform(ins->module_inputs().begin(), ins->module_inputs().end(), std::back_inserter(mod_names), [&](module_ref mod) {
+            return mod_names_lookup.at(mod->name());
+        });
+        v["ops"] = mod_names;
+        std::unordered_map<std::string, std::size_t> mod_args;
+        std::transform(ins->module_inputs().begin(), ins->module_inputs().end(), std::inserter(mod_args, mod_args.end()), [&](module_ref mod) {
+            const auto& name = mod_names_lookup.at(mod->name());
+            return std::make_pair(name, mod->get_parameter_names().size());
+        });
+        v["args"] = mod_args;
+        v["kernel"] = transform_accumulate(ins->module_inputs().begin(), ins->module_inputs().end()-1, std::string{}, std::plus<>{}, [&](module_ref mod) {
+            return generate_name_from_ops(*mod) + "_";
+        }) + "concat_" + generate_name_from_ops(*(ins->module_inputs().back())) + "_kernel";
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

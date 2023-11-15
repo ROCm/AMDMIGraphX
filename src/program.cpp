@@ -1064,6 +1064,13 @@ module* program::create_module(const std::string& name)
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+module* program::create_module(const std::string& name, module m)
+{
+    assert(not contains(impl->modules, name));
+    m.set_name(name);
+    auto r = impl->modules.emplace(name, std::move(m));
+    return &(r.first->second);
+}
 
 module* program::get_module(const std::string& name) { return &impl->modules.at(name); }
 

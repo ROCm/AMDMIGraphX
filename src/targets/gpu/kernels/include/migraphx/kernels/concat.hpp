@@ -89,7 +89,8 @@ __device__ auto concat2(InputPacks... input_packs)
                 });
             });
         })(_c<0>, input_packs...);
-    }
+    };
+}
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_CONCAT_HPP

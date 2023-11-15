@@ -99,6 +99,12 @@ struct module_pm : module_pass_manager
         return prog->create_module(name);
     }
 
+    virtual module* create_module(const std::string& name, const module& m) override
+    {
+        assert(prog);
+        return prog->create_module(name, m);
+    }
+
     virtual module* get_common_parent() override { return common_parent; }
 
     virtual module* get_root_module() override

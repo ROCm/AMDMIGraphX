@@ -53,6 +53,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_reduce.cpp
     generate.cpp

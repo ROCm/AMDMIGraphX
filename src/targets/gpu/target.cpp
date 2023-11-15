@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -139,6 +140,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
+        dead_code_elimination{},
+        fuse_concat{},
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

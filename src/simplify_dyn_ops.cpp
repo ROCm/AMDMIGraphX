@@ -76,7 +76,7 @@ struct find_const_2in_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(match::nargs(3), match::arg(1)(match::is_constant()));
+        return match::name("slice")(match::nargs(2), match::arg(1)(match::is_constant()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -295,6 +295,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
+                        find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{});
 }

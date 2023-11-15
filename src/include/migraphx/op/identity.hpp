@@ -37,6 +37,11 @@ struct identity
     shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
     argument compute(shape, std::vector<argument> args) const { return args[0]; }
 
+    value attributes() const
+    {
+        return {{"pointwise", true}, {"point_op", "${0}"}};
+    }
+
     std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 

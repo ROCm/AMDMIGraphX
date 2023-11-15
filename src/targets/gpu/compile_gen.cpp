@@ -331,7 +331,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

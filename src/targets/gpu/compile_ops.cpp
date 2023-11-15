@@ -126,6 +126,11 @@ struct compile_plan
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
             }
+            catch(const std::exception& e)
+            {
+                std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                results[i] = nullopt;
+            }
             catch(...)
             {
                 results[i] = nullopt;

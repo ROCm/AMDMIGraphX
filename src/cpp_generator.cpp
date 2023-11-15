@@ -95,13 +95,13 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     std::map<std::string, shape> input_map(pmap.begin(), pmap.end());
     std::transform(
         input_map.begin(), input_map.end(), std::back_inserter(this->params), [&](auto&& p) {
-            return param{p.first, "T" + p.first};
+            return param{p.first, "T" + to_c_id(p.first)};
         });
 
     std::transform(input_map.begin(),
                    input_map.end(),
                    std::back_inserter(this->tparams),
-                   [&](auto&& p) { return "class T" + p.first; });
+                   [&](auto&& p) { return "class T" + to_c_id(p.first); });
     this->return_type = "auto";
     return *this;
 }
@@ -200,12 +200,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                                                        const generate_module_callback& g)
 {
     function f;
-    auto name = transform_string(m.name(), [](char c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return '_';
-    });
-    f.set_name(name).set_types(m).set_body(
+    f.set_name(to_c_id(m.name())).set_types(m).set_body(
         m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
@@ -241,7 +236,7 @@ cpp_generator::to_args(const std::vector<instruction_ref>& inputs,
 {
     std::vector<std::string> args;
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto i) {
-        return names.at(i);
+        return to_c_id(names.at(i));
     });
     return args;
 }
@@ -265,7 +260,7 @@ std::string cpp_generator::create_function(const cpp_generator::function& f)
         impl->fs << delim;
     for(auto&& p : f.params)
     {
-        impl->fs << delim << p.type << " " << p.name;
+        impl->fs << delim << p.type << " " << to_c_id(p.name);
         delim = ',';
     }
     impl->fs << ") {\n" << f.body << "\n}\n";

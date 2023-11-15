@@ -76,16 +76,15 @@ struct find_const_2in_slice
 {
     auto matcher() const
     {
-        return match::name("slice")(match::nargs(3),
-                                    match::arg(1)(match::is_constant()));
+        return match::name("slice")(match::nargs(3), match::arg(1)(match::is_constant()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins            = mr.result;
-        auto inputs         = ins->inputs();
-        auto slice_op       = any_cast<op::slice>(ins->get_operator());
-        auto set_attrs      = slice_op.get_set_attributes();
+        auto ins       = mr.result;
+        auto inputs    = ins->inputs();
+        auto slice_op  = any_cast<op::slice>(ins->get_operator());
+        auto set_attrs = slice_op.get_set_attributes();
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
@@ -103,7 +102,7 @@ struct find_const_2in_slice
             inputs.at(1)->eval().visit(
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
             starts_vec = slice_op.starts;
-            axes_vec = slice_op.axes;
+            axes_vec   = slice_op.axes;
         }
         else
         {
@@ -111,7 +110,7 @@ struct find_const_2in_slice
             inputs.at(1)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
             starts_vec = slice_op.starts;
-            ends_vec = slice_op.ends;
+            ends_vec   = slice_op.ends;
         }
         m.replace_instruction(
             ins,

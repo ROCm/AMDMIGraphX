@@ -55,23 +55,23 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     uint32_t sign     = 0;
     if constexpr(sizeof(T) == 4)
     {
-        head     = x & 0xFF800000;      // NOLINT
-        mantissa = x & 0x7FFFFF;        // NOLINT
-        exponent = (head >> 23) & 0xFF; // NOLINT
-        sign     = head >> 31;          // NOLINT
+        head     = x & 0xFF800000;
+        mantissa = x & 0x7FFFFF;
+        exponent = (head >> 23) & 0xFF;
+        sign     = head >> 31;
         bias     = 127;
     }
     else
     {
-        head     = x & 0xFC00;          // NOLINT
-        mantissa = x & 0x3FF;           // NOLINT
-        exponent = (head >> 10) & 0x1F; // NOLINT
-        sign     = head >> 15;          // NOLINT
+        head     = x & 0xFC00;
+        mantissa = x & 0x3FF;
+        exponent = (head >> 10) & 0x1F;
+        sign     = head >> 15;
         bias     = 15;
     }
 
-    uint32_t signed_inf      = (sign << 7) + (((1 << We) - 1) << Wm);                     // NOLINT
-    uint32_t signed_all_ones = (sign << 7) + ((((1 << We) - 1) << Wm) + ((1 << Wm) - 1)); // NOLINT
+    uint32_t signed_inf      = (sign << 7) + (((1 << We) - 1) << Wm);
+    uint32_t signed_all_ones = (sign << 7) + ((((1 << We) - 1) << Wm) + ((1 << Wm) - 1));
 
     // Calcualte maximum singed value FLT_MAX, FLT_MIN
     uint32_t signed_max = signed_all_ones;
@@ -81,8 +81,8 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     // Deal with inf and NaNs
     if(NegativeZeroNan) // For the FNUZ cases, it is simple just return NaNs
     {
-        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or //  NOLINT
-           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))           // NOLINT
+        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or
+           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))
             return 0x80;
     }
     else
@@ -91,10 +91,10 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         uint32_t nan_mantissa = 1;
         for(auto i = 1; i < Wm; ++i)
         {
-            nan_mantissa |= (nan_mantissa << 1);                    // NOLINT
+            nan_mantissa |= (nan_mantissa << 1);
         }
-        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or // NOLINT
-           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))           //  NOLINT
+        if((sizeof(T) == 4 and ((x & 0x7F800000) == 0x7F800000)) or
+           (sizeof(T) == 2 and ((x & 0x7C00) == 0x7C00)))
         {
             // infinity
             if(mantissa == 0)
@@ -124,7 +124,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     exponent and mantissa again*/
 
     // For IEEE bias mode, the bias is 2^(k-1) -1 where k is the width of exponent bits
-    const int f8_bias                  = (1 << (We - 1u)) - 1 + (NegativeZeroNan ? 1 : 0); // NOLINT
+    const int f8_bias                  = (1 << (We - 1u)) - 1 + (NegativeZeroNan ? 1 : 0);
     const int f8_denormal_act_exponent = 1 - f8_bias; // actual exponent of f8 denormal
     /* act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
     f8_exponent is the converted f8 exponent with bias encoding
@@ -166,9 +166,9 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         }
         mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
     }
-    // NOLINTNEXTLINE
+
     bool midpoint = (mantissa & ((1 << (mfmt - Wm + exponent_diff)) - 1)) ==
-                    (1 << (mfmt - Wm + exponent_diff - 1)); // NOLINT
+                    (1 << (mfmt - Wm + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
     shift right as shift right could rip off some residual part and make something not midpoint look
     like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
@@ -176,36 +176,35 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     */
 
     if(exponent_diff > 0)
-        mantissa >>= exponent_diff;             // NOLINT
+        mantissa >>= exponent_diff;
     else if(exponent_diff == -1)
-        mantissa <<= -exponent_diff;            // NOLINT
-    bool implicit_one = mantissa & (1 << mfmt); // NOLINT
+        mantissa <<= -exponent_diff;
+    bool implicit_one = mantissa & (1 << mfmt);
     // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
     f8_exponent =
         (act_exponent + exponent_diff) /*actual f8 exponent*/ + f8_bias - (implicit_one ? 0 : 1);
 
     // Now we have the exponent and mantissa adjusted
-    uint32_t drop_mask = (1u << (mfmt - Wm)) - 1; // NOLINT
+    uint32_t drop_mask = (1u << (mfmt - Wm)) - 1;
     bool odd =
         mantissa & (1u << (mfmt - Wm)); // if the least significant bit that is not truncated is 1
-    mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & // NOLINT
-                drop_mask;                                                                // NOLINT
+    mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & drop_mask;
 
     // Now we deal with overflow
-    if(f8_exponent == 0 and ((1 << mfmt) & mantissa)) // NOLINT
+    if(f8_exponent == 0 and ((1 << mfmt) & mantissa))
     {
-        f8_exponent = 1;                  // denormal overflow to become normal, promote exponent
+        f8_exponent = 1; // denormal overflow to become normal, promote exponent
     }
-    else if((1 << (mfmt + 1)) & mantissa) // NOLINT
+    else if((1 << (mfmt + 1)) & mantissa)
     {
-        mantissa >>= 1;                   // NOLINT
+        mantissa >>= 1;
         f8_exponent++;
     }
 
-    mantissa >>= (mfmt - Wm); // NOLINT
+    mantissa >>= (mfmt - Wm);
 
     // above range: quantize to maximum possible float of the same sign
-    const int max_exp = (1 << We) - (NegativeZeroNan ? 1 : 2); // NOLINT
+    const int max_exp = (1 << We) - (NegativeZeroNan ? 1 : 2);
     if(f8_exponent > max_exp)
     {
         if(Clip)
@@ -221,9 +220,9 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     }
 
     if(f8_exponent == 0 and mantissa == 0)
-        return NegativeZeroNan ? 0 : (sign << 7);        //  NOLINT
-    mantissa &= (1 << Wm) - 1;                           // NOLINT
-    return (sign << 7) | (f8_exponent << Wm) | mantissa; // NOLINT
+        return NegativeZeroNan ? 0 : (sign << 7);
+    mantissa &= (1 << Wm) - 1;
+    return (sign << 7) | (f8_exponent << Wm) | mantissa;
 }
 // NOLINTEND
 

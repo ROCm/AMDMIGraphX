@@ -22,12 +22,6 @@
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#pragma clang diagnostic ignored "-Wfloat-equal"
-#pragma clang diagnostic ignored "-Wc++20-extensions"
-#endif // __clang__
 
 // We are clipping/saturation in down conversion by default. Unclipped version is not tested and
 // shouldn't be used without having enough tests.
@@ -52,7 +46,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace fp8 {
 
-enum class migraphx_f8_rounding_mode
+enum class rounding_mode
 {
     standard, // standard rounding is doing RNE -- round to nearest even
     stochastic
@@ -82,21 +76,21 @@ struct float8
 
     explicit constexpr float8(uint8_t bits, from_bits_t) : data(bits) {}
 
-    explicit constexpr float8(float v,
-                              migraphx::fp8::migraphx_f8_rounding_mode rm =
-                                  migraphx::fp8::migraphx_f8_rounding_mode::standard,
-                              uint32_t rng = 0)
+    explicit constexpr float8(
+        float v,
+        migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
+        uint32_t rng                    = 0)
     {
         if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
             data = migraphx::fp8::impl::
                 cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
             data = migraphx::fp8::impl::
                 cast_to_f8<3, 4, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // MIGRAPHX_F8_DOWNCAST_CLIPPING
         }
         else
@@ -104,11 +98,11 @@ struct float8
 #ifdef MIGRAPHX_F8_DOWNCAST_CLIPPING
             data = migraphx::fp8::impl::
                 cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, true /*clip*/>(
-                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #else  // MIGRAPHX_F8_DOWNCAST_CLIPPING
             data = migraphx::fp8::impl::
                 cast_to_f8<2, 5, float, FNUZ /*negative_zero_nan*/, false /*clip*/>(
-                    v, (rm == migraphx::fp8::migraphx_f8_rounding_mode::stochastic), rng);
+                    v, (rm == migraphx::fp8::rounding_mode::stochastic), rng);
 #endif // rocblas_F8_downcast_clipping}
         }
     }
@@ -412,7 +406,4 @@ MIGRAPHX_FP8_STD_OVERLOADS(migraphx::fp8::fp8e5m2fnuz)
 } // namespace std
 // NOLINTEND
 // =================================================================================================
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 #endif // MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP

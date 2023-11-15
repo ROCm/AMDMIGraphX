@@ -858,7 +858,7 @@ auto skip_broadcasts_converts(Ms... ms)
 }
 
 template <class... Ms>
-auto skip_broadcasts_transposes(Ms... ms)
+auto skip_broadcasts_transposes_contiguous(Ms... ms)
 {
     return skip(name("broadcast", "multibroadcast", "contiguous", "transpose"))(ms...);
 }

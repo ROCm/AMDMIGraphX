@@ -346,9 +346,11 @@ static std::vector<std::string> get_op_names(const module& m)
     return result;
 }
 
-std::string generate_name_from_ops(const module& m)
+std::string generate_name_from_ops(const module& m, const std::string& postname)
 {
     auto op_names = get_op_names(m);
+    if(not postname.empty())
+        op_names.push_back(postname);
     return join_strings(op_names, "_");
 }
 

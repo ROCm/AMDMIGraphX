@@ -316,7 +316,47 @@ TEST_CASE(test_fp8_cast_to_float)
 
 TEST_CASE(test_fp8_cast_from_float)
 {
-    std::unordered_map<float, uint8_t> test_vals = {};
+    std::unordered_map<float, uint8_t> test_vals = {
+        {-60000, 0xfb},
+        {-57344, 0xfb},
+        {-448, 0xdf},
+        {-256, 0xdc},
+        {-240, 0xdc},
+        {-200, 0xda},
+        {-20, 0xcd},
+        {-2, 0xc0},
+        {-1, 0xbc},
+        {-0.5, 0xb8},
+        {-0.2, 0xb2},
+        {-0.1111, 0xaf},
+        {-0.111, 0xaf},
+        {-0.11, 0xaf},
+        {-0.1, 0xae},
+        {6.10351e-05, 0x4},
+        {-6.10351e-05, 0x84},
+        {3.05176e-05, 0x2},
+        {-3.05176e-05, 0x82},
+        {1.52588e-05, 0x1},
+        {-1.52588e-05, 0x81},
+        {7.62939e-06, 0x0},
+        {-7.62939e-06, 0x80},
+        {0.1, 0x2e},
+        {0.11, 0x2f},
+        {0.111, 0x2f},
+        {0.1111, 0x2f},
+        {0.2, 0x32},
+        {0.5, 0x38},
+        {1, 0x3c},
+        {2, 0x40},
+        {20, 0x4d},
+        {200, 0x5a},
+        {240, 0x5c},
+        {256, 0x5c},
+        {448, 0x5f},
+        {57344, 0x7b},
+        {60000, 0x7b},
+        {1e+07, 0x7b},
+    };
 
     EXPECT(bool{std::all_of(test_vals.begin(), test_vals.end(), [](const auto sample) {
         return migraphx::float_equal(

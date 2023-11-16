@@ -515,8 +515,7 @@ TEST_CASE(rnn_forward_layout)
         mm->add_return({out_hs, last_out});
         p.compile(migraphx::make_target("ref"));
 
-        auto outputs = p.eval({});
-
+        auto outputs         = p.eval({});
         auto arg_hs          = outputs.front();
         auto arg_last_output = outputs.back();
         std::vector<float> last_output_data;
@@ -581,7 +580,7 @@ TEST_CASE(rnn_forward_layout)
         mm->add_return({out_hs, last_out});
         p.compile(migraphx::make_target("ref"));
 
-        auto outputs = p.eval({});
+        auto outputs         = p.eval({});
         auto arg_hs          = outputs.front();
         auto arg_last_output = outputs.back();
         std::vector<float> last_output_data;

@@ -172,7 +172,7 @@ auto is_mlir_dot(mlir_mode mode)
         if(k > 1024)
             return false;
         auto ratio = m * n / k;
-        if(ratio < 16384)
+        if(ratio > 16384)
             return false;
         return true;
         // // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy

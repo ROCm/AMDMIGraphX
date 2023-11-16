@@ -134,15 +134,15 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     int f8_exponent   = 0;
     int exponent_diff = 0;
 
-    if(exponent == 0)
+    if(exponent == 0 and mantissa != 0)
     { // fp32/fp16 is in denormal.
         /* fp32 denormal is below 2^-127 so it is usually not a concern here, we mostly concern fp16
         here. In this case, f8 is usually in denormal. But there could be exceptions. fp16 denormal
-        has exponent bias 15 while bf8 with NANOO has exponent bias 16. It means that there are some
-        numbers in fp16 denormal but they are bf8 (NANOO) normals - smallest bf8 (NANOO) normal is
+        has exponent bias 15 while bf8 with FNUZ has exponent bias 16. It means that there are some
+        numbers in fp16 denormal but they are bf8 (FNUZ) normals - smallest bf8 (FNUZ) normal is
         2^-15. fp16 numbers where exponent==0 (actual exponent -14) and highest bit of mantissa is 1
-        are bf8 (NANOO) normal. In this case, the fp16 mantissa should be shift left by 1  */
-        act_exponent  = exponent - bias + 1;
+        are bf8 (FNUZ) normal. In this case, the fp16 mantissa should be shift left by 1  */
+        act_exponent  = 1 - bias;
         exponent_diff = f8_denormal_act_exponent -
                         act_exponent; // actual exponent is exponent-bias+1 as it is denormal
     }
@@ -152,10 +152,10 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         if(act_exponent <= f8_denormal_act_exponent)
         {
             /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
-            For example fp8 nanoo mode, denormal exponent is -7, but if the fp32/fp16
+            For example fp8 FNUZ mode, denormal exponent is -7, but if the fp32/fp16
             actual exponent is -7, it is actually larger due to the implict 1,
             Therefore it needs to be adjust to -6 and mantissa shift right by 1.
-            So for fp32/fp16, exponent -8 is the cut point to convert to fp8 nanoo */
+            So for fp32/fp16, exponent -8 is the cut point to convert to fp8 FNUZ */
             exponent_diff = f8_denormal_act_exponent - act_exponent;
         }
         else
@@ -204,7 +204,8 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     mantissa >>= (mfmt - Wm);
 
     // above range: quantize to maximum possible float of the same sign
-    const int max_exp = (1 << We) - (NegativeZeroNan ? 1 : 2);
+    // for e5m2 case, max_exp is 14, since exp = 15 is reserved for Infs and Nans
+    const int max_exp = (1 << We) - ((NegativeZeroNan or Wm == 3) ? 1 : 2);
     if(f8_exponent > max_exp)
     {
         if(Clip)

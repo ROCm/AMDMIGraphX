@@ -308,6 +308,29 @@ TEST_CASE(test_fp8_cast_to_float)
     })});
 }
 
+TEST_CASE(test_fp8_cast_from_float)
+{
+    std::unordered_map<float, uint8_t> test_vals = {
+        {57344, 0x7f},      {-57344, 0xff},       {60000, 0x7f},      {-60000, 0xff},
+        {448, 0x63},        {-448, 0xe3},         {256, 0x60},        {-256, 0xe0},
+        {240, 0x60},        {-240, 0xe0},         {3.05176e-05, 0x4}, {-3.05176e-05, 0x84},
+        {1.52588e-05, 0x2}, {-1.52588e-05, 0x82}, {7.62939e-06, 0x1}, {-7.62939e-06, 0x81},
+        {3.81469e-06, 0x0}, {-3.81469e-06, 0x0},  {1e+07, 0x7f},      {1, 0x40},
+        {-1, 0xc0},         {0.1, 0x32},          {0.11, 0x33},       {0.111, 0x33},
+        {0.1111, 0x33},     {-0.1, 0xb2},         {-0.11, 0xb3},      {-0.111, 0xb3},
+        {-0.1111, 0xb3},    {0.2, 0x36},          {2, 0x44},          {20, 0x51},
+        {200, 0x5e},        {-0.2, 0xb6},         {-2, 0xc4},         {-20, 0xd1},
+        {-200, 0xde},       {0.5, 0x3c},          {-0.5, 0xbc},       {1.17549e-38, 0x0},
+        {1.4013e-45, 0x0},
+    };
+
+    EXPECT(bool{std::all_of(test_vals.begin(), test_vals.end(), [](const auto sample) {
+        return migraphx::float_equal(
+            migraphx::fp8::fp8e5m2fnuz(sample.first),
+            migraphx::fp8::fp8e5m2fnuz(sample.second, migraphx::fp8::fp8e5m2fnuz::from_bits()));
+    })});
+}
+
 TEST_CASE(test_positive_zero)
 {
     float zero = 0.0;
@@ -426,7 +449,7 @@ TEST_CASE(test_binary_ops)
     auto f = migraphx::fp8::fp8e5m2fnuz(-10.0);
     EXPECT(bool{e > f});
     EXPECT(bool{f < e});
-    EXPECT(bool(f <= e));
+    EXPECT(bool{f <= e});
     EXPECT(bool{e >= f});
     EXPECT(bool{e <= e});
     EXPECT(bool{f >= f});

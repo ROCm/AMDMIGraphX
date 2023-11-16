@@ -314,6 +314,17 @@ TEST_CASE(test_fp8_cast_to_float)
     })});
 }
 
+TEST_CASE(test_fp8_cast_from_float)
+{
+    std::unordered_map<float, uint8_t> test_vals = {};
+
+    EXPECT(bool{std::all_of(test_vals.begin(), test_vals.end(), [](const auto sample) {
+        return migraphx::float_equal(
+            migraphx::fp8::fp8e5m2(sample.first),
+            migraphx::fp8::fp8e5m2(sample.second, migraphx::fp8::fp8e5m2::from_bits()));
+    })});
+}
+
 TEST_CASE(test_positive_zero)
 {
     float zero = 0.0;
@@ -438,7 +449,7 @@ TEST_CASE(test_binary_ops)
     auto f = migraphx::fp8::fp8e5m2(-10.0);
     EXPECT(bool{e > f});
     EXPECT(bool{f < e});
-    EXPECT(bool(f <= e));
+    EXPECT(bool{f <= e});
     EXPECT(bool{e >= f});
     EXPECT(bool{e <= e});
     EXPECT(bool{f >= f});

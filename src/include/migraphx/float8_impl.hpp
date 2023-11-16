@@ -22,6 +22,8 @@
 
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_IMPL_HPP
+#include <algorithm>
+#include <cstdint>
 #include <type_traits>
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
@@ -149,19 +151,13 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     else
     { // fp32/fp16 is normal with implicit 1
         act_exponent = exponent - bias;
-        /*
-        check if FP8 is underflowing to 0.0. Wm is added to check to allow FP8 to go into denorm
-        range. e.g. act_exponent for FP32/16 is -9 and e4m3fnuz has denorm_act exponent = -7 in
-        that case  fp32/16 mantissa can be shifted right by two to make
-        exponent -7 and then it can be representable as e4m3fnuz denorm. So for fp32/fp16, exponent
-        -10 is the cut point to convert to e4m3fp8fnuz due to implicit 1 in mantissa. If fp32/16
-        act_exponent is less than -10 then it underflows to zero*/
-        if(act_exponent < (f8_denormal_act_exponent - Wm))
+        if(act_exponent <= f8_denormal_act_exponent)
         {
-            return NegativeZeroNan ? 0x00 : ((sign) ? 0x80 : 0x00);
-        }
-        else if(act_exponent <= f8_denormal_act_exponent)
-        {
+            /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
+            For example fp8 FNUZ mode, denormal exponent is -7, but if the fp32/fp16
+            actual exponent is -7, it is actually larger due to the implict 1,
+            Therefore it needs to be adjust to -6 and mantissa shift right by 1.
+            So for fp32/fp16, exponent -8 is the cut point to convert to fp8 FNUZ */
             exponent_diff = f8_denormal_act_exponent - act_exponent;
         }
         else
@@ -173,8 +169,8 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
     }
 
-    bool midpoint = (mantissa & ((1 << (mfmt - Wm + exponent_diff)) - 1)) ==
-                    (1 << (mfmt - Wm + exponent_diff - 1));
+    bool midpoint = (mantissa & ((1u << std::min(32u, mfmt - Wm + exponent_diff)) - 1)) ==
+                    (1u << std::min(32u, mfmt - Wm + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
     shift right as shift right could rip off some residual part and make something not midpoint look
     like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than

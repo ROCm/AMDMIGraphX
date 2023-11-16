@@ -36,7 +36,6 @@ struct module;
 
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 
 bool mlir_enabled()
@@ -173,14 +172,9 @@ auto is_mlir_dot(mlir_mode mode)
         if(k > 1024)
             return false;
         auto ratio = std::sqrt(g) * m * n / k;
-        std::cout << "gemm_ratio: " << ratio << std::endl;
         if(ratio < 2048)
             return false;
         return true;
-        // // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
-        // // to avoid poor-performing GEMM kernels from MLIR
-        // // To-do: Investigate a more precise strategy
-        // return k <= 2048;
     });
 }
 
@@ -420,9 +414,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         return std::max(m1, m2);
     };
-
-    mlir_mode mode =
-        (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
 
     match::find_matches(mpm,
                         find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),

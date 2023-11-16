@@ -4485,6 +4485,177 @@ def lrn_test():
 
 
 @onnx_test()
+def lstm_bi_layout_cell_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 2, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 2, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [2, 60])
+
+    cellout = helper.make_tensor_value_info('cellout', TensorProto.FLOAT,
+                                            [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['', '', 'cellout'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
+
+
+@onnx_test()
+def lstm_bi_layout_last_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 2, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 2, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [2, 60])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 2, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['hs', 'output'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
+
+
+@onnx_test()
+def lstm_f_layout_hs_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 1, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [1, 60])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['hs', 'output'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='forward',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs, output])
+
+
+@onnx_test()
+def lstm_f_layout_cell_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 1, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [1, 60])
+
+    cellout = helper.make_tensor_value_info('cellout', TensorProto.FLOAT,
+                                            [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['', '', 'cellout'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='forward',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
+
+
+@onnx_test()
+def lstm_r_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 1, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [1, 60])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['hs'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='reverse',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [hs])
+
+
+@onnx_test()
+def lstm_r_layout_hs_cell_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 160])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+    c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, [3, 1, 20])
+    pph = helper.make_tensor_value_info('pph', TensorProto.FLOAT, [1, 60])
+
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+    cellout = helper.make_tensor_value_info('cellout', TensorProto.FLOAT,
+                                            [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'LSTM',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
+        outputs=['', 'output', 'cellout'],
+        activations=['sigmoid', 'tanh', 'tanh'],
+        clip=0,
+        direction='reverse',
+        hidden_size=20,
+        input_forget=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [output, cellout])
+
+
+@onnx_test()
 def matmul_bmbm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 2, 1, 7, 8])

@@ -164,8 +164,8 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(mode != mlir_mode::fast)
             return true;
-        auto a = ins->inputs().front()->get_shape();
-        auto b = ins->inputs().back()->get_shape();
+        auto a  = ins->inputs().front()->get_shape();
+        auto b  = ins->inputs().back()->get_shape();
         float m = a.lens()[a.lens().size() - 2];
         float n = b.lens().back();
         float k = a.lens().back();

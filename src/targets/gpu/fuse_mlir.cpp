@@ -172,6 +172,7 @@ auto is_mlir_dot(mlir_mode mode)
         if(k > 1024)
             return false;
         auto ratio = m * n / k;
+        std::cout << "gemm_ratio: " << ratio << std::endl;
         if(ratio < 16384)
             return false;
         return true;

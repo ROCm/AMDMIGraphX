@@ -168,7 +168,9 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         }
         mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
     }
-    // shifting by more than sizeof(T) is undefined behaviour, cap shift to 31
+
+    // need to know whether the number is right in the middle of two adjacent fp8 numbers. use  max
+    // value of 31 to avoid undefined behaviour
     bool midpoint = (mantissa & ((1u << std::min(31u, mfmt - Wm + exponent_diff)) - 1)) ==
                     (1u << std::min(31u, mfmt - Wm + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we

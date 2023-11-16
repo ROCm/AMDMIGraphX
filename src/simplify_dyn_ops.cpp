@@ -261,6 +261,7 @@ struct find_static_dimensions_of
 /**
  * Simplify allocate into 2 argument reshape that has constant output dimensions into a static 1
  * argument reshape. Intended to simplify what ONNX parse_reshape creates for dynamic reshapes.
+ * This matcher can be generalized to matching reshape(data, static_shape_output_tensor).
  * From:
  * x = allocate(constant_output_dims) -> reshape(data, x)
  * To:
@@ -289,6 +290,34 @@ struct find_const_alloc_reshapes
     }
 };
 
+/**
+ * Simplify allocate into fill operator that has constant output dimensions and constant value.
+ * The allocate into fill instructions is what is produced when parsing the ONNX
+ * ConstantOfShape operator. This replacement could be handled with propagate_constant, but
+ * would rather have the simplification happen earlier during compiling.
+ * This matcher can be generalized to matching fill(constant_value, static_shape_output_tensor).
+ * From:
+ * x = allocate(constant_ouptut_dims) -> fill(constant_value, x)
+ * To:
+ * literal
+ */
+struct find_const_alloc_fill
+{
+    auto matcher() const
+    {
+        return match::name("fill")(match::arg(0)(match::is_constant()),
+                                   match::arg(1)(match::name("allocate")(match::is_constant())));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto fill_ins = mr.result;
+        auto fill_arg = fill_ins->eval(false);
+        auto l        = m.add_literal(fill_arg.get_shape(), fill_arg.data());
+        m.replace_instruction(fill_ins, l);
+    }
+};
+
 void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
@@ -297,7 +326,8 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_2in_broadcasts{},
                         find_const_2in_slice{},
                         find_const_3in_slice{},
-                        find_const_4in_slice{});
+                        find_const_4in_slice{},
+                        find_const_alloc_fill{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

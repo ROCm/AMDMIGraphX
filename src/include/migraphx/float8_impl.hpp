@@ -168,9 +168,9 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
         }
         mantissa += (1u << mfmt); // Add the implicit 1 into mantissa
     }
-
-    bool midpoint = (mantissa & ((1u << std::min(32u, mfmt - Wm + exponent_diff)) - 1)) ==
-                    (1u << std::min(32u, mfmt - Wm + exponent_diff - 1));
+    // shifting by more than sizeof(T) is undefined behaviour, cap shift to 31
+    bool midpoint = (mantissa & ((1u << std::min(31u, mfmt - Wm + exponent_diff)) - 1)) ==
+                    (1u << std::min(31u, mfmt - Wm + exponent_diff - 1));
     /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
     shift right as shift right could rip off some residual part and make something not midpoint look
     like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
@@ -178,7 +178,7 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     */
 
     if(exponent_diff > 0)
-        mantissa >>= exponent_diff;
+        mantissa >>= std::min(31u, uint32_t(exponent_diff));
     else if(exponent_diff == -1)
         mantissa <<= -exponent_diff;
     bool implicit_one = mantissa & (1 << mfmt);

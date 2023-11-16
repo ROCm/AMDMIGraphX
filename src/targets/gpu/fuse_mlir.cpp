@@ -174,7 +174,7 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         auto ratio = std::sqrt(g) * m * n / k;
         std::cout << "gemm_ratio: " << ratio << std::endl;
-        if(ratio < 128 * 1024)
+        if(ratio < 2048)
             return false;
         return true;
         // // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy

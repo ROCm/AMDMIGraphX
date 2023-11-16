@@ -39,7 +39,7 @@ struct fused_concat
         module_ref post_mod          = mods.back();
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
-        if(not std::all_of(concat_inputs.begin() + 1, concat_inputs.end(), [&](auto s) {
+        auto mismatch_it = std::find_if_not(concat_inputs.begin() + 1, concat_inputs.end(), [&](auto s) {
                const auto& lens = s.lens();
                return std::equal(lens.begin(),
                                  lens.begin() + axis,
@@ -49,9 +49,9 @@ struct fused_concat
                                  lens.end(),
                                  first_shape_lens.begin() + axis + 1,
                                  first_shape_lens.end());
-           }))
-            MIGRAPHX_THROW("FUSED_CONCAT: all input dimensions should match along non-axis: " +
-                           std::to_string(axis));
+           });
+        if (mismatch_it != concat_inputs.end())
+            MIGRAPHX_THROW("FUSED_CONCAT: all input dimensions should match along non-axis of " + std::to_string(axis) + ": {" + to_string_range(first_shape_lens) + "} != {" + to_string_range(mismatch_it->lens()) + "}");
 
         std::size_t new_dim_axis = transform_accumulate(
             concat_inputs.begin(), concat_inputs.end(), 0, std::plus<>{}, [&](const auto& input) {
@@ -86,7 +86,12 @@ struct find_pointwise_concat_pointwise
                           ins->inputs().begin();
         std::vector<instruction_ref> inputs;
         for(auto input : concat_ins->inputs())
-            inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
+        {
+            if(input->name() == "pointwise")
+                inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
+            else
+                inputs.push_back(input);
+        }
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
@@ -102,9 +107,9 @@ struct find_pointwise_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat" + std::to_string(counter++));
+                           auto* pm = mpm.create_module("concat:identity" + std::to_string(counter++));
 
-                           auto x  = pm->add_parameter("x", shape{input->get_shape().type()});
+                           auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
                            auto id = pm->add_instruction(make_op("identity"), x);
                            pm->add_return({id});
                            return pm;
@@ -121,7 +126,6 @@ struct find_pointwise_concat_pointwise
         rm->remove_instruction(concat_param);
 
         module_inputs.push_back(rm);
-
         mpm.get_module().replace_instruction(
             ins,
             make_op("fused_concat", concat_ins->normalized_operator().to_value()),

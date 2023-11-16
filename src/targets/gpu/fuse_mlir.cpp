@@ -36,6 +36,7 @@ struct module;
 
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 
 bool mlir_enabled()
@@ -171,6 +172,8 @@ auto is_mlir_dot(mlir_mode mode)
         float g = a.elements() / (m * k);
         if(k > 1024)
             return false;
+        if(enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}))
+            return true;
         auto ratio = std::sqrt(g) * m * n / k;
         if(ratio < 2048)
             return false;

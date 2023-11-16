@@ -150,7 +150,7 @@ struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
     static std::string format()
     {
         // following: https://docs.python.org/3/library/struct.html#format-characters
-        // TODO: need to figure out correct encoding 
+        // TODO: need to figure out correct encoding
         return "z";
     }
     static constexpr auto name() { return _("fp8e4m3fnuz"); }

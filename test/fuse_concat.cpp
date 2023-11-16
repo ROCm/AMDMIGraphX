@@ -118,11 +118,12 @@ TEST_CASE(partial_pointwise_concat)
     migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
     migraphx::program p1;
     {
-        auto* mm    = p1.get_main_module();
-        auto x      = mm->add_parameter("x", s1);
-        auto y      = mm->add_parameter("y", s1);
-        auto z      = mm->add_parameter("z", s2);
-        auto pooling = mm->add_instruction(migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
         auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
         auto relu   = add_pointwise(p1, "main:pointwise2", {concat}, single_pointwise("relu"));
@@ -131,11 +132,12 @@ TEST_CASE(partial_pointwise_concat)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s1);
-        auto z      = mm->add_parameter("z", s2);
-        auto pooling = mm->add_instruction(migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
         auto fused_concat =
             add_concat(p2,
                        1,

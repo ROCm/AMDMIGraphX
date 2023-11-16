@@ -169,11 +169,12 @@ auto is_mlir_dot(mlir_mode mode)
         float m = a.lens()[a.lens().size() - 2];
         float n = b.lens().back();
         float k = a.lens().back();
+        float g = a.elements() / (m*k);
         if(k > 1024)
             return false;
-        auto ratio = m * n / k;
+        auto ratio = std::sqrt(g) * m * n / k;
         std::cout << "gemm_ratio: " << ratio << std::endl;
-        if(ratio < 16384)
+        if(ratio < 128*1024)
             return false;
         return true;
         // // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy

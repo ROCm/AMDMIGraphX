@@ -412,7 +412,7 @@ struct parse_resize : op_parser<parse_resize>
                 }
             }
         }
-        if(out_lens.size() == 0)
+        if(out_lens.empty())
             MIGRAPHX_THROW("PARSE_" + opd.onnx_name +
                            ": no input was given for scale or output size");
 

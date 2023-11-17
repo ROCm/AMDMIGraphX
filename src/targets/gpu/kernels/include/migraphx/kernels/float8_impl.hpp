@@ -48,7 +48,7 @@ namespace fp8 {
 namespace impl {
 
 template <int wm, int we, typename T, bool negative_zero_nan, bool clip>
-MIGRAPHX_HIP_HOST_DEVICE constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
+__device__ constexpr uint8_t cast_to_f8(T _x, bool stoch, uint32_t rng)
 {
 
     static_assert(wm + we == 7, "wm+we==7");
@@ -240,7 +240,7 @@ this case, the fp16 mantissa should be shift left by 1  */
 }
 
 template <int wm, int we, typename T, bool negative_zero_nan>
-MIGRAPHX_HIP_HOST_DEVICE constexpr T cast_from_f8(uint8_t x)
+__device__ constexpr T cast_from_f8(uint8_t x)
 {
     constexpr int weo = 8;
     constexpr int wmo = 23;

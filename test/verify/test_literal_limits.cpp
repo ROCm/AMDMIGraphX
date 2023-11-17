@@ -35,7 +35,11 @@ struct test_literal_limits : verify_program<test_literal_limits<Q, T>>
         migraphx::program p;
         auto* mm          = p.get_main_module();
         auto input_s      = migraphx::shape(Q, {3, 1});
-        auto infinity_val = std::numeric_limits<T>::infinity();
+        auto infinity_val = std::numeric_limits<T>::max();
+        if constexpr(std::numeric_limits<T>::has_infinity)
+        {
+            infinity_val = std::numeric_limits<T>::infinity();
+        }
         std::vector<T> s_data{
             infinity_val, static_cast<T>(-infinity_val), std::numeric_limits<T>::quiet_NaN()};
 
@@ -52,3 +56,4 @@ template struct test_literal_limits<migraphx::shape::double_type, double>;
 template struct test_literal_limits<migraphx::shape::half_type, migraphx::half>;
 template struct test_literal_limits<migraphx::shape::int32_type, int32_t>;
 template struct test_literal_limits<migraphx::shape::int8_type, int8_t>;
+template struct test_literal_limits<migraphx::shape::fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz>;

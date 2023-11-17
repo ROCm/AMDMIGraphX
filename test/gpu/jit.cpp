@@ -144,7 +144,7 @@ extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = migraphx::implicit_conversion(migraphx::${invoke});
+    *p = implicit_conversion(migraphx::${invoke});
 
 }
 }
@@ -348,18 +348,18 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::tuple_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
-        migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
-            return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
-        });
+        if(t != migraphx::shape::fp8e4m3fnuz_type)
+        {
+            migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {
+                return "migraphx::vec<" + name + ", " + std::to_string(i) + ">";
+            });
+        }
     }
     migraphx::shape input{migraphx::shape::float_type, {5, 2}};
     migraphx::gpu::hip_compile_options options;
@@ -399,10 +399,7 @@ TEST_CASE(assert_type_min_max)
     migraphx::gpu::hip_compile_options options;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::fp8e4m3fnuz_type,
-                     migraphx::shape::tuple_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
@@ -429,7 +426,6 @@ TEST_CASE(assert_type_min_max)
                 min = std::to_string(as.min());
                 max = std::to_string(as.max());
             }
-
             auto src = migraphx::interpolate_string(assert_template,
                                                     {{"type", name}, {"max", max}, {"min", min}});
             migraphx::shape input{migraphx::shape::float_type, {5, 2}};

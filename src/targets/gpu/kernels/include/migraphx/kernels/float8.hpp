@@ -35,7 +35,6 @@
 // We are clipping in down conversion by default
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
 
-#include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/float8_impl.hpp>
 

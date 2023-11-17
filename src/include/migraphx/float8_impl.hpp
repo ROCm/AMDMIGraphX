@@ -192,6 +192,19 @@ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
     uint32_t drop_mask = (1u << (mfmt - Wm)) - 1;
     bool odd =
         mantissa & (1u << (mfmt - Wm)); // if the least significant bit that is not truncated is 1
+    /*
+    This part is doing rounding by adding mantissa part that is going to get dropped.
+    e.g. if the dropped part for less than 0.5 than it would round down.
+    if the dropped part is more than 0.5 then it would round up by rolling carry to LSB of retained
+    mantissa.
+    For the mid point when bit pattern is like this for Odd: `xy1:10000000` for Odd and
+    `xy0:10000000` for the Even.  where `:` is delimiter for dropped v/s retained part.
+    For the odd case :
+    this will add xy1:10000000 + 000:10000000 which would roll over carry to LSB of retained
+    part making it RNE.
+    For the even case : this will add xy0:10000000 + 000:01111111 which would
+    round down and keep number Even
+    */
     mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & drop_mask;
 
     // Now we deal with overflow

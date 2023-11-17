@@ -248,8 +248,9 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
+    // TODO: Do it generically for all fp8 types
     else if constexpr(is_same<T, migraphx::fp8::fp8e4m3fnuz>{})
-        return migraphx::fp8::F8_Max<T>();
+        return migraphx::fp8::numeric_limits<T>::max();
     else
         return 0;
 }
@@ -265,7 +266,7 @@ constexpr T numeric_lowest()
             return -numeric_max<T>() - 1;
     }
     else if constexpr(is_same<T, migraphx::fp8::fp8e4m3fnuz>{})
-        return migraphx::fp8::F8_Lowest<T>();
+        return migraphx::fp8::numeric_limits<T>::lowest();
     else
     {
         return -numeric_max<T>();

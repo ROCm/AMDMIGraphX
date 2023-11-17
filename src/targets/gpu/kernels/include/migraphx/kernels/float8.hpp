@@ -373,18 +373,6 @@ inline MIGRAPHX_HIP_DEVICE fp8e5m2 fabs(fp8e5m2 v)
     return v;
 }
 
-template <class T>
-MIGRAPHX_HIP_DEVICE constexpr T F8_Max()
-{
-    return T{0x7F, T::from_bits()};
-}
-
-template <class T>
-MIGRAPHX_HIP_DEVICE constexpr T F8_Lowest()
-{
-    return T{0xFF, T::from_bits()};
-}
-
 template <>
 class numeric_limits<fp8e4m3fnuz>
 {

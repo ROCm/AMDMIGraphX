@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_VECTORIZE_HPP
 #define MIGRAPHX_GUARD_KERNELS_VECTORIZE_HPP
 
-#include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
 

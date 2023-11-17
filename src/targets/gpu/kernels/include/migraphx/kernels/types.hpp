@@ -23,6 +23,7 @@
  */
 #ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_TYPES_HPP
+
 #include <migraphx/kernels/hip.hpp>
 
 namespace migraphx {

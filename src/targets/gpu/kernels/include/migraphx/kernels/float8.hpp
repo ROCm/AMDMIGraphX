@@ -22,7 +22,10 @@
 
 #ifndef MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP
 #define MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP
-
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfloat-equal"
+#endif // __clang__
 #define MIGRAPHX_HIP_DEVICE __device__
 
 // We are clipping in down conversion by default
@@ -480,4 +483,8 @@ class numeric_limits<fp8e5m2>
 } // namespace fp8
 } // namespace migraphx
 // =================================================================================================
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif // __clang__
+
 #endif // MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP

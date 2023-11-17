@@ -144,7 +144,7 @@ extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
-    *p = implicit_conversion(migraphx::${invoke});
+    *p = migraphx::implicit_conversion(migraphx::${invoke});
 
 }
 }

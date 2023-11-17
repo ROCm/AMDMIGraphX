@@ -30,18 +30,13 @@
 #pragma clang diagnostic ignored "-Wc++20-extensions"
 #endif // __clang__
 
-#include <migraphx/kernels/hip.hpp>
-
 #define MIGRAPHX_HIP_DEVICE __device__
 
 // We are clipping in down conversion by default
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
 
+#include <migraphx/kernels/hip.hpp>
 #include <migraphx/kernels/types.hpp>
-using uint8_t  = migraphx::uint8_t;
-using uint16_t = migraphx::uint16_t;
-using uint32_t = migraphx::uint32_t;
-
 #include <migraphx/kernels/float8_impl.hpp>
 
 namespace migraphx {

@@ -22,10 +22,6 @@
 
 #ifndef MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP
 #define MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++20-extensions"
-#endif // __clang__
 
 #define MIGRAPHX_HIP_DEVICE __device__
 
@@ -74,7 +70,7 @@ struct float8
     template <bool stochastic_rounding = false>
     static constexpr MIGRAPHX_HIP_DEVICE uint8_t cast_to_f8_from_f32(float v, uint32_t rng = 0)
     {
-        uint8_t i8data;
+        uint8_t i8data = 0x00;
         union
         {
             float fval;
@@ -484,7 +480,4 @@ class numeric_limits<fp8e5m2>
 } // namespace fp8
 } // namespace migraphx
 // =================================================================================================
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 #endif // MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP

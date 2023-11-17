@@ -51,21 +51,23 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
         });
     return out_lens;
 }
-
-std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
+std::vector<shape::dynamic_dimension>
+compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
+                             std::vector<shape::dynamic_dimension> dds1)
 {
-    // change both shapes to dynamic_dimension representation
-    s0 = s0.to_dynamic();
-    s1 = s1.to_dynamic();
-    if(s0.ndim() > s1.ndim())
+    if(dds0.size() > dds1.size())
     {
-        std::swap(s0, s1);
+        std::swap(dds0, dds1);
     }
-    auto offset = s1.ndim() - s0.ndim();
-    std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
-    std::transform(s0.dyn_dims().cbegin(),
-                   s0.dyn_dims().cend(),
-                   s1.dyn_dims().cbegin() + offset,
+    auto offset = dds1.size() - dds0.size();
+    std::vector<shape::dynamic_dimension> out_dims(dds1);
+    // If one within the range of the other
+    auto dd_within_range = [&](shape::dynamic_dimension x, shape::dynamic_dimension y) {
+        return (x.min >= y.min and x.max <= y.max);
+    };
+    std::transform(dds0.cbegin(),
+                   dds0.cend(),
+                   dds1.cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
                        if(a == b or b == 1)
@@ -76,14 +78,30 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
                        {
                            return b;
                        }
+                       else if(dd_within_range(a, b))
+                       {
+                           return a;
+                       }
+                       else if(dd_within_range(b, a))
+                       {
+                           return b;
+                       }
                        else
                        {
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
-                                          migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
-                                          migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
+                                          migraphx::to_string_range(dds0) + "} and {" +
+                                          migraphx::to_string_range(dds1) + "} mismatch!");
                        }
                    });
     return out_dims;
+}
+
+std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
+{
+    // change both shapes to dynamic_dimension representation
+    s0 = s0.to_dynamic();
+    s1 = s1.to_dynamic();
+    return compute_broadcasted_dyn_dims(s0.dyn_dims(), s1.dyn_dims());
 }
 
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes)

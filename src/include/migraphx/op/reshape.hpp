@@ -69,7 +69,7 @@ struct reshape
         auto dyn_dims      = s0.dyn_dims();
         auto num_not_fixed = std::count_if(
             dyn_dims.cbegin(), dyn_dims.cend(), [](auto dd) { return not dd.is_fixed(); });
-        if(num_not_fixed != 1)
+        if(num_not_fixed == 1)
         {
             MIGRAPHX_THROW("Reshape: Only supports one non-fixed dynamic_dimension");
         }
@@ -110,6 +110,12 @@ struct reshape
                            return shape::dynamic_dimension{dim, dim};
                        });
         return {s0.type(), output_dyn_dims};
+        /*
+        std::size_t max_val = std::numeric_limits<std::size_t>::max();
+        std::vector<shape::dynamic_dimension> dds(dims.size(),
+                                                       shape::dynamic_dimension{0, max_val});
+        return {s0.type(), dds};
+        */
     }
 
     template <class Iterator>

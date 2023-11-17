@@ -139,6 +139,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dot_broadcast
     elu
     equal
     erf

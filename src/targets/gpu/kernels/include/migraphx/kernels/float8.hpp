@@ -24,9 +24,6 @@
 #define MIGRAPHX_GUARD_KERNELS_FLOAT8_HPP
 #if defined(__clang__)
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#pragma clang diagnostic ignored "-Wfloat-equal"
-#pragma clang diagnostic ignored "-Wmacro-redefined"
 #pragma clang diagnostic ignored "-Wc++20-extensions"
 #endif // __clang__
 
@@ -268,7 +265,7 @@ struct float8
         }
     }
 
-#define MIGRAPHX_FP8_UNARY_OP(unary_op, binary_op)                                    \
+#define MIGRAPHX_FP8_SHORT_UNARY_OP(unary_op, binary_op)                              \
     constexpr float8& MIGRAPHX_HIP_DEVICE operator unary_op(const float8& rhs)        \
     {                                                                                 \
         const auto tmp = static_cast<float>(*this) binary_op static_cast<float>(rhs); \
@@ -282,10 +279,10 @@ struct float8
         return *this;                                                                 \
     }
 
-    MIGRAPHX_FP8_UNARY_OP(*=, *)
-    MIGRAPHX_FP8_UNARY_OP(-=, -)
-    MIGRAPHX_FP8_UNARY_OP(+=, +)
-    MIGRAPHX_FP8_UNARY_OP(/=, /)
+    MIGRAPHX_FP8_SHORT_UNARY_OP(*=, *)
+    MIGRAPHX_FP8_SHORT_UNARY_OP(-=, -)
+    MIGRAPHX_FP8_SHORT_UNARY_OP(+=, +)
+    MIGRAPHX_FP8_SHORT_UNARY_OP(/=, /)
 
     inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(const float8& rhs) = default;
     inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(float8&& rhs)      = default;
@@ -483,52 +480,7 @@ class numeric_limits<fp8e5m2>
         return fp8e5m2(0x7C, fp8e5m2::from_bits());
     }
 };
-/*
-// Use h/w intrinsic and optimized version when __gfx940__
-template <typename T,
-          typename Ta,
-          bool stochastic_rounding,
-          typename std::enable_if<(!(migraphx::is_same<T, Ta>{}) &&
-                                   (migraphx::is_same<T, migraphx_f8>{} ||
-                                    migraphx::is_same<T, migraphx_bf8>{})),
-                                  int>::type = 0>
-inline __host__ __device__ T explicit_downcast(Ta a, uint32_t rng)
-{
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-    // NOTE: we are directly calling cast_to_f8_from_f32 instead of constructor to optimize
-    // away one runtime branch
-    T val;
-    if(migraphx::is_same<T, migraphx_f8>::value)
-        val.data = migraphx_f8::cast_to_f8_from_f32<stochastic_rounding>(float(a), rng);
-    else
-        val.data = migraphx_bf8::cast_to_bf8_from_f32<stochastic_rounding>(float(a), rng);
-    return val;
-#else  // non gfx940
-    return T(float(a),
-             stochastic_rounding ? migraphx::fp8::rounding_mode::stochastic
-                                 : migraphx::fp8::rounding_mode::standard,
-             rng);
-#endif // __gfx940__
-}
 
-// NOTE NOTE: The above code is good if we don't consider HIP-GEMM code and only consider
-// the quantization However, if we need HIP-GEMM for fall-back, we would need explicit_cast
-// handles Tacc=f32 to To=f16/bf16 conversion
-template <typename T,
-          typename Ta,
-          bool stochastic_rounding,
-          typename std::enable_if<(!(migraphx::is_same<T, Ta>{}) &&
-                                   !(migraphx::is_same<T, migraphx_f8>{} ||
-                                     migraphx::is_same<T, migraphx_bf8>{})),
-                                  int>::type = 0>
-inline __host__ __device__ T explicit_downcast(Ta a, uint32_t rng)
-{
-    // the return type is not a F8 types, no SR for those types
-    // not sure if we have direct conversion, so converting to float first
-    // no effect if the input type is float
-    return T(float(a));
-}
-*/
 } // namespace fp8
 } // namespace migraphx
 // =================================================================================================

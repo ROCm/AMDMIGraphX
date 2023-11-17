@@ -315,7 +315,7 @@ std::string generate_reduce(const module& m, const std::string& name)
             std::transform(
                 params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
             return interpolate_string(inner_template,
-                                             {{"inner", inner_name},
+                                      {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});

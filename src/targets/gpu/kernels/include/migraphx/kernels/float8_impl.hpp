@@ -47,6 +47,7 @@ struct conditional<false, T, F>
 namespace fp8 {
 namespace impl {
 
+// NOLINTBEGIN
 template <int Wm, int We, typename T, bool NegativeZeroNan, bool Clip>
 __device__ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
 {
@@ -256,6 +257,7 @@ __device__ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng 
     mantissa &= (1 << Wm) - 1;
     return (sign << 7) | (f8_exponent << Wm) | mantissa;
 }
+// NOLINTEND
 
 template <int Wm, int We, typename T, bool NegativeZeroNan>
 __device__ constexpr T cast_from_f8(uint8_t x)

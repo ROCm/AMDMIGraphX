@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <limits>
+#include <type_traits>
 
 template <migraphx::shape::type_t Q, typename T>
 struct test_literal_limits : verify_program<test_literal_limits<Q, T>>
@@ -36,9 +37,13 @@ struct test_literal_limits : verify_program<test_literal_limits<Q, T>>
         auto* mm          = p.get_main_module();
         auto input_s      = migraphx::shape(Q, {3, 1});
         auto infinity_val = std::numeric_limits<T>::max();
-        if constexpr(std::numeric_limits<T>::has_infinity)
+        if constexpr(std::numeric_limits<T>::has_infinity and std::is_floating_point<T>{})
         {
             infinity_val = std::numeric_limits<T>::infinity();
+        }
+        else
+        { // for the interger vals, infinity doesn't exist
+            infinity_val = 0;
         }
         std::vector<T> s_data{
             infinity_val, static_cast<T>(-infinity_val), std::numeric_limits<T>::quiet_NaN()};

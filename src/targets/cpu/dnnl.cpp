@@ -68,6 +68,7 @@ dnnl::memory::data_type to_dnnl_memory_data_type(shape::type_t t)
     case st::int32_type: return dt::s32;
     case st::int8_type: return dt::s8;
     case st::uint8_type: return dt::u8;
+    case st::fp8e4m3fnuz_type: return dt : u8;
     default: MIGRAPHX_THROW("Unsupported data type");
     }
 }

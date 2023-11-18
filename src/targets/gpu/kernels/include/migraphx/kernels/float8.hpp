@@ -29,7 +29,7 @@
 #define MIGRAPHX_HIP_DEVICE __device__
 
 // We are clipping in down conversion by default
-#define MIGRAPHX_F8_DOWNCAST_CLIPPING 1
+#define MIGRAPHX_F8_DOWNCAST_CLIPPING 1 // NOLINT
 
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/float8_impl.hpp>
@@ -178,7 +178,7 @@ struct float8
 
     // convert to float
 // #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-#if 0 // need constexpr operator(). This version can't be constexpr
+#if 0 // need constexpr operator(). This version can't be constexpr // NOLINT
     // upcast using device specific intrinsic
     inline MIGRAPHX_HIP_DEVICE operator float() const
     {
@@ -264,6 +264,7 @@ struct float8
         }
     }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_FP8_SHORT_UNARY_OP(unary_op, binary_op)                              \
     constexpr float8& MIGRAPHX_HIP_DEVICE operator unary_op(const float8& rhs)        \
     {                                                                                 \
@@ -324,13 +325,14 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_UNARY_OP(unary_op, T)               \
-    inline constexpr MIGRAPHX_HIP_DEVICE T unary_op(T v) \
-    {                                                    \
-        v.data = v.data & 0x7f;                          \
-        return v;                                        \
+#define MIGRAPHX_FP8_FABS(T)                         \
+    inline constexpr MIGRAPHX_HIP_DEVICE T fabs(T v) \
+    {                                                \
+        v.data = v.data & 0x7f;                      \
+        return v;                                    \
     }
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_FP8_GEN_OP_OVERLOADS(T) \
     MIGRAPHX_FP8_BINARY_OP(*, T, T)      \
     MIGRAPHX_FP8_BINARY_OP(-, T, T)      \
@@ -342,7 +344,7 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     MIGRAPHX_FP8_BINARY_OP(>, T, bool)   \
     MIGRAPHX_FP8_BINARY_OP(<, T, bool)   \
     MIGRAPHX_FP8_BINARY_OP(!=, T, bool)  \
-    MIGRAPHX_FP8_UNARY_OP(fabs, T)
+    MIGRAPHX_FP8_FABS(T)
 
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2)
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2fnuz)
@@ -453,10 +455,10 @@ class numeric_limits<fp8e5m2>
         return fp8e5m2(0x34, fp8e5m2::from_bits());
     }
     // 7D, 7E, 7F are positive NaNs and FD, FE, FF are negative NaNs
-    static constexpr MIGRAPHX_HIP_DEVICE fp8e5m2 quiet_NaN()
+    static constexpr MIGRAPHX_HIP_DEVICE fp8e5m2 quiet_NaN() // NOLINT
     {
         return fp8e5m2(0xFF, fp8e5m2::from_bits());
-    } // NOLINT
+    }
 
     static constexpr MIGRAPHX_HIP_DEVICE fp8e5m2 max()
     {

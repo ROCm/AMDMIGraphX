@@ -284,8 +284,8 @@ struct float8
     MIGRAPHX_FP8_SHORT_UNARY_OP(+=, +)
     MIGRAPHX_FP8_SHORT_UNARY_OP(/=, /)
 
-    inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(const float8& rhs) = default;
-    inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(float8&& rhs)      = default;
+    inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(const float8& rhs)     = default;
+    inline MIGRAPHX_HIP_DEVICE constexpr float8& operator=(float8&& rhs) noexcept = default;
 
     inline MIGRAPHX_HIP_DEVICE constexpr bool operator==(const float8& rhs) const
     {

@@ -328,6 +328,7 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
 #define MIGRAPHX_FP8_FABS(T)                         \
     inline constexpr MIGRAPHX_HIP_DEVICE T fabs(T v) \
     {                                                \
+        /*NOLINTNEXTLINE*/                           \
         v.data = v.data & 0x7f;                      \
         return v;                                    \
     }

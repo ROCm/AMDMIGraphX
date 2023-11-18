@@ -27,7 +27,7 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_gathernd_default : verify_program<test_gathernd_default, DType>
+struct test_gathernd_default : verify_program<test_gathernd_default<DType>>
 {
     migraphx::program create_program() const
     {

@@ -47,3 +47,5 @@ struct test_rsqrt : verify_program<test_rsqrt>
         return p;
     };
 };
+
+// TOOD : Add FP8 test

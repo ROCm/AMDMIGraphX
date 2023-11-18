@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/float8.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
@@ -45,3 +46,4 @@ struct test_nearbyint : verify_program<test_nearbyint<T>>
 
 template struct test_nearbyint<migraphx::half>;
 template struct test_nearbyint<float>;
+template struct test_nearbyint<migraphx::fp8::fp8e4m3fnuz>;

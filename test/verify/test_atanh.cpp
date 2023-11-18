@@ -27,13 +27,14 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_atanh : verify_program<test_atanh>
+template <migraphx::shape::type_t DType>
+struct test_atanh : verify_program<test_atanh<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {16}};
+        migraphx::shape s{DType, {16}};
         auto x       = mm->add_parameter("x", s);
         auto min_val = mm->add_literal(-0.95f);
         auto max_val = mm->add_literal(0.95f);
@@ -46,3 +47,7 @@ struct test_atanh : verify_program<test_atanh>
         return p;
     }
 };
+
+template struct test_atanh<migraphx::shape::float_type>;
+// template struct test_atanh<migraphx::shape::half_type>;
+// template struct test_atanh<migraphx::shape::fp8e4m3fnuz_type>;

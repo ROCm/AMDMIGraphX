@@ -71,3 +71,4 @@ struct test_mod : verify_program<test_mod>
         return p;
     }
 };
+// TODO: check if requires FP8 test

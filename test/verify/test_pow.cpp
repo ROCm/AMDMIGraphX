@@ -41,3 +41,4 @@ struct test_pow : verify_program<test_pow>
         return p;
     }
 };
+// TODO: add fp8 tests

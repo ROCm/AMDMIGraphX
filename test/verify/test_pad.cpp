@@ -27,13 +27,14 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_pad : verify_program<test_pad>
+template <migraphx::shape::type_t DType>
+struct test_pad : verify_program<test_pad<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s0{migraphx::shape::int32_type, {1, 96, 165, 165}};
+        migraphx::shape s0{DType, {1, 96, 165, 165}};
         std::vector<int64_t> pads0 = {0, 0, 0, 0, 0, 0, 1, 1};
         std::vector<int64_t> pads1 = {0, 0, 0, 0, 1, 1, 1, 1};
         std::vector<int64_t> pads2 = {1, 1, 1, 1, 0, 0, 0, 0};
@@ -46,3 +47,8 @@ struct test_pad : verify_program<test_pad>
         return p;
     }
 };
+
+template struct test_pad<migraphx::shape::int32_type>;
+template struct test_pad<migraphx::shape::float_type>;
+template struct test_pad<migraphx::shape::half_type>;
+// template struct test_pad<migraphx::shape::fp8e4m3fnuz_type>;

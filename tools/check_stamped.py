@@ -22,7 +22,7 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-import subprocess, sys, datetime
+import subprocess, sys
 from license_stamper import getYearOfLatestCommit
 
 debug = False
@@ -43,8 +43,6 @@ unsupportedFiles = []
 unstampedFiles = []
 stampedFilesWithBadYear = []
 unknownFiles = []
-
-current_year = datetime.date.today().year
 
 
 def hasKeySequence(inputfile: str, key_message: str) -> bool:

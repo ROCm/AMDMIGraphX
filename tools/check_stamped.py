@@ -22,8 +22,8 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-import subprocess
-import sys
+import subprocess, sys
+from license_stamper import getYearOfLatestCommit
 
 debug = False
 # The filetypes we want to check for that are stamped
@@ -38,6 +38,11 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
+
+unsupportedFiles = []
+unstampedFiles = []
+stampedFilesWithBadYear = []
+unknownFiles = []
 
 
 def hasKeySequence(inputfile: str, key_message: str) -> bool:
@@ -66,7 +71,18 @@ def needStampCheck(filename: str) -> bool:
                 if hasKeySequence(
                         save,
                         "Advanced Micro Devices, Inc. All rights reserved"):
-                    if debug: print("....Already Stamped: Skipping  file ")
+                    yearOfLastCommit = getYearOfLatestCommit(filename)
+                    if not hasKeySequence(
+                            save,
+                            f"2015-{yearOfLastCommit} Advanced Micro Devices"
+                    ) and yearOfLastCommit > 2022:
+                        if debug: print("....Already Stamped but wrong year")
+                        stampedFilesWithBadYear.append(
+                            [filename, yearOfLastCommit])
+
+                    elif debug:
+                        print("....Already Stamped: Skipping  file ")
+
                     contents.close()
                     return False
 
@@ -96,10 +112,6 @@ def main() -> None:
 
     if debug: print("Target file list:\n" + str(fileList))
 
-    unsupportedFiles = []
-    unstampedFiles = []
-    unknownFiles = []
-
     for file in fileList:
         if check_filename(file, supported_file_types):
             if needStampCheck(file):
@@ -115,6 +127,12 @@ def main() -> None:
         print("\nError: The following " + str(len(unstampedFiles)) +
               " files are currently without a license:")
         print(str(unstampedFiles))
+        sys.exit(1)
+
+    if len(stampedFilesWithBadYear) > 0:
+        print("\nError: The following " + str(len(stampedFilesWithBadYear)) +
+              " files licenses do not match the year of commit:")
+        print(str(stampedFilesWithBadYear))
         sys.exit(1)
 
     if len(unknownFiles) > 0:

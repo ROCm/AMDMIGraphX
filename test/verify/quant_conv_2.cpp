@@ -21,43 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_INT8_GEMM_PACK_HPP
-#define MIGRAPHX_GUARD_RTGLIB_INT8_GEMM_PACK_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
-#include <utility>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/quant_convolution.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_int8_gemm_pack_a
+struct quant_conv_2 : verify_program<quant_conv_2>
 {
-    std::string name() const { return "gpu::int8_gemm_pack_a"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    migraphx::program create_program() const
     {
-        return shapes.size() - 1;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::int8_type, {16, 16, 4, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {16, 16, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        return p;
     }
 };
-
-struct hip_int8_gemm_pack_b
-{
-    std::string name() const { return "gpu::int8_gemm_pack_b"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
-};
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

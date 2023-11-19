@@ -48,8 +48,12 @@ struct onnx_options
     bool skip_unknown_operators = false;
     /// Print program if an error occurs
     bool print_program_on_error = false;
-    /// Max iter num for the loop operator
+    /// Max iter num for the loop operator if trip count is not set
     int64_t max_loop_iterations = 10;
+    /// Max iter limit for the loop operator.
+    /// Since loop will become a tensor of max iter size a huge number can cause overflow during
+    /// shape computations.
+    int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     /// Use dynamic output for operators when available
     bool use_dyn_output = false;
 };

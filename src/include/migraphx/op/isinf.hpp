@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,40 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/int8_gemm_pack.hpp>
-#include <migraphx/gpu/device/int8_gemm_pack.hpp>
-#include <migraphx/gpu/context.hpp>
+#ifndef MIGRAPHX_GUARD_OPERATORS_ISINF_HPP
+#define MIGRAPHX_GUARD_OPERATORS_ISINF_HPP
+
+#include <migraphx/op/unary.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-shape hip_int8_gemm_pack_a::compute_shape(const std::vector<shape>& inputs) const
+struct isinf : unary<isinf>
 {
-    check_shapes{{inputs.at(0)}, *this}.has(1).not_broadcasted().packed();
-    return inputs.at(0);
-}
+    auto apply() const
+    {
+        return [&](auto x) { return std::isinf(static_cast<double>(x)); };
+    }
 
-argument
-hip_int8_gemm_pack_a::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    device::int8_gemm_pack_a(ctx.get_stream().get(), args[1], args[0]);
-    return args[1];
-}
+    std::string name() const { return "isinf"; }
 
-shape hip_int8_gemm_pack_b::compute_shape(const std::vector<shape>& inputs) const
-{
-    check_shapes{{inputs.at(0)}, *this}.has(1).not_broadcasted().packed();
-    return inputs.at(0);
-}
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        return unary<isinf>::compute_shape(std::move(inputs)).with_type(shape::bool_type);
+    }
+};
 
-argument
-hip_int8_gemm_pack_b::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    device::int8_gemm_pack_b(ctx.get_stream().get(), args[1], args[0]);
-    return args[1];
-}
-
-} // namespace gpu
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

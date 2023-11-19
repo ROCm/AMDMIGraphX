@@ -349,6 +349,11 @@ def onnx_options(h):
         api.params(value='int64_t'),
         invoke='migraphx::set_default_loop_iterations($@)',
     )
+    h.method(
+        'set_limit_loop_iterations',
+        api.params(value='int64_t'),
+        invoke='migraphx::set_limit_loop_iterations($@)',
+    )
 
 
 @auto_handle()

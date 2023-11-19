@@ -130,6 +130,30 @@ struct dynamic_loader_impl
     tmp_dir temp;
 };
 
+fs::path dynamic_loader::path(void* address)
+{
+    HMODULE module = nullptr;
+    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         static_cast<LPCSTR>(address),
+                         &module) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to obtain module handle, error = " + std::to_string(err));
+    }
+    TCHAR buffer[MAX_PATH];
+    if(GetModuleFileName(module, buffer, sizeof(buffer)) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to read module file path, error = " + std::to_string(err));
+    }
+    if(GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
+        MIGRAPHX_THROW("Buffer too small (" + std::to_string(MAX_PATH) + ") to hold the path");
+    }
+    return {buffer};
+}
+
 #endif
 
 optional<dynamic_loader> dynamic_loader::try_load(const fs::path& p)

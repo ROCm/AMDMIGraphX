@@ -80,6 +80,10 @@ ADD rbuild.ini /rbuild.ini
 # Temporarily install a new cmake until switching to ubuntu 22.04
 RUN pip3 install cmake==3.22.1
 
+# Location where onnx unit tests models are cached
+ENV ONNX_HOME=/.onnx
+RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
+
 COPY ./tools/install_prereqs.sh /
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
 RUN test -f /usr/local/hash || exit 1
@@ -90,11 +94,6 @@ RUN pip3 install yapf==0.28.0
 # Install doc requirements
 ADD docs/.sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
-
-# Download real models to run onnx unit tests
-ENV ONNX_HOME=/.onnx
-COPY ./tools/download_models.sh /
-RUN /download_models.sh && rm /download_models.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

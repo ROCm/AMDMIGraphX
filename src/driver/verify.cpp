@@ -119,6 +119,7 @@ void verify_program(const std::string& name,
     auto target_outs = run_target(p, t, options, quantize, inputs);
 
     std::size_t output_num = ref_outs.size();
+    bool passed            = true;
     for(std::size_t i = 0; i < output_num; ++i)
     {
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
@@ -130,9 +131,11 @@ void verify_program(const std::string& name,
         }
         else
         {
-            verify_args(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
+            passed &= verify_args(name, target_outs[i], verify::expected{ref_outs[i]}, tols);
         }
     }
+    if(passed)
+        std::cout << "MIGraphX verification passed successfully." << std::endl;
 }
 
 void verify_instructions(const program& prog,

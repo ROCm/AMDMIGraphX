@@ -42,6 +42,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_EXPORT
 const operation& get_operation(instruction_ref ins);
 
 struct module_impl;

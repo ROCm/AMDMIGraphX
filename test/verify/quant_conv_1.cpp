@@ -21,26 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_ROUND_HPP
-#define MIGRAPHX_GUARD_OPERATORS_ROUND_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/quant_convolution.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct round : unary<round>
+struct quant_conv_1 : verify_program<quant_conv_1>
 {
-    auto apply() const
+    migraphx::program create_program() const
     {
-        return [](auto x) { return std::round(x); };
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
+        return p;
     }
 };
-
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

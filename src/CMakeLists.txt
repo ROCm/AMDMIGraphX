@@ -155,6 +155,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isinf
     isnan
     layout
     leaky_relu
@@ -174,6 +175,7 @@ register_migraphx_ops(
     mul
     multibroadcast
     multinomial
+    nearbyint
     neg
     nonmaxsuppression
     nonzero
@@ -204,7 +206,6 @@ register_migraphx_ops(
     rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
-    round
     rsqrt
     run_on_target
     scalar
@@ -261,9 +262,8 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
-find_package(PkgConfig)
-pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
-target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
+find_package(SQLite3 REQUIRED)
+target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 find_package(msgpackc-cxx QUIET)
 if(NOT msgpackc-cxx_FOUND)

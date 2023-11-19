@@ -21,29 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_INT8_GEMM_PACK_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_INT8_GEMM_PACK_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+template <class T>
+struct test_nearbyint : verify_program<test_nearbyint<T>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        std::vector<float> tmp{-4.5, -3.5, 0.5, 2.5, 3.5};
+        std::vector<T> data{tmp.cbegin(), tmp.cend()};
+        migraphx::shape s1{migraphx::shape::get_type<T>(), {5}};
+        auto* mm = p.get_main_module();
+        auto l0  = mm->add_literal(migraphx::literal{s1, data});
+        mm->add_instruction(migraphx::make_op("isinf"), l0);
+        return p;
+    };
+};
 
-void MIGRAPHX_DEVICE_EXPORT int8_gemm_pack_a(hipStream_t stream,
-                                             const argument& result,
-                                             const argument& arg);
-
-void MIGRAPHX_DEVICE_EXPORT int8_gemm_pack_b(hipStream_t stream,
-                                             const argument& result,
-                                             const argument& arg);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_nearbyint<migraphx::half>;
+template struct test_nearbyint<float>;

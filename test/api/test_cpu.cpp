@@ -198,4 +198,29 @@ TEST_CASE(set_loop_default_iter_num)
     EXPECT(out_shapes[1].lengths() == out_lens1);
 }
 
+TEST_CASE(set_loop_limit_iterations)
+{
+    migraphx::onnx_options option;
+    option.set_default_loop_iterations(15);
+    option.set_limit_loop_iterations(10);
+    auto p                             = migraphx::parse_onnx("loop_default_test.onnx", option);
+    auto out_shapes                    = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_loop_limit_iterations2)
+{
+    migraphx::onnx_options option;
+    option.set_limit_loop_iterations(10);
+    auto p          = migraphx::parse_onnx("loop_test_implicit_tripcnt.onnx", option);
+    auto out_shapes = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

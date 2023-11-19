@@ -88,7 +88,6 @@ bool verify_args(const std::string& name,
             if(target_nan_idx >= 0)
                 std::cout << "Non finite number found in target at " << target_nan_idx << ": "
                           << target[target_nan_idx] << std::endl;
-            std::cout << "MIGraphX verification passed successfully." << std::endl;
         }
     });
     return passed;

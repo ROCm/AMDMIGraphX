@@ -130,8 +130,10 @@ def main() -> None:
         sys.exit(1)
 
     if len(stampedFilesWithBadYear) > 0:
-        print("\nError: The following " + str(len(stampedFilesWithBadYear)) +
-              " files licenses do not match the year of commit or has a different copyright format:")
+        print(
+            "\nError: The following " + str(len(stampedFilesWithBadYear)) +
+            " files licenses do not match the year of commit or has a different copyright format:"
+        )
         print(str(stampedFilesWithBadYear))
         sys.exit(1)
 

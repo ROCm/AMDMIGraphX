@@ -25,7 +25,7 @@
 import subprocess, sys
 from license_stamper import getYearOfLatestCommit
 
-debug = False
+debug = True
 # The filetypes we want to check for that are stamped
 # LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
@@ -131,7 +131,7 @@ def main() -> None:
 
     if len(stampedFilesWithBadYear) > 0:
         print("\nError: The following " + str(len(stampedFilesWithBadYear)) +
-              " files licenses do not match the year of commit:")
+              " files licenses do not match the year of commit or has a different copyright format:")
         print(str(stampedFilesWithBadYear))
         sys.exit(1)
 

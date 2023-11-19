@@ -70,7 +70,7 @@ def hasKeySequence(inputfile, key_message):
 
     return result
 
-
+## Delete Debug Out
 def getYearOfLatestCommit(rfile: str) -> datetime:
     proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
                            shell=True,
@@ -78,7 +78,16 @@ def getYearOfLatestCommit(rfile: str) -> datetime:
                            cwd=__repo_dir__)
     year = datetime.datetime.strptime(proc2.stdout.decode().strip(),
                                       '%Y-%m-%d').year
-    return year
+    # proc3 = subprocess.run(f"git log -1 {rfile} | head -n 3",
+    #                     shell=True,
+    #                     stdout=subprocess.PIPE,
+    #                     cwd=__repo_dir__)
+    proc3 = subprocess.run(f"git log -1 {rfile}",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    cwd=__repo_dir__)
+    debugOut = proc3.stdout.decode().strip()
+    return [year,debugOut]
 
 
 def updateYear(filename: str) -> None:

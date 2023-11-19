@@ -25,7 +25,7 @@
 import subprocess, sys
 from license_stamper import getYearOfLatestCommit
 
-debug = False
+debug = True
 # The filetypes we want to check for that are stamped
 # LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
@@ -74,11 +74,11 @@ def needStampCheck(filename: str) -> bool:
                     yearOfLastCommit = getYearOfLatestCommit(filename)
                     if not hasKeySequence(
                             save,
-                            f"2015-{yearOfLastCommit} Advanced Micro Devices"
-                    ) and yearOfLastCommit > 2022:
+                            f"2015-{yearOfLastCommit[0]} Advanced Micro Devices"
+                    ) and yearOfLastCommit[0] > 2022:
                         if debug: print("....Already Stamped but wrong year")
                         stampedFilesWithBadYear.append(
-                            [filename, yearOfLastCommit])
+                            [filename, yearOfLastCommit[0],yearOfLastCommit[1]])
 
                     elif debug:
                         print("....Already Stamped: Skipping  file ")

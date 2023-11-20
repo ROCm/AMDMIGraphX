@@ -5754,6 +5754,59 @@ TEST_CASE(qlinearmatmul_2D_test)
     EXPECT(p.sort() == prog.sort());
 }
 
+TEST_CASE(qlinearmul_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("A", {migraphx::shape::uint8_type, {64}});
+    auto b = mm->add_parameter("B", {migraphx::shape::uint8_type, {64}});
+
+    auto sc_a   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_a = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto sc_b   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_b = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {16}});
+
+    auto sc_c   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_c = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {100}});
+
+    auto scale_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_a);
+
+    auto z_pt_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_a);
+
+    auto fp_a =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), a, scale_a_bcast, z_pt_a_bcast);
+
+    auto scale_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_b);
+
+    auto z_pt_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_b);
+
+    auto fp_b =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scale_b_bcast, z_pt_b_bcast);
+
+    auto fp_c = mm->add_instruction(migraphx::make_op("mul"), fp_a, fp_b);
+
+    auto scale_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_c);
+
+    auto z_pt_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_c);
+
+    auto c =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_c, scale_c_bcast, z_pt_c_bcast);
+
+    mm->add_return({c});
+
+    auto prog = migraphx::parse_onnx("qlinearmul_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
 migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
                                                      const migraphx::instruction_ref ins,
                                                      const migraphx::instruction_ref round,
@@ -5788,9 +5841,9 @@ TEST_CASE(quantizelinear_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5813,9 +5866,9 @@ TEST_CASE(quantizelinear_int32_test)
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
-    auto s     = round->get_shape();
-    auto clip  = insert_quantizelinear_clip(*mm, div, round, s, 0, 255);
+    auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
+    auto s         = nearbyint->get_shape();
+    auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
     mm->add_instruction(
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::uint8_type)}}),
@@ -5835,7 +5888,7 @@ TEST_CASE(quantizelinear_zero_point_test)
     auto l1_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l1);
     auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
-    auto round = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), l2);
     l2_mbcast = mm->add_instruction(
@@ -5868,7 +5921,7 @@ migraphx::program make_quantizelinear_axis_prog()
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l1);
 
     auto div      = mm->add_instruction(migraphx::make_op("div"), l0, l1_bcast);
-    auto round    = mm->add_instruction(migraphx::make_op("round"), div);
+    auto round    = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto l2_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", input_lens}}), l2);
     l2_bcast = mm->add_instruction(
@@ -6997,7 +7050,7 @@ TEST_CASE(round_test)
     migraphx::program p;
     auto* mm   = p.get_main_module();
     auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::double_type, {10, 5}});
-    mm->add_instruction(migraphx::make_op("round"), input);
+    mm->add_instruction(migraphx::make_op("nearbyint"), input);
 
     auto prog = optimize_onnx("round_test.onnx");
     EXPECT(p == prog);
@@ -7650,6 +7703,25 @@ TEST_CASE(slice_var_input_dyn1)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
     auto prog                     = parse_onnx("slice_var_input_dyn1.onnx", options);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(slice_var_input_default_steps)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto data =
+        mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {{3, 8}, {2, 2}}});
+    auto starts = mm->add_parameter("starts", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto ends   = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int64_type, {2}});
+    auto axes   = mm->add_parameter("axes", migraphx::shape{migraphx::shape::int64_type, {2}});
+    mm->add_literal({{migraphx::shape::int64_type, {2}}, {1, 1}});
+    auto ret = mm->add_instruction(migraphx::make_op("slice"), data, starts, ends, axes);
+    mm->add_return({ret});
+
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {3, 8};
+    auto prog                     = parse_onnx("slice_var_input_default_steps.onnx", options);
     EXPECT(p == prog);
 }
 

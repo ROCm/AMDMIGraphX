@@ -66,15 +66,15 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(input_shape.dynamic())
         {
+            // return the unchanged `vec` if the dynamic_dimensions at `axes` are not fixed
+            if(std::any_of(axes.begin(), axes.end(), [&](auto ax) {
+                   return not input_shape.dyn_dims().at(ax).is_fixed();
+               }))
+            {
+                return vec;
+            }
             std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-                const auto& dd = input_shape.dyn_dims().at(i);
-                if(not dd.is_fixed())
-                {
-                    MIGRAPHX_THROW(
-                        "NORMALIZE_ATTR: 'use_lens' on a non-fixed dynamic dimension, axis=" +
-                        std::to_string(i));
-                }
-                return dd.max;
+                return input_shape.dyn_dims().at(i).max;
             });
         }
         else

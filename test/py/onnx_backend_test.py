@@ -83,7 +83,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_nonmaxsuppression_two_batches_cpu')
     backend_test.exclude(r'test_nonmaxsuppression_two_classes_cpu')
     backend_test.exclude(r'test_nonzero_example_cpu')
-    backend_test.exclude(r'test_round_cpu')
     backend_test.exclude(r'test_softmax_axis_0_cpu')
     backend_test.exclude(r'test_softmax_axis_1_cpu')
     backend_test.exclude(r'test_softmax_default_axis_cpu')
@@ -575,7 +574,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_lstm_batchwise_cpu')
     backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')

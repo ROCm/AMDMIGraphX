@@ -59,23 +59,8 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
-template <index_int Axis, class... Inputs>
-__device__ auto concat(Inputs... inputs)
-{
-    return [=](auto f, auto... ts) {
-        auto idx = make_index();
-        fold([&](auto start, auto input) {
-            concat_slices<Axis>(input, start, ts...)([&](auto y, auto... xs) {
-                idx.global_stride(input.get_shape().elements(),
-                                  [&](auto i) { y[i] = f(input[i], xs[i]...); });
-            });
-            return start + concat_ends<Axis>(input);
-        })(_c<0>, inputs...);
-    };
-}
-
 template <index_int Axis, class... InputPacks>
-__device__ auto concat2(InputPacks... input_packs)
+__device__ auto concat(InputPacks... input_packs)
 {
     return [=](auto f, auto... ts) {
         auto idx = make_index();

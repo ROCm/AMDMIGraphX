@@ -177,13 +177,6 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                                                    {"algo", algo},
                                                    {"transformers", make_transformer_args(vec)},
                                                    {"preamble", v.get("preamble", std::string{})}});
-        // disable DPP for FP8 for now,, TODO: need to disable for Any FP8 types
-        if(std::any_of(inputs.begin(), inputs.end(), [](const auto& s) {
-               return s.type() == migraphx::shape::fp8e4m3fnuz_type;
-           }))
-        {
-            options.params += "-DMIGRAPHX_HAS_DPP=0 ";
-        }
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }

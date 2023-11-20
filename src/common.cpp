@@ -169,24 +169,18 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
 
         auto s0 = inputs[0]->get_shape();
-        if(not s0.dynamic() or s0.dyn_dims() != c_dyn_dims)
-        {
-            inputs[0] = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
-        }
+        // changed to always add the multibroadcast to handle the cases from split_single_dyn_dim
+        inputs[0] = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
         std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
             // uses previous input to avoid recalculating the common shape from the
             // full set of input shapes at runtime
             auto s = input->get_shape();
-            if(not s.dynamic() or s.dyn_dims() != c_dyn_dims)
-            {
-                return m.insert_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    input,
-                    inputs[0]);
-            }
-            return input;
+            return m.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                input,
+                inputs[0]);
         });
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().type() != c_type)

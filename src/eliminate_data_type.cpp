@@ -41,7 +41,8 @@ void eliminate_data_type::apply(module& m) const
                                                            "nonmaxsuppression",
                                                            "scatternd_add",
                                                            "scatternd_mul",
-                                                           "scatternd_none"};
+                                                           "scatternd_none",
+                                                           "select_module"};
     for(auto ins : iterator_for(m))
     {
         if(ins->name()[0] == '@')

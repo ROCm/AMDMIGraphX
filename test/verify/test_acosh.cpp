@@ -35,11 +35,11 @@ struct test_acosh : verify_program<test_acosh<CType>>
     {
         migraphx::program p;
         auto* mm                      = p.get_main_module();
-        migraphx::shape::type_t DType = migraphx::shape::get_type<CType>();
-        migraphx::shape s{DType, {16}};
+        migraphx::shape::type_t dtype = migraphx::shape::get_type<CType>();
+        migraphx::shape s{dtype, {16}};
         auto x       = mm->add_parameter("x", s);
-        auto min_val = mm->add_literal(migraphx::literal{migraphx::shape{DType}, {1.1}});
-        auto max_val = mm->add_literal(migraphx::literal{migraphx::shape{DType}, {100.0}});
+        auto min_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {1.1}});
+        auto max_val = mm->add_literal(migraphx::literal{migraphx::shape{dtype}, {100.0}});
         min_val =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {16}}}), min_val);
         max_val =

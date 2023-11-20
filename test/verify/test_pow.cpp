@@ -33,9 +33,9 @@ struct test_pow : verify_program<test_pow<CType>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        migraphx::shape::type_t DType = migraphx::shape::get_type<CType>();
+        migraphx::shape::type_t dtype = migraphx::shape::get_type<CType>();
         auto* mm                      = p.get_main_module();
-        migraphx::shape s{DType, {6}};
+        migraphx::shape s{dtype, {6}};
         std::vector<float> vec_e(s.elements(), 2.0f);
         auto b = mm->add_parameter("x", s);
         auto e = mm->add_literal(migraphx::literal(s, vec_e));

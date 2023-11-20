@@ -81,14 +81,6 @@ constexpr T as_float(T x)
     auto __device__ name(migraphx::fp8::fp8e4m3fnuz x, Ts... xs) MIGRAPHX_RETURNS( \
         migraphx::fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(xs)...)))
 
-// NOLINTNEXTLINE
-#define MIGRAPHX_DEVICE_MATH_BINARY_FOR_FP8(name, fname)                                    \
-    inline auto __device__ name(migraphx::fp8::fp8e4m3fnuz x, migraphx::fp8::fp8e4m3fnuz y) \
-        -> migraphx::fp8::fp8e4m3fnuz                                                       \
-    {                                                                                       \
-        return migraphx::fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(y)));     \
-    }
-
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.
 
@@ -238,9 +230,6 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
-
-MIGRAPHX_DEVICE_MATH_BINARY_FOR_FP8(max, ::max)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR_FP8(min, ::min)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
 constexpr auto max(const T& a, const T& b)

@@ -419,8 +419,6 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     MIGRAPHX_FP8_BINARY_OP(==, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(>=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(<=, T, bool)  \
-    MIGRAPHX_FP8_BINARY_OP(>, T, bool)   \
-    MIGRAPHX_FP8_BINARY_OP(<, T, bool)   \
     MIGRAPHX_FP8_BINARY_OP(!=, T, bool)  \
     MIGRAPHX_FP8_FABS(T)
 

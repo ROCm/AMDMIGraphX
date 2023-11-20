@@ -25,8 +25,8 @@
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfloat-equal"
-#pragma clang diagnostic ignored "-Wc++20-extensions"
-#endif // __clang__
+#pragma clang diagnostic ignored "-Wc++20-extensions" // required for "asm" inside constexpr
+#endif                                                // __clang__
 
 // We are clipping in down conversion by default
 #define MIGRAPHX_F8_DOWNCAST_CLIPPING 1 // NOLINT

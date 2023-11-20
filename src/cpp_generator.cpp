@@ -48,8 +48,8 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         ss << "// " << ins->get_operator() << " -> " << ins->get_shape() << "\n";
         if(ins->name() == "@param")
         {
-            names[ins] =
-                to_c_id(migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter);
+            names[ins] = to_c_id(
+                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter);
         }
         else if(ins->name() == "@return")
         {

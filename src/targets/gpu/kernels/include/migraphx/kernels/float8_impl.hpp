@@ -23,26 +23,13 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_FP8_IMPL_HPP
 #define MIGRAPHX_GUARD_KERNELS_FP8_IMPL_HPP
 #include <migraphx/kernels/bit_cast.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wreserved-identifier"
 #endif
 
 namespace migraphx {
-namespace detail {
-template <bool B, class T, class F>
-struct conditional
-{
-    using type = T;
-};
-
-template <class T, class F>
-struct conditional<false, T, F>
-{
-    using type = F;
-};
-
-} // namespace detail
 
 namespace fp8 {
 namespace impl {
@@ -58,7 +45,7 @@ __device__ constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng 
     static_assert(is_float or is_half, "Only float can be cast to f8");
 
     const uint32_t mfmt = (sizeof(T) == 4) ? 23 : 10;
-    typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type x;
+    typename migraphx::conditional_t<sizeof(T) == 2, uint16_t, uint32_t> x;
 
     if constexpr(sizeof(T) == 4)
         x = migraphx::bit_cast<uint32_t>(f_x);
@@ -304,7 +291,7 @@ __device__ constexpr T cast_from_f8(uint8_t x)
         else if(Wm == 3 and (x == 0x7F or x == 0xFF))
             return f_nan;
     }
-    typename detail::conditional<sizeof(T) == 2, uint16_t, uint32_t>::type retval;
+    typename migraphx::conditional_t<sizeof(T) == 2, uint16_t, uint32_t> retval;
 
     const int exp_low_cutoff =
         (1 << (weo - 1)) - (1 << (We - 1)) + 1 - (NegativeZeroNan ? 1 : 0); // NOLINT

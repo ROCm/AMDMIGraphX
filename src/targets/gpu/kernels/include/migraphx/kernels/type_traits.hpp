@@ -26,7 +26,6 @@
 
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
-#include <migraphx/kernels/float8.hpp>
 
 namespace migraphx {
 
@@ -231,8 +230,7 @@ constexpr unsigned long int_max(unsigned long n)
 
 template <class T,
           MIGRAPHX_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
-                            is_same<T, migraphx::half>{} or
-                            is_same<T, migraphx::fp8::fp8e4m3fnuz>{})>
+                            is_same<T, migraphx::half>{})>
 constexpr T numeric_max()
 {
     if constexpr(is_integral<T>{})
@@ -248,9 +246,6 @@ constexpr T numeric_max()
         return __FLT_MAX__;
     else if constexpr(is_same<T, migraphx::half>{})
         return __FLT16_MAX__;
-    // TODO: Do it generically for all fp8 types
-    else if constexpr(is_same<T, migraphx::fp8::fp8e4m3fnuz>{})
-        return migraphx::fp8::numeric_limits<T>::max();
     else
         return 0;
 }
@@ -265,8 +260,6 @@ constexpr T numeric_lowest()
         else
             return -numeric_max<T>() - 1;
     }
-    else if constexpr(is_same<T, migraphx::fp8::fp8e4m3fnuz>{})
-        return migraphx::fp8::numeric_limits<T>::lowest();
     else
     {
         return -numeric_max<T>();

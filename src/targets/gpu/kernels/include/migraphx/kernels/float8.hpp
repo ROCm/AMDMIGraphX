@@ -209,35 +209,35 @@ struct float8
     // Constructor from half
     explicit constexpr __device__
     float8(const _Float16 v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
-        : float8((float)v, rm, rng)
+        : float8(static_cast<float>(v), rm, rng)
     {
     }
 
     // constructor from int
     explicit constexpr __device__
     float8(const int v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
-        : float8((float)v, rm, rng)
+        : float8(static_cast<float>(v), rm, rng)
     {
     }
 
     // constructor from uint
     explicit constexpr __device__
     float8(const uint32_t v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
-        : float8((float)v, rm, rng)
+        : float8(static_cast<float>(v), rm, rng)
     {
     }
 
     // constructor from double
     explicit constexpr __device__
     float8(const double v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
-        : float8((float)v, rm, rng)
+        : float8(static_cast<float>(v), rm, rng)
     {
     }
 
     // constructor from bool
     explicit constexpr __device__
     float8(const bool v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
-        : float8((float)(v), rm, rng)
+        : float8(static_cast<float>(v), rm, rng)
     {
     }
     // convert to float

@@ -33,7 +33,7 @@ struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_rel
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm     = p.get_main_module();
+        auto* mm = p.get_main_module();
         migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
         migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
         auto x       = mm->add_parameter("x", s1);

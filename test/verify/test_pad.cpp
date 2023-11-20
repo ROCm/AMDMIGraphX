@@ -51,4 +51,4 @@ struct test_pad : verify_program<test_pad<DType>>
 template struct test_pad<migraphx::shape::int32_type>;
 template struct test_pad<migraphx::shape::float_type>;
 template struct test_pad<migraphx::shape::half_type>;
-// template struct test_pad<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_pad<migraphx::shape::fp8e4m3fnuz_type>;

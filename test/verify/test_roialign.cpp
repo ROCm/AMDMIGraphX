@@ -59,5 +59,5 @@ struct test_roialign : verify_program<test_roialign<DType>>
 };
 
 template struct test_roialign<migraphx::shape::float_type>;
-// template struct test_roialign<migraphx::shape::half_type>;
-// template struct test_roialign<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_roialign<migraphx::shape::half_type>;
+template struct test_roialign<migraphx::shape::fp8e4m3fnuz_type>;

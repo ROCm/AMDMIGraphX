@@ -27,13 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_pow : verify_program<test_pow>
+template <typename CType>
+struct test_pow : verify_program<test_pow<CType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {6}};
+        migraphx::shape::type_t DType = migraphx::shape::get_type<CType>();
+        auto* mm                      = p.get_main_module();
+        migraphx::shape s{DType, {6}};
         std::vector<float> vec_e(s.elements(), 2.0f);
         auto b = mm->add_parameter("x", s);
         auto e = mm->add_literal(migraphx::literal(s, vec_e));
@@ -41,4 +43,6 @@ struct test_pow : verify_program<test_pow>
         return p;
     }
 };
-// TODO: add fp8 tests
+template struct test_pow<float>;
+template struct test_pow<migraphx::half>;
+template struct test_pow<migraphx::fp8::fp8e4m3fnuz>;

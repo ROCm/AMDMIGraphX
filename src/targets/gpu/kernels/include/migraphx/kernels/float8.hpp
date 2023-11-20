@@ -25,6 +25,7 @@
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfloat-equal"
+#pragma clang diagnostic ignored "-Wold-style-cast"
 #endif // __clang__
 #define MIGRAPHX_HIP_DEVICE __device__
 
@@ -132,7 +133,7 @@ struct float8
 
     // NOTE: ON-DEVICE... always optimal bias
     explicit constexpr MIGRAPHX_HIP_DEVICE
-    float8(float v,
+    float8(const float v,
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
@@ -145,8 +146,7 @@ struct float8
 #else
     // DEVICE for non-gfx940 using s/w simulation
     explicit constexpr MIGRAPHX_HIP_DEVICE
-#endif
-    float8(float v,
+    float8(const float v,
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
@@ -175,7 +175,42 @@ struct float8
 #endif // MIGRAPHX_FP8_DOWNCAST_CLIPPING}
         }
     }
+#endif // __gfx940___
 
+    // Constructor from half
+    explicit constexpr MIGRAPHX_HIP_DEVICE
+    float8(const _Float16 v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
+        : float8((float)v, rm, rng)
+    {
+    }
+
+    // constructor from int
+    explicit constexpr MIGRAPHX_HIP_DEVICE
+    float8(const int v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
+        : float8((float)v, rm, rng)
+    {
+    }
+
+    // constructor from uint
+    explicit constexpr MIGRAPHX_HIP_DEVICE
+    float8(const uint32_t v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
+        : float8((float)v, rm, rng)
+    {
+    }
+
+    // constructor from double
+    explicit constexpr MIGRAPHX_HIP_DEVICE
+    float8(const double v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
+        : float8((float)v, rm, rng)
+    {
+    }
+
+    // constructor from bool
+    explicit constexpr MIGRAPHX_HIP_DEVICE
+    float8(const bool v, rounding_mode rm = rounding_mode::standard, uint32_t rng = 0)
+        : float8((float)(v), rm, rng)
+    {
+    }
     // convert to float
 // #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #if 0 // need constexpr operator(). This version can't be constexpr // NOLINT
@@ -208,6 +243,8 @@ struct float8
         } // else
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
+
+    inline constexpr explicit MIGRAPHX_HIP_DEVICE operator bool() const { return not is_zero(); }
 
     // check for zero
     inline MIGRAPHX_HIP_DEVICE constexpr bool is_zero() const

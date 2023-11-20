@@ -39,6 +39,7 @@ __device__ void pad(const index& idx,
                     const PadVal& pad_val)
 {
     auto output_shape = output.get_shape();
+    using otype       = typename Output::type;
     idx.global_stride(output_shape.elements(), [&](auto i) {
         // 1. get current multi-index for output
         // 2. get the size of the input to determine input boundaries
@@ -53,9 +54,9 @@ __device__ void pad(const index& idx,
         if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
                return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
            }))
-            output[multi] = pad_val;
+            output[multi] = otype(pad_val);
         else
-            output[multi] = input[input_idx];
+            output[multi] = otype(input[input_idx]);
     });
 }
 

@@ -392,7 +392,7 @@ struct block
         {
             using max_iterations = decltype(idx.max_local_stride_iterations(n));
             inner_storage<R, max_iterations{}, N> storage;
-            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
             return storage;
         }
     };

@@ -37,6 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
 struct precompile_op
 {
@@ -167,6 +168,7 @@ struct compile_plan
     }
     const compiled_result& benchmark(problem_cache& pc) const
     {
+        const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
         if(results.size() == 1)
@@ -177,18 +179,35 @@ struct compile_plan
         }
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config");
-        std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
-                  << std::endl;
+        if(trace_level > 0)
+            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
+                      << std::endl;
+        if(trace_level > 1)
+            std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
-        std::transform(
-            results.begin(), results.end(), std::back_inserter(times), [&](const auto& cr) {
-                if(not cr.has_value())
-                    return std::numeric_limits<double>::max();
-                return time_op(*ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
-            });
+        std::transform(results.begin(),
+                       results.end(),
+                       config->solutions.begin(),
+                       std::back_inserter(times),
+                       [&](const auto& cr, const auto& solution) {
+                           if(trace_level > 1)
+                               std::cout << "Benchmarking solution: " << solution << std::endl;
+                           if(not cr.has_value())
+                           {
+                               if(trace_level > 1)
+                                   std::cout << "No binary" << std::endl;
+                               return std::numeric_limits<double>::max();
+                           }
+                           auto t = time_op(
+                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                           if(trace_level > 1)
+                               std::cout << t << "ms" << std::endl;
+                           return t;
+                       });
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
-        std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+        if(trace_level > 0)
+            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         pc.insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation.");

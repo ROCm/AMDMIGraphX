@@ -59,6 +59,13 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+inline std::string get_version()
+{
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+           "." MIGRAPHX_VERSION_TWEAK;
+}
+
 struct loader
 {
     std::string model;
@@ -540,22 +547,17 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    // Set to -1. as nonsense initial value
-    double rms_tol       = -1.0;
-    double atol          = -1.0;
-    double rtol          = -1.0;
+    std::optional<double> rms_tol;
+    std::optional<double> atol;
+    std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error (Default: 0.001)"));
-        ap(atol,
-           {"--atol"},
-           ap.help("Tolerance for the elementwise absolute difference (Default: 0.001)"));
-        ap(rtol,
-           {"--rtol"},
-           ap.help("Tolerance for the elementwise relative difference (Default: 0.001)"));
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+        ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+        ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
@@ -572,33 +574,6 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-        // TODO remove this and make the driver able to figure out datatype most used in the model
-        //  then set the tolerances appropriately. Need to check here because c.to_fp16 only set
-        //  after argument_parser.parse() is run. This code is complicated because there's not a
-        //  good way to change the default tolerances after reading `--fp16` but before reading
-        //  `--rms-tol`, `--atol`, and `--rtol`.
-        migraphx::verify::tolerance tols{};
-        if(c.to_fp16)
-        {
-            tols = migraphx::verify::tolerance{8e-2, 4e-2, 4e-2};
-        }
-        if(not float_equal(this->rms_tol, -1.0))
-        {
-            tols.rms_tol = this->rms_tol;
-        }
-        if(not float_equal(this->atol, -1.0))
-        {
-            tols.atol = this->atol;
-        }
-        if(not float_equal(this->rtol, -1.0))
-        {
-            tols.rtol = this->rtol;
-        }
-
-        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
-        std::cout << "atol: " << tols.atol << std::endl;
-        std::cout << "rtol: " << tols.rtol << std::endl;
-
         auto quantize = precision::fp32;
         if(c.to_fp16)
         {
@@ -608,6 +583,11 @@ struct verify : command<verify>
         {
             quantize = precision::int8;
         }
+
+        auto tols = get_tolerances(p, quantize, rms_tol, atol, rtol);
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
@@ -621,17 +601,6 @@ struct verify : command<verify>
         {
             verify_program(c.l.file, p, t, c.co, quantize, m, tols);
         }
-    }
-};
-
-struct version : command<version>
-{
-    void parse(const argument_parser&) {}
-    void run() const
-    {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << "." << MIGRAPHX_VERSION_PATCH << "."
-                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -787,16 +756,14 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
-                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+        std::string version_str = get_version();
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+        ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -839,7 +806,6 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
-
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -849,15 +815,27 @@ int main(int argc, const char* argv[])
     auto&& m = get_commands();
     auto cmd = args.front();
 
-    if(cmd == "ort-sha")
+    if(cmd == "--ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+    if(cmd == "-v" or cmd == "--version")
+    {
+        std::cout << get_version() << std::endl;
         return 0;
     }
 
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
+        std::string driver_invocation =
+            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        m.at(cmd)(argv[0],
+                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }
     else
     {

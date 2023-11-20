@@ -49,7 +49,7 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         if(ins->name() == "@param")
         {
             names[ins] =
-                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+                to_c_id(migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter);
         }
         else if(ins->name() == "@return")
         {
@@ -237,7 +237,7 @@ cpp_generator::to_args(const std::vector<instruction_ref>& inputs,
 {
     std::vector<std::string> args;
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(args), [&](auto i) {
-        return to_c_id(names.at(i));
+        return names.at(i);
     });
     return args;
 }

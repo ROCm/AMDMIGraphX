@@ -38,10 +38,10 @@ create_program(const migraphx::shape& data_shape, int64_t sorted, std::optional<
     migraphx::program p;
     auto* mm  = p.get_main_module();
     auto data = mm->add_parameter("X", data_shape);
-    auto op   = axis ? migraphx::make_op("unique", {{"axis", *axis}, {"sorted", sorted}});
-    :migraphx::make_op("unique", {{"sorted", sorted}})
+    auto op   = axis ? migraphx::make_op("unique", {{"axis", *axis}, {"sorted", sorted}})
+                     : migraphx::make_op("unique", {{"sorted", sorted}});
 
-    auto r    = mm->add_instruction(op, data);
+    auto r = mm->add_instruction(op, data);
 
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
@@ -55,7 +55,7 @@ template <typename T>
 auto run_program(T& data,
                  const migraphx::shape& data_shape,
                  int sorted,
-                 std::optional<int64_t> axis)
+                 std::optional<int64_t> axis = std::nullopt)
 {
     auto p = create_program(data_shape, sorted, axis);
     p.compile(migraphx::make_target("ref"));

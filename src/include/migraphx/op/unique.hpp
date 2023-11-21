@@ -170,6 +170,7 @@ struct unique
         };
         std::map<size_t, size_t, decltype(idx_less_fn)> uniq_val_map(idx_less_fn);
 
+        // rv is used for NVRO below..
         std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::size_t>> rv;
         auto& [y_indices, x_rev_indices, y_count] = rv;
 
@@ -215,18 +216,17 @@ struct unique
         size_t max_uniq_ct = sh_x.elements();
         std::vector<shape::dynamic_dimension> d_out;
 
-        // min = 1 unique element; max = full dimension along the axis
         if(axis)
         {
             int64_t t_axis = migraphx::tune_axis(dim_x, *axis, name());
             if(t_axis != 0)
                 MIGRAPHX_THROW("Unique: Only supports axis = 0 or None");
 
+            d_out = sh_x.to_dynamic().dyn_dims();
             // only axis = 0 is supported:
             max_uniq_ct /= lens_x[0];
-            d_out.push_back({1, max_uniq_ct});
-            for(size_t idx = 1; idx < dim_x; idx++)
-                d_out.push_back({lens_x[idx], lens_x[idx]});
+            // min = 1 unique element; max = full dimension along axis 0
+            d_out[0] = {1, max_uniq_ct};
         }
         else
         {
@@ -243,7 +243,6 @@ struct unique
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto sh_x          = args.front().get_shape();
-        size_t dim_x       = sh_x.ndim();
         auto lens_x        = sh_x.lens();
         shape output_shape = dyn_out.computed_shape;
         auto vec_ss        = output_shape.sub_shapes();
@@ -272,29 +271,31 @@ struct unique
             using o_type = typename decltype(x)::value_type;
             std::vector<o_type> x_in(x.begin(), x.end());
 
-            auto [y_indices, x_rev_indices, y_count] = sorted
-                                                           ? sorted_uniq_indices(x_in, chunk_sz)
-                                                           : unsorted_uniq_indices(x_in, chunk_sz);
-            const auto uniq_ct                       = y_indices.size();
+            std::tie(out_y_idx, out_x_rev_idx, out_y_ct) =
+                sorted ? sorted_uniq_indices(x_in, chunk_sz)
+                       : unsorted_uniq_indices(x_in, chunk_sz);
+
+            const auto uniq_ct = out_y_idx.size();
 
             // construct y from x[indices] in flattened form
             // later we reshape y to the final shape..
             auto y_dst = y_flat.begin();
             for(size_t idx = 0; idx < uniq_ct; idx++)
-                y_dst = copy_n(x_in.begin() + y_indices[idx] * chunk_sz, chunk_sz, y_dst);
+                y_dst = copy_n(x_in.begin() + out_y_idx[idx] * chunk_sz, chunk_sz, y_dst);
 
-            out_y_idx     = std::move(y_indices);
-            out_x_rev_idx = std::move(x_rev_indices);
-            out_y_ct      = std::move(y_count);
-
-            std::vector<size_t> y_lens = {uniq_ct};
-
+            std::vector<size_t> lens_y;
             // if axis is specified:
-            // the output shape has the n-1 dimensions of x
-            for(size_t idx = 1; axis && idx < dim_x; idx++)
-                y_lens.push_back(lens_x[idx]);
-
-            sh_y   = {sh_y.type(), y_lens};
+            // the output shape keeps the n-1 dimensions of x
+            if(axis)
+            {
+                lens_y    = lens_x;
+                lens_y[0] = uniq_ct;
+            }
+            else
+            {
+                lens_y = {uniq_ct};
+            }
+            sh_y   = {sh_y.type(), lens_y};
             sh_idx = {sh_idx.type(), {uniq_ct}};
         });
 

@@ -118,7 +118,7 @@ struct highest
     template <class T>
     constexpr operator T() const
     {
-        return numeric_max<vec_type<T>>();
+        return numeric_max<vec_type<T>, void>();
     }
 };
 } // namespace migraphx

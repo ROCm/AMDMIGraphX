@@ -25,11 +25,11 @@
 #define MIGRAPHX_GUARD_KERNELS_MATH_HPP
 
 #include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/float8.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/hip.hpp>
+#include <migraphx/kernels/float8.hpp>
 
 namespace migraphx {
 

@@ -46,8 +46,8 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
     MIGRAPHX_DEVICE_SHARED type buffer[2][N];
     type x = init;
     fs([&](auto i) {
-        int iout = 0;
-        int iin  = 1;
+        index_int iout = 0;
+        index_int iin  = 1;
         if(idx.local == 0)
             buffer[iout][idx.local] = op(input(i), x);
         else

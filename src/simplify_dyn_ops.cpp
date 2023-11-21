@@ -88,7 +88,7 @@ struct find_const_2in_slice
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
-        if(set_attrs == slice_op.ends_axes)
+        if(set_attrs == op::slice::ends_axes)
         {
             // slice(data, starts)
             inputs.at(1)->eval().visit(
@@ -96,7 +96,7 @@ struct find_const_2in_slice
             ends_vec = slice_op.ends;
             axes_vec = slice_op.axes;
         }
-        else if(set_attrs == slice_op.starts_axes)
+        else if(set_attrs == op::slice::starts_axes)
         {
             // slice(data, ends)
             inputs.at(1)->eval().visit(
@@ -144,7 +144,7 @@ struct find_const_3in_slice
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
-        if(set_attrs == slice_op.axes_only)
+        if(set_attrs == op::slice::axes_only)
         {
             // slice(data, starts, ends)
             inputs.at(1)->eval().visit(
@@ -153,7 +153,7 @@ struct find_const_3in_slice
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
             axes_vec = slice_op.axes;
         }
-        else if(set_attrs == slice_op.ends_only)
+        else if(set_attrs == op::slice::ends_only)
         {
             // slice(data, starts, axes)
             inputs.at(1)->eval().visit(

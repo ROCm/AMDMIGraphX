@@ -85,15 +85,27 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                                                      \
-    __device__ inline void dpp_reduce(double& x, op f) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64, f); } \
-    __device__ inline void dpp_reduce(float& x, op f) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32, f); }  \
-    __device__ inline void dpp_reduce(half& x, op f) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16, f); }   \
-    __device__ inline void dpp_reduce(int32_t& x, op f)                                              \
-    {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32, f);                                              \
-    }                                                                                              \
-    __device__ inline void dpp_reduce(uint32_t& x, op f) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32, f); }
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)            \
+    __device__ inline void dpp_reduce(double& x, op f)   \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(float& x, op f)    \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(half& x, op f)     \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(int32_t& x, op f)  \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32, f); \
+    }                                                    \
+    __device__ inline void dpp_reduce(uint32_t& x, op f) \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32, f);     \
+    }
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)

@@ -54,7 +54,7 @@ struct precompile_op : action<precompile_op>
     static operation get_code_object(const program& p)
     {
         MIGRAPHX_TIDY_CONST auto* mm = p.get_main_module();
-        auto it = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
+        auto it                      = std::find_if(mm->begin(), mm->end(), [](const auto& ins) {
             return (ins.name() == "gpu::code_object");
         });
         if(it == mm->end())

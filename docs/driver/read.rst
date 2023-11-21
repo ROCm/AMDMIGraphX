@@ -58,6 +58,10 @@ Set the default dynamic dimension (format {min:x, max:y, optimals:[o1,o2,...]})
 
 Optimize when reading
 
+.. option::  --apply-pass, -p
+
+Passes to apply to model
+
 .. option::  --graphviz, -g
 
 Print out a graphviz representation.

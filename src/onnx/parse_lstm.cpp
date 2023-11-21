@@ -116,6 +116,37 @@ void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv
     }
 }
 
+void lstm_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
+{
+    std::vector<int64_t> perm{1, 0, 2};
+    args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
+
+    if(args.size() >= 6 and not args[5]->is_undefined())
+    {
+        args[5] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[5]);
+    }
+
+    if(args.size() >= 7 and not args[6]->is_undefined())
+    {
+        args[6] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[6]);
+    }
+}
+
+void lstm_transpose_outputs(onnx_parser::node_info& info,
+                            instruction_ref& hidden_states,
+                            instruction_ref& last_output,
+                            instruction_ref& last_cell_output)
+{
+    std::vector<int64_t> perm_hs{2, 0, 1, 3};
+    hidden_states =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_hs}}), hidden_states);
+    std::vector<int64_t> perm_last{1, 0, 2};
+    last_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_output);
+    last_cell_output =
+        info.add_instruction(make_op("transpose", {{"permutation", perm_last}}), last_cell_output);
+}
+
 struct parse_lstm : op_parser<parse_lstm>
 {
     std::vector<op_desc> operators() const { return {{"LSTM"}}; }
@@ -202,11 +233,22 @@ struct parse_lstm : op_parser<parse_lstm>
             input_forget = parser.parse_value(info.attributes.at("input_forget")).at<int>();
         }
 
+        int layout = 0;
+        if(contains(info.attributes, "layout"))
+        {
+            layout = parser.parse_value(info.attributes.at("layout")).at<int>();
+        }
+
         // append undefined opeator to make 6 arguments
         if(args.size() < 8)
         {
             auto ins = info.add_instruction(make_op("undefined"));
             args.insert(args.end(), 8 - args.size(), ins);
+        }
+
+        if(layout != 0)
+        {
+            lstm_transpose_inputs(info, args);
         }
 
         // first output for concatenation of hidden states
@@ -223,6 +265,11 @@ struct parse_lstm : op_parser<parse_lstm>
         // third output for last cell output
         auto last_cell_output =
             info.add_instruction(make_op("rnn_last_cell_output"), hidden_states);
+
+        if(layout != 0)
+        {
+            lstm_transpose_outputs(info, hidden_states, last_output, last_cell_output);
+        }
 
         return {hidden_states, last_output, last_cell_output};
     }

@@ -35,7 +35,8 @@ if(NOT WIN32)
 endif()
 
 rocm_clang_tidy_check(migraphx_ref)
-target_link_libraries(migraphx_ref PUBLIC migraphx Threads::Threads)
+target_link_libraries(migraphx_ref PRIVATE Threads::Threads)
+target_link_libraries(migraphx_ref PUBLIC migraphx)
 target_include_directories(migraphx_ref SYSTEM PRIVATE ${BLAZE_INCLUDE})
 target_compile_definitions(migraphx_ref PRIVATE -DBLAZE_USE_CPP_THREADS)
 

@@ -49,7 +49,6 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 
 project(migraphx LANGUAGES C CXX)
-include(CTest)
 
 find_package(ROCM REQUIRED)
 find_package(Threads REQUIRED)
@@ -88,6 +87,8 @@ set(CMAKE_REQUIRED_INCLUDES)
 set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
+include(ROCMCreatePackage)
+include(ROCMTest)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
@@ -289,9 +290,6 @@ rocm_enable_cppcheck(
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
 )
-
-include(ROCMCreatePackage)
-include(ROCMTest)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

@@ -88,10 +88,17 @@ int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
 
 constexpr std::size_t MIGRAPHX_PROCESS_BUFSIZE = 4096;
 
+enum class direction
+{
+    input,
+    output
+};
+
+template <direction dir, bool inherit_handle = true>
 class pipe
 {
     public:
-    explicit pipe(bool inherit_handle = true)
+    explicit pipe()
     {
         SECURITY_ATTRIBUTES attrs;
         attrs.nLength              = sizeof(SECURITY_ATTRIBUTES);
@@ -101,8 +108,21 @@ class pipe
         if(CreatePipe(&m_read, &m_write, &attrs, 0) == FALSE)
             throw GetLastError();
 
-        if(SetHandleInformation(&m_read, HANDLE_FLAG_INHERIT, 0) == FALSE)
-            throw GetLastError();
+        if(inherit_handle)
+        {
+            if(dir == direction::output)
+            {
+                // Do not inherit the read handle for the output pipe
+                if(SetHandleInformation(m_read, HANDLE_FLAG_INHERIT, 0) == 0)
+                    throw GetLastError();
+            }
+            else
+            {
+                // Do not inherit the write handle for the input pipe
+                if(SetHandleInformation(m_write, HANDLE_FLAG_INHERIT, 0) == 0)
+                    throw GetLastError();
+            }
+        }
     }
 
     pipe(const pipe&)            = delete;
@@ -112,10 +132,31 @@ class pipe
 
     ~pipe()
     {
-        CloseHandle(m_read);
-        m_read = nullptr;
-        CloseHandle(m_write);
-        m_write = nullptr;
+        if(m_read != nullptr)
+            CloseHandle(m_read);
+
+        if(m_write != nullptr)
+            CloseHandle(m_write);
+    }
+
+    void close_read_handle()
+    {
+        if(m_read != nullptr)
+        {
+            if(CloseHandle(m_read) == 0)
+                MIGRAPHX_THROW("Error closing read handle: " + std::to_string(GetLastError()));
+            m_read = nullptr;
+        }
+    }
+
+    void close_write_handle()
+    {
+        if(m_write != nullptr)
+        {
+            if(CloseHandle(m_write) == 0)
+                MIGRAPHX_THROW("Error closing write handle: " + std::to_string(GetLastError()));
+            m_write = nullptr;
+        }
     }
 
     std::optional<std::pair<bool, DWORD>> read(LPVOID buffer, DWORD length) const
@@ -158,13 +199,14 @@ int exec(const std::string& cmd, F f)
         STARTUPINFO info;
         PROCESS_INFORMATION process_info;
 
-        pipe in{}, out{};
+        pipe<direction::input> input{};
+        pipe<direction::output> output{};
 
         ZeroMemory(&info, sizeof(STARTUPINFO));
         info.cb         = sizeof(STARTUPINFO);
-        info.hStdError  = out.get_write_handle();
-        info.hStdOutput = out.get_write_handle();
-        info.hStdInput  = in.get_read_handle();
+        info.hStdError  = output.get_write_handle();
+        info.hStdOutput = output.get_write_handle();
+        info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
 
         ZeroMemory(&process_info, sizeof(process_info));
@@ -183,7 +225,7 @@ int exec(const std::string& cmd, F f)
             return GetLastError();
         }
 
-        f(in, out);
+        f(input, output);
 
         WaitForSingleObject(process_info.hProcess, INFINITE);
 
@@ -192,6 +234,9 @@ int exec(const std::string& cmd, F f)
 
         CloseHandle(process_info.hProcess);
         CloseHandle(process_info.hThread);
+
+        input.close_read_handle();
+        output.close_write_handle();
 
         return static_cast<int>(status);
     }
@@ -208,7 +253,7 @@ int exec(const std::string& cmd)
     HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
     return (std_out == nullptr or std_out == INVALID_HANDLE_VALUE)
                ? GetLastError()
-               : exec(cmd, [&](const pipe&, const pipe& out) {
+               : exec(cmd, [&](const pipe<direction::input>&, const pipe<direction::output>& out) {
                      for(;;)
                      {
                          if(auto result = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE))
@@ -226,7 +271,7 @@ int exec(const std::string& cmd)
 
 int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
 {
-    return exec(cmd, [&](const pipe& in, const pipe&) {
+    return exec(cmd, [&](const pipe<direction::input>& in, const pipe<direction::output>&) {
         std_in([&](const char* buffer, std::size_t n) { in.write(buffer, n); });
     });
 }

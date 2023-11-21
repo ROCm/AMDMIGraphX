@@ -29,12 +29,7 @@ include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
 
-if(WIN32)
-    # Due to compilation crashing, we need to use type-erased matchers on Windows.
-    add_compile_definitions($<$<COMPILE_LANGUAGE:C,CXX>:MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1>)
-endif()
-
-add_library(migraphx 
+add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
     apply_alpha_beta.cpp
@@ -108,6 +103,12 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+if(WIN32)
+    # Due to compilation crashing, we need to use type-erased matchers on Windows.
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+endif()
+
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -327,5 +328,4 @@ rocm_export_targets(
     Threads
     ${PACKAGE_DEPENDS}
 )
- 
 

@@ -85,7 +85,7 @@ struct concat_compiler : compiler<concat_compiler>
         for(auto i : range(op_names.size()))
         {
             const auto& name = op_names[i];
-            auto n      = args.at(name).to<std::size_t>();
+            auto n           = args.at(name).to<std::size_t>();
             auto prefix      = to_c_id(name + std::to_string(i) + "_concat_x");
             transform(range(n), std::back_inserter(concat_params), [&](auto j) {
                 return "auto " + prefix + std::to_string(j);

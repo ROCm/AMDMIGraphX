@@ -92,7 +92,6 @@ MIGRAPHX_REGISTER_OP(fused_concat);
 
 namespace {
 
-static unsigned int counter = 0;
 struct find_pointwise_concat_pointwise
 {
     auto matcher() const
@@ -124,6 +123,7 @@ struct find_pointwise_concat_pointwise
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
+        static unsigned int counter = 0;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),

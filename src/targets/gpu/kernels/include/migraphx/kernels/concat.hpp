@@ -59,20 +59,26 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
+template <index_int Axis, class Start, class InputPack, class F, class... Ts>
+__device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, Ts... ts)
+{
+    return input_pack([&](auto g, auto x, auto... xs) {
+            return concat_slices<Axis>(x, start, ts...)([&](auto z, auto... ys) {
+                idx.global_stride(x.get_shape().elements(),
+                                  [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
+
+                return start + concat_ends<Axis>(x);
+            });
+        });
+}
+
 template <index_int Axis, class... InputPacks>
 __device__ auto concat(InputPacks... input_packs)
 {
     return [=](auto f, auto... ts) {
         auto idx = make_index();
         fold([&](auto start, auto input_pack) {
-            return input_pack([&](auto g, auto x, auto... xs) {
-                return concat_slices<Axis>(x, start, ts...)([&](auto z, auto... ys) {
-                    idx.global_stride(x.get_shape().elements(),
-                                      [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
-
-                    return start + concat_ends<Axis>(x);
-                });
-            });
+            return concat_each<Axis>(idx, start, input_pack, f, ts...);
         })(_c<0>, input_packs...);
     };
 }

@@ -28,7 +28,9 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -122,6 +124,8 @@ struct find_add_layernorm
     }
 };
 
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
+
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
@@ -175,6 +179,8 @@ struct find_gemm_softmax_gemm
     }
 };
 
+#endif
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -182,8 +188,10 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
+#ifdef MIHRAPHX_USE_COMPOSABLEKERNEL
     if(enabled(MIGRAPHX_ENABLE_CK{}))
         match::find_matches(mpm, find_gemm_softmax_gemm{});
+#endif
 }
 
 } // namespace gpu

@@ -3299,6 +3299,64 @@ TEST_CASE(slice_static_shape)
 
 TEST_CASE(slice_var_inputs_static_shape0)
 {
+    // attr ends and axes set; inputs are (data, input_starts)
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {0, 4}, {0, 4}}},
+                 migraphx::make_op("slice", {{"ends", {2, 3}}, {"axes", {1, 2}}}),
+                 input,
+                 starts);
+}
+
+TEST_CASE(slice_var_inputs_static_mismatch_error0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"ends", {2, 3, 4}}, {"axes", {0, 1, 2}}}), input, starts);
+}
+
+TEST_CASE(slice_var_inputs_static_shape1)
+{
+    // attr starts and axes set; inputs are (data, input_ends)
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {0, 4}, {0, 4}}},
+                 migraphx::make_op("slice", {{"starts", {0, 1}}, {"axes", {1, 2}}}),
+                 input,
+                 ends);
+}
+
+TEST_CASE(slice_var_inputs_static_mismatch_error1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"starts", {0, 1, 2}}, {"axes", {0, 1, 2}}}), input, ends);
+}
+
+TEST_CASE(slice_var_inputs_static_shape2)
+{
+    // attr starts and ends set; inputs are (data, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 3}, {0, 4}, {0, 4}}},
+                 migraphx::make_op("slice", {{"starts", {0, 1}}, {"ends", {1, 2}}}),
+                 input,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_static_mismatch_error2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"starts", {0, 1, 2}}, {"ends", {3, 4, 4}}}), input, axes);
+}
+
+TEST_CASE(slice_var_inputs_static_shape3)
+{
+    // attr axes set; inputs are (data, input_starts, input_ends)
     migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
     migraphx::shape starts{migraphx::shape::int64_type, {2}};
     migraphx::shape ends{migraphx::shape::int64_type, {2}};
@@ -3309,7 +3367,57 @@ TEST_CASE(slice_var_inputs_static_shape0)
                  ends);
 }
 
-TEST_CASE(slice_var_inputs_static_shape1)
+TEST_CASE(slice_var_inputs_static_mismatch_error3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {0, 1, 2}}}), input, starts, ends);
+}
+
+TEST_CASE(slice_var_inputs_static_shape4)
+{
+    // attr ends set; inputs are (data, input_starts, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 3}, {0, 4}, {0, 4}}},
+                 migraphx::make_op("slice", {{"ends", {3, 4}}}),
+                 input,
+                 starts,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_static_mismatch_error4)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"ends", {3, 3, 3}}}), input, starts, axes);
+}
+
+TEST_CASE(slice_var_inputs_static_shape5)
+{
+    // attr starts set; inputs are (data, input_ends, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 3}, {0, 4}, {0, 4}}},
+                 migraphx::make_op("slice", {{"starts", {0, 2}}}),
+                 input,
+                 ends,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_static_mismatch_error5)
+{
+    migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"starts", {0, 1, 2}}}), input, ends, axes);
+}
+
+TEST_CASE(slice_var_inputs_static_shape6)
 {
     migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
     migraphx::shape starts{migraphx::shape::int64_type, {2}};
@@ -3323,7 +3431,7 @@ TEST_CASE(slice_var_inputs_static_shape1)
                  axes);
 }
 
-TEST_CASE(slice_var_inputs_static_error0)
+TEST_CASE(slice_var_inputs_static_mismatch_error6)
 {
     migraphx::shape input{migraphx::shape::float_type, {3, 4, 4}};
     migraphx::shape starts{migraphx::shape::int64_type, {2}};
@@ -3334,17 +3442,125 @@ TEST_CASE(slice_var_inputs_static_error0)
 
 TEST_CASE(slice_var_inputs_dyn_shape0)
 {
-    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
+    // attr ends and axes set; inputs are (data, input_starts)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 6}, {0, 6}, {0, 6}}},
+                 migraphx::make_op("slice", {{"ends", {2, 3}}, {"axes", {1, 2}}}),
+                 input,
+                 starts);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"ends", {2, 3, 4}}, {"axes", {0, 1, 2}}}), input, starts);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape1)
+{
+    // attr starts and axes set; inputs are (data, input_ends)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 6}, {0, 6}, {0, 6}}},
+                 migraphx::make_op("slice", {{"starts", {0, 1}}, {"axes", {1, 2}}}),
+                 input,
+                 ends);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"starts", {0, 1, 2}}, {"axes", {0, 1, 2}}}), input, ends);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape2)
+{
+    // attr starts and ends set; inputs are (data, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 6}, {0, 6}, {0, 6}}},
+                 migraphx::make_op("slice", {{"starts", {0, 1}}, {"ends", {8, 8}}}),
+                 input,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(
+        migraphx::make_op("slice", {{"starts", {0, 1, 2}}, {"ends", {3, 4, 4}}}), input, axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape3)
+{
+    // attr axes set; inputs are (data, input_starts, input_ends)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
     migraphx::shape starts{migraphx::shape::int64_type, {2}};
     migraphx::shape ends{migraphx::shape::int64_type, {2}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 6}, {0, 4}, {0, 4}}},
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 6}, {0, 6}, {0, 6}}},
                  migraphx::make_op("slice", {{"axes", {1, 2}}}),
                  input,
                  starts,
                  ends);
 }
 
-TEST_CASE(slice_var_inputs_dyn_shape1)
+TEST_CASE(slice_var_inputs_dyn_mismatch_error3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {0, 1, 2}}}), input, starts, ends);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape4)
+{
+    // attr ends set; inputs are (data, input_starts, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 6}, {0, 6}, {0, 6}}},
+                 migraphx::make_op("slice", {{"ends", {3, 4}}}),
+                 input,
+                 starts,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error4)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"ends", {3, 3, 3}}}), input, starts, axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape5)
+{
+    // attr starts set; inputs are (data, input_ends, input_axes)
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{0, 6}, {0, 6}, {0, 6}}},
+                 migraphx::make_op("slice", {{"starts", {0, 2}}}),
+                 input,
+                 ends,
+                 axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error5)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {2}};
+    throws_shape(migraphx::make_op("slice", {{"starts", {0, 1, 2}}}), input, ends, axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_shape6)
 {
     migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
     migraphx::shape starts{migraphx::shape::int64_type, {2}};
@@ -3356,6 +3572,15 @@ TEST_CASE(slice_var_inputs_dyn_shape1)
                  starts,
                  ends,
                  axes);
+}
+
+TEST_CASE(slice_var_inputs_dyn_mismatch_error6)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 6}, {4, 6}, {4, 6}}};
+    migraphx::shape starts{migraphx::shape::int64_type, {2}};
+    migraphx::shape ends{migraphx::shape::int64_type, {2}};
+    migraphx::shape axes{migraphx::shape::int64_type, {3}};
+    throws_shape(migraphx::make_op("slice"), input, starts, ends, axes);
 }
 
 TEST_CASE(slice_dyn_shape0)

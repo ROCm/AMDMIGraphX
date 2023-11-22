@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_ROUND_HPP
-#define MIGRAPHX_GUARD_OPERATORS_ROUND_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_NEARBYINT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_NEARBYINT_HPP
 
 #include <migraphx/op/unary.hpp>
 #include <migraphx/config.hpp>
+#include <fenv.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
-
-struct round : unary<round>
+struct nearbyint : unary<nearbyint>
 {
     auto apply() const
     {
-        return [](auto x) { return std::round(x); };
+        return [](auto x) {
+            auto rounding_mode = fegetround();
+            fesetround(FE_TONEAREST);
+            return std::nearbyint(x);
+            fesetround(rounding_mode);
+        };
     }
 };
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

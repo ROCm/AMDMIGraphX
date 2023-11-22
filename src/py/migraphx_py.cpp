@@ -40,7 +40,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
-
+#include <migraphx/float8.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -142,6 +142,18 @@ struct npy_format_descriptor<half>
         return "e";
     }
     static constexpr auto name() { return _("half"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
+{
+    static std::string format()
+    {
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        // TODO: need to figure out correct encoding
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e4m3fnuz"); }
 };
 
 } // namespace detail

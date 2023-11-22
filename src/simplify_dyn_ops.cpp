@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/simplify_dyn_ops.hpp>
+#include <migraphx/op/slice.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
@@ -65,8 +66,65 @@ struct find_static_2in_broadcasts
 };
 
 /**
- * Simplify slice with variable `starts` and `ends` to the constant version if
- * the `input_starts` and `input_ends` inputs are constant.
+ * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
+ * From:
+ * slice(data, constant_input); two attributes set
+ * To:
+ * slice(data); slice.starts, slice.ends. slice.axes set
+ */
+struct find_const_2in_slice
+{
+    auto matcher() const
+    {
+        return match::name("slice")(match::nargs(2), match::arg(1)(match::is_constant()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins       = mr.result;
+        auto inputs    = ins->inputs();
+        auto slice_op  = any_cast<op::slice>(ins->get_operator());
+        auto set_attrs = slice_op.get_set_attributes();
+        std::vector<int64_t> starts_vec;
+        std::vector<int64_t> ends_vec;
+        std::vector<int64_t> axes_vec;
+        if(set_attrs == op::slice::ends_axes)
+        {
+            // slice(data, starts)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
+            ends_vec = slice_op.ends;
+            axes_vec = slice_op.axes;
+        }
+        else if(set_attrs == op::slice::starts_axes)
+        {
+            // slice(data, ends)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
+            starts_vec = slice_op.starts;
+            axes_vec   = slice_op.axes;
+        }
+        else
+        {
+            // slice(data, axes)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
+            starts_vec = slice_op.starts;
+            ends_vec   = slice_op.ends;
+        }
+        m.replace_instruction(
+            ins,
+            make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),
+            inputs.at(0));
+    }
+};
+
+/**
+ * Simplify slice with 3 inputs to the 1 input version if inputs[1:2] are constant.
+ * From:
+ * slice(data, constant_input1, constant_input2); one attribute set
+ * To:
+ * slice(data); slice.starts, slice.ends. slice.axes set
  */
 struct find_const_3in_slice
 {
@@ -81,27 +139,51 @@ struct find_const_3in_slice
     {
         auto ins            = mr.result;
         auto inputs         = ins->inputs();
-        argument starts_arg = inputs.at(1)->eval();
-        argument ends_arg   = inputs.at(2)->eval();
-        if(not starts_arg.empty() and not ends_arg.empty())
+        auto slice_op       = any_cast<op::slice>(ins->get_operator());
+        auto set_attrs      = slice_op.get_set_attributes();
+        std::vector<int64_t> starts_vec;
+        std::vector<int64_t> ends_vec;
+        std::vector<int64_t> axes_vec;
+        if(set_attrs == op::slice::axes_only)
         {
-            std::vector<int64_t> starts_vec;
-            std::vector<int64_t> ends_vec;
-            starts_arg.visit([&](auto output) { starts_vec.assign(output.begin(), output.end()); });
-            ends_arg.visit([&](auto output) { ends_vec.assign(output.begin(), output.end()); });
-            auto slice_val = ins->get_operator().to_value();
-            auto axes_vec  = slice_val.at("axes").to_vector<int64_t>();
-            m.replace_instruction(
-                ins,
-                make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),
-                inputs.at(0));
+            // slice(data, starts, ends)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
+            inputs.at(2)->eval().visit(
+                [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
+            axes_vec = slice_op.axes;
         }
+        else if(set_attrs == op::slice::ends_only)
+        {
+            // slice(data, starts, axes)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
+            inputs.at(2)->eval().visit(
+                [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
+            ends_vec = slice_op.ends;
+        }
+        else
+        {
+            // slice(data, ends, axes)
+            inputs.at(1)->eval().visit(
+                [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
+            inputs.at(2)->eval().visit(
+                [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
+            starts_vec = slice_op.starts;
+        }
+        m.replace_instruction(
+            ins,
+            make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),
+            inputs.at(0));
     }
 };
 
 /**
- * Simplify slice with variable `starts`, `ends`, and `input_axes` to the constant version if
- * the `input_starts`, `input_ends`, and `input_axes` inputs are constant.
+ * Simplify slice with 4 inputs to the 1 input version if inputs[1:3] are constant.
+ * From:
+ * slice(data, constant_starts, constant_ends, constant_axes)
+ * To:
+ * slice(data); slice.starts, slice.ends. slice.axes set
  */
 struct find_const_4in_slice
 {
@@ -117,9 +199,9 @@ struct find_const_4in_slice
     {
         auto ins            = mr.result;
         auto inputs         = ins->inputs();
-        argument starts_arg = inputs.at(1)->eval();
-        argument ends_arg   = inputs.at(2)->eval();
-        argument axes_arg   = inputs.at(3)->eval();
+        argument starts_arg = inputs.at(1)->eval(false);
+        argument ends_arg   = inputs.at(2)->eval(false);
+        argument axes_arg   = inputs.at(3)->eval(false);
         if(not starts_arg.empty() and not ends_arg.empty() and not axes_arg.empty())
         {
             std::vector<int64_t> starts_vec;
@@ -213,6 +295,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
+                        find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{});
 }

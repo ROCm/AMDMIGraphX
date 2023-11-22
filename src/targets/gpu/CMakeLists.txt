@@ -260,6 +260,7 @@ include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+check_library_exists(MIOpen "miopenSetTensorCastType" "${MIOPEN_LOCATION}" MIOPEN_HAS_BETA_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 # Beta API for automated GEMM tuning
 check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
@@ -267,6 +268,10 @@ check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOC
 check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
+set(MIGRAPHX_USE_MIOPEN_BETA_API "${MIOPEN_HAS_BETA_API}" CACHE BOOL "")
+if(MIGRAPHX_USE_MIOPEN_BETA_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIOPEN_BETA_API -DMIOPEN_DONT_USE_HIP_RUNTIME_HEADERS)
+endif()
 
 if(MIGRAPHX_USE_FIND_2_API)
     check_library_exists(MIOpen "miopenSetFindOptionPreallocatedTensor" "${MIOPEN_LOCATION}" HAS_PREALLOCATION_API)

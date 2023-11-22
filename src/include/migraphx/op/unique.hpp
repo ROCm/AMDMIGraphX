@@ -75,6 +75,18 @@ namespace op {
 
 struct unique
 {
+
+    template <class T>
+    auto make_idx_less_fn(const T& data, size_t chunk_sz) const
+    {
+        return [&data, chunk_sz](auto idx1, auto idx2) {
+            return std::lexicographical_compare(data.begin() + idx1,
+                                                data.begin() + idx1 + chunk_sz,
+                                                data.begin() + idx2,
+                                                data.begin() + idx2 + chunk_sz);
+        };
+    }
+
     // CASE SORTED:
     //
     // To process into a sorted unique series of elements/chunks:
@@ -102,12 +114,7 @@ struct unique
             size_t ct = 0;
         };
 
-        auto idx_less_fn = [&](auto idx1, auto idx2) {
-            return std::lexicographical_compare(input_data.begin() + idx1,
-                                                input_data.begin() + idx1 + chunk_sz,
-                                                input_data.begin() + idx2,
-                                                input_data.begin() + idx2 + chunk_sz);
-        };
+        auto idx_less_fn = make_idx_less_fn(input_data, chunk_sz);
         std::map<size_t, y_info, decltype(idx_less_fn)> uniq_val_map(idx_less_fn);
 
         std::tuple<std::vector<std::size_t>, std::vector<std::size_t>, std::vector<std::size_t>> rv;
@@ -162,12 +169,7 @@ struct unique
     template <class T>
     auto unsorted_uniq_indices(const T& input_data, size_t chunk_sz) const
     {
-        auto idx_less_fn = [&](auto idx1, auto idx2) {
-            return std::lexicographical_compare(input_data.begin() + idx1,
-                                                input_data.begin() + idx1 + chunk_sz,
-                                                input_data.begin() + idx2,
-                                                input_data.begin() + idx2 + chunk_sz);
-        };
+        auto idx_less_fn = make_idx_less_fn(input_data, chunk_sz);
         std::map<size_t, size_t, decltype(idx_less_fn)> uniq_val_map(idx_less_fn);
 
         // rv is used for NVRO below..
@@ -224,7 +226,7 @@ struct unique
 
             d_out = sh_x.to_dynamic().dyn_dims();
             // only axis = 0 is supported:
-            max_uniq_ct /= lens_x[0];
+            max_uniq_ct = lens_x[0];
             // min = 1 unique element; max = full dimension along axis 0
             d_out[0] = {1, max_uniq_ct};
         }

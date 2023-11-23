@@ -308,9 +308,10 @@ else()
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 
-#if(NOT WIN32)
+if(NOT WIN32)
     find_package(nlohmann_json 3.8.0 REQUIRED)
 endif()
+
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
@@ -373,4 +374,5 @@ rocm_export_targets(
     Threads
     ${PACKAGE_DEPENDS}
 )
+ 
 

@@ -111,7 +111,7 @@ def main() -> None:
         "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop",
         shell=True,
         stdout=subprocess.PIPE)
-    
+
     # Subprocess 2 is getting the list of file differences between FETCH_HEAD and MIGraphX Url (not including any deleted files)
     proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
                           shell=True,

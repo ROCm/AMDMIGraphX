@@ -104,18 +104,15 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
 def main() -> None:
     unsupported_file_types.extend(specificIgnores)
 
-    # Get a list of all the tracked files in our git repo
-    # proc = subprocess.run("git ls-files --exclude-standard",
-    #                       shell=True,
-    #                       stdout=subprocess.PIPE)
+    ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
 
-    ## Update - Get list of files (not including deleted) that changed/added compared to latest Dev branch from MI Graphx
-    # Subprocess 1 is fetching the latest dev branch from MIgraphX Url and naming it as 'FETCH_HEAD'
+    # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
     subprocess.run(
         "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop",
         shell=True,
         stdout=subprocess.PIPE)
-    # Subprocess 2 is getting the list of file differences between FETCH_HEAD and MIGraphX Url (not including deleted files)
+    
+    # Subprocess 2 is getting the list of file differences between FETCH_HEAD and MIGraphX Url (not including any deleted files)
     proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
                           shell=True,
                           stdout=subprocess.PIPE)

@@ -53,7 +53,8 @@ else
     python3-pip \
     python3-venv \
     rocblas-dev \
-    rocm-cmake
+    rocm-cmake \
+    libtbb-dev
 fi
 
 

@@ -41,9 +41,12 @@ if(NOT MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 endif()
 
-set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+if(NOT WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+    set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+endif()
 
-set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 
 project(migraphx LANGUAGES C CXX)
 include(CTest)
@@ -57,6 +60,9 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+# By default build shared libraries
+option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
 else()
@@ -67,7 +73,7 @@ find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
 else()
-	message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
+    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 endif()
 
 include(CheckTypeSize)
@@ -102,13 +108,21 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
+if(WIN32)
+    add_compile_definitions("$<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES>")
+endif()
+
 set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
+else()
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+.*")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)

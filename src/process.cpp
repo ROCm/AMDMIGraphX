@@ -94,7 +94,7 @@ enum class direction
     output
 };
 
-template <direction dir, bool inherit_handle = true>
+template <direction dir>
 class pipe
 {
     public:
@@ -102,26 +102,23 @@ class pipe
     {
         SECURITY_ATTRIBUTES attrs;
         attrs.nLength              = sizeof(SECURITY_ATTRIBUTES);
-        attrs.bInheritHandle       = inherit_handle ? TRUE : FALSE;
+        attrs.bInheritHandle       = TRUE;
         attrs.lpSecurityDescriptor = nullptr;
 
         if(CreatePipe(&m_read, &m_write, &attrs, 0) == FALSE)
             throw GetLastError();
 
-        if(inherit_handle)
+        if(dir == direction::output)
         {
-            if(dir == direction::output)
-            {
-                // Do not inherit the read handle for the output pipe
-                if(SetHandleInformation(m_read, HANDLE_FLAG_INHERIT, 0) == 0)
-                    throw GetLastError();
-            }
-            else
-            {
-                // Do not inherit the write handle for the input pipe
-                if(SetHandleInformation(m_write, HANDLE_FLAG_INHERIT, 0) == 0)
-                    throw GetLastError();
-            }
+            // Do not inherit the read handle for the output pipe
+            if(SetHandleInformation(m_read, HANDLE_FLAG_INHERIT, 0) == 0)
+                throw GetLastError();
+        }
+        else
+        {
+            // Do not inherit the write handle for the input pipe
+            if(SetHandleInformation(m_write, HANDLE_FLAG_INHERIT, 0) == 0)
+                throw GetLastError();
         }
     }
 
@@ -132,31 +129,36 @@ class pipe
 
     ~pipe()
     {
-        if(m_read != nullptr)
-            CloseHandle(m_read);
-
         if(m_write != nullptr)
+        {
             CloseHandle(m_write);
-    }
-
-    void close_read_handle()
-    {
+        }
         if(m_read != nullptr)
         {
-            if(CloseHandle(m_read) == 0)
-                MIGRAPHX_THROW("Error closing read handle: " + std::to_string(GetLastError()));
-            m_read = nullptr;
+            CloseHandle(m_read);
         }
     }
 
-    void close_write_handle()
+    bool close_write_handle()
     {
+        auto result = true;
         if(m_write != nullptr)
         {
-            if(CloseHandle(m_write) == 0)
-                MIGRAPHX_THROW("Error closing write handle: " + std::to_string(GetLastError()));
+            result  = CloseHandle(m_write) == TRUE;
             m_write = nullptr;
         }
+        return result;
+    }
+
+    bool close_read_handle()
+    {
+        auto result = true;
+        if(m_read != nullptr)
+        {
+            result = CloseHandle(m_read) == TRUE;
+            m_read = nullptr;
+        }
+        return result;
     }
 
     std::optional<std::pair<bool, DWORD>> read(LPVOID buffer, DWORD length) const
@@ -189,12 +191,18 @@ class pipe
 };
 
 template <typename F>
-int exec(const std::string& cmd, F f)
+int exec(const std::pair<std::string, std::string>& command, F f)
 {
+    auto& [cwd, cmd] = command;
+
+    if((cmd.length() + 1) > MAX_PATH)
+        MIGRAPHX_THROW("Command too long, required maximum " + std::to_string(MAX_PATH) +
+                       " characters (including terminating null character)");
+
     try
     {
         if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-            std::cout << cmd << std::endl;
+            std::cout << "[cwd=" << cwd << "];  cmd='" << cmd << "'\n";
 
         STARTUPINFO info;
         PROCESS_INFORMATION process_info;
@@ -209,23 +217,38 @@ int exec(const std::string& cmd, F f)
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
 
+        TCHAR cmdline[MAX_PATH];
+        std::copy(std::begin(cmd), std::end(cmd), std::begin(cmdline));
+
         ZeroMemory(&process_info, sizeof(process_info));
 
         if(CreateProcess(nullptr,
-                         const_cast<LPSTR>(cmd.c_str()),
+                         cmdline,
                          nullptr,
                          nullptr,
                          TRUE,
                          0,
                          nullptr,
-                         nullptr,
+                         cwd.empty() ? nullptr : static_cast<LPCSTR>(cwd.c_str()),
                          &info,
                          &process_info) == FALSE)
         {
-            return GetLastError();
+            MIGRAPHX_THROW("Error creating process (" + std::to_string(GetLastError()) + ")");
         }
 
+        if(not output.close_write_handle())
+            MIGRAPHX_THROW("Error closing STDOUT handle for writing (" +
+                           std::to_string(GetLastError()) + ")");
+
+        if(not input.close_read_handle())
+            MIGRAPHX_THROW("Error closing STDIN handle for reading (" +
+                           std::to_string(GetLastError()) + ")");
+
         f(input, output);
+
+        if(not input.close_write_handle())
+            MIGRAPHX_THROW("Error closing STDIN handle for writing (" +
+                           std::to_string(GetLastError()) + ")");
 
         WaitForSingleObject(process_info.hProcess, INFINITE);
 
@@ -234,9 +257,6 @@ int exec(const std::string& cmd, F f)
 
         CloseHandle(process_info.hProcess);
         CloseHandle(process_info.hThread);
-
-        input.close_read_handle();
-        output.close_write_handle();
 
         return static_cast<int>(status);
     }
@@ -247,7 +267,7 @@ int exec(const std::string& cmd, F f)
     }
 }
 
-int exec(const std::string& cmd)
+int exec(const std::pair<std::string, std::string>& cmd)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
     HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
@@ -258,7 +278,7 @@ int exec(const std::string& cmd)
                      {
                          if(auto result = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE))
                          {
-                             auto [more_data, bytes_read] = *result;
+                             auto& [more_data, bytes_read] = *result;
                              if(not more_data or bytes_read == 0)
                                  break;
                              DWORD written;
@@ -269,10 +289,11 @@ int exec(const std::string& cmd)
                  });
 }
 
-int exec(const std::string& cmd, std::function<void(process::writer)> std_in)
+int exec(const std::pair<std::string, std::string>& cmd,
+         std::function<void(process::writer)> std_in)
 {
-    return exec(cmd, [&](const pipe<direction::input>& in, const pipe<direction::output>&) {
-        std_in([&](const char* buffer, std::size_t n) { in.write(buffer, n); });
+    return exec(cmd, [&](const pipe<direction::input>& input, const pipe<direction::output>&) {
+        std_in([&](const char* buffer, std::size_t n) { input.write(buffer, n); });
     });
 }
 
@@ -282,6 +303,10 @@ struct process_impl
 {
     std::string command{};
     fs::path cwd{};
+
+#ifdef _WIN32
+    std::pair<std::string, std::string> get_params() const { return {cwd.string(), command}; }
+#endif
 
     std::string get_command() const
     {
@@ -328,13 +353,13 @@ void process::exec()
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), redirect_to(std::cout));
 #else
-    impl->check_exec(impl->get_command());
+    impl->check_exec(impl->get_params());
 #endif
 }
 
 void process::write(std::function<void(process::writer)> pipe_in)
 {
-    impl->check_exec(impl->get_command(), std::move(pipe_in));
+    impl->check_exec(impl->get_params(), std::move(pipe_in));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -79,6 +79,14 @@ def needStampCheck(filename: str) -> bool:
                         if debug: print("....Already Stamped but wrong year")
                         stampedFilesWithBadYear.append(
                             [filename, yearOfLastCommit])
+                        
+                        ## Debug Git Log
+                        gitLog = subprocess.run(f"git log -5 {filename}",
+                                            shell=True,
+                                            stdout=subprocess.PIPE)
+                        print(gitLog)
+                        sys.exit(1)
+                        ## Debug Git Log
 
                     elif debug:
                         print("....Already Stamped: Skipping  file ")

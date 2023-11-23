@@ -387,17 +387,7 @@ struct find_mlir_fused_ops
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto ins = r.result;
-        auto* pm = ins->module_inputs().front();
-        // Whitelist pointwise operators.
-        if(std::any_of(pm->begin(), pm->end(), [&](const auto& i) {
-               return not is_pointwise_op_supported_by_mlir(i);
-           }))
-            return;
-        rewrite(mpm, r);
-    }
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const { rewrite(mpm, r); }
 };
 
 template <auto Matcher>

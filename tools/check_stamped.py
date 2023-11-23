@@ -121,7 +121,7 @@ def main() -> None:
                           stdout=subprocess.PIPE)
     fileList = proc.stdout.decode().split('\n')
 
-    if debug: print("Target file list:\n" + str(fileList))
+    if debug: print(f"Target file list {len(fileList)}:\n" + str(fileList))
 
     for file in fileList:
         if check_filename(file, supported_file_types):

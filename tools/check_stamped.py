@@ -25,7 +25,7 @@
 import subprocess, sys
 from license_stamper import getYearOfLatestCommit
 
-debug = True
+debug = False
 # The filetypes we want to check for that are stamped
 # LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
@@ -111,7 +111,7 @@ def main() -> None:
 
     ## Update - Get list of files (not including deleted) that changed/added compared to latest Dev branch from MI Graphx
     # Subprocess 1 is fetching the latest dev branch from MIgraphX Url and naming it as 'FETCH_HEAD'
-    subprocess1 = subprocess.run(
+    subprocess.run(
         "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop",
         shell=True,
         stdout=subprocess.PIPE)

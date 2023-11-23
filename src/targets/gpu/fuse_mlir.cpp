@@ -38,12 +38,44 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+/**
+ * @brief Declares a new MIGraphX environment variable which forces to generate
+ * only specific MLIR operations.
+ *
+ * The variable, if defined, forces MIGraphX to use only specific operations
+ * with MLIR regardless of the underlying GPU architecture. The variable accepts
+ * a list of operations separated by comma. The variable recognizes the following
+ * operations: "fused", "convolution", "dot". If the variable is not defined MIGraphX
+ * will decide by itself which operations to delegate to MLIR. The variable is
+ * intended to be primarily used by rocMLIR developers.
+ */
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
 
 bool mlir_enabled()
 {
 #ifdef MIGRAPHX_MLIR
     const bool mlir_disabled = enabled(MIGRAPHX_DISABLE_MLIR{});
     return not mlir_disabled;
+#else
+    return false;
+#endif
+}
+
+static bool is_requested(std::string_view option, bool fallback = false)
+{
+    auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    if(string_value.empty())
+        return fallback;
+    const auto options = split_string(string_value, ',');
+    return contains(options, option);
+}
+
+bool mlir_attention_enabled()
+{
+#ifdef MIGRAPHX_MLIR
+    if(not mlir_enabled())
+        return false;
+    return is_requested("attention");
 #else
     return false;
 #endif
@@ -123,12 +155,12 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 }
 
 std::tuple<instruction_ref, std::vector<instruction_ref>>
-fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
+fuse_input_ops_and_gemm_based_op(module_ref mm, const std::vector<instruction_ref>& gemm_based_op_inputs, std::string gemm_based_op_name)
 {
     std::vector<instruction_ref> top_inputs;
     std::vector<instruction_ref> imm_inputs;
     size_t input_cnt = 0;
-    for(instruction_ref input : gemm_based_op->inputs())
+    for(instruction_ref input : gemm_based_op_inputs)
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
@@ -141,7 +173,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm, instruction_ref gemm_based_op)
         imm_inputs.push_back(prev_input);
     }
     instruction_ref new_gemm_based_op =
-        mm->add_instruction(gemm_based_op->get_operator(), imm_inputs);
+        mm->add_instruction(make_op(gemm_based_op_name), imm_inputs);
     return {new_gemm_based_op, top_inputs};
 }
 
@@ -339,7 +371,7 @@ struct find_mlir_fused_ops
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op);
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op->inputs(), gemm_based_op->name());
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
@@ -376,7 +408,7 @@ struct find_mlir_standalone_op
         static size_t counter = 0;
         module_ref mm = mpm.create_module("mlir_" + top_ins->name() + std::to_string(counter++));
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, top_ins);
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->name());
         mm->add_return({anchor_op});
         mpm.get_module().replace_instruction(
             top_ins, mlir_op{top_ins->get_operator()}, top_inputs, {mm});
@@ -407,49 +439,35 @@ struct find_mlir_standalone_attention_op
     {
         static size_t counter = 0;
         module_ref mm         = mpm.create_module("mlir_" + std::to_string(counter++));
+        auto gemm_softmax_gemm = r.result;
         std::vector<instruction_ref> inputs;
         mm->set_bypass();
 
         std::unordered_map<instruction_ref, instruction_ref> ins_map;
-        auto top_ins                   = r.instructions["gemm0"];
-        auto [new_top_ins, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, top_ins);
-        inputs.insert(inputs.begin(), top_inputs.begin(), top_inputs.end());
-        ins_map[top_ins] = new_top_ins;
-        if(r.instructions.find("scale") != r.instructions.end())
+        auto gemm0_inputs = gemm_softmax_gemm->inputs();
+        gemm0_inputs.pop_back();
+        auto [gemm0, top_gemm0_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm0_inputs, "dot");
+        inputs.insert(inputs.begin(), top_gemm0_inputs.begin(), top_gemm0_inputs.end());
+        // handle scale
+        auto v = gemm_softmax_gemm->get_operator().to_value();
+        assert(v.contains("scale"));
+        auto scale = v.at("scale").to<float>();
+        auto scale_lit = mm->add_literal(literal{shape{gemm0->get_shape().type()}, {scale}});
+        instruction_ref scale_lit_mbcast = mm->add_instruction(make_op("multibroadcast", {{"out_lens", gemm0->get_shape().lens()}}), scale_lit);
+        auto scaled_gemm0 = mm->add_instruction(make_op("mul"), gemm0, scale_lit_mbcast);
+
+        auto softmax = mm->add_instruction(make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
+        auto [old_upper_v, upper_v_op_stream] = get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
+        instruction_ref new_upper_v = mm->add_parameter("v", old_upper_v->get_shape());
+        for(const auto& op : reverse(upper_v_op_stream))
         {
-            auto scale_ins = r.instructions["scale"];
-            new_top_ins    = fold_pointwise_mod(scale_ins, mm, ins_map)[0];
-            std::copy_if(scale_ins->inputs().begin(),
-                         scale_ins->inputs().end(),
-                         std::back_inserter(inputs),
-                         [&](auto input) { return input != top_ins; });
+            new_upper_v = mm->add_instruction(op, {new_upper_v});
         }
-        auto softmax = mm->add_instruction(r.instructions["softmax"]->get_operator(), new_top_ins);
-        std::transform(r.instructions["gemm1"]->inputs().begin(),
-                       r.instructions["gemm1"]->inputs().end(),
-                       std::inserter(ins_map, ins_map.end()),
-                       [&](auto old_ins) {
-                           if(old_ins == r.instructions["softmax"])
-                           {
-                               return std::make_pair(old_ins, softmax);
-                           }
-                           auto [old_upper_ins, op_stream] = get_fusable_input_op_stream(old_ins);
-                           instruction_ref new_upper_ins =
-                               mm->add_parameter("v", old_upper_ins->get_shape());
-                           instruction_ref prev_input = new_upper_ins;
-                           for(const auto& op : reverse(op_stream))
-                           {
-                               prev_input = mm->add_instruction(op, {prev_input});
-                           }
-                           inputs.push_back(old_upper_ins);
-                           return std::make_pair(old_ins, prev_input);
-                       });
-        auto gemm1_a                     = ins_map[r.instructions["gemm1"]->inputs().front()];
-        auto gemm1_b                     = ins_map[r.instructions["gemm1"]->inputs().back()];
-        auto new_gemm1                   = mm->add_instruction(make_op("dot"), {gemm1_a, gemm1_b});
-        ins_map[r.instructions["gemm1"]] = new_gemm1;
-        auto ins_to_replace              = new_gemm1;
-        auto ins_to_be_replaced          = r.instructions["gemm1"];
+        inputs.push_back(old_upper_v);
+        auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
+        ins_map[gemm_softmax_gemm] = gemm1;
+        auto ins_to_replace        = gemm1;
+        auto ins_to_be_replaced    = gemm_softmax_gemm;
         if(r.instructions.find("trailing_pm") != r.instructions.end())
         {
             ins_to_replace = fold_pointwise_mod(r.instructions["trailing_pm"], mm, ins_map)[0];
@@ -461,69 +479,13 @@ struct find_mlir_standalone_attention_op
         }
         mm->add_return({ins_to_replace});
         mpm.get_module().replace_instruction(
-            ins_to_be_replaced, mlir_op{new_gemm1->get_operator()}, inputs, {mm});
+            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
     }
 
-    auto matcher() const
-    {
-        auto match_softmax_input = match::any_of[match::inputs()](
-            match::name("dot").bind("gemm0"),
-            match::name("pointwise")(
-                match::any_of[match::inputs()](match::name("dot").bind("gemm0")))
-                .bind("scale"));
-        auto is_mlir_attention =
-            match::name("dot")(match::any_of[match::inputs()](
-                                   match::name("softmax")(match_softmax_input).bind("softmax")))
-                .bind("gemm1");
-        return is_mlir_attention;
-    }
-
-    bool check(const match::matcher_result& r) const
-    {
-        // We are only enabling attention
-        // in the highest enablement mode for now
-        if(mode != mlir_mode::all)
-        {
-            return false;
-        }
-        auto gemm0 = r.instructions["gemm0"];
-        // Check the pointwise mod only contains a single mul
-        if(r.instructions.find("scale") != r.instructions.end())
-        {
-            auto scale_pm  = r.instructions["scale"];
-            bool found_mul = false;
-            for(const auto& scale_ins : *scale_pm->module_inputs().front())
-            {
-                if(contains({"@param", "@literal", "@return"}, scale_ins.name()))
-                {
-                    continue;
-                }
-                if(scale_ins.name() == "mul" && not found_mul)
-                {
-                    found_mul = true;
-                    continue;
-                }
-                return false;
-            }
-        }
-        // enable only for fp32/fp16/i8 types
-        if(std::any_of(gemm0->inputs().begin(), gemm0->inputs().end(), [&](auto i) {
-               return not contains(
-                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
-                   i->get_shape().type());
-           }))
-        {
-            return false;
-        }
-        return true;
-    }
+    auto matcher() const { return match::name("gpu::pre_gemm_softmax_gemm"); }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        if(not check(r))
-        {
-            return;
-        }
         rewrite(mpm, r);
     }
 };
@@ -540,10 +502,6 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
 
     bool check(const match::matcher_result& r) const
     {
-        if(not find_mlir_standalone_attention_op::check(r))
-        {
-            return false;
-        }
         auto trailing_pm_ins = r.instructions["trailing_pm"]; // input after contiguous
         auto* trailing_pm    = trailing_pm_ins->module_inputs().front();
         // Whitelist pointwise operators.
@@ -562,27 +520,6 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
-/**
- * @brief Declares a new MIGraphX environment variable which forces to generate
- * only specific MLIR operations.
- *
- * The variable, if defined, forces MIGraphX to use only specific operations
- * with MLIR regardless of the underlying GPU architecture. The variable accepts
- * a list of operations separated by comma. The variable recognizes the following
- * operations: "fused", "convolution", "dot". If the variable is not defined MIGraphX
- * will decide by itself which operations to delegate to MLIR. The variable is
- * intended to be primarily used by rocMLIR developers.
- */
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
-
-bool is_requested(std::string_view option, bool fallback = false)
-{
-    auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
-    if(string_value.empty())
-        return fallback;
-    const auto options = split_string(string_value, ',');
-    return contains(options, option);
-}
 } // namespace
 
 #endif // MIGRAPHX_MLIR

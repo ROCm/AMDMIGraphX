@@ -34,6 +34,7 @@ struct module_pass_manager;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT bool mlir_enabled();
+MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled();
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {

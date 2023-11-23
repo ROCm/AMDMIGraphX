@@ -31,6 +31,9 @@
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
+#ifdef MIGRAPHX_MLIR
+#include <migraphx/gpu/fuse_mlir.hpp>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -124,34 +127,24 @@ struct find_add_layernorm
     }
 };
 
-#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
-
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
 };
 MIGRAPHX_REGISTER_OP(pre_gemm_softmax_gemm);
 
-MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
-{
-    if(ins->name() != "dot")
-        return false;
-    if(not pre_gemm_softmax_gemm::is_ck_supported_type(ins->get_shape().type()))
-        return false;
-    return true;
-}
-
+template <auto CheckDot>
 struct find_gemm_softmax_gemm
 {
     auto matcher() const
     {
         auto gemm1 =
-            match::skip(match::name("contiguous"))(match::name("dot")(is_ck_gemm().bind("gemm1")));
+            match::skip(match::name("contiguous"))(match::name("dot")(CheckDot().bind("gemm1")));
         auto mul = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
         auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
 
-        return match::name("dot")(is_ck_gemm().bind("gemm2"))(match::arg(0)(softmax));
+        return match::name("dot")(CheckDot().bind("gemm2"))(match::arg(0)(softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -179,7 +172,41 @@ struct find_gemm_softmax_gemm
     }
 };
 
+
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
+
+auto is_ck_gemm()
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "dot")
+        r   eturn false;
+        if(not pre_gemm_softmax_gemm::is_ck_supported_type(ins->get_shape().type()))
+            return false;
+        return true;
+    });
+}
+
 #endif
+
+#ifdef MIGRAPHX_MLIR
+
+auto is_mlir_gemm()
+{
+    return match::make_basic_pred_matcher([=](instruction_ref gemm) {
+        if(std::any_of(gemm->inputs().begin(), gemm->inputs().end(), [&](auto i) {
+               return not contains(
+                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
+                   i->get_shape().type());
+           }))
+        {
+            return false;
+        }
+        return true;
+    });
+}
+
+#endif
+
 
 } // namespace
 
@@ -188,9 +215,14 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
-#ifdef MIHRAPHX_USE_COMPOSABLEKERNEL
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
     if(enabled(MIGRAPHX_ENABLE_CK{}))
-        match::find_matches(mpm, find_gemm_softmax_gemm{});
+        match::find_matches(mpm, find_gemm_softmax_gemm<is_ck_gemm>{});
+#endif
+#ifdef MIGRAPHX_MLIR
+    if(mlir_attention_enabled()){
+        match::find_matches(mpm, find_gemm_softmax_gemm<is_mlir_gemm>{});
+    }
 #endif
 }
 

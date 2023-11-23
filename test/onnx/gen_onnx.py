@@ -277,6 +277,22 @@ def averagepool_1d_test():
 
 
 @onnx_test()
+def averagepool_dilate_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('AveragePool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2],
+                                 strides=[1],
+                                 pads=[1, 1],
+                                 dilations=[3])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def averagepool_3d_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 5, 5, 5])
     out = helper.make_tensor_value_info('1', TensorProto.FLOAT,
@@ -4883,6 +4899,22 @@ def maxpool_notset_test():
 
 
 @onnx_test()
+def maxpool_dilate_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 4, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 4, 2])
+
+    node = onnx.helper.make_node('MaxPool',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 kernel_shape=[2],
+                                 strides=[1],
+                                 pads=[1, 1],
+                                 dilations=[3])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def maxpool_same_upper_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 5, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 5, 5])
@@ -6094,6 +6126,26 @@ def qlinearglobalavgpool_test():
     return ([n], [x], [y], [sc_x, z_pt_x, sc_y, z_pt_y])
 
 
+@onnx_test()
+def qlinearleakyrelu_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT8, [64])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.INT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.INT8, [], [10])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.INT8, [64])
+
+    node = onnx.helper.make_node(
+        'QLinearLeakyRelu',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'],
+        alpha=1.1,
+    )
+    return ([node], [x], [y], [sc_x, zero_pt_x, sc_y, zero_pt_y])
+
+
 def qlinearmatmul_1D_test():
     a = helper.make_tensor_value_info('A', TensorProto.UINT8, [8])
     sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.05])
@@ -6232,6 +6284,26 @@ def qlinearmul_bcast_test():
     )
     return ([node], [a, b], [c],
             [sc_a, zero_pt_a, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def qlinearsigmoid_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT8, [64])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.05])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.INT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0035])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.INT8, [],
+                                   [-128])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.INT8, [64])
+
+    node = onnx.helper.make_node(
+        'QLinearSigmoid',
+        inputs=['X', 'X_scale', 'X_zero_point', 'Y_scale', 'Y_zero_point'],
+        outputs=['Y'],
+    )
+    return ([node], [x], [y], [sc_x, zero_pt_x, sc_y, zero_pt_y])
 
 
 @onnx_test()

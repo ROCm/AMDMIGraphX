@@ -31,6 +31,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/par.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -84,10 +85,10 @@ struct unary : op_name<Derived>
         argument result{dyn_out.computed_shape};
         result.visit([&](auto output) {
             args[0].visit([&](auto input) {
-                std::transform(input.begin(),
-                               input.end(),
-                               output.begin(),
-                               static_cast<const Derived&>(*this).apply());
+                par_transform(input.begin(),
+                              input.end(),
+                              output.begin(),
+                              static_cast<const Derived&>(*this).apply());
             });
         });
         return result;

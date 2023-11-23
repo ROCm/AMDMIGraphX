@@ -544,4 +544,31 @@ TEST_CASE(static_dimensions_of_to_constant_alloc_reshape)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(const_alloc_fill)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape val_shape{migraphx::shape::int64_type, {1}, {0}};
+        std::vector<int64_t> lit_data = {3};
+        auto value_lit                = m0.add_literal(migraphx::literal{val_shape, lit_data});
+        migraphx::shape lit_s{migraphx::shape::int64_type, {3}};
+        auto output_dim_lit = m0.add_literal(migraphx::literal{lit_s, {3, 4, 4}});
+        auto alloc_ins      = m0.add_instruction(
+            migraphx::make_op("allocate", {{"buf_type", migraphx::shape::int64_type}}),
+            output_dim_lit);
+        auto ret = m0.add_instruction(migraphx::make_op("fill"), value_lit, alloc_ins);
+        m0.add_return({ret});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape lit_shape{migraphx::shape::int64_type, {3, 4, 4}};
+        std::vector<int64_t> lit_data(3 * 4 * 4, 3);
+        auto ret = m1.add_literal(migraphx::literal{lit_shape, lit_data});
+        m1.add_return({ret});
+    }
+    EXPECT(m0 == m1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

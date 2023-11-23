@@ -157,7 +157,7 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 std::tuple<instruction_ref, std::vector<instruction_ref>>
 fuse_input_ops_and_gemm_based_op(module_ref mm,
                                  const std::vector<instruction_ref>& gemm_based_op_inputs,
-                                 std::string gemm_based_op_name)
+                                 const operation& gemm_based_op)
 {
     std::vector<instruction_ref> top_inputs;
     std::vector<instruction_ref> imm_inputs;
@@ -174,8 +174,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
         }
         imm_inputs.push_back(prev_input);
     }
-    instruction_ref new_gemm_based_op =
-        mm->add_instruction(make_op(gemm_based_op_name), imm_inputs);
+    instruction_ref new_gemm_based_op = mm->add_instruction(gemm_based_op, imm_inputs);
     return {new_gemm_based_op, top_inputs};
 }
 
@@ -373,8 +372,8 @@ struct find_mlir_fused_ops
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        auto [anchor_op, top_inputs] =
-            fuse_input_ops_and_gemm_based_op(mm, gemm_based_op->inputs(), gemm_based_op->name());
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
+            mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
@@ -402,7 +401,7 @@ struct find_mlir_standalone_op
         module_ref mm = mpm.create_module("mlir_" + top_ins->name() + std::to_string(counter++));
         mm->set_bypass();
         auto [anchor_op, top_inputs] =
-            fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->name());
+            fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->get_operator());
         mm->add_return({anchor_op});
         mpm.get_module().replace_instruction(
             top_ins, mlir_op{top_ins->get_operator()}, top_inputs, {mm});
@@ -440,7 +439,8 @@ struct find_mlir_standalone_attention_op
         std::unordered_map<instruction_ref, instruction_ref> ins_map;
         auto gemm0_inputs = gemm_softmax_gemm->inputs();
         gemm0_inputs.pop_back();
-        auto [gemm0, top_gemm0_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm0_inputs, "dot");
+        auto [gemm0, top_gemm0_inputs] =
+            fuse_input_ops_and_gemm_based_op(mm, gemm0_inputs, make_op("dot"));
         inputs.insert(inputs.begin(), top_gemm0_inputs.begin(), top_gemm0_inputs.end());
         // handle scale
         auto v = gemm_softmax_gemm->get_operator().to_value();

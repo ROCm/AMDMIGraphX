@@ -38,7 +38,7 @@ MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled();
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
-    context* ctx = nullptr;
+    context* ctx      = nullptr;
     bool enable_extra = false;
     std::string name() const { return "gpu::fuse_mlir"; }
     void apply(module_pass_manager& mpm) const;

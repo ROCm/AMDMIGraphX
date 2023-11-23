@@ -172,14 +172,13 @@ struct find_gemm_softmax_gemm
     }
 };
 
-
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 
 auto is_ck_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "dot")
-        r   eturn false;
+            r eturn false;
         if(not pre_gemm_softmax_gemm::is_ck_supported_type(ins->get_shape().type()))
             return false;
         return true;
@@ -207,7 +206,6 @@ auto is_mlir_gemm()
 
 #endif
 
-
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -220,7 +218,8 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_gemm_softmax_gemm<is_ck_gemm>{});
 #endif
 #ifdef MIGRAPHX_MLIR
-    if(mlir_attention_enabled()){
+    if(mlir_attention_enabled())
+    {
         match::find_matches(mpm, find_gemm_softmax_gemm<is_mlir_gemm>{});
     }
 #endif

@@ -155,7 +155,9 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 }
 
 std::tuple<instruction_ref, std::vector<instruction_ref>>
-fuse_input_ops_and_gemm_based_op(module_ref mm, const std::vector<instruction_ref>& gemm_based_op_inputs, std::string gemm_based_op_name)
+fuse_input_ops_and_gemm_based_op(module_ref mm,
+                                 const std::vector<instruction_ref>& gemm_based_op_inputs,
+                                 std::string gemm_based_op_name)
 {
     std::vector<instruction_ref> top_inputs;
     std::vector<instruction_ref> imm_inputs;
@@ -371,7 +373,8 @@ struct find_mlir_fused_ops
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, gemm_based_op->inputs(), gemm_based_op->name());
+        auto [anchor_op, top_inputs] =
+            fuse_input_ops_and_gemm_based_op(mm, gemm_based_op->inputs(), gemm_based_op->name());
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
@@ -408,7 +411,8 @@ struct find_mlir_standalone_op
         static size_t counter = 0;
         module_ref mm = mpm.create_module("mlir_" + top_ins->name() + std::to_string(counter++));
         mm->set_bypass();
-        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->name());
+        auto [anchor_op, top_inputs] =
+            fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->name());
         mm->add_return({anchor_op});
         mpm.get_module().replace_instruction(
             top_ins, mlir_op{top_ins->get_operator()}, top_inputs, {mm});
@@ -437,8 +441,8 @@ struct find_mlir_standalone_attention_op
     mlir_mode mode = mlir_mode::none;
     void rewrite(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        static size_t counter = 0;
-        module_ref mm         = mpm.create_module("mlir_" + std::to_string(counter++));
+        static size_t counter  = 0;
+        module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
         auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
         std::vector<instruction_ref> inputs;
         mm->set_bypass();
@@ -451,20 +455,23 @@ struct find_mlir_standalone_attention_op
         // handle scale
         auto v = gemm_softmax_gemm->get_operator().to_value();
         assert(v.contains("scale"));
-        auto scale = v.at("scale").to<float>();
+        auto scale     = v.at("scale").to<float>();
         auto scale_lit = mm->add_literal(literal{shape{gemm0->get_shape().type()}, {scale}});
-        instruction_ref scale_lit_mbcast = mm->add_instruction(make_op("multibroadcast", {{"out_lens", gemm0->get_shape().lens()}}), scale_lit);
+        instruction_ref scale_lit_mbcast = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", gemm0->get_shape().lens()}}), scale_lit);
         auto scaled_gemm0 = mm->add_instruction(make_op("mul"), gemm0, scale_lit_mbcast);
 
-        auto softmax = mm->add_instruction(make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
-        auto [old_upper_v, upper_v_op_stream] = get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
+        auto softmax = mm->add_instruction(
+            make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
+        auto [old_upper_v, upper_v_op_stream] =
+            get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
         instruction_ref new_upper_v = mm->add_parameter("z", old_upper_v->get_shape());
         for(const auto& op : reverse(upper_v_op_stream))
         {
             new_upper_v = mm->add_instruction(op, {new_upper_v});
         }
         inputs.push_back(old_upper_v);
-        auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
+        auto gemm1                 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
         ins_map[gemm_softmax_gemm] = gemm1;
         auto ins_to_replace        = gemm1;
         auto ins_to_be_replaced    = gemm_softmax_gemm;
@@ -482,12 +489,12 @@ struct find_mlir_standalone_attention_op
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
     }
 
-    auto matcher() const { return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm"); }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    auto matcher() const
     {
-        rewrite(mpm, r);
+        return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm");
     }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const { rewrite(mpm, r); }
 };
 
 struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op

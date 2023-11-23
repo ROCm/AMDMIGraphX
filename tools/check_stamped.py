@@ -86,7 +86,7 @@ def needStampCheck(filename: str) -> bool:
                                                 stdout=subprocess.PIPE)
                         print(gitLog)
                         sys.exit(1)
-                        
+
                         ## Debug Git Log
 
                     elif debug:

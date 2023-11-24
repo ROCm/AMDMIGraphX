@@ -261,9 +261,9 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         return static_cast<int>(status);
     }
     // cppcheck-suppress catchExceptionByValue
-    catch(DWORD last_error)
+    catch(DWORD error)
     {
-        return last_error;
+        MIGRAPHX_THROW("Error spawning process (" + std::to_string(error) + ")");
     }
 }
 

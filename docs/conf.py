@@ -29,13 +29,14 @@ import re
 from rocm_docs import ROCmDocs
 
 html_theme_options = {"flavor": "list"}
-templates_path = ["."] # Use the current folder for templates
+templates_path = ["."]  # Use the current folder for templates
 
 setting_all_article_info = True
 all_article_info_os = ["linux"]
 
 with open('../CMakeLists.txt', encoding='utf-8') as f:
-    match = re.search(r'.*\brocm_setup_version\(VERSION\s+([0-9.]+)[^0-9.]+', f.read())
+    match = re.search(r'.*\brocm_setup_version\(VERSION\s+([0-9.]+)[^0-9.]+',
+                      f.read())
     if not match:
         raise ValueError("VERSION not found!")
     version_number = match[1]

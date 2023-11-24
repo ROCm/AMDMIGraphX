@@ -25,10 +25,10 @@
 #################################### GUIDE ##########################################
 #####################################################################################
 # This Check_Stamped script is triggered by the Github workflows when a pull request is created.
-# It works by generating a list of files that have been modified/created between the current up-to-date Develop Branch 
+# It works by generating a list of files that have been modified/created between the current up-to-date Develop Branch
 # from MIGraphx and the Pull Request Branch via GIT DIFF. The script then checks that each file has the current year
-# in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the 
-# modification/creation was made.  
+# in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
+# modification/creation was made.
 #####################################################################################
 import subprocess, sys, datetime
 
@@ -83,11 +83,9 @@ def needStampCheck(filename: str) -> bool:
                         "Advanced Micro Devices, Inc. All rights reserved"):
                     if not hasKeySequence(
                             save,
-                            f"2015-{current_year} Advanced Micro Devices"
-                    ):
+                            f"2015-{current_year} Advanced Micro Devices"):
                         if debug: print("....Already Stamped but wrong year")
-                        stampedFilesWithBadYear.append(
-                            filename)
+                        stampedFilesWithBadYear.append(filename)
 
                     elif debug:
                         print("....Already Stamped: Skipping  file ")

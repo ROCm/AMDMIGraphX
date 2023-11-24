@@ -24,10 +24,10 @@
 #####################################################################################
 #################################### GUIDE ##########################################
 #####################################################################################
-# This license_stamper script is to be triggered manually via users to update the license stamps for all the 
-# files in the current local branch. It works by generating a list of all the files in the current active 
-# local branch via GIT LS-FILES and then compares each files license stamp year to the latest 
-# commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then 
+# This license_stamper script is to be triggered manually via users to update the license stamps for all the
+# files in the current local branch. It works by generating a list of all the files in the current active
+# local branch via GIT LS-FILES and then compares each files license stamp year to the latest
+# commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
 import subprocess, os, datetime, re

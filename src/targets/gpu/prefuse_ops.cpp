@@ -191,11 +191,11 @@ auto is_ck_gemm()
 
 auto is_mlir_gemm()
 {
-    return match::make_basic_pred_matcher([=](instruction_ref gemm) {
-        return std::all_of(gemm->inputs().begin(), gemm->inputs().end(), [&](auto i) {
-            return contains(
-                {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
-                i->get_shape().type());
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "dot")
+            return false;
+        return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto i) {
+            return pre_gemm_softmax_gemm::is_mlir_supported_type(i->get_shape().type());
         });
     });
 }

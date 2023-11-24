@@ -22,10 +22,20 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-import subprocess, sys
-from license_stamper import getYearOfLatestCommit
+#################################### GUIDE ##########################################
+#####################################################################################
+# This Check_Stamped script is triggered by the Github workflows when a pull request is created.
+# It works by generating a list of files that have been modified/created between the current up-to-date Develop Branch 
+# from MIGraphx and the Pull Request Branch via GIT DIFF. The script then checks that each file has the current year
+# in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the 
+# modification/creation was made.  
+#####################################################################################
+import subprocess, sys, datetime
 
 debug = False
+
+current_year = datetime.date.today().year
+
 # The filetypes we want to check for that are stamped
 # LICENSE is included here as it SHOULD have a license in it otherwise flag it as unstamped
 supported_file_types = (".cpp", ".hpp", ".h", ".ipynb", ".py", ".txt", ".sh",
@@ -71,14 +81,13 @@ def needStampCheck(filename: str) -> bool:
                 if hasKeySequence(
                         save,
                         "Advanced Micro Devices, Inc. All rights reserved"):
-                    yearOfLastCommit = getYearOfLatestCommit(filename)
                     if not hasKeySequence(
                             save,
-                            f"2015-{yearOfLastCommit} Advanced Micro Devices"
-                    ) and yearOfLastCommit > 2022:
+                            f"2015-{current_year} Advanced Micro Devices"
+                    ):
                         if debug: print("....Already Stamped but wrong year")
                         stampedFilesWithBadYear.append(
-                            [filename, yearOfLastCommit])
+                            filename)
 
                     elif debug:
                         print("....Already Stamped: Skipping  file ")
@@ -112,7 +121,7 @@ def main() -> None:
         shell=True,
         stdout=subprocess.PIPE)
 
-    # Subprocess 2 is getting the list of file differences between FETCH_HEAD and MIGraphX Url (not including any deleted files)
+    # proc 2 is getting the list of file differences between FETCH_HEAD and the branch to be merged. (filters out deleted files from FETCH_HEAD)
     proc = subprocess.run("git diff --name-only --diff-filter=d FETCH_HEAD",
                           shell=True,
                           stdout=subprocess.PIPE)
@@ -139,10 +148,8 @@ def main() -> None:
 
     if len(stampedFilesWithBadYear) > 0:
         print(
-            "\nError: The following " + str(len(stampedFilesWithBadYear)) +
-            " files licenses do not match the year of commit or has a different copyright format:"
+            f"\nError: The licenses for the following {str(len(stampedFilesWithBadYear))} file(s) either... do not match the year of commit, have a different copyright format or have not been synced from the latest develop branch:\n{str(stampedFilesWithBadYear)}\nThere is a license_stamper script (./tools/license_stamper.py), which you can run to automatically update and add any needed license stamps"
         )
-        print(str(stampedFilesWithBadYear))
         sys.exit(1)
 
     if len(unknownFiles) > 0:

@@ -22,9 +22,16 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
+#################################### GUIDE ##########################################
+#####################################################################################
+# This license_stamper script is to be triggered manually via users to update the license stamps for all the 
+# files in the current local branch. It works by generating a list of all the files in the current active 
+# local branch via GIT LS-FILES and then compares each files license stamp year to the latest 
+# commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then 
+# it will add a stamp at the begenning of the file with the year set to the current year.
+#####################################################################################
 import subprocess, os, datetime, re
 
-#Debug flag
 debug = False
 
 current_year = datetime.date.today().year
@@ -71,7 +78,6 @@ def hasKeySequence(inputfile, key_message):
     return result
 
 
-## Delete Debug Out
 def getYearOfLatestCommit(rfile: str) -> datetime:
     proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
                            shell=True,
@@ -134,8 +140,6 @@ def openAndWriteFile(filename, message, commentChar, rfile):
     if debug is True:
         print("Open", filename, end='')
 
-    #with open(filename, 'r') as contents:
-    #    save = contents.read()
     try:
         file = open(filename, 'r')
     except OSError as e:
@@ -263,8 +267,6 @@ def main():
     message = open(os.path.join(__repo_dir__, 'LICENSE')).read()
 
     #Get a list of all the files in our git repo
-    #bashCommand = "git ls-files --exclude-standard"
-    #print (bashCommand.split())
     proc = subprocess.run("git ls-files --exclude-standard",
                           shell=True,
                           stdout=subprocess.PIPE,
@@ -278,7 +280,6 @@ def main():
 
     for rfile in fileList:
         file = os.path.join(__repo_dir__, rfile)
-        #print(file)
         commentDelim = getDelimiter(file)
         if commentDelim is not None:
             openAndWriteFile(file, message, commentDelim, rfile)

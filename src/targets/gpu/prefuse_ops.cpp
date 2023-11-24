@@ -178,7 +178,7 @@ auto is_ck_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "dot")
-            r eturn false;
+            return false;
         if(not pre_gemm_softmax_gemm::is_ck_supported_type(ins->get_shape().type()))
             return false;
         return true;
@@ -192,15 +192,11 @@ auto is_ck_gemm()
 auto is_mlir_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref gemm) {
-        if(std::any_of(gemm->inputs().begin(), gemm->inputs().end(), [&](auto i) {
-               return not contains(
-                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
-                   i->get_shape().type());
-           }))
-        {
-            return false;
-        }
-        return true;
+        return std::all_of(gemm->inputs().begin(), gemm->inputs().end(), [&](auto i) {
+            return contains(
+                {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
+                i->get_shape().type());
+        });
     });
 }
 

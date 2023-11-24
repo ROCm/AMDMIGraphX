@@ -21,7 +21,7 @@ python3 -m venv sd_venv
 Install dependencies
 
 ```bash
-pip install optimum[onnxruntime] transformers diffusers accelerate
+pip install -r requirements.txt
 ```
 
 Use MIGraphX Python Module

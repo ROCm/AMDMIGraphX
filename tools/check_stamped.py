@@ -115,7 +115,7 @@ def main() -> None:
 
     # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
     subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop",
+        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
         shell=True,
         stdout=subprocess.PIPE)
 
@@ -144,17 +144,20 @@ def main() -> None:
         print(str(unstampedFiles))
         sys.exit(1)
 
-    if len(stampedFilesWithBadYear) > 0:
+    elif len(stampedFilesWithBadYear) > 0:
         print(
             f"\nError: The licenses for the following {str(len(stampedFilesWithBadYear))} file(s) either... do not match the year of commit, have a different copyright format or have not been synced from the latest develop branch:\n{str(stampedFilesWithBadYear)}\nThere is a license_stamper script (./tools/license_stamper.py), which you can run to automatically update and add any needed license stamps"
         )
         sys.exit(1)
 
-    if len(unknownFiles) > 0:
+    elif len(unknownFiles) > 0:
         print("\nError: The following " + str(len(unknownFiles)) +
               " files not handled:")
         print(str(unknownFiles))
         sys.exit(2)
+
+    else:
+        print("Success: All files stamped and up to date")
 
 
 if __name__ == "__main__":

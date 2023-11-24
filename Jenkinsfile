@@ -22,6 +22,8 @@ def rocmtestnode(Map conf) {
         def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
+            echo "leak:libtbb.so" >> suppressions.txt
+            cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}

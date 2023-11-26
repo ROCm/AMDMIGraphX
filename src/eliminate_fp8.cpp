@@ -21,6 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/serialize.hpp"
+#include <iterator>
 #include <utility>
 #include <migraphx/eliminate_fp8.hpp>
 #include <migraphx/make_op.hpp>
@@ -43,13 +45,17 @@ void eliminate_fp8::apply(module& m) const
         migraphx::shape::type_t orig_type        = ins->get_shape().type();
         std::vector<instruction_ref> orig_inputs = ins->inputs();
         std::vector<instruction_ref> new_inputs;
-        for(const auto& i : orig_inputs)
-        {
-            new_inputs.push_back(m.insert_instruction(
-                ins,
-                migraphx::make_op("convert", {{"target_type", migraphx::to_value(target_type)}}),
-                i));
-        }
+        std::transform(orig_inputs.begin(),
+                       orig_inputs.end(),
+                       std::back_inserter(new_inputs),
+                       [&](const auto& i) {
+                           return m.insert_instruction(
+                               ins,
+                               migraphx::make_op(
+                                   "convert", {{"target_type", migraphx::to_value(target_type)}}),
+                               i);
+                       });
+
         auto new_ins          = m.insert_instruction(ins, ins->get_operator(), {new_inputs});
         auto convert_back_ins = m.insert_instruction(
             ins,

@@ -290,7 +290,7 @@ MIGRAPHX_DEVICE_MATH_VEC(where)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return x; });
+    return vec_transform(v)([](auto x) { return static_cast<T>(x); });
 }
 
 } // namespace migraphx

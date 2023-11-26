@@ -28,15 +28,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25>
+template <migraphx::shape::type_t DType>
+struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 3}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {3, 5}};
-        migraphx::shape m3_shape{migraphx::shape::float_type, {2, 5}};
+        migraphx::shape m1_shape{DType, {2, 3}};
+        migraphx::shape m2_shape{DType, {3, 5}};
+        migraphx::shape m3_shape{DType, {2, 5}};
 
         auto l1     = mm->add_parameter("1", m1_shape);
         auto l2     = mm->add_parameter("2", m2_shape);
@@ -47,3 +48,7 @@ struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25>
         return p;
     }
 };
+
+template struct gemm_multi_3args_c25<migraphx::shape::float_type>;
+template struct gemm_multi_3args_c25<migraphx::shape::fp8e4m3fnuz_type>;
+

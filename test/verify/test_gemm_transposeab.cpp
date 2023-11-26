@@ -27,17 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_gemm_transposeab : verify_program<test_gemm_transposeab>
+template <migraphx::shape::type_t DType>
+struct test_gemm_transposeab : verify_program<test_gemm_transposeab<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {5, 4}});
-        auto b   = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {3, 5}});
+        auto a   = mm->add_parameter("a", migraphx::shape{DType, {5, 4}});
+        auto b   = mm->add_parameter("b", migraphx::shape{DType, {3, 5}});
         auto at = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), a);
         auto bt = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
         mm->add_instruction(migraphx::make_op("dot"), at, bt);
         return p;
     }
 };
+
+template struct test_gemm_transposeab<migraphx::shape::float_type>;
+template struct test_gemm_transposeab<migraphx::shape::fp8e4m3fnuz_type>;

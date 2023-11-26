@@ -27,17 +27,18 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_mul_dot_b : verify_program<test_mul_dot_b>
+template <migraphx::shape::type_t DType>
+
+struct test_mul_dot_b : verify_program<test_mul_dot_b<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
-        migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+        migraphx::shape as{DType, {2, 256, 32}};
+        migraphx::shape bs{DType, {2, 32, 128}};
         auto b = mm->add_parameter("input", bs);
-        auto lit =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 32, 1}}));
+        auto lit  = mm->add_literal(migraphx::generate_literal({DType, {1, 32, 1}}));
         auto litb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), b, litb);
@@ -47,3 +48,6 @@ struct test_mul_dot_b : verify_program<test_mul_dot_b>
         return p;
     }
 };
+
+template struct test_mul_dot_b<migraphx::shape::float_type>;
+template struct test_mul_dot_b<migraphx::shape::fp8e4m3fnuz_type>;

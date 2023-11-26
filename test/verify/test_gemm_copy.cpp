@@ -28,15 +28,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_gemm_copy : verify_program<test_gemm_copy>
+template <migraphx::shape::type_t DType>
+struct test_gemm_copy : verify_program<test_gemm_copy<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sa{migraphx::shape::float_type, {2, 16}};
-        migraphx::shape sb{migraphx::shape::float_type, {16, 8}};
-        migraphx::shape sc{migraphx::shape::float_type, {1, 8}};
+        migraphx::shape sa{DType, {2, 16}};
+        migraphx::shape sb{DType, {16, 8}};
+        migraphx::shape sc{DType, {1, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto pc = mm->add_parameter("c", sc);
@@ -46,3 +47,6 @@ struct test_gemm_copy : verify_program<test_gemm_copy>
         return p;
     }
 };
+
+template struct test_gemm_copy<migraphx::shape::float_type>;
+template struct test_gemm_copy<migraphx::shape::fp8e4m3fnuz_type>;

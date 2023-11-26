@@ -52,6 +52,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/eliminate_fp8.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -105,6 +106,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    std::set<std::string> unsupported_fp8_ops = {};
+    if(not gpu::rocblas_fp8_available())
+    {
+        unsupported_fp8_ops.insert("dot");
+    }
     // clang-format off
     return
     {
@@ -147,6 +153,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
+        eliminate_fp8{unsupported_fp8_ops},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},

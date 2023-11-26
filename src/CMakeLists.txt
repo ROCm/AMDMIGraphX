@@ -49,6 +49,7 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_contiguous.cpp
     eliminate_data_type.cpp
+    eliminate_fp8.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp

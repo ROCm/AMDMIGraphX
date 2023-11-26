@@ -219,6 +219,7 @@ struct gemm_impl
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
+#ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
         if(rocblas_fp8_available() and
            std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
                return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
@@ -244,6 +245,7 @@ struct gemm_impl
             }
         }
         else
+#endif
         {
             if(strided_batched)
             {

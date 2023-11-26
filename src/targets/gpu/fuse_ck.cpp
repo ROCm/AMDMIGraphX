@@ -69,7 +69,8 @@ struct ck_gemm
 
     static bool is_ck_supported_type(shape::type_t t)
     {
-        return contains({shape::half_type, shape::int8_type, shape::int32_type}, t);
+        return contains(
+            {shape::half_type, shape::int8_type, shape::int32_type, shape::fp8e4m3fnuz_type}, t);
     }
 };
 MIGRAPHX_REGISTER_OP(ck_gemm);

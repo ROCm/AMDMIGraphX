@@ -37,7 +37,8 @@ void eliminate_fp8::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(not contains(op_names, ins->name()))
+        if(not contains(op_names, ins->name()) or
+           ins->get_shape().type() != migraphx::shape::fp8e4m3fnuz_type)
             continue;
         migraphx::shape::type_t orig_type        = ins->get_shape().type();
         std::vector<instruction_ref> orig_inputs = ins->inputs();

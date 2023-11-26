@@ -286,9 +286,9 @@ endif()
 
 if(HAS_ROCBLAS_FP8_BETA_API)
     target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_FP8_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
-    message(STATUA "MIGraphX is using BETA API of rocBLAS for FP8 computations")
+    message(STATUS "MIGraphX is using Beta API of rocBLAS for FP8 computations")
 else()
-    message(STATUS "rocBLAS does not have FP8 BETA API")
+    message(STATUS "rocBLAS does not have Fp8 Beta API")
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)

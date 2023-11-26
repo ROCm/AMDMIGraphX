@@ -229,7 +229,7 @@ struct gemm_impl
                 auto common_args = create_strided_batched_args_common_fp8(ctx, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
                                common_args,
-                               rocblas_gemm_algo_solution_index,
+                               rocblas_gemm_algo_standard,
                                solution_idx,
                                gemm_flags);
             }
@@ -238,7 +238,7 @@ struct gemm_impl
                 auto common_args = create_gemm_ex_args_common_fp8(ctx, input_args);
                 rocblas_invoke(&rocblas_gemm_ex3,
                                common_args,
-                               rocblas_gemm_algo_solution_index,
+                               rocblas_gemm_algo_standard,
                                solution_idx,
                                gemm_flags);
             }
@@ -388,7 +388,7 @@ struct gemm_impl
                     ldd,
                     d_stride,
                     num_matrices,
-                    rocblas_compute_type_f8_f8_f32);
+                    rocblas_compute_type_f32);
     }
 
     /**
@@ -447,7 +447,7 @@ struct gemm_impl
                     is_3inputs ? args[3].data() : args[2].data(),
                     output_type,
                     ldd,
-                    rocblas_compute_type_f8_f8_f32);
+                    rocblas_compute_type_f32);
     }
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     /**

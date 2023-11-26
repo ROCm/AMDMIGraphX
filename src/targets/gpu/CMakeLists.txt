@@ -253,6 +253,8 @@ check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCAT
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 # Beta API for automated GEMM tuning
 check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+# rocblas FP8 API
+check_library_exists(roc::rocblas "rocblas_gemm_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -280,6 +282,13 @@ if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
     message(STATUS "MIGraphx is using Beta API of rocBLAS")
 else()
     message(STATUS "rocBLAS does not have User Tuning Beta API")
+endif()
+
+if(HAS_ROCBLAS_FP8_BETA_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_FP8_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+    message(STATUA "MIGraphX is using BETA API of rocBLAS for FP8 computations")
+else()
+    message(STATUS "rocBLAS does not have FP8 BETA API")
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)

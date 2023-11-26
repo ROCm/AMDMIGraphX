@@ -23,10 +23,12 @@
  */
 
 #include <rocblas/rocblas.h>
+#include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
+#include <type_traits>
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
@@ -46,7 +48,7 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::uint8_type: return rocblas_datatype_u8_r;
     case shape::int32_type: return rocblas_datatype_i32_r;
     case shape::uint32_type: return rocblas_datatype_u32_r;
-    case shape::fp8e4m3fnuz_type:
+    case shape::fp8e4m3fnuz_type: return rocblas_datatype_f8_r;
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:
@@ -217,23 +219,50 @@ struct gemm_impl
 
     void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
     {
-        if(strided_batched)
+        if(rocblas_fp8_available() and
+           std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
+               return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+           }))
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
-            rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                           common_args,
-                           rocblas_gemm_algo_solution_index,
-                           solution_idx,
-                           gemm_flags);
+            if(strided_batched)
+            {
+                auto common_args = create_strided_batched_args_common_fp8(ctx, input_args);
+                rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
+                               common_args,
+                               rocblas_gemm_algo_solution_index,
+                               solution_idx,
+                               gemm_flags);
+            }
+            else
+            {
+                auto common_args = create_gemm_ex_args_common_fp8(ctx, input_args);
+                rocblas_invoke(&rocblas_gemm_ex3,
+                               common_args,
+                               rocblas_gemm_algo_solution_index,
+                               solution_idx,
+                               gemm_flags);
+            }
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
-            rocblas_invoke(&rocblas_gemm_ex,
-                           common_args,
-                           rocblas_gemm_algo_solution_index,
-                           solution_idx,
-                           gemm_flags);
+            if(strided_batched)
+            {
+                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                               common_args,
+                               rocblas_gemm_algo_solution_index,
+                               solution_idx,
+                               gemm_flags);
+            }
+            else
+            {
+                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                rocblas_invoke(&rocblas_gemm_ex,
+                               common_args,
+                               rocblas_gemm_algo_solution_index,
+                               solution_idx,
+                               gemm_flags);
+            }
         }
     }
 
@@ -331,6 +360,36 @@ struct gemm_impl
                     num_matrices,
                     compute_type);
     }
+    auto create_strided_batched_args_common_fp8(context& ctx,
+                                                const std::vector<argument>& args) const
+    {
+        return pack(ctx.get_stream().get_rocblas(),
+                    transb ? rocblas_operation_transpose : rocblas_operation_none,
+                    transa ? rocblas_operation_transpose : rocblas_operation_none,
+                    n,
+                    m,
+                    k,
+                    get_alpha(),
+                    args[1].data(),
+                    arg_type,
+                    ldb,
+                    b_stride,
+                    args[0].data(),
+                    arg_type,
+                    lda,
+                    a_stride,
+                    get_beta(),
+                    args[2].data(),
+                    output_type,
+                    ldc,
+                    c_stride,
+                    is_3inputs ? args[3].data() : args[2].data(),
+                    output_type,
+                    ldd,
+                    d_stride,
+                    num_matrices,
+                    rocblas_compute_type_f8_f8_f32);
+    }
 
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
@@ -365,6 +424,30 @@ struct gemm_impl
                     output_type,
                     ldd,
                     compute_type);
+    }
+    auto create_gemm_ex_args_common_fp8(context& ctx, const std::vector<argument>& args) const
+    {
+        return pack(ctx.get_stream().get_rocblas(),
+                    transb ? rocblas_operation_transpose : rocblas_operation_none,
+                    transa ? rocblas_operation_transpose : rocblas_operation_none,
+                    n,
+                    m,
+                    k,
+                    get_alpha(),
+                    args[1].data(),
+                    arg_type,
+                    ldb,
+                    args[0].data(),
+                    arg_type,
+                    lda,
+                    get_beta(),
+                    args[2].data(),
+                    output_type,
+                    ldc,
+                    is_3inputs ? args[3].data() : args[2].data(),
+                    output_type,
+                    ldd,
+                    rocblas_compute_type_f8_f8_f32);
     }
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     /**
@@ -481,8 +564,8 @@ struct gemm_impl
     rocblas_int b_stride          = 0;
     rocblas_int c_stride          = 0;
     rocblas_int d_stride          = 0;
-    rocblas_datatype compute_type = rocblas_datatype_f32_r;
     rocblas_datatype arg_type     = rocblas_datatype_f32_r;
+    rocblas_datatype compute_type = rocblas_datatype_f32_r;
     rocblas_datatype output_type  = rocblas_datatype_f32_r;
     bool strided_batched          = true;
     bool is_3inputs               = true;

@@ -53,6 +53,15 @@ bool get_compute_fp32_flag()
     return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
 }
 
+bool rocblas_fp8_available() {
+#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
+    return false;
+#else
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
+#endif
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

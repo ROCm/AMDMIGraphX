@@ -220,12 +220,44 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
+    instruction_ref convert_fp8_to_fp32(instruction_ref ins)
+    {
+        std::vector<instruction_ref> fp8_inputs = ins->inputs();
+        std::vector<instruction_ref> fp32_inputs;
+        for(const auto& i : fp8_inputs)
+        {
+            fp32_inputs.push_back(mod->insert_instruction(
+                ins,
+                migraphx::make_op(
+                    "convert",
+                    {{"target_type", migraphx::to_value(migraphx::shape::type_t::float_type)}}),
+                i));
+        }
+        auto fp32_ins = mod->insert_instruction(ins, ins->get_operator(), {fp32_inputs});
+        auto fp8_ins  = mod->insert_instruction(
+            ins,
+            migraphx::make_op(
+                "convert",
+                {{"target_type", migraphx::to_value(migraphx::shape::type_t::fp8e4m3fnuz_type)}}),
+            fp32_ins);
+        mod->replace_instruction(ins, fp8_ins);
+        return fp32_ins;
+    }
+
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
             std::vector<instruction_ref> refs = ins->inputs();
             assert(refs.size() == 2);
+            if(not rocblas_fp8_available() and
+               std::any_of(refs.begin(), refs.end(), [](const auto i) {
+                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+               }))
+            {
+                // replace fp8 ins with fp32 ins
+                ins = convert_fp8_to_fp32(ins);
+            }
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
             return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);

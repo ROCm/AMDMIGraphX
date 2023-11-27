@@ -32,6 +32,7 @@
 // cppcheck-suppress definePrefix
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <cstring>
 #else
 #include <unistd.h>
 #endif
@@ -217,10 +218,10 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
 
-        TCHAR cmdline[MAX_PATH];
-        std::copy(std::begin(cmd), std::end(cmd), std::begin(cmdline));
-
         ZeroMemory(&process_info, sizeof(process_info));
+
+	TCHAR cmdline[MAX_PATH];
+        std::strncpy(cmd.c_str(), cmdline, MAX_PATH);
 
         if(CreateProcess(nullptr,
                          cmdline,

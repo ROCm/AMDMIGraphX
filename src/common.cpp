@@ -61,10 +61,6 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
     }
     auto offset = dds1.size() - dds0.size();
     std::vector<shape::dynamic_dimension> out_dims(dds1);
-    // If one within the range of the other
-    auto dd_within_range = [&](shape::dynamic_dimension x, shape::dynamic_dimension y) {
-        return (x.min >= y.min and x.max <= y.max);
-    };
     std::transform(dds0.cbegin(),
                    dds0.cend(),
                    dds1.cbegin() + offset,
@@ -78,11 +74,11 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        {
                            return b;
                        }
-                       else if(dd_within_range(a, b))
+                       else if(a.within_range(b))
                        {
                            return a;
                        }
-                       else if(dd_within_range(b, a))
+                       else if(b.within_range(a))
                        {
                            return b;
                        }

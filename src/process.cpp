@@ -219,7 +219,7 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         info.dwFlags |= STARTF_USESTDHANDLES;
 
         TCHAR cmdline[MAX_PATH];
-        std::strncpy(const_cast<TCHAR *>(cmd.c_str()), cmdline, MAX_PATH);
+        std::strncpy(cmdline, cmd.c_str(), MAX_PATH);
 
         ZeroMemory(&process_info, sizeof(process_info));
 
@@ -360,7 +360,11 @@ void process::exec()
 
 void process::write(std::function<void(process::writer)> pipe_in)
 {
+#ifndef _WIN32
+    impl->check_exec(impl->get_command(), std::move(pipe_in));
+#else
     impl->check_exec(impl->get_params(), std::move(pipe_in));
+#endif
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -23,13 +23,28 @@
 from argparse import ArgumentParser
 from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
-from tqdm.auto import tqdm
 from PIL import Image
 
 import migraphx as mgx
 import numpy as np
 import os
 import torch
+import time
+from functools import wraps
+
+
+# measurement helper
+def measure(fn):
+
+    @wraps(fn)
+    def measure_ms(*args, **kwargs):
+        start_time = time.perf_counter_ns()
+        result = fn(*args, **kwargs)
+        end_time = time.perf_counter_ns()
+        print(f"Elapsed time: {(end_time - start_time) * 1e-6:.4f} ms\n")
+        return result
+
+    return measure_ms
 
 
 def get_args():
@@ -84,6 +99,7 @@ def get_args():
 
 
 # helper for model loading
+@measure
 def load_mgx_model(name, shapes):
     file = f"models/sd21-onnx/{name}/model"
     print(f"Loading {name} model from {file}")
@@ -102,6 +118,75 @@ def load_mgx_model(name, shapes):
     return model
 
 
+@measure
+def tokenize(tokenizer, input):
+    return tokenizer([input],
+                     padding="max_length",
+                     max_length=tokenizer.model_max_length,
+                     truncation=True,
+                     return_tensors="np")
+
+
+@measure
+def get_embeddings(text_encoder, input):
+    return np.array(
+        text_encoder.run({"input_ids": input.input_ids.astype(np.int32)
+                          })[0]).astype(np.float32)
+
+
+@measure
+def generate_latents(seed):
+    return torch.randn(
+        (1, 4, 64, 64),
+        generator=torch.manual_seed(seed),
+    )
+
+
+@measure
+def denoise_step(text_embeddings, uncond_embeddings, latents, t, scheduler,
+                 scale, unet):
+    sample = scheduler.scale_model_input(latents, t).numpy().astype(np.float32)
+    timestep = np.atleast_1d(t.numpy().astype(np.int64))  # convert 0D -> 1D
+
+    noise_pred_uncond = np.array(
+        unet.run({
+            "sample": sample,
+            "encoder_hidden_states": uncond_embeddings,
+            "timestep": timestep
+        })[0])
+
+    noise_pred_text = np.array(
+        unet.run({
+            "sample": sample,
+            "encoder_hidden_states": text_embeddings,
+            "timestep": timestep
+        })[0])
+
+    # perform guidance
+    noise_pred = noise_pred_uncond + scale * (noise_pred_text -
+                                              noise_pred_uncond)
+
+    # compute the previous noisy sample x_t -> x_t-1
+    return scheduler.step(torch.from_numpy(noise_pred), t, latents).prev_sample
+
+
+@measure
+def decode(vae, latents):
+    return np.array(
+        vae.run({"latent_sample": latents.numpy().astype(np.float32)})[0])
+
+
+def convert_to_rgb_image(image):
+    image = np.clip(image / 2 + 0.5, 0, 1)
+    image = np.transpose(image, (0, 2, 3, 1))
+    images = (image * 255).round().astype("uint8")
+    return Image.fromarray(images[0])
+
+
+def save_image(pil_image, filename="output.png"):
+    pil_image.save(filename)
+
+
 def main():
     args = get_args()
 
@@ -118,6 +203,8 @@ def main():
     print("Creating CLIPTokenizer tokenizer...")
     tokenizer = CLIPTokenizer.from_pretrained(model_id, subfolder="tokenizer")
 
+    print("\n")
+
     print("Load models...")
     vae = load_mgx_model("vae_decoder", {"latent_sample": [1, 4, 64, 64]})
     text_encoder = load_mgx_model("text_encoder", {"input_ids": [1, 77]})
@@ -129,84 +216,42 @@ def main():
         })
 
     print("Tokenizing prompt...")
-    text_input = tokenizer([args.prompt],
-                           padding="max_length",
-                           max_length=tokenizer.model_max_length,
-                           truncation=True,
-                           return_tensors="np")
+    text_input = tokenize(tokenizer, args.prompt)
+
     print("Creating text embeddings for prompt...")
-    text_embeddings = np.array(
-        text_encoder.run({"input_ids": text_input.input_ids.astype(np.int32)
-                          })[0]).astype(np.float32)
+    text_embeddings = get_embeddings(text_encoder, text_input)
 
     print("Tokenizing negative prompt...")
-    max_length = text_input.input_ids.shape[-1]
-    uncond_input = tokenizer([args.negative_prompt],
-                             padding="max_length",
-                             max_length=max_length,
-                             return_tensors="np")
+    uncond_input = tokenize(tokenizer, args.negative_prompt)
 
     print("Creating text embeddings for negative prompt...")
-    uncond_embeddings = np.array(
-        text_encoder.run(
-            {"input_ids":
-             uncond_input.input_ids.astype(np.int32)})[0]).astype(np.float32)
+    uncond_embeddings = get_embeddings(text_encoder, uncond_input)
 
     print(
         f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={args.seed}..."
     )
-    latents = torch.randn(
-        (1, 4, 64, 64),
-        generator=torch.manual_seed(args.seed),
-    )
+    latents = generate_latents(args.seed)
 
-    print("Apply initial noise sigma")
+    print("Apply initial noise sigma\n")
     latents = latents * scheduler.init_noise_sigma
 
     print("Running denoising loop...")
-    for t in tqdm(scheduler.timesteps):
-        sample = scheduler.scale_model_input(latents,
-                                             t).numpy().astype(np.float32)
-        timestep = np.atleast_1d(t.numpy().astype(
-            np.int64))  # convert 0D -> 1D
-
-        noise_pred_uncond = np.array(
-            unet.run({
-                "sample": sample,
-                "encoder_hidden_states": uncond_embeddings,
-                "timestep": timestep
-            })[0])
-
-        noise_pred_text = np.array(
-            unet.run({
-                "sample": sample,
-                "encoder_hidden_states": text_embeddings,
-                "timestep": timestep
-            })[0])
-
-        # perform guidance
-        noise_pred = noise_pred_uncond + args.scale * (noise_pred_text -
-                                                       noise_pred_uncond)
-
-        # compute the previous noisy sample x_t -> x_t-1
-        latents = scheduler.step(torch.from_numpy(noise_pred), t,
-                                 latents).prev_sample
+    for step, t in enumerate(scheduler.timesteps):
+        print(f"#{step}/{len(scheduler.timesteps)} step")
+        latents = denoise_step(text_embeddings, uncond_embeddings, latents, t,
+                               scheduler, args.scale, unet)
 
     print("Scale denoised result...")
     latents = 1 / 0.18215 * latents
 
     print("Decode denoised result...")
-    image = np.array(
-        vae.run({"latent_sample": latents.numpy().astype(np.float32)})[0])
+    image = decode(vae, latents)
 
     print("Convert result to rgb image...")
-    image = np.clip(image / 2 + 0.5, 0, 1)
-    image = np.transpose(image, (0, 2, 3, 1))
-    images = (image * 255).round().astype("uint8")
-    pil_image = Image.fromarray(images[0])
+    image = convert_to_rgb_image(image)
 
     filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    pil_image.save(filename)
+    save_image(image, filename)
     print(f"Image saved to {filename}")
 
 

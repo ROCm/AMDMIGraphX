@@ -8,7 +8,7 @@ There is a dedicated step-by-step notebook. See [sd21.ipynb](./sd21.ipynb)
 
 ## Console application
 
-To run console application, follow these steps below.
+To run the console application, follow these steps below.
 
 Setup python environment
 
@@ -37,13 +37,13 @@ optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onn
 ```
 *Note: `models/sd21-onnx` will be used in the scripts.*
 
-Run text to image example with the following example prompt and seed:
+Run the text-to-image script with the following example prompt and seed:
 
 ```bash
 python txt2img.py --prompt "a photograph of an astronaut riding a horse" --seed 13 --output astro_horse.jpg
 ```
 *Note: The first run will compile the models and cache them to make subsequent runs faster.*
 
-The result should like this:
+The result should look like this:
 
 ![example_output.jpg](./example_output.jpg)

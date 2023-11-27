@@ -218,10 +218,10 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
 
-        ZeroMemory(&process_info, sizeof(process_info));
+        TCHAR cmdline[MAX_PATH];
+        std::strncpy(const_cast<TCHAR *>(cmd.c_str()), cmdline, MAX_PATH);
 
-	TCHAR cmdline[MAX_PATH];
-        std::strncpy(cmd.c_str(), cmdline, MAX_PATH);
+        ZeroMemory(&process_info, sizeof(process_info));
 
         if(CreateProcess(nullptr,
                          cmdline,

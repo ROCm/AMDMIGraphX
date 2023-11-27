@@ -46,10 +46,11 @@ std::function<F>
 compile_function(const std::string& src, const std::string& flags, const std::string& fname)
 {
     migraphx::src_compiler compiler;
-    compiler.flags = flags + "-std=c++14 -fPIC -shared";
+    compiler.flags = flags + "-std=c++14 -shared";
 #ifdef _WIN32
     compiler.output = "simple.dll";
 #else
+    compiler.flags += " -fPIC";
     compiler.output = "libsimple.so";
 #endif
     migraphx::src_file f{"main.cpp", src};

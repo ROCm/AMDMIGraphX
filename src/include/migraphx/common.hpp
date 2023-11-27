@@ -59,6 +59,11 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
 
 MIGRAPHX_EXPORT
+std::vector<shape::dynamic_dimension>
+compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
+                             std::vector<shape::dynamic_dimension> dds1);
+
+MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1);
 
 MIGRAPHX_EXPORT

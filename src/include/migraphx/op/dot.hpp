@@ -34,6 +34,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Matrix multiplication of two tensors.
+ */
 struct dot
 {
     std::string name() const { return "dot"; }
@@ -50,25 +53,36 @@ struct dot
         }
         if(a.dynamic() or b.dynamic())
         {
+            auto dd_within_range = [&](shape::dynamic_dimension x, shape::dynamic_dimension y) {
+                return (x.min >= y.min and x.max <= y.max);
+            };
             auto s0 = a.to_dynamic();
             auto s1 = b.to_dynamic();
             if(not std::equal(s0.dyn_dims().rbegin() + 2,
                               s0.dyn_dims().rend(),
                               s1.dyn_dims().rbegin() + 2,
-                              s1.dyn_dims().rend()))
+                              s1.dyn_dims().rend(),
+                              [&](auto x, auto y) {
+                                  return (dd_within_range(x, y) or dd_within_range(y, x));
+                              }))
             {
-                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B mismatch: {" +
+                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B mismatch or not within "
+                               "dynamic_dimension range: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }
             std::size_t dim_0 = s0.ndim() - 2;
             std::size_t dim_1 = s0.ndim() - 1;
-            if(s0.dyn_dims()[dim_1] != s1.dyn_dims()[dim_0])
+            auto x = s0.dyn_dims()[dim_1];
+            auto y = s1.dyn_dims()[dim_0];
+            if(not dd_within_range(x, y) and not dd_within_range(y, x))
             {
                 MIGRAPHX_THROW("DOT: dynamic inner dimensions do not match: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }
+            // NOTE could make this compute_shape more precise by using outer dimensions of the
+            // shape that's dd_within_range. currently this just uses the outer dimensions of s0.
             auto out_dyn_dims   = s0.dyn_dims();
             out_dyn_dims[dim_1] = s1.dyn_dims()[dim_1];
             return {t, out_dyn_dims};

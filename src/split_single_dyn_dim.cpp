@@ -95,7 +95,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
  * Check the parameters in std::vector<dynamic_dimensions_check> object to see if any of the
  * parameters outputs to a select_module operator.
  */
-bool any_sm_next(module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
+bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
     for(const auto& ddc : ddcs)
     {

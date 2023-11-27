@@ -73,8 +73,8 @@ struct dot
             }
             std::size_t dim_0 = s0.ndim() - 2;
             std::size_t dim_1 = s0.ndim() - 1;
-            auto x = s0.dyn_dims()[dim_1];
-            auto y = s1.dyn_dims()[dim_0];
+            auto x            = s0.dyn_dims()[dim_1];
+            auto y            = s1.dyn_dims()[dim_0];
             if(not dd_within_range(x, y) and not dd_within_range(y, x))
             {
                 MIGRAPHX_THROW("DOT: dynamic inner dimensions do not match: {" +

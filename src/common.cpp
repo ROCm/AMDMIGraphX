@@ -169,7 +169,7 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
 
         auto s0 = inputs[0]->get_shape();
-        // changed to always add the multibroadcast to handle the cases from split_single_dyn_dim
+        // always add both multibroadcast instructions for dynamic shapes
         inputs[0] = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
         std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {

@@ -35,7 +35,6 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
-
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -99,7 +98,6 @@ def get_args():
 
 
 class StableDiffusionMGX():
-
     def __init__(self):
         model_id = "stabilityai/stable-diffusion-2-1"
         print(f"Using {model_id}")

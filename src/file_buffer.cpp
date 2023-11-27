@@ -64,7 +64,7 @@ std::string read_string(const std::string& filename)
 
 void write_buffer(const std::string& filename, const char* buffer, std::size_t size)
 {
-    std::ofstream os(filename);
+    std::ofstream os(filename, std::ios::out | std::ios::binary);
     os.write(buffer, size);
 }
 void write_buffer(const std::string& filename, const std::vector<char>& buffer)

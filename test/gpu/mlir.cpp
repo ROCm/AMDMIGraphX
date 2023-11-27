@@ -180,8 +180,7 @@ module {
     if(s.empty())
         return;
     CHECK(encode(s) == encode(mlir_output));
-    // FIXME: enable result verification once reference kernels support NHWC
-    // EXPECT(verify_mlir(m));
+    EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(conv_add_relu)

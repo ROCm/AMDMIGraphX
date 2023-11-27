@@ -47,3 +47,21 @@ python txt2img.py --prompt "a photograph of an astronaut riding a horse" --seed 
 The result should look like this:
 
 ![example_output.jpg](./example_output.jpg)
+
+## Gradio application
+
+Note: requires `Console application` to work
+
+Install gradio dependencies
+
+```bash
+pip install -r gradio_requirements.txt
+```
+
+Usage
+
+```bash
+python gradio_app.py
+```
+
+This will load the models (which can take several minutes), and when the setup is ready, starts a server on `http://127.0.0.1:7860`.

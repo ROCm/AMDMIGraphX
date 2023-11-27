@@ -98,162 +98,162 @@ def get_args():
     return parser.parse_args()
 
 
-# helper for model loading
-@measure
-def load_mgx_model(name, shapes):
-    file = f"models/sd21-onnx/{name}/model"
-    print(f"Loading {name} model from {file}")
-    if os.path.isfile(f"{file}.mxr"):
-        print("Found mxr, loading it...")
-        model = mgx.load(f"{file}.mxr", format="msgpack")
-    elif os.path.isfile(f"{file}.onnx"):
-        print("Parsing from onnx file...")
-        model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
-        model.compile(mgx.get_target("gpu"))
-        print(f"Saving {name} model to mxr file...")
-        mgx.save(model, f"{file}.mxr", format="msgpack")
-    else:
-        print(f"No {name} model found. Please download it and re-try.")
-        os.exit(1)
-    return model
+class StableDiffusionMGX():
 
+    def __init__(self):
+        model_id = "stabilityai/stable-diffusion-2-1"
+        print(f"Using {model_id}")
 
-@measure
-def tokenize(tokenizer, input):
-    return tokenizer([input],
-                     padding="max_length",
-                     max_length=tokenizer.model_max_length,
-                     truncation=True,
-                     return_tensors="np")
+        print("Creating EulerDiscreteScheduler scheduler")
+        self.scheduler = EulerDiscreteScheduler.from_pretrained(
+            model_id, subfolder="scheduler")
 
+        print("Creating CLIPTokenizer tokenizer...")
+        self.tokenizer = CLIPTokenizer.from_pretrained(model_id,
+                                                       subfolder="tokenizer")
 
-@measure
-def get_embeddings(text_encoder, input):
-    return np.array(
-        text_encoder.run({"input_ids": input.input_ids.astype(np.int32)
-                          })[0]).astype(np.float32)
+        print("Load models...")
+        self.vae = StableDiffusionMGX.load_mgx_model(
+            "vae_decoder", {"latent_sample": [1, 4, 64, 64]})
+        self.text_encoder = StableDiffusionMGX.load_mgx_model(
+            "text_encoder", {"input_ids": [1, 77]})
+        self.unet = StableDiffusionMGX.load_mgx_model(
+            "unet", {
+                "sample": [1, 4, 64, 64],
+                "encoder_hidden_states": [1, 77, 1024],
+                "timestep": [1],
+            })
 
+    def run(self, prompt, negative_prompt, steps, seed, scale):
+        # need to set this for each run
+        self.scheduler.set_timesteps(steps)
 
-@measure
-def generate_latents(seed):
-    return torch.randn(
-        (1, 4, 64, 64),
-        generator=torch.manual_seed(seed),
-    )
+        print("Tokenizing prompt...")
+        text_input = self.tokenize(prompt)
 
+        print("Creating text embeddings for prompt...")
+        text_embeddings = self.get_embeddings(text_input)
 
-@measure
-def denoise_step(text_embeddings, uncond_embeddings, latents, t, scheduler,
-                 scale, unet):
-    sample = scheduler.scale_model_input(latents, t).numpy().astype(np.float32)
-    timestep = np.atleast_1d(t.numpy().astype(np.int64))  # convert 0D -> 1D
+        print("Tokenizing negative prompt...")
+        uncond_input = self.tokenize(negative_prompt)
 
-    noise_pred_uncond = np.array(
-        unet.run({
-            "sample": sample,
-            "encoder_hidden_states": uncond_embeddings,
-            "timestep": timestep
-        })[0])
+        print("Creating text embeddings for negative prompt...")
+        uncond_embeddings = self.get_embeddings(uncond_input)
 
-    noise_pred_text = np.array(
-        unet.run({
-            "sample": sample,
-            "encoder_hidden_states": text_embeddings,
-            "timestep": timestep
-        })[0])
+        print(
+            f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
+        )
+        latents = torch.randn((1, 4, 64, 64),
+                              generator=torch.manual_seed(seed))
 
-    # perform guidance
-    noise_pred = noise_pred_uncond + scale * (noise_pred_text -
-                                              noise_pred_uncond)
+        print("Apply initial noise sigma\n")
+        latents = latents * self.scheduler.init_noise_sigma
 
-    # compute the previous noisy sample x_t -> x_t-1
-    return scheduler.step(torch.from_numpy(noise_pred), t, latents).prev_sample
+        print("Running denoising loop...")
+        for step, t in enumerate(self.scheduler.timesteps):
+            print(f"#{step}/{len(self.scheduler.timesteps)} step")
+            latents = self.denoise_step(text_embeddings, uncond_embeddings,
+                                        latents, t, scale)
 
+        print("Scale denoised result...")
+        latents = 1 / 0.18215 * latents
 
-@measure
-def decode(vae, latents):
-    return np.array(
-        vae.run({"latent_sample": latents.numpy().astype(np.float32)})[0])
+        print("Decode denoised result...")
+        image = self.decode(latents)
 
+        return image
 
-def convert_to_rgb_image(image):
-    image = np.clip(image / 2 + 0.5, 0, 1)
-    image = np.transpose(image, (0, 2, 3, 1))
-    images = (image * 255).round().astype("uint8")
-    return Image.fromarray(images[0])
+    @staticmethod
+    @measure
+    def load_mgx_model(name, shapes):
+        file = f"models/sd21-onnx/{name}/model"
+        print(f"Loading {name} model from {file}")
+        if os.path.isfile(f"{file}.mxr"):
+            print("Found mxr, loading it...")
+            model = mgx.load(f"{file}.mxr", format="msgpack")
+        elif os.path.isfile(f"{file}.onnx"):
+            print("Parsing from onnx file...")
+            model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
+            model.compile(mgx.get_target("gpu"))
+            print(f"Saving {name} model to mxr file...")
+            mgx.save(model, f"{file}.mxr", format="msgpack")
+        else:
+            print(f"No {name} model found. Please download it and re-try.")
+            os.exit(1)
+        return model
 
+    @measure
+    def tokenize(self, input):
+        return self.tokenizer([input],
+                              padding="max_length",
+                              max_length=self.tokenizer.model_max_length,
+                              truncation=True,
+                              return_tensors="np")
 
-def save_image(pil_image, filename="output.png"):
-    pil_image.save(filename)
+    @measure
+    def get_embeddings(self, input):
+        return np.array(
+            self.text_encoder.run(
+                {"input_ids":
+                 input.input_ids.astype(np.int32)})[0]).astype(np.float32)
 
+    @staticmethod
+    def convert_to_rgb_image(image):
+        image = np.clip(image / 2 + 0.5, 0, 1)
+        image = np.transpose(image, (0, 2, 3, 1))
+        images = (image * 255).round().astype("uint8")
+        return Image.fromarray(images[0])
 
-def main():
-    args = get_args()
+    @staticmethod
+    def save_image(pil_image, filename="output.png"):
+        pil_image.save(filename)
 
-    model_id = "stabilityai/stable-diffusion-2-1"
-    print(f"Using {model_id}")
+    @measure
+    def denoise_step(self, text_embeddings, uncond_embeddings, latents, t,
+                     scale):
+        sample = self.scheduler.scale_model_input(latents,
+                                                  t).numpy().astype(np.float32)
+        timestep = np.atleast_1d(t.numpy().astype(
+            np.int64))  # convert 0D -> 1D
 
-    print(
-        f"Creating EulerDiscreteScheduler scheduler with {args.steps} steps..."
-    )
-    scheduler = EulerDiscreteScheduler.from_pretrained(model_id,
-                                                       subfolder="scheduler")
-    scheduler.set_timesteps(args.steps)
+        noise_pred_uncond = np.array(
+            self.unet.run({
+                "sample": sample,
+                "encoder_hidden_states": uncond_embeddings,
+                "timestep": timestep
+            })[0])
 
-    print("Creating CLIPTokenizer tokenizer...")
-    tokenizer = CLIPTokenizer.from_pretrained(model_id, subfolder="tokenizer")
+        noise_pred_text = np.array(
+            self.unet.run({
+                "sample": sample,
+                "encoder_hidden_states": text_embeddings,
+                "timestep": timestep
+            })[0])
 
-    print("\n")
+        # perform guidance
+        noise_pred = noise_pred_uncond + scale * (noise_pred_text -
+                                                  noise_pred_uncond)
 
-    print("Load models...")
-    vae = load_mgx_model("vae_decoder", {"latent_sample": [1, 4, 64, 64]})
-    text_encoder = load_mgx_model("text_encoder", {"input_ids": [1, 77]})
-    unet = load_mgx_model(
-        "unet", {
-            "sample": [1, 4, 64, 64],
-            "encoder_hidden_states": [1, 77, 1024],
-            "timestep": [1],
-        })
+        # compute the previous noisy sample x_t -> x_t-1
+        return self.scheduler.step(torch.from_numpy(noise_pred), t,
+                                   latents).prev_sample
 
-    print("Tokenizing prompt...")
-    text_input = tokenize(tokenizer, args.prompt)
-
-    print("Creating text embeddings for prompt...")
-    text_embeddings = get_embeddings(text_encoder, text_input)
-
-    print("Tokenizing negative prompt...")
-    uncond_input = tokenize(tokenizer, args.negative_prompt)
-
-    print("Creating text embeddings for negative prompt...")
-    uncond_embeddings = get_embeddings(text_encoder, uncond_input)
-
-    print(
-        f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={args.seed}..."
-    )
-    latents = generate_latents(args.seed)
-
-    print("Apply initial noise sigma\n")
-    latents = latents * scheduler.init_noise_sigma
-
-    print("Running denoising loop...")
-    for step, t in enumerate(scheduler.timesteps):
-        print(f"#{step}/{len(scheduler.timesteps)} step")
-        latents = denoise_step(text_embeddings, uncond_embeddings, latents, t,
-                               scheduler, args.scale, unet)
-
-    print("Scale denoised result...")
-    latents = 1 / 0.18215 * latents
-
-    print("Decode denoised result...")
-    image = decode(vae, latents)
-
-    print("Convert result to rgb image...")
-    image = convert_to_rgb_image(image)
-
-    filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    save_image(image, filename)
-    print(f"Image saved to {filename}")
+    @measure
+    def decode(self, latents):
+        return np.array(
+            self.vae.run({"latent_sample":
+                          latents.numpy().astype(np.float32)})[0])
 
 
 if __name__ == "__main__":
-    main()
+    args = get_args()
+
+    sd = StableDiffusionMGX()
+    result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
+                    args.scale)
+
+    print("Convert result to rgb image...")
+    image = StableDiffusionMGX.convert_to_rgb_image(result)
+    filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
+    StableDiffusionMGX.save_image(image, args.output)
+    print(f"Image saved to {filename}")

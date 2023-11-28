@@ -284,7 +284,7 @@ int main() {
 endfunction()
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
-find_package(TBB)
+find_package(TBB QUIET)
 if(TBB_FOUND)
     check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
     if(TBB_HAS_EXECUTION_PAR)

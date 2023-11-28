@@ -40,7 +40,9 @@ def measure(fn):
         start_time = time.perf_counter_ns()
         result = fn(*args, **kwargs)
         end_time = time.perf_counter_ns()
-        print(f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n")
+        print(
+            f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n"
+        )
         return result
 
     return measure_ms
@@ -87,11 +89,9 @@ def get_args():
         help="Guidance scale",
     )
 
-    parser.add_argument(
-        "--fp16",
-        action="store_true",
-        help="Quantize MIGraphX models to fp16"
-    )
+    parser.add_argument("--fp16",
+                        action="store_true",
+                        help="Quantize MIGraphX models to fp16")
 
     parser.add_argument(
         "-o",
@@ -155,7 +155,8 @@ class StableDiffusionMGX():
         latents = latents * self.scheduler.init_noise_sigma
 
         print("Running denoising loop...")
-        latents = self.denoising_loop(text_embeddings, uncond_embeddings, latents, scale)
+        latents = self.denoising_loop(text_embeddings, uncond_embeddings,
+                                      latents, scale)
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
@@ -177,7 +178,8 @@ class StableDiffusionMGX():
             model = mgx.load(f"{file}.mxr", format="msgpack")
         elif os.path.isfile(f"{file.rstrip('''_fp16''')}.onnx"):
             print("Parsing from onnx file...")
-            model = mgx.parse_onnx(f"{file.rstrip('''_fp16''')}.onnx", map_input_dims=shapes)
+            model = mgx.parse_onnx(f"{file.rstrip('''_fp16''')}.onnx",
+                                   map_input_dims=shapes)
             if fp16:
                 mgx.quantize_fp16(model)
             model.compile(mgx.get_target("gpu"))
@@ -215,11 +217,12 @@ class StableDiffusionMGX():
         pil_image.save(filename)
 
     @measure
-    def denoising_loop(self, text_embeddings, uncond_embeddings, latents, scale):
+    def denoising_loop(self, text_embeddings, uncond_embeddings, latents,
+                       scale):
         for step, t in enumerate(self.scheduler.timesteps):
-                print(f"#{step}/{len(self.scheduler.timesteps)} step")
-                latents = self.denoise_step(text_embeddings, uncond_embeddings,
-                                            latents, t, scale)
+            print(f"#{step}/{len(self.scheduler.timesteps)} step")
+            latents = self.denoise_step(text_embeddings, uncond_embeddings,
+                                        latents, t, scale)
         return latents
 
     @measure
@@ -249,7 +252,7 @@ class StableDiffusionMGX():
                                                   noise_pred_uncond)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(torch.from_numpy(noise_pred), t, 
+        return self.scheduler.step(torch.from_numpy(noise_pred), t,
                                    latents).prev_sample
 
     @measure

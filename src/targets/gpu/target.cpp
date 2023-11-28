@@ -111,6 +111,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         unsupported_fp8_ops.insert("dot");
     }
+    unsupported_fp8_ops.insert("pooling");
     // clang-format off
     return
     {

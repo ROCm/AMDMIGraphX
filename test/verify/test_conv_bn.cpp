@@ -43,11 +43,12 @@ struct test_conv_bn : verify_program<test_conv_bn<DType>>
         auto x = mm->add_parameter("x", xs);
         auto w = mm->add_parameter("w", ws);
         // non-symmetrical tiling
-        auto conv = mm->add_instruction(
-            migraphx::make_op("convolution",
-                              {{"padding", {3, 3}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
-            x,
-            w);
+        // auto conv = mm->add_instruction(
+        //     migraphx::make_op("convolution",
+        //                       {{"padding", {3, 3}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        //     x,
+        //     w);
+        auto conv = mm->add_parameter("conv", migraphx::shape{DType, {1, 64, 112, 112}});
 
         auto scale    = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 1)));
         auto bias     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 2)));

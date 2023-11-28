@@ -93,11 +93,11 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 high[0] * dims[1] + low[1],
                                 high[0] * dims[1] + high[1]};
 
-    float ly              = xy[0] - low[0];
-    float lx              = xy[1] - low[1];
-    float hy              = 1.0f - ly;
-    float hx              = 1.0f - lx;
-    array<float, 4> ws    = {hy * hx, hy * lx, ly * hx, ly * lx};
+    float ly           = xy[0] - low[0];
+    float lx           = xy[1] - low[1];
+    float hy           = 1.0f - ly;
+    float hx           = 1.0f - lx;
+    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);

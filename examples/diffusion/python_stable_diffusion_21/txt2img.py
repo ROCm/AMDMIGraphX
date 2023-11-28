@@ -249,7 +249,7 @@ class StableDiffusionMGX():
                                                   noise_pred_uncond)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(torch.from_numpy(noise_pred), t,
+        return self.scheduler.step(torch.from_numpy(noise_pred), t, 
                                    latents).prev_sample
 
     @measure

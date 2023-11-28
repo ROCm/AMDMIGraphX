@@ -21,37 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_POOLING_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_POOLING_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/pooling.hpp>
 #include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_pooling : op_parser<parse_pooling>
-{
-    std::vector<op_desc> operators() const
-    {
-        return {
-            {"AveragePool", "average"},
-            {"GlobalAveragePool", "average"},
-            {"GlobalMaxPool", "max"},
-            {"MaxPool", "max"},
-            {"LpPool", "lpnorm"},
-            {"GlobalLpPool", "lpnorm"},
-        };
-    }
+value handle_pooling_values(const op_desc& opd,
+                            onnx_parser::node_info info,
+                            const shape& in_shape,
+                            value values);
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
-                          std::vector<instruction_ref> args) const
-    {
-        return add_pooling_op(opd, std::move(info), args[0]);
-    };
-};
+instruction_ref add_pooling_op(const op_desc& opd, onnx_parser::node_info info, instruction_ref l0);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

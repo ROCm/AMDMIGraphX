@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,38 +21,63 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/make_op.hpp>
+#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
+#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
+
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
 
-struct parse_scatternd : op_parser<parse_scatternd>
+struct assign_none
 {
-    std::vector<op_desc> operators() const { return {{"ScatterND"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref>& args) const
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        std::string reduction = "none";
-        if(contains(info.attributes, "reduction"))
-        {
-            reduction = info.attributes.at("reduction").s();
-            if(not contains({"none", "add", "mul", "min", "max"}, reduction))
-            {
-                MIGRAPHX_THROW("PARSE_SCATTERND: unsupported reduction mode " + reduction);
-            }
-        }
-
-        return info.add_instruction(migraphx::make_op("scatternd_" + reduction), args);
+        x = y;
     }
 };
 
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
+struct assign_add
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicAdd(&x, y);
+    }
+};
+
+struct assign_mul
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        T old = x;
+        T assumed;
+        do
+        {
+            assumed = old;
+            old     = atomicCAS(&x, assumed, assumed * y);
+        } while(assumed != old);
+    }
+};
+
+struct assign_max
+{
+    template <typename T, typename U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicMax(&x, y);
+    }
+};
+
+struct assign_min
+{
+    template <typename T, typename U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicMin(&x, y);
+    }
+};
+
 } // namespace migraphx
+#endif

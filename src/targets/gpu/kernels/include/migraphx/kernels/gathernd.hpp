@@ -56,9 +56,9 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
     size_t num_slices =
         accumulate(indices_shape_lens.begin(), indices_shape_lens.end() - 1, 1, op::product{});
     size_t slice_size = accumulate(data_shape_lens.begin() + num_slice_dims + batch_dims,
-                                        data_shape_lens.end(),
-                                        1,
-                                        op::product{});
+                                   data_shape_lens.end(),
+                                   1,
+                                   op::product{});
     const size_t num_batches =
         accumulate(data_shape_lens.begin(), data_shape_lens.begin() + batch_dims, 1, op::product{});
     const size_t data_batch_stride =
@@ -67,15 +67,15 @@ __device__ void gathernd(const T& data_t, const U& indices_t, const V& output_t,
 
     ind.global_stride(output_shape.elements(), [&](auto i) {
         const auto* indices_ptr     = indices_t.data();
-        const size_t j         = i / slice_size;
-        const size_t batch_idx = j / num_slices_per_batch;
+        const size_t j              = i / slice_size;
+        const size_t batch_idx      = j / num_slices_per_batch;
 
         auto* slice_indices               = indices_ptr + (j * num_slice_dims);
-        size_t relative_slice_offset = 0;
+        size_t relative_slice_offset      = 0;
         for(size_t idx = 0; idx < num_slice_dims; ++idx)
         {
             int64_t index                   = slice_indices[idx];
-            const size_t input_dim_idx = batch_dims + idx;
+            const size_t input_dim_idx      = batch_dims + idx;
             const auto input_dim            = data_shape_lens[input_dim_idx];
             MIGRAPHX_ASSERT(index >= -static_cast<int64_t>(input_dim) and
                             index < static_cast<int64_t>(input_dim));

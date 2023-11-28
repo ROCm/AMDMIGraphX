@@ -97,12 +97,12 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     float lx              = xy[1] - low[1];
     float hy              = 1.0f - ly;
     float hx              = 1.0f - lx;
-    array<ret_type, 4> ws = {
-        ret_type{hy * hx}, ret_type{hy * lx}, ret_type{ly * hx}, ret_type{ly * lx}};
+    array<float, 4> ws    = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
-    return pooling(v01, v23);
+    return static_cast<ret_type>(
+        pooling(v01, v23)); // use static_cast to silence warnings about narrowing conversions
 }
 
 template <class Iterator, class Op>

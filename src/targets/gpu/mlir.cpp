@@ -202,7 +202,7 @@ struct mlir_logger
             mlirContextDetachDiagnosticHandler(ctx->get(), *id);
     }
 
-    mlir_logger(const mlir_logger& other) = delete;
+    mlir_logger(const mlir_logger& other)            = delete;
     mlir_logger& operator=(const mlir_logger& other) = delete;
 
     mlir_logger(mlir_logger&& other) noexcept

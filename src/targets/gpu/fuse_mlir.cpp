@@ -93,8 +93,7 @@ struct mlir_op
             }
             if(ins->name() == "@return")
             {
-                auto s = ins_shapes[ins->inputs().at(0)].with_type(type);
-                return s;
+                return ins_shapes[ins->inputs().at(0)].with_type(type);
             }
             std::vector<shape> input_shapes;
             input_shapes.resize(ins->inputs().size());

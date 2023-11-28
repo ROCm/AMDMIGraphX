@@ -55,7 +55,11 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling<DTyp
 
         auto rt  = mm->add_literal(migraphx::literal{DType, {0.5}});
         auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
-
+        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        {
+            // use 5e-2f for the fp8
+            eps = mm->add_literal(migraphx::literal{DType, {5e-2f}});
+        }
         auto usq_scale =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
         auto usq_bias =

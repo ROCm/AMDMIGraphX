@@ -221,9 +221,9 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;
-        if(ins->get_shape().type() == shape::int8_type)
-            return true;
         if(ins->get_shape().type() == shape::fp8e4m3fnuz_type)
+            return true;
+        if(ins->get_shape().type() == shape::int8_type)
             return true;
         if(mode == mlir_mode::int8)
             return false;

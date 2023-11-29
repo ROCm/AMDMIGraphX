@@ -119,6 +119,8 @@
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>
+#include <migraphx/op/scatternd_max.hpp>
+#include <migraphx/op/scatternd_min.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>

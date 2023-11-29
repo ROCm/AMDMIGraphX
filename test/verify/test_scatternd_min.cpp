@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,38 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/ranges.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
-
-struct parse_scatternd : op_parser<parse_scatternd>
+struct test_scatternd_min : verify_program<test_scatternd_min>
 {
-    std::vector<op_desc> operators() const { return {{"ScatterND"}}; }
-
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref>& args) const
+    migraphx::program create_program() const
     {
-        std::string reduction = "none";
-        if(contains(info.attributes, "reduction"))
-        {
-            reduction = info.attributes.at("reduction").s();
-            if(not contains({"none", "add", "mul", "min", "max"}, reduction))
-            {
-                MIGRAPHX_THROW("PARSE_SCATTERND: unsupported reduction mode " + reduction);
-            }
-        }
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
 
-        return info.add_instruction(migraphx::make_op("scatternd_" + reduction), args);
+        auto data    = mm->add_parameter("data", ds);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_parameter("update", us);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_min"), data, indices, updates);
+        mm->add_return({scatternd});
+
+        return p;
     }
 };
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

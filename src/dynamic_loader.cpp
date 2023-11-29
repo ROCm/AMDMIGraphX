@@ -27,10 +27,19 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <utility>
+
+#ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+#ifndef _WIN32
 
 void check_load_error(bool flush = false)
 {
@@ -81,6 +90,72 @@ fs::path dynamic_loader::path(void* address)
     return p;
 }
 
+#else
+
+struct dynamic_loader_impl
+{
+    dynamic_loader_impl() = default;
+    dynamic_loader_impl(const fs::path& p, tmp_dir t = {})
+        : handle{LoadLibrary(p.string().c_str())}, temp{std::move(t)}
+    {
+        if(handle == nullptr)
+        {
+            MIGRAPHX_THROW("Error loading DLL: " + p.string() + " (" +
+                           std::to_string(GetLastError()) + ")");
+        }
+    }
+
+    dynamic_loader_impl(const dynamic_loader_impl&)            = delete;
+    dynamic_loader_impl& operator=(const dynamic_loader_impl&) = delete;
+
+    dynamic_loader_impl(dynamic_loader_impl&&) = default;
+
+    ~dynamic_loader_impl()
+    {
+        if(handle != nullptr)
+        {
+            FreeLibrary(handle);
+        }
+    }
+
+    static std::shared_ptr<dynamic_loader_impl> from_buffer(const char* image, std::size_t size)
+    {
+        auto t = tmp_dir{"migx-dynload"};
+        auto f = t.path / "tmp.dll";
+        write_buffer(f.string(), image, size);
+        return std::make_shared<dynamic_loader_impl>(f, std::move(t));
+    }
+
+    HMODULE handle = nullptr;
+    tmp_dir temp;
+};
+
+fs::path dynamic_loader::path(void* address)
+{
+    HMODULE module = nullptr;
+    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         static_cast<LPCSTR>(address),
+                         &module) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to obtain module handle, error = " + std::to_string(err));
+    }
+    TCHAR buffer[MAX_PATH];
+    if(GetModuleFileName(module, buffer, sizeof(buffer)) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to read module file path, error = " + std::to_string(err));
+    }
+    if(GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
+        MIGRAPHX_THROW("Buffer too small (" + std::to_string(MAX_PATH) + ") to hold the path");
+    }
+    return {buffer};
+}
+
+#endif
+
 optional<dynamic_loader> dynamic_loader::try_load(const fs::path& p)
 {
     try
@@ -109,12 +184,19 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 
 std::shared_ptr<void> dynamic_loader::get_symbol(const std::string& name) const
 {
+#ifndef _WIN32
     // flush any previous error messages
     check_load_error(true);
     void* symbol = dlsym(impl->handle.get(), name.c_str());
     if(symbol == nullptr)
         check_load_error();
     return {impl, symbol};
+#else
+    FARPROC addr = GetProcAddress(impl->handle, name.c_str());
+    if(addr == nullptr)
+        MIGRAPHX_THROW("Symbol not found: " + name + " (" + std::to_string(GetLastError()) + ")");
+    return {impl, reinterpret_cast<void*>(addr)};
+#endif
 }
 
 } // namespace MIGRAPHX_INLINE_NS

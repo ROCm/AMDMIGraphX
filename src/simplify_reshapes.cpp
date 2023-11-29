@@ -103,8 +103,6 @@ struct find_reshaper
         auto input = mr.instructions["x"];
         auto dims  = ins->get_shape().lens();
 
-        if(not input->get_shape().standard())
-            input = m.insert_instruction(ins, make_op("contiguous"), input);
         m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
     }
 };
@@ -475,9 +473,8 @@ struct find_resize
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = m.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
-        auto std_mb = m.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
+        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), mb_rsp);
     }
 };
 
@@ -626,12 +623,14 @@ struct find_transpose_contiguous_reshaper_unary
         auto cont_ins      = r.instructions["cont_ins"];
         auto unary_op_name = ins->get_operator().name();
         auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
-        auto new_cont_ins  = m.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
         // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
     }
 };
 
+// simplifies broadcast->transpose to transpose->broadcast
+// in the case of a scalar, simply rewrite to broadcast
+// this can allow for further optimizations with find_inner_broadcast() in simplify_algebra.cpp
 struct find_broadcast_transpose
 {
     auto matcher() const
@@ -642,17 +641,30 @@ struct find_broadcast_transpose
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins       = r.result;
-        auto ins_lens  = ins->get_shape().lens();
-        auto bcast_ins = r.instructions["bcast_ins"];
-        auto input     = bcast_ins->inputs().front();
-        // for now, focusing on scalar transformation
+        auto transpose      = r.result;
+        auto transpose_lens = transpose->get_shape().lens();
+        auto bcast_ins      = r.instructions["bcast_ins"];
+        auto input          = bcast_ins->inputs().front();
+        // scalar transformation does not need extra transpose
         if(not input->get_shape().scalar())
-            return;
-
+        {
+            // find common shape
+            auto in_lens  = input->get_shape().lens();
+            int lens_diff = transpose_lens.size() - in_lens.size();
+            // insert unsqueeze if input lens < transpose lens
+            if(lens_diff > 0)
+            {
+                std::vector<size_t> unsqueeze_axes(lens_diff);
+                std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
+                input = m.insert_instruction(
+                    bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
+            }
+            // apply transpose before the multibroadcast
+            input = m.insert_instruction(bcast_ins, transpose->get_operator(), input);
+        }
         auto new_mbcast = m.insert_instruction(
-            bcast_ins, make_op("multibroadcast", {{"out_lens", ins_lens}}), input);
-        m.replace_instruction(ins, new_mbcast);
+            bcast_ins, make_op("multibroadcast", {{"out_lens", transpose_lens}}), input);
+        m.replace_instruction(transpose, new_mbcast);
     }
 };
 

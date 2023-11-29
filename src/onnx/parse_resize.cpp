@@ -181,6 +181,76 @@ static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
     return nearest_mode;
 }
 
+static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
+{
+    std::vector<double> scales;
+    if(contains(attr, "scales"))
+    {
+        copy(attr.at("scales").floats(), std::back_inserter(scales));
+    }
+
+    return scales;
+}
+
+static void parse_args(const std::vector<instruction_ref>& args,
+                       const std::vector<size_t>& in_lens,
+                       const std::string& op_name,
+                       std::vector<double>& vec_scale,
+                       std::vector<std::size_t>& out_lens)
+{
+    for(const auto& arg : args)
+    {
+        if(arg->name() == "undefined" or arg == args.front())
+        {
+            continue;
+        }
+
+        // skipped empty input
+        auto lens = arg->get_shape().lens();
+        if(lens.empty())
+        {
+            continue;
+        }
+
+        auto type = arg->get_shape().type();
+        // output size
+        if(type == shape::int64_type)
+        {
+            auto arg_out_s = arg->eval();
+            check_arg_empty(arg_out_s,
+                            "PARSE_" + op_name + ": dynamic output size is not supported!");
+            arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
+
+            if(out_lens.size() != in_lens.size())
+            {
+                MIGRAPHX_THROW("PARSE_" + op_name +
+                               ": specified output size does not match input size");
+            }
+
+            // compute the scale
+            vec_scale.resize(in_lens.size());
+            std::transform(in_lens.begin(),
+                           in_lens.end(),
+                           out_lens.begin(),
+                           vec_scale.begin(),
+                           [](auto iss, auto oss) { return 1.0 * oss / iss; });
+        }
+        else
+        {
+
+            // scale input
+            if(lens[0] == in_lens.size())
+            {
+                auto arg_scale = arg->eval();
+                check_arg_empty(arg_scale,
+                                "PARSE_" + op_name + ": dynamic input scale is not supported!");
+
+                arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+            }
+        }
+    }
+}
+
 struct parse_resize : op_parser<parse_resize>
 {
     std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
@@ -214,72 +284,30 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<std::size_t> out_lens(in_lens.size());
 
         // scale
-        std::vector<double> vec_scale;
+        std::vector<double> vec_scale = get_scales(info.attributes);
 
-        for(const auto& arg : args)
+        // If `scales` was not an attribute, it must be an input
+        if(vec_scale.empty())
         {
-            if(arg->name() == "undefined" or arg == args.front())
-            {
-                continue;
-            }
+            // Depending on the args, it *must* populate the `vec_scale`, and might populate
+            // `out_lens`
+            parse_args(args, in_lens, opd.op_name, vec_scale, out_lens);
+        }
 
-            // skipped empty input
-            auto lens = arg->get_shape().lens();
-            if(lens.empty())
-            {
-                continue;
-            }
+        if(in_lens.size() != vec_scale.size())
+        {
+            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": ranks of input and scale are different!");
+        }
 
-            auto type = arg->get_shape().type();
-            // output size
-            if(type == shape::int64_type)
-            {
-                auto arg_out_s = arg->eval();
-                check_arg_empty(arg_out_s,
-                                "PARSE_" + opd.op_name + ": dynamic output size is not supported!");
-                arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
-
-                if(out_lens.size() != in_lens.size())
-                {
-                    MIGRAPHX_THROW("PARSE_" + opd.op_name +
-                                   ": specified output size does not match input size");
-                }
-
-                // compute the scale
-                vec_scale.resize(in_lens.size());
-                std::transform(in_lens.begin(),
-                               in_lens.end(),
-                               out_lens.begin(),
-                               vec_scale.begin(),
-                               [](auto iss, auto oss) { return 1.0 * oss / iss; });
-            }
-            else
-            {
-
-                // scale input
-                if(lens[0] == in_lens.size())
-                {
-                    auto arg_scale = arg->eval();
-                    check_arg_empty(arg_scale,
-                                    "PARSE_" + opd.op_name +
-                                        ": dynamic input scale is not supported!");
-
-                    arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-                    if(in_lens.size() != vec_scale.size())
-                    {
-                        MIGRAPHX_THROW("PARSE_" + opd.op_name +
-                                       ": ranks of input and scale are different!");
-                    }
-
-                    std::transform(in_lens.begin(),
-                                   in_lens.end(),
-                                   vec_scale.begin(),
-                                   out_lens.begin(),
-                                   [&](auto idx, auto scale) {
-                                       return static_cast<std::size_t>(idx * scale);
-                                   });
-                }
-            }
+        // if the output was not calculated yet, we update it based on the scales
+        if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
+        {
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                vec_scale.begin(),
+                out_lens.begin(),
+                [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
         }
 
         shape out_s{in_s.type(), out_lens};
@@ -288,7 +316,6 @@ struct parse_resize : op_parser<parse_resize>
 
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        args[0]                       = info.make_contiguous(args[0]);
         auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
         if(mode == "nearest")
@@ -320,7 +347,8 @@ struct parse_resize : op_parser<parse_resize>
 
             // get the number of dimensions
             std::size_t n_dim = out_lens.size();
-            auto vvv_ind = std::vector(n_dim, std::vector(2, std::vector<size_t>(out_elements)));
+            std::vector<std::vector<std::size_t>> vv_ind(2, std::vector<std::size_t>(out_elements));
+            std::vector<std::vector<std::vector<std::size_t>>> vvv_ind(n_dim, vv_ind);
             std::vector<std::vector<float>> delta(n_dim, std::vector<float>(out_elements));
 
             shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {

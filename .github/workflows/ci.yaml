@@ -281,6 +281,7 @@ jobs:
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
           -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+          -DCMAKE_CXX_FLAGS="-Werror" \
           -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) tests driver
@@ -464,7 +465,7 @@ jobs:
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
       env:
-        CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+        CODECOV_TOKEN: "f5d5a10b-3177-4c76-b25f-9b1c2f165e8b"
       run: |
         sudo apt-get install -y lcov
         cd build

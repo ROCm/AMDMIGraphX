@@ -31,8 +31,18 @@
 #include <sstream>
 #include <iostream>
 #include <string>
-#include <sys/types.h>
+
+#ifdef _WIN32
+// cppcheck-suppress definePrefix
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#undef getpid
+// cppcheck-suppress [definePrefix, defineUpperCase]
+#define getpid _getpid
+#else
 #include <unistd.h>
+#include <sys/types.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

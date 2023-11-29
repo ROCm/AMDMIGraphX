@@ -143,6 +143,7 @@ auto is_ck_gemm()
             return false;
         return true;
 #else
+        (void)ins;
         return false;
 #endif
     });

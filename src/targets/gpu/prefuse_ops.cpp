@@ -31,9 +31,7 @@
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
-#ifdef MIGRAPHX_MLIR
 #include <migraphx/gpu/fuse_mlir.hpp>
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -172,8 +170,6 @@ struct find_gemm_softmax_gemm
     }
 };
 
-#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
-
 auto is_ck_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -185,10 +181,6 @@ auto is_ck_gemm()
     });
 }
 
-#endif
-
-#ifdef MIGRAPHX_MLIR
-
 auto is_mlir_gemm()
 {
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
@@ -199,8 +191,6 @@ auto is_mlir_gemm()
         });
     });
 }
-
-#endif
 
 } // namespace
 

@@ -345,6 +345,16 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
+MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
+{
+    if (ins->name() != "pointwise")
+        return false;
+    auto* pm = ins->module_inputs().front();
+    return std::all_of(pm->begin(), pm->end(), [&](const auto& i) {
+        return is_pointwise_op_supported_by_mlir(i);
+    });
+}
+
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -353,22 +363,15 @@ struct find_mlir_fused_ops
     {
         auto dot_or_conv = match::skip(match::name("contiguous"))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
-        return match::name("pointwise")(match::any_of[match::inputs()](dot_or_conv.bind("x")));
+        return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
-    void rewrite(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const { 
         auto ins           = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input after contiguous
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
-        // Whitelist pointwise operators.
-        if(std::any_of(pm->begin(), pm->end(), [&](const auto& i) {
-               return not is_pointwise_op_supported_by_mlir(i);
-           }))
-            return;
-
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
@@ -385,8 +388,6 @@ struct find_mlir_fused_ops
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const { rewrite(mpm, r); }
 };
 
 template <auto Matcher>
@@ -427,9 +428,12 @@ using find_mlir_standalone_dot_op         = find_mlir_standalone_op<&is_mlir_dot
 
 struct find_mlir_standalone_attention_op
 {
-    mlir_mode mode = mlir_mode::none;
-    void rewrite(module_pass_manager& mpm, const match::matcher_result& r) const
+    auto matcher() const
     {
+        return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm");
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const {
         static size_t counter  = 0;
         module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
         auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
@@ -478,13 +482,6 @@ struct find_mlir_standalone_attention_op
         mpm.get_module().replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
     }
-
-    auto matcher() const
-    {
-        return match::name("gpu::pre_gemm_softmax_gemm").bind("gemm_softmax_gemm");
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const { rewrite(mpm, r); }
 };
 
 struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
@@ -492,28 +489,9 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     auto matcher() const
     {
         auto standalone_matcher = find_mlir_standalone_attention_op::matcher();
-        return match::name("pointwise")(
+        return mlir_pointwise()(
             match::any_of[match::inputs()](standalone_matcher).bind("trailing_pm"));
         ;
-    }
-
-    bool check(const match::matcher_result& r) const
-    {
-        auto trailing_pm_ins = r.instructions["trailing_pm"]; // input after contiguous
-        auto* trailing_pm    = trailing_pm_ins->module_inputs().front();
-        // Whitelist pointwise operators.
-        return not(std::any_of(trailing_pm->begin(), trailing_pm->end(), [&](const auto& i) {
-            return not is_pointwise_op_supported_by_mlir(i);
-        }));
-    }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        if(not check(r))
-        {
-            return;
-        }
-        rewrite(mpm, r);
     }
 };
 
@@ -539,9 +517,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
 
     // Attention offloads; default disabled
-    match::find_matches(mpm, find_mlir_attention_fused_ops{get_mode("attention", mlir_mode::none)});
-    match::find_matches(mpm,
-                        find_mlir_standalone_attention_op{get_mode("attention", mlir_mode::none)});
+    if(mlir_attention_enabled()){
+        match::find_matches(mpm, find_mlir_attention_fused_ops{});
+        match::find_matches(mpm, find_mlir_standalone_attention_op{});
+    }
 
     match::find_matches(mpm,
                         find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),

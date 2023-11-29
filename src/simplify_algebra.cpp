@@ -653,7 +653,7 @@ struct find_concat_op
     static bool is_valid_op(const operation& op)
     {
         return contains({"broadcast", "multibroadcast"}, op.name()) or
-               (op.attributes().contains("pointwise") and op.name() != "convert");
+               op.attributes().contains("pointwise");
     }
 
     void apply(module& m, const match::matcher_result& r) const

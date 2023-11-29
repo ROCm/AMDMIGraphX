@@ -39,15 +39,17 @@ struct parse_scatternd : op_parser<parse_scatternd>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref>& args) const
     {
+        std::string reduction = "none";
         if(contains(info.attributes, "reduction"))
         {
-            if(info.attributes.at("reduction").s() == "add")
-                return info.add_instruction(migraphx::make_op("scatternd_add"), args);
-            if(info.attributes.at("reduction").s() == "mul")
-                return info.add_instruction(migraphx::make_op("scatternd_mul"), args);
+            reduction = info.attributes.at("reduction").s();
+            if(not contains({"none", "add", "mul", "min", "max"}, reduction))
+            {
+                MIGRAPHX_THROW("PARSE_SCATTERND: unsupported reduction mode " + reduction);
+            }
         }
 
-        return info.add_instruction(migraphx::make_op("scatternd_none"), args);
+        return info.add_instruction(migraphx::make_op("scatternd_" + reduction), args);
     }
 };
 

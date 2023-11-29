@@ -36,7 +36,7 @@ namespace onnx {
 
 /*
  *********************************************************************************
- *  Reference: see QLinearAdd in                                                 *
+ *  Reference: see QLinearAdd, QLinearMul in                                     *
  *  https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md  *
  *********************************************************************************
 
@@ -49,6 +49,17 @@ namespace onnx {
   This version of the operator has been available since version 1 of the 'com.microsoft' operator
   set.
 
+  com.microsoft.QLinearMul
+  Performs element-wise binary multiplication on 8 bit data types (with Numpy-style broadcasting
+  support).
+
+  C = ((A - A_zero_point) * (B - B_zero_point)) * (A_scale * B_scale)/C_scale + C_zero_point
+
+  Version
+  This version of the operator has been available since version 1 of the 'com.microsoft' operator
+  set.
+
+  General definition of binary QLinear* ops:
   Inputs (7 - 8)
   A : T
   First operand.
@@ -88,15 +99,18 @@ namespace onnx {
 
 */
 
-struct parse_qlinearadd : op_parser<parse_qlinearadd>
+struct parse_qlinearbinary : op_parser<parse_qlinearbinary>
 {
-    std::vector<op_desc> operators() const { return {{"QLinearAdd"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"QLinearAdd", "add"}, {"QLinearMul", "mul"}};
+    }
 
-    // basic type checking for QLinearAdd Operator
-    void check_inputs(const std::vector<instruction_ref>& args) const
+    // basic type checking for binary QLinear Operator
+    void check_inputs(const std::vector<instruction_ref>& args, const std::string& op_name) const
     {
         if(args.size() < 7)
-            MIGRAPHX_THROW("QLINEARADD: missing inputs");
+            MIGRAPHX_THROW(op_name + ": missing inputs");
 
         const auto& in_a = args[0];
         const auto& in_b = args[3];
@@ -107,19 +121,19 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
         auto type_a = sh_a.type();
         auto type_b = sh_b.type();
         if(type_a != migraphx::shape::int8_type and type_a != migraphx::shape::uint8_type)
-            MIGRAPHX_THROW("QLINEARADD: unsupported input type");
+            MIGRAPHX_THROW(op_name + ": unsupported input type");
         if(type_b != migraphx::shape::int8_type and type_b != migraphx::shape::uint8_type)
-            MIGRAPHX_THROW("QLINEARADD: unsupported input type");
+            MIGRAPHX_THROW(op_name + ": unsupported input type");
         if(type_a != type_b)
-            MIGRAPHX_THROW("QLINEARADD: mismatched input types");
+            MIGRAPHX_THROW(op_name + ": mismatched input types");
     }
 
-    instruction_ref parse(const op_desc& /* opd */,
+    instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        check_inputs(args);
+        check_inputs(args, opd.op_name);
 
         // A
         const auto& in_a         = args[0];
@@ -134,8 +148,8 @@ struct parse_qlinearadd : op_parser<parse_qlinearadd>
         const auto& in_zero_pt_b = args[5];
         auto dquant_b = bcast_qdq_instr("dequantizelinear", in_b, in_scale_b, in_zero_pt_b, info);
 
-        // C = A + B
-        auto out_c = info.add_common_op("add", dquant_a, dquant_b);
+        // C = op(A, B)
+        auto out_c = info.add_common_op(opd.op_name, dquant_a, dquant_b);
 
         const auto& in_scale_c = args[6];
 

@@ -101,8 +101,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
-    return static_cast<ret_type>(
-        pooling(v01, v23)); // use static_cast to silence warnings about narrowing conversions
+    return implicit_conversion(pooling(v01, v23));
 }
 
 template <class Iterator, class Op>

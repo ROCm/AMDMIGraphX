@@ -71,7 +71,7 @@ __device__ void generic_binary_layernorm(
         auto mean_x        = means[0];
         auto mean_x2       = means[1];
         auto variance      = mean_x2 - (mean_x * mean_x);
-        value_type eps_val = static_cast<value_type>(eps);
+        value_type eps_val = implicit_conversion(eps);
 
         r.inner([&](auto& y, auto x, auto... xs) {
             auto m = x - mean_x;

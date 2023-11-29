@@ -1865,6 +1865,54 @@ TEST_CASE(depthtospace_simple_test)
     EXPECT(p == prog);
 }
 
+TEST_CASE(dynamicquantizelinear_2d_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto x_dims = {3, 4};
+    auto x_type = migraphx::shape::float_type;
+    auto x      = mm->add_parameter("x", {x_type, x_dims});
+
+    auto l0    = mm->add_literal(migraphx::literal{migraphx::shape{x_type}, {0}});
+    auto q_max = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
+    auto q_min = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
+    auto x_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
+
+    auto topk_max = mm->add_instruction(
+        migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", true}}), x_reshape);
+    auto max_x = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_max);
+    max_x      = mm->add_instruction(migraphx::make_op("max"), l0, max_x);
+
+    auto topk_min = mm->add_instruction(
+        migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", false}}), x_reshape);
+    auto min_x = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_min);
+    min_x      = mm->add_instruction(migraphx::make_op("min"), l0, min_x);
+
+    auto sub0    = mm->add_instruction(migraphx::make_op("sub"), max_x, min_x);
+    auto div     = mm->add_instruction(migraphx::make_op("sub"), q_max, q_min);
+    auto y_scale = mm->add_instruction(migraphx::make_op("div"), sub0, div);
+
+    auto sub1         = mm->add_instruction(migraphx::make_op("sub"), q_min, min_x);
+    auto interm_zp    = mm->add_instruction(migraphx::make_op("div"), sub1, y_scale);
+    auto saturate     = mm->add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
+    auto round        = mm->add_instruction(migraphx::make_op("nearbyint"), saturate);
+    auto y_zero_point = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), round);
+
+    auto scale_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_scale);
+
+    auto y_pt_c_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_zero_point);
+
+    mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
+
+    auto prog = optimize_onnx("dynamicquantizelinear_2d_test.onnx");
+    EXPECT(p == prog);
+}
+
 TEST_CASE(spacetodepth_test)
 {
     migraphx::program p;

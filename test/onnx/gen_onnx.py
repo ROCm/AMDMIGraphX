@@ -1969,6 +1969,40 @@ def dropout_test():
 
 
 @onnx_test()
+def dynamicquantizelinear_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [6])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
+def dynamicquantizelinear_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 4])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
 def elu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

@@ -4826,8 +4826,9 @@ TEST_CASE(multinomial_test)
     migraphx::shape s{migraphx::shape::float_type, {1}};
     std::vector<float> seed_data = {seed};
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy              = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size * sample_size}},
+                          std::vector<float>{batch_size * sample_size}});
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
@@ -4978,8 +4979,9 @@ TEST_CASE(multinomial_int64_test)
     auto seed_input         = mm->add_literal(migraphx::literal(s, data));
 
     // static size
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size * sample_size}},
+                          std::vector<float>(batch_size * sample_size)});
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, randoms);
     auto prog = optimize_onnx("multinomial_int64_test.onnx");

@@ -340,9 +340,9 @@ struct cpu_apply
                               {"reduce_min", "reduction_min"},
                               {"reduce_sum", "reduction_sum"},
                           });
-
-        extend_op("concat", "dnnl::concat");
-        extend_op("contiguous", "dnnl::reorder");
+        // concat and contiguous are disabled for lowering because fp8 can't handle it
+        // extend_op("concat", "dnnl::concat");
+        // extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
 #ifndef MIGRAPHX_ENABLE_ZENDNN
         extend_op("convolution_backwards", "dnnl::convolution_backwards");

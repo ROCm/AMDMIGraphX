@@ -33,7 +33,6 @@ template <index_int Axis, class Input, class Output>
 __device__ void softmax(Input input1, Output output)
 {
     using block = reduce::auto_block<reduce::reduce_elements_with_axis<Input, Axis>()>;
-    using otype = typename Output::type;
     block::template run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
         auto input = r.inner(op::id{})(input1);
 #ifdef MIGRAPHX_USE_FAST_SOFTMAX
@@ -44,7 +43,7 @@ __device__ void softmax(Input input1, Output output)
         auto exp_in = r.inner([&](auto x) { return migraphx::exp(x - c); })(input);
         auto batch_sum =
             r.reduce(op::sum{}, 0, [](auto x) { return migraphx::convert<float>(x); })(exp_in);
-        r.inner([&](auto& y, auto x) { y = static_cast<otype>(x / batch_sum); })(output, exp_in);
+        r.inner([&](auto& y, auto x) { y = implicit_conversion(x / batch_sum); })(output, exp_in);
     });
 }
 

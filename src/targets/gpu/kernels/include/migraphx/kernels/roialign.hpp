@@ -70,14 +70,13 @@ template <class Iterator, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     const Iterator data, const array<index_int, 2>& dims, array<float, 2> xy, Op pooling)
 {
-    using ret_type = typename Iterator::value_type;
     array<int, 2> low{};
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
     {
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-            return ret_type{0};
+            return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);

@@ -397,30 +397,26 @@ struct find_mlir_standalone_op
     mlir_mode mode = mlir_mode::none;
     auto matcher() const { return Matcher(mode); }
 
-    void rewrite(module_pass_manager& mpm, instruction_ref top_ins) const
-    {
-        static size_t counter = 0;
-        module_ref mm = mpm.create_module("mlir_" + top_ins->name() + std::to_string(counter++));
-        mm->set_bypass();
-        auto [anchor_op, top_inputs] =
-            fuse_input_ops_and_gemm_based_op(mm, top_ins->inputs(), top_ins->get_operator());
-        mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(
-            top_ins, mlir_op{top_ins->get_operator()}, top_inputs, {mm});
-    }
-
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto conv_based_op = r.result;
+        auto gemm_based_op = r.result;
         //
         // enable only for fp32/fp16/i8 types
-        if(std::any_of(conv_based_op->inputs().begin(), conv_based_op->inputs().end(), [&](auto i) {
+        if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains(
                    {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
                    i->get_shape().type());
            }))
             return;
-        rewrite(mpm, conv_based_op);
+        static size_t counter = 0;
+        module_ref mm =
+            mpm.create_module("mlir_" + gemm_based_op->name() + std::to_string(counter++));
+        mm->set_bypass();
+        auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
+            mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
+        mm->add_return({anchor_op});
+        mpm.get_module().replace_instruction(
+            gemm_based_op, mlir_op{gemm_based_op->get_operator()}, top_inputs, {mm});
     }
 };
 

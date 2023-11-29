@@ -4828,7 +4828,7 @@ TEST_CASE(multinomial_test)
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
     auto rand_dummy              = mm->add_literal(
         migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size * sample_size}},
-                          std::vector<float>{batch_size * sample_size}});
+                          std::vector<float>(batch_size * sample_size)});
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);

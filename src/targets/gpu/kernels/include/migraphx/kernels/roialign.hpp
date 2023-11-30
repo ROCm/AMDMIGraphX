@@ -92,10 +92,10 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 high[0] * dims[1] + low[1],
                                 high[0] * dims[1] + high[1]};
 
-    float ly           = xy[0] - low[0];
-    float lx           = xy[1] - low[1];
-    float hy           = 1.0f - ly;
-    float hx           = 1.0f - lx;
+    float ly = xy[0] - low[0];
+    float lx = xy[1] - low[1];
+    float hy = 1.0f - ly;
+    float hx = 1.0f - lx;
     // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 

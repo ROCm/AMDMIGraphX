@@ -21,10 +21,13 @@
  * ************************************************************************ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
 #define MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
+#include <type_traits>
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif
+
+#include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
@@ -32,7 +35,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-template <typename To, typename From>
+template <typename To,
+          typename From,
+          MIGRAPHX_REQUIRES(std::is_trivially_copyable_v<To>and std::is_trivially_copyable_v<From>)>
 inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));

@@ -96,6 +96,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     float lx           = xy[1] - low[1];
     float hy           = 1.0f - ly;
     float hx           = 1.0f - lx;
+    // do calculations in floating point and convert final result to required type
     array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);

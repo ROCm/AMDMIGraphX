@@ -354,6 +354,7 @@ TEST_CASE(compile_math)
         if(t == migraphx::shape::half_type)
             name.insert(0, "migraphx::");
         data_types.push_back(name);
+        // fp8 doesn't have vectorization support yet, therefore skip it for now.
         if(t != migraphx::shape::fp8e4m3fnuz_type)
         {
             migraphx::transform(vec_sizes, std::back_inserter(data_types), [&](auto i) {

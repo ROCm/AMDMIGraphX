@@ -57,7 +57,7 @@ struct parse_range : op_parser<parse_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
-            size_t num_elements = 
+            size_t num_elements =
                 ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val));
 
             assert(num_elements > 0);

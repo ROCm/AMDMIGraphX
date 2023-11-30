@@ -539,16 +539,11 @@ class numeric_limits<fp8e5m2>
 } // namespace fp8
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_MIN_MAX(T)                  \
-    template <>                                  \
-    constexpr T numeric_max<T, void>()           \
-    {                                            \
-        return fp8::numeric_limits<T>::max();    \
-    }                                            \
-    template <>                                  \
-    constexpr T numeric_lowest<T>()              \
-    {                                            \
-        return fp8::numeric_limits<T>::lowest(); \
+#define MIGRAPHX_FP8_MIN_MAX(T)               \
+    template <>                               \
+    constexpr T numeric_max<T, void>()        \
+    {                                         \
+        return fp8::numeric_limits<T>::max(); \
     }
 
 MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fnuz);

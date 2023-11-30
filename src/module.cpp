@@ -1052,13 +1052,10 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
-        {
             for(const auto* ssmod : mod_args)
             {
                 calc_implicit_deps(*ssmod, pmod, ins, deps);
             }
-        }
     }
 }
 

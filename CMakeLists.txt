@@ -262,6 +262,7 @@ rocm_enable_cppcheck(
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
         migraphx-RedundantLocalVariable:*src/api/api.cpp
+        migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE

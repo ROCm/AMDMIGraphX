@@ -94,6 +94,7 @@ inline auto mi_nglobal(const hip_shape<N>& s, index_int nlocal)
     //
     // assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x){return x>0;}));
 
+    // cppcheck-suppress migraphx-RedundantLocalVariable
     return nglobal_multi;
 }
 

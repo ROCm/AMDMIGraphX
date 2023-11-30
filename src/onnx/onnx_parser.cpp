@@ -408,7 +408,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num = static_cast<std::size_t>(node.output().size());
+        std::size_t output_num = node.output().size();
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)

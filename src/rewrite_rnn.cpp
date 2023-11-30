@@ -273,7 +273,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref bb{};
     if(bias != m.end())
     {
-        long hs    = static_cast<long>(r->get_shape().lens()[2]);
+        long hs    = r->get_shape().lens()[2];
         auto sbias = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
         auto wb    = m.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), sbias);

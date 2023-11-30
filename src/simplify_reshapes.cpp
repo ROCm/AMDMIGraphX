@@ -322,7 +322,7 @@ struct find_concat_transpose
         }
 
         // axis could be a negative value
-        int64_t n_dim = static_cast<int64_t>(s.lens().size());
+        int64_t n_dim = s.lens().size();
         op.axis       = tune_axis(n_dim, op.axis, op.name());
 
         auto ipermutation = invert_permutation(permutation);

@@ -550,10 +550,10 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         return create_literal(shape::double_type, dims, t.double_data());
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
     case onnx::TensorProto::FLOAT8E4M3FNUZ: {
-        std::vector<float> data_float(t.float_data().begin(), t.float_data().end());
+        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
         std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
-        std::transform(data_float.begin(),
-                       data_float.end(),
+        std::transform(data_int32.begin(),
+                       data_int32.end(),
                        std::back_inserter(data_fp8),
                        [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
         return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);

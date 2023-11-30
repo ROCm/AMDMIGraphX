@@ -37,7 +37,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 template <typename To,
           typename From,
-          MIGRAPHX_REQUIRES(std::is_trivially_copyable_v<To>and std::is_trivially_copyable_v<From>)>
+          MIGRAPHX_REQUIRES(std::is_trivially_copyable<To>{} and
+                            std::is_trivially_copyable<From>{})>
 inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));

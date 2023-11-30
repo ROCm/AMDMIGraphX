@@ -179,7 +179,7 @@ jobs:
       uses: actions/cache/restore@v3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
+        key: cppcheck-cache-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
         restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
 
     - name: Cppcheck

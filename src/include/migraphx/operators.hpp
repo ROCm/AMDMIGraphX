@@ -139,6 +139,7 @@
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unique.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/op/where.hpp>

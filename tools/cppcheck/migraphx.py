@@ -37,6 +37,7 @@ def getVariableDecl(var):
         end = end.next
     return var.typeStartToken.forward(end)
 
+
 def isFunctionCall(token):
     if not token:
         return False
@@ -361,7 +362,12 @@ def UseDeviceLaunch(cfg, data):
 
 @cppcheck.checker
 def UseManagePointer(cfg, data):
-    functions = {"fclose", "free", "hipFree", "hipHostFree", "hipFreeArray", "hipMemFree", "hipStreamDestroy", "hipEventDestroy", "hipArrayDestroy", "hipCtxDestroy", "hipDestroyTextureObject", "hipDestroySurfaceObject", "miirDestroyHandle"}
+    functions = {
+        "fclose", "free", "hipFree", "hipHostFree", "hipFreeArray",
+        "hipMemFree", "hipStreamDestroy", "hipEventDestroy", "hipArrayDestroy",
+        "hipCtxDestroy", "hipDestroyTextureObject", "hipDestroySurfaceObject",
+        "miirDestroyHandle"
+    }
     for token in cfg.tokenlist:
         if not isFunctionCall(token):
             continue

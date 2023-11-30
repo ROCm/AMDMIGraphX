@@ -539,17 +539,22 @@ class numeric_limits<fp8e5m2>
 } // namespace fp8
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_MAX(T)                   \
-    template <>                               \
-    constexpr T numeric_max<T, void>()        \
-    {                                         \
-        return fp8::numeric_limits<T>::max(); \
+#define MIGRAPHX_FP8_MIN_MAX(T)                  \
+    template <>                                  \
+    constexpr T numeric_max<T, void>()           \
+    {                                            \
+        return fp8::numeric_limits<T>::max();    \
+    }                                            \
+    template <>                                  \
+    constexpr T numeric_lowest<T>()              \
+    {                                            \
+        return fp8::numeric_limits<T>::lowest(); \
     }
 
-MIGRAPHX_FP8_MAX(fp8::fp8e4m3fnuz);
-MIGRAPHX_FP8_MAX(fp8::fp8e5m2fnuz);
-MIGRAPHX_FP8_MAX(fp8::fp8e4m3fn);
-MIGRAPHX_FP8_MAX(fp8::fp8e5m2);
+MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fnuz);
+MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2fnuz);
+MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fn);
+MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2);
 } // namespace migraphx
 // =================================================================================================
 #if defined(__clang__)

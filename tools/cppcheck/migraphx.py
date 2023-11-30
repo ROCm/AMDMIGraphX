@@ -1,14 +1,17 @@
 import cppcheck, itertools
 from cppcheckdata import simpleMatch, match
 
+
 def skipTokenMatches(tokens, skip=None):
     for tok in tokens:
         if match(tok, skip):
             continue
         yield tok
 
+
 def isTokensEqual(xtokens, ytokens, skip=None):
-    for x, y in itertools.zip_longest(skipTokenMatches(xtokens, skip), skipTokenMatches(ytokens, skip)):
+    for x, y in itertools.zip_longest(skipTokenMatches(xtokens, skip),
+                                      skipTokenMatches(ytokens, skip)):
         if not x:
             return False
         if not y:
@@ -17,12 +20,14 @@ def isTokensEqual(xtokens, ytokens, skip=None):
             return False
     return True
 
+
 def getInnerLink(token):
     if not token:
         return []
     if not token.link:
         return []
     return token.next.forward(token.link)
+
 
 def getVariableDecl(var):
     if not var:
@@ -31,6 +36,7 @@ def getVariableDecl(var):
     if end:
         end = end.next
     return var.typeStartToken.forward(end)
+
 
 @cppcheck.checker
 def AvoidBranchingStatementAsLastInLoop(cfg, data):
@@ -44,7 +50,11 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
         if not match(stmt, "break|continue"):
             stmt = stmt.astTop()
         if match(stmt, "break|continue|return"):
-            cppcheck.reportError(stmt, "style", "Branching statement as the last statement inside a loop is very confusing.")
+            cppcheck.reportError(
+                stmt, "style",
+                "Branching statement as the last statement inside a loop is very confusing."
+            )
+
 
 # @cppcheck.checker
 # def CollapsibleIfStatements(cfg, data):
@@ -53,12 +63,15 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style", "These two if statements can be collapsed into one.")
 
+
 @cppcheck.checker
 def ConditionalAssert(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "if (*) { assert (*) ; }"):
             continue
-        cppcheck.reportError(token, "style", "The if condition should be included in assert.")
+        cppcheck.reportError(token, "style",
+                             "The if condition should be included in assert.")
+
 
 @cppcheck.checker
 def EmptyCatchStatement(cfg, data):
@@ -67,6 +80,7 @@ def EmptyCatchStatement(cfg, data):
             continue
         cppcheck.reportError(token, "style", "An empty catch statement.")
 
+
 @cppcheck.checker
 def EmptyDoWhileStatement(cfg, data):
     for token in cfg.tokenlist:
@@ -74,12 +88,15 @@ def EmptyDoWhileStatement(cfg, data):
             continue
         cppcheck.reportError(token, "style", "Empty do-while.")
 
+
 @cppcheck.checker
 def EmptyElseBlock(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "else { }"):
             continue
-        cppcheck.reportError(token, "style", "Empty else statement can be safely removed.")
+        cppcheck.reportError(token, "style",
+                             "Empty else statement can be safely removed.")
+
 
 @cppcheck.checker
 def EmptyForStatement(cfg, data):
@@ -88,12 +105,14 @@ def EmptyForStatement(cfg, data):
             continue
         cppcheck.reportError(token, "style", "Empty for statement.")
 
+
 @cppcheck.checker
 def EmptyIfStatement(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "if (*) { }"):
             continue
         cppcheck.reportError(token, "style", "Empty if statement.")
+
 
 @cppcheck.checker
 def EmptySwitchStatement(cfg, data):
@@ -102,12 +121,14 @@ def EmptySwitchStatement(cfg, data):
             continue
         cppcheck.reportError(token, "style", "Empty switch statement.")
 
+
 @cppcheck.checker
 def EmptyWhileStatement(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "while (*) { }"):
             continue
         cppcheck.reportError(token, "style", "Empty while statement.")
+
 
 @cppcheck.checker
 def ForLoopShouldBeWhileLoop(cfg, data):
@@ -120,7 +141,9 @@ def ForLoopShouldBeWhileLoop(cfg, data):
         end = token.next.link
         if not match(end.tokAt(-1), "; )"):
             continue
-        cppcheck.reportError(token, "style", "For loop should be written as a while loop.")
+        cppcheck.reportError(token, "style",
+                             "For loop should be written as a while loop.")
+
 
 @cppcheck.checker
 def GotoStatement(cfg, data):
@@ -128,6 +151,7 @@ def GotoStatement(cfg, data):
         if not match(token, "goto"):
             continue
         cppcheck.reportError(token, "style", "Goto considered harmful.")
+
 
 # @cppcheck.checker
 # def InvertedLogic(cfg, data):
@@ -141,12 +165,16 @@ def GotoStatement(cfg, data):
 #             continue
 #         cppcheck.reportError(cond, "style", "It is cleaner to invert the logic.")
 
+
 @cppcheck.checker
 def LambdaAttribute(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "] __device__|__host__ {|{}}"):
             continue
-        cppcheck.reportError(token, "style", "Attributes to lambdas must come after parameter list.")
+        cppcheck.reportError(
+            token, "style",
+            "Attributes to lambdas must come after parameter list.")
+
 
 @cppcheck.checker
 def MultipleUnaryOperator(cfg, data):
@@ -159,14 +187,18 @@ def MultipleUnaryOperator(cfg, data):
             continue
         if not token.astOperand1.isUnaryOp(token.astOperand1.str):
             continue
-        cppcheck.reportError(token, "style", "Muliple unary operators used together.")
+        cppcheck.reportError(token, "style",
+                             "Muliple unary operators used together.")
+
 
 @cppcheck.checker
 def MutableVariable(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "mutable %var%"):
             continue
-        cppcheck.reportError(token, "style", "Do not create mutable variables.")
+        cppcheck.reportError(token, "style",
+                             "Do not create mutable variables.")
+
 
 @cppcheck.checker
 def NestedBlocks(cfg, data):
@@ -178,46 +210,62 @@ def NestedBlocks(cfg, data):
             continue
         cppcheck.reportError(block, "style", "Block directly inside block.")
 
+
 @cppcheck.checker
 def RedundantCast(cfg, data):
     for token in cfg.tokenlist:
-        m = match(token, "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;")
+        m = match(token,
+                  "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;")
         if not m:
             continue
         if m.decl.varId != m.assign.varId:
             continue
         if not match(token.previous, "auto"):
-            if not isTokensEqual(getVariableDecl(m.decl.variable), getInnerLink(m.cast), skip='const|volatile|&|&&|*'):
+            if not isTokensEqual(getVariableDecl(m.decl.variable),
+                                 getInnerLink(m.cast),
+                                 skip='const|volatile|&|&&|*'):
                 continue
-        if not match(token, "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;"):
+        if not match(token,
+                     "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;"):
             continue
         cppcheck.reportError(token, "style", "Static cast is redundant.")
+
 
 @cppcheck.checker
 def RedundantConditionalOperator(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "? true|false : true|false"):
             continue
-        cppcheck.reportError(token, "style", "Conditional operator is redundant.")
+        cppcheck.reportError(token, "style",
+                             "Conditional operator is redundant.")
+
 
 @cppcheck.checker
 def RedundantIfStatement(cfg, data):
     for token in cfg.tokenlist:
-        if not match(token, "if (*) { return true|false ; } else { return true|false ; }"):
+        if not match(
+                token,
+                "if (*) { return true|false ; } else { return true|false ; }"):
             continue
         cppcheck.reportError(token, "style", "The if statement is redundant.")
+
 
 @cppcheck.checker
 def RedundantLocalVariable(cfg, data):
     for token in cfg.tokenlist:
-        m = match(token, "%var%@decl ; %var%@assign = **; return %var%@returned ;")
+        m = match(token,
+                  "%var%@decl ; %var%@assign = **; return %var%@returned ;")
         if not m:
             continue
         if m.decl.varId != m.assign.varId:
             continue
         if m.decl.varId != m.returned.varId:
             continue
-        cppcheck.reportError(m.returned, "style", "Variable is returned immediately after its declaration, can be simplified to just return expression.")
+        cppcheck.reportError(
+            m.returned, "style",
+            "Variable is returned immediately after its declaration, can be simplified to just return expression."
+        )
+
 
 # @cppcheck.checker
 # def UnnecessaryElseStatement(cfg, data):
@@ -233,6 +281,7 @@ def RedundantLocalVariable(cfg, data):
 #         if not match(stmt, "break|continue|return|throw"):
 #             continue
 #         cppcheck.reportError(m.else_statement, "style", "Else statement is not necessary.")
+
 
 @cppcheck.checker
 def UnnecessaryEmptyCondition(cfg, data):
@@ -253,7 +302,10 @@ def UnnecessaryEmptyCondition(cfg, data):
         container_iter = m.for_cond.astOperand2.astOperand2
         if container_iter.varId != container.varId:
             continue
-        cppcheck.reportError(container, "style", "Unnecessary check for empty before for range loop.")
+        cppcheck.reportError(
+            container, "style",
+            "Unnecessary check for empty before for range loop.")
+
 
 @cppcheck.checker
 def UseDeviceLaunch(cfg, data):
@@ -262,19 +314,27 @@ def UseDeviceLaunch(cfg, data):
             continue
         cppcheck.reportError(token, "style", "Use device::launch instead.")
 
+
 @cppcheck.checker
 def UseManagePointer(cfg, data):
     for token in cfg.tokenlist:
-        if not match(token, "fclose|free|hipFree|hipHostFree|hipFreeArray|hipMemFree|hipStreamDestroy|hipEventDestroy|hipArrayDestroy|hipCtxDestroy|hipDestroyTextureObject|hipDestroySurfaceObject|miirDestroyHandle ("):
+        if not match(
+                token,
+                "fclose|free|hipFree|hipHostFree|hipFreeArray|hipMemFree|hipStreamDestroy|hipEventDestroy|hipArrayDestroy|hipCtxDestroy|hipDestroyTextureObject|hipDestroySurfaceObject|miirDestroyHandle ("
+        ):
             continue
-        cppcheck.reportError(token, "style", "Use manage pointer for resource management.")
+        cppcheck.reportError(token, "style",
+                             "Use manage pointer for resource management.")
+
 
 @cppcheck.checker
 def UseSmartPointer(cfg, data):
     for token in cfg.tokenlist:
         if not match(token, "new %name%"):
             continue
-        cppcheck.reportError(token, "style", "Use manage pointer for resource management.")
+        cppcheck.reportError(token, "style",
+                             "Use manage pointer for resource management.")
+
 
 @cppcheck.checker
 def useStlAlgorithms(cfg, data):
@@ -284,7 +344,7 @@ def useStlAlgorithms(cfg, data):
         elif match(token, "memset ("):
             cppcheck.reportError(token, "style", "Use std::fill instead.")
         elif match(token, "memcmp ("):
-            cppcheck.reportError(token, "style", "Use std::equal_range instead.")
+            cppcheck.reportError(token, "style",
+                                 "Use std::equal_range instead.")
         elif match(token, "memchr ("):
             cppcheck.reportError(token, "style", "Use std::find instead.")
-

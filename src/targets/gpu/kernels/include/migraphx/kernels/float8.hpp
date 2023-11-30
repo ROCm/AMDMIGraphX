@@ -394,7 +394,7 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_FABS(T)                                                 \
+#define MIGRAPHX_FP8_OTHER_OPS(T)                                            \
     inline constexpr __device__ T fabs(T v)                                  \
     {                                                                        \
         /*NOLINTNEXTLINE*/                                                   \
@@ -419,7 +419,7 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     MIGRAPHX_FP8_BINARY_OP(>=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(<=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(!=, T, bool)  \
-    MIGRAPHX_FP8_FABS(T)
+    MIGRAPHX_FP8_OTHER_OPS(T)
 
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2)
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2fnuz)

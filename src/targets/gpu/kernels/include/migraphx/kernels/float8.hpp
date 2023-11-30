@@ -365,15 +365,6 @@ struct float8
     inline __device__ constexpr float8& operator=(const float8& rhs)     = default;
     inline __device__ constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    inline __device__ constexpr bool operator==(const float8& rhs) const
-    {
-        if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
-            return false;
-        else if((rhs.is_zero() and this->is_zero()) or (this->data == rhs.data))
-            return true;
-        return false;
-    }
-
     inline __device__ constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
@@ -403,12 +394,20 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_FABS(T)                \
-    inline constexpr __device__ T fabs(T v) \
-    {                                       \
-        /*NOLINTNEXTLINE*/                  \
-        v.data = v.data & 0x7f;             \
-        return v;                           \
+#define MIGRAPHX_FP8_FABS(T)                                                 \
+    inline constexpr __device__ T fabs(T v)                                  \
+    {                                                                        \
+        /*NOLINTNEXTLINE*/                                                   \
+        v.data = v.data & 0x7f;                                              \
+        return v;                                                            \
+    }                                                                        \
+    inline __device__ constexpr bool operator==(const T& lhs, const T& rhs)  \
+    {                                                                        \
+        if(rhs.is_nan() or rhs.is_inf() or lhs.is_nan() or lhs.is_inf())     \
+            return false;                                                    \
+        else if((rhs.is_zero() and lhs.is_zero()) or (lhs.data == rhs.data)) \
+            return true;                                                     \
+        return false;                                                        \
     }
 
 // NOLINTNEXTLINE
@@ -417,7 +416,6 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     MIGRAPHX_FP8_BINARY_OP(-, T, T)      \
     MIGRAPHX_FP8_BINARY_OP(/, T, T)      \
     MIGRAPHX_FP8_BINARY_OP(+, T, T)      \
-    MIGRAPHX_FP8_BINARY_OP(==, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(>=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(<=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(!=, T, bool)  \

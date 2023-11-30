@@ -202,7 +202,7 @@ def LambdaAttribute(cfg, data):
     for token in cfg.tokenlist:
         if token.str != ']':
             continue
-        if not match(token, "] __device__|__host__ {|{}}"):
+        if not match(token, "] __device__|__host__ {|("):
             continue
         cppcheck.reportError(
             token, "style",
@@ -238,6 +238,8 @@ def MutableVariable(cfg, data):
 @cppcheck.checker
 def NestedBlocks(cfg, data):
     for token in cfg.tokenlist:
+        if not token.str in ['if', 'while', 'for', 'switch']:
+            continue
         block = match(token, "if|while|for|switch (*) { {*}@block }").block
         if not block:
             block = match(token, "; { {*}@block break ; }").block
@@ -249,6 +251,8 @@ def NestedBlocks(cfg, data):
 @cppcheck.checker
 def RedundantCast(cfg, data):
     for token in cfg.tokenlist:
+        if not token.variable:
+            continue
         m = match(token,
                   "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;")
         if not m:
@@ -289,6 +293,8 @@ def RedundantIfStatement(cfg, data):
 @cppcheck.checker
 def RedundantLocalVariable(cfg, data):
     for token in cfg.tokenlist:
+        if not token.variable:
+            continue
         m = match(token,
                   "%var%@decl ; %var%@assign = **; return %var%@returned ;")
         if not m:

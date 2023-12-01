@@ -146,7 +146,6 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         vectorize vec{};
         auto nelements = options.virtual_inputs.back().elements();
         auto algo      = v.get("algo", get_reduce_algo(options.virtual_inputs));
-
         if(algo == "block")
         {
             // Vectorize if the axis is a reduction axis
@@ -170,13 +169,13 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         options.kernel_name  = "reduce_kernel";
         std::string identity = "[](auto x) { return x; }";
         auto src             = interpolate_string(simple_reduce_kernel,
-                                                  {{"reduction", v.at("reduction").to<std::string>()},
-                                                   {"init", v.get("init", std::string{"0"})},
-                                                   {"read", v.get("read", identity)},
-                                                   {"write", v.get("write", identity)},
-                                                   {"algo", algo},
-                                                   {"transformers", make_transformer_args(vec)},
-                                                   {"preamble", v.get("preamble", std::string{})}});
+                                      {{"reduction", v.at("reduction").to<std::string>()},
+                                       {"init", v.get("init", std::string{"0"})},
+                                       {"read", v.get("read", identity)},
+                                       {"write", v.get("write", identity)},
+                                       {"algo", algo},
+                                       {"transformers", make_transformer_args(vec)},
+                                       {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }
@@ -267,13 +266,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-                        {"params", enum_params(inputs.size(), "void * private_p")},
-                        {"args", enum_params(inputs.size(), "private_p")},
-                        {"algo", algo},
-                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-                        {"lambda", v.at("lambda").to<std::string>()},
-                        {"transformers", make_transformer_args(vec)},
-                        {"preamble", v.get("preamble", std::string{})}});
+             {"params", enum_params(inputs.size(), "void * private_p")},
+             {"args", enum_params(inputs.size(), "private_p")},
+             {"algo", algo},
+             {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+             {"lambda", v.at("lambda").to<std::string>()},
+             {"transformers", make_transformer_args(vec)},
+             {"preamble", v.get("preamble", std::string{})}});
         options.params += "-Wno-float-equal";
         return compile_hip_code_object(src, options);
     }

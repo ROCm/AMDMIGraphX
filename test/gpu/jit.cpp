@@ -139,13 +139,15 @@ const std::string math_template = R"__migraphx__(
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/types.hpp>
-using namespace migraphx;
+
+namespace migraphx {
 extern "C" {
 __global__ void kernel(${type}* p) 
 {
     auto x = *p;
     *p = migraphx::implicit_conversion(migraphx::${invoke});
 
+}
 }
 }
 

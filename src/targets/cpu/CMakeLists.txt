@@ -74,21 +74,27 @@ if(MIGRAPHX_ENABLE_ZENDNN)
     target_link_libraries(migraphx_cpu PRIVATE ${BLIS_LIB})
     target_link_libraries(migraphx_cpu PRIVATE ${ZENDNN_LIB})
 else()
-    target_link_libraries(migraphx_cpu PRIVATE DNNL::dnnl)
+    target_link_libraries(migraphx_cpu PUBLIC DNNL::dnnl)
 endif()
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
 migraphx_generate_export_header(migraphx_cpu)
 
 find_package(OpenMP)
-target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
-# Add library path to rpath to workaround issues with our broken packages
-foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
-    if(LIBRARY MATCHES "libomp")
-        get_filename_component(LIBRARY_PATH "${LIBRARY}" PATH)
-        target_link_libraries(migraphx_cpu PUBLIC -Wl,-rpath=${LIBRARY_PATH} -Wl,-rpath-link=${LIBRARY_PATH})
-    endif()
-endforeach()
+if(WIN32)
+    target_link_libraries(migraphx_cpu PUBLIC libomp)
+    target_include_directories(migraphx_cpu PUBLIC ${OpenMP_CXX_INCLUDE_DIRS})
+    target_compile_options(migraphx_cpu PUBLIC ${OpenMP_CXX_FLAGS})
+else()
+    target_link_libraries(migraphx_cpu PUBLIC OpenMP::OpenMP_CXX)
+    # Add library path to rpath to workaround issues with our broken packages
+    foreach(LIBRARY ${OpenMP_CXX_LIBRARIES})
+        if(LIBRARY MATCHES "libomp")
+            get_filename_component(LIBRARY_PATH "${LIBRARY}" PATH)
+            target_link_libraries(migraphx_cpu PUBLIC -Wl,-rpath=${LIBRARY_PATH} -Wl,-rpath-link=${LIBRARY_PATH})
+        endif()
+    endforeach()
+endif()
 
 rocm_install_targets(
   TARGETS migraphx_cpu

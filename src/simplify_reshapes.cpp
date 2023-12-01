@@ -103,8 +103,6 @@ struct find_reshaper
         auto input = mr.instructions["x"];
         auto dims  = ins->get_shape().lens();
 
-        if(not input->get_shape().standard())
-            input = m.insert_instruction(ins, make_op("contiguous"), input);
         m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
     }
 };
@@ -475,9 +473,8 @@ struct find_resize
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = m.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
-        auto std_mb = m.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
+        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), mb_rsp);
     }
 };
 
@@ -626,9 +623,8 @@ struct find_transpose_contiguous_reshaper_unary
         auto cont_ins      = r.instructions["cont_ins"];
         auto unary_op_name = ins->get_operator().name();
         auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
-        auto new_cont_ins  = m.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
         // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
     }
 };
 
@@ -647,8 +643,8 @@ struct find_broadcast_transpose
     {
         auto transpose      = r.result;
         auto transpose_lens = transpose->get_shape().lens();
-        auto bcast_ins = r.instructions["bcast_ins"];
-        auto input     = bcast_ins->inputs().front();
+        auto bcast_ins      = r.instructions["bcast_ins"];
+        auto input          = bcast_ins->inputs().front();
         // scalar transformation does not need extra transpose
         if(not input->get_shape().scalar())
         {

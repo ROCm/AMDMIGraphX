@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/serialize.hpp"
 #include <iterator>
 #include <utility>
 #include <migraphx/eliminate_fp8.hpp>
@@ -30,6 +29,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {

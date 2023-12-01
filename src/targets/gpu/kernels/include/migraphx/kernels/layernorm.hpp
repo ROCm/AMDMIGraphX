@@ -54,7 +54,6 @@ __device__ void generic_binary_layernorm(
         using value_type = typename Input1::type;
         using vec_value_type       = vec_type<value_type>;
         constexpr auto relements   = r.template elements<Input1>();
-
         constexpr auto relements_r = vec_value_type{1.0 / relements};
         auto relements_rsqrt       = sqrt(relements_r);
 

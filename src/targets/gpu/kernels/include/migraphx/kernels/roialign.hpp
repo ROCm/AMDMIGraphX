@@ -56,7 +56,7 @@ struct avg_pool
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T operator()(T x, T y)
     {
-        return static_cast<T>(x + y);
+        return x + y;
     }
 
     template <class T>
@@ -70,7 +70,6 @@ template <class Iterator, class Op>
 MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     const Iterator data, const array<index_int, 2>& dims, array<float, 2> xy, Op pooling)
 {
-    using ret_type = typename Iterator::value_type;
     array<int, 2> low{};
     array<int, 2> high{};
     for(index_int ii = 0; ii < xy.size(); ++ii)
@@ -92,7 +91,6 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 low[0] * dims[1] + high[1],
                                 high[0] * dims[1] + low[1],
                                 high[0] * dims[1] + high[1]};
-
 
     float ly = xy[0] - low[0];
     float lx = xy[1] - low[1];
@@ -204,25 +202,25 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const auto offset_x = x + ((batch_ind * channel_num + c) * in_dims[0] * in_dims[1]);
         if constexpr(s.is_avg_pooling)
         {
-            y_t[i] = static_cast<ytype>(calc_pooling(offset_x,
-                                                     roi_starts,
-                                                     bin_size,
-                                                     {ph, pw},
-                                                     bin_grid_size,
-                                                     in_dims,
-                                                     s.roi_offset,
-                                                     avg_pool{}));
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  avg_pool{});
         }
         else
         {
-            y_t[i] = static_cast<ytype>(calc_pooling(offset_x,
-                                                     roi_starts,
-                                                     bin_size,
-                                                     {ph, pw},
-                                                     bin_grid_size,
-                                                     in_dims,
-                                                     s.roi_offset,
-                                                     max_pool{}));
+            y_t[i] = calc_pooling(offset_x,
+                                  roi_starts,
+                                  bin_size,
+                                  {ph, pw},
+                                  bin_grid_size,
+                                  in_dims,
+                                  s.roi_offset,
+                                  max_pool{});
         }
     }
 }

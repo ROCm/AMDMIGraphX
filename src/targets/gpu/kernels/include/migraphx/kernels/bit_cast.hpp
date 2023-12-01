@@ -22,7 +22,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 #define MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 
-
 #include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {

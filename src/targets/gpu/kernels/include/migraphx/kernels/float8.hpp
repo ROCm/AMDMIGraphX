@@ -394,7 +394,6 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     }
 
 // NOLINTNEXTLINE
-
 #define MIGRAPHX_FP8_OTHER_OPS(T)                                            \
     inline constexpr __device__ T fabs(T v)                                  \
     {                                                                        \
@@ -502,7 +501,6 @@ class numeric_limits<fp8e5m2fnuz>
     {
         return fp8e5m2fnuz(0x7F, fp8e5m2fnuz::from_bits());
     }
-
     // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01. I am not sure if we
     // want to make this distinction. For the floating points we would end up using lowest most of
     // the times.
@@ -530,7 +528,9 @@ class numeric_limits<fp8e5m2>
     }
 
     static constexpr __device__ fp8e5m2 max() { return fp8e5m2(0x7B, fp8e5m2::from_bits()); }
-    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01.
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01. I am not sure if we
+    // want to make this distinction. For the floating points we would end up using lowest most of
+    // the times.
     static constexpr __device__ fp8e5m2 min() { return fp8e5m2(0x4, fp8e5m2::from_bits()); }
 
     static constexpr __device__ fp8e5m2 lowest() { return fp8e5m2(0xFB, fp8e5m2::from_bits()); }
@@ -539,7 +539,6 @@ class numeric_limits<fp8e5m2>
 };
 
 } // namespace fp8
-
 template <class T,
           MIGRAPHX_REQUIRES(is_same<T, fp8::fp8e4m3fnuz>{} or is_same<T, fp8::fp8e5m2fnuz>{} or
                             is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
@@ -560,7 +559,6 @@ constexpr T numeric_lowest(migraphx::fp8::f8_type unused = migraphx::fp8::f8_typ
     (void)(unused);
     return fp8::numeric_limits<T>::lowest();
 }
-
 } // namespace migraphx
 // =================================================================================================
 #if defined(__clang__)

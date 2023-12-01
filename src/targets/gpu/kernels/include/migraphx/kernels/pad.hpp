@@ -40,7 +40,6 @@ __device__ void pad(const index& idx,
                     const PadVal& pad_val)
 {
     auto output_shape = output.get_shape();
-    using otype       = typename Output::type;
     idx.global_stride(output_shape.elements(), [&](auto i) {
         // 1. get current multi-index for output
         // 2. get the size of the input to determine input boundaries

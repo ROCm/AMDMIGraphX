@@ -22,8 +22,13 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 #define MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 
+
+#include <migraphx/kernels/type_traits.hpp>
+
 namespace migraphx {
-template <typename To, typename From>
+template <typename To,
+          typename From,
+          MIGRAPHX_REQUIRES(is_trivially_copyable<To>{} and is_trivially_copyable<From>{})>
 inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));

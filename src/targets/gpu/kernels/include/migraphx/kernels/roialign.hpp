@@ -62,7 +62,7 @@ struct avg_pool
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y)
     {
-        return (y == 0) ? static_cast<T>(0.0) : static_cast<T>(x / y);
+        return (y == 0) ? T{0.0} : T{x / y};
     }
 };
 
@@ -77,7 +77,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     {
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-            return static_cast<ret_type>(0);
+            return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
@@ -93,18 +93,17 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 high[0] * dims[1] + low[1],
                                 high[0] * dims[1] + high[1]};
 
-    float ly              = xy[0] - low[0];
-    float lx              = xy[1] - low[1];
-    float hy              = 1.0f - ly;
-    float hx              = 1.0f - lx;
-    array<ret_type, 4> ws = {static_cast<ret_type>(hy * hx),
-                             static_cast<ret_type>(hy * lx),
-                             static_cast<ret_type>(ly * hx),
-                             static_cast<ret_type>(ly * lx)};
+
+    float ly = xy[0] - low[0];
+    float lx = xy[1] - low[1];
+    float hy = 1.0f - ly;
+    float hx = 1.0f - lx;
+    // do calculations in floating point and convert final result to required type
+    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
-    return pooling(v01, v23);
+    return implicit_conversion(pooling(v01, v23));
 }
 
 template <class Iterator, class Op>
@@ -153,7 +152,6 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     const auto x    = x_t.begin();
     const auto rois = rois_t.begin();
     const auto ind  = ind_t.begin();
-    using ytype     = typename W::type;
     // input shape
     auto x_lens      = x_t.get_shape().lens;
     auto channel_num = x_lens[1];

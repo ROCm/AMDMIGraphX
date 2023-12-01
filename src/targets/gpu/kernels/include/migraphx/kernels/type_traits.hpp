@@ -251,7 +251,7 @@ constexpr T numeric_max()
 }
 
 template <class T>
-constexpr T numeric_lowest()
+constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
 {
     if constexpr(is_integral<T>{})
     {

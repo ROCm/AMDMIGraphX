@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/shape.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_scatternd : verify_program<test_scatternd<DType>>

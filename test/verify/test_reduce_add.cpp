@@ -28,6 +28,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/shape.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_reduce_add : verify_program<test_reduce_add<DType>>

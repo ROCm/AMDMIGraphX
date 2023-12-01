@@ -28,7 +28,6 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-
 struct test_concat_axis_0 : verify_program<test_concat_axis_0<DType>>
 {
     migraphx::program create_program() const

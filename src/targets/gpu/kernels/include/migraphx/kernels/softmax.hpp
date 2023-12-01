@@ -44,7 +44,7 @@ __device__ void softmax(Input input1, Output output)
         auto exp_in = r.inner([&](auto x) { return migraphx::exp(x - c); })(input);
         auto batch_sum =
             r.reduce(op::sum{}, 0, [](auto x) { return migraphx::convert<float>(x); })(exp_in);
-        r.inner([&](auto& y, auto x) { y = static_cast<otype>(x / batch_sum); })(output, exp_in);
+        r.inner([&](auto& y, auto x) { y = implicit_conversion(x / batch_sum); })(output, exp_in);
     });
 }
 

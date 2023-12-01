@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/float8.hpp>
 
 template <class T>
 struct test_nearbyint : verify_program<test_nearbyint<T>>

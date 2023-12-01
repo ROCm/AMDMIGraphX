@@ -555,7 +555,7 @@ constexpr T numeric_lowest(migraphx::fp8::f8_type unused = migraphx::fp8::f8_typ
     // unused parameter is added to make this numeric_max different overload definition
     // compared to numeric_max defined in type_traits.hpp
     (void)(unused);
-    return fp8::numeric_limits<T>::max();
+    return fp8::numeric_limits<T>::lowest();
 }
 } // namespace migraphx
 // =================================================================================================

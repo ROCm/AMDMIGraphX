@@ -260,8 +260,9 @@ Appends to tuning cfg file that could be used with rocMLIR tuning scripts.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Do exhaustive tuning for MLIR.
 
-**MIGRAPHX_MLIR_TUNE_LIMIT**
+.. envvar:: MIGRAPHX_MLIR_TUNE_LIMIT
 
+Set to an integer greater than 1.
 Limits the number of solutions that MLIR will use for tuning.
 
 CK vars

@@ -552,8 +552,8 @@ template <class T,
                             is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
 constexpr T numeric_lowest(migraphx::fp8::f8_type unused = migraphx::fp8::f8_type::fp8)
 {
-    // unused parameter is added to make this numeric_max different overload definition
-    // compared to numeric_max defined in type_traits.hpp
+    // unused parameter is added to make this numeric_lowest different overload definition
+    // compared to numeric_lowest defined in type_traits.hpp
     (void)(unused);
     return fp8::numeric_limits<T>::lowest();
 }

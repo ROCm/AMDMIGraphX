@@ -445,7 +445,7 @@ class numeric_limits<fp8e4m3fnuz>
     {
         return fp8e4m3fnuz(0x7F, fp8e4m3fnuz::from_bits());
     }
-    // this is min value that is not DeNorm. DeNorm min is 0x01
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01
     static constexpr __device__ fp8e4m3fnuz min()
     {
         return fp8e4m3fnuz(0x08, fp8e4m3fnuz::from_bits());
@@ -473,7 +473,7 @@ class numeric_limits<fp8e4m3fn>
     }
 
     static constexpr __device__ fp8e4m3fn max() { return fp8e4m3fn(0x7E, fp8e4m3fn::from_bits()); }
-    // this is min value that is not DeNorm. DeNorm min is 0x01
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01
     static constexpr __device__ fp8e4m3fn min() { return fp8e4m3fn(0x08, fp8e4m3fn::from_bits()); }
 
     static constexpr __device__ fp8e4m3fn lowest()
@@ -501,8 +501,9 @@ class numeric_limits<fp8e5m2fnuz>
     {
         return fp8e5m2fnuz(0x7F, fp8e5m2fnuz::from_bits());
     }
-    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
-    // this distinction. For the floating points we would end up using lowest most of the times.
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01. I am not sure if we
+    // want to make this distinction. For the floating points we would end up using lowest most of
+    // the times.
     static constexpr __device__ fp8e5m2fnuz min()
     {
         return fp8e5m2fnuz(0x4, fp8e5m2fnuz::from_bits());
@@ -527,8 +528,9 @@ class numeric_limits<fp8e5m2>
     }
 
     static constexpr __device__ fp8e5m2 max() { return fp8e5m2(0x7B, fp8e5m2::from_bits()); }
-    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
-    // this distinction. For the floating points we would end up using lowest most of the times.
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01. I am not sure if we
+    // want to make this distinction. For the floating points we would end up using lowest most of
+    // the times.
     static constexpr __device__ fp8e5m2 min() { return fp8e5m2(0x4, fp8e5m2::from_bits()); }
 
     static constexpr __device__ fp8e5m2 lowest() { return fp8e5m2(0xFB, fp8e5m2::from_bits()); }

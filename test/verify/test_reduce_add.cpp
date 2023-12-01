@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/shape.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>

@@ -28,7 +28,6 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-
 struct test_mul_dot_b : verify_program<test_mul_dot_b<DType>>
 {
     migraphx::program create_program() const

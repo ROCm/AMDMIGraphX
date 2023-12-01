@@ -63,7 +63,7 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
         print(f"{git_clang_format} not installed. Skipping format.")
         return
     diff_flag = "" if apply else "--diff"
-    run(f"{git_clang_format} --binary {clang_format} {diff_flag} {base}")
+    run(f"{git_clang_format} --extensions c,cpp,hpp,h,cl,hip,in --binary {clang_format} {diff_flag} {base}")
 
 
 def get_files_changed(against, ext=('py')):

@@ -537,24 +537,26 @@ class numeric_limits<fp8e5m2>
 };
 
 } // namespace fp8
-
-// NOLINTNEXTLINE
-#define MIGRAPHX_FP8_MIN_MAX(T)                  \
-    template <>                                  \
-    constexpr T numeric_max<T, void>()           \
-    {                                            \
-        return fp8::numeric_limits<T>::max();    \
-    }                                            \
-    template <>                                  \
-    constexpr T numeric_lowest<T>()              \
-    {                                            \
-        return fp8::numeric_limits<T>::lowest(); \
-    }
-
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fnuz);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2fnuz);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fn);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2);
+template <class T,
+          MIGRAPHX_REQUIRES(is_same<T, fp8::fp8e4m3fnuz>{} or is_same<T, fp8::fp8e5m2fnuz>{} or
+                            is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
+constexpr T numeric_max(migraphx::fp8::f8_type unused = migraphx::fp8::f8_type::fp8)
+{
+    // unused parameter is added to make this numeric_max different overload definition
+    // compared to numeric_max defined in type_traits.hpp
+    (void)(unused);
+    return fp8::numeric_limits<T>::max();
+}
+template <class T,
+          MIGRAPHX_REQUIRES(is_same<T, fp8::fp8e4m3fnuz>{} or is_same<T, fp8::fp8e5m2fnuz>{} or
+                            is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
+constexpr T numeric_lowest(migraphx::fp8::f8_type unused = migraphx::fp8::f8_type::fp8)
+{
+    // unused parameter is added to make this numeric_max different overload definition
+    // compared to numeric_max defined in type_traits.hpp
+    (void)(unused);
+    return fp8::numeric_limits<T>::max();
+}
 } // namespace migraphx
 // =================================================================================================
 #if defined(__clang__)

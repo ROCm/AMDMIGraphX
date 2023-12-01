@@ -19,38 +19,19 @@
  * CTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * ************************************************************************ */
-#ifndef MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
-#define MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
-#include <type_traits>
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#endif
+#ifndef MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
+#define MIGRAPHX_GUARD_KERNELS_BITCAST_HPP
 
-#include <migraphx/requires.hpp>
-#include <migraphx/config.hpp>
-
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_CONST_FOLD(x) (__builtin_constant_p(x) ? (x) : (x))
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
 template <typename To,
           typename From,
-          MIGRAPHX_REQUIRES(std::is_trivially_copyable<To>{} and
-                            std::is_trivially_copyable<From>{})>
+          MIGRAPHX_REQUIRES(is_trivially_copyable<To>{} and is_trivially_copyable<From>{})>
 inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));
-#if defined(__GNUC__) and !defined(__clang__)
-    return MIGRAPHX_CONST_FOLD(*reinterpret_cast<To*>(&fr));
-#else
     return __builtin_bit_cast(To, fr);
-#endif
 }
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-#endif // MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
+#endif // MIGRAPHX_GUARD_KERNELS_BITCAST_HPP

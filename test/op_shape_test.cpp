@@ -2960,6 +2960,12 @@ TEST_CASE(reshape_lazy_nonstandard_error)
     }
 }
 
+TEST_CASE(reshape_lazy_transposed_squeeze)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {1, 4}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
+}
+
 TEST_CASE(reshape_lazy_nonpacked_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
@@ -2974,11 +2980,17 @@ TEST_CASE(reshape_lazy_nonpacked_unsqueeze2)
     expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_lazy_nonpacked_squeeze)
+TEST_CASE(reshape_lazy_nonpacked_squeeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
     migraphx::shape output{migraphx::shape::float_type, {64}, {2}};
     expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+TEST_CASE(reshape_lazy_nonpacked_squeeze2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 1}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
 }
 
 TEST_CASE(reshape_lazy_broadcast_unsqueeze1)
@@ -2995,11 +3007,23 @@ TEST_CASE(reshape_lazy_broadcast_unsqueeze2)
     expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_lazy_broadcast_squeeze)
+TEST_CASE(reshape_lazy_broadcast_squeeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
     migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
     expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", output.lens()}}), input);
+}
+
+TEST_CASE(reshape_lazy_broadcast_squeeze2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {0, 1}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
+}
+
+TEST_CASE(reshape_lazy_broadcast_squeeze3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {1, 0}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
 }
 
 TEST_CASE(reshape_lazy_broadcast_squeeze_error)

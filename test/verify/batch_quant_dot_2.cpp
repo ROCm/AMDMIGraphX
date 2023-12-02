@@ -28,15 +28,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct batch_quant_dot_2 : verify_program<batch_quant_dot_2>
+template <migraphx::shape::type_t DType, migraphx::shape::type_t CType>
+struct batch_quant_dot_2 : verify_program<batch_quant_dot_2<DType, CType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::int8_type, {3, 2, 2, 8}};
-        migraphx::shape m2_shape{migraphx::shape::int8_type, {3, 2, 8, 7}};
-        migraphx::shape m3_shape{migraphx::shape::int32_type, {3, 2, 2, 7}};
+        migraphx::shape m1_shape{DType, {3, 2, 2, 8}};
+        migraphx::shape m2_shape{DType, {3, 2, 8, 7}};
+        migraphx::shape m3_shape{CType, {3, 2, 2, 7}};
 
         auto l1 = mm->add_parameter("a", m1_shape);
         auto l2 = mm->add_parameter("b", m2_shape);
@@ -45,3 +46,5 @@ struct batch_quant_dot_2 : verify_program<batch_quant_dot_2>
         return p;
     }
 };
+template struct batch_quant_dot_2<migraphx::shape::int8_type, migraphx::shape::int32_type>;
+template struct batch_quant_dot_2<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::float_type>;

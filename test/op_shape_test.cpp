@@ -2710,8 +2710,8 @@ TEST_CASE(reshape_nonstandard)
 
     for(const auto& [dims, perm] : tests)
     {
-        migraphx::shape output = migraphx::shape::from_permutation(
-            migraphx::shape::float_type, dims, migraphx::invert_permutation(perm));
+        migraphx::shape output = migraphx::shape{
+            migraphx::shape::float_type, dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);
     }
 }
@@ -2721,8 +2721,8 @@ TEST_CASE(reshape_nonstandard_squeeze)
     auto input = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
-    migraphx::shape output        = migraphx::shape::from_permutation(
-        migraphx::shape::float_type, lens, migraphx::invert_permutation({0, 2, 1}));
+    migraphx::shape output        = migraphx::shape{
+        migraphx::shape::float_type, lens};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
 }
 
@@ -2749,49 +2749,49 @@ TEST_CASE(reshape_nonstandard_error)
 TEST_CASE(reshape_nonpacked_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
-    migraphx::shape output{migraphx::shape::float_type, {4, 2, 8}, {32, 16, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {4, 2, 8}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_nonpacked_unsqueeze2)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 2, 16}, {64, 32, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 2, 16}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_nonpacked_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
-    migraphx::shape output{migraphx::shape::float_type, {64}, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {64}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_broadcast_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 16, 16, 1280}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_broadcast_unsqueeze2)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 256, 16, 80}, {0, 0, 80, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 256, 16, 80}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_broadcast_squeeze)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}, {0, 0, 1}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 256, 1280}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
 TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 16, 16, 1280}, {0, 0, 0, 1}};
-    migraphx::shape output{migraphx::shape::float_type, {2, 16, 256, 80}, {0, 0, 0, 16}};
+    migraphx::shape output{migraphx::shape::float_type, {2, 16, 256, 80}};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 

@@ -35,8 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Remove data types. This will instert convert operators so the data type
- * is not used by any operator.
+ * This pass is used to convert operators with unsupported data types to supported data types.
  */
 struct MIGRAPHX_EXPORT eliminate_data_type
 {

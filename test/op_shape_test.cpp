@@ -2682,33 +2682,25 @@ TEST_CASE(reshape_shape_minus1_reshapes)
     }
 }
 
-// This uses the permutation to compute the reshape since its simpler than
-// trying to calculate strides. As we collapse or expand dimensions, we
-// remove the collapsed dimensions or duplicate the expanded dimensions in
-// the permutation. Then we renumber the permutation. So for dimensions of 4,
-// 24, 1, 1, 1 with a permutation of 1, 0, 2, 3, 4 that reshapes to 4, 1, 3,
-// 4, 2, we first remove the collapsed dimensions or duplicate the expanded
-// dimensions which gives 1, 0, 0, 0, 0. Then after renumbering we get a
-// final permutation of 4, 0, 1, 2, 3.
 TEST_CASE(reshape_nonstandard)
 {
     auto input = migraphx::shape::from_permutation(migraphx::shape::float_type,
                                                    {4, 24, 1, 1, 1},
                                                    migraphx::invert_permutation({1, 0, 2, 3, 4}));
-    std::vector<std::pair<std::vector<std::size_t>, std::vector<int64_t>>> tests{
-        {{4, 24}, {1, 0}},
-        {{4, 24, 1, 1, 1, 1}, {1, 0, 2, 3, 4, 5}},
-        {{4, 8, 3, 1, 1}, {2, 0, 1, 3, 4}},
-        {{4, 1, 3, 4, 2}, {4, 0, 1, 2, 3}},
-        {{4, 1, 4, 3, 2}, {4, 0, 1, 2, 3}},
-        {{4, 2, 4, 3}, {3, 0, 1, 2}},
-        {{4, 2, 12, 1}, {2, 0, 1, 3}},
-        {{4, 2, 1, 12}, {3, 0, 1, 2}},
-        {{4, 4, 2, 3}, {3, 0, 1, 2}},
-        {{4, 8, 1, 3}, {3, 0, 1, 2}},
-        {{4, 8, 3, 1}, {2, 0, 1, 3}}};
+    std::vector<std::vector<std::size_t>> tests{
+        {4, 24},
+        {4, 24, 1, 1, 1, 1},
+        {4, 8, 3, 1, 1},
+        {4, 1, 3, 4, 2},
+        {4, 1, 4, 3, 2},
+        {4, 2, 4, 3},
+        {4, 2, 12, 1},
+        {4, 2, 1, 12},
+        {4, 4, 2, 3},
+        {4, 8, 1, 3},
+        {4, 8, 3, 1}};
 
-    for(const auto& [dims, perm] : tests)
+    for(auto dims : tests)
     {
         migraphx::shape output = migraphx::shape{migraphx::shape::float_type, dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);

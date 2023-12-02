@@ -2735,6 +2735,13 @@ TEST_CASE(reshape_nonstandard_error)
     }
 }
 
+TEST_CASE(reshape_nonpacked_collapse)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {64}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
+}
+
 TEST_CASE(reshape_nonpacked_unsqueeze1)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
@@ -2947,6 +2954,12 @@ TEST_CASE(reshape_lazy_nonstandard_error)
     {
         throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
+}
+
+TEST_CASE(reshape_lazy_nonpacked_collapse)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {64}}}), input);
 }
 
 TEST_CASE(reshape_lazy_nonpacked_unsqueeze1)

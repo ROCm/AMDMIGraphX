@@ -149,6 +149,7 @@ struct reshape_lazy
     {
         if(dim_start == dim_last)
             return nullopt;
+        (void)stride_last; // Is only used in the assert
         assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
         auto make_pair_optional = [&](auto dim, auto stride) {
             return std::make_optional(std::make_pair(dim, stride));

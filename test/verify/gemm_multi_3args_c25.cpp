@@ -50,4 +50,5 @@ struct gemm_multi_3args_c25 : verify_program<gemm_multi_3args_c25<DType>>
 };
 
 template struct gemm_multi_3args_c25<migraphx::shape::float_type>;
+template struct gemm_multi_3args_c25<migraphx::shape::half_type>;
 template struct gemm_multi_3args_c25<migraphx::shape::fp8e4m3fnuz_type>;

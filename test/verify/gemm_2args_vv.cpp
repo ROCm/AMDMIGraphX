@@ -51,4 +51,5 @@ struct gemm_2args_vv : verify_program<gemm_2args_vv<DType>>
 };
 
 template struct gemm_2args_vv<migraphx::shape::float_type>;
+template struct gemm_2args_vv<migraphx::shape::half_type>;
 template struct gemm_2args_vv<migraphx::shape::fp8e4m3fnuz_type>;

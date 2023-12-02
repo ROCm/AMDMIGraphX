@@ -43,4 +43,5 @@ struct test_gemm_transposeb : verify_program<test_gemm_transposeb<DType>>
 };
 
 template struct test_gemm_transposeb<migraphx::shape::float_type>;
+template struct test_gemm_transposeb<migraphx::shape::half_type>;
 template struct test_gemm_transposeb<migraphx::shape::fp8e4m3fnuz_type>;

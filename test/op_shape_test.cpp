@@ -2710,8 +2710,7 @@ TEST_CASE(reshape_nonstandard)
 
     for(const auto& [dims, perm] : tests)
     {
-        migraphx::shape output = migraphx::shape{
-            migraphx::shape::float_type, dims};
+        migraphx::shape output = migraphx::shape{migraphx::shape::float_type, dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", dims}}), input);
     }
 }
@@ -2721,8 +2720,7 @@ TEST_CASE(reshape_nonstandard_squeeze)
     auto input = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {2, 16, 16, 1280}, migraphx::invert_permutation({0, 2, 3, 1}));
     std::vector<std::size_t> lens = {2, 256, 1280};
-    migraphx::shape output        = migraphx::shape{
-        migraphx::shape::float_type, lens};
+    migraphx::shape output        = migraphx::shape{migraphx::shape::float_type, lens};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", lens}}), input);
 }
 

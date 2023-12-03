@@ -214,6 +214,7 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        auto input_arg_t = ins->inputs().front()->get_shape().type();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         if(group != 1)
@@ -222,6 +223,8 @@ auto is_mlir_conv(mlir_mode mode)
         if(ins->get_shape().lens().size() != 4)
             return false;
         if(ins->get_shape().type() == shape::fp8e4m3fnuz_type)
+            return true;
+        if(ins->get_shape().type() == shape::float_type and input_arg_t == shape::fp8e4m3fnuz_type)
             return true;
         if(ins->get_shape().type() == shape::int8_type)
             return true;
@@ -403,8 +406,7 @@ struct find_mlir_standalone_op
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm_based_op = r.result;
-        //
-        // enable only for fp32/fp16/i8 types
+        // enable only for fp32/fp16/i8/fp8 types
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains(
                    {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type, shape::type_t::fp8e4m3fnuz_type},
@@ -530,7 +532,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::int8)},
+        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::all)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
 #else
     (void)mpm;

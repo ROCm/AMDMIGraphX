@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 
+#include "migraphx/shape.hpp"
 #include <migraphx/op/common.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
@@ -87,11 +88,13 @@ struct quant_convolution
         }
 
         // all input type must be int8_type and output is float_type
-        if(t != shape::int8_type)
+        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
+                                                             shape::fp8e4m3fnuz_type};
+        if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t");
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t or "
+                           "fp8e4m3fnuz_type");
         }
-        t = shape::int32_type;
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
         auto padding_size = padding.size();
@@ -107,8 +110,11 @@ struct quant_convolution
                         stride[i] +
                     1)));
         }
-
-        return inputs[0].with_lens(t, output_lens);
+        if(t == shape::int8_type)
+        {
+            return inputs[0].with_lens(shape::int32_type, output_lens);
+        } // else fp8 conv
+        return inputs[0].with_lens(shape::float_type, output_lens);
     }
 
     size_t kdims() const

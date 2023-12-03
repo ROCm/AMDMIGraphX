@@ -45,5 +45,3 @@ struct quant_conv_2 : verify_program<quant_conv_2<DType>>
 
 template struct quant_conv_2<migraphx::shape::int8_type>;
 template struct quant_conv_2<migraphx::shape::fp8e4m3fnuz_type>;
-
-

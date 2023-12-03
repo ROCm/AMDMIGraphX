@@ -34,10 +34,8 @@ struct test_conv2 : verify_program<test_conv2<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{DType, {1, 512, 28, 28}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{DType, {256, 512, 1, 1}});
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 512, 28, 28}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {256, 512, 1, 1}});
         mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),

@@ -333,7 +333,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "softmax",
         "tanh",
     };
-    bool is_float = contains({type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type}, result_type);
+    bool is_float =
+        contains({type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type}, result_type);
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
@@ -412,9 +413,11 @@ struct find_mlir_standalone_op
         auto gemm_based_op = r.result;
         // enable only for fp32/fp16/i8/fp8 types
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
-               return not contains(
-                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type, shape::type_t::fp8e4m3fnuz_type},
-                   i->get_shape().type());
+               return not contains({shape::type_t::float_type,
+                                    shape::type_t::half_type,
+                                    shape::type_t::int8_type,
+                                    shape::type_t::fp8e4m3fnuz_type},
+                                   i->get_shape().type());
            }))
             return;
         static size_t counter = 0;

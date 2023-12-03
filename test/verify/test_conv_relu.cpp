@@ -34,7 +34,7 @@ struct test_conv_relu : verify_program<test_conv_relu<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
         auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
         auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         mm->add_instruction(migraphx::make_op("relu"), conv);

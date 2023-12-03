@@ -112,6 +112,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8_ops.insert("dot");
     }
     unsupported_fp8_ops.insert("pooling");
+    if(not starts_with(gpu::get_device_name(), "gfx94"))
+    {
+        unsupported_fp8_ops.insert("conv");
+        unsupported_fp8_ops.insert("quant_conv");
+    }
     // clang-format off
     return
     {

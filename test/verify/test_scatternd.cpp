@@ -25,18 +25,19 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/shape.hpp>
 
-struct test_scatternd : verify_program<test_scatternd>
+template <migraphx::shape::type_t DType>
+struct test_scatternd : verify_program<test_scatternd<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm   = p.get_main_module();
-        auto dtype = migraphx::shape::float_type;
         auto itype = migraphx::shape::int64_type;
-        migraphx::shape ds{dtype, {1}};
+        migraphx::shape ds{DType, {1}};
         migraphx::shape is{itype, {4, 1}};
-        migraphx::shape us{dtype, {4}};
+        migraphx::shape us{DType, {4}};
         std::vector<int64_t> ind_vec{4, 3, 1, 7};
 
         auto ld = mm->add_literal(migraphx::literal{ds, {1}});
@@ -51,3 +52,7 @@ struct test_scatternd : verify_program<test_scatternd>
         return p;
     }
 };
+
+template struct test_scatternd<migraphx::shape::float_type>;
+template struct test_scatternd<migraphx::shape::half_type>;
+template struct test_scatternd<migraphx::shape::fp8e4m3fnuz_type>;

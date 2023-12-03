@@ -116,8 +116,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8_ops.insert("pooling");
     if(not gpu::gfx_has_fp8_intrinsics())
     {
-        unsupported_fp8_ops.insert("conv");
-        unsupported_fp8_ops.insert("quant_conv");
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
     }
     // clang-format off
     return

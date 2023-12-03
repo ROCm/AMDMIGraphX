@@ -60,7 +60,7 @@ void eliminate_fp8::apply(module& m) const
         {
             op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
         }
-        auto new_ins          = m.insert_instruction(ins, op, {new_inputs});
+        auto new_ins          = m.insert_instruction(ins, op, new_inputs);
         auto convert_back_ins = m.insert_instruction(
             ins,
             migraphx::make_op("convert", {{"target_type", migraphx::to_value(orig_type)}}),

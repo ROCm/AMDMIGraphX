@@ -112,7 +112,7 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::gemm" or output_shape.type() == migraphx::shape::float_type)
+        if(this->name() == "gpu::gemm")
         {
             gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
         }

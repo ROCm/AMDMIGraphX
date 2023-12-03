@@ -180,9 +180,12 @@ struct gemm_impl
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
-        output_type = get_type(input_shapes[2].type());
-        compute_type =
-            output_type; // not valid for ex3 BETA APIs. it has different type and set differently.
+        output_type = arg_type;
+        if(output_type == rocblas_datatype_i8_r)
+        {
+            output_type = rocblas_datatype_i32_r;
+        }
+        compute_type = output_type;
         if(compute_fp32)
         {
             if(arg_type == rocblas_datatype_f16_r)

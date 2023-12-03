@@ -183,11 +183,6 @@ struct find_nested_convert
         auto x     = ins->inputs().front();
         auto input = x->inputs().front();
 
-        while(input->name() == "convert")
-        {
-            input = input->inputs().front();
-        }
-
         if(ins->get_shape() != input->get_shape())
             return;
 

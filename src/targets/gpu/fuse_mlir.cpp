@@ -344,6 +344,10 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     // supported.
     if(is_float and name == "convert")
     {
+        if(result_type == shape::fp8e4m3fnuz_type)
+        {
+            return false;
+        } // else
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
             return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
         });

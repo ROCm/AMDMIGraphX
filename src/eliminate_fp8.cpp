@@ -39,8 +39,7 @@ void eliminate_fp8::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(not contains(op_names, ins->name()) or
-           ins->get_shape().type() != migraphx::shape::fp8e4m3fnuz_type)
+        if(not contains(op_names, ins->name()))
             continue;
         migraphx::shape::type_t orig_type        = ins->get_shape().type();
         std::vector<instruction_ref> orig_inputs = ins->inputs();
@@ -55,8 +54,13 @@ void eliminate_fp8::apply(module& m) const
                                    "convert", {{"target_type", migraphx::to_value(target_type)}}),
                                i);
                        });
-
-        auto new_ins          = m.insert_instruction(ins, ins->get_operator(), {new_inputs});
+        auto op         = ins->get_operator();
+        auto attributes = op.attributes();
+        if(attributes.contains("general_data_type"))
+        {
+            op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+        }
+        auto new_ins          = m.insert_instruction(ins, op, {new_inputs});
         auto convert_back_ins = m.insert_instruction(
             ins,
             migraphx::make_op("convert", {{"target_type", migraphx::to_value(orig_type)}}),

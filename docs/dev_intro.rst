@@ -18,8 +18,8 @@ Directions for building MIGraphX from source can be found in the main README fil
 Adding Two Literals
 --------------------
 
-A program is a collection of modules, which are collections of instructions to be executed when calling `eval <migraphx::program::eval>`.
-Each instruction has an associated `operation <migraphx::operation>` which represents the computation to be performed by the instruction.
+A program is a collection of modules, which are collections of instructions to be executed when calling :cpp:any:`eval <migraphx::internal::program::eval>`.
+Each instruction has an associated :cpp:any:`operation <migraphx::internal::operation>` which represents the computation to be performed by the instruction.
 
 We start with a snippet of the simple ``add_two_literals()`` function::
 
@@ -41,14 +41,14 @@ We start with a snippet of the simple ``add_two_literals()`` function::
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
 
-We start by creating a simple ``migraphx::program`` object and then getting a pointer to the main module of it.
+We start by creating a simple :cpp:any:`migraphx::program <migraphx::internal::program>` object and then getting a pointer to the main module of it.
 The program is a collection of ``modules`` that start executing from the main module, so instructions are added to the modules rather than directly onto the program object.
-We then use the `add_literal <migraphx::program::add_literal>` function to add an instruction that stores the literal number ``1`` while returning an `instruction_ref <migraphx::instruction_ref>`.
-The returned `instruction_ref <migraphx::instruction_ref>` can be used in another instruction as an input.
-We use the same `add_literal <migraphx::program::add_literal>` function to add a ``2`` to the program.
+We then use the :cpp:any:`add_literal <migraphx::internal::program::add_literal>` function to add an instruction that stores the literal number ``1`` while returning an :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>`.
+The returned :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>` can be used in another instruction as an input.
+We use the same :cpp:any:`add_literal <migraphx::internal::program::add_literal>` function to add a ``2`` to the program.
 After creating the literals, we then create the instruction to add the numbers together.
-This is done by using the `add_instruction <migraphx::program::add_instruction>` function with the ``"add"`` `operation <migraphx::program::operation>` created by `make_op <migraphx::program::make_op>` along with the previous `add_literal` `instruction_ref <migraphx::instruction_ref>` for the input arguments of the instruction.
-Finally, we can run this `program <migraphx::program>` by compiling it for the reference target (CPU) and then running it with `eval <migraphx::program::eval>`
+This is done by using the :cpp:any:`add_instruction <migraphx::internal::program::add_instruction>` function with the ``"add"`` :cpp:any:`operation <migraphx::internal::program::operation>` created by :cpp:any:`make_op <migraphx::internal::program::make_op>` along with the previous `add_literal` :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>` for the input arguments of the instruction.
+Finally, we can run this :cpp:any:`program <migraphx::internal::program>` by compiling it for the reference target (CPU) and then running it with :cpp:any:`eval <migraphx::internal::program::eval>`
 The result is then retreived and printed to the console.
 
 We can compile the program for the GPU as well, but the file will have to be moved to the ``test/gpu/`` directory and the correct target must be included::
@@ -76,8 +76,8 @@ We can modify the program to take an input parameter ``x``, as seen in the ``add
     p.compile(migraphx::ref::target{});
 
 This adds a parameter of type ``int32``, and compiles it for the CPU.
-To run the program, we need to pass the parameter as a ``parameter_map`` when we call `eval <migraphx::program::eval>`.
-We create the ``parameter_map`` by setting the ``x`` key to an `argument <migraphx::argument>` object with an ``int`` data type::
+To run the program, we need to pass the parameter as a ``parameter_map`` when we call :cpp:any:`eval <migraphx::internal::program::eval>`.
+We create the ``parameter_map`` by setting the ``x`` key to an :cpp:any:`argument <migraphx::internal::argument>` object with an ``int`` data type::
 
     // create a parameter_map object for passing a value to the "x" parameter
     std::vector<int> data = {4};
@@ -92,7 +92,7 @@ We create the ``parameter_map`` by setting the ``x`` key to an `argument <migrap
 Handling Tensor Data
 ---------------------
 
-In the previous examples we have only been dealing with scalars, but the `shape <migraphx::shape>` class can describe multi-dimensional tensors.
+In the previous examples we have only been dealing with scalars, but the :cpp:any:`shape <migraphx::internal::shape>` class can describe multi-dimensional tensors.
 For example, we can compute a simple convolution::
 
     migraphx::program p;
@@ -109,7 +109,7 @@ For example, we can compute a simple convolution::
 
 Here we create two parameters for both the ``input`` and ``weights``.
 In the previous examples, we created simple literals, however, most programs will take data from allocated buffers (usually on the GPU).
-In this case, we can create `argument <migraphx::argument>` objects directly from the pointers to the buffers::
+In this case, we can create :cpp:any:`argument <migraphx::internal::argument>` objects directly from the pointers to the buffers::
 
     // Compile the program
     p.compile(migraphx::ref::target{});
@@ -133,8 +133,8 @@ In this case, we can create `argument <migraphx::argument>` objects directly fro
 
     EXPECT(migraphx::verify::verify_rms_range(results_vector, sol));
 
-An `argument <migraphx::argument>` can handle memory buffers from either the GPU or the CPU.
-By default when running the `program <migraphx::program>`, buffers are allocated on the corresponding target.
+An :cpp:any:`argument <migraphx::internal::argument>` can handle memory buffers from either the GPU or the CPU.
+By default when running the :cpp:any:`program <migraphx::internal::program>`, buffers are allocated on the corresponding target.
 When compiling for the CPU, the buffers by default will be allocated on the CPU.
 When compiling for the GPU, the buffers by default will be allocated on the GPU.
 With the option ``offload_copy=true`` set while compiling for the GPU, the buffers will be located on the CPU.
@@ -143,7 +143,7 @@ With the option ``offload_copy=true`` set while compiling for the GPU, the buffe
 Importing From ONNX
 --------------------
 
-A `program <migraphx::program>` can be built directly from an onnx file using the MIGraphX ONNX parser.
+A :cpp:any:`program <migraphx::internal::program>` can be built directly from an onnx file using the MIGraphX ONNX parser.
 This makes it easier to use neural networks directly from other frameworks.
 In this case, there is an ``parse_onnx`` function::
 

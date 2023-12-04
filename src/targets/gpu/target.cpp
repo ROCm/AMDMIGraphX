@@ -117,6 +117,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8_ops.insert("scatter_none");
     unsupported_fp8_ops.insert("topk");
     unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8_ops.insert("multinomial");
+    unsupported_fp8_ops.insert("argmax");
+    unsupported_fp8_ops.insert("argmin");
     // clang-format off
     return
     {

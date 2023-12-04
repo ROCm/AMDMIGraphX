@@ -73,6 +73,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -796,7 +797,9 @@ struct mlir_program
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
-        for(auto i : range(mlirRockTuningGetNumParams(params.get())))
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
             if(not mlirRockTuningParamGet(params.get(), i, param.get()))
@@ -1032,6 +1035,15 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    static std::mutex mutex;
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
     return mp.get_tuning_config(exhaustive);
 }
 

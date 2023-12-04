@@ -121,7 +121,8 @@ struct scatternd_op : op_name<Derived>
                 auto k             = indices_shape.lens().back();
                 auto q             = indices_shape.ndim();
                 auto r             = dyn_out.computed_shape.ndim();
-                par_for(updates_shape.elements(), [&](const auto i) {
+                for(auto i = 0u; i < updates_shape.elements(); ++i)
+                {
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
@@ -135,7 +136,7 @@ struct scatternd_op : op_name<Derived>
                     std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
                     self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
-                });
+                }
             });
         });
 

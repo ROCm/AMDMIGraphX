@@ -22,4 +22,33 @@
 # THE SOFTWARE.
 #####################################################################################
 
-numpy==1.21.6
+from txt2img import StableDiffusionMGX
+import gradio as gr
+
+
+def main():
+    # Note: This will load the models, which can take several minutes
+    sd = StableDiffusionMGX()
+
+    def gr_wrapper(prompt, negative_prompt, steps, seed, scale):
+        result = sd.run(str(prompt), str(negative_prompt), int(steps),
+                        int(seed), float(scale))
+        return StableDiffusionMGX.convert_to_rgb_image(result)
+
+    demo = gr.Interface(
+        gr_wrapper,
+        [
+            gr.Textbox(value="a photograph of an astronaut riding a horse",
+                       label="Prompt"),
+            gr.Textbox(value="", label="Negative prompt (Optional)"),
+            gr.Slider(1, 100, step=1, value=20, label="Number of steps"),
+            gr.Textbox(value=13, label="Random seed"),
+            gr.Slider(1, 20, step=0.1, value=7.0, label="Guidance scale"),
+        ],
+        "image",
+    )
+    demo.launch()
+
+
+if __name__ == "__main__":
+    main()

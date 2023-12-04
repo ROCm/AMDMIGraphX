@@ -120,7 +120,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     constexpr index_int lanes_per_thread = __AMDGCN_WAVEFRONT_SIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
-    type x = init;
+    type x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
@@ -131,7 +131,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     }
     __syncthreads();
 
-    type y = init;
+    type y = type(init);
     for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
     {
         y = op(y, buffer[i]);
@@ -258,9 +258,8 @@ struct reducer_base
         {
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
-            return make_storage_access<typename decltype(t)::type>([=](auto i, auto...) -> auto& {
-                return t[i];
-            });
+            return make_storage_access<typename decltype(t)::type>(
+                [=](auto i, auto...) -> auto& { return t[i]; });
         }
     }
 
@@ -407,7 +406,7 @@ struct block
         {
             using max_iterations = decltype(idx.max_local_stride_iterations(n));
             inner_storage<R, max_iterations{}, N> storage;
-            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
             return storage;
         }
     };
@@ -496,7 +495,7 @@ struct lane
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
         {
             using type = remove_reference_t<decltype(x(0, _c<0>))>;
-            type r     = init;
+            type r     = type(init);
             for(index_int j = 0; j < n; j++)
             {
                 r = op(r, read(x(j, _c<0>), xs(j, _c<0>)...));

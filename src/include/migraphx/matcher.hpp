@@ -591,6 +591,19 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return false;
+    bool all_same = false;
+    ins->get_literal().visit([&](auto s) {
+        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
+            return float_equal(scale, s.front());
+        });
+    });
+    return all_same;
+}
+
 MIGRAPHX_BASIC_MATCHER(output, const matcher_context&, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
@@ -842,6 +855,12 @@ template <class... Ms>
 auto skip_broadcasts_converts(Ms... ms)
 {
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
+}
+
+template <class... Ms>
+auto skip_broadcasts_transposes_contiguous(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous", "transpose"))(ms...);
 }
 
 template <class T>

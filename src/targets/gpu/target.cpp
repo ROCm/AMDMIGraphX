@@ -110,6 +110,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     {
         unsupported_fp8_ops.insert("dot");
     }
+    // add all device kernels
+    unsupported_fp8_ops.insert("logsoftmax");
+    unsupported_fp8_ops.insert("nonzero");
+    unsupported_fp8_ops.insert("prefix_scan_sum");
+    unsupported_fp8_ops.insert("scatter_none");
+    unsupported_fp8_ops.insert("topk");
     // clang-format off
     return
     {

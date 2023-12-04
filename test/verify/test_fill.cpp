@@ -21,33 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ELIMINATE_DATA_TYPE_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_ELIMINATE_DATA_TYPE_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/shape.hpp>
-#include <set>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-/**
- * Remove data types. This will instert convert operators so the data type
- * is not used by any operator.
- */
-struct MIGRAPHX_EXPORT eliminate_data_type
+template <migraphx::shape::type_t DType>
+struct test_fill : verify_program<test_fill<DType>>
 {
-    std::set<shape::type_t> unsupported_types;
-    shape::type_t target_type;
-    std::set<std::string> unsupported_ops = {"all"};
-    std::string name() const { return "eliminate_data_type"; }
-    void apply(module& m) const;
+    migraphx::program create_program() const
+    {
+        // Note this case can be simplified to a literal
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape lit_shape{DType, {1}, {0}};
+        auto l = mm->add_literal(migraphx::literal{lit_shape, {3}});
+        migraphx::shape data_shape{DType, {3, 4, 4}};
+        auto input = mm->add_parameter("x", data_shape);
+        mm->add_instruction(migraphx::make_op("fill"), l, input);
+        return p;
+    };
 };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_fill<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_fill<migraphx::shape::half_type>;
+template struct test_fill<migraphx::shape::float_type>;
+template struct test_fill<migraphx::shape::int32_type>;
+template struct test_fill<migraphx::shape::int64_type>;

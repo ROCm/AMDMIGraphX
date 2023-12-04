@@ -27,7 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_isnan_float : verify_program<test_isnan_float>
+template <migraphx::shape::type_t DType>
+struct test_isnan : verify_program<test_isnan<DType>>
 {
     migraphx::program create_program() const
     {
@@ -40,3 +41,7 @@ struct test_isnan_float : verify_program<test_isnan_float>
         return p;
     }
 };
+
+template struct test_isnan<migraphx::shape::float_type>;
+template struct test_isnan<migraphx::shape::half_type>;
+template struct test_isnan<migraphx::shape::fp8e4m3fnuz_type>;

@@ -136,9 +136,16 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(
-        contains({"slice", "transpose", "multibroadcast", "broadcast", "contiguous", "reshape", "squeeze", "flatten", "unsqueeze"},
-                 upper_input->name()))
+    while(contains({"slice",
+                    "transpose",
+                    "multibroadcast",
+                    "broadcast",
+                    "contiguous",
+                    "reshape",
+                    "squeeze",
+                    "flatten",
+                    "unsqueeze"},
+                   upper_input->name()))
     {
         operation op = upper_input->get_operator();
         if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))

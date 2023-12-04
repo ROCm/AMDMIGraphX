@@ -116,6 +116,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_fp8_ops.insert("prefix_scan_sum");
     unsupported_fp8_ops.insert("scatter_none");
     unsupported_fp8_ops.insert("topk");
+    unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
     // clang-format off
     return
     {

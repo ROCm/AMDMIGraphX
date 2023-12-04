@@ -24,8 +24,10 @@
 #include <iterator>
 #include <utility>
 #include <migraphx/eliminate_fp8.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
@@ -39,29 +41,67 @@ void eliminate_fp8::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(not contains(op_names, ins->name()) or
-           ins->get_shape().type() != migraphx::shape::fp8e4m3fnuz_type)
+        if(not contains(op_names, ins->name()))
             continue;
-        migraphx::shape::type_t orig_type        = ins->get_shape().type();
-        std::vector<instruction_ref> orig_inputs = ins->inputs();
-        std::vector<instruction_ref> new_inputs;
-        std::transform(orig_inputs.begin(),
-                       orig_inputs.end(),
-                       std::back_inserter(new_inputs),
-                       [&](const auto& i) {
-                           return m.insert_instruction(
-                               ins,
-                               migraphx::make_op(
-                                   "convert", {{"target_type", migraphx::to_value(target_type)}}),
-                               i);
-                       });
+        migraphx::shape::type_t orig_type   = ins->get_shape().type();
+        std::vector<instruction_ref> inputs = ins->inputs();
+        migraphx::transform_if(
+            inputs.begin(),
+            inputs.end(),
+            inputs.begin(),
+            [&](const auto& i) { return i->get_shape().type() == shape::fp8e4m3fnuz_type; },
+            [&](const auto& i) {
+                return m.insert_instruction(
+                    ins,
+                    migraphx::make_op("convert",
+                                      {{"target_type", migraphx::to_value(target_type)}}),
+                    i);
+            });
+        if(inputs == ins->inputs())
+        {
+            return;
+        }
+        auto op         = ins->get_operator();
+        auto attributes = op.attributes();
+        if(attributes.contains("general_data_type"))
+        {
+            op = make_op(attributes["general_data_type"].to<std::string>(), op.to_value());
+        }
+        auto new_ins = m.insert_instruction(ins, op, inputs);
+        if(orig_type == shape::tuple_type)
+        {
+            auto orig_outs = ins->outputs();
+            if(not std::all_of(orig_outs.begin(), orig_outs.end(), [&](const auto out_ins) {
+                   return out_ins->name() == "get_tuple_elem";
+               }))
+                MIGRAPHX_THROW("EliminateFP8: Instruction with tuple output doesn't have all its "
+                               "usages as get_tuple_elem instruction");
 
-        auto new_ins          = m.insert_instruction(ins, ins->get_operator(), {new_inputs});
-        auto convert_back_ins = m.insert_instruction(
-            ins,
-            migraphx::make_op("convert", {{"target_type", migraphx::to_value(orig_type)}}),
-            new_ins);
-        m.replace_instruction(ins, convert_back_ins);
+            std::transform(
+                orig_outs.begin(), orig_outs.end(), orig_outs.begin(), [&](const auto out_ins) {
+                    auto gte_ins = m.insert_instruction(ins, out_ins->get_operator(), new_ins);
+                    if(out_ins->get_shape().type() == shape::type_t::fp8e4m3fnuz_type)
+                    {
+                        auto gte_convert = m.insert_instruction(
+                            ins,
+                            make_op("convert", {{"target_type", shape::type_t::fp8e4m3fnuz_type}}),
+                            gte_ins);
+                        return m.replace_instruction(out_ins, gte_convert);
+                    }
+                    else
+                    {
+                        return m.replace_instruction(out_ins, gte_ins);
+                    }
+                });
+        }
+        else
+        {
+            auto convert_back_ins = m.insert_instruction(
+                ins,
+                migraphx::make_op("convert", {{"target_type", migraphx::to_value(orig_type)}}),
+                new_ins);
+            m.replace_instruction(ins, convert_back_ins);
+        }
     }
 }
 

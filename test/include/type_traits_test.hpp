@@ -48,6 +48,14 @@ typedef int (udt::*mp);
 typedef int (udt::*cmf)(int) const;
 typedef int (udt::*mf8)(...);
 
+typedef void foo0_t();
+typedef void foo1_t(int);
+typedef void foo2_t(int&, double);
+typedef void foo3_t(int&, bool, int, int);
+typedef void foo4_t(int, bool, int*, int[], int, int, int, int, int);
+
+struct incomplete_type;
+
 #define VISIT_TYPES(m, ...) \
     m(bool, __VA_ARGS__) \
     m(char, __VA_ARGS__) \

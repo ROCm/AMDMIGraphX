@@ -108,7 +108,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none"};
-    if(unsupported_types.empty() and unsupported_types.empty())
+    if(unsupported_types.empty() and unsupported_fp8_ops.empty())
     {
         return;
     }

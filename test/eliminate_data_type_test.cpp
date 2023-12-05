@@ -30,15 +30,13 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m,
-              std::set<migraphx::shape::type_t> types,
-              std::set<std::string> unsupported_fp8_ops = {})
+void run_pass(migraphx::module& m, std::set<migraphx::shape::type_t> types)
 {
-    migraphx::run_passes(m,
-                         {migraphx::eliminate_data_type{
-                              std::move(types), unsupported_fp8_ops, migraphx::shape::float_type},
-                          migraphx::eliminate_identity{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m,
+        {migraphx::eliminate_data_type{std::move(types), migraphx::shape::float_type},
+         migraphx::eliminate_identity{},
+         migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(simple)

@@ -108,36 +108,17 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none"};
-    if(unsupported_types.empty() and unsupported_fp8_ops.empty())
-    {
+    if(unsupported_types.empty())
         return;
-    }
-    else if(not unsupported_fp8_ops.empty() and not unsupported_types.empty())
+
+    for(auto ins : iterator_for(m))
     {
-        MIGRAPHX_THROW("eliminate_data_type: specify either unsupported FP8 ops or unsupported "
-                       "data types not both.");
-    }
-    else if(unsupported_fp8_ops.empty())
-    {
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name()[0] == '@')
-                continue;
-            if(contains(skip_op_names, ins->name()))
-                continue;
+        if(ins->name()[0] == '@')
+            continue;
+        if(contains(skip_op_names, ins->name()) and not contains(unsupported_ops, ins->name()))
+            continue;
+        if(contains(unsupported_ops, "all") or contains(unsupported_ops, ins->name()))
             insert_convert_to_supported_type(m, ins, target_type, unsupported_types);
-        }
-    }
-    else
-    {
-        std::set<migraphx::shape::type_t> unsupported_fp8_types = {
-            migraphx::shape::fp8e4m3fnuz_type};
-        for(auto ins : iterator_for(m))
-        {
-            if(not contains(unsupported_fp8_ops, ins->name()))
-                continue;
-            insert_convert_to_supported_type(m, ins, target_type, unsupported_fp8_types);
-        }
     }
 }
 

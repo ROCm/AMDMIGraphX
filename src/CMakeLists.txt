@@ -243,6 +243,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where
@@ -292,6 +293,7 @@ find_package(TBB QUIET)
 if(TBB_FOUND)
     check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
     if(TBB_HAS_EXECUTION_PAR)
+        list(APPEND PACKAGE_DEPENDS PACKAGE TBB)
         target_link_libraries(migraphx PUBLIC TBB::tbb)
         set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
         message(STATUS "Using TBB for parallel execution")

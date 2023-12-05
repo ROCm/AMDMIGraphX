@@ -21,42 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
+#include <limits>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/gather.hpp>
-#include <migraphx/gpu/context.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_gather
+template <migraphx::shape::type_t DType>
+struct test_isnan : verify_program<test_isnan<DType>>
 {
-    op::gather op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::gather"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2}});
+        auto l0  = mm->add_literal(std::numeric_limits<float>::quiet_NaN());
+        x        = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
+        mm->add_instruction(migraphx::make_op("isnan"), x);
+        return p;
     }
 };
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_isnan<migraphx::shape::float_type>;
+template struct test_isnan<migraphx::shape::half_type>;
+template struct test_isnan<migraphx::shape::fp8e4m3fnuz_type>;

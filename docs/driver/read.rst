@@ -46,11 +46,11 @@ Trim instructions from the end (Default: 0)
 
 Dim of a parameter (format: "@name d1 d2 dn")
 
-.. options:: --dyn-input-dim [std::vector<std::string>]
+.. option:: --dyn-input-dim [std::vector<std::string>]
 
 Set dynamic dimensions of a parameter using JSON formatting (format "@name" "dynamic_dimension_json")
 
-.. options:: --default-dyn-dim
+.. option:: --default-dyn-dim
 
 Set the default dynamic dimension (format {min:x, max:y, optimals:[o1,o2,...]})
 

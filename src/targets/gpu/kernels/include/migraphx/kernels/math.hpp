@@ -29,11 +29,15 @@
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/hip.hpp>
+#include <migraphx/kernels/float8.hpp>
 
 namespace migraphx {
 
 namespace math {
 constexpr float as_float(migraphx::half x) { return x; }
+
+constexpr float as_float(migraphx::fp8::fp8e4m3fnuz x) { return x; }
+
 template <class T>
 constexpr T as_float(T x)
 {
@@ -57,20 +61,26 @@ constexpr T as_float(T x)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
-    auto __device__ name(type x, Ts... xs)->type                       \
+    auto __device__ name(type x, Ts... xs) -> type                     \
     {                                                                  \
         return fname(x, xs...);                                        \
     }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
-    inline auto __device__ name(type x, type y)->type { return fname(x, y); }
+    inline auto __device__ name(type x, type y) -> type { return fname(x, y); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF(name, fname)                         \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(migraphx::half x, Ts... xs)                   \
         MIGRAPHX_RETURNS(fname(math::as_float(x), math::as_float(xs)...))
+
+// NOLINTNEXTLINE
+#define MIGRAPHX_DEVICE_MATH_FP8(name, fname)                                      \
+    template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())>             \
+    auto __device__ name(migraphx::fp8::fp8e4m3fnuz x, Ts... xs) MIGRAPHX_RETURNS( \
+        migraphx::fp8::fp8e4m3fnuz(fname(math::as_float(x), math::as_float(xs)...)))
 
 // Template with two overloads for math functions, one for half2 type and one for more generic
 // <half, N> vectorization where N is 4 or another even number.
@@ -103,6 +113,7 @@ MIGRAPHX_DEVICE_MATH(floor, ::floor)
 MIGRAPHX_DEVICE_MATH(isnan, ::isnan)
 MIGRAPHX_DEVICE_MATH(isinf, ::isinf)
 MIGRAPHX_DEVICE_MATH(log, ::log)
+MIGRAPHX_DEVICE_MATH(nearbyint, ::nearbyint)
 MIGRAPHX_DEVICE_MATH(pow, ::pow)
 MIGRAPHX_DEVICE_MATH(remainder, ::remainder)
 MIGRAPHX_DEVICE_MATH(round, ::round)
@@ -152,6 +163,7 @@ MIGRAPHX_DEVICE_MATH_HALF(atan, ::atan)
 MIGRAPHX_DEVICE_MATH_HALF(atanh, ::atanh)
 MIGRAPHX_DEVICE_MATH_HALF(cosh, ::cosh)
 MIGRAPHX_DEVICE_MATH_HALF(erf, ::erf)
+MIGRAPHX_DEVICE_MATH_HALF(nearbyint, ::nearbyint)
 MIGRAPHX_DEVICE_MATH_HALF(pow, ::pow)
 MIGRAPHX_DEVICE_MATH_HALF(remainder, ::remainder)
 MIGRAPHX_DEVICE_MATH_HALF(round, ::round)
@@ -159,6 +171,33 @@ MIGRAPHX_DEVICE_MATH_HALF(sinh, ::sinh)
 MIGRAPHX_DEVICE_MATH_HALF(tan, ::tan)
 MIGRAPHX_DEVICE_MATH_HALF(tanh, ::tanh)
 MIGRAPHX_DEVICE_MATH_HALF(fmod, ::fmod)
+
+// use float to compute fp8 overload
+MIGRAPHX_DEVICE_MATH_FP8(abs, ::abs)
+MIGRAPHX_DEVICE_MATH_FP8(acos, ::acos)
+MIGRAPHX_DEVICE_MATH_FP8(acosh, ::acosh)
+MIGRAPHX_DEVICE_MATH_FP8(asin, ::asin)
+MIGRAPHX_DEVICE_MATH_FP8(asinh, ::asinh)
+MIGRAPHX_DEVICE_MATH_FP8(atan, ::atan)
+MIGRAPHX_DEVICE_MATH_FP8(atanh, ::atanh)
+MIGRAPHX_DEVICE_MATH_FP8(ceil, ::ceil)
+MIGRAPHX_DEVICE_MATH_FP8(cos, ::cos)
+MIGRAPHX_DEVICE_MATH_FP8(cosh, ::cosh)
+MIGRAPHX_DEVICE_MATH_FP8(erf, ::erf)
+MIGRAPHX_DEVICE_MATH_FP8(exp, ::exp)
+MIGRAPHX_DEVICE_MATH_FP8(floor, ::floor)
+MIGRAPHX_DEVICE_MATH_FP8(isnan, ::isnan)
+MIGRAPHX_DEVICE_MATH_FP8(log, ::log)
+MIGRAPHX_DEVICE_MATH_FP8(pow, ::pow)
+MIGRAPHX_DEVICE_MATH_FP8(remainder, ::remainder)
+MIGRAPHX_DEVICE_MATH_FP8(round, ::round)
+MIGRAPHX_DEVICE_MATH_FP8(rsqrt, ::rsqrt)
+MIGRAPHX_DEVICE_MATH_FP8(sin, ::sin)
+MIGRAPHX_DEVICE_MATH_FP8(sinh, ::sinh)
+MIGRAPHX_DEVICE_MATH_FP8(sqrt, ::sqrt)
+MIGRAPHX_DEVICE_MATH_FP8(tan, ::tan)
+MIGRAPHX_DEVICE_MATH_FP8(tanh, ::tanh)
+MIGRAPHX_DEVICE_MATH_FP8(fmod, ::fmod)
 
 // Map math functions to hip half2 functions
 // The half2 type is defined in include/hip/amd_detail/hip_fp16_gcc.h and is 2 16-bit floats
@@ -236,6 +275,7 @@ MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(max)
 MIGRAPHX_DEVICE_MATH_VEC(min)
+MIGRAPHX_DEVICE_MATH_VEC(nearbyint)
 MIGRAPHX_DEVICE_MATH_VEC(pow)
 MIGRAPHX_DEVICE_MATH_VEC(remainder)
 MIGRAPHX_DEVICE_MATH_VEC(round)
@@ -250,7 +290,7 @@ MIGRAPHX_DEVICE_MATH_VEC(where)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return x; });
+    return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
 }
 
 } // namespace migraphx

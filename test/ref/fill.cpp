@@ -43,6 +43,7 @@ TEST_CASE(fill_static_int)
     auto input = mm->add_parameter("x", data_shape);
     mm->add_instruction(migraphx::make_op("fill"), l, input);
     p.compile(migraphx::make_target("ref"));
+
     std::vector<int64_t> input_data(48);
     migraphx::parameter_map params;
     params["x"] = migraphx::argument(data_shape, input_data.data());

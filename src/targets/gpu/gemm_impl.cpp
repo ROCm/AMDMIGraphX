@@ -39,7 +39,7 @@ namespace gpu {
 
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
-as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast interger enum
+as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
 value to required type that can be used inside `common_args` generator.
 */
 struct rb_compute_type

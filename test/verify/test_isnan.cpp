@@ -21,24 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
+#include <limits>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+template <migraphx::shape::type_t DType>
+struct test_isnan : verify_program<test_isnan<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2}});
+        auto l0  = mm->add_literal(std::numeric_limits<float>::quiet_NaN());
+        x        = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
+        mm->add_instruction(migraphx::make_op("isnan"), x);
+        return p;
+    }
+};
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
-
-argument MIGRAPHX_DEVICE_EXPORT
-gather(hipStream_t stream, argument result, argument arg1, argument arg2, int64_t axis);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_isnan<migraphx::shape::float_type>;
+template struct test_isnan<migraphx::shape::half_type>;
+template struct test_isnan<migraphx::shape::fp8e4m3fnuz_type>;

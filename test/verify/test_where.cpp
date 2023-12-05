@@ -27,7 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_where : verify_program<test_where>
+template <migraphx::shape::type_t DType>
+struct test_where : verify_program<test_where<DType>>
 {
     migraphx::program create_program() const
     {
@@ -44,3 +45,7 @@ struct test_where : verify_program<test_where>
         return p;
     };
 };
+
+template struct test_where<migraphx::shape::float_type>;
+template struct test_where<migraphx::shape::half_type>;
+template struct test_where<migraphx::shape::fp8e4m3fnuz_type>;

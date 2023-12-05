@@ -155,29 +155,187 @@ TEST_CASE(after_split_dyn_broadcast_match)
     EXPECT(p0 == p1);
 }
 
-TEST_CASE(const_slice_3input)
+TEST_CASE(const_slice_2input_ends_axes)
 {
     migraphx::module m0;
     {
         migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
-        auto input     = m0.add_parameter("data", s);
-        auto slice_ins = m0.add_instruction(
-            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
+        auto slice_ins    = m0.add_instruction(
+            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}}), input, input_starts);
         m0.add_return({slice_ins});
     }
+    run_pass(m0);
 
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
-        auto input = m1.add_parameter("data", s);
-        migraphx::shape s1{migraphx::shape::int32_type, {1}};
-        auto input_starts = m1.add_literal(migraphx::literal{s1, {0}});
-        auto input_ends   = m1.add_literal(migraphx::literal{s1, {3}});
-        auto slice_ins    = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}}), input, input_starts, input_ends);
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
         m1.add_return({slice_ins});
     }
-    run_pass(m1);
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_2input_starts_axes)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_ends = m0.add_literal(migraphx::literal{s1, {3}});
+        auto slice_ins  = m0.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"axes", {0}}}), input, input_ends);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_2input_starts_ends)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_axes = m0.add_literal(migraphx::literal{s1, {0}});
+        auto slice_ins  = m0.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}}), input, input_axes);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_3input_axes_only)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
+        auto input_ends   = m0.add_literal(migraphx::literal{s1, {3}});
+        auto slice_ins    = m0.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}}), input, input_starts, input_ends);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_3input_ends_only)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
+        auto input_axes   = m0.add_literal(migraphx::literal{s1, {0}});
+        auto slice_ins    = m0.add_instruction(
+            migraphx::make_op("slice", {{"ends", {3}}}), input, input_starts, input_axes);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_3inputs_starts_only)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_ends = m0.add_literal(migraphx::literal{s1, {3}});
+        auto input_axes = m0.add_literal(migraphx::literal{s1, {0}});
+        auto slice_ins  = m0.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}}), input, input_ends, input_axes);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
+
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_slice_2input_ends_axes_dyn)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {{6, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
+        auto input = m0.add_parameter("data", s);
+        migraphx::shape s1{migraphx::shape::int32_type, {1}};
+        auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
+        auto slice_ins    = m0.add_instruction(
+            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}}), input, input_starts);
+        m0.add_return({slice_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {{6, 6}, {2, 4, {2, 4}}, {2, 4, {2, 4}}}};
+        auto input     = m1.add_parameter("data", s);
+        auto slice_ins = m1.add_instruction(
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
+        m1.add_return({slice_ins});
+    }
 
     EXPECT(m0 == m1);
 }
@@ -383,6 +541,33 @@ TEST_CASE(static_dimensions_of_to_constant_alloc_reshape)
         m1.add_return({reshape_ins});
     }
 
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(const_alloc_fill)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape val_shape{migraphx::shape::int64_type, {1}, {0}};
+        std::vector<int64_t> lit_data = {3};
+        auto value_lit                = m0.add_literal(migraphx::literal{val_shape, lit_data});
+        migraphx::shape lit_s{migraphx::shape::int64_type, {3}};
+        auto output_dim_lit = m0.add_literal(migraphx::literal{lit_s, {3, 4, 4}});
+        auto alloc_ins      = m0.add_instruction(
+            migraphx::make_op("allocate", {{"buf_type", migraphx::shape::int64_type}}),
+            output_dim_lit);
+        auto ret = m0.add_instruction(migraphx::make_op("fill"), value_lit, alloc_ins);
+        m0.add_return({ret});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape lit_shape{migraphx::shape::int64_type, {3, 4, 4}};
+        std::vector<int64_t> lit_data(3 * 4 * 4, 3);
+        auto ret = m1.add_literal(migraphx::literal{lit_shape, lit_data});
+        m1.add_return({ret});
+    }
     EXPECT(m0 == m1);
 }
 

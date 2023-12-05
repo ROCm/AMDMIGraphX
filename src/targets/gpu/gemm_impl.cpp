@@ -206,7 +206,7 @@ struct gemm_impl
             if(arg_type == rocblas_datatype_f16_r)
                 compute_type = rocblas_datatype_f32_r;
         }
-        else if(arg_type == rocblas_datatype_f8_r)
+        if(arg_type == rocblas_datatype_f8_r)
         {
             assert(get_type(input_shapes[1].type()) == rocblas_datatype_f8_r);
             compute_type = rocblas_compute_type_f32;

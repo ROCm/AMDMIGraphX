@@ -1,4 +1,4 @@
-rocm_test_link_libraries(pocket-rocm-cxx)
+rocm_test_link_libraries(pocket_rocm_cxx)
 rocm_test_include_directories(include)
 
 function(add_tests PREFIX GLOB)

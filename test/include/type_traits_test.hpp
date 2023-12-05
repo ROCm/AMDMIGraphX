@@ -7,15 +7,15 @@ namespace test_tt {
 
 template<class T, class U>
 struct is_same {
-    constexpr bool operator()() const noexcept { return false; }
+    constexpr operator bool() const noexcept { return false; }
 };
  
 template<class T>
 struct is_same<T, T> {
-    constexpr bool operator()() const noexcept { return true; }
+    constexpr operator bool() const noexcept { return true; }
 };
 
-#define CHECK_TYPE(T, U) static_assert(test_tt::is_same<T, U>{})
+#define CHECK_TYPE(...) static_assert(test_tt::is_same<__VA_ARGS__>{})
 
 
 enum enum1
@@ -63,12 +63,12 @@ typedef int (udt::*mf8)(...);
     m(float, __VA_ARGS__) \
     m(long double, __VA_ARGS__) \
     m(double, __VA_ARGS__) \
-    m(udt, __VA_ARGS__) \
-    m(enum1, __VA_ARGS__)
+    m(test_tt::udt, __VA_ARGS__) \
+    m(test_tt::enum1, __VA_ARGS__)
 
-#define TRANSFORM_CHECK_VISITOR(type, name, from_suffix, to_suffix) \
-    CHECK_TYPE(type to_suffix, name<type from_suffix>::type); \
-    CHECK_TYPE(type to_suffix, name##_t<type from_suffix>);
+#define TRANSFORM_CHECK_VISITOR(x, name, from_suffix, to_suffix) \
+    CHECK_TYPE(x to_suffix, name<x from_suffix>::type); \
+    CHECK_TYPE(x to_suffix, name##_t<x from_suffix>);
 
 #define TRANSFORM_CHECK(name, from_suffix, to_suffix) \
     VISIT_TYPES(TRANSFORM_CHECK_VISITOR, name, from_suffix, to_suffix)

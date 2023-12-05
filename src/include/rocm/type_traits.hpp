@@ -3,6 +3,7 @@
 
 #include <rocm/config.hpp>
 #include <rocm/declval.hpp>
+#include <rocm/integral_constant.hpp>
 
 namespace rocm {
 inline namespace ROCM_INLINE_NS {

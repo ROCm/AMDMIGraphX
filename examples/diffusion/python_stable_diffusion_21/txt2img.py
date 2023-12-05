@@ -28,6 +28,7 @@ from PIL import Image
 import migraphx as mgx
 import numpy as np
 import os
+import sys
 import torch
 import time
 from functools import wraps
@@ -177,7 +178,7 @@ class StableDiffusionMGX():
             mgx.save(model, f"{file}.mxr", format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
-            os.exit(1)
+            sys.exit(1)
         return model
 
     @measure

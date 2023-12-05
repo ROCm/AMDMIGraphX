@@ -114,10 +114,7 @@ struct mlir_op
             }
             if(ins->name() == "@return")
             {
-                auto s = ins_shapes[ins->inputs().at(0)].with_type(type);
-                if(not s.standard())
-                    MIGRAPHX_THROW("MLIR doesnt support non-standard output");
-                return s;
+                return ins_shapes[ins->inputs().at(0)].with_type(type);
             }
             std::vector<shape> input_shapes;
             input_shapes.resize(ins->inputs().size());
@@ -139,9 +136,16 @@ get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(
-        contains({"slice", "transpose", "contiguous", "reshape", "squeeze", "flatten", "unsqueeze"},
-                 upper_input->name()))
+    while(contains({"slice",
+                    "transpose",
+                    "multibroadcast",
+                    "broadcast",
+                    "contiguous",
+                    "reshape",
+                    "squeeze",
+                    "flatten",
+                    "unsqueeze"},
+                   upper_input->name()))
     {
         operation op = upper_input->get_operator();
         if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))

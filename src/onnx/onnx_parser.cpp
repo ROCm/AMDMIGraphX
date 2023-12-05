@@ -34,7 +34,9 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
+#include <onnx.pb.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -244,7 +246,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
-        this->path = parent_path;
+        this->path = parent_path.string();
 
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
@@ -484,6 +486,8 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     case onnx::AttributeProto::TENSORS:
     case onnx::AttributeProto::SPARSE_TENSOR:
     case onnx::AttributeProto::SPARSE_TENSORS:
+    case onnx::AttributeProto::TYPE_PROTOS:
+    case onnx::AttributeProto::TYPE_PROTO:
     case onnx::AttributeProto::GRAPHS: return {};
     }
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
@@ -545,6 +549,18 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::DOUBLE:
         return create_literal(shape::double_type, dims, t.double_data());
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
+    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
+        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
+        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
+        std::transform(data_int32.begin(),
+                       data_int32.end(),
+                       std::back_inserter(data_fp8),
+                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
+        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
+    }
+    case onnx::TensorProto::FLOAT8E5M2FNUZ:
+    case onnx::TensorProto::FLOAT8E5M2:
+    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -609,6 +625,13 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 18: return shape::fp8e4m3fnuz_type;
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 19:
+    case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }

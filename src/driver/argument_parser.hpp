@@ -105,6 +105,8 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     static const bool use_color = isatty(STDOUT_FILENO) != 0;
     if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
 #endif
     return os;
 }
@@ -185,6 +187,13 @@ struct value_parser
         result.insert(result.end(), value_parser<value_type>::apply(x));
         return result;
     }
+};
+
+// version for std::optional object
+template <class T>
+struct value_parser<std::optional<T>>
+{
+    static T apply(const std::string& x) { return value_parser<T>::apply(x); }
 };
 
 struct argument_parser

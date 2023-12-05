@@ -27,7 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/iterator.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/par_for.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/dom_info.hpp>
@@ -461,7 +461,7 @@ struct stream_info
                        std::back_inserter(index_to_ins),
                        [](auto&& it) { return it.first; });
 
-        par_for(concur_ins.size(), [&](auto ins_index, auto tid) {
+        simple_par_for(concur_ins.size(), [&](auto ins_index, auto tid) {
             auto merge_first = index_to_ins[ins_index];
             assert(concur_ins.count(merge_first) > 0);
             auto& merge_second = concur_ins.at(merge_first);

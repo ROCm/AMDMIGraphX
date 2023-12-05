@@ -54,7 +54,7 @@ struct allocate_no_out : migraphx::auto_register_op<allocate_no_out>
                                const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return {output_shape};
+        return migraphx::argument{output_shape};
     }
 };
 
@@ -78,7 +78,7 @@ struct allocate_with_out : migraphx::auto_register_op<allocate_with_out>
                                const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return {output_shape};
+        return migraphx::argument{output_shape};
     }
 };
 

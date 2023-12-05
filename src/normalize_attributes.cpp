@@ -26,7 +26,7 @@
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
-
+#include <migraphx/op/common.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -66,15 +66,15 @@ auto tune_attribute(const std::vector<int64_t>& vec,
     {
         if(input_shape.dynamic())
         {
+            // return the unchanged `vec` if the dynamic_dimensions at `axes` are not fixed
+            if(std::any_of(axes.begin(), axes.end(), [&](auto ax) {
+                   return not input_shape.dyn_dims().at(ax).is_fixed();
+               }))
+            {
+                return vec;
+            }
             std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-                const auto& dd = input_shape.dyn_dims().at(i);
-                if(not dd.is_fixed())
-                {
-                    MIGRAPHX_THROW(
-                        "NORMALIZE_ATTR: 'use_lens' on a non-fixed dynamic dimension, axis=" +
-                        std::to_string(i));
-                }
-                return dd.max;
+                return input_shape.dyn_dims().at(i).max;
             });
         }
         else
@@ -192,20 +192,27 @@ bool normalize_attributes(operation& op, const shape& input_shape)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
-        auto padding_size  = padding.size();
-        auto padding_start = 2;
-
-        if(padding_size == 2 * (input_shape.ndim() - padding_start))
-            tuned = true;
-        else if(padding_size != (input_shape.ndim() - padding_start))
-            MIGRAPHX_THROW("inconsistent padding size");
-        else
+        bool use_auto_padding =
+            (val.contains("padding_mode") and
+             (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
+        if(not use_auto_padding)
         {
-            auto result    = tune_pad_attribute(padding);
-            val["padding"] = result;
-            op.from_value(val);
-            tuned = true;
+            auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
+            auto padding_size  = padding.size();
+            auto padding_start = 2;
+            if(padding_size == 2 * (input_shape.ndim() - padding_start))
+                tuned = true;
+            else if(padding_size != (input_shape.ndim() - padding_start))
+            {
+                MIGRAPHX_THROW("normalize_attributes: inconsistent padding vector size ");
+            }
+            else
+            {
+                auto result    = tune_pad_attribute(padding);
+                val["padding"] = result;
+                op.from_value(val);
+                tuned = true;
+            }
         }
     }
     if(not attrs.contains("normalize_axes"))

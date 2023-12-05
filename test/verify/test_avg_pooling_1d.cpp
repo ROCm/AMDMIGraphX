@@ -35,7 +35,7 @@ struct test_avg_pooling_1d : verify_program<test_avg_pooling_1d>
         auto* mm = p.get_main_module();
         auto input =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5}});
-        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::average, {0}, {1}, {3}};
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::average, {0}, {1}, {3}, {1}};
         mm->add_instruction(op, input);
         return p;
     }

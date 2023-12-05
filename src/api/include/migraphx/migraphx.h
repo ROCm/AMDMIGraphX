@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <migraphx/api/export.h>
 
@@ -43,7 +44,8 @@
     m(int32_type, int32_t) \
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
-    m(uint64_type, uint64_t)
+    m(uint64_type, uint64_t) \
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -511,6 +513,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_dyn_dim_valu
     migraphx_onnx_options_t onnx_options, const_migraphx_dynamic_dimension_t dd);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterations(
+    migraphx_onnx_options_t onnx_options, int64_t value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
 
 MIGRAPHX_C_EXPORT migraphx_status

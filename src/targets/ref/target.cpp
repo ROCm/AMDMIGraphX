@@ -48,6 +48,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
         eliminate_pad{},
         dead_code_elimination{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, {"quant_dot"}},
+        dead_code_elimination{},
         insert_pad{},
         dead_code_elimination{},
         rewrite_rnn{},

@@ -23,7 +23,6 @@
  */
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>

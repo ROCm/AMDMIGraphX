@@ -21,9 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/shape.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 

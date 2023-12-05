@@ -63,6 +63,11 @@ struct remove_cv<volatile T> : remove_cv<T>
 };
 
 template <class T>
+struct remove_cv<const volatile T> : remove_cv<T>
+{
+};
+
+template <class T>
 using remove_cv_t = typename remove_cv<T>::type;
 
 template <class T>

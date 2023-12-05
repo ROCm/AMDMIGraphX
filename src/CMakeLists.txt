@@ -1,0 +1,3 @@
+
+add_library(pocket_rocm_cxx INTERFACE)
+target_include_directories(pocket_rocm_cxx INTERFACE include)

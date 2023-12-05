@@ -1,0 +1,2 @@
+danmar/cppcheck@bb2711c22a0be09efe7f1a8da3030876471026c8 -DHAVE_RULES=1 # 2.11
+RadeonOpenCompute/rocm-cmake@5a34e72d9f113eb5d028e740c2def1f944619595 --build

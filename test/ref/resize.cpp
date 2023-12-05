@@ -46,9 +46,11 @@ TEST_CASE(resize_test_1)
     auto a1  = mm->add_literal(migraphx::literal{size_input, size_values});
 
 
-    mm->add_instruction(migraphx::make_op("resize", {{"sizes", {1}}, {"scales", {}}}), a0, a1);
+    mm->add_instruction(migraphx::make_op("resize", {{"sizes", {1}}, {"scales", {}}, {"nearest_mode", "floor"}
+      , {"coordinate_transformation_mode", "half_pixel"}}), a0, a1);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
+
     std::vector<float> res_data(4 * 5);
     std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });

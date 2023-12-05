@@ -24,10 +24,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_QUANT_CONVOLUTION_HPP
 
-#include "migraphx/shape.hpp"
 #include <migraphx/op/common.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/convolution.hpp>
 #include <migraphx/value.hpp>

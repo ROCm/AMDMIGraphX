@@ -46,6 +46,79 @@ struct conditional<false, T, F>
 template <bool B, class T, class F>
 using conditional_t = typename conditional<B, T, F>::type;
 
+template <class T>
+struct remove_cv
+{
+    using type = T;
+};
+
+template <class T>
+struct remove_cv<const T> : remove_cv<T>
+{
+};
+
+template <class T>
+struct remove_cv<volatile T> : remove_cv<T>
+{
+};
+
+template <class T>
+using remove_cv_t = typename remove_cv<T>::type;
+
+template <class T>
+struct remove_reference
+{
+    using type = T;
+};
+template <class T>
+struct remove_reference<T&>
+{
+    using type = T;
+};
+template <class T>
+struct remove_reference<T&&>
+{
+    using type = T;
+};
+
+template <class T>
+using remove_reference_t = typename remove_reference<T>::type;
+
+template <class T>
+struct add_pointer : type_identity<remove_reference_t<T>*>
+{
+};
+
+template <class T>
+using add_pointer_t = typename add_pointer<T>::type;
+
+template <class... Ts>
+struct common_type;
+
+template <class T>
+struct common_type<T>
+{
+    using type = T;
+};
+
+template <class T, class U>
+struct common_type<T, U>
+{
+    using type = decltype(true ? declval<T>() : declval<U>());
+};
+
+template <class T, class U, class... Us>
+struct common_type<T, U, Us...>
+{
+    using type = typename common_type<typename common_type<T, U>::type, Us...>::type;
+};
+
+template <class... Ts>
+using common_type_t = typename common_type<Ts...>::type;
+
+template<class...>
+using void_t = void;
+
 // NOLINTNEXTLINE
 #define MIGRAPHX_BUILTIN_TYPE_TRAIT1(name)   \
     template <class T>                       \
@@ -115,82 +188,9 @@ MIGRAPHX_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
 MIGRAPHX_BUILTIN_TYPE_TRAITN(is_trivially_constructible);
 
 template <class T>
-struct remove_cv
-{
-    using type = T;
-};
-
-template <class T>
-struct remove_cv<const T> : remove_cv<T>
-{
-};
-
-template <class T>
-struct remove_cv<volatile T> : remove_cv<T>
-{
-};
-
-template <class T>
-using remove_cv_t = typename remove_cv<T>::type;
-
-template <class T>
-struct remove_reference
-{
-    using type = T;
-};
-template <class T>
-struct remove_reference<T&>
-{
-    using type = T;
-};
-template <class T>
-struct remove_reference<T&&>
-{
-    using type = T;
-};
-
-template <class T>
-using remove_reference_t = typename remove_reference<T>::type;
-
-template <class T>
-struct add_pointer : type_identity<remove_reference_t<T>*>
-{
-};
-
-template <class T>
-using add_pointer_t = typename add_pointer<T>::type;
-
-template <class T>
 struct is_void : is_same<void, remove_cv_t<T>>
 {
 };
-
-template <class... Ts>
-struct common_type;
-
-template <class T>
-struct common_type<T>
-{
-    using type = T;
-};
-
-template <class T, class U>
-struct common_type<T, U>
-{
-    using type = decltype(true ? declval<T>() : declval<U>());
-};
-
-template <class T, class U, class... Us>
-struct common_type<T, U, Us...>
-{
-    using type = typename common_type<typename common_type<T, U>::type, Us...>::type;
-};
-
-template <class... Ts>
-using common_type_t = typename common_type<Ts...>::type;
-
-template<class...>
-using void_t = void;
 
 #if 0
 constexpr unsigned long int_max(unsigned long n)

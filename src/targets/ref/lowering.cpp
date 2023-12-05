@@ -24,7 +24,6 @@
 
 #include <migraphx/ref/lowering.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/shape.hpp>
 #include <migraphx/dfor.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -308,46 +307,19 @@ struct ref_quant_gemm
     {
         argument result{output_shape};
         // first, convert the args[0] and args[1] from int8_t to int32_t
-        argument arg_0{{output_shape.type(), {args.at(0).get_shape().lens()}}};
-        argument arg_1{{output_shape.type(), {args.at(1).get_shape().lens()}}};
-        if(output_shape.type() == migraphx::shape::float_type)
-        {
-            arg_0.visit([&](auto output) {
-                args.at(0).visit([&](auto input) {
-                    std::transform(input.begin(), input.end(), output.begin(), [&](const auto x) {
-                        return static_cast<float>(x);
-                    });
-                });
-            });
+        argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
+        argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
+        arg_0.visit([&](auto output) {
+            args.at(0).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+        });
 
-            arg_1.visit([&](auto output) {
-                args.at(1).visit([&](auto input) {
-                    std::transform(input.begin(), input.end(), output.begin(), [&](const auto x) {
-                        return static_cast<float>(x);
-                    });
-                });
-            });
-            migemm(result, arg_0, arg_1, 1.0f, 0.0f);
-        }
-        else if(output_shape.type() == migraphx::shape::int32_type)
-        {
-            arg_0.visit([&](auto output) {
-                args.at(0).visit([&](auto input) {
-                    std::transform(input.begin(), input.end(), output.begin(), [&](const auto x) {
-                        return static_cast<int32_t>(x);
-                    });
-                });
-            });
+        arg_1.visit([&](auto output) {
+            args.at(1).visit(
+                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+        });
 
-            arg_1.visit([&](auto output) {
-                args.at(1).visit([&](auto input) {
-                    std::transform(input.begin(), input.end(), output.begin(), [&](const auto x) {
-                        return static_cast<int32_t>(x);
-                    });
-                });
-            });
-            migemm(result, arg_0, arg_1, int32_t{1}, int32_t{0});
-        }
+        migemm(result, arg_0, arg_1, int32_t{1}, int32_t{0});
 
         return result;
     }

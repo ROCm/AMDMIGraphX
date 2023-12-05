@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/shape.hpp"
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
@@ -123,7 +124,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
-        eliminate_data_type{unsupported_types, shape::type_t::float_type},
+        eliminate_data_type{unsupported_types, {}, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
         eliminate_pad{},
@@ -142,7 +143,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
-        eliminate_fp8{unsupported_fp8_ops},
+        eliminate_data_type{{}, unsupported_fp8_ops, shape::float_type},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},

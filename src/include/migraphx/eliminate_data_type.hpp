@@ -40,7 +40,8 @@ struct module;
  */
 struct MIGRAPHX_EXPORT eliminate_data_type
 {
-    std::set<shape::type_t> types;
+    std::set<shape::type_t> unsupported_types;
+    std::set<std::string> unsupported_fp8_ops;
     shape::type_t target_type;
     std::string name() const { return "eliminate_data_type"; }
     void apply(module& m) const;

@@ -70,7 +70,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     return {normalize_ops{},
             rewrite_quantization{},
             dead_code_elimination{},
-            eliminate_data_type{unsupported_types, shape::type_t::float_type},
+            eliminate_data_type{unsupported_types, {}, shape::type_t::float_type},
             dead_code_elimination{},
             simplify_reshapes{},
             eliminate_identity{},

@@ -10,5 +10,6 @@ function(add_tests PREFIX GLOB)
     endforeach()
 endfunction()
 
+add_tests(main *.cpp)
 add_tests(type_traits type_traits/*.cpp)
 

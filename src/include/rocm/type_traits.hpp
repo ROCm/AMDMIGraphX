@@ -197,56 +197,6 @@ struct is_void : is_same<void, remove_cv_t<T>>
 {
 };
 
-#if 0
-constexpr unsigned long int_max(unsigned long n)
-{
-    // Note, left shift cannot be used to get the maximum value of int64_type or
-    // uint64_type because it is undefined behavior to left shift 64 bits for
-    // these types
-    if(n == sizeof(int64_t))
-        return -1;
-    return (1ul << (n * 8)) - 1;
-}
-
-template <class T,
-          ROCM_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
-                            is_same<T, migraphx::half>{})>
-constexpr T numeric_max()
-{
-    if constexpr(is_integral<T>{})
-    {
-        if constexpr(is_unsigned<T>{})
-            return int_max(sizeof(T));
-        else
-            return int_max(sizeof(T)) / 2;
-    }
-    else if constexpr(is_same<T, double>{})
-        return __DBL_MAX__;
-    else if constexpr(is_same<T, float>{})
-        return __FLT_MAX__;
-    else if constexpr(is_same<T, migraphx::half>{})
-        return __FLT16_MAX__;
-    else
-        return 0;
-}
-
-template <class T>
-constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
-{
-    if constexpr(is_integral<T>{})
-    {
-        if constexpr(is_unsigned<T>{})
-            return 0;
-        else
-            return -numeric_max<T>() - 1;
-    }
-    else
-    {
-        return -numeric_max<T>();
-    }
-}
-#endif
-
 } // namespace ROCM_INLINE_NS
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_TYPE_TRAITS_HPP

@@ -118,6 +118,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8_ops.insert("convolution");
         unsupported_fp8_ops.insert("quant_convolution");
     }
+    // add all device kernels
+    unsupported_fp8_ops.insert("logsoftmax");
+    unsupported_fp8_ops.insert("nonzero");
+    unsupported_fp8_ops.insert("prefix_scan_sum");
+    unsupported_fp8_ops.insert("scatter_none");
+    unsupported_fp8_ops.insert("topk");
+    unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8_ops.insert("multinomial");
+    unsupported_fp8_ops.insert("argmax");
+    unsupported_fp8_ops.insert("argmin");
     // clang-format off
     return
     {

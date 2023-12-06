@@ -543,7 +543,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::all)},
+        find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
 #else
     (void)mpm;

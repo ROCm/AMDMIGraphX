@@ -21,23 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_DRIVER_PASSES_HPP
+#define MIGRAPHX_GUARD_DRIVER_PASSES_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/pass.hpp>
+#include <vector>
 
-struct test_nonzero_half : verify_program<test_nonzero_half>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::half_type, {3, 4, 3, 5}};
-        auto x = mm->add_parameter("data", s);
-        auto r = mm->add_instruction(migraphx::make_op("nonzero"), x);
-        mm->add_return({r});
+namespace migraphx {
+namespace driver {
+inline namespace MIGRAPHX_INLINE_NS {
 
-        return p;
-    }
-};
+std::vector<pass> get_passes(const std::vector<std::string>& names);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
+} // namespace migraphx
+
+#endif

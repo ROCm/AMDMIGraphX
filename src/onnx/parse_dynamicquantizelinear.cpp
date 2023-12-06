@@ -99,7 +99,7 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         auto x_type = x_shape.type();
         // 1. Computing y_scale
-        auto l0 = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0}});
+        auto l0 = info.add_literal({0.f});
         // DynamicQuantizeLinear only has uint8 quantization
         auto q_max = info.add_literal(
             migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
@@ -111,23 +111,23 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
             x_reshape = info.add_instruction(
                 migraphx::make_op("reshape", {{"dims", {x_shape.elements()}}}), x);
         }
+        x_reshape = info.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x_reshape, l0);
         // maximum(0, max(x))
         auto topk_max = info.add_instruction(
             migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", true}}), x_reshape);
         auto max_x =
             info.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_max);
-        max_x = info.add_instruction(migraphx::make_op("max"), l0, max_x);
 
         // minimum(0, min(x))
         auto topk_min = info.add_instruction(
             migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", false}}), x_reshape);
         auto min_x =
             info.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_min);
-        min_x = info.add_instruction(migraphx::make_op("min"), l0, min_x);
 
         // y_scale = (maximum(0, max(x)) - minimum(0, min(x))) / (qmax - qmin)
-        auto sub0    = info.add_instruction(migraphx::make_op("sub"), max_x, min_x);
-        auto div     = info.add_instruction(migraphx::make_op("sub"), q_max, q_min);
+        auto sub0 = info.add_instruction(migraphx::make_op("sub"), max_x, min_x);
+        // qmax - qmin is always 255
+        auto div     = q_max;
         auto y_scale = info.add_instruction(migraphx::make_op("div"), sub0, div);
 
         // 2. Computing y_zero_point

@@ -125,9 +125,11 @@ struct match_find_quantizable_ops
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
 
-        // Only INT8 type currently supported
-        if(dq1->inputs().front()->get_shape().type() != migraphx::shape::int8_type or
-           dq2->inputs().front()->get_shape().type() != migraphx::shape::int8_type)
+        // Only INT8 or FP8 type currently supported
+        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                                             migraphx::shape::int8_type};
+        if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
+           not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
 
         // Only symmetric quantization supported (ie. non-zero zero_points not allowed)

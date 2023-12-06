@@ -58,6 +58,10 @@ struct quantizelinear
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
         }
+        if(inputs[0].type() == shape::float_type)
+        {
+            return {shape::fp8e4m3fnuz_type, inputs[0].lens(), inputs[0].strides()};
+        }
         return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
     }
 
@@ -80,10 +84,10 @@ struct quantizelinear
                 auto min_value   = std::numeric_limits<quant_type>::min();
                 auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
-                    int64_t quantized = static_cast<int64_t>(std::nearbyint(input[i] / scales[i])) +
-                                        static_cast<int64_t>(zero_pts[i]);
-                    output[i] = std::max(static_cast<int64_t>(min_value),
-                                         std::min(static_cast<int64_t>(max_value), quantized));
+                    double quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
+                                       static_cast<double>(zero_pts[i]);
+                    output[i] = std::max(static_cast<double>(min_value),
+                                         std::min(static_cast<double>(max_value), quantized));
                 });
             });
         });

@@ -30,11 +30,11 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/value.hpp>
 #include <cmath>
+#include <fenv.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
-
 struct quantizelinear
 {
     std::string name() const { return "quantizelinear"; }
@@ -71,26 +71,26 @@ struct quantizelinear
         {
             y_zero_point = args.at(2);
         }
-
         argument result{output_shape};
+        auto rounding_mode = fegetround();
+        fesetround(FE_TONEAREST);
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             visit_all(x, y_scale)([&](auto input, auto scales) {
                 using quant_type = typename decltype(output)::value_type;
                 auto min_value   = std::numeric_limits<quant_type>::min();
                 auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
-                    int64_t quantized = static_cast<int64_t>(std::round(input[i] / scales[i])) +
+                    int64_t quantized = static_cast<int64_t>(std::nearbyint(input[i] / scales[i])) +
                                         static_cast<int64_t>(zero_pts[i]);
                     output[i] = std::max(static_cast<int64_t>(min_value),
                                          std::min(static_cast<int64_t>(max_value), quantized));
                 });
             });
         });
-
+        fesetround(rounding_mode);
         return result;
     }
 };
-
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

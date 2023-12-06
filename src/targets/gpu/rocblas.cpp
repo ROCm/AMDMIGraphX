@@ -53,19 +53,16 @@ bool get_compute_fp32_flag()
     return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
 }
 
-bool get_int8_x4_format(context& ctx)
+bool rocblas_fp8_available()
 {
-#if ROCBLAS_VERSION_MAJOR >= 3
-    (void)(ctx);
+#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
     return false;
 #else
-    // int8x4 packed format is only available starting from rocblas-v2.38 and it is deprecated in
-    // v3.0 and will be removed in v4.0
-    rocblas_gemm_flags flag;
-    rocblas_query_int8_layout_flag(ctx.get_stream().get_rocblas(), &flag);
-    return flag == rocblas_gemm_flags_pack_int8x4;
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
 #endif
 }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

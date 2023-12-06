@@ -83,7 +83,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_nonmaxsuppression_two_batches_cpu')
     backend_test.exclude(r'test_nonmaxsuppression_two_classes_cpu')
     backend_test.exclude(r'test_nonzero_example_cpu')
-    backend_test.exclude(r'test_round_cpu')
     backend_test.exclude(r'test_softmax_axis_0_cpu')
     backend_test.exclude(r'test_softmax_axis_1_cpu')
     backend_test.exclude(r'test_softmax_default_axis_cpu')
@@ -135,9 +134,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_hardmax_example_cpu')
     backend_test.exclude(r'test_hardmax_negative_axis_cpu')
     backend_test.exclude(r'test_hardmax_one_hot_cpu')
-    backend_test.exclude(r'test_isinf_cpu')
-    backend_test.exclude(r'test_isinf_negative_cpu')
-    backend_test.exclude(r'test_isinf_positive_cpu')
     backend_test.exclude(r'test_matmulinteger_cpu')
     backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
@@ -194,7 +190,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3d4d5_none_no_weight_cpu'
     )
-    backend_test.exclude(r'test_qlinearconv_cpu')
     backend_test.exclude(r'test_qlinearmatmul_2D_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_cpu')
     backend_test.exclude(r'test_range_float_type_positive_delta_expanded_cpu')
@@ -578,9 +573,10 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_lstm_batchwise_cpu')
     backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
+    # MaxPool dialtion is partially supported on GPU by a workaround
+    # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
 
@@ -638,8 +634,6 @@ def disabled_tests_onnx_1_11_0(backend_test):
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
     backend_test.exclude(r'test_roialign_aligned_true_cpu')
-    backend_test.exclude(r'test_scatternd_add_cpu')
-    backend_test.exclude(r'test_scatternd_multiply_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest
@@ -748,8 +742,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
         r'test_reduce_sum_square_negative_axes_keepdims_example_cpu')
     backend_test.exclude(
         r'test_reduce_sum_square_negative_axes_keepdims_random_cpu')
-    backend_test.exclude(r'test_scatternd_max_cpu')
-    backend_test.exclude(r'test_scatternd_min_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest
@@ -834,10 +826,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_larger_cpu')
     backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
     backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
-
-    # The following tests fail due to the CastLike operator being unsupported
-    backend_test.exclude(r'test_split_1d_uneven_split_opset18_cpu')
-    backend_test.exclude(r'test_split_2d_uneven_split_opset18_cpu')
 
 
 def disabled_tests_onnx_1_14_0(backend_test):

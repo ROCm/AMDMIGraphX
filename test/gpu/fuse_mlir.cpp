@@ -144,14 +144,19 @@ TEST_CASE(int_quant_dot_tanh_fails)
         auto tanh = add_pointwise(p1, "main:pointwise0", {dot}, single_pointwise("tanh"));
         mm->add_return({tanh});
     }
-    migraphx::program p2(p1);
-    // This pass should do nothing as int32_t tanh isn't supported.
+    // This pass should not fuse as int32_t tanh isn't supported.
     run_pass(p1);
-    EXPECT(p1 == p2);
+    auto* mm = p1.get_main_module();
+    bool has_pointwise =
+        std::any_of(mm->begin(), mm->end(), [&](const auto& i) { return i.name() == "pointwise"; });
+    EXPECT(has_pointwise);
 }
 
 int main(int argc, const char* argv[])
 {
-    test::run(argc, argv);
+    if(migraphx::gpu::mlir_enabled())
+    {
+        test::run(argc, argv);
+    }
     return 0;
 }

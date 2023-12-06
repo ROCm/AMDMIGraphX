@@ -26,6 +26,7 @@
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
+#include "passes.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
@@ -59,6 +60,13 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+inline std::string get_version()
+{
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+           "." MIGRAPHX_VERSION_TWEAK;
+}
+
 struct loader
 {
     std::string model;
@@ -76,6 +84,7 @@ struct loader
     std::vector<std::string> param_dims;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
+    std::vector<std::string> passes;
 
     void parse(argument_parser& ap)
     {
@@ -123,6 +132,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -330,6 +340,8 @@ struct loader
                                      migraphx::dead_code_elimination{},
                                  });
         }
+        if(not passes.empty())
+            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
         return p;
     }
 
@@ -597,17 +609,6 @@ struct verify : command<verify>
     }
 };
 
-struct version : command<version>
-{
-    void parse(const argument_parser&) {}
-    void run() const
-    {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << "." << MIGRAPHX_VERSION_PATCH << "."
-                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
-    }
-};
-
 struct compile : command<compile>
 {
     compiler c;
@@ -760,16 +761,14 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
-                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+        std::string version_str = get_version();
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+        ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -812,7 +811,6 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
-
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -822,15 +820,27 @@ int main(int argc, const char* argv[])
     auto&& m = get_commands();
     auto cmd = args.front();
 
-    if(cmd == "ort-sha")
+    if(cmd == "--ort-sha")
     {
         std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+    if(cmd == "-v" or cmd == "--version")
+    {
+        std::cout << get_version() << std::endl;
         return 0;
     }
 
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
+        std::string driver_invocation =
+            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        m.at(cmd)(argv[0],
+                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }
     else
     {

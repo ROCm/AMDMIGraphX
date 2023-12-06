@@ -25,7 +25,7 @@ endif()
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 
-project(pocket-rocm-cxx LANGUAGES C CXX)
+project(tiny-rocm-cxx LANGUAGES C CXX)
 include(CTest)
 
 find_package(ROCM REQUIRED)
@@ -190,12 +190,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 add_subdirectory(src)
 if(BUILD_TESTING)
-    rocm_enable_test_package(pocket-rocm-cxx)
+    rocm_enable_test_package(tiny-rocm-cxx)
     add_subdirectory(test)
 endif()
 
 rocm_create_package(
-    NAME pocket-rocm-cxx
+    NAME tiny-rocm-cxx
     DESCRIPTION "Small C++ library for runtime compliation"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG

@@ -21,34 +21,54 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
+#include <iterator>
 #include <migraphx/eliminate_nested_converts.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/op/as_shape.hpp>
+#include <migraphx/op/transpose.hpp>
+#include <migraphx/op/concat.hpp>
+#include <migraphx/op/slice.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
+#include <unordered_set>
+#include <migraphx/make_op.hpp>
+#include <migraphx/tune_axis.hpp>
+
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void optimize_module::apply(module_pass_manager& mpm) const
+struct find_nested_convert
 {
-    for(int i = 0; i < 2; i++)
+    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
+
+    void apply(module& m, const match::matcher_result& mr) const
     {
-        // loop to further optimize after initial transformations
-        for(int j = 0; j < 2; j++)
+        auto ins   = mr.result;
+        auto x     = ins->inputs().front();
+        auto input = x->inputs().front();
+
+        while(input->name() == "convert")
         {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(simplify_algebra{});
+            input = input->inputs().front();
         }
-        mpm.run_pass(eliminate_nested_converts{});
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{});
-        mpm.run_pass(dead_code_elimination{});
+
+        if(ins->get_shape() != input->get_shape())
+            return;
+
+        m.replace_instruction(ins, input);
     }
+};
+
+void eliminate_nested_converts::apply(module& m) const
+{
+    match::find_matches(m, find_nested_convert{});
+    dead_code_elimination{}.apply(m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

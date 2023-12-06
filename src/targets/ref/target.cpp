@@ -29,6 +29,7 @@
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/eliminate_nested_converts.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -49,6 +50,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
         dead_code_elimination{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, {"quant_dot"}},
         dead_code_elimination{},
+        eliminate_nested_converts{},
         insert_pad{},
         dead_code_elimination{},
         rewrite_rnn{},

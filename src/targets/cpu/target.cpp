@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/eliminate_nested_converts.hpp"
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -72,6 +73,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             eliminate_data_type{unsupported_types, shape::type_t::float_type},
             dead_code_elimination{},
+            eliminate_nested_converts{},
             simplify_reshapes{},
             eliminate_identity{},
             eliminate_pad{},

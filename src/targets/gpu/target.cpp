@@ -29,6 +29,7 @@
 #include <migraphx/eliminate_concat.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/eliminate_nested_converts.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_pointwise.hpp>
@@ -124,6 +125,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
+        dead_code_elimination{},
+        eliminate_nested_converts{},
         simplify_reshapes{},
         eliminate_identity{},
         eliminate_pad{},

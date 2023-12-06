@@ -62,6 +62,9 @@ template struct test_reduce_op_small<migraphx::op::reduce_prod, -2, migraphx::sh
 template struct test_reduce_op_small<migraphx::op::reduce_sum,
                                      2,
                                      migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_sum,
+                                     3,
+                                     migraphx::shape::fp8e4m3fnuz_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_mean,
                                      2,
                                      migraphx::shape::fp8e4m3fnuz_type>;

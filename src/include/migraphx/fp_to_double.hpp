@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,47 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
 
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/fp_to_double.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
+struct module;
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+/**
+ * Convert all floating point instructions to double type.
+ * Intended to be used for the `ref` target for verify tests.
+ */
+struct MIGRAPHX_EXPORT fp_to_double
 {
-    return {normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{},
-            fp_to_double{},
-            dead_code_elimination{}};
-}
+    std::string name() const { return "fp_to_double"; }
+    void apply(module& m) const;
+};
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

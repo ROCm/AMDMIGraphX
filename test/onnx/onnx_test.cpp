@@ -4826,8 +4826,9 @@ TEST_CASE(multinomial_test)
     migraphx::shape s{migraphx::shape::float_type, {1}};
     std::vector<float> seed_data = {seed};
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy              = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size, sample_size}},
+                          std::vector<float>(batch_size * sample_size)});
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
@@ -4978,8 +4979,9 @@ TEST_CASE(multinomial_int64_test)
     auto seed_input         = mm->add_literal(migraphx::literal(s, data));
 
     // static size
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size, sample_size}},
+                          std::vector<float>(batch_size * sample_size)});
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, randoms);
     auto prog = optimize_onnx("multinomial_int64_test.onnx");
@@ -5593,6 +5595,54 @@ TEST_CASE(qlinearadd_test)
     auto prog = migraphx::parse_onnx("qlinearadd_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(qlinearaveragepool_notset_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto sc_x   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_x = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {0}});
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {10}});
+
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {1, 1, 5, 5}});
+
+    auto scale_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 5, 5}}}), sc_x);
+
+    auto z_pt_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 5, 5}}}), z_pt_x);
+
+    auto fp_x =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale_x_bcast, z_pt_x_bcast);
+
+    auto fp_y =
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::average},
+                                               {"padding", {2, 2, 2, 2}},
+                                               {"stride", {2, 2}},
+                                               {"lengths", {6, 6}}}),
+                            fp_x);
+
+    fp_y = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {2, 2}}}), fp_y);
+
+    auto scale_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1}}}), sc_y);
+
+    auto z_pt_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1}}}), z_pt_y);
+
+    auto y =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+    auto prog = migraphx::parse_onnx("qlinearaveragepool_notset_test.onnx");
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(qlinearconv_test)
@@ -7227,18 +7277,33 @@ TEST_CASE(scatter_none_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(scatternd_test)
+void scatternd_test_base(const std::string& reduction, const std::string& onnx_file)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
     auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_none"), l0, l1, l2);
+    auto r   = mm->add_instruction(migraphx::make_op("scatternd_" + reduction), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_test.onnx");
+    auto prog = migraphx::parse_onnx(onnx_file);
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(scatternd_test) { scatternd_test_base("none", "scatternd_test.onnx"); }
+
+TEST_CASE(scatternd_add_test) { scatternd_test_base("add", "scatternd_add_test.onnx"); }
+
+TEST_CASE(scatternd_mul_test) { scatternd_test_base("mul", "scatternd_mul_test.onnx"); }
+
+TEST_CASE(scatternd_max_test) { scatternd_test_base("max", "scatternd_max_test.onnx"); }
+
+TEST_CASE(scatternd_min_test) { scatternd_test_base("min", "scatternd_min_test.onnx"); }
+
+TEST_CASE(scatternd_invalid_reduction_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("scatternd_invalid_reduction_test.onnx"); }));
 }
 
 TEST_CASE(scatternd_dyn_test)
@@ -7260,34 +7325,6 @@ TEST_CASE(scatternd_dyn_test)
     options.map_dyn_input_dims["indices"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     options.map_dyn_input_dims["updates"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     auto prog = migraphx::parse_onnx("scatternd_dyn_test.onnx", options);
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_add_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_add"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_add_test.onnx");
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_mul_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_mul"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_mul_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -8565,6 +8602,86 @@ TEST_CASE(undefined_test)
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("undefined_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_dynamic_sorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::float_type, {6}};
+    auto x = mm->add_parameter("X", s);
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+
+    mm->add_return({y, y_ind, x_ind, count});
+    auto prog = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_dynamic_sorted_3D_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::int64_type, {4, 4, 4}};
+    auto x = mm->add_parameter("X", s);
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+
+    mm->add_return({y, y_ind, x_ind, count});
+    auto prog = migraphx::parse_onnx("unique_dynamic_sorted_3D_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_sorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    std::vector<float> x_data = {2, 1, 1, 3, 4, 3};
+    auto x                    = mm->add_literal(migraphx::literal(s_x, x_data));
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+    mm->add_return({y, y_idx, x_idx, count});
+    auto prog = migraphx::parse_onnx("unique_sorted_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_unsorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    std::vector<float> x_data = {2, 1, 1, 3, 4, 3};
+    auto x                    = mm->add_literal(migraphx::literal(s_x, x_data));
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 0}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+    mm->add_return({y, y_idx, x_idx, count});
+    auto prog = migraphx::parse_onnx("unique_unsorted_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <limits>
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTERND_MAX_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTERND_MAX_HPP
 
-struct test_isnan_float : verify_program<test_isnan_float>
+#include <migraphx/op/scatternd_op.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct scatternd_max : scatternd_op<scatternd_max>
 {
-    migraphx::program create_program() const
+    scatternd_max() {}
+
+    auto reduction() const
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2}});
-        auto l0  = mm->add_literal(std::numeric_limits<float>::quiet_NaN());
-        x        = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, l0);
-        mm->add_instruction(migraphx::make_op("isnan"), x);
-        return p;
+        return [](auto& x, const auto& y) { x = std::max(x, y); };
     }
 };
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

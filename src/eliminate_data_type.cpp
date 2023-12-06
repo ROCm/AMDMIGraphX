@@ -120,6 +120,22 @@ void eliminate_data_type::apply(module& m) const
         if(contains(unsupported_ops, "all") or contains(unsupported_ops, ins->name()))
             insert_convert_to_supported_type(m, ins, target_type, unsupported_types);
     }
+    // remove nested converts
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "convert")
+        {
+            auto convert_input = ins->inputs().front();
+            while(convert_input->name() == "convert")
+            {
+                convert_input = convert_input->inputs().front();
+            }
+            if(convert_input->get_shape() == ins->get_shape())
+            {
+                m.replace_instruction(ins, convert_input);
+            }
+        }
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

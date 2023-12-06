@@ -195,7 +195,7 @@ struct gemm_impl
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
-        output_type = arg_type;
+        output_type = get_type(input_shapes[2].type());
         if(output_type == rocblas_datatype_i8_r)
         {
             output_type = rocblas_datatype_i32_r;

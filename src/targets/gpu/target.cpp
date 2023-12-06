@@ -105,6 +105,21 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    std::set<std::string> unsupported_fp8_ops = {};
+    if(not gpu::rocblas_fp8_available())
+    {
+        unsupported_fp8_ops.insert("dot");
+    }
+    // add all device kernels
+    unsupported_fp8_ops.insert("logsoftmax");
+    unsupported_fp8_ops.insert("nonzero");
+    unsupported_fp8_ops.insert("prefix_scan_sum");
+    unsupported_fp8_ops.insert("scatter_none");
+    unsupported_fp8_ops.insert("topk");
+    unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8_ops.insert("multinomial");
+    unsupported_fp8_ops.insert("argmax");
+    unsupported_fp8_ops.insert("argmin");
     // clang-format off
     return
     {
@@ -134,6 +149,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
         prefuse_ops{},
+        dead_code_elimination{},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},

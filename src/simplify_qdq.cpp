@@ -86,12 +86,17 @@ struct match_find_quantizable_ops
     {
         auto qinp     = dqins->inputs().front();
         auto next_ins = dqins;
-
         while(next_ins != qop)
         {
             if(next_ins->name() != "dequantizelinear")
             {
                 qinp = m.insert_instruction(qop, next_ins->get_operator(), qinp);
+            }
+            if(std::any_of(next_ins->outputs().begin(),
+                           next_ins->outputs().end(),
+                           [&](const auto i) { return i == qop; }))
+            {
+                break;
             }
             next_ins = next_ins->outputs().front();
         }
@@ -124,7 +129,6 @@ struct match_find_quantizable_ops
         auto scale2 = r.instructions["scale2"];
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
-
         // Only INT8 or FP8 type currently supported
         std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
                                                              migraphx::shape::int8_type};

@@ -326,7 +326,6 @@ struct find_const_alloc_fill
  * To:
  * multibroadcast(static_shape_arg); output_lens = static_dot_broadcasted_shape
  */
-
 struct find_static_dot_broadcast
 {
     auto matcher() const

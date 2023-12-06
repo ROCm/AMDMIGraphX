@@ -125,6 +125,8 @@ struct find_add_layernorm
     }
 };
 
+#ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
+
 struct pre_gemm_softmax_gemm : gemm_softmax_gemm
 {
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
@@ -200,6 +202,8 @@ struct find_gemm_softmax_gemm
             ins, pre_gemm_softmax_gemm{gemm2_ins->get_operator(), scale}, inputs);
     }
 };
+
+#endif
 
 } // namespace
 

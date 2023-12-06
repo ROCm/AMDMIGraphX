@@ -48,4 +48,5 @@ struct gemm_2args_mm_7 : verify_program<gemm_2args_mm_7<DType>>
 };
 
 template struct gemm_2args_mm_7<migraphx::shape::float_type>;
+template struct gemm_2args_mm_7<migraphx::shape::half_type>;
 template struct gemm_2args_mm_7<migraphx::shape::fp8e4m3fnuz_type>;

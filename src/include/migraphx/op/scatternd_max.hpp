@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTERND_MAX_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTERND_MAX_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/op/scatternd_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace op {
 
-argument MIGRAPHX_DEVICE_EXPORT
-gather(hipStream_t stream, argument result, argument arg1, argument arg2, int64_t axis);
+struct scatternd_max : scatternd_op<scatternd_max>
+{
+    scatternd_max() {}
 
-} // namespace device
-} // namespace gpu
+    auto reduction() const
+    {
+        return [](auto& x, const auto& y) { x = std::max(x, y); };
+    }
+};
+
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

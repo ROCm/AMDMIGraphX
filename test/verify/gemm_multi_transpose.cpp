@@ -50,4 +50,5 @@ struct gemm_multi_transpose : verify_program<gemm_multi_transpose<DType>>
 };
 
 template struct gemm_multi_transpose<migraphx::shape::float_type>;
+template struct gemm_multi_transpose<migraphx::shape::half_type>;
 template struct gemm_multi_transpose<migraphx::shape::fp8e4m3fnuz_type>;

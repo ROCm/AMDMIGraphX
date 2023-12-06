@@ -49,4 +49,5 @@ struct gemm_2args_bmv : verify_program<gemm_2args_bmv<DType>>
 };
 
 template struct gemm_2args_bmv<migraphx::shape::float_type>;
+template struct gemm_2args_bmv<migraphx::shape::half_type>;
 template struct gemm_2args_bmv<migraphx::shape::fp8e4m3fnuz_type>;

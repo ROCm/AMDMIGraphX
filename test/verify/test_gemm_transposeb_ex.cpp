@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+
 template <migraphx::shape::type_t DType>
 struct test_gemm_transposeb_ex : verify_program<test_gemm_transposeb_ex<DType>>
 {
@@ -43,4 +44,5 @@ struct test_gemm_transposeb_ex : verify_program<test_gemm_transposeb_ex<DType>>
 };
 
 template struct test_gemm_transposeb_ex<migraphx::shape::float_type>;
+template struct test_gemm_transposeb_ex<migraphx::shape::half_type>;
 template struct test_gemm_transposeb_ex<migraphx::shape::fp8e4m3fnuz_type>;

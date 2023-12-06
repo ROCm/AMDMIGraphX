@@ -217,6 +217,12 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
         ss << op.mode;
         MIGRAPHX_THROW(ss.str());
     }
+    if(not std::all_of(
+           op.dilations.cbegin(), op.dilations.cend(), [](std::size_t d) { return d == 1; }))
+    {
+        MIGRAPHX_THROW("Unsupported dilations for pooling: [" + to_string_range(op.dilations) +
+                       "]");
+    }
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
 
     int kdims = op.kdims();

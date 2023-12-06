@@ -46,4 +46,5 @@ struct gemm_literal : verify_program<gemm_literal<DType>>
 };
 
 template struct gemm_literal<migraphx::shape::float_type>;
+template struct gemm_literal<migraphx::shape::half_type>;
 template struct gemm_literal<migraphx::shape::fp8e4m3fnuz_type>;

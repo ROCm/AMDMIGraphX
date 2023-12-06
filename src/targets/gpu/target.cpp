@@ -52,7 +52,6 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
-#include <migraphx/eliminate_fp8.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -107,12 +106,19 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    // whiltelist supported Ops for the FP8
     std::set<std::string> unsupported_fp8_ops = {};
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
     }
+    // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
+    }
     // clang-format off
     return
     {
@@ -144,7 +150,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
-        eliminate_fp8{unsupported_fp8_ops},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
-struct gemm_add_half : verify_program<gemm_add_half>
+
+struct test_scatternd_max : verify_program<test_scatternd_max>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
-        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
-        auto l3 = mm->add_parameter("3", m3_shape);
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+        std::vector<int64_t> ind_vec{4, 3, 1, 7};
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        auto data    = mm->add_parameter("data", ds);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_parameter("update", us);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_max"), data, indices, updates);
+        mm->add_return({scatternd});
+
         return p;
     }
 };

@@ -22,9 +22,9 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/shape.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
@@ -49,4 +49,5 @@ struct gemm_2args_mm_3 : verify_program<gemm_2args_mm_3<DType>>
 };
 
 template struct gemm_2args_mm_3<migraphx::shape::float_type>;
+template struct gemm_2args_mm_3<migraphx::shape::half_type>;
 template struct gemm_2args_mm_3<migraphx::shape::fp8e4m3fnuz_type>;

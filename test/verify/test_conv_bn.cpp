@@ -54,7 +54,7 @@ struct test_conv_bn : verify_program<test_conv_bn<DType>>
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
 
-        auto rt  = mm->add_literal(migraphx::literal{DType, {0.5}});
+        auto rt = mm->add_literal(migraphx::literal{DType, {0.5}});
 
         auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
         if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)

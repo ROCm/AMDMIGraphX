@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/gather.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/gather.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-shape hip_gather::compute_shape(std::vector<shape> inputs) const
+struct test_scatternd_min_duplicate_idx : verify_program<test_scatternd_min_duplicate_idx>
 {
-    inputs.pop_back();
-    return op.normalize_compute_shape(inputs);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm   = p.get_main_module();
+        auto dtype = migraphx::shape::float_type;
+        auto itype = migraphx::shape::int64_type;
+        migraphx::shape ds{dtype, {8}};
+        migraphx::shape is{itype, {4, 1}};
+        migraphx::shape us{dtype, {4}};
+        std::vector<int64_t> ind_vec{4, 7, 4, 7};
 
-argument hip_gather::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::gather(ctx.get_stream().get(), args.back(), args[0], args[1], op.axis);
-}
+        auto data    = mm->add_parameter("data", ds);
+        auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+        auto updates = mm->add_parameter("update", us);
+        auto scatternd =
+            mm->add_instruction(migraphx::make_op("scatternd_min"), data, indices, updates);
+        mm->add_return({scatternd});
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        return p;
+    }
+};

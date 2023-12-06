@@ -126,7 +126,6 @@ add_library(migraphx_gpu
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
-    gather.cpp
     gemm_impl.cpp
     hip.cpp
     kernel.cpp
@@ -140,7 +139,6 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
-    pad.cpp
     perfdb.cpp
     pooling.cpp
     reverse.cpp
@@ -168,12 +166,10 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     argmax
     argmin
-    gather
     logsoftmax
     loop
     multinomial
     nonzero
-    pad
     prefix_scan_sum
     reverse
     scatter

@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/ranges.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
 
@@ -39,7 +40,6 @@ __device__ void pad(const index& idx,
                     const PadVal& pad_val)
 {
     auto output_shape = output.get_shape();
-    using otype       = typename Output::type;
     idx.global_stride(output_shape.elements(), [&](auto i) {
         // 1. get current multi-index for output
         // 2. get the size of the input to determine input boundaries
@@ -54,9 +54,9 @@ __device__ void pad(const index& idx,
         if(any_of(range_multi.begin(), range_multi.end(), [&](auto j) {
                return multi[j] < offsets[j] or input_idx[j] >= input_bounds[j];
            }))
-            output[multi] = otype(pad_val);
+            output[multi] = implicit_conversion(pad_val);
         else
-            output[multi] = otype(input[input_idx]);
+            output[multi] = implicit_conversion(input[input_idx]);
     });
 }
 

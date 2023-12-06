@@ -34,9 +34,9 @@ struct test_conv_add : verify_program<test_conv_add<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", {DType, {1, 8, 4, 4}});
-        auto w   = mm->add_literal(migraphx::generate_literal({DType, {2, 8, 3, 3}}, 1));
-        auto y   = mm->add_parameter("y", {DType, {1, 8, 4, 4}});
+        auto x     = mm->add_parameter("x", {DType, {1, 8, 4, 4}});
+        auto w     = mm->add_literal(migraphx::generate_literal({DType, {2, 8, 3, 3}}, 1));
+        auto y     = mm->add_parameter("y", {DType, {1, 8, 4, 4}});
         auto v     = mm->add_literal(migraphx::generate_literal({DType, {2, 8, 3, 3}}, 2));
         auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), x, w);
         auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), y, v);

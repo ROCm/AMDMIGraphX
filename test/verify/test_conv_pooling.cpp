@@ -35,10 +35,8 @@ struct test_conv_pooling : verify_program<test_conv_pooling<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{DType, {4, 3, 32, 32}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 32, 32}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
         auto conv    = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         auto pooling = mm->add_instruction(
             migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), conv);

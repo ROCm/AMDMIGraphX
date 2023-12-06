@@ -97,7 +97,8 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2<DT
                                               {{"mode", migraphx::op::pooling_mode::average},
                                                {"padding", {1, 1}},
                                                {"stride", {2, 2}},
-                                               {"lengths", {3, 3}}}),
+                                               {"lengths", {3, 3}},
+                                               {"dilations", {1, 1}}}),
                             relu);
         return p;
     }

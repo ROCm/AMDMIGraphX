@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTERND_MIN_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTERND_MIN_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/scatternd_op.hpp>
 
-struct test_conv_relu_half : verify_program<test_conv_relu_half>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct scatternd_min : scatternd_op<scatternd_min>
 {
-    migraphx::program create_program() const
+    scatternd_min() {}
+
+    auto reduction() const
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::half_type, {4, 3, 3, 3}});
-        auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
-        mm->add_instruction(migraphx::make_op("relu"), conv);
-        return p;
+        return [](auto& x, const auto& y) { x = std::min(x, y); };
     }
 };
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

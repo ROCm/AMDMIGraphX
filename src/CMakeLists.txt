@@ -28,6 +28,7 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+include(CheckCXXSourceCompiles)
 
 add_library(migraphx
     adjust_allocation.cpp
@@ -48,7 +49,6 @@ add_library(migraphx
     eliminate_concat.cpp
     eliminate_contiguous.cpp
     eliminate_data_type.cpp
-    eliminate_fp8.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
@@ -221,6 +221,8 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    scatternd_max
+    scatternd_min
     select_module
     sigmoid
     sign
@@ -239,6 +241,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where
@@ -263,6 +266,51 @@ endif()
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
+
+function(check_execution_par RESULT)
+    set(CMAKE_REQUIRED_LIBRARIES ${ARGN})
+    set(CMAKE_REQUIRED_FLAGS)
+    if(NOT MSVC)
+        set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+    endif()
+    string(MD5 _flags_hash "${CMAKE_REQUIRED_FLAGS} ${CMAKE_REQUIRED_LIBRARIES}")
+    set(_source "
+#include <execution>
+
+int main() {
+    int* i = nullptr;
+    std::sort(std::execution::par, i, i);
+}
+")
+    check_cxx_source_compiles("${_source}" _has_execution_${_flags_hash})
+    set(${RESULT} ${_has_execution_${_flags_hash}} PARENT_SCOPE)
+endfunction()
+
+set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
+find_package(TBB QUIET)
+if(TBB_FOUND)
+    check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
+    if(TBB_HAS_EXECUTION_PAR)
+        list(APPEND PACKAGE_DEPENDS PACKAGE TBB)
+        target_link_libraries(migraphx PUBLIC TBB::tbb)
+        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+        message(STATUS "Using TBB for parallel execution")
+    endif()
+else()
+    check_execution_par(HAS_EXECUTION_PAR)
+    if(HAS_EXECUTION_PAR)
+        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+    endif()
+endif()
+
+option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
+if(MIGRAPHX_HAS_EXECUTORS)
+    message("Parallel STL enabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+else()
+    message("Parallel STL disabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
+endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)

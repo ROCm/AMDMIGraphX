@@ -365,15 +365,6 @@ struct float8
     inline __device__ constexpr float8& operator=(const float8& rhs)     = default;
     inline __device__ constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    inline __device__ constexpr bool operator==(const float8& rhs) const
-    {
-        if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
-            return false;
-        else if((rhs.is_zero() and this->is_zero()) or (this->data == rhs.data))
-            return true;
-        return false;
-    }
-
     inline __device__ constexpr bool operator<(const float8& rhs) const
     {
         const auto we   = static_cast<float>(*this);
@@ -403,12 +394,20 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     }
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FP8_FABS(T)                \
-    inline constexpr __device__ T fabs(T v) \
-    {                                       \
-        /*NOLINTNEXTLINE*/                  \
-        v.data = v.data & 0x7f;             \
-        return v;                           \
+#define MIGRAPHX_FP8_OTHER_OPS(T)                                            \
+    inline constexpr __device__ T fabs(T v)                                  \
+    {                                                                        \
+        /*NOLINTNEXTLINE*/                                                   \
+        v.data = v.data & 0x7f;                                              \
+        return v;                                                            \
+    }                                                                        \
+    inline __device__ constexpr bool operator==(const T& lhs, const T& rhs)  \
+    {                                                                        \
+        if(rhs.is_nan() or rhs.is_inf() or lhs.is_nan() or lhs.is_inf())     \
+            return false;                                                    \
+        else if((rhs.is_zero() and lhs.is_zero()) or (lhs.data == rhs.data)) \
+            return true;                                                     \
+        return false;                                                        \
     }
 
 // NOLINTNEXTLINE
@@ -417,11 +416,10 @@ using fp8e5m2fnuz = float8<migraphx::fp8::f8_type::bf8, true>;
     MIGRAPHX_FP8_BINARY_OP(-, T, T)      \
     MIGRAPHX_FP8_BINARY_OP(/, T, T)      \
     MIGRAPHX_FP8_BINARY_OP(+, T, T)      \
-    MIGRAPHX_FP8_BINARY_OP(==, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(>=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(<=, T, bool)  \
     MIGRAPHX_FP8_BINARY_OP(!=, T, bool)  \
-    MIGRAPHX_FP8_FABS(T)
+    MIGRAPHX_FP8_OTHER_OPS(T)
 
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2)
 MIGRAPHX_FP8_GEN_OP_OVERLOADS(fp8e5m2fnuz)
@@ -447,7 +445,7 @@ class numeric_limits<fp8e4m3fnuz>
     {
         return fp8e4m3fnuz(0x7F, fp8e4m3fnuz::from_bits());
     }
-    // this is min value that is not DeNorm. DeNorm min is 0x01
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01
     static constexpr __device__ fp8e4m3fnuz min()
     {
         return fp8e4m3fnuz(0x08, fp8e4m3fnuz::from_bits());
@@ -475,7 +473,7 @@ class numeric_limits<fp8e4m3fn>
     }
 
     static constexpr __device__ fp8e4m3fn max() { return fp8e4m3fn(0x7E, fp8e4m3fn::from_bits()); }
-    // this is min value that is not DeNorm. DeNorm min is 0x01
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01
     static constexpr __device__ fp8e4m3fn min() { return fp8e4m3fn(0x08, fp8e4m3fn::from_bits()); }
 
     static constexpr __device__ fp8e4m3fn lowest()
@@ -503,8 +501,7 @@ class numeric_limits<fp8e5m2fnuz>
     {
         return fp8e5m2fnuz(0x7F, fp8e5m2fnuz::from_bits());
     }
-    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
-    // this distinction. For the floating points we would end up using lowest most of the times.
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01.
     static constexpr __device__ fp8e5m2fnuz min()
     {
         return fp8e5m2fnuz(0x4, fp8e5m2fnuz::from_bits());
@@ -529,8 +526,7 @@ class numeric_limits<fp8e5m2>
     }
 
     static constexpr __device__ fp8e5m2 max() { return fp8e5m2(0x7B, fp8e5m2::from_bits()); }
-    // this is min value that is not DeNorm. DeNorm min is 0x01. I am not sure if we want to make
-    // this distinction. For the floating points we would end up using lowest most of the times.
+    // this is min value that is not DeNormalized(DeNorm). DeNorm min is 0x01.
     static constexpr __device__ fp8e5m2 min() { return fp8e5m2(0x4, fp8e5m2::from_bits()); }
 
     static constexpr __device__ fp8e5m2 lowest() { return fp8e5m2(0xFB, fp8e5m2::from_bits()); }
@@ -539,24 +535,26 @@ class numeric_limits<fp8e5m2>
 };
 
 } // namespace fp8
-
-// NOLINTNEXTLINE
-#define MIGRAPHX_FP8_MIN_MAX(T)                  \
-    template <>                                  \
-    constexpr T numeric_max<T, void>()           \
-    {                                            \
-        return fp8::numeric_limits<T>::max();    \
-    }                                            \
-    template <>                                  \
-    constexpr T numeric_lowest<T>()              \
-    {                                            \
-        return fp8::numeric_limits<T>::lowest(); \
-    }
-
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fnuz);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2fnuz);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e4m3fn);
-MIGRAPHX_FP8_MIN_MAX(fp8::fp8e5m2);
+template <class T,
+          MIGRAPHX_REQUIRES(is_same<T, fp8::fp8e4m3fnuz>{} or is_same<T, fp8::fp8e5m2fnuz>{} or
+                            is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
+constexpr T numeric_max(migraphx::fp8::f8_type unused = migraphx::fp8::f8_type::fp8)
+{
+    // unused parameter is added to make this numeric_max different overload definition
+    // compared to numeric_max defined in type_traits.hpp
+    (void)(unused);
+    return fp8::numeric_limits<T>::max();
+}
+template <class T,
+          MIGRAPHX_REQUIRES(is_same<T, fp8::fp8e4m3fnuz>{} or is_same<T, fp8::fp8e5m2fnuz>{} or
+                            is_same<T, fp8::fp8e4m3fn>{} or is_same<T, fp8::fp8e5m2>{})>
+constexpr T numeric_lowest(migraphx::fp8::f8_type unused = migraphx::fp8::f8_type::fp8)
+{
+    // unused parameter is added to make this numeric_lowest different overload definition
+    // compared to numeric_lowest defined in type_traits.hpp
+    (void)(unused);
+    return fp8::numeric_limits<T>::lowest();
+}
 } // namespace migraphx
 // =================================================================================================
 #if defined(__clang__)

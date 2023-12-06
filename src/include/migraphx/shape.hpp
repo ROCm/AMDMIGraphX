@@ -104,7 +104,7 @@ struct MIGRAPHX_EXPORT shape
 
         bool within_range(const dynamic_dimension& other)
         {
-            return (this->min >= other.min and this->max <= other.max);
+            return ((this->min >= other.min) and (this->max <= other.max));
         }
 
         MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,

@@ -26,6 +26,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

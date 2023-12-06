@@ -89,8 +89,8 @@ struct dot
             }
             std::size_t dim_i = s0.ndim() - 2;
             std::size_t dim_j = s0.ndim() - 1;
-            auto x            = s0.dyn_dims()[dim_i];
-            auto y            = s1.dyn_dims()[dim_j];
+            auto x            = s0.dyn_dims()[dim_j];
+            auto y            = s1.dyn_dims()[dim_i];
 
             // check inner dimensions are within range
             if(not x.within_range(y) and not y.within_range(x))

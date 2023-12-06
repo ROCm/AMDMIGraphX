@@ -306,6 +306,7 @@ target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 
 add_subdirectory(driver)

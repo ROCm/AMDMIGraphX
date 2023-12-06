@@ -27,14 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
+template <migraphx::shape::type_t DType>
+struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::float_type, {2, 128, 32}, {4096, 1, 128}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {32, 32}};
+        migraphx::shape a_shape{DType, {2, 128, 32}, {4096, 1, 128}};
+        migraphx::shape b_shape{DType, {32, 32}};
         auto a  = mm->add_parameter("a", a_shape);
         auto b  = mm->add_parameter("b", b_shape);
         auto bb = mm->add_instruction(
@@ -45,3 +46,7 @@ struct gemm_2args_mm_8 : verify_program<gemm_2args_mm_8>
         return p;
     }
 };
+
+template struct gemm_2args_mm_8<migraphx::shape::float_type>;
+// template struct gemm_2args_mm_8<migraphx::shape::half_type>;
+template struct gemm_2args_mm_8<migraphx::shape::fp8e4m3fnuz_type>;

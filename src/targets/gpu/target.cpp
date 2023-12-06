@@ -105,6 +105,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    std::set<std::string> unsupported_fp8_ops = {};
+    if(not gpu::rocblas_fp8_available())
+    {
+        unsupported_fp8_ops.insert("dot");
+    }
     // clang-format off
     return
     {
@@ -136,6 +141,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
+        dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},

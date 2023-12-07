@@ -30,7 +30,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/quantize_int8.hpp>
+#include <migraphx/quantize_8bits.hpp>
 #include <migraphx/quantize_fp16.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>

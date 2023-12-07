@@ -21,32 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
 
 #include <string>
 #include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
+#include <functional>
+#include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+struct module;
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
+/**
+ * capture inputs of operators to be quantized to int8
+ */
+struct MIGRAPHX_EXPORT capture_arguments_pass
+{
+    std::vector<std::string> ins_names = {"dot", "convolution"};
+    std::function<void(std::size_t, std::vector<argument>)> f{};
+    std::size_t* param_index = nullptr;
+    std::string name() const { return "capture_arguments"; }
+    void apply(module& m) const;
+};
 
-MIGRAPHX_EXPORT void quantize_8bits(program& prog,
-                                    const target& t,
-                                    shape::type_t precision,
-                                    const std::vector<parameter_map>& calibration,
-                                    const std::vector<std::string>& ins_names = {"dot",
-                                                                                 "convolution"});
+/**
+ * quantize a program to int8
+ */
+struct MIGRAPHX_EXPORT quantize_8bits_pass
+{
+    std::vector<std::string> ins_names = {"dot", "convolution"};
+    std::vector<std::pair<float, float>> quant_params;
+    std::string name() const { return "quantize_8bits"; }
+    void apply(module& m) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

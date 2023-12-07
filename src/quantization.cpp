@@ -25,7 +25,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/quantize_fp16.hpp>
-#include <migraphx/quantize_int8.hpp>
+#include <migraphx/quantize_8bits.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
@@ -45,7 +45,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
 
 // This function is to convert any instructions specified in the input
 // from double or float to float16 by inserting a convert operator.
@@ -57,29 +57,31 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
     run_passes(prog, {optimize_module{}, quantize_fp16_pass{ins_names}, optimize_module{}});
 }
 
-void quantize_int8(program& prog,
-                   const target& t,
-                   const std::vector<parameter_map>& calibration,
-                   const std::vector<std::string>& ins_names)
+void quantize_8bits(program& prog,
+                    const target& t,
+                    shape::type_t precision,
+                    const std::vector<parameter_map>& calibration,
+                    const std::vector<std::string>& ins_names)
 {
     std::set<std::string> op_names = {"convolution", "dot"};
     std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
     if(not std::includes(
            op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
     {
-        MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
+        MIGRAPHX_THROW("QUANTIZE_8BITS: only support DOT and CONVOLUTION operation");
     }
 
-    // Run optimize_module() before converting to int8 to const eval and fold in FP32 to
+    // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
     run_passes(prog, {optimize_module{}});
 
-    std::shared_ptr<std::vector<std::pair<float, float>>> int8_quant_params =
+    std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
 
-    auto calc_quant_params = [int8_quant_params, max_abs_vals, &t](std::size_t ins_index,
-                                                                   std::vector<argument> args) {
+    float quantized_range  = (precision == shape::type_t::int8_type) ? 127.0 : 240.0;
+    auto calc_quant_params = [quant_8bit_params, max_abs_vals, quantized_range, &t](
+                                 std::size_t ins_index, std::vector<argument> args) {
         std::pair<float, float> param_pair{64.0f, 0.0f};
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0
@@ -98,15 +100,15 @@ void quantize_int8(program& prog,
         }
         else
         {
-            param_pair.first = 127.0f / max_abs_vals->at(ins_index);
+            param_pair.first = quantized_range / max_abs_vals->at(ins_index);
         }
-        int8_quant_params->at(ins_index) = param_pair;
+        quant_8bit_params->at(ins_index) = param_pair;
     };
 
     // pass to add capture argument op
     std::size_t param_num = 0;
     run_passes(prog, {capture_arguments_pass{ins_names, calc_quant_params, &param_num}});
-    int8_quant_params->resize(param_num, std::pair<float, float>(64.0f, 0.0f));
+    quant_8bit_params->resize(param_num, std::pair<float, float>(64.0f, 0.0f));
     max_abs_vals->resize(param_num, 0.0f);
 
     // use the calibration data to compute the quantization scale
@@ -134,11 +136,11 @@ void quantize_int8(program& prog,
     }
 
     // print the quantization parameters in only the main module
-    if(enabled(MIGRAPHX_INT8_QUANTIZATION_PARAMS{}))
+    if(enabled(MIGRAPHX_8BITS_QUANTIZATION_PARAMS{}))
     {
-        for(std::size_t i = 0; i < int8_quant_params->size(); ++i)
+        for(std::size_t i = 0; i < quant_8bit_params->size(); ++i)
         {
-            auto param = int8_quant_params->at(i);
+            auto param = quant_8bit_params->at(i);
             std::cout << "ins_index = " << i << ", scale = " << param.first
                       << ", shift = " << param.second << std::endl;
         }
@@ -146,7 +148,7 @@ void quantize_int8(program& prog,
     }
 
     run_passes(prog,
-               {quantize_int8_pass{ins_names, *int8_quant_params},
+               {quantize_8bits_pass{ins_names, *quant_8bit_params},
                 simplify_qdq{},
                 optimize_module{},
                 dead_code_elimination{}});

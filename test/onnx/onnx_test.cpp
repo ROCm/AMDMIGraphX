@@ -1874,24 +1874,20 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     auto x      = mm->add_parameter("x", {x_type, x_dims});
 
     auto l0    = mm->add_literal({0.f});
-    auto q_max = mm->add_literal(
-        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
     auto q_min = mm->add_literal(
         migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
+    auto q_max = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
+    auto q_scale = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
     auto x_reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
     x_reshape      = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x_reshape, l0);
 
-    auto topk_max = mm->add_instruction(
-        migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", true}}), x_reshape);
-    auto max_x = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_max);
-
-    auto topk_min = mm->add_instruction(
-        migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", false}}), x_reshape);
-    auto min_x = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_min);
+    auto max_x = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), x_reshape);
+    auto min_x = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), x_reshape);
 
     auto sub0    = mm->add_instruction(migraphx::make_op("sub"), max_x, min_x);
-    auto div     = q_max;
-    auto y_scale = mm->add_instruction(migraphx::make_op("div"), sub0, div);
+    auto y_scale = mm->add_instruction(migraphx::make_op("div"), sub0, q_scale);
 
     auto sub1         = mm->add_instruction(migraphx::make_op("sub"), q_min, min_x);
     auto interm_zp    = mm->add_instruction(migraphx::make_op("div"), sub1, y_scale);

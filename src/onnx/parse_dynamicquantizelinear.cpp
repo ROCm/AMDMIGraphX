@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,12 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 {
     std::vector<op_desc> operators() const { return {{"DynamicQuantizeLinear"}}; }
 
+    template <class T>
+    std::pair<int32_t, int32_t> num_limits() const
+    {
+        return std::make_pair(std::numeric_limits<T>::min(), std::numeric_limits<T>::max());
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& /*parser*/,
                                        const onnx_parser::node_info& info,
@@ -101,10 +107,11 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         // 1. Computing y_scale
         auto l0 = info.add_literal({0.f});
         // DynamicQuantizeLinear only has uint8 quantization
-        auto q_max = info.add_literal(
-            migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
-        auto q_min = info.add_literal(
-            migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
+        auto limits = num_limits<uint8_t>();
+        auto q_min  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {limits.first}});
+        auto q_max  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {limits.second}});
+        auto q_scale = info.add_literal(
+            migraphx::literal{migraphx::shape{x_type}, {limits.second - limits.first}});
         auto x_reshape = x;
         if(x_shape.lens().size() != 1)
         {
@@ -113,27 +120,21 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         }
         x_reshape = info.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x_reshape, l0);
         // maximum(0, max(x))
-        auto topk_max = info.add_instruction(
-            migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", true}}), x_reshape);
         auto max_x =
-            info.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_max);
+            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), x_reshape);
 
         // minimum(0, min(x))
-        auto topk_min = info.add_instruction(
-            migraphx::make_op("topk", {{"axis", 0}, {"k", 1}, {"largest", false}}), x_reshape);
         auto min_x =
-            info.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk_min);
+            info.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), x_reshape);
 
         // y_scale = (maximum(0, max(x)) - minimum(0, min(x))) / (qmax - qmin)
-        auto sub0 = info.add_instruction(migraphx::make_op("sub"), max_x, min_x);
-        // qmax - qmin is always 255
-        auto div     = q_max;
-        auto y_scale = info.add_instruction(migraphx::make_op("div"), sub0, div);
+        auto sub0    = info.add_common_op("sub", max_x, min_x);
+        auto y_scale = info.add_common_op("div", sub0, q_scale);
 
         // 2. Computing y_zero_point
         // intermediate_zero_point = qmin - min(x) / y_scale
-        auto sub1      = info.add_instruction(migraphx::make_op("sub"), q_min, min_x);
-        auto interm_zp = info.add_instruction(migraphx::make_op("div"), sub1, y_scale);
+        auto sub1      = info.add_common_op("sub", q_min, min_x);
+        auto interm_zp = info.add_common_op("div", sub1, y_scale);
         // y_zero_point = cast(round(saturate(itermediate_zero_point)))
         auto saturate = info.add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
         auto round    = info.add_instruction(migraphx::make_op("nearbyint"), saturate);

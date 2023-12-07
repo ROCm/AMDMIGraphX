@@ -527,6 +527,62 @@ TEST_CASE(dot_add)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(dot_add_multiple_dq_use)
+{
+    migraphx::shape sh1{migraphx::shape::float_type, {32, 1}};
+    migraphx::shape sh2{migraphx::shape::float_type, {32, 32}};
+    migraphx::module m1;
+    {
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto q1 = add_quantize_op(m1, "quantizelinear", t1, scale, zero);
+        auto d1 = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
+        auto d1_t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), d1);
+        auto d1_tmb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {32, 32}}}), d1_t);
+        auto d1_tmbc = m1.add_instruction(migraphx::make_op("contiguous"), d1_tmb);
+        auto q2      = add_quantize_op(m1, "quantizelinear", t2, scale, zero);
+        auto d2      = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
+        auto dot_1   = m1.add_instruction(migraphx::make_op("dot"), d1_tmbc, d2);
+        auto q3      = add_quantize_op(m1, "quantizelinear", dot_1, scale, zero);
+        auto d3      = add_quantize_op(m1, "dequantizelinear", q3, scale, zero);
+        auto dot_2   = m1.add_instruction(migraphx::make_op("dot"), d3, d1);
+        auto add     = m1.add_instruction(migraphx::make_op("add"), {dot_2, d1});
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto t1    = m2.add_parameter("t1", sh1);
+        auto t2    = m2.add_parameter("t2", sh2);
+        auto scale = m2.add_literal(0.5f);
+        auto zero  = m2.add_literal(std::int8_t{0});
+
+        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, zero);
+        auto q1_t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), q1);
+        auto q1_tmb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {32, 32}}}), q1_t);
+        auto q1_tmbc     = m2.add_instruction(migraphx::make_op("contiguous"), q1_tmb);
+        auto q2          = add_quantize_op(m2, "quantizelinear", t2, scale, zero);
+        auto dot_1       = m2.add_instruction(migraphx::make_op("quant_dot"), q1_tmbc, q2);
+        auto out_scale   = add_scale_mul(m2, scale, scale, 1, 1, dot_1->get_shape().lens());
+        auto d3          = add_quantize_op(m2, "dequantizelinear", dot_1, out_scale);
+        auto d3_q        = add_quantize_op(m2, "quantizelinear", d3, scale, zero);
+        auto dot_2       = m2.add_instruction(migraphx::make_op("quant_dot"), d3_q, q1);
+        auto out_scale_2 = add_scale_mul(m2, scale, scale, 1, 1, dot_2->get_shape().lens());
+        auto d4          = add_quantize_op(m2, "dequantizelinear", dot_2, out_scale_2);
+        auto add         = m2.add_instruction(migraphx::make_op("add"), d4, t1);
+        m2.add_return({add});
+    }
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(conv)
 {
     migraphx::shape s4{migraphx::shape::int8_type, {1280, 320, 1, 1}};
@@ -919,7 +975,6 @@ TEST_CASE(mobilenet_snippet)
 
     auto mod1 = create_module();
     auto mod2 = create_module();
-
     run_pass(mod2);
 
     auto match_qdq = migraphx::match::name("dequantizelinear")(

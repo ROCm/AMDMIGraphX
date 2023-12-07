@@ -69,10 +69,10 @@ int main(int argc, const char* argv[])
     rv.add_validation_for("gpu", &validate_gpu);
 
     rv.disable_test_for("cpu", {
-            "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
-                "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
-                "test_instancenorm_large_3d<migraphx::shape::float_type>",
-                "test_instancenorm_large_3d<migraphx::shape::half_type>",
+        "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
+            "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
+            "test_instancenorm_large_3d<migraphx::shape::float_type>",
+            "test_instancenorm_large_3d<migraphx::shape::half_type>",
         // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC_) && !defined(__clang__)
             "batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",

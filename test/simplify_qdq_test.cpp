@@ -576,11 +576,11 @@ TEST_CASE(dot_add_multiple_dq_use)
         auto dot_2       = m2.add_instruction(migraphx::make_op("quant_dot"), d3_q, q1);
         auto out_scale_2 = add_scale_mul(m2, scale, scale, 1, 1, dot_2->get_shape().lens());
         auto d4          = add_quantize_op(m2, "dequantizelinear", dot_2, out_scale_2);
-        m2.add_return({d4});
+        auto add         = m2.add_instruction(migraphx::make_op("add"), d4, t1);
+        m2.add_return({add});
     }
-
     run_pass(m1);
-    // EXPECT(m1 == m2);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(conv)

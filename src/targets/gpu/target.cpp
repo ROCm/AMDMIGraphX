@@ -119,6 +119,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8_ops.insert("convolution");
         unsupported_fp8_ops.insert("quant_convolution");
     }
+    // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8_ops.insert("pooling");
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
+    }
     // add all device kernels
     unsupported_fp8_ops.insert("logsoftmax");
     unsupported_fp8_ops.insert("nonzero");

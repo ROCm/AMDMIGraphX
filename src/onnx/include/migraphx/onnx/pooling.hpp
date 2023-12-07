@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_GATHER_HPP
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_POOLING_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_POOLING_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/config.hpp>
+#include <migraphx/onnx/onnx_parser.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/instruction.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+namespace onnx {
 
-argument MIGRAPHX_DEVICE_EXPORT
-gather(hipStream_t stream, argument result, argument arg1, argument arg2, int64_t axis);
+value handle_pooling_values(const op_desc& opd,
+                            onnx_parser::node_info info,
+                            const shape& in_shape,
+                            value values);
 
-} // namespace device
-} // namespace gpu
+instruction_ref add_pooling_op(const op_desc& opd, onnx_parser::node_info info, instruction_ref l0);
+
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

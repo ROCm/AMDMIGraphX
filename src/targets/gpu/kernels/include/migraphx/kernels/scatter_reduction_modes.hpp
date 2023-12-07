@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,42 +21,63 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
+#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/gather.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_gather
+struct assign_none
 {
-    op::gather op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::gather"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
+        x = y;
     }
 };
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+struct assign_add
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicAdd(&x, y);
+    }
+};
 
+struct assign_mul
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        T old = x;
+        T assumed;
+        do
+        {
+            assumed = old;
+            old     = atomicCAS(&x, assumed, assumed * y);
+        } while(assumed != old);
+    }
+};
+
+struct assign_max
+{
+    template <typename T, typename U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicMax(&x, y);
+    }
+};
+
+struct assign_min
+{
+    template <typename T, typename U>
+    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    {
+        atomicMin(&x, y);
+    }
+};
+
+} // namespace migraphx
 #endif

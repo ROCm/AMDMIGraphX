@@ -5,6 +5,8 @@ instruction
 -----------
 
 .. doxygenstruct:: migraphx::internal::instruction
+   :members:
+   :undoc-members:
 
 instruction_ref
 ---------------
@@ -17,6 +19,8 @@ program
 -------
 
 .. doxygenstruct:: migraphx::internal::program
+   :members:
+   :undoc-members:
 
 parse_onnx
 ----------

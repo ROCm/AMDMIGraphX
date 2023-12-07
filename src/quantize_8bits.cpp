@@ -62,8 +62,8 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
         auto param_index = op_val.at("ins_index").to<std::size_t>();
         auto param       = quant_params[param_index];
 
-        auto input                                    = ins->inputs().front();
-        auto s                                        = input->get_shape();
+        auto input = ins->inputs().front();
+        auto s     = input->get_shape();
         if(contains(quantizable_types, s.type()) and s.type() != precision)
         {
             auto zero_point = m.add_literal(

@@ -58,10 +58,6 @@ struct quantizelinear
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
         }
-        if(inputs[0].type() == shape::float_type)
-        {
-            return {shape::fp8e4m3fnuz_type, inputs[0].lens(), inputs[0].strides()};
-        }
         return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
     }
 

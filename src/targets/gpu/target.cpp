@@ -105,11 +105,19 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    // whiltelist supported Ops for the FP8
     std::set<std::string> unsupported_fp8_ops = {};
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
         unsupported_fp8_ops.insert("quant_dot");
+    }
+    // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8_ops.insert("pooling");
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
     }
     // add all device kernels
     unsupported_fp8_ops.insert("logsoftmax");

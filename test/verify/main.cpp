@@ -67,6 +67,7 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+
     rv.disable_test_for("cpu", {
             "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
                 "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
@@ -85,8 +86,7 @@ int main(int argc, const char* argv[])
 #endif
     });
     rv.disable_test_for("gpu",
-                        {"test_conv_bn_add",
-                         // These passes on MI300 but fails on others, same issue as CPU.
+                        {// These passes on MI300 but fails on others, same issue as CPU.
                          "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                          "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                          "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});

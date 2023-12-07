@@ -218,6 +218,7 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        auto input_arg_t = ins->inputs().front()->get_shape().type();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         if(group != 1)
@@ -225,6 +226,10 @@ auto is_mlir_conv(mlir_mode mode)
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;
+        if(ins->get_shape().type() == shape::fp8e4m3fnuz_type)
+            return true;
+        if(ins->get_shape().type() == shape::float_type and input_arg_t == shape::fp8e4m3fnuz_type)
+            return true;
         if(ins->get_shape().type() == shape::int8_type)
             return true;
         if(mode == mlir_mode::int8)
@@ -292,6 +297,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
+                                                         type_t::fp8e4m3fnuz_type,
                                                          type_t::int8_type,
                                                          type_t::int32_type,
                                                          type_t::bool_type};
@@ -331,7 +337,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "softmax",
         "tanh",
     };
-    bool is_float = contains({type_t::float_type, type_t::half_type}, result_type);
+    bool is_float =
+        contains({type_t::float_type, type_t::half_type, type_t::fp8e4m3fnuz_type}, result_type);
     if(contains(any_type_ops, name))
         return true;
     if(result_type != type_t::bool_type and contains(no_bool_ops, name))
@@ -342,6 +349,10 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     // supported.
     if(is_float and name == "convert")
     {
+        if(result_type == shape::fp8e4m3fnuz_type)
+        {
+            return false;
+        } // else
         return std::all_of(i.inputs().begin(), i.inputs().end(), [](const auto& arg) {
             return contains({type_t::float_type, type_t::half_type}, arg->get_shape().type());
         });
@@ -404,12 +415,13 @@ struct find_mlir_standalone_op
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm_based_op = r.result;
-        //
-        // enable only for fp32/fp16/i8 types
+        // enable only for fp32/fp16/i8/fp8 types
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
-               return not contains(
-                   {shape::type_t::float_type, shape::type_t::half_type, shape::type_t::int8_type},
-                   i->get_shape().type());
+               return not contains({shape::type_t::float_type,
+                                    shape::type_t::half_type,
+                                    shape::type_t::int8_type,
+                                    shape::type_t::fp8e4m3fnuz_type},
+                                   i->get_shape().type());
            }))
             return;
         static size_t counter = 0;

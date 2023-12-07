@@ -142,7 +142,8 @@ std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
-    compile_check(p, t, c_opts);
+    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    compile_check(p, t, c_opts, (trace_target == "ref"));
     return p.eval(std::move(inputs));
 }
 std::pair<migraphx::program, std::vector<migraphx::argument>>

@@ -671,7 +671,7 @@ void module::finalize(std::vector<context>& contexts)
     }
 #ifndef BUILD_DEV
     if(std::any_of(this->begin(), this->end(), [](const auto i) {
-           return i->get_shape()->type() == migraphx::shape::fp8e4m3fnuz_type;
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
        }))
     {
         std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "

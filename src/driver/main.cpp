@@ -518,11 +518,11 @@ struct compiler
         }
         if(to_int8)
         {
-            quantize_8bits(p, t, shape::int8_type, {host_params(p)});
+            quantize_int8(p, t, {host_params(p)});
         }
         if(to_fp8)
         {
-            quantize_8bits(p, t, shape::fp8e4m3fnuz_type, {host_params(p)});
+            quantize_fp8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);

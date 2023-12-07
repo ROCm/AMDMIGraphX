@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,7 @@ struct MIGRAPHX_EXPORT capture_arguments_pass
  */
 struct MIGRAPHX_EXPORT quantize_8bits_pass
 {
+    shape::type_t precision            = shape::int8_type;
     std::vector<std::string> ins_names = {"dot", "convolution"};
     std::vector<std::pair<float, float>> quant_params;
     std::string name() const { return "quantize_8bits"; }

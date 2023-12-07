@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -148,11 +148,26 @@ void quantize_8bits(program& prog,
     }
 
     run_passes(prog,
-               {quantize_8bits_pass{ins_names, *quant_8bit_params},
+               {quantize_8bits_pass{precision, ins_names, *quant_8bit_params},
                 simplify_qdq{},
                 optimize_module{},
                 dead_code_elimination{}});
 }
 
+void quantize_int8(program& prog,
+                   const target& t,
+                   const std::vector<parameter_map>& calibration,
+                   const std::vector<std::string>& ins_names)
+{
+    quantize_8bits(prog, t, shape::int8_type, calibration, ins_names);
+}
+
+void quantize_fp8(program& prog,
+                  const target& t,
+                  const std::vector<parameter_map>& calibration,
+                  const std::vector<std::string>& ins_names)
+{
+    quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, ins_names);
+}
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

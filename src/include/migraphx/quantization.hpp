@@ -47,6 +47,16 @@ MIGRAPHX_EXPORT void quantize_8bits(program& prog,
                                     const std::vector<parameter_map>& calibration,
                                     const std::vector<std::string>& ins_names = {"dot",
                                                                                  "convolution"});
+MIGRAPHX_EXPORT void quantize_int8(program& prog,
+                                   const target& t,
+                                   const std::vector<parameter_map>& calibration,
+                                   const std::vector<std::string>& ins_names = {"dot",
+                                                                                "convolution"});
+MIGRAPHX_EXPORT void quantize_fp8(program& prog,
+                                  const target& t,
+                                  const std::vector<parameter_map>& calibration,
+                                  const std::vector<std::string>& ins_names = {"dot",
+                                                                               "convolution"});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

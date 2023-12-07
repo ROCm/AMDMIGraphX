@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -64,10 +64,10 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
 
         auto input                                    = ins->inputs().front();
         auto s                                        = input->get_shape();
-        std::set<shape::type_t> supported_quant_types = {shape::int8_type, shape::fp8e4m3fnuz_type};
-        if(contains(quantizable_types, s.type()) and not contains(supported_quant_types, s.type()))
+        if(contains(quantizable_types, s.type()) and s.type() != precision)
         {
-            auto zero_point  = m.add_literal(static_cast<int8_t>(param.second));
+            auto zero_point = m.add_literal(
+                migraphx::literal{migraphx::shape{precision}, {static_cast<int8_t>(param.second)}});
             auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             const auto& lens = s.lens();
             scale =

@@ -24,7 +24,6 @@
 
 #include <migraphx/ref/target.hpp>
 #include <migraphx/ref/lowering.hpp>
-#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
@@ -43,20 +42,17 @@ std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {
-        normalize_ops{},
-        eliminate_pad{},
-        dead_code_elimination{},
-        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, {"quant_dot"}},
-        dead_code_elimination{},
-        insert_pad{},
-        dead_code_elimination{},
-        rewrite_rnn{},
-        dead_code_elimination{},
-        auto_contiguous{},
-        dead_code_elimination{},
-        lowering{},
-        dead_code_elimination{}};
+    return {normalize_ops{},
+            eliminate_pad{},
+            dead_code_elimination{},
+            insert_pad{},
+            dead_code_elimination{},
+            rewrite_rnn{},
+            dead_code_elimination{},
+            auto_contiguous{},
+            dead_code_elimination{},
+            lowering{},
+            dead_code_elimination{}};
 }
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }

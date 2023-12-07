@@ -63,14 +63,6 @@ void quantize_8bits(program& prog,
                     const std::vector<parameter_map>& calibration,
                     const std::vector<std::string>& ins_names)
 {
-    std::set<std::string> op_names = {"convolution", "dot"};
-    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
-    if(not std::includes(
-           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
-    {
-        MIGRAPHX_THROW("QUANTIZE_8BITS: only support DOT and CONVOLUTION operation");
-    }
-
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
     run_passes(prog, {optimize_module{}});
@@ -159,15 +151,28 @@ void quantize_int8(program& prog,
                    const std::vector<parameter_map>& calibration,
                    const std::vector<std::string>& ins_names)
 {
+    std::set<std::string> op_names = {"convolution", "dot"};
+    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
+    if(not std::includes(
+           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
+    {
+        MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
+    }
     quantize_8bits(prog, t, shape::int8_type, calibration, ins_names);
 }
 
-void quantize_fp8(program& prog,
-                  const target& t,
-                  const std::vector<parameter_map>& calibration,
-                  const std::vector<std::string>& ins_names)
+void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
-    quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, ins_names);
+    std::vector<std::string> supported_ins_names = {"dot", "convolution"};
+    auto* mm                                     = prog.get_main_module();
+    for(auto ins : iterator_for(*mm))
+    {
+        if(not starts_with(ins->name(), "@") and ins->name() != "convert")
+        {
+            supported_ins_names.push_back(ins->name());
+        }
+    }
+    quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
 }
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

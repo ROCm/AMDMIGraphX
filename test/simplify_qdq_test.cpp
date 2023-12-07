@@ -975,7 +975,6 @@ TEST_CASE(mobilenet_snippet)
 
     auto mod1 = create_module();
     auto mod2 = create_module();
-    mod1.debug_print();
     run_pass(mod2);
 
     auto match_qdq = migraphx::match::name("dequantizelinear")(

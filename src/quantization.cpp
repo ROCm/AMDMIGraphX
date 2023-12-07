@@ -163,6 +163,9 @@ void quantize_int8(program& prog,
 
 void quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration)
 {
+    std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                 "incorrect final outputs\n";
+
     std::vector<std::string> supported_ins_names = {"dot", "convolution"};
     auto* mm                                     = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
@@ -172,7 +175,6 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
             supported_ins_names.push_back(ins->name());
         }
     }
-
     quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
 }
 } // namespace MIGRAPHX_INLINE_NS

@@ -127,9 +127,9 @@ struct parse_multinomial : op_parser<parse_multinomial>
             // use literal.  The array populated by random_uniform may have any shape, as long its
             // number of elements is batch_size * sample_size .
             size_t batch_size = s0.lens().front();
-            auto rand_dummy   = info.add_literal(
-                migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
-
+            auto rand_dummy   = info.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::float_type, {batch_size, sample_size}},
+                std::vector<float>(batch_size * sample_size)});
             randoms =
                 info.add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
         }

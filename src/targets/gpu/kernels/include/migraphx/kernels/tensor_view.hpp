@@ -27,6 +27,7 @@
 #include <migraphx/kernels/shape.hpp>
 #include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/iota_iterator.hpp>
+#include <migraphx/kernels/float8.hpp>
 
 namespace migraphx {
 

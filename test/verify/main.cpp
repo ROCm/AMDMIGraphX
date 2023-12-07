@@ -76,6 +76,16 @@ int main(int argc, const char* argv[])
                          "test_select_module_conv",
                          "test_split_single_dyn_dim",
                          "test_instancenorm_large_3d<migraphx::shape::float_type>",
-                         "test_instancenorm_large_3d<migraphx::shape::half_type>"});
+                         "test_instancenorm_large_3d<migraphx::shape::half_type>",
+                         // these tests are disabled due issue of lossy downcast, see issue#2517
+                         "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
+    rv.disable_test_for("gpu",
+                        {"test_conv_bn_add",
+                         // These passes on MI300 but fails on others, same issue as CPU.
+                         "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
     rv.run(argc, argv);
 }

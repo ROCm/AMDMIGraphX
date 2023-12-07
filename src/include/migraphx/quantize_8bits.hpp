@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
 
 #include <string>
 #include <vector>
@@ -37,7 +37,7 @@ struct program;
 struct module;
 
 /**
- * capture inputs of operators to be quantized to int8
+ * capture inputs of operators to be quantized to int8 or fp8
  */
 struct MIGRAPHX_EXPORT capture_arguments_pass
 {
@@ -49,7 +49,7 @@ struct MIGRAPHX_EXPORT capture_arguments_pass
 };
 
 /**
- * quantize a program to int8
+ * quantize a program to int8 or fp8
  */
 struct MIGRAPHX_EXPORT quantize_8bits_pass
 {

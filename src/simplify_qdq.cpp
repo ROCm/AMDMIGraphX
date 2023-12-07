@@ -82,23 +82,21 @@ struct match_find_quantizable_ops
     // Helper function to insert quantized versions of any broadcasts and transpose ops that
     // occur between dequantizelinear and the quantized op
     static auto
-    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop)
+    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop_arg)
     {
-        auto qinp     = dqins->inputs().front();
-        auto next_ins = dqins;
-        while(next_ins != qop)
+        auto prev_ins = qop_arg;
+        std::vector<instruction_ref> ins_inbetween;
+        // matcher skips continguous, multi/broadcasts and transposes, collect all those
+        // instructions
+        while(prev_ins != dqins)
         {
-            if(next_ins->name() != "dequantizelinear")
-            {
-                qinp = m.insert_instruction(qop, next_ins->get_operator(), qinp);
-            }
-            if(std::any_of(next_ins->outputs().begin(),
-                           next_ins->outputs().end(),
-                           [&](const auto i) { return i == qop; }))
-            {
-                break;
-            }
-            next_ins = next_ins->outputs().front();
+            ins_inbetween.push_back(prev_ins);
+            prev_ins = prev_ins->inputs().front();
+        }
+        auto qinp = dqins->inputs().front();
+        for(auto ins : reverse_iterator_for(ins_inbetween))
+        {
+            qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
         }
         return qinp;
     }
@@ -146,8 +144,8 @@ struct match_find_quantizable_ops
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop);
+        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0]);
+        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1]);
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref zero_point;

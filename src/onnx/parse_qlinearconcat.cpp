@@ -36,48 +36,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-/*
- *********************************************************************************
- *  Reference: see QLinearConcat in                                              *
- *  https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md  *
- *********************************************************************************
-
-com.microsoft.QLinearConcat
-Concatenate a list of tensors into a single tensor.All input tensors must have the same shape,
-except for the dimension size of the axis to concatenate on.
-
-Version
-This version of the operator has been available since version 1 of the 'com.microsoft' operator set.
-
-Attributes
-axis : int (required)
-Which axis to concat on
-
-Inputs (3 - ∞)
-Y_scale : TF
-Y's scale.
-
-Y_zero_point : T8
-Y's zero point.
-
-inputs (variadic, heterogeneous) : TV
-List of tensors/scale/zero_point for concatenation
-
-Outputs
-Y : T8
-Concatenated tensor
-
-Type Constraints
-T8 : tensor(uint8), tensor(int8)
-Constrain input and output types to 8 bit signed and unsigned tensors.
-
-TF : tensor(float)
-Constrain scale types to any float tensor type.
-
-TV : tensor(uint8), tensor(int8), tensor(float)
-Sequence of (Tensor, Scale, ZeroPoint) tuples. The type is sequence of (T8, TF, T8).
-*/
-
 struct parse_qlinearconcat : op_parser<parse_qlinearconcat>
 {
     std::vector<op_desc> operators() const { return {{"QLinearConcat"}}; }
@@ -86,7 +44,14 @@ struct parse_qlinearconcat : op_parser<parse_qlinearconcat>
     void check_inputs(const std::vector<instruction_ref>& args) const
     {
         auto args_size = args.size();
-        // at least 5 input tensors, can be 5, 8, 11 ...
+        // at least 5 input tensors:
+        // 1. is Y_scale: tensor(float)
+        // 2. is Y_zero_pont: tensor(uint8)/tensor(int8)
+        // remaining is a sequence of :
+        //     3. Tensor: tensor(uint8)/tensor(int8)
+        //     4. Scale: tensor(float),
+        //     5. ZeroPoint: tensor(uint8)/tensor(int8) tensors
+        // Size can be 5, 8, 11 ...
         if((args_size < 5) or ((args_size - 2) % 3 != 0))
             MIGRAPHX_THROW("QLINEARCONCAT: missing inputs");
 

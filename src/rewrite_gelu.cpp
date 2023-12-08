@@ -33,8 +33,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- * Finds GELU blocks using the Gaussian distribution and replaces them with the sigmoid approximation
- * if the data type is fp16.
+ * Finds GELU blocks using the Gaussian distribution and replaces them with the sigmoid
+ * approximation if the data type is fp16.
  */
 struct find_gelu_erf
 {
@@ -70,31 +70,31 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto x   = r.instructions["x"];
-        auto sqrt_2_rpi = m.add_literal(literal{shape{x->get_shape().type()}, {0.7978845608028653558798921198687637369517172623298693153318516593}});
+        auto ins        = r.result;
+        auto x          = r.instructions["x"];
+        auto sqrt_2_rpi = m.add_literal(
+            literal{shape{x->get_shape().type()},
+                    {0.7978845608028653558798921198687637369517172623298693153318516593}});
         auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
-        auto one = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        auto xb = insert_common_op(m, ins, make_op("mul"), {x, sqrt_2_rpi});
-        auto a = insert_common_op(m, ins, make_op("mul"), {xb, fit_const});
-        auto b = m.insert_instruction(ins, make_op("mul"), a, x);
-        auto c = m.insert_instruction(ins, make_op("mul"), b, x);
-        auto u = m.insert_instruction(ins, make_op("add"), c, xb);
-        auto neg_u = m.insert_instruction(ins, make_op("neg"), u);
-        auto d = m.insert_instruction(ins, make_op("sub"), neg_u, u);
-        auto emu = m.insert_instruction(ins, make_op("exp"), d);
-        auto e = insert_common_op(m, ins, make_op("add"), {one, emu});
-        auto cdf = insert_common_op(m, ins, make_op("div"), {one, e});
-        auto y = m.insert_instruction(ins, make_op("mul"), x, cdf);
+        auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        auto xb        = insert_common_op(m, ins, make_op("mul"), {x, sqrt_2_rpi});
+        auto a         = insert_common_op(m, ins, make_op("mul"), {xb, fit_const});
+        auto b         = m.insert_instruction(ins, make_op("mul"), a, x);
+        auto c         = m.insert_instruction(ins, make_op("mul"), b, x);
+        auto u         = m.insert_instruction(ins, make_op("add"), c, xb);
+        auto neg_u     = m.insert_instruction(ins, make_op("neg"), u);
+        auto d         = m.insert_instruction(ins, make_op("sub"), neg_u, u);
+        auto emu       = m.insert_instruction(ins, make_op("exp"), d);
+        auto e         = insert_common_op(m, ins, make_op("add"), {one, emu});
+        auto cdf       = insert_common_op(m, ins, make_op("div"), {one, e});
+        auto y         = m.insert_instruction(ins, make_op("mul"), x, cdf);
         m.replace_instruction(ins, y);
     }
 };
 
-void rewrite_gelu::apply(module& m) const {
-    match::find_matches(m,
-            find_gelu_erf{},
-            find_tanh_fast_gelu{}  
-        );
+void rewrite_gelu::apply(module& m) const
+{
+    match::find_matches(m, find_gelu_erf{}, find_tanh_fast_gelu{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

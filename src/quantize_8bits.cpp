@@ -66,8 +66,8 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
         auto s     = input->get_shape();
         if(contains(quantizable_types, s.type()) and s.type() != precision)
         {
-            auto zero_point = m.add_literal(
-                migraphx::literal{migraphx::shape{precision}, {static_cast<int8_t>(param.second)}});
+            auto zero_point =
+                m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
             auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             const auto& lens = s.lens();
             scale =

@@ -72,8 +72,7 @@ void quantize_8bits(program& prog,
     std::shared_ptr<std::vector<float>> max_abs_vals = std::make_shared<std::vector<float>>();
 
     float quantized_range  = (precision == shape::type_t::int8_type) ? 127.0 : 240.0;
-    auto calc_quant_params = [quant_8bit_params, max_abs_vals, quantized_range, &t](
-                                 std::size_t ins_index, std::vector<argument> args) {
+    auto calc_quant_params = [&](std::size_t ins_index, std::vector<argument> args) {
         std::pair<float, float> param_pair{64.0f, 0.0f};
         // scale and shift is need for only int8 type, and we do not
         // consider shift, so set shift to 0

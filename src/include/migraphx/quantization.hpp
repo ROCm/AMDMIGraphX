@@ -41,12 +41,6 @@ struct program;
 MIGRAPHX_EXPORT void quantize_fp16(program& prog,
                                    const std::vector<std::string>& ins_names = {"all"});
 
-MIGRAPHX_EXPORT void quantize_8bits(program& prog,
-                                    const target& t,
-                                    shape::type_t precision,
-                                    const std::vector<parameter_map>& calibration,
-                                    const std::vector<std::string>& ins_names = {"dot",
-                                                                                 "convolution"});
 MIGRAPHX_EXPORT void quantize_int8(program& prog,
                                    const target& t,
                                    const std::vector<parameter_map>& calibration,

@@ -88,7 +88,7 @@ __device__ T dpp_swizzle(T& x)
     return dpp_op(x, [](auto i) { return __hip_ds_swizzle(i, Mask); });
 }
 
-template<unsigned int SrcLane, unsigned int Width, class T>
+template <unsigned int SrcLane, unsigned int Width, class T>
 __device__ T dpp_readlane(T& x)
 {
     static_assert(is_power_of_2(Width), "Width must be a power of 2");

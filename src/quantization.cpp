@@ -90,8 +90,7 @@ void quantize_8bits(program& prog,
         }
         else
         {
-            if(std::isnan(max_abs_vals->at(ins_index)))
-                param_pair.first = quantized_range / max_abs_vals->at(ins_index);
+            param_pair.first = quantized_range / max_abs_vals->at(ins_index);
         }
         quant_8bit_params->at(ins_index) = param_pair;
     };

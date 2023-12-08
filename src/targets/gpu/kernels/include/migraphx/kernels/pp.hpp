@@ -1,7 +1,6 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_PP_HPP
 #define MIGRAPHX_GUARD_KERNELS_PP_HPP
 
-
 #define MIGRAPHX_PP_PRIMITIVE_CAT(x, y) x##y
 #define MIGRAPHX_PP_CAT(x, y) MIGRAPHX_PP_PRIMITIVE_CAT(x, y)
 
@@ -20,10 +19,10 @@
 #define MIGRAPHX_PP_REPEAT9(m, ...) MIGRAPHX_PP_REPEAT8(m, __VA_ARGS__) m(9, __VA_ARGS__)
 #define MIGRAPHX_PP_REPEAT10(m, ...) MIGRAPHX_PP_REPEAT9(m, __VA_ARGS__) m(10, __VA_ARGS__)
 
-#define MIGRAPHX_PP_REPEAT(n, m, ...) MIGRAPHX_PP_PRIMITIVE_CAT(MIGRAPHX_PP_REPEAT, n)(m, __VA_ARGS__)
+#define MIGRAPHX_PP_REPEAT(n, m, ...) \
+    MIGRAPHX_PP_PRIMITIVE_CAT(MIGRAPHX_PP_REPEAT, n)(m, __VA_ARGS__)
 
 namespace migraphx {
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_PP_HPP
-

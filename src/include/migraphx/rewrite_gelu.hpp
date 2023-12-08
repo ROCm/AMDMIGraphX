@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Rewrite gelu standard formula as the sigmoid approximation formula
+ * Rewrite GELU blocks as different approximations.
  */
 struct MIGRAPHX_EXPORT rewrite_gelu
 {

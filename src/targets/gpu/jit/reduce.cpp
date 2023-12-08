@@ -126,7 +126,7 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
 {
     std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
     std::size_t wavefront_size     = 1;
-    while(wavefront_size < n and wavefront_size < max_wavefront_size)
+    while(wavefront_size <= n and wavefront_size < max_wavefront_size)
         wavefront_size *= 2;
     return wavefront_size;
 }

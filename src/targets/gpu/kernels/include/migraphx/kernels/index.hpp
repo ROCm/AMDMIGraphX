@@ -143,6 +143,10 @@ struct index
     template <unsigned int SubWaveSize>
     constexpr auto local_subwave() const
     {
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+        if constexpr(decltype(nlocal()){} == SubWaveSize)
+            return local;
+#endif
         return local % nlocal_subwave<SubWaveSize>();
     }
     template <unsigned int SubWaveSize>

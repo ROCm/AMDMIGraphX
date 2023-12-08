@@ -32,8 +32,6 @@
 
 namespace migraphx {
 
-constexpr bool is_power_of_2(unsigned int x) { return x > 0 && !(x & (x - 1)); }
-
 #if MIGRAPHX_HAS_DPP
 
 template <unsigned int SubWaveSize, class T, class Op>
@@ -41,42 +39,41 @@ __device__ void dpp_reduce(T& in, Op op)
 {
     static_assert(SubWaveSize <= __AMDGCN_WAVEFRONT_SIZE, "Too large subwave size");
     static_assert(is_power_of_2(SubWaveSize), "SubWaveSize is not a power of 2");
-    T out{};
     if constexpr(SubWaveSize > 1)
     {
-        out = dpp_mov<dpp_row_shr(1)>(in);
+        auto out = dpp_mov<dpp_row_shr(1)>(in);
         in  = op(in, out);
     }
     if constexpr(SubWaveSize > 2)
     {
-        out = dpp_mov<dpp_row_shr(2)>(in);
+        auto out = dpp_mov<dpp_row_shr(2)>(in);
         in  = op(in, out);
     }
     if constexpr(SubWaveSize > 4)
     {
-        out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
+        auto out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
         in  = op(in, out);
     }
     if constexpr(SubWaveSize > 8)
     {
-        out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
+        auto out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
         in  = op(in, out);
     }
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     if constexpr(SubWaveSize > 16)
     {
-        out = dpp_swizzle<0x1e0>(in);
+        auto out = dpp_swizzle<0x1e0>(in);
         in  = op(in, out);
     }
 #else
     if constexpr(SubWaveSize > 16)
     {
-        out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
+        auto out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
         in  = op(in, out);
     }
     if constexpr(SubWaveSize > 32)
     {
-        out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
+        auto out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
         in  = op(in, out);
     }
 #endif
@@ -173,9 +170,11 @@ __device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     type x     = init;
     idx.local_subwave_stride<SubWaveSize>(
-        n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
+        n, [&](auto i, auto d) { 
+            x = op(x, index::invoke_loop(f, i, d)); 
+        });
     dpp_reduce<SubWaveSize>(x, op);
-    return x;
+    return dpp_readlane<SubWaveSize-1, SubWaveSize>(x);
 }
 
 template <class Op, class T, class Index, class F>

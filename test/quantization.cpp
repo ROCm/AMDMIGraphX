@@ -1101,7 +1101,7 @@ TEST_CASE(int8_quantization_conv)
         if(b_quantize)
         {
             std::vector<migraphx::parameter_map> cali_data;
-            migraphx::quantize_8bits(p, t, migraphx::shape::int8_type, cali_data);
+            migraphx::quantize_int8(p, t, cali_data);
         }
         p.compile(t);
         migraphx::parameter_map m;

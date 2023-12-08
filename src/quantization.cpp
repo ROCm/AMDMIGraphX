@@ -84,15 +84,15 @@ void quantize_8bits(program& prog,
         auto min_val                = *std::min_element(vec_val.begin(), vec_val.end());
         auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));
         max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
-
         // if all values are 0, no need to do scaling
-        if(max_abs_vals->at(ins_index) == 0.0f)
+        if(float_equal(max_abs_vals->at(ins_index), 0.0f))
         {
             param_pair.first = 1.0f;
         }
         else
         {
-            param_pair.first = quantized_range / max_abs_vals->at(ins_index);
+            if(std::isnan(max_abs_vals->at(ins_index)))
+                param_pair.first = quantized_range / max_abs_vals->at(ins_index);
         }
         quant_8bit_params->at(ins_index) = param_pair;
     };

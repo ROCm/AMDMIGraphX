@@ -92,6 +92,10 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
         {
             continue;
         }
+        if(ins->name() == "convert")
+        {
+            continue;
+        }
 
         auto inputs = ins->inputs();
         std::vector<instruction_ref> new_args;

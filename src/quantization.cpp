@@ -166,11 +166,15 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
                  "incorrect final outputs\n";
 
-    std::vector<std::string> supported_ins_names = {"dot", "convolution"};
+    std::vector<std::string> supported_ins_names;
     auto* mm                                     = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
     {
-        if(not starts_with(ins->name(), "@") and ins->name() != "convert")
+        if(ins->name() == "convert")
+        {
+            continue;
+        }
+        else if(not starts_with(ins->name(), "@"))
         {
             supported_ins_names.push_back(ins->name());
         }

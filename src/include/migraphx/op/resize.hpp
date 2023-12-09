@@ -103,8 +103,6 @@ struct resize
                     f(self.coordinate_transformation_mode,"coordinate_transformation_mode"));
     }
 
- 
-
     shape compute_shape(std::vector<shape> inputs) const
     {
         // check_shapes{{inputs[0]}, *this, true}.has(2);
@@ -150,53 +148,106 @@ struct resize
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         // See scatter.hpp or gather.hpp for how to do a similar iteration with reduction
-                // iterate through items in shape
-        argument result{dyn_out.computed_shape};
+        shape output_shape;
+        auto in_lens = args[0].get_shape().to_static(1).lens();
+        std::vector<size_t> out_lens(in_lens.size());        
+
+        // Scales are either given, or calculated from output shape
+        std::vector<double> vec_scale(in_lens.size());
+
+        if(dyn_out.computed_shape.dynamic())
+        {
+            // calculate output shape from scales or sizes
+            if(not sizes.empty())
+            {
+                // read sizes from args[1]  
+                // out_lens = args[1].get_shape().to_static(1).lens();   //     <===
+                // Compute the scales from the given output dimensions
+
+                // Copy the output size
+                args[1].visit([&](auto size_input) {
+                    for(auto aa : size_input ) std::cout << aa << "   sizes \n";
+
+                    std::transform(size_input.begin(), size_input.end(), out_lens.begin(),
+                                [](auto size_i) { 
+std::cout << size_i  << "   transform \n";                                    
+                            return size_i;                     
+                    }); 
+std::cout << "***\n";
+                    for(auto aa : out_lens ) std::cout << aa << "   out_lens \n";  
+std::cout << "***\n";
+
+                // Deduce the scales for each axis
+                std::transform(size_input.begin(), size_input.end(), in_lens.begin(), vec_scale.begin(),
+                                [](auto sz, size_t in_len) {
+                            return static_cast<double>(sz)/in_len;                     
+                    });                   
+                });          
+
+                for(auto aa : vec_scale ) std::cout << aa << "   vec_scale \n";                
+            }
+            else
+            {
+                args[1].visit([&](auto scale_input) {
+                    for(auto aa : scale_input ) std::cout << aa << "   scale_input \n";                
+                    // read the scale from args[1]-- vec_scale = scale_input;
+                    //
+                    std::transform(scale_input.begin(), scale_input.end(), vec_scale.begin(),
+                                [](auto scale_i) {
+                            return scale_i;                     
+                    }); 
+
+                    // compute the output dimensions from the given scale
+                    std::transform(scale_input.begin(), scale_input.end(), in_lens.begin(), out_lens.begin(),
+                                [](auto scale_i, size_t in_len) {
+                            return static_cast<size_t>(scale_i*in_len);                     
+                    });                    
+                });
+            }
+            output_shape = {args[0].get_shape().type(), out_lens};
+        }
+
+        argument result{output_shape};
         auto nearest_op = get_nearest_op(nearest_mode);
         auto idx_op              = get_original_idx_op(coordinate_transformation_mode);
 
-        auto in_lens                 = args[0].get_shape().lens();
-        auto out_lens = dyn_out.computed_shape.lens();
-
         // temp.  This is a placeholder for reading the desired dimensions or scale
-        std::vector<double> vec_scale={1., 1., 5./3., 8./3.};
 
        // max dimension in axis
         visit_all(result, args[0])([&](auto output, auto data) {
 
             // the size input
-            args[1].visit([&](auto indices) {
-                for(auto aa : indices ) std::cout << aa << "   indices \n";                
-                if(dyn_out.computed_shape.scalar())
-                {
-                    std::cout << " scalar output\n";
-                }
-                else
-                {
+            // args[1].visit([&](auto indices) {
+            //     for(auto aa : indices ) std::cout << aa << "   indices \n";                
+            //     if(dyn_out.computed_shape.scalar())
+            //     {
+            //         std::cout << " scalar output\n";
+            //     }
+            //     else
+            //     {
                     // for each element in output, calculate index in input
                     for(auto bb : data) std::cout << bb << "   zzz data \n";
 
-                    migraphx::shape out_comp_shape{data.get_shape().type(), indices};
+                    migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
 
                     shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                        // Show the output indices.  Last index iterates fastest
-                        for(auto vv : out_idx_v ) std::cout << vv << "    ";         
-                        std::cout <<out_idx <<  "  out_index\n"; 
-                        std::cout << nearest_mode << "\n";               
-
-                        // populate output at this index
-                            // output[out_idx] = data(data_idx.begin(), data_idx.end());
                         std::vector<size_t> in_idx(out_idx_v.size());
                         for(auto ii = 0; ii < out_idx_v.size(); ++ii)
                         {
                             auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                            std::cout << in_lens[ii] << " " <<  out_lens[ii] << " " <<  out_idx_v[ii] << " " <<  vec_scale[ii] << "==> " <<  idx_val << "\n";
                             in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
                         }                  
-                        // output[out_idx] = data.at(in_idx);
+                        std::cout << "\n";
+                        std::cout <<out_idx <<  "  out_index\n"; 
+auto zap = data(in_idx.begin(), in_idx.end());
+
+for(auto gg : output)  std::cout << gg <<  "  "; std::cout <<"ggg\n";
+                        // use index function instead?
+                        output[out_idx] = data(in_idx.begin(), in_idx.end());
+                        std::cout << zap <<  "\n";
                     });
-                }
-            });
+            //     }
+            // });
         });
         std::cout << " finish resize\n";
         return result;

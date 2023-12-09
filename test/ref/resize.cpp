@@ -40,18 +40,20 @@ TEST_CASE(resize_test_1)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
     auto a1  = mm->add_literal(migraphx::literal{size_input, size_values});
 
-
+    // a0 = input data
+    // a1 = sizes of output
     mm->add_instruction(migraphx::make_op("resize", {{"sizes", {1}}, {"scales", {}}, {"nearest_mode", "floor"}
       , {"coordinate_transformation_mode", "half_pixel"}}), a0, a1);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-    std::vector<float> res_data(4 * 5);
+    std::vector<float> res_data(1*1*5*8);
     std::vector<float> golden = {0.5f, 1.5f, 2.5f, 6.5f, 7.5f, 8.5f};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
     for(auto aa : res_data) std::cout << aa << ", "; std::cout << " result \n";

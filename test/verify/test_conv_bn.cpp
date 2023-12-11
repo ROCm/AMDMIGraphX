@@ -29,16 +29,17 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 
-struct test_conv_bn : verify_program<test_conv_bn>
+template <migraphx::shape::type_t DType>
+struct test_conv_bn : verify_program<test_conv_bn<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape xs{migraphx::shape::float_type, {1, 3, 224, 224}};
-        migraphx::shape ws{migraphx::shape::float_type, {64, 3, 7, 7}};
-        migraphx::shape vars{migraphx::shape::float_type, {64}};
+        migraphx::shape xs{DType, {1, 3, 224, 224}};
+        migraphx::shape ws{DType, {64, 3, 7, 7}};
+        migraphx::shape vars{DType, {64}};
         auto x = mm->add_parameter("x", xs);
         auto w = mm->add_parameter("w", ws);
         // non-symmetrical tiling
@@ -53,8 +54,14 @@ struct test_conv_bn : verify_program<test_conv_bn>
         auto mean     = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 3)));
         auto variance = mm->add_literal(migraphx::abs(migraphx::generate_literal(vars, 4)));
 
-        auto rt  = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
-        auto eps = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
+        auto rt = mm->add_literal(migraphx::literal{DType, {0.5}});
+
+        auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
+        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        {
+            // use 5e-2f for the fp8
+            eps = mm->add_literal(migraphx::literal{DType, {5e-2f}});
+        }
 
         auto usq_scale =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
@@ -74,3 +81,6 @@ struct test_conv_bn : verify_program<test_conv_bn>
         return p;
     }
 };
+
+template struct test_conv_bn<migraphx::shape::float_type>;
+template struct test_conv_bn<migraphx::shape::fp8e4m3fnuz_type>;

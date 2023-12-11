@@ -36,7 +36,7 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
         auto* mm = p.get_main_module();
         migraphx::shape s{T, {2, N}};
         auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
+        auto y   = mm->add_parameter("y", s);
         auto two = mm->add_literal(migraphx::literal{migraphx::shape{s.type(), {1}}, {2}});
         auto mul = migraphx::add_common_op(*mm, migraphx::make_op("div"), {x, two});
         auto r   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);

@@ -246,9 +246,7 @@ std::string shape::cpp_type(shape::type_t t)
 bool shape::is_integral(shape::type_t t)
 {
     bool result = false;
-    visit(t, [&](auto as) {
-        result = as.is_integral();
-    });
+    visit(t, [&](auto as) { result = as.is_integral(); });
     return result;
 }
 

@@ -25,6 +25,7 @@
 add_executable(driver 
     main.cpp
     verify.cpp
+    passes.cpp
     perf.cpp
     resnet50.cpp
     inceptionv3.cpp

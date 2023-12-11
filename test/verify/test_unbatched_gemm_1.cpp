@@ -27,15 +27,17 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
-struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1>
+
+template <migraphx::shape::type_t DType>
+struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {2, 32, 64}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {64, 64}};
-        migraphx::shape m3_shape{migraphx::shape::float_type, {2, 32, 192}};
+        migraphx::shape m1_shape{DType, {2, 32, 64}};
+        migraphx::shape m2_shape{DType, {64, 64}};
+        migraphx::shape m3_shape{DType, {2, 32, 192}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_literal(migraphx::generate_literal(m2_shape));
         l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 64, 64}}}),
@@ -56,3 +58,7 @@ struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1>
         return p;
     }
 };
+
+template struct test_unbatched_gemm_1<migraphx::shape::float_type>;
+template struct test_unbatched_gemm_1<migraphx::shape::half_type>;
+template struct test_unbatched_gemm_1<migraphx::shape::fp8e4m3fnuz_type>;

@@ -1017,6 +1017,40 @@ TEST_CASE(simplify_concat_add_relu_broadcast_same_axis)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(concat_convert_fusion)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {64}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", s);
+        auto y  = m1.add_parameter("y", s);
+        auto xh = m1.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
+            x);
+        auto yh = m1.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
+            y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xh, yh);
+        m1.add_instruction(pass_op{}, concat);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", s);
+        auto y       = m2.add_parameter("y", s);
+        auto concat  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto concath = m2.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::half_type)}}),
+            concat);
+        m2.add_instruction(pass_op{}, concath);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_div_const)
 {
     migraphx::module m1;

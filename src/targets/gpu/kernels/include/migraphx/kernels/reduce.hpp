@@ -600,7 +600,7 @@ struct subwave
         template <class F, class N, class... Ts>
         __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
         {
-            idx.local_wave_stride(n, [&](auto j, auto d) { f(xs(j, d)...); });
+            idx.local_subwave_stride<SubWaveSize>(n, [&](auto j, auto d) { f(xs(j, d)...); });
         }
 
         template <class R, class F, class N, class... Ts>

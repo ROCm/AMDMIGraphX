@@ -243,6 +243,14 @@ std::string shape::cpp_type(shape::type_t t)
     }
     MIGRAPHX_THROW("Invalid type");
 }
+bool shape::is_integral(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) {
+        result = as.is_integral();
+    });
+    return result;
+}
 
 shape::shape() : impl(shape_impl::default_shape()) {}
 

@@ -44,7 +44,7 @@ namespace op {
 // complementary operations are gather/gatherND.
 
 template <typename Derived>
-struct scatter_elements_op : op_name<Derived>
+struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
 

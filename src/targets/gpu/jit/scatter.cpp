@@ -29,7 +29,7 @@ namespace gpu {
 
 // NOLINTNEXTLINE
 static const char* const scatter_elements_kernel = R"__migraphx__(
-#include <migraphx/kernels/scatter_elements.hpp>
+#include <migraphx/kernels/scatter.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/generic_constant.hpp>
 #include <args.hpp>
@@ -41,7 +41,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void scatter_elements_kernel(void* in_indices, void* in_updates, void* output) 
 {
     make_tensors()(in_indices, in_updates, output)([](auto&&... xs) { 
-        scatter_elements<${axis}>(xs..., ${reduction}{}); 
+        scatter<${axis}>(xs..., ${reduction}{}); 
     });
 }
 
@@ -55,17 +55,13 @@ struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
 {
     std::vector<std::string> names() const
     {
-        return {"scatter_elements_none",
-                "scatter_elements_add",
-                "scatter_elements_mul",
-                "scatter_elements_min",
-                "scatter_elements_max"};
+        return {"scatter_none", "scatter_add", "scatter_mul", "scatter_min", "scatter_max"};
     }
 
     std::string make_interpolated_string(const operation& op) const
     {
         const auto reduction =
-            op.name().substr(std::char_traits<char>::length("scatter_elements_"));
+            op.name().substr(std::char_traits<char>::length("scatter_"));
         auto axis = std::to_string(op.to_value().get("axis", 0));
 
         return interpolate_string(scatter_elements_kernel,

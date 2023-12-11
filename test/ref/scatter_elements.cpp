@@ -48,7 +48,7 @@ migraphx::program create_scatter_elements_program(const std::string& reduction_m
     auto lu = mm->add_literal(migraphx::literal{su, vu});
 
     auto r = mm->add_instruction(
-        migraphx::make_op("scatter_elements_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
+        migraphx::make_op("scatter_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
     mm->add_return({r});
     return p;
 }
@@ -104,7 +104,7 @@ migraphx::program create_scatter_elements_program2(const std::string& reduction_
     auto li = mm->add_literal(migraphx::literal{si, vi});
     auto lu = mm->add_literal(migraphx::literal{su, vu});
     auto r  = mm->add_instruction(
-        migraphx::make_op("scatter_elements_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
+        migraphx::make_op("scatter_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
     mm->add_return({r});
     return p;
 }
@@ -191,7 +191,7 @@ auto scatter_elements_duplicate_index_test(const std::string& reduction_mode)
     auto li = mm->add_literal(migraphx::literal{si, vi});
     auto lu = mm->add_literal(migraphx::literal{su, vu});
     auto r  = mm->add_instruction(
-        migraphx::make_op("scatter_elements_" + reduction_mode, {{"axis", 1}}), ld, li, lu);
+        migraphx::make_op("scatter_" + reduction_mode, {{"axis", 1}}), ld, li, lu);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
 
@@ -251,7 +251,7 @@ migraphx::program create_scatter_elements_program_3x3(const std::string& reducti
     auto li = mm->add_literal(migraphx::literal{si, vi});
     auto lu = mm->add_literal(migraphx::literal{su, vu});
     auto r  = mm->add_instruction(
-        migraphx::make_op("scatter_elements_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
+        migraphx::make_op("scatter_" + reduction_mode, {{"axis", axis}}), ld, li, lu);
     mm->add_return({r});
     return p;
 }
@@ -334,7 +334,7 @@ auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode
     auto li = mm->add_literal(migraphx::literal{si, vi});
     auto lu = mm->add_literal(migraphx::literal{su, vu});
     auto r  = mm->add_instruction(
-        migraphx::make_op("scatter_elements_" + reduction_mode, {{"axis", 0}}), ld, li, lu);
+        migraphx::make_op("scatter_" + reduction_mode, {{"axis", 0}}), ld, li, lu);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
 

@@ -215,11 +215,11 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
-    scatter_elements_none
-    scatter_elements_add
-    scatter_elements_mul
-    scatter_elements_min
-    scatter_elements_max
+    scatter_none
+    scatter_add
+    scatter_mul
+    scatter_min
+    scatter_max
     scatternd_add
     scatternd_mul
     scatternd_none

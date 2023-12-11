@@ -21,20 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MIN_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MIN_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_ADD_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_ADD_HPP
 
-#include <migraphx/op/scatter_elements_op.hpp>
+#include <migraphx/op/scatter_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter_elements_min : public scatter_elements_op<scatter_elements_min>
+struct scatter_add : public scatter_op<scatter_add>
 {
     auto reduction() const
     {
-        return [](auto& x, const auto& y) { x = std::min(x, y); };
+        return [](auto& x, const auto& y) { x += y; };
     }
 };
 

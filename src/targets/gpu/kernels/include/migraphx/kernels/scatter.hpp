@@ -31,7 +31,7 @@
 namespace migraphx {
 
 template <uint64_t Axis, class T, class U, class V, class F>
-__device__ void scatter_elements(const T& indices_t, const U& updates_t, const V& output_t, F f)
+__device__ void scatter(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
     auto gpu_index     = make_index();
     auto indices_shape = indices_t.get_shape();

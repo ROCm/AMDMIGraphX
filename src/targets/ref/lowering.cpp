@@ -44,7 +44,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
-#include <migraphx/ref/gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>

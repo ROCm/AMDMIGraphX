@@ -37,7 +37,8 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
         auto x = mm->add_parameter("x", s);
         auto y = mm->add_parameter("x", s);
         auto r = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
-        auto rb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), r);
+        auto rb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), r);
         auto add = mm->add_instruction(migraphx::make_op("add"), rb, y);
         mm->add_return({add});
         return p;
@@ -45,10 +46,9 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
 };
 
 template <int N>
-struct test_block_reduce_small_for_size
-: test_block_reduce_small<N, migraphx::shape::half_type>,
-  test_block_reduce_small<N, migraphx::shape::float_type>,
-  test_block_reduce_small<N, migraphx::shape::int8_type>
+struct test_block_reduce_small_for_size : test_block_reduce_small<N, migraphx::shape::half_type>,
+                                          test_block_reduce_small<N, migraphx::shape::float_type>,
+                                          test_block_reduce_small<N, migraphx::shape::int8_type>
 {
 };
 
@@ -63,4 +63,3 @@ template struct test_block_reduce_small_for_size<64>;
 template struct test_block_reduce_small_for_size<67>;
 template struct test_block_reduce_small_for_size<128>;
 template struct test_block_reduce_small_for_size<129>;
-

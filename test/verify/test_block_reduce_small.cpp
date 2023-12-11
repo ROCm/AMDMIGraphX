@@ -39,7 +39,7 @@ struct test_block_reduce_small : verify_program<test_block_reduce_small<N, T>>
         auto y = mm->add_parameter("x", s);
         auto two = mm->add_literal(migraphx::literal{migraphx::shape{s.type(), {1}}, {2}});
         auto mul = migraphx::add_common_op(*mm, migraphx::make_op("mul"), {x, two});
-        auto r = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto r   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul);
         auto rb =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), r);
         auto add = mm->add_instruction(migraphx::make_op("add"), rb, y);

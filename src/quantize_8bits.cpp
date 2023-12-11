@@ -86,6 +86,8 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
 void capture_arguments_pass::apply(module& m) const // NOLINT
 {
     assert(param_index != nullptr);
+    const auto& quantizable_types = get_quantizable_type();
+
     for(auto ins : iterator_for(m))
     {
         if(not contains(ins_names, ins->name()))
@@ -101,8 +103,15 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
         std::vector<instruction_ref> new_args;
         for(auto input : inputs)
         {
-            auto new_in = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
-            new_args.push_back(new_in);
+            if(contains(quantizable_types, input->get_shape().type()))
+            {
+                auto new_in = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
+                new_args.push_back(new_in);
+            }
+            else
+            {
+                new_args.push_back(input);
+            }
         }
         m.replace_instruction(ins, ins->get_operator(), new_args);
     }

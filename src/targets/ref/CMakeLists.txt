@@ -25,7 +25,6 @@
 add_library(migraphx_ref
     target.cpp
     lowering.cpp
-    gemm.cpp
 )
 set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})

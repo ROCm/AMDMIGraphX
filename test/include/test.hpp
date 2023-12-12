@@ -28,6 +28,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -402,6 +403,28 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
         px, py, ptol);
 }
 
+template<class Iterator1, class Iterator2>
+bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
+{
+    std::tie(start, pattern_start) = std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
+        if (m == '?')
+            return true;
+        if (m == '*')
+            return false;
+        return c == m;
+    });
+    if(pattern_start == pattern_last)
+        return start == last;
+    if (*pattern_start != '*')
+        return false;
+    pattern_start = std::find_if(pattern_start, pattern_last, [](auto c) { return c != '*'; });
+    if(pattern_start == pattern_last)
+        return true;
+    while(not glob_match(start, last, pattern_start, pattern_last) and start != last)
+        start++;
+    return start != last;
+}
+
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>
@@ -590,6 +613,7 @@ struct driver
         out() << color::fg_green << "[   RUN    ] " << color::reset << color::bold << name
               << color::reset << std::endl;
         std::string msg;
+        auto start = std::chrono::steady_clock::now();
         if(args.count("--continue") > 0)
         {
             msg = fork(name, args);
@@ -606,6 +630,8 @@ struct driver
             {
             }
         }
+        auto finish = std::chrono::steady_clock::now();
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(finish - start).count();
         if(msg.empty() and failures() != 0)
         {
             if(failures() == 1)
@@ -615,15 +641,18 @@ struct driver
         }
         if(msg.empty())
         {
-            out() << color::fg_green << "[ COMPLETE ] " << color::reset << color::bold << name
-                  << color::reset << std::endl;
+            out() << color::fg_green << "[ COMPLETE ] " << color::reset;
         }
         else
         {
             failed.push_back(name);
-            out() << color::fg_red << "[  FAILED  ] " << color::reset << color::bold << name
-                  << color::reset << ": " << color::fg_yellow << msg << color::reset << std::endl;
+            out() << color::fg_red << "[  FAILED  ] " << color::reset;
         }
+        out() << color::bold << name << color::reset;
+        out() << color::fg_blue << " (" << elapsed_ms << "ms)" << color::reset;
+        if(not msg.empty())
+            out() << ": " << color::fg_yellow << msg << color::reset;
+        out() << std::endl;
     }
 
     void run(int argc, const char* argv[])
@@ -654,20 +683,32 @@ struct driver
         {
             std::unordered_map<std::string, test_case> m(get_test_cases().begin(),
                                                          get_test_cases().end());
+
             for(auto&& iname : cases)
             {
-                for(auto&& name : get_case_names(iname))
+                std::vector<std::pair<std::string, test_case>> found_cases;
+                for(auto&& pattern:get_case_names(iname))
                 {
-                    auto f = m.find(name);
+                    auto f = m.find(pattern);
                     if(f == m.end())
                     {
-                        out() << color::fg_red << "[  ERROR   ] Test case '" << name
-                              << "' not found." << color::reset << std::endl;
-                        failed.push_back(name);
+                        std::copy_if(get_test_cases().begin(), get_test_cases().end(), std::back_inserter(found_cases), [&](auto&& p) {
+                            return glob_match(p.first.begin(), p.first.end(), pattern.begin(), pattern.end());
+                        });
                     }
                     else
-                        run_test_case(name, f->second, args);
+                    {
+                        found_cases.push_back(*f);
+                    }
                 }
+                if(found_cases.empty())
+                {
+                    out() << color::fg_red << "[  ERROR   ] Test case '" << iname
+                              << "' not found." << color::reset << std::endl;
+                        failed.push_back(iname);
+                }
+                for(auto&& p:found_cases)
+                    run_test_case(p.first, p.second, args);
             }
         }
         out() << color::fg_green << "[==========] " << color::fg_yellow << ran << " tests ran"

@@ -67,6 +67,7 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
+
     rv.disable_test_for("cpu", {
         "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
             "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",

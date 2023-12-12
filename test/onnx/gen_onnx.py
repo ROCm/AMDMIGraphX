@@ -6286,6 +6286,56 @@ def qlinearaveragepool_nt_cip_test():
 
 
 @onnx_test()
+def qlinearconcat_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [1])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.25])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [0])
+
+    y = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=0,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
+def qlinearconcat_3d_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [3, 4, 2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [10])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3, 2, 2])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.4])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [20])
+
+    y = helper.make_tensor_value_info('out', TensorProto.UINT8, [3, 6, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=1,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
 def qlinearconv_test():
     # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])

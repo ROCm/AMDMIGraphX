@@ -210,9 +210,15 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     bool diff_shapes_equal_vals = false;
     visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
-            std::all_of(
-                l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and
-            std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
+            std::all_of(l1.begin() + 1,
+                        l1.end(),
+                        [&](auto v) {
+                            return ((float_equal(v, l1.front())) or
+                                    (std::isinf(l1.front()) and std::isinf(v)));
+                        }) and
+            std::all_of(l2.begin(), l2.end(), [&](auto v) {
+                return ((float_equal(v, l1.front())) or (std::isinf(l1.front()) and std::isinf(v)));
+            });
     });
 
     return (x == y) or diff_shapes_equal_vals;

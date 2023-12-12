@@ -654,7 +654,7 @@ TEST_CASE(dot_float)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
     migraphx::run_passes(
         p,
-        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, {"dot"}, quant_params},
+        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params},
          migraphx::dead_code_elimination{}});
     auto qp = create_int8_quantized_prog();
 
@@ -749,7 +749,7 @@ TEST_CASE(dot_double_2args)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
     migraphx::run_passes(
         p,
-        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, {"dot"}, quant_params},
+        {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params},
          migraphx::dead_code_elimination{}});
     EXPECT(p == create_int8_quantized_prog());
 
@@ -823,7 +823,7 @@ TEST_CASE(dot_half_1arg)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
     migraphx::run_passes(
         p,
-        {migraphx::quantize_8bits_pass{migraphx::shape::int8_type, {"dot"}, quant_params},
+        {migraphx::quantize_8bits_pass{migraphx::shape::int8_type, quant_params},
          migraphx::dead_code_elimination{}});
     EXPECT(p == create_int8_quantized_prog());
 
@@ -881,7 +881,7 @@ TEST_CASE(conv_float)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
     migraphx::run_passes(p,
                          {migraphx::quantize_8bits_pass{
-                             migraphx::shape::type_t::int8_type, {"convolution"}, quant_params}});
+                             migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -908,7 +908,7 @@ TEST_CASE(conv_float_throw)
     test::throws([&] {
         migraphx::run_passes(p,
                              {migraphx::quantize_8bits_pass{
-                                 migraphx::shape::type_t::int8_type, {"add"}, quant_params}});
+                                 migraphx::shape::type_t::int8_type, quant_params}});
     });
 }
 
@@ -961,7 +961,7 @@ TEST_CASE(conv_half)
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
     migraphx::run_passes(p,
                          {migraphx::quantize_8bits_pass{
-                             migraphx::shape::type_t::int8_type, {"convolution"}, quant_params}});
+                             migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -1242,7 +1242,6 @@ TEST_CASE(int8_subgraph)
         p1, {migraphx::capture_arguments_pass{{"convolution", "dot"}, {}, &param_index}});
     migraphx::run_passes(p1,
                          {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type,
-                                                        {"convolution", "dot"},
                                                         quant_params}});
     optimize_prog_int8(p1);
 

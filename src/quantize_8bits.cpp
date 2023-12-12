@@ -90,11 +90,7 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
 
     for(auto ins : iterator_for(m))
     {
-        if(not contains(ins_names, ins->name()))
-        {
-            continue;
-        }
-        if(ins->name() == "convert")
+        if((not contains(ins_names, ins->name())) or (ins->name() == "convert"))
         {
             continue;
         }

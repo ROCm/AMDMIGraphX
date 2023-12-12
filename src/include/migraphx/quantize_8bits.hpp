@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 #include <migraphx/argument.hpp>
@@ -41,7 +42,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT capture_arguments_pass
 {
-    std::vector<std::string> ins_names = {"dot", "convolution"};
+    std::unordered_set<std::string> ins_names = {"dot", "convolution"};
     std::function<void(std::size_t, std::vector<argument>)> f{};
     std::size_t* param_index = nullptr;
     std::string name() const { return "capture_arguments"; }
@@ -53,8 +54,7 @@ struct MIGRAPHX_EXPORT capture_arguments_pass
  */
 struct MIGRAPHX_EXPORT quantize_8bits_pass
 {
-    shape::type_t precision            = shape::int8_type;
-    std::vector<std::string> ins_names = {"dot", "convolution"};
+    shape::type_t precision = shape::int8_type;
     std::vector<std::pair<float, float>> quant_params;
     std::string name() const { return "quantize_8bits"; }
     void apply(module& m) const;

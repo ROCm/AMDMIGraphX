@@ -232,12 +232,12 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration = {};
-    std::vector<std::string> op_names      = {};
+    std::set<std::string> op_names         = {};
 };
 
 void add_op_name(quantize_int8_options& options, const char* name)
 {
-    options.op_names.push_back(name);
+    options.op_names.insert(name);
 }
 
 void add_calibration_data(quantize_int8_options& options, parameter_map& data)
@@ -252,11 +252,7 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
         options.op_names = {"dot", "convolution"};
     }
 
-    migraphx::quantize_int8(
-        prog,
-        t,
-        options.calibration,
-        std::set<std::string>(options.op_names.begin(), options.op_names.end()));
+    migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
 }
 
 #ifdef __clang__

@@ -252,7 +252,11 @@ void quantize_int8_wrap(program& prog, const target& t, quantize_int8_options& o
         options.op_names = {"dot", "convolution"};
     }
 
-    migraphx::quantize_int8(prog, t, options.calibration, options.op_names);
+    migraphx::quantize_int8(
+        prog,
+        t,
+        options.calibration,
+        std::set<std::string>(options.op_names.begin(), options.op_names.end()));
 }
 
 #ifdef __clang__

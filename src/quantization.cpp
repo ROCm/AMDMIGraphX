@@ -61,7 +61,7 @@ void quantize_8bits(program& prog,
                     const target& t,
                     shape::type_t precision,
                     const std::vector<parameter_map>& calibration,
-                    const std::vector<std::string>& ins_names)
+                    const std::set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
@@ -138,7 +138,7 @@ void quantize_8bits(program& prog,
     }
 
     run_passes(prog,
-               {quantize_8bits_pass{precision, ins_names, *quant_8bit_params},
+               {quantize_8bits_pass{precision, *quant_8bit_params},
                 simplify_qdq{},
                 optimize_module{},
                 dead_code_elimination{}});
@@ -147,12 +147,11 @@ void quantize_8bits(program& prog,
 void quantize_int8(program& prog,
                    const target& t,
                    const std::vector<parameter_map>& calibration,
-                   const std::vector<std::string>& ins_names)
+                   const std::set<std::string>& ins_names)
 {
     std::set<std::string> op_names = {"convolution", "dot"};
-    std::set<std::string> input_ins_names(ins_names.begin(), ins_names.end());
     if(not std::includes(
-           op_names.begin(), op_names.end(), input_ins_names.begin(), input_ins_names.end()))
+           op_names.begin(), op_names.end(), ins_names.begin(), ins_names.end()))
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }
@@ -164,7 +163,7 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
                  "incorrect final outputs\n";
 
-    std::vector<std::string> supported_ins_names;
+    std::set<std::string> supported_ins_names;
     auto* mm                                     = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
     {
@@ -172,9 +171,9 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
         {
             continue;
         }
-        else if(not starts_with(ins->name(), "@"))
+        if(not starts_with(ins->name(), "@"))
         {
-            supported_ins_names.push_back(ins->name());
+            supported_ins_names.insert(ins->name());
         }
     }
     quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);

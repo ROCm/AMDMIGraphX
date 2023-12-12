@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 #include <migraphx/argument.hpp>
@@ -41,7 +42,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT capture_arguments_pass
 {
-    std::set<std::string> ins_names = {"dot", "convolution"};
+    std::unordered_set<std::string> ins_names = {"dot", "convolution"};
     std::function<void(std::size_t, std::vector<argument>)> f{};
     std::size_t* param_index = nullptr;
     std::string name() const { return "capture_arguments"; }

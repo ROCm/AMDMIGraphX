@@ -232,7 +232,7 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration = {};
-    std::set<std::string> op_names         = {};
+    std::unordered_set<std::string> op_names = {};
 };
 
 void add_op_name(quantize_int8_options& options, const char* name)

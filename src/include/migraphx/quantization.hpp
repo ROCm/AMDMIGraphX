@@ -44,7 +44,8 @@ MIGRAPHX_EXPORT void quantize_fp16(program& prog,
 MIGRAPHX_EXPORT void quantize_int8(program& prog,
                                    const target& t,
                                    const std::vector<parameter_map>& calibration,
-                                   const std::set<std::string>& ins_names = {"dot", "convolution"});
+                                   const std::unordered_set<std::string>& ins_names = {
+                                       "dot", "convolution"});
 MIGRAPHX_EXPORT void
 quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
 

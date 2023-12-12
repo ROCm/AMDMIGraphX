@@ -150,8 +150,7 @@ void quantize_int8(program& prog,
                    const std::unordered_set<std::string>& ins_names)
 {
     std::unordered_set<std::string> op_names = {"convolution", "dot"};
-    if(not std::includes(
-           op_names.begin(), op_names.end(), ins_names.begin(), ins_names.end()))
+    if(op_names != ins_names)
     {
         MIGRAPHX_THROW("QUANTIZE_INT8: only support DOT and CONVOLUTION operation");
     }

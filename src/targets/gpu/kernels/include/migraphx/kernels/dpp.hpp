@@ -89,7 +89,7 @@ __device__ T dpp_swizzle(T& x)
 }
 
 template <unsigned int SrcLane, unsigned int Width, class T>
-__device__ T dpp_readlane(T& x)
+__device__ T readlane(T& x)
 {
     static_assert(is_power_of_2(Width), "Width must be a power of 2");
     return dpp_op(x, [](auto i) { return __shfl(i, SrcLane, Width); });

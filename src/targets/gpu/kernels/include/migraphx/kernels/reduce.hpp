@@ -172,7 +172,7 @@ __device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
     idx.local_subwave_stride<SubWaveSize>(
         n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce<SubWaveSize>(x, op);
-    return dpp_readlane<SubWaveSize - 1, SubWaveSize>(x);
+    return readlane<SubWaveSize - 1, SubWaveSize>(x);
 }
 
 template <class Op, class T, class Index, class F>

@@ -105,40 +105,65 @@ struct resize
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(2);
+        check_shapes{inputs, *this, true}.has(1,2);
 
-        // Inputs are X, sizes or scale, ROI and axes not supported
-
-        if((sizes.empty()) == (scales.empty()))
-            MIGRAPHX_THROW("RESIZE: One and only one of max_size or scales attributes must be given");
-        if(inputs.back().ndim() != 1)
-             MIGRAPHX_THROW("RESIZE: size/scale input must have rank 1");
-        if(inputs.back().dynamic() and not inputs.back().dyn_dims()[0].is_fixed())
-            MIGRAPHX_THROW("RESIZE: size/scale input must be fixed size");
-
-        if(inputs.front().ndim() != inputs.back().to_static(1).lens()[0])
-            MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
-
-        // TODO: this placeholder logic is for adding another way to tell whether we're
-        // interpreting second input as sizes or scales.
-        if(not sizes.empty())
+        // Inputs are X, sizes or scale, ROI and axes not supported.
+        if(inputs.size() == 1)
         {
-            // the second shape is sizes
-            
+            if(inputs.front().dynamic())
+            {
+                // Not supported at this point--needs different validity checking
+                MIGRAPHX_THROW("RESIZE: Sincle dynamic input not supported");
+            }
+            auto input_s = inputs.front();
+            // No size/scale input.  Size/scale must be an attribute and so output will be static.
+            if((sizes.empty()) == (scales.empty()))
+                MIGRAPHX_THROW("RESIZE: One and only one of sizes or scales attributes must be given");
+            if(not sizes.empty())
+            {
+                if(not (sizes.size() == input_s.ndim()))
+                    MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
+                std::vector<size_t> lens;
+                std::transform(sizes.begin(), sizes.end(), std::back_inserter(lens),
+                                    [](auto in_len) {
+                                        return static_cast<size_t>(in_len);                     
+                                    });
+
+                auto zap =                 shape{input_s.type(), lens};
+
+                return shape{input_s.type(), lens};
+            }
+            else{
+                if(not (scales.size() == input_s.ndim()))
+                    MIGRAPHX_THROW("RESIZE: scales attribute's size must match rank of input X");
+                std::vector<size_t> lens;
+                std::transform(scales.begin(), scales.end(), input_s.lens().begin(), std::back_inserter(lens),
+                                                [](auto scale_i, size_t in_len) {
+                            return static_cast<size_t>(scale_i*in_len);                     
+                });
+
+                auto zap =                 shape{input_s.type(), lens};
+
+                return shape{input_s.type(), lens};
+            }
         }
         else
         {
-            // the second shape is scales
-            
-        }
+            // Dynamic output shape.
+            if(inputs.back().ndim() != 1)
+                MIGRAPHX_THROW("RESIZE: size/scale input must have rank 1");
+            if(inputs.back().dynamic() and not inputs.back().dyn_dims()[0].is_fixed())
+                MIGRAPHX_THROW("RESIZE: size/scale input must be fixed size");
 
-        // No matter what the inputs, the output shape is dynamic, with an unlimited size range.
-        // TODO:  How can we tell if the input shape is a literal?  If it is, and input X is static, 
-        // we can output a static shape.
-        std::size_t max_val = std::numeric_limits<std::size_t>::max();
-        std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
-                                                        shape::dynamic_dimension{0, max_val});
-        return {inputs.front().type(), dyn_dims};
+            if(inputs.front().ndim() != inputs.back().to_static(1).lens()[0])
+                MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
+
+            // The output shape is dynamic, with an unlimited size range.
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
+                                                            shape::dynamic_dimension{0, max_val});
+            return {inputs.front().type(), dyn_dims};
+        }
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
@@ -157,7 +182,12 @@ struct resize
             if(not sizes.empty())
             {
                 args[1].visit([&](auto size_input) {
-                    // Copy the output size from args[1]
+
+                    // TODO: inside a single "visit" put the following "if"
+                    // to distinguish between sizes/shapes by data type
+            // using type = typename decltype(output)::value_type;
+            // if constexpr(std::is_integral<type>{})
+                                // Copy the output size from args[1]
                     std::transform(size_input.begin(), size_input.end(), out_lens.begin(),
                                 [](auto size_i) { 
                             return size_i;                     
@@ -194,6 +224,7 @@ std::cout << "scale input " << scale_i << "\n";
         }
 
         argument result{output_shape};
+        // TODO: there could be ways to optimize this function map
         auto nearest_op = get_nearest_op(nearest_mode);
         auto idx_op              = get_original_idx_op(coordinate_transformation_mode);
 
@@ -207,7 +238,6 @@ std::cout << "scale input " << scale_i << "\n";
                     auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
                     in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
                 }
-                // TODO:  use index function instead?
                 output[out_idx] = data(in_idx.begin(), in_idx.end());
             });
         });

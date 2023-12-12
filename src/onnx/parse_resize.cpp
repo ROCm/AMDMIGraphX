@@ -192,12 +192,17 @@ static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
     return scales;
 }
 
-static void parse_args(const std::vector<instruction_ref>& args,
+// return:  true if scales or sizes attribute is dynamic.  In such 
+// case we must call the Resize op. which will take them from runtime inputs.
+static bool parse_args(const std::vector<instruction_ref>& args,
                        const std::vector<size_t>& in_lens,
                        const std::string& op_name,
                        std::vector<double>& vec_scale,
                        std::vector<std::size_t>& out_lens)
 {
+    // Go through the arguments, not including the first or any blanks.  The
+    // first argument found will be interpreted as either output shape or 
+    // scales.
     for(const auto& arg : args)
     {
         if(arg->name() == "undefined" or arg == args.front())
@@ -213,12 +218,18 @@ static void parse_args(const std::vector<instruction_ref>& args,
         }
 
         auto type = arg->get_shape().type();
+
         // output size
         if(type == shape::int64_type)
         {
             auto arg_out_s = arg->eval();
-            check_arg_empty(arg_out_s,
-                            "PARSE_" + op_name + ": dynamic output size is not supported!");
+            // check_arg_empty(arg_out_s,
+            //                 "PARSE_" + op_name + ": dynamic output size is not supported!");
+            if(arg_out_s.empty())
+            {
+                // dynamic output size:  don't use either scales or size attribute
+                return true;
+            }
             arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
 
             if(out_lens.size() != in_lens.size())
@@ -242,13 +253,15 @@ static void parse_args(const std::vector<instruction_ref>& args,
             if(lens[0] == in_lens.size())
             {
                 auto arg_scale = arg->eval();
-                check_arg_empty(arg_scale,
-                                "PARSE_" + op_name + ": dynamic input scale is not supported!");
-
+                // check_arg_empty(arg_scale,
+                //                 "PARSE_" + op_name + ": dynamic input scale is not supported!");
+                if(arg_scale.empty())
+                    return true;
                 arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
             }
         }
     }
+    return false;
 }
 
 struct parse_resize : op_parser<parse_resize>
@@ -277,7 +290,7 @@ struct parse_resize : op_parser<parse_resize>
         }
 
         // input data shape info
-        auto in_s    = args[0]->get_shape();
+        auto in_s    = args[0]->get_shape().to_static(1);
         auto in_lens = in_s.lens();
 
         // output shape is explicitly specified
@@ -291,7 +304,20 @@ struct parse_resize : op_parser<parse_resize>
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
-            parse_args(args, in_lens, opd.op_name, vec_scale, out_lens);
+            if (parse_args(args, in_lens, opd.op_name, vec_scale, out_lens))
+            {
+                // Dynamic output; call Resize op with 2 arguments.  vec_scale, out_lens aren't used.
+                std::cout << "Call Resize op here!\n";
+
+                shape ind_s{shape::int32_type, {out_lens.size()}};
+                auto ins_ind = info.add_literal(literal(ind_s, out_lens));
+    ins_ind->debug_print();            
+    auto zzq = ins_ind->get_shape();
+                return info.add_instruction(make_op("resize", {{"nearest_mode", nearest_mode}
+        , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
+
+
+            };
         }
 
         if(in_lens.size() != vec_scale.size())

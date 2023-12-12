@@ -1932,6 +1932,52 @@ TEST_CASE(qlinearaveragepool_nt_cip_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(qlinearconcat_test)
+{
+    auto p = migraphx::parse_onnx("qlinearconcat_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int8_t> data_t0 = {2, 3};
+    migraphx::shape s_t0{migraphx::shape::int8_type, {2}};
+    migraphx::parameter_map pp;
+    pp["t0"] = migraphx::argument(s_t0, data_t0.data());
+
+    std::vector<int8_t> data_t1 = {6, 8, 10};
+    migraphx::shape s_t1{migraphx::shape::int8_type, {3}};
+    pp["t1"] = migraphx::argument(s_t1, data_t1.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {3, 4, 5, 6, 7};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(qlinearconcat_3d_test)
+{
+    auto p = migraphx::parse_onnx("qlinearconcat_3d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int8_t> data_t0 = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                                   10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    migraphx::shape s_t0{migraphx::shape::int8_type, {3, 4, 2}};
+    migraphx::parameter_map pp;
+    pp["t0"] = migraphx::argument(s_t0, data_t0.data());
+
+    std::vector<int8_t> data_t1 = {25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25};
+    migraphx::shape s_t1{migraphx::shape::int8_type, {3, 2, 2}};
+    pp["t1"] = migraphx::argument(s_t1, data_t1.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<uint8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6, 2, 2, 2, 2, 2, 2,
+                                2, 2, 6, 6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(qlinearconv_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html

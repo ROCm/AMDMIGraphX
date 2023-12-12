@@ -580,7 +580,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("prog"),
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
-          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
+          py::arg("ins_names")   = std::set<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

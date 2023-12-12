@@ -864,7 +864,7 @@ auto skip_broadcasts_transposes_contiguous(Ms... ms)
 }
 
 template <class T>
-inline auto has_value(T x, float tolerance = 1e-6)
+inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")
@@ -874,8 +874,13 @@ inline auto has_value(T x, float tolerance = 1e-6)
             return false;
         bool b = false;
         l.visit([&](auto v) {
-            if(std::all_of(
-                   v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
+            // cast to the literal's data type before comparing
+            using type = typename decltype(v)::value_type;
+            auto eps   = std::numeric_limits<type>::epsilon();
+            if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                   return std::fabs(val - static_cast<type>(x)) <
+                          (atol_mult * eps + rtol_mult * eps * std::fabs(val));
+               }))
                 b = true;
         });
         return b;

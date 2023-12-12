@@ -70,6 +70,7 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        /*
         auto ins        = r.result;
         auto x          = r.instructions["x"];
         auto sqrt_2_rpi = m.add_literal(
@@ -88,6 +89,18 @@ struct find_tanh_fast_gelu
         auto e         = insert_common_op(m, ins, make_op("add"), {one, emu});
         auto cdf       = insert_common_op(m, ins, make_op("div"), {one, e});
         auto y         = m.insert_instruction(ins, make_op("mul"), x, cdf);
+        m.replace_instruction(ins, y);
+        */
+        auto ins      = r.result;
+        auto x        = r.instructions["x"];
+        auto sqrt1_2  = m.add_literal(literal{shape{x->get_shape().type()}, {M_SQRT1_2}});
+        auto one      = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        auto one_half = m.add_literal(literal{shape{x->get_shape().type()}, {0.5f}});
+        auto a        = insert_common_op(m, ins, make_op("mul"), {x, sqrt1_2});
+        auto erf      = m.insert_instruction(ins, make_op("erf"), a);
+        auto add_erf  = insert_common_op(m, ins, make_op("add"), {one, erf});
+        auto b        = insert_common_op(m, ins, make_op("mul"), {one_half, add_erf});
+        auto y        = m.insert_instruction(ins, make_op("mul"), x, b);
         m.replace_instruction(ins, y);
     }
 };

@@ -83,7 +83,8 @@ struct miopen_apply
         assert(mod != nullptr);
         assert(pass != nullptr);
 
-        compute_fp32 = get_compute_fp32_flag();
+        // compute_fp32 = get_compute_fp32_flag();
+        compute_fp32 = true;
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");

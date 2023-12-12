@@ -38,10 +38,10 @@ struct gelu_erf_matcher
     F f;
     auto erf_fn() const
     {
-        auto mul_1_sqrt_2 = f("mul")(either_arg(0, 1)(none_of(has_value(M_SQRT1_2, 1e-3)).bind("x"),
-                                                      has_value(M_SQRT1_2, 1e-3)));
+        auto mul_1_sqrt_2 = f("mul")(
+            either_arg(0, 1)(none_of(has_value(M_SQRT1_2)).bind("x"), has_value(M_SQRT1_2, 1e-3)));
         auto div_sqrt_2 =
-            f("div")(args(none_of(has_value(M_SQRT2, 1e-3)).bind("x"), has_value(M_SQRT2, 1e-3)));
+            f("div")(args(none_of(has_value(M_SQRT2, 1e-3)).bind("x"), has_value(M_SQRT2)));
         return f("erf")(used_once(), arg(0)(used_once(), any_of(mul_1_sqrt_2, div_sqrt_2)));
     }
 

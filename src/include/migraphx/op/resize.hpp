@@ -177,6 +177,7 @@ struct resize
                     //
                     std::transform(scale_input.begin(), scale_input.end(), vec_scale.begin(),
                                 [](auto scale_i) {
+std::cout << "scale input " << scale_i << "\n";                                    
                             return scale_i;                     
                     }); 
 

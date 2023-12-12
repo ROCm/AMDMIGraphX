@@ -314,34 +314,54 @@ struct parse_resize : op_parser<parse_resize>
         std::size_t out_elements = out_s.elements();
         auto idx_op              = get_original_idx_op(coord_trans_mode);
 
-        // reshape input to one-dimension
-        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
         if(mode == "nearest")
         {
-            std::vector<int> ind(out_elements);
+            // std::vector<int> ind(out_elements);
 
-            // map out_idx to in_idx
-            auto nearest_op = get_nearest_op(nearest_mode);
-            shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-                std::vector<size_t> in_idx(out_idx_v.size());
-                for(auto ii = 0; ii < in_lens.size(); ++ii)
-                {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-                }
+            // // map out_idx to in_idx
+            // auto nearest_op = get_nearest_op(nearest_mode);
+            // shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
+            //     std::vector<size_t> in_idx(out_idx_v.size());
+            //     for(auto ii = 0; ii < in_lens.size(); ++ii)
+            //     {
+            //         auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+            //         in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+            //     }
 
-                ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
-            });
+            //     ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
+            // });
 
-            shape ind_s{shape::int32_type, out_lens};
-            auto ins_ind = info.add_literal(literal(ind_s, ind));
-            return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+            // shape ind_s{shape::int32_type, out_lens};
+            // auto ins_ind = info.add_literal(literal(ind_s, ind));
+            // return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+      if(vec_scale.empty())
+        {
+            shape ind_s{shape::int32_type, {out_lens.size()}};
+            auto ins_ind = info.add_literal(literal(ind_s, out_lens));
+ins_ind->debug_print();            
+auto zzq = ins_ind->get_shape();
+            return info.add_instruction(make_op("resize", {{"sizes", {1}}, {"scales", {}}, {"nearest_mode", nearest_mode}
+      , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
+      }
+      else
+        {
+            shape scale_s{shape::float_type, {out_lens.size()}};
+            auto ins_ind = info.add_literal(literal(scale_s, vec_scale));
+ins_ind->debug_print();          std::cout << "\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\//////////////\n";  
+auto zzq = ins_ind->get_shape();
+            return info.add_instruction(make_op("resize", {{"sizes", {}}, {"scales", {1}}, {"nearest_mode", nearest_mode}
+      , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
+      }
         }
         // linear mode
         else
         {
+            // reshape input to one-dimension
+            std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+            auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
+
+
             auto nearest_floor = get_nearest_op("floor");
             auto nearest_ceil  = get_nearest_op("ceil");
 

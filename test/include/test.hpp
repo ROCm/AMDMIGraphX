@@ -403,19 +403,20 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
         px, py, ptol);
 }
 
-template<class Iterator1, class Iterator2>
+template <class Iterator1, class Iterator2>
 bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
 {
-    std::tie(start, pattern_start) = std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
-        if (m == '?')
-            return true;
-        if (m == '*')
-            return false;
-        return c == m;
-    });
+    std::tie(start, pattern_start) =
+        std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
+            if(m == '?')
+                return true;
+            if(m == '*')
+                return false;
+            return c == m;
+        });
     if(pattern_start == pattern_last)
         return start == last;
-    if (*pattern_start != '*')
+    if(*pattern_start != '*')
         return false;
     pattern_start = std::find_if(pattern_start, pattern_last, [](auto c) { return c != '*'; });
     if(pattern_start == pattern_last)
@@ -631,7 +632,9 @@ struct driver
             }
         }
         auto finish = std::chrono::steady_clock::now();
-        auto elapsed_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(finish - start).count();
+        auto elapsed_ms =
+            std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(finish - start)
+                .count();
         if(msg.empty() and failures() != 0)
         {
             if(failures() == 1)
@@ -687,14 +690,20 @@ struct driver
             for(auto&& iname : cases)
             {
                 std::vector<std::pair<std::string, test_case>> found_cases;
-                for(auto&& pattern:get_case_names(iname))
+                for(auto&& pattern : get_case_names(iname))
                 {
                     auto f = m.find(pattern);
                     if(f == m.end())
                     {
-                        std::copy_if(get_test_cases().begin(), get_test_cases().end(), std::back_inserter(found_cases), [&](auto&& p) {
-                            return glob_match(p.first.begin(), p.first.end(), pattern.begin(), pattern.end());
-                        });
+                        std::copy_if(get_test_cases().begin(),
+                                     get_test_cases().end(),
+                                     std::back_inserter(found_cases),
+                                     [&](auto&& p) {
+                                         return glob_match(p.first.begin(),
+                                                           p.first.end(),
+                                                           pattern.begin(),
+                                                           pattern.end());
+                                     });
                     }
                     else
                     {
@@ -703,11 +712,11 @@ struct driver
                 }
                 if(found_cases.empty())
                 {
-                    out() << color::fg_red << "[  ERROR   ] Test case '" << iname
-                              << "' not found." << color::reset << std::endl;
-                        failed.push_back(iname);
+                    out() << color::fg_red << "[  ERROR   ] Test case '" << iname << "' not found."
+                          << color::reset << std::endl;
+                    failed.push_back(iname);
                 }
-                for(auto&& p:found_cases)
+                for(auto&& p : found_cases)
                     run_test_case(p.first, p.second, args);
             }
         }

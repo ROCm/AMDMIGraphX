@@ -1055,19 +1055,32 @@ TEST_CASE(simplify_div_const)
 {
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two = m1.add_literal(2);
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {1}});
+        auto two = m1.add_literal(2.0f);
         m1.add_instruction(migraphx::make_op("div"), x, two);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two   = m2.add_literal(2);
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
+        auto two   = m2.add_literal(2.0f);
         auto recip = m2.insert_instruction(std::next(two), migraphx::make_op("recip"), two);
         m2.add_instruction(migraphx::make_op("mul"), x, recip);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_div_integral_const)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = m1.add_literal(2);
+        m1.add_instruction(migraphx::make_op("div"), x, two);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 

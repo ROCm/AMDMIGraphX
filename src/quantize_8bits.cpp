@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/quantize_int8.hpp>
+#include <migraphx/quantize_8bits.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -41,8 +41,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_INT8_QUANTIZATION_PARAMS)
-
 static std::vector<shape::type_t>& get_quantizable_type()
 {
     static std::vector<shape::type_t> quantable_types = {
@@ -50,7 +48,7 @@ static std::vector<shape::type_t>& get_quantizable_type()
     return quantable_types;
 }
 
-void quantize_int8_pass::apply(module& m) const // NOLINT
+void quantize_8bits_pass::apply(module& m) const // NOLINT
 {
     const auto& quantizable_types = get_quantizable_type();
     for(auto ins : iterator_for(m))
@@ -66,9 +64,10 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
 
         auto input = ins->inputs().front();
         auto s     = input->get_shape();
-        if(contains(quantizable_types, s.type()) and s.type() != shape::int8_type)
+        if(contains(quantizable_types, s.type()) and s.type() != precision)
         {
-            auto zero_point  = m.add_literal(static_cast<int8_t>(param.second));
+            auto zero_point =
+                m.add_literal(migraphx::literal{migraphx::shape{precision}, {param.second}});
             auto scale       = m.add_literal(literal({s.type()}, {1.0f / param.first}));
             const auto& lens = s.lens();
             scale =
@@ -87,9 +86,15 @@ void quantize_int8_pass::apply(module& m) const // NOLINT
 void capture_arguments_pass::apply(module& m) const // NOLINT
 {
     assert(param_index != nullptr);
+    const auto& quantizable_types = get_quantizable_type();
+
     for(auto ins : iterator_for(m))
     {
         if(not contains(ins_names, ins->name()))
+        {
+            continue;
+        }
+        if(ins->name() == "convert")
         {
             continue;
         }
@@ -98,8 +103,15 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
         std::vector<instruction_ref> new_args;
         for(auto input : inputs)
         {
-            auto new_in = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
-            new_args.push_back(new_in);
+            if(contains(quantizable_types, input->get_shape().type()))
+            {
+                auto new_in = m.insert_instruction(ins, op::capture{(*param_index)++, f}, input);
+                new_args.push_back(new_in);
+            }
+            else
+            {
+                new_args.push_back(input);
+            }
         }
         m.replace_instruction(ins, ins->get_operator(), new_args);
     }

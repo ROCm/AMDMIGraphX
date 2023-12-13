@@ -27,7 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_multinomial : verify_program<test_multinomial>
+template <migraphx::shape::type_t DType>
+struct test_multinomial : verify_program<test_multinomial<DType>>
 {
     migraphx::program create_program() const
     {
@@ -40,10 +41,10 @@ struct test_multinomial : verify_program<test_multinomial>
         std::uniform_real_distribution<> dis(0.0, 1.0);
         std::vector<float> rand_samples(batch_size * sample_size);
         std::generate(rand_samples.begin(), rand_samples.end(), [&]() { return dis(gen); });
-        migraphx::shape rs{migraphx::shape::float_type, {batch_size, sample_size}};
+        migraphx::shape rs{DType, {batch_size, sample_size}};
         auto rs_lit = mm->add_literal(migraphx::literal{rs, rand_samples});
 
-        migraphx::shape s{migraphx::shape::float_type, {batch_size, 5}};
+        migraphx::shape s{DType, {batch_size, 5}};
         auto input = mm->add_parameter("input", s);
 
         auto maxes = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), input);
@@ -58,3 +59,8 @@ struct test_multinomial : verify_program<test_multinomial>
         return p;
     }
 };
+
+template struct test_multinomial<migraphx::shape::float_type>;
+template struct test_multinomial<migraphx::shape::half_type>;
+// This fails, need to figure out why
+// template struct test_multinomial<migraphx::shape::fp8e4m3fnuz_type>;

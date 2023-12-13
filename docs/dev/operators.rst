@@ -5,6 +5,8 @@ operation
 ---------
 
 .. doxygenstruct:: migraphx::internal::operation
+   :members:
+   :undoc-members:
 
 .. doxygenfunction:: migraphx::internal::is_context_free
 
@@ -14,3 +16,5 @@ operators
 ---------
 
 .. doxygennamespace:: migraphx::internal::op
+   :members:
+   :undoc-members:

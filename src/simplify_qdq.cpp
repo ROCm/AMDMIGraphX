@@ -82,18 +82,21 @@ struct match_find_quantizable_ops
     // Helper function to insert quantized versions of any broadcasts and transpose ops that
     // occur between dequantizelinear and the quantized op
     static auto
-    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop)
+    propagate_quantized_ins(module& m, const instruction_ref dqins, const instruction_ref qop_arg)
     {
-        auto qinp     = dqins->inputs().front();
-        auto next_ins = dqins;
-
-        while(next_ins != qop)
+        auto prev_ins = qop_arg;
+        std::vector<instruction_ref> ins_inbetween;
+        // matcher skips continguous, multi/broadcasts and transposes, collect all those
+        // instructions
+        while(prev_ins != dqins)
         {
-            if(next_ins->name() != "dequantizelinear")
-            {
-                qinp = m.insert_instruction(qop, next_ins->get_operator(), qinp);
-            }
-            next_ins = next_ins->outputs().front();
+            ins_inbetween.push_back(prev_ins);
+            prev_ins = prev_ins->inputs().front();
+        }
+        auto qinp = dqins->inputs().front();
+        for(auto ins : reverse_iterator_for(ins_inbetween))
+        {
+            qinp = m.insert_instruction(dqins, (*ins)->get_operator(), {qinp});
         }
         return qinp;
     }
@@ -124,10 +127,11 @@ struct match_find_quantizable_ops
         auto scale2 = r.instructions["scale2"];
         auto zp1    = r.instructions["zp1"];
         auto zp2    = r.instructions["zp2"];
-
-        // Only INT8 type currently supported
-        if(dq1->inputs().front()->get_shape().type() != migraphx::shape::int8_type or
-           dq2->inputs().front()->get_shape().type() != migraphx::shape::int8_type)
+        // Only INT8 or FP8 type currently supported
+        std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::fp8e4m3fnuz_type,
+                                                             migraphx::shape::int8_type};
+        if(not contains(supported_types, dq1->inputs().front()->get_shape().type()) or
+           not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
 
         // Only symmetric quantization supported (ie. non-zero zero_points not allowed)
@@ -140,8 +144,8 @@ struct match_find_quantizable_ops
 
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
-        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop);
-        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop);
+        qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0]);
+        qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1]);
         instruction_ref dq;
         instruction_ref out_scale;
         instruction_ref zero_point;
@@ -206,9 +210,15 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     bool diff_shapes_equal_vals = false;
     visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
-            std::all_of(
-                l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and
-            std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
+            std::all_of(l1.begin() + 1,
+                        l1.end(),
+                        [&](auto v) {
+                            return ((float_equal(v, l1.front())) or
+                                    (std::isinf(l1.front()) and std::isinf(v)));
+                        }) and
+            std::all_of(l2.begin(), l2.end(), [&](auto v) {
+                return ((float_equal(v, l1.front())) or (std::isinf(l1.front()) and std::isinf(v)));
+            });
     });
 
     return (x == y) or diff_shapes_equal_vals;

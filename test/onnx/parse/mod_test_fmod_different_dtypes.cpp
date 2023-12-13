@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(mod_test_fmod_different_dtypes)
 {
     migraphx::program p;
@@ -14,5 +13,3 @@ TEST_CASE(mod_test_fmod_different_dtypes)
 
     EXPECT(p == prog);
 }
-
-

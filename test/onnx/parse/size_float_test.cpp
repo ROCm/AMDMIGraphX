@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(size_float_test)
 {
     migraphx::program p;
@@ -13,5 +12,3 @@ TEST_CASE(size_float_test)
     auto prog = optimize_onnx("size_float_test.onnx");
     EXPECT(p == prog);
 }
-
-

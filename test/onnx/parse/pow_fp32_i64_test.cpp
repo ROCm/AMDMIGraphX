@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(pow_fp32_i64_test)
 {
     migraphx::program p;
@@ -17,5 +16,3 @@ TEST_CASE(pow_fp32_i64_test)
 
     EXPECT(p == prog);
 }
-
-

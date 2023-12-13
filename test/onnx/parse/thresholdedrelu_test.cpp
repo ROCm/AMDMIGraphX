@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(thresholdedrelu_test)
 {
     migraphx::program p;
@@ -20,5 +19,3 @@ TEST_CASE(thresholdedrelu_test)
 
     EXPECT(p == prog);
 }
-
-

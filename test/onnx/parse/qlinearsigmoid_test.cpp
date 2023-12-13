@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearsigmoid_test)
 {
     migraphx::program p;
@@ -41,5 +40,3 @@ TEST_CASE(qlinearsigmoid_test)
 
     EXPECT(p.sort() == prog.sort());
 }
-
-

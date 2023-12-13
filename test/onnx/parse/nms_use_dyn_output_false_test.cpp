@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(nms_overwrite_use_dyn_output_test)
 {
     migraphx::program p;
@@ -31,5 +30,3 @@ TEST_CASE(nms_overwrite_use_dyn_output_test)
     auto prog = migraphx::parse_onnx("nms_use_dyn_output_false_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

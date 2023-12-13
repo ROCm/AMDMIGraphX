@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reducel1_dyn_test)
 {
     {
@@ -45,5 +44,3 @@ TEST_CASE(reducel1_dyn_test)
         EXPECT(p == prog);
     }
 }
-
-

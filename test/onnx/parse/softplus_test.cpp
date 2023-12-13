@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(softplus_test)
 {
     migraphx::program p;
@@ -21,5 +20,3 @@ TEST_CASE(softplus_test)
     auto prog = optimize_onnx("softplus_test.onnx");
     EXPECT(p == prog);
 }
-
-

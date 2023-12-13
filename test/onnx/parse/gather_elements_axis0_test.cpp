@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(gather_elements_axis0_test)
 {
     migraphx::program p;
@@ -30,5 +29,3 @@ TEST_CASE(gather_elements_axis0_test)
 
     EXPECT(p == prog);
 }
-
-

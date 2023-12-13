@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(max_test)
 {
     migraphx::program p;
@@ -16,5 +15,3 @@ TEST_CASE(max_test)
 
     EXPECT(p == prog);
 }
-
-

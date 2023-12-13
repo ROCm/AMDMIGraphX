@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <random>
 
-
 TEST_CASE(randomnormallike_test)
 {
     float mean  = 10.0;
@@ -26,5 +25,3 @@ TEST_CASE(randomnormallike_test)
 
     EXPECT(p == prog);
 }
-
-

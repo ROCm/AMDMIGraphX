@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(neg_dynamic_test)
 {
     migraphx::program p;
@@ -16,5 +15,3 @@ TEST_CASE(neg_dynamic_test)
     auto prog                     = migraphx::parse_onnx("neg_dynamic_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

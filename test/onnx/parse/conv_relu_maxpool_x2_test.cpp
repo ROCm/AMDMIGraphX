@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(conv_relu_maxpool_x2_test)
 {
     migraphx::program p;
@@ -46,5 +45,3 @@ TEST_CASE(conv_relu_maxpool_x2_test)
 
     EXPECT(p == prog);
 }
-
-

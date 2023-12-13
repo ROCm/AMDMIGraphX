@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-
 TEST_CASE(quantizelinear_zero_point_test)
 {
     migraphx::program p;
@@ -31,5 +30,3 @@ TEST_CASE(quantizelinear_zero_point_test)
     auto prog = optimize_onnx("quantizelinear_zero_point_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(cos_test)
 {
     migraphx::program p;
@@ -12,5 +11,3 @@ TEST_CASE(cos_test)
     auto prog = optimize_onnx("cos_test.onnx");
     EXPECT(p == prog);
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(slice_var_input_dyn1)
 {
     migraphx::program p;
@@ -19,5 +18,3 @@ TEST_CASE(slice_var_input_dyn1)
     auto prog                     = parse_onnx("slice_var_input_dyn1.onnx", options);
     EXPECT(p == prog);
 }
-
-

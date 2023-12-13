@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_transpose_dyn_output_shape_error)
 {
     migraphx::onnx_options options;
@@ -9,5 +8,3 @@ TEST_CASE(conv_transpose_dyn_output_shape_error)
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("conv_transpose_dyn_output_shape_test.onnx", options); }));
 }
-
-

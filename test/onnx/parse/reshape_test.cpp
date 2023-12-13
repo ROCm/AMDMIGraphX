@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/reshape.hpp>
 
-
 TEST_CASE(reshape_test)
 {
     migraphx::program p;
@@ -18,5 +17,3 @@ TEST_CASE(reshape_test)
     auto prog = optimize_onnx("reshape_test.onnx");
     EXPECT(p == prog);
 }
-
-

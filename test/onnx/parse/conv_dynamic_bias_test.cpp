@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_dynamic_bias_test)
 {
     migraphx::program p;
@@ -20,5 +19,3 @@ TEST_CASE(conv_dynamic_bias_test)
     auto prog                     = migraphx::parse_onnx("conv_dynamic_bias_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

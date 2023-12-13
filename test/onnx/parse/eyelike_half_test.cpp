@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-
 TEST_CASE(eyelike_half_test)
 {
     migraphx::program p;
@@ -22,5 +21,3 @@ TEST_CASE(eyelike_half_test)
     auto prog = optimize_onnx("eyelike_half_test.onnx");
     EXPECT(p == prog);
 }
-
-

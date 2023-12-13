@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(constant_value_floats_test)
 {
     migraphx::program p;
@@ -12,5 +11,3 @@ TEST_CASE(constant_value_floats_test)
 
     EXPECT(p == prog);
 }
-
-

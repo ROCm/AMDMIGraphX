@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(lppool_l1_test)
 {
     migraphx::program p;
@@ -19,5 +18,3 @@ TEST_CASE(lppool_l1_test)
     auto prog = optimize_onnx("lppool_l1_test.onnx");
     EXPECT(p == prog);
 }
-
-

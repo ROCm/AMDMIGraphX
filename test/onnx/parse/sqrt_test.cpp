@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(sqrt_test)
 {
     migraphx::program p;
@@ -12,5 +11,3 @@ TEST_CASE(sqrt_test)
     auto prog = optimize_onnx("sqrt_test.onnx");
     EXPECT(p == prog);
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(greaterorequal_test)
 {
     migraphx::program p;
@@ -19,5 +18,3 @@ TEST_CASE(greaterorequal_test)
     auto prog = migraphx::parse_onnx("greaterorequal_test.onnx");
     EXPECT(p == prog);
 }
-
-

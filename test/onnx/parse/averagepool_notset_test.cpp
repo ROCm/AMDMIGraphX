@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(averagepool_notset_test)
 {
     migraphx::program p;
@@ -22,5 +21,3 @@ TEST_CASE(averagepool_notset_test)
 
     EXPECT(p == prog);
 }
-
-

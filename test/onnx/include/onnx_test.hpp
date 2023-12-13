@@ -2,7 +2,6 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
 
-
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -15,7 +14,6 @@
 #include <migraphx/common.hpp>
 
 #include <test.hpp>
-
 
 inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
@@ -36,6 +34,5 @@ inline migraphx::program optimize_onnx(const std::string& name, bool run_passes 
 
     return prog;
 }
-
 
 #endif

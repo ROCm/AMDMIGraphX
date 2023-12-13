@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(averagepool_dyn_asym_padding_error_test)
 {
     migraphx::onnx_options options;
@@ -9,5 +8,3 @@ TEST_CASE(averagepool_dyn_asym_padding_error_test)
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("averagepool_dyn_asym_padding_error_test.onnx", options); }));
 }
-
-

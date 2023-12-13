@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(selu_test)
 {
     migraphx::program p;
@@ -34,5 +33,3 @@ TEST_CASE(selu_test)
 
     EXPECT(p == prog);
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(pad_4arg_neg_axes_test)
 {
     migraphx::program p;
@@ -21,5 +20,3 @@ TEST_CASE(pad_4arg_neg_axes_test)
 
     EXPECT(p == prog);
 }
-
-

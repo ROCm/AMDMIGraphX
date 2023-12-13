@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(imagescaler_test)
 {
     migraphx::program p;
@@ -22,5 +21,3 @@ TEST_CASE(imagescaler_test)
 
     EXPECT(p == prog);
 }
-
-

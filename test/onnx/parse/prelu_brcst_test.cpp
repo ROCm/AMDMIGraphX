@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(prelu_brcst_test)
 {
     migraphx::program p;
@@ -17,5 +16,3 @@ TEST_CASE(prelu_brcst_test)
 
     EXPECT(p == prog);
 }
-
-

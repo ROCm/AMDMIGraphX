@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(clip_test_args_type_mismatch)
 {
     migraphx::program p;
@@ -23,5 +22,3 @@ TEST_CASE(clip_test_args_type_mismatch)
     auto prog = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
     EXPECT(p == prog);
 }
-
-

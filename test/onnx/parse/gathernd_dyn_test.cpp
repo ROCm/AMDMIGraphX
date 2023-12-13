@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(gathernd_dyn_test)
 {
     migraphx::program p;
@@ -19,5 +18,3 @@ TEST_CASE(gathernd_dyn_test)
     auto prog                             = migraphx::parse_onnx("gathernd_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

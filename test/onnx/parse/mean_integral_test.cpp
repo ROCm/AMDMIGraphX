@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(mean_integral_test)
 {
     const std::size_t num_data = 10;
@@ -25,5 +24,3 @@ TEST_CASE(mean_integral_test)
 
     EXPECT(p == prog);
 }
-
-

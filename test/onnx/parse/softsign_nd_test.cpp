@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(softsign_nd_test)
 {
     migraphx::program p;
@@ -21,5 +20,3 @@ TEST_CASE(softsign_nd_test)
     auto prog = optimize_onnx("softsign_nd_test.onnx");
     EXPECT(p == prog);
 }
-
-

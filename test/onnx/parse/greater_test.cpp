@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(greater_test)
 {
     migraphx::program p;
@@ -21,5 +20,3 @@ TEST_CASE(greater_test)
     auto prog = migraphx::parse_onnx("greater_test.onnx");
     EXPECT(p == prog);
 }
-
-

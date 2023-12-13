@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(resize_outsize_test)
 {
     migraphx::program p;
@@ -28,5 +27,3 @@ TEST_CASE(resize_outsize_test)
 
     EXPECT(p == prog);
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(split_test)
 {
     migraphx::program p;
@@ -18,5 +17,3 @@ TEST_CASE(split_test)
     auto prog = migraphx::parse_onnx("split_test.onnx");
     EXPECT(p == prog);
 }
-
-

@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_transpose_dyn_img_test)
 {
     migraphx::program p;
@@ -17,5 +16,3 @@ TEST_CASE(conv_transpose_dyn_img_test)
     auto prog                     = parse_onnx("conv_transpose_dyn_img_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

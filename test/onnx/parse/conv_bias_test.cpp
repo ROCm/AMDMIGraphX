@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_bias_test)
 {
     migraphx::program p;
@@ -18,5 +17,3 @@ TEST_CASE(conv_bias_test)
     auto prog = optimize_onnx("conv_bias_test.onnx");
     EXPECT(p == prog);
 }
-
-

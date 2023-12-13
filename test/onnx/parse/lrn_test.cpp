@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/lrn.hpp>
 
-
 TEST_CASE(lrn_test)
 {
     migraphx::program p;
@@ -18,5 +17,3 @@ TEST_CASE(lrn_test)
 
     EXPECT(p == prog);
 }
-
-

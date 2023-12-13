@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(unique_dynamic_sorted_test)
 {
     migraphx::program p;
@@ -21,5 +20,3 @@ TEST_CASE(unique_dynamic_sorted_test)
 
     EXPECT(p == prog);
 }
-
-

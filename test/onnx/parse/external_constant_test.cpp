@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(external_constant_test)
 {
     migraphx::program p;
@@ -11,5 +10,3 @@ TEST_CASE(external_constant_test)
     auto prog = optimize_onnx("external_constant_test.onnx");
     EXPECT(p == prog);
 }
-
-

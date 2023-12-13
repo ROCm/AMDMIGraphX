@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearmul_test)
 {
     migraphx::program p;
@@ -54,5 +53,3 @@ TEST_CASE(qlinearmul_test)
 
     EXPECT(p.sort() == prog.sort());
 }
-
-

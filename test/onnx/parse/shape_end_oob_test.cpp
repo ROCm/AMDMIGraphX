@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shape_end_oob_test)
 {
     migraphx::program p;
@@ -18,5 +17,3 @@ TEST_CASE(shape_end_oob_test)
 
     EXPECT(p == prog);
 }
-
-

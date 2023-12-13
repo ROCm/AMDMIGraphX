@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(pad_reflect_multiaxis_test)
 {
     migraphx::program p;
@@ -24,5 +23,3 @@ TEST_CASE(pad_reflect_multiaxis_test)
 
     EXPECT(p == prog);
 }
-
-

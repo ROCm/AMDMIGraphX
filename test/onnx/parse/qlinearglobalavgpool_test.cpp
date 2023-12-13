@@ -2,7 +2,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(qlinearglobalavgpool_test)
 {
     migraphx::program p;
@@ -47,5 +46,3 @@ TEST_CASE(qlinearglobalavgpool_test)
 
     EXPECT(p.sort() == prog.sort());
 }
-
-

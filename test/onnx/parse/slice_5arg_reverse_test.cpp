@@ -1,7 +1,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(slice_5arg_reverse_test)
 {
     migraphx::program p;
@@ -22,5 +21,3 @@ TEST_CASE(slice_5arg_reverse_test)
 
     EXPECT(p == prog);
 }
-
-

@@ -64,7 +64,7 @@ TEST_CASE(mul_literal_round_test)
     auto l1 = mm->add_literal(1 / 0.00787402f);
 
     auto mul   = mm->add_instruction(migraphx::make_op("mul"), l0, l1);
-    auto round = mm->add_instruction(migraphx::make_op("round"), mul);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), mul);
 
     mm->add_return({round});
 

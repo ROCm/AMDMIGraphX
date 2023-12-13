@@ -1,5 +1,3 @@
-.. include:: ./driver/read.rst
-
 .. option::  --fill0 [std::vector<std::string>]
 
 Fill parameter with 0s
@@ -40,3 +38,6 @@ Quantize for fp16
 
 Quantize for int8
 
+.. option:: --fp8
+
+Quantize for Float8E4M3FNUZ type

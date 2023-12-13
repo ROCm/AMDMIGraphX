@@ -27,15 +27,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct quant_conv_1d : verify_program<quant_conv_1d>
+template <migraphx::shape::type_t DType>
+struct quant_conv_1d : verify_program<quant_conv_1d<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4}};
+        migraphx::shape a_shape{DType, {2, 3, 4}};
         auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3}};
+        migraphx::shape c_shape{DType, {2, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
         mm->add_instruction(
             migraphx::make_op("quant_convolution",
@@ -45,3 +46,7 @@ struct quant_conv_1d : verify_program<quant_conv_1d>
         return p;
     }
 };
+
+template struct quant_conv_1d<migraphx::shape::int8_type>;
+// MLIR 1D convolution is not supported in MIGraphX yet. Enable this through MIOpen route later.
+// template struct quant_conv_1d<migraphx::shape::fp8e4m3fnuz_type>;

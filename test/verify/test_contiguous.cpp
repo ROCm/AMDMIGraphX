@@ -29,16 +29,20 @@
 
 #include <cassert>
 
-struct test_contiguous : verify_program<test_contiguous>
+template <migraphx::shape::type_t DType>
+struct test_contiguous : verify_program<test_contiguous<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {4, 4, 4, 3}, {48, 4, 1, 16}};
+        migraphx::shape s{DType, {4, 4, 4, 3}, {48, 4, 1, 16}};
         auto x = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("contiguous"), x);
         assert(p.get_output_shapes().back().standard());
         return p;
     }
 };
+
+template struct test_contiguous<migraphx::shape::float_type>;
+template struct test_contiguous<migraphx::shape::fp8e4m3fnuz_type>;

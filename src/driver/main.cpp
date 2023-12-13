@@ -445,6 +445,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_fp8  = false;
     bool to_int8 = false;
 
     std::vector<std::string> fill0;
@@ -468,6 +469,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -517,6 +519,10 @@ struct compiler
         if(to_int8)
         {
             quantize_int8(p, t, {host_params(p)});
+        }
+        if(to_fp8)
+        {
+            quantize_fp8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);

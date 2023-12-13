@@ -219,10 +219,13 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
                         l1.end(),
                         [&](auto v) {
                             return ((float_equal(v, l1.front())) or
-                                    (std::isinf(static_cast<double>(l1.front())) and std::isinf(static_cast<double>(v))));
+                                    (std::isinf(static_cast<double>(l1.front())) and
+                                     std::isinf(static_cast<double>(v))));
                         }) and
             std::all_of(l2.begin(), l2.end(), [&](auto v) {
-                return ((float_equal(v, l1.front())) or (std::isinf(static_cast<double>(l1.front())) and std::isinf(static_cast<double>(v))));
+                return ((float_equal(v, l1.front())) or
+                        (std::isinf(static_cast<double>(l1.front())) and
+                         std::isinf(static_cast<double>(v))));
             });
     });
 

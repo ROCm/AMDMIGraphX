@@ -858,9 +858,9 @@ auto skip_broadcasts_converts(Ms... ms)
 }
 
 template <class... Ms>
-auto skip_broadcasts_transposes_contiguous(Ms... ms)
+auto skip_post_dq_ops(Ms... ms)
 {
-    return skip(name("broadcast", "multibroadcast", "contiguous", "transpose"))(ms...);
+    return skip(name("broadcast", "multibroadcast", "contiguous", "transpose", "reshape"))(ms...);
 }
 
 template <class T>

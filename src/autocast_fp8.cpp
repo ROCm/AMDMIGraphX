@@ -64,8 +64,12 @@ void autocast_fp8_pass::apply(module& m) const
                         migraphx::make_op("convert", {{"target_type", migraphx::to_value(target_type)}}),
                         i));
                 }
+                else
+                {
+                    new_inputs.push_back(m.insert_instruction(ins, migraphx::make_op("identity"), i));
+                }
             }
-            if(new_inputs.size())
+            if(new_inputs != inputs)
             {
                 auto new_ins = m.insert_instruction(ins, ins->get_operator(), {new_inputs});
                 m.replace_instruction(ins, new_ins);

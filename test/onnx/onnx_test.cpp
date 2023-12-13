@@ -4749,7 +4749,10 @@ TEST_CASE(mvn_default_axes_rank_too_big_test)
 
 TEST_CASE(mvn_rank_2_test) { mvn_n_rank_test({1}, {2, 2}, optimize_onnx("mvn_rank_2_test.onnx")); }
 
-TEST_CASE(mvn_rank_3_test) { mvn_n_rank_test({0, 1}, {2, 2, 2}, optimize_onnx("mvn_rank_3_test.onnx")); }
+TEST_CASE(mvn_rank_3_test)
+{
+    mvn_n_rank_test({0, 1}, {2, 2, 2}, optimize_onnx("mvn_rank_3_test.onnx"));
+}
 
 TEST_CASE(mvn_axes_rank_too_small_test)
 {

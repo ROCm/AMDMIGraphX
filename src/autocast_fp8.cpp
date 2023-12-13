@@ -22,10 +22,10 @@
  * THE SOFTWARE.
  */
 #include <migraphx/autocast_fp8.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {

@@ -65,9 +65,7 @@ void autocast_fp8_pass::apply(module& m) const
                         i));
                 }
                 else
-                {
-                    new_inputs.push_back(m.insert_instruction(ins, migraphx::make_op("identity"), i));
-                }
+                    new_inputs.push_back(i);
             }
             if(new_inputs != inputs)
             {

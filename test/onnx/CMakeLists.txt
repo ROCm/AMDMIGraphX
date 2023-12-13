@@ -12,5 +12,6 @@ endfunction()
 file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
 
 add_onnx_test(test_onnx_test ${ONNX_PARSE_TESTS})
+add_onnx_test(test_onnx_rnn_test onnx_rnn_test.cpp)
 add_onnx_test(test_verify_onnx verify_onnx.cpp)
 

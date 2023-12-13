@@ -120,10 +120,10 @@ TEST_CASE(autocast_fp8_4)
 {
     migraphx::module m1;
     {
-        auto x1      = m1.add_parameter("x1", {migraphx::shape::fp8e4m3fnuz_type, {1}});
-        auto y1      = m1.add_parameter("y1", {migraphx::shape::fp8e4m3fnuz_type, {1}});
-        auto x2      = m1.add_parameter("x2", {migraphx::shape::float_type, {1}});
-        auto y2      = m1.add_parameter("y2", {migraphx::shape::float_type, {1}});
+        auto x1      = m1.add_parameter("x1", {migraphx::shape::fp8e4m3fnuz_type, {3, 4}, {1, 3}});
+        auto y1      = m1.add_parameter("y1", {migraphx::shape::fp8e4m3fnuz_type, {3, 4}, {1, 3}});
+        auto x2      = m1.add_parameter("x2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
+        auto y2      = m1.add_parameter("y2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto sum1    = m1.add_instruction(migraphx::make_op("add"), x1, y1);
         auto sum2    = m1.add_instruction(migraphx::make_op("add"), x2, y2);
         m1.add_return({sum1, sum2});
@@ -132,10 +132,10 @@ TEST_CASE(autocast_fp8_4)
 
     migraphx::module m2;
     {
-        auto x2          = m2.add_parameter("x2", {migraphx::shape::float_type, {1}});
-        auto y2          = m2.add_parameter("y2", {migraphx::shape::float_type, {1}});
-        auto y1          = m2.add_parameter("y1", {migraphx::shape::float_type, {1}});
-        auto x1          = m2.add_parameter("x1", {migraphx::shape::float_type, {1}});
+        auto x2          = m2.add_parameter("x2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
+        auto y2          = m2.add_parameter("y2", {migraphx::shape::float_type, {3, 4}, {1, 3}});
+        auto y1          = m2.add_parameter("y1", {migraphx::shape::float_type, {3, 4}, {1, 3}});
+        auto x1          = m2.add_parameter("x1", {migraphx::shape::float_type, {3, 4}, {1, 3}});
         auto y1_fp8      = m2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), y1);
         auto x1_fp8      = m2.add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), x1);
         auto sum1        = m2.add_instruction(migraphx::make_op("add"), x1_fp8, y1_fp8);
@@ -164,7 +164,6 @@ TEST_CASE(autocast_fp8_5)
         auto y   = m2.add_parameter("y", {migraphx::shape::float_type, {1}});
         auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
         m2.add_return({sum});
-
     }
     EXPECT(m1 == m2);
 }

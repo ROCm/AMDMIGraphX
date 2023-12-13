@@ -26,14 +26,10 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-bool autocast_fp8_pass::is_fp8_type(const shape::type_t& s) const
-{
-    return fp8_types.find(s) != fp8_types.end();
-}
 
 void autocast_fp8_pass::apply(module& m) const
 {
@@ -41,13 +37,13 @@ void autocast_fp8_pass::apply(module& m) const
     for(auto ins : iterator_for(m))
     {
         const auto& ins_name = ins->name();
-        if(ins_name == "@param" and is_fp8_type(ins->get_shape().type()))
+        if(ins_name == "@param" and contains(fp8_types, ins->get_shape().type()))
         {
             shape::type_t fp8_type = ins->get_shape().type();
             migraphx::shape new_shape = ins->get_shape().with_type(target_type);
-            std::string new_param_name =
+            std::string param_name =
                 ins->get_operator().to_value()["parameter"].to<std::string>();
-            auto new_param = m.add_parameter(new_param_name, new_shape);
+            auto new_param = m.add_parameter(param_name, new_shape);
             auto new_ins = m.insert_instruction(
                 ins,
                 migraphx::make_op("convert", {{"target_type", migraphx::to_value(fp8_type)}}), new_param);
@@ -61,7 +57,7 @@ void autocast_fp8_pass::apply(module& m) const
             std::vector<instruction_ref> new_inputs;
             for(const auto& i : inputs)
             {
-                if (is_fp8_type(i->get_shape().type()))
+                if (contains(fp8_types, i->get_shape().type()))
                 {
                     new_inputs.push_back(m.insert_instruction(
                         ins,

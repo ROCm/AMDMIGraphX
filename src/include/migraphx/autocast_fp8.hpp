@@ -33,14 +33,14 @@ struct program;
 struct module;
 
 /**
-This will cast input paramater data types to fp8 and return data types to fp32.*/
+This pass will convert model with fp8 input parameter to model with fp32
+input parameter and internally add casts to fp8 for those converted params.*/
 struct MIGRAPHX_EXPORT autocast_fp8_pass
 {
     std::set<shape::type_t> fp8_types = {migraphx::shape::fp8e4m3fnuz_type};
     shape::type_t target_type = migraphx::shape::float_type;
     std::string name() const { return "autocast_fp8_pass"; }
     void apply(module& m) const;
-    bool is_fp8_type(const shape::type_t& s) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

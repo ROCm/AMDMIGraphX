@@ -67,17 +67,11 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
-    rv.disable_test_for("cpu",
-                        {
-                            "test_if_lp",
-                            "test_if_param",
-                            "test_if_literal",
-                            "test_select_module_add",
-                            "test_select_module_reduce",
-                            "test_select_module_conv",
-                            "test_split_single_dyn_dim",
-                            "test_instancenorm_large_3d<migraphx::shape::float_type>",
-                            "test_instancenorm_large_3d<migraphx::shape::half_type>",
+    rv.disable_test_for("cpu", {
+        "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
+            "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
+            "test_instancenorm_large_3d<migraphx::shape::float_type>",
+            "test_instancenorm_large_3d<migraphx::shape::half_type>",
         // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
             "batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
@@ -88,17 +82,17 @@ int main(int argc, const char* argv[])
                 "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                 "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
 #endif
-                            "test_block_reduce_small<3, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<4, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<8, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<16, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<25, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<32, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<64, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<67, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<128, migraphx::shape::int8_type>",
-                            "test_block_reduce_small<129, migraphx::shape::int8_type>",
-                        });
+            "test_block_reduce_small<3, migraphx::shape::int8_type>",
+            "test_block_reduce_small<4, migraphx::shape::int8_type>",
+            "test_block_reduce_small<8, migraphx::shape::int8_type>",
+            "test_block_reduce_small<16, migraphx::shape::int8_type>",
+            "test_block_reduce_small<25, migraphx::shape::int8_type>",
+            "test_block_reduce_small<32, migraphx::shape::int8_type>",
+            "test_block_reduce_small<64, migraphx::shape::int8_type>",
+            "test_block_reduce_small<67, migraphx::shape::int8_type>",
+            "test_block_reduce_small<128, migraphx::shape::int8_type>",
+            "test_block_reduce_small<129, migraphx::shape::int8_type>",
+    });
     rv.disable_test_for("gpu",
                         {// These passes on MI300 but fails on others, same issue as CPU.
                          "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",

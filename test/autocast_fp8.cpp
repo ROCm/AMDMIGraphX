@@ -23,15 +23,9 @@
  */
 #include <basic_ops.hpp>
 #include <migraphx/autocast_fp8.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/permutation.hpp>
-#include <migraphx/ranges.hpp>
 #include <test.hpp>
 
 

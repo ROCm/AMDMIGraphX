@@ -55,18 +55,21 @@ void autocast_fp8_pass::apply(module& m) const
         {
             std::vector<instruction_ref> inputs = ins->inputs();
             std::vector<instruction_ref> new_inputs;
-            for(const auto& i : inputs)
-            {
-                if (contains(fp8_types, i->get_shape().type()))
-                {
-                    new_inputs.push_back(m.insert_instruction(
-                        ins,
-                        migraphx::make_op("convert", {{"target_type", migraphx::to_value(target_type)}}),
-                        i));
-                }
-                else
-                    new_inputs.push_back(i);
-            }
+            std::transform(inputs.begin(),
+                           inputs.end(),
+                           std::back_inserter(new_inputs),
+                           [&](auto i) {
+                               if (contains(fp8_types, i->get_shape().type()))
+                               {
+                                   return m.insert_instruction(
+                                   ins,
+                                   migraphx::make_op(
+                                       "convert",
+                                        {{"target_type", migraphx::to_value(target_type)}}),
+                                        i);
+                               } else
+                                   return i;
+                           });
             m.replace_return({new_inputs});
         }
     }

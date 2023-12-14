@@ -156,15 +156,8 @@ TEST_CASE(autocast_fp8_5)
         auto sum = m1.add_instruction(migraphx::make_op("add"), x, y);
         m1.add_return({sum});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto y   = m2.add_parameter("y", {migraphx::shape::float_type, {1}});
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
-        m2.add_return({sum});
-    }
     EXPECT(m1 == m2);
 }
 

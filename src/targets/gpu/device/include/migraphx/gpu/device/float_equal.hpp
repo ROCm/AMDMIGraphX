@@ -39,11 +39,7 @@ using common_type = typename std::common_type<Ts...>::type;
 template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 __device__ bool float_equal_device(T x, T y)
 {
-    // The standard library from MSVC does not implement std::isfinite() for integer
-    // types - no additional overloads are provided. According to the documentation,
-    // integer types should be treaded as doubles.
-    // Refer to https://en.cppreference.com/w/cpp/numeric/math/isfinite for more information.
-    return std::isfinite(static_cast<double>(x)) and std::isfinite(static_cast<double>(y)) and
+    return std::isfinite(x) and std::isfinite(y) and
            std::nextafter(x, std::numeric_limits<T>::lowest()) <= y and
            std::nextafter(x, std::numeric_limits<T>::max()) >= y;
 }

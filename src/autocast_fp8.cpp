@@ -67,11 +67,7 @@ void autocast_fp8_pass::apply(module& m) const
                 else
                     new_inputs.push_back(i);
             }
-            if(new_inputs != inputs)
-            {
-                auto new_ins = m.insert_instruction(ins, ins->get_operator(), {new_inputs});
-                m.replace_instruction(ins, new_ins);
-            }
+            m.replace_return({new_inputs});
         }
     }
     // Remove unused parameters with fp8 type

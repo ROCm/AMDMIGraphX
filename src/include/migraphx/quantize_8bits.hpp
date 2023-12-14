@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT8_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 #include <migraphx/argument.hpp>
@@ -37,11 +38,11 @@ struct program;
 struct module;
 
 /**
- * capture inputs of operators to be quantized to int8
+ * capture inputs of operators to be quantized to int8 or fp8
  */
 struct MIGRAPHX_EXPORT capture_arguments_pass
 {
-    std::vector<std::string> ins_names = {"dot", "convolution"};
+    std::unordered_set<std::string> ins_names = {"dot", "convolution"};
     std::function<void(std::size_t, std::vector<argument>)> f{};
     std::size_t* param_index = nullptr;
     std::string name() const { return "capture_arguments"; }
@@ -49,13 +50,13 @@ struct MIGRAPHX_EXPORT capture_arguments_pass
 };
 
 /**
- * quantize a program to int8
+ * quantize a program to int8 or fp8
  */
-struct MIGRAPHX_EXPORT quantize_int8_pass
+struct MIGRAPHX_EXPORT quantize_8bits_pass
 {
-    std::vector<std::string> ins_names = {"dot", "convolution"};
+    shape::type_t precision = shape::int8_type;
     std::vector<std::pair<float, float>> quant_params;
-    std::string name() const { return "quantize_int8"; }
+    std::string name() const { return "quantize_8bits"; }
     void apply(module& m) const;
 };
 

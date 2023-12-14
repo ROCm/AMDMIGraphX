@@ -39,6 +39,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+template <class... Ms>
+auto skip_post_dq_ops(Ms... ms)
+{
+    return match::skip(
+        match::name("broadcast", "multibroadcast", "contiguous", "transpose", "reshape"))(ms...);
+}
+
 std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
@@ -112,10 +119,8 @@ struct match_find_quantizable_ops
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(match::skip_broadcasts_transposes_contiguous(
-                dequantizelinear_op("scale1", "zp1").bind("dq1"))),
-            match::arg(1)(match::skip_broadcasts_transposes_contiguous(
-                dequantizelinear_op("scale2", "zp2").bind("dq2"))));
+            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1"))),
+            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const

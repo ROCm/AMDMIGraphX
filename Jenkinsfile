@@ -3,6 +3,7 @@ def getgputargets() {
     return targets
 }
 
+// Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")

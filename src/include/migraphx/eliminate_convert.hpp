@@ -36,9 +36,9 @@ struct module;
 /**
  * Remove nested converts and nop converts.
  */
-struct MIGRAPHX_EXPORT eliminate_converts 
+struct MIGRAPHX_EXPORT eliminate_convert
 {
-    std::string name() const { return "eliminate_converts"; }
+    std::string name() const { return "eliminate_convert"; }
     void apply(module& m) const;
 };
 

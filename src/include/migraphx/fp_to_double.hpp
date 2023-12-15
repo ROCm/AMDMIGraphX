@@ -34,8 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Convert all floating point instructions to double type.
- * Intended to be used for the `ref` target for verify tests.
+ * Convert floating point values to double precision.
  */
 struct MIGRAPHX_EXPORT fp_to_double
 {

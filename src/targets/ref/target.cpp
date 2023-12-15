@@ -28,9 +28,9 @@
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>
-#include <migraphx/fp_to_double.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -40,13 +40,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REF_FP_CONVERSION)
-
 std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type, shape::type_t::float_type};
     return {normalize_ops{},
             eliminate_pad{},
             dead_code_elimination{},
@@ -57,16 +54,6 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             auto_contiguous{},
             dead_code_elimination{},
             lowering{},
-            // change all floating point to double for ref
-            dead_code_elimination{},
-            enable_pass(
-                not enabled(MIGRAPHX_DISABLE_REF_FP_CONVERSION{}),
-                eliminate_data_type{convert_fp_types, shape::type_t::double_type}
-            ),
-            enable_pass(
-                not enabled(MIGRAPHX_DISABLE_REF_FP_CONVERSION{}),
-                eliminate_converts{}
-            ),
             dead_code_elimination{}};
 }
 

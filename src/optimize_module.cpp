@@ -26,6 +26,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
 
@@ -42,6 +43,8 @@ void optimize_module::apply(module_pass_manager& mpm) const
             mpm.run_pass(simplify_reshapes{});
             mpm.run_pass(simplify_algebra{});
         }
+        mpm.run_pass(eliminate_convert{});
+        mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(eliminate_common_subexpression{});
         mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(propagate_constant{});

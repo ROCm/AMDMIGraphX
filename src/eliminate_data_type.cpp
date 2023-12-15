@@ -107,7 +107,8 @@ void eliminate_data_type::apply(module& m) const
                                                            "nonmaxsuppression",
                                                            "scatternd_add",
                                                            "scatternd_mul",
-                                                           "scatternd_none"};
+                                                           "scatternd_none",
+                                                           "select_module"};
     if(unsupported_types.empty())
         return;
 

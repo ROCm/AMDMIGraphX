@@ -79,6 +79,20 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
+struct id_pass
+{
+    std::string name() const { return "id"; }
+    void apple(const module&) const {}
+};
+
+/// Used in the targets to enable/disable compiler passes
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
+}
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);

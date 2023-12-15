@@ -36,6 +36,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+
 struct program;
 struct module;
 struct module_pass_manager;
@@ -332,6 +333,20 @@ inline const ValueType& any_cast(const pass& x)
 #endif
 
 #endif
+
+struct id_pass
+{
+    std::string name() const { return "id"; }
+    void apple(const module&) const {}
+};
+
+/// Used in the targets to enable/disable compiler passes
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -48,12 +48,12 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
     eliminate_contiguous.cpp
+    eliminate_convert.cpp
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
-    fp_to_double.cpp
     fuse_pointwise.cpp
     fuse_reduce.cpp
     generate.cpp

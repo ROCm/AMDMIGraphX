@@ -21,27 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_DRIVER_PASSES_HPP
+#define MIGRAPHX_GUARD_DRIVER_PASSES_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
-struct gemm_add_half : verify_program<gemm_add_half>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
-        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
-        auto l3 = mm->add_parameter("3", m3_shape);
+#include <migraphx/pass.hpp>
+#include <vector>
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
-        return p;
-    }
-};
+namespace migraphx {
+namespace driver {
+inline namespace MIGRAPHX_INLINE_NS {
+
+std::vector<pass> get_passes(const std::vector<std::string>& names);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
+} // namespace migraphx
+
+#endif

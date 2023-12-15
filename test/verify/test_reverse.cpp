@@ -26,16 +26,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_reverse : verify_program<test_reverse>
+template <migraphx::shape::type_t DType>
+struct test_reverse : verify_program<test_reverse<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {4, 16}};
+        migraphx::shape s{DType, {4, 16}};
         auto a0                   = mm->add_parameter("data", s);
         std::vector<int64_t> axis = {0};
         mm->add_instruction(migraphx::make_op("reverse", {{"axes", axis}}), a0);
         return p;
     }
 };
+
+template struct test_reverse<migraphx::shape::float_type>;
+template struct test_reverse<migraphx::shape::half_type>;
+template struct test_reverse<migraphx::shape::fp8e4m3fnuz_type>;

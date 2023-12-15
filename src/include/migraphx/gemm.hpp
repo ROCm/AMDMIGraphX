@@ -32,8 +32,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T, class F>
-void gemm(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha, F beta)
+template <class T, class U, class F>
+void gemm(tensor_view<T> cmat, tensor_view<U> amat, tensor_view<U> bmat, F alpha, F beta)
 {
     std::size_t n_dims = cmat.get_shape().lens().size();
     std::size_t dim_0  = n_dims - 2;
@@ -52,7 +52,8 @@ void gemm(tensor_view<T> cmat, tensor_view<T> amat, tensor_view<T> bmat, F alpha
         double s   = 0.0;
         dfor(k)([&](auto kk) {
             a_idx[dim_1] = b_idx[dim_0] = kk;
-            s += amat(a_idx.begin(), a_idx.end()) * bmat(b_idx.begin(), b_idx.end());
+            s += static_cast<double>(amat(a_idx.begin(), a_idx.end())) *
+                 static_cast<double>(bmat(b_idx.begin(), b_idx.end()));
         });
         cmat(c_idx.begin(), c_idx.end()) = alpha * s + cmat(c_idx.begin(), c_idx.end()) * beta;
     });

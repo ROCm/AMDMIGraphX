@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
+
 TEST_CASE(maxpool_dilate_test)
 {
     migraphx::program p;
@@ -19,3 +20,5 @@ TEST_CASE(maxpool_dilate_test)
 
     EXPECT(p == prog);
 }
+
+

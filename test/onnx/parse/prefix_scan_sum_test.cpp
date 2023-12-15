@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(prefix_scan_sum)
 {
     migraphx::program p;
@@ -15,3 +16,5 @@ TEST_CASE(prefix_scan_sum)
     auto prog = migraphx::parse_onnx("prefix_scan_sum_test.onnx");
     EXPECT(p == prog);
 }
+
+

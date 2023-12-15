@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(log_test)
 {
     migraphx::program p;
@@ -11,3 +12,5 @@ TEST_CASE(log_test)
     auto prog = optimize_onnx("log_test.onnx");
     EXPECT(p == prog);
 }
+
+

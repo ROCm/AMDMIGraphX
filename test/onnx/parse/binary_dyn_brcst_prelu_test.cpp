@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(binary_dyn_brcst_prelu_test)
 {
     migraphx::program p;
@@ -18,3 +19,5 @@ TEST_CASE(binary_dyn_brcst_prelu_test)
 
     EXPECT(p == prog);
 }
+
+

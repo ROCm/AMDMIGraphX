@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(dropout_test)
 {
     migraphx::program p;
@@ -15,3 +16,5 @@ TEST_CASE(dropout_test)
     auto prog = migraphx::parse_onnx("dropout_test.onnx");
     EXPECT(p == prog);
 }
+
+

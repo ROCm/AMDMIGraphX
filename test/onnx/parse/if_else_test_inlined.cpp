@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(if_else_test_inlined)
 {
     migraphx::program p;
@@ -25,3 +26,5 @@ TEST_CASE(if_else_test_inlined)
     auto prog = migraphx::parse_onnx("if_else_test_inlined.onnx");
     EXPECT(p == prog);
 }
+
+

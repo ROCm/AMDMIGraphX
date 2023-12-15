@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(add_bcast_test)
 {
     migraphx::program p;
@@ -15,3 +16,5 @@ TEST_CASE(add_bcast_test)
 
     EXPECT(p == prog);
 }
+
+

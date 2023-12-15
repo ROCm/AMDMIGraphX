@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(constant_empty_scalar_int64_test)
 {
     migraphx::program p;
@@ -10,3 +11,5 @@ TEST_CASE(constant_empty_scalar_int64_test)
 
     EXPECT(p == prog);
 }
+
+

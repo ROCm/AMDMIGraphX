@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
+
 TEST_CASE(globallppool_test)
 {
     migraphx::program p;
@@ -18,3 +19,5 @@ TEST_CASE(globallppool_test)
 
     EXPECT(p == prog);
 }
+
+

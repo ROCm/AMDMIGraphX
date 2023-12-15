@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(dequantizelinear_test)
 {
     migraphx::program p;
@@ -18,3 +19,5 @@ TEST_CASE(dequantizelinear_test)
     auto prog = optimize_onnx("dequantizelinear_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
+
+

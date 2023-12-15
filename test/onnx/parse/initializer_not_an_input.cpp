@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
+
 TEST_CASE(initializer_not_an_input)
 {
     migraphx::program p;
@@ -14,3 +15,5 @@ TEST_CASE(initializer_not_an_input)
 
     EXPECT(p == prog);
 }
+
+

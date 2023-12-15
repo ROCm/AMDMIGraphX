@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
+
 TEST_CASE(quantizelinear_int32_test)
 {
     migraphx::program p;
@@ -14,7 +15,7 @@ TEST_CASE(quantizelinear_int32_test)
         migraphx::make_op("convert",
                           {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
         l0);
-    auto div       = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
+    auto div   = mm->add_instruction(migraphx::make_op("div"), l0, l1_mbcast);
     auto nearbyint = mm->add_instruction(migraphx::make_op("nearbyint"), div);
     auto s         = nearbyint->get_shape();
     auto clip      = insert_quantizelinear_clip(*mm, div, nearbyint, s, 0, 255);
@@ -26,3 +27,5 @@ TEST_CASE(quantizelinear_int32_test)
     auto prog = optimize_onnx("quantizelinear_int32_test.onnx", true);
     EXPECT(p.sort() == prog.sort());
 }
+
+

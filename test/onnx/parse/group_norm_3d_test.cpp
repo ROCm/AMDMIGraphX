@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
+
 TEST_CASE(group_norm_3d_test)
 {
     migraphx::program p = make_group_norm(
@@ -9,3 +10,5 @@ TEST_CASE(group_norm_3d_test)
     auto prog = optimize_onnx("group_norm_3d_test.onnx");
     EXPECT(p == prog);
 }
+
+

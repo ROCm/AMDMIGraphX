@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(multinomial_int64_test)
 {
     migraphx::program p;
@@ -32,3 +33,5 @@ TEST_CASE(multinomial_int64_test)
 
     EXPECT(p == prog);
 }
+
+

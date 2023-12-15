@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(flatten_nonstd_test)
 {
     migraphx::program p;
@@ -16,3 +17,5 @@ TEST_CASE(flatten_nonstd_test)
 
     EXPECT(p == prog);
 }
+
+

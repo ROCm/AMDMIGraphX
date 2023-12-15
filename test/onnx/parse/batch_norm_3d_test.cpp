@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(batch_norm_3d_test)
 {
     migraphx::program p;
@@ -33,3 +34,5 @@ TEST_CASE(batch_norm_3d_test)
 
     EXPECT(p == prog);
 }
+
+

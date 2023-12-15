@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(nms_dynamic_classes_test)
 {
     migraphx::program p;
@@ -26,3 +27,5 @@ TEST_CASE(nms_dynamic_classes_test)
     auto prog = migraphx::parse_onnx("nms_dynamic_classes_test.onnx", options);
     EXPECT(p == prog);
 }
+
+

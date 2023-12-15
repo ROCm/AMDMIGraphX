@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(mean_test)
 {
     const std::size_t num_data = 3;
@@ -27,3 +28,5 @@ TEST_CASE(mean_test)
 
     EXPECT(p == prog);
 }
+
+

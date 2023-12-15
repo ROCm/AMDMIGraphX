@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(transpose_gather_test)
 {
     migraphx::program p;
@@ -31,3 +32,5 @@ TEST_CASE(transpose_gather_test)
 
     EXPECT(p.sort() == prog.sort());
 }
+
+

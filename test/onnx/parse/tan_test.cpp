@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(tan_test)
 {
     migraphx::program p;
@@ -11,3 +12,5 @@ TEST_CASE(tan_test)
     auto prog = optimize_onnx("tan_test.onnx");
     EXPECT(p == prog);
 }
+
+

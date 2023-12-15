@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(instance_norm_dyn_batch_test)
 {
     // instancenorm with dynamic input in the 0'th (batch) dimension
@@ -36,3 +37,5 @@ TEST_CASE(instance_norm_dyn_batch_test)
 
     EXPECT(p == prog);
 }
+
+

@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(variable_batch_test)
 {
     migraphx::program p;
@@ -115,3 +116,5 @@ TEST_CASE(variable_batch_user_input_test7)
 
     EXPECT(p == prog);
 }
+
+

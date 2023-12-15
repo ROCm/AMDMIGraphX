@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
+
 TEST_CASE(gemm_brcst_C_test)
 {
     migraphx::program p;
@@ -27,3 +28,5 @@ TEST_CASE(gemm_brcst_C_test)
     auto prog = optimize_onnx("gemm_brcst_C_test.onnx");
     EXPECT(p == prog);
 }
+
+

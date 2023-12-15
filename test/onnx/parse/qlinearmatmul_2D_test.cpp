@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(qlinearmatmul_2D_test)
 {
     migraphx::program p;
@@ -53,3 +54,5 @@ TEST_CASE(qlinearmatmul_2D_test)
 
     EXPECT(p.sort() == prog.sort());
 }
+
+

@@ -2,6 +2,7 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 
+
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
@@ -89,14 +90,13 @@ inline migraphx::program create_external_data_prog()
     return p;
 }
 
-inline migraphx::program
-make_group_norm(const std::vector<int64_t>& input_dims,
-                const std::vector<int64_t>& scale_dims,
-                const std::vector<int64_t>& bias_dims,
-                const std::vector<int64_t>& reshape_dims,
-                const std::vector<int64_t>& reduce_axes,
-                const float eps_value               = 1e-5f,
-                const migraphx::shape::type_t dtype = migraphx::shape::float_type)
+inline migraphx::program make_group_norm(const std::vector<int64_t>& input_dims,
+                                  const std::vector<int64_t>& scale_dims,
+                                  const std::vector<int64_t>& bias_dims,
+                                  const std::vector<int64_t>& reshape_dims,
+                                  const std::vector<int64_t>& reduce_axes,
+                                  const float eps_value               = 1e-5f,
+                                  const migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -129,14 +129,13 @@ make_group_norm(const std::vector<int64_t>& input_dims,
     return p;
 }
 
-inline migraphx::program
-make_layer_norm(const std::vector<int64_t>& input_shape,
-                const std::vector<int64_t>& scale_bias_shape,
-                const std::vector<int64_t>& reduce_axes,
-                size_t skipped_axis,
-                bool skip_bias                      = false,
-                const float eps_value               = 1e-5f,
-                const migraphx::shape::type_t dtype = migraphx::shape::float_type)
+inline migraphx::program make_layer_norm(const std::vector<int64_t>& input_shape,
+                                  const std::vector<int64_t>& scale_bias_shape,
+                                  const std::vector<int64_t>& reduce_axes,
+                                  size_t skipped_axis,
+                                  bool skip_bias                      = false,
+                                  const float eps_value               = 1e-5f,
+                                  const migraphx::shape::type_t dtype = migraphx::shape::float_type)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -182,8 +181,8 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
 }
 
 inline void mvn_n_rank_test(std::vector<int64_t> axes,
-                            std::vector<size_t> input_shape,
-                            const migraphx::program& prog)
+                     std::vector<size_t> input_shape,
+                     const migraphx::program& prog)
 {
     using migraphx::make_op;
 
@@ -210,11 +209,11 @@ inline void mvn_n_rank_test(std::vector<int64_t> axes,
 }
 
 inline migraphx::instruction_ref insert_quantizelinear_clip(migraphx::module& m,
-                                                            const migraphx::instruction_ref ins,
-                                                            const migraphx::instruction_ref round,
-                                                            const migraphx::shape s,
-                                                            const int64_t min_quant,
-                                                            const int64_t max_quant)
+                                                     const migraphx::instruction_ref ins,
+                                                     const migraphx::instruction_ref round,
+                                                     const migraphx::shape s,
+                                                     const int64_t min_quant,
+                                                     const int64_t max_quant)
 {
     migraphx::instruction_ref min_arg;
     migraphx::instruction_ref max_arg;
@@ -373,5 +372,6 @@ inline migraphx::program create_scatter_program(const std::string& scatter_mode,
     mm->add_return({r});
     return p;
 }
+
 
 #endif

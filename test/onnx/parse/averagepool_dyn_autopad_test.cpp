@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/common.hpp>
 
+
 TEST_CASE(averagepool_dyn_autopad_test)
 {
     // Pooling with dynamic input and auto padding. Default padding values will be overridden.
@@ -27,3 +28,5 @@ TEST_CASE(averagepool_dyn_autopad_test)
     auto prog = migraphx::parse_onnx("averagepool_dyn_autopad_test.onnx", options);
     EXPECT(p == prog);
 }
+
+

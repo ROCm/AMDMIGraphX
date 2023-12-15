@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
+
 TEST_CASE(qlinearaveragepool_notset_test)
 {
     migraphx::program p;
@@ -49,3 +50,5 @@ TEST_CASE(qlinearaveragepool_notset_test)
 
     EXPECT(p == prog);
 }
+
+

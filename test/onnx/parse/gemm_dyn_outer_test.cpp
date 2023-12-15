@@ -2,6 +2,7 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
+
 TEST_CASE(gemm_dyn_outer_test)
 {
     migraphx::program p;
@@ -22,3 +23,5 @@ TEST_CASE(gemm_dyn_outer_test)
     auto prog                     = migraphx::parse_onnx("gemm_dyn_outer_test.onnx", options);
     EXPECT(p == prog);
 }
+
+

@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(instance_norm_test)
 {
     std::vector<size_t> dims{1, 2, 3, 3};
@@ -39,3 +40,5 @@ TEST_CASE(instance_norm_test)
 
     EXPECT(p == prog);
 }
+
+

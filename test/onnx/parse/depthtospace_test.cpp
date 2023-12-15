@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(depthtospace_test)
 {
     migraphx::program p;
@@ -14,3 +15,5 @@ TEST_CASE(depthtospace_test)
     auto prog = optimize_onnx("depthtospace_test.onnx");
     EXPECT(p == prog);
 }
+
+

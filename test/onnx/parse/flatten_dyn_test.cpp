@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(flatten_dyn_test)
 {
     migraphx::program p;
@@ -16,3 +17,5 @@ TEST_CASE(flatten_dyn_test)
     auto prog                     = parse_onnx("flatten_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
+
+

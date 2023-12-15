@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(batch_norm_rank_2_test)
 {
     migraphx::program p;
@@ -24,3 +25,5 @@ TEST_CASE(batch_norm_rank_2_test)
     auto prog = optimize_onnx("batch_norm_rank_2_test.onnx");
     EXPECT(p == prog);
 }
+
+

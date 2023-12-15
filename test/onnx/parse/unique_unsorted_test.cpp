@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(unique_unsorted_test)
 {
     migraphx::program p;
@@ -20,3 +21,5 @@ TEST_CASE(unique_unsorted_test)
 
     EXPECT(p == prog);
 }
+
+

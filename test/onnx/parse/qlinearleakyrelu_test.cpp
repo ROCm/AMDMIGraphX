@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(qlinearleakyrelu_test)
 {
     migraphx::program p;
@@ -40,3 +41,5 @@ TEST_CASE(qlinearleakyrelu_test)
 
     EXPECT(p.sort() == prog.sort());
 }
+
+

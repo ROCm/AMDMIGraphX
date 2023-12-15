@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(multinomial_dyn_test)
 {
     // compile-time random seed
@@ -56,3 +57,5 @@ TEST_CASE(multinomial_dyn_test)
     auto prog                      = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
+
+

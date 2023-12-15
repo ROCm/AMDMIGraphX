@@ -1,6 +1,7 @@
 
 #include <onnx_test.hpp>
 
+
 TEST_CASE(shrink_hard_test)
 {
     migraphx::program p;
@@ -32,3 +33,5 @@ TEST_CASE(shrink_hard_test)
     auto prog = optimize_onnx("shrink_hard_test.onnx");
     EXPECT(p == prog);
 }
+
+

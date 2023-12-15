@@ -246,7 +246,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                                                            module& m,
                                                            instruction_ref ins,
                                                            std::vector<instruction_ref> inputs,
-                                                           operation& actv_func) const
+                                                           const operation& actv_func) const
 {
     assert(inputs.size() == 6);
     auto seq      = inputs.at(0);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -349,6 +349,87 @@ TEST_CASE(depthtospace_simple_test)
                                5,  17, 27, 39, 28, 40, 29, 41, 6,  18, 7,  19, 8,  20, 30, 42,
                                31, 43, 32, 44, 9,  21, 10, 22, 11, 23, 33, 45, 34, 46, 35, 47};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(dynamicquantizelinear_1d_test)
+{
+    auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{0, 2, -3, -2.5, 1.34, 0.5};
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    migraphx::parameter_map pp;
+    pp["x"]      = migraphx::argument(s_x, data.data());
+    auto results = p.eval(pp);
+
+    std::vector<uint8_t> y_results;
+    results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_gold = {153, 255, 0, 26, 221, 179};
+    EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
+
+    std::vector<float> y_scale;
+    results.at(1).visit([&](auto output) { y_scale.assign(output.begin(), output.end()); });
+    std::vector<float> y_scale_gold = {0.0196078438};
+    EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
+
+    std::vector<uint8_t> y_zpt;
+    results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_zpt_gold = {153};
+    EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
+}
+
+TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
+{
+    auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{-1.0, -2.1, -1.3, -2.5, -3.34, -4.0};
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    migraphx::parameter_map pp;
+    pp["x"]      = migraphx::argument(s_x, data.data());
+    auto results = p.eval(pp);
+
+    std::vector<uint8_t> y_results;
+    results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_gold = {191, 121, 172, 96, 42, 0};
+    EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
+
+    std::vector<float> y_scale;
+    results.at(1).visit([&](auto output) { y_scale.assign(output.begin(), output.end()); });
+    std::vector<float> y_scale_gold = {0.0156862754};
+    EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
+
+    std::vector<uint8_t> y_zpt;
+    results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_zpt_gold = {255};
+    EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
+}
+
+TEST_CASE(dynamicquantizelinear_2d_test)
+{
+    auto p = migraphx::parse_onnx("dynamicquantizelinear_2d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data{1.0, 2.1, 1.3, 2.5, 3.34, 4.0, 1.5, 2.6, 3.9, 4.0, 3.0, 2.345};
+    migraphx::shape s_x{migraphx::shape::float_type, {3, 4}};
+    migraphx::parameter_map pp;
+    pp["x"]      = migraphx::argument(s_x, data.data());
+    auto results = p.eval(pp);
+
+    std::vector<uint8_t> y_results;
+    results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_gold = {64, 134, 83, 159, 213, 255, 96, 166, 249, 255, 191, 149};
+    EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
+
+    std::vector<float> y_scale;
+    results.at(1).visit([&](auto output) { y_scale.assign(output.begin(), output.end()); });
+    std::vector<float> y_scale_gold = {0.0156862754};
+    EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
+
+    std::vector<uint8_t> y_zpt;
+    results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> y_zpt_gold = {0};
+    EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
 TEST_CASE(spacetodepth_simple_test)
@@ -1932,6 +2013,52 @@ TEST_CASE(qlinearaveragepool_nt_cip_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(qlinearconcat_test)
+{
+    auto p = migraphx::parse_onnx("qlinearconcat_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int8_t> data_t0 = {2, 3};
+    migraphx::shape s_t0{migraphx::shape::int8_type, {2}};
+    migraphx::parameter_map pp;
+    pp["t0"] = migraphx::argument(s_t0, data_t0.data());
+
+    std::vector<int8_t> data_t1 = {6, 8, 10};
+    migraphx::shape s_t1{migraphx::shape::int8_type, {3}};
+    pp["t1"] = migraphx::argument(s_t1, data_t1.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {3, 4, 5, 6, 7};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(qlinearconcat_3d_test)
+{
+    auto p = migraphx::parse_onnx("qlinearconcat_3d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<int8_t> data_t0 = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                                   10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+    migraphx::shape s_t0{migraphx::shape::int8_type, {3, 4, 2}};
+    migraphx::parameter_map pp;
+    pp["t0"] = migraphx::argument(s_t0, data_t0.data());
+
+    std::vector<int8_t> data_t1 = {25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25};
+    migraphx::shape s_t1{migraphx::shape::int8_type, {3, 2, 2}};
+    pp["t1"] = migraphx::argument(s_t1, data_t1.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<uint8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6, 2, 2, 2, 2, 2, 2,
+                                2, 2, 6, 6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(qlinearconv_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
@@ -2735,67 +2862,6 @@ TEST_CASE(softsign_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-TEST_CASE(upsample_test)
-{
-    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
-
-    std::vector<float> x_data = {1, 2, 3, 4};
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-
-    migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(sx, x_data.data());
-
-    auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
-                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
-}
-
-TEST_CASE(where_test)
-{
-    migraphx::program p = migraphx::parse_onnx("where_test.onnx");
-    p.compile(migraphx::make_target("ref"));
-
-    migraphx::shape c_shape{migraphx::shape::bool_type, {2}};
-    std::vector<int8_t> c_data = {1, 0};
-
-    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2}};
-    std::vector<float> x_data(8, 1.0f);
-
-    migraphx::shape y_shape{migraphx::shape::float_type, {2, 1, 2, 2}};
-    std::vector<float> y_data(8, 2.0f);
-
-    migraphx::parameter_map pp;
-    pp["c"] = migraphx::argument(c_shape, c_data.data());
-    pp["x"] = migraphx::argument(x_shape, x_data.data());
-    pp["y"] = migraphx::argument(y_shape, y_data.data());
-
-    auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f,
-                               1.0f,
-                               2.0f};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
-}
-
 std::vector<float> gen_trilu_test(const migraphx::shape& s, const migraphx::program& p)
 {
     // input data filled with values 1 to nelements
@@ -2918,6 +2984,133 @@ TEST_CASE(tril_row_one_test)
 
     std::vector<float> gold = {1, 2, 0, 0};
 
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(upsample_test)
+{
+    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
+
+    std::vector<float> x_data = {1, 2, 3, 4};
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, x_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
+                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(unique_dynamic_sorted_test)
+{
+    migraphx::program p = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x{2, 1, 1, 3, 4, 3};
+    std::vector<float> y_gold      = {1, 2, 3, 4};
+    std::vector<size_t> y_idx_gold = {1, 0, 3, 4};
+    std::vector<size_t> x_idx_gold = {1, 0, 0, 2, 3, 2};
+    std::vector<size_t> y_ct_gold  = {2, 1, 2, 1};
+    migraphx::shape s{migraphx::shape::float_type, {x.size()}};
+
+    migraphx::parameter_map pm;
+    pm["X"]     = migraphx::argument(s, x.data());
+    auto result = p.eval(pm);
+
+    std::vector<float> yvec;
+    result[0].visit([&](auto out) { yvec.assign(out.begin(), out.end()); });
+    EXPECT(yvec == y_gold);
+
+    std::vector<size_t> y_idx_vec;
+    result[1].visit([&](auto out) { y_idx_vec.assign(out.begin(), out.end()); });
+    EXPECT(y_idx_vec == y_idx_gold);
+
+    std::vector<size_t> x_idx_vec;
+    result[2].visit([&](auto out) { x_idx_vec.assign(out.begin(), out.end()); });
+    EXPECT(x_idx_vec == x_idx_gold);
+
+    std::vector<size_t> y_ct_vec;
+    result[3].visit([&](auto out) { y_ct_vec.assign(out.begin(), out.end()); });
+    EXPECT(y_ct_vec == y_ct_gold);
+}
+
+TEST_CASE(unique_dynamic_unsorted_test)
+{
+    migraphx::program p = migraphx::parse_onnx("unique_dynamic_unsorted_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> x{2, 1, 1, 3, 4, 3};
+    std::vector<float> y_gold      = {2, 1, 3, 4};
+    std::vector<size_t> y_idx_gold = {0, 1, 3, 4};
+    std::vector<size_t> x_idx_gold = {0, 1, 1, 2, 3, 2};
+    std::vector<size_t> y_ct_gold  = {1, 2, 2, 1};
+    migraphx::shape s{migraphx::shape::float_type, {x.size()}};
+
+    migraphx::parameter_map pm;
+    pm["X"]     = migraphx::argument(s, x.data());
+    auto result = p.eval(pm);
+
+    std::vector<float> yvec;
+    result[0].visit([&](auto out) { yvec.assign(out.begin(), out.end()); });
+    EXPECT(yvec == y_gold);
+
+    std::vector<size_t> y_idx_vec;
+    result[1].visit([&](auto out) { y_idx_vec.assign(out.begin(), out.end()); });
+    EXPECT(y_idx_vec == y_idx_gold);
+
+    std::vector<size_t> x_idx_vec;
+    result[2].visit([&](auto out) { x_idx_vec.assign(out.begin(), out.end()); });
+    EXPECT(x_idx_vec == x_idx_gold);
+
+    std::vector<size_t> y_ct_vec;
+    result[3].visit([&](auto out) { y_ct_vec.assign(out.begin(), out.end()); });
+    EXPECT(y_ct_vec == y_ct_gold);
+}
+
+TEST_CASE(where_test)
+{
+    migraphx::program p = migraphx::parse_onnx("where_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape c_shape{migraphx::shape::bool_type, {2}};
+    std::vector<int8_t> c_data = {1, 0};
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2}};
+    std::vector<float> x_data(8, 1.0f);
+
+    migraphx::shape y_shape{migraphx::shape::float_type, {2, 1, 2, 2}};
+    std::vector<float> y_data(8, 2.0f);
+
+    migraphx::parameter_map pp;
+    pp["c"] = migraphx::argument(c_shape, c_data.data());
+    pp["x"] = migraphx::argument(x_shape, x_data.data());
+    pp["y"] = migraphx::argument(y_shape, y_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f,
+                               1.0f,
+                               2.0f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 

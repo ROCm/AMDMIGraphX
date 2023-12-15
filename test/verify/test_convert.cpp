@@ -29,26 +29,26 @@
 
 #include <migraphx/make_op.hpp>
 
-struct test_convert : verify_program<test_convert>
+template <migraphx::shape::type_t From, migraphx::shape::type_t To>
+struct test_convert : verify_program<test_convert<From, To>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sa{migraphx::shape::int8_type, {8, 24}};
-        migraphx::shape sb{migraphx::shape::int8_type, {24, 6}};
+        migraphx::shape sa{From, {8, 24}};
+        migraphx::shape sb{From, {24, 6}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
         auto ia = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pa);
+            migraphx::make_op("convert", {{"target_type", migraphx::to_value(To)}}), pa);
         auto ib = mm->add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
-            pb);
+            migraphx::make_op("convert", {{"target_type", migraphx::to_value(To)}}), pb);
         mm->add_instruction(migraphx::make_op("dot"), ia, ib);
 
         return p;
     };
 };
+
+template struct test_convert<migraphx::shape::int8_type, migraphx::shape::float_type>;
+template struct test_convert<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::float_type>;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,41 +21,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GATHER_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_8BITS_HPP
 
+#include <string>
+#include <unordered_set>
+#include <vector>
+#include <functional>
 #include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/gather.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
+struct program;
+struct module;
 
-struct hip_gather
+/**
+ * capture inputs of operators to be quantized to int8 or fp8
+ */
+struct MIGRAPHX_EXPORT capture_arguments_pass
 {
-    op::gather op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::gather"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
+    std::unordered_set<std::string> ins_names = {"dot", "convolution"};
+    std::function<void(std::size_t, std::vector<argument>)> f{};
+    std::size_t* param_index = nullptr;
+    std::string name() const { return "capture_arguments"; }
+    void apply(module& m) const;
 };
 
-} // namespace gpu
+/**
+ * quantize a program to int8 or fp8
+ */
+struct MIGRAPHX_EXPORT quantize_8bits_pass
+{
+    shape::type_t precision = shape::int8_type;
+    std::vector<std::pair<float, float>> quant_params;
+    std::string name() const { return "quantize_8bits"; }
+    void apply(module& m) const;
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

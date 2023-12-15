@@ -359,6 +359,16 @@ MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
     });
 }
 
+static void make_contiguous_inputs(module& mod, std::vector<instruction_ref>& inputs)
+{
+    std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+        auto s = input->get_shape();
+        if(not s.packed() and not s.broadcasted())
+            return mod.insert_instruction(std::next(input), make_op("contiguous"), input);
+        return input;
+    });
+}
+
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -379,6 +389,7 @@ struct find_mlir_fused_ops
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
+        module& curr_mod    = mpm.get_module();
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -390,7 +401,8 @@ struct find_mlir_fused_ops
                      std::back_inserter(inputs),
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        mpm.get_module().replace_instruction(
+        make_contiguous_inputs(curr_mod, inputs);
+        curr_mod.replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
@@ -415,11 +427,13 @@ struct find_mlir_standalone_op
         static size_t counter = 0;
         module_ref mm =
             mpm.create_module("mlir_" + gemm_based_op->name() + std::to_string(counter++));
+        module& curr_mod    = mpm.get_module();
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(
+        make_contiguous_inputs(curr_mod, top_inputs);
+        curr_mod.replace_instruction(
             gemm_based_op, mlir_op{gemm_based_op->get_operator()}, top_inputs, {mm});
     }
 };
@@ -438,6 +452,7 @@ struct find_mlir_standalone_attention_op
     {
         static size_t counter  = 0;
         module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
+        module& curr_mod    = mpm.get_module();
         auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
         std::vector<instruction_ref> inputs;
         mm->set_bypass();
@@ -481,7 +496,8 @@ struct find_mlir_standalone_attention_op
             ins_to_be_replaced = r.instructions["trailing_pm"];
         }
         mm->add_return({ins_to_replace});
-        mpm.get_module().replace_instruction(
+        make_contiguous_inputs(curr_mod, inputs);
+        curr_mod.replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
     }
 };

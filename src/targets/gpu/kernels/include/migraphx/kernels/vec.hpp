@@ -207,7 +207,7 @@ struct implicit_conversion_op
     template <class U>
     constexpr operator U() const
     {
-        return x;
+        return static_cast<U>(x);
     }
 };
 

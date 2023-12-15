@@ -117,6 +117,19 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
     }
 };
 
+struct test_layernorm_fp8 : verify_program<test_layernorm_fp8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+};
+
 struct test_layernorm_eps : verify_program<test_layernorm_eps>
 {
     migraphx::program create_program() const

@@ -27,14 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct gemm_2args_mv : verify_program<gemm_2args_mv>
+template <migraphx::shape::type_t DType>
+struct gemm_2args_mv : verify_program<gemm_2args_mv<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {3, 5}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {5}};
+        migraphx::shape m1_shape{DType, {3, 5}};
+        migraphx::shape m2_shape{DType, {5}};
         auto l1  = mm->add_parameter("1", m1_shape);
         auto l2  = mm->add_parameter("2", m2_shape);
         auto ul2 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l2);
@@ -44,3 +45,7 @@ struct gemm_2args_mv : verify_program<gemm_2args_mv>
         return p;
     }
 };
+
+template struct gemm_2args_mv<migraphx::shape::float_type>;
+template struct gemm_2args_mv<migraphx::shape::half_type>;
+template struct gemm_2args_mv<migraphx::shape::fp8e4m3fnuz_type>;

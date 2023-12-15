@@ -26,22 +26,31 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
-struct gemm_add_half : verify_program<gemm_add_half>
+
+struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 2, 3}};
-        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 3, 4}};
-        migraphx::shape m3_shape{migraphx::shape::half_type, {1, 2, 4}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
-        auto l3 = mm->add_parameter("3", m3_shape);
+        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
+        auto m2_elements = m2_shape.elements();
+        auto a           = mm->add_parameter("1", m1_shape);
+        auto b           = mm->add_parameter("2", m1_shape);
+        auto b1          = mm->add_parameter("3", m1_shape);
+        std::vector<float> eights(m2_elements, 0.125);
+        auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
+        std::vector<float> zeros(m2_elements, 0);
+        auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+        auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), bias);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
+        mm->add_instruction(migraphx::make_op("relu"), gemm2);
         return p;
     }
 };

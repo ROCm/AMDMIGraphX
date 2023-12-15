@@ -88,7 +88,7 @@ struct resize
     std::vector<int64_t> sizes;
     std::string nearest_mode;
 
-    int mode = 0; // 1: nearest 2: bilinear/linear 3: cubic
+    std::string mode; // 1: nearest 2: bilinear/linear 3: cubic
     std::string coordinate_transformation_mode;
 
     std::string name() const { return "resize"; }
@@ -113,7 +113,7 @@ struct resize
             if(inputs.front().dynamic())
             {
                 // Not supported at this point--needs different validity checking
-                MIGRAPHX_THROW("RESIZE: Sincle dynamic input not supported");
+                MIGRAPHX_THROW("RESIZE: Single dynamic input not supported");
             }
             auto input_s = inputs.front();
             // No size/scale input.  Size/scale must be an attribute and so output will be static.

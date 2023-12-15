@@ -2296,6 +2296,121 @@ TEST_CASE(resize_downsample_f_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(resize_outsize_test)
+{
+    // resize using output_size input, rather than scales
+    migraphx::program p = migraphx::parse_onnx("resize_outsize_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+    std::vector<float> dy(sx.elements(), 0);
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+    pp["Y"] = migraphx::argument(sx, dy.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = {0.1f, 0.1f, 1.1f, 1.1f, 1.1f, 1.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(resize_downsample_f_dyn_test)
+{
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10};
+
+    auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
+
+    // A Resize op. with static input shape goes through a different code path
+    // but should give same result
+    auto reference_p = migraphx::parse_onnx("resize_downsample_f_ref_test.onnx", options);
+    reference_p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+for(auto aa : result_vector) std::cout << aa << " "; std::cout << " resize_downsample_f_dyn_test.onnx\n";
+    // clang-format off
+    std::vector<float> gold = {
+                0.1f,   1.1f,   3.1f,  4.1f,  6.1f, 
+                9.1f,  10.1f, 12.1f, 13.1f, 15.1f, 
+                27.1f, 28.1f, 30.1f, 31.1f, 33.1f, 
+                45.1f, 46.1f, 48.1f, 49.1f, 51.1f, 
+                54.1f, 55.1f, 57.1f, 58.1f, 60.1f, 
+                72.1f, 73.1f, 75.1f, 76.1f, 78.1f};
+    // clang-format on
+
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
+
+    auto reference_result = reference_p.eval(pp).back();
+    std::vector<float> reference_vector;
+    reference_result.visit(
+        [&](auto output) { reference_vector.assign(output.begin(), output.end()); });
+for(auto aa : reference_vector) std::cout << aa << " "; std::cout << " resize_downsample_f_ref_test.onnx\n";
+    EXPECT(migraphx::verify::verify_range_with_tolerance(
+        result_vector, migraphx::verify::expected{reference_vector}));
+}
+
+TEST_CASE(resize_upsample_f_dyn_test)
+{
+    // resize with half_pixel and round_prefer_ceil, with scale > 1
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = {1, 10};
+
+    auto p = migraphx::parse_onnx("resize_upsample_f_dyn_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
+
+    // should upscale to 2x4x8
+    migraphx::shape sx{migraphx::shape::float_type, {2, 1, 3, 5}};
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
+
+    migraphx::parameter_map pp;
+    pp["X"]     = migraphx::argument(sx, dx.data());
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // clang-format off
+    std::vector<float> gold = { 
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        5.1f,  5.1f,    6.1f,  7.1f,    7.1f,  8.1f,    9.1f,  9.1f,  
+        10.1f,  10.1f,  11.1f,  12.1f,  12.1f,  13.1f,  14.1f,  14.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        20.1f,  20.1f,  21.1f,  22.1f,  22.1f,  23.1f,  24.1f,  24.1f,  
+        25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
+    // clang-format on
+
+    // Using verify_range_with_tolerance() because floating-point
+    // rounding errorswere observed.
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
+}
+
 TEST_CASE(resize_upsample_linear_ac_test)
 {
     migraphx::program p = migraphx::parse_onnx("resize_upsample_linear_ac_test.onnx");
@@ -2860,25 +2975,6 @@ TEST_CASE(tril_row_one_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-TEST_CASE(upsample_test)
-{
-    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
-
-    std::vector<float> x_data = {1, 2, 3, 4};
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-
-    migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(sx, x_data.data());
-
-    auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
-                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
-}
-
 TEST_CASE(unique_dynamic_sorted_test)
 {
     migraphx::program p = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
@@ -2943,6 +3039,25 @@ TEST_CASE(unique_dynamic_unsorted_test)
     std::vector<size_t> y_ct_vec;
     result[3].visit([&](auto out) { y_ct_vec.assign(out.begin(), out.end()); });
     EXPECT(y_ct_vec == y_ct_gold);
+}
+
+TEST_CASE(upsample_test)
+{
+    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
+
+    std::vector<float> x_data = {1, 2, 3, 4};
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, x_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
+                               3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
 TEST_CASE(where_test)

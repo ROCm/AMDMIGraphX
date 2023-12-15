@@ -192,17 +192,14 @@ static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
     return scales;
 }
 
-// return:  true if scales or sizes attribute is dynamic.  In such 
-// case we must call the Resize op. which will take them from runtime inputs.
+// return: true if argument is non-static (i.e. if eval() couldn't read it
+// at compile time).  If true, we'll need to use Resize op.
 static bool parse_args(const std::vector<instruction_ref>& args,
                        const std::vector<size_t>& in_lens,
                        const std::string& op_name,
                        std::vector<double>& vec_scale,
                        std::vector<std::size_t>& out_lens)
 {
-    // Go through the arguments, not including the first or any blanks.  The
-    // first argument found will be interpreted as either output shape or 
-    // scales.
     for(const auto& arg : args)
     {
         if(arg->name() == "undefined" or arg == args.front())
@@ -218,7 +215,6 @@ static bool parse_args(const std::vector<instruction_ref>& args,
         }
 
         auto type = arg->get_shape().type();
-
         // output size
         if(type == shape::int64_type)
         {
@@ -226,10 +222,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
             // check_arg_empty(arg_out_s,
             //                 "PARSE_" + op_name + ": dynamic output size is not supported!");
             if(arg_out_s.empty())
-            {
-                // dynamic output size:  don't use either scales or size attribute
                 return true;
-            }
             arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
 
             if(out_lens.size() != in_lens.size())
@@ -245,10 +238,10 @@ static bool parse_args(const std::vector<instruction_ref>& args,
                            out_lens.begin(),
                            vec_scale.begin(),
                            [](auto iss, auto oss) { return 1.0 * oss / iss; });
+            return false;
         }
         else
         {
-
             // scale input
             if(lens[0] == in_lens.size())
             {
@@ -257,16 +250,58 @@ static bool parse_args(const std::vector<instruction_ref>& args,
                 //                 "PARSE_" + op_name + ": dynamic input scale is not supported!");
                 if(arg_scale.empty())
                     return true;
+
                 arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
+
+                // should we compute output sizes now?
             }
+
+            return false;
         }
     }
-    return false;
+    MIGRAPHX_THROW("PARSE_" + op_name + ": no shapes or scales input provided");
 }
 
 struct parse_resize : op_parser<parse_resize>
 {
     std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
+
+    instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
+                    const std::size_t out_elements,
+                    const shape& in_s,
+                    shape& out_s,
+                    const std::vector<size_t>& in_lens,
+                    const std::vector<size_t>& out_lens,
+                    const std::vector<double>& vec_scale,
+                    instruction_ref args_0) const
+    {
+        std::string nearest_mode = get_nearest_mode(info.attributes);
+        std::vector<int> ind(out_elements);
+
+        // map out_idx to in_idx
+        auto nearest_op = get_nearest_op(nearest_mode);
+        std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
+        auto idx_op              = get_original_idx_op(coord_trans_mode);
+
+        shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
+            std::vector<size_t> in_idx(out_idx_v.size());
+            for(auto ii = 0; ii < in_lens.size(); ++ii)
+            {
+                auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+            }
+
+            ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
+        });
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args_0);
+
+        //ins_ind should be a multi dimensional index that will restore original rank
+        shape ind_s{shape::int32_type, out_lens};
+        auto ins_ind = info.add_literal(literal(ind_s, ind));
+        return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+    }
 
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
@@ -300,24 +335,12 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<double> vec_scale = get_scales(info.attributes);
 
         // If `scales` was not an attribute, it must be an input
-        if(vec_scale.empty())
+        bool is_static_scale_input(not vec_scale.empty());
+        if(not is_static_scale_input)
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
-            if (parse_args(args, in_lens, opd.op_name, vec_scale, out_lens))
-            {
-                // Dynamic output; call Resize op with 2 arguments.  vec_scale, out_lens aren't used.
-                std::cout << "Call Resize op here!\n";
-
-                shape ind_s{shape::int32_type, {out_lens.size()}};
-                auto ins_ind = info.add_literal(literal(ind_s, out_lens));
-    ins_ind->debug_print();            
-    auto zzq = ins_ind->get_shape();
-                return info.add_instruction(make_op("resize", {{"nearest_mode", nearest_mode}
-        , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
-
-
-            };
+            is_static_scale_input = not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens);
         }
 
         if(in_lens.size() != vec_scale.size())
@@ -343,42 +366,33 @@ struct parse_resize : op_parser<parse_resize>
 
         if(mode == "nearest")
         {
-            // std::vector<int> ind(out_elements);
+            // Todo:  combine the first two cases with AND and then branch on which 
+            // value is in arguments:  sizes or scales.
 
-            // // map out_idx to in_idx
-            // auto nearest_op = get_nearest_op(nearest_mode);
-            // shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
-            //     std::vector<size_t> in_idx(out_idx_v.size());
-            //     for(auto ii = 0; ii < in_lens.size(); ++ii)
-            //     {
-            //         auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-            //         in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-            //     }
+            if(not is_static_scale_input)
+            {
+                // If vec_scale could not be read, this indicates that the scale input is 
+                // non-static.  Call the Resize op.
+                shape ind_s{shape::int32_type, {out_lens.size()}};
+                auto ins_ind = info.add_literal(literal(ind_s, out_lens));
+                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
+                , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
+            }
+            else if (args[0]->get_shape().dynamic())
+            {
+                // Dynamic input,  Call the Resize op. and pass the scales as a literal input
+                //    What happens if output sizes is the attribute?
+                //  TODO:  if branch here, check the attributes again
+                shape ind_s{shape::float_type, {vec_scale.size()}};
+                auto ins_ind = info.add_literal(literal(ind_s, vec_scale));
+                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
+                , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
+            }
+            else
+            {
+                return make_gather_instruction(info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
 
-            //     ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
-            // });
-
-            // shape ind_s{shape::int32_type, out_lens};
-            // auto ins_ind = info.add_literal(literal(ind_s, ind));
-            // return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
-      if(vec_scale.empty())
-        {
-            shape ind_s{shape::int32_type, {out_lens.size()}};
-            auto ins_ind = info.add_literal(literal(ind_s, out_lens));
-ins_ind->debug_print();            
-auto zzq = ins_ind->get_shape();
-            return info.add_instruction(make_op("resize", {{"sizes", {1}}, {"scales", {}}, {"nearest_mode", nearest_mode}
-      , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
-      }
-      else
-        {
-            shape scale_s{shape::float_type, {out_lens.size()}};
-            auto ins_ind = info.add_literal(literal(scale_s, vec_scale));
-ins_ind->debug_print();          std::cout << "\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\//////////////\n";  
-auto zzq = ins_ind->get_shape();
-            return info.add_instruction(make_op("resize", {{"sizes", {}}, {"scales", {1}}, {"nearest_mode", nearest_mode}
-      , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
-      }
+            }
         }
         // linear mode
         else

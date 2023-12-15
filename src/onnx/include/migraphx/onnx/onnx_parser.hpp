@@ -85,6 +85,7 @@ struct onnx_parser
         template <class... Ts>
         instruction_ref add_literal(Ts&&... xs) const
         {
+            std::cout << "Adding --------------------------------------------------------------------\n";
             return add_literal(literal{std::forward<Ts>(xs)...});
         }
     };

@@ -92,7 +92,7 @@ def get_args():
         "-o",
         "--output",
         type=str,
-        default=None,
+        default="output.png",
         help="Output name",
     )
     return parser.parse_args()

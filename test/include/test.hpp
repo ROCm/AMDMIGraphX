@@ -410,6 +410,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
         std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
             if(m == '?')
                 return true;
+            // We need a loop for star, so bail and handle the loop below
             if(m == '*')
                 return false;
             return c == m;

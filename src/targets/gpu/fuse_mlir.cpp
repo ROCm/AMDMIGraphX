@@ -389,7 +389,7 @@ struct find_mlir_fused_ops
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
-        module& curr_mod    = mpm.get_module();
+        module& curr_mod = mpm.get_module();
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -402,8 +402,7 @@ struct find_mlir_fused_ops
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         make_contiguous_inputs(curr_mod, inputs);
-        curr_mod.replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+        curr_mod.replace_instruction(ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }
 };
 
@@ -427,7 +426,7 @@ struct find_mlir_standalone_op
         static size_t counter = 0;
         module_ref mm =
             mpm.create_module("mlir_" + gemm_based_op->name() + std::to_string(counter++));
-        module& curr_mod    = mpm.get_module();
+        module& curr_mod = mpm.get_module();
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
@@ -452,7 +451,7 @@ struct find_mlir_standalone_attention_op
     {
         static size_t counter  = 0;
         module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
-        module& curr_mod    = mpm.get_module();
+        module& curr_mod       = mpm.get_module();
         auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
         std::vector<instruction_ref> inputs;
         mm->set_bypass();

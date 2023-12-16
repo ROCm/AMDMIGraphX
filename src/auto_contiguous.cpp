@@ -59,7 +59,7 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(contains({"layout", "contiguous", "@return", "@param", "@outline"}, ins->name()))
+        if(contains({"layout", "contiguous", "@return", "@outline"}, ins->name()))
             continue;
         auto outputs = ins->outputs();
         // for last instruction that is NOT a return
@@ -76,7 +76,7 @@ void auto_contiguous::apply(module& m) const
             continue;
         if(s.type() == shape::tuple_type)
             continue;
-        if(s.standard() and ins->name() == "@literal")
+        if(s.standard() and contains({"@literal", "@param"}, ins->name()))
             continue;
         if(s.scalar() and not contains(ins->name(), "broadcast"))
             continue;

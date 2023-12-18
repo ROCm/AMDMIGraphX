@@ -55,7 +55,7 @@ struct allocate
                                const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return {output_shape};
+        return migraphx::argument{output_shape};
     }
 };
 
@@ -89,17 +89,13 @@ bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
 
 bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
-    for(auto ins1 : inss)
-    {
-        for(auto ins2 : inss)
-        {
+    return std::none_of(inss.begin(), inss.end(), [&](auto ins1) {
+        return std::none_of(inss.begin(), inss.end(), [&](auto ins2) {
             if(ins1 == ins2)
-                continue;
-            if(is_overlap_load(ins1, ins2))
-                return false;
-        }
-    }
-    return true;
+                return true;
+            return is_overlap_load(ins1, ins2);
+        });
+    });
 }
 
 TEST_CASE(test1)

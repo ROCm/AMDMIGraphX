@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -61,6 +61,15 @@ shape compute_padded_shape(const shape& input,
                            const std::vector<std::size_t>& padding,
                            const std::vector<std::size_t>& stride,
                            const std::vector<std::size_t>& dilation);
+
+// Used for dynamic auto padding of pooling operators where padding needs to be computed at
+// evaulation time.
+MIGRAPHX_EXPORT
+shape compute_padded_pool_shape(const shape& input,
+                                const shape& kernel,
+                                const std::vector<std::size_t>& padding,
+                                const std::vector<std::size_t>& stride,
+                                const std::vector<std::size_t>& dilation);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -47,7 +47,8 @@ struct test_concat_pooling : verify_program<test_concat_pooling>
                                                   {{"mode", migraphx::op::pooling_mode::average},
                                                    {"padding", {0, 0}},
                                                    {"stride", {1, 1}},
-                                                   {"lengths", {8, 8}}}),
+                                                   {"lengths", {8, 8}},
+                                                   {"dilations", {1, 1}}}),
                                 concat_t);
         mm->add_instruction(migraphx::make_op("relu"), pooling);
         return p;

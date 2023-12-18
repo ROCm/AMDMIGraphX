@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
 
+#include <migraphx/gpu/ck.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
@@ -37,20 +38,12 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/stringutils.hpp>
 
-#include "ck/host/device_gemm_multiple_d.hpp"
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_LOG_CK_GEMM);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_TUNING_VALUE);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_CK_DEBUG);
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TUNE_CK);
 
 // NOLINTNEXTLINE
 static const char* const ck_gemm_kernel = R"__migraphx__(
@@ -79,219 +72,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-// NOLINTNEXTLINE
-static const char* const disable_warning_pragma = R"__migraphx__(
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-${content}
-#pragma clang diagnostic pop
-)__migraphx__";
-
-template <class P>
-static std::string ck_disable_warnings(P p)
-{
-    return interpolate_string(disable_warning_pragma,
-                              {{"content", std::string{p.first, p.second}}});
-}
-
-static std::unordered_map<std::string, std::string> create_ck_header_strings()
-{
-    std::unordered_map<std::string, std::string> result;
-    auto ck_headers = ck::host::GetHeaders();
-
-    std::transform(
-        ck_headers.begin(), ck_headers.end(), std::inserter(result, result.begin()), [&](auto&& p) {
-            return std::make_pair(p.first, ck_disable_warnings(p.second));
-        });
-    return result;
-}
-
-static std::vector<src_file> create_ck_headers()
-{
-    static const auto& header_strings = create_ck_header_strings();
-    std::vector<src_file> srcs;
-    std::transform(
-        header_strings.begin(), header_strings.end(), std::back_inserter(srcs), [&](auto&& p) {
-            return src_file{fs::path{p.first},
-                            {p.second.data(), p.second.data() + p.second.size()}};
-        });
-    return srcs;
-}
-
-static const std::vector<src_file>& ck_headers()
-{
-    static const auto& headers = create_ck_headers();
-    return headers;
-}
-
-static bool transposed_matrix(const shape& s) { return s.strides().back() != 1; }
-
-using tuning_entry = std::pair<std::vector<shape>, size_t>;
-static std::vector<tuning_entry> read_tuning(const std::string& s)
-{
-    if(not fs::exists(s))
-        return {};
-    return from_value<std::vector<tuning_entry>>(from_json_string(read_string(s)));
-}
-
-static float matrix_distance(const shape& x, const shape& y)
-{
-    if(x.type() != y.type())
-        return std::numeric_limits<float>::max();
-    if(transposed_matrix(x) != transposed_matrix(y))
-        return std::numeric_limits<float>::max();
-    auto sum_squared = std::inner_product(x.lens().rbegin(),
-                                          x.lens().rbegin() + 2,
-                                          y.lens().rbegin(),
-                                          0,
-                                          std::plus<>{},
-                                          [](auto a, auto b) { return (a - b) * (a - b); });
-    return std::sqrt(sum_squared);
-}
-
-static std::size_t get_tuning_for(const std::vector<shape>& inputs)
-{
-    static auto tuning = read_tuning(string_value_of(MIGRAPHX_CK_TUNING{}, ""));
-    if(tuning.empty())
-    {
-        std::cout << "*********** Warning: No CK tuning! for config:" << std::endl;
-        std::cout << "  " << inputs[0] << std::endl;
-        std::cout << "  " << inputs[1] << std::endl;
-        std::cout << "  " << inputs[2] << std::endl;
-    }
-    auto it = std::find_if(
-        tuning.begin(), tuning.end(), [&](const auto& p) { return p.first == inputs; });
-    if(it == tuning.end())
-    {
-        std::cout << "*********** Warning: CK tuning missing for config!" << std::endl;
-        std::cout << "  " << inputs[0] << std::endl;
-        std::cout << "  " << inputs[1] << std::endl;
-        std::cout << "  " << inputs[2] << std::endl;
-        std::vector<std::pair<float, std::size_t>> w;
-        std::transform(tuning.begin(), tuning.end(), std::back_inserter(w), [&](const auto& p) {
-            if(inputs.size() < 3 or p.first.size() < 3)
-                MIGRAPHX_THROW("Invalid CK config");
-            auto avg_distance = std::inner_product(
-                p.first.begin(),
-                p.first.begin() + 3,
-                inputs.begin(),
-                0.0f,
-                std::plus<>{},
-                [](const auto& x, const auto& y) { return matrix_distance(x, y) / 3.0f; });
-            return std::make_pair(avg_distance, p.second);
-        });
-        std::sort(w.begin(), w.end());
-        std::size_t default_value = 4;
-        if(not w.empty())
-            default_value = w.front().second;
-        auto tuning_val = value_of(MIGRAPHX_CK_TUNING_VALUE{}, default_value);
-        std::cout << "*********** Warning: CK try tuning: " << tuning_val << std::endl;
-        return tuning_val;
-    }
-    return it->second;
-}
-
 struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 {
-    static std::string get_layout(const shape& s)
-    {
-        return transposed_matrix(s) ? "ck::tensor_layout::gemm::ColumnMajor"
-                                    : "ck::tensor_layout::gemm::RowMajor";
-    }
-
-    static ck::host::DataType get_type(const shape& s)
-    {
-        if(s.type() == shape::half_type)
-            return ck::host::DataType::Half;
-        else if(s.type() == shape::float_type)
-            return ck::host::DataType::Float;
-        else if(s.type() == shape::int8_type)
-            return ck::host::DataType::Int8;
-        else if(s.type() == shape::int32_type)
-            return ck::host::DataType::Int32;
-        MIGRAPHX_THROW("Unsupported ck type");
-    }
-
-    template <class Iterator, class F>
-    static std::string ck_tuple(Iterator start, Iterator last, F f)
-    {
-        std::vector<std::string> s;
-        std::transform(start, last, std::back_inserter(s), f);
-        return "ck::Tuple<" + join_strings(s, ",") + ">";
-    }
-
-    static std::vector<shape> adjust_inputs(std::vector<shape> inputs, bool& swap_inputs)
-    {
-        swap_inputs  = false;
-        auto c_shape = inputs.back();
-        if(not transposed_matrix(c_shape))
-            return inputs;
-        std::vector<int64_t> perm(c_shape.lens().size());
-        std::iota(perm.begin(), perm.end(), 0);
-        std::swap(perm[perm.size() - 1], perm[perm.size() - 2]);
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](shape s) {
-            return reorder_shape(s, perm);
-        });
-        swap_inputs = true;
-        return inputs;
-    }
-
-    static std::size_t get_batch_count(const shape& s)
-    {
-        return std::accumulate(
-            s.lens().rbegin() + 2, s.lens().rend(), std::size_t{1}, std::multiplies<std::size_t>());
-    }
-
-    static void fold_batch_dims(shape& s)
-    {
-        auto lens = s.lens();
-        if(lens.size() <= 2)
-            return;
-        auto batch_count = get_batch_count(s);
-        auto m1          = lens.at(lens.size() - 2);
-        auto m2          = lens.at(lens.size() - 1);
-        if(transposed_matrix(s))
-            s = shape{s.type(), {m1, m2 * batch_count}};
-        else
-            s = shape{s.type(), {m1 * batch_count, m2}};
-    }
-
-    static void remove_batch_dims(shape& s)
-    {
-        auto lens = s.lens();
-        if(lens.size() <= 2)
-            return;
-        auto m1 = lens.at(lens.size() - 2);
-        auto m2 = lens.at(lens.size() - 1);
-        s       = shape{s.type(), {m1, m2}};
-    }
-
     std::vector<std::string> names() const { return {"ck_gemm", "gpu::ck_gemm"}; }
-
-    static bool standard_batch(const shape& s)
-    {
-        if(s.lens().size() < 3)
-            return true;
-        std::vector<std::size_t> lens(s.lens().begin(), s.lens().end() - 2);
-        std::vector<std::size_t> strides(s.strides().begin(), s.strides().end() - 2);
-        auto base = *(s.lens().end() - 2) * *(s.lens().end() - 1);
-        std::transform(strides.begin(), strides.end(), strides.begin(), [&](auto stride) {
-            return stride / base;
-        });
-        return shape{s.type(), lens, strides}.standard();
-    }
-
-    bool can_fold_batch(const std::vector<shape>& inputs) const
-    {
-        const auto& b_shape = inputs[1];
-        if(std::any_of(inputs.begin() + 2, inputs.end() - 1, [](auto input) {
-               return not standard_batch(input);
-           }))
-            return false;
-        const auto& b_strides = b_shape.strides();
-        return std::all_of(
-            b_strides.begin(), b_strides.end() - 2, [](auto stride) { return stride == 0; });
-    }
 
     ck::host::device_gemm_multiple_d::Problem create_problem(const std::vector<shape>& inputs,
                                                              const value& v) const
@@ -300,8 +83,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         const auto& b_shape = inputs[1];
         const auto& c_shape = inputs.back();
 
-        auto rank = a_shape.lens().size();
-
+        // cppcheck-suppress unreadVariable
+        auto rank        = a_shape.ndim();
         auto batch_count = get_batch_count(c_shape);
         auto m           = c_shape.lens()[rank - 2];
         m                = can_fold_batch(inputs) ? m * batch_count : m;
@@ -351,12 +134,8 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& a_shape = inputs[0];
-        const auto& b_shape = inputs[1];
         const auto& c_shape = inputs.back();
-        auto tuning_value   = v.get("tuning_value", 4);
-        if(not v.contains("tuning_value"))
-            tuning_value = get_tuning_for({a_shape, b_shape, c_shape});
+        auto tuning_value   = v.get("tuning_value", 34);
         auto batch_count = get_batch_count(c_shape);
         auto problem     = create_problem(inputs, v);
 

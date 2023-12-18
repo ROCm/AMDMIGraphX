@@ -1,6 +1,8 @@
 MIGraphX Driver
 ===============
 
+The MIGraphX driver is a tool that allows you to utilize many of the core functions of MIGraphX without having to write your own program. It can read, compile, run, and test the performance of a model with randomized data.
+
 read
 ----
 
@@ -17,6 +19,7 @@ compile
 
 Compiles and prints input graph.
 
+.. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst
 
 run
@@ -26,6 +29,7 @@ run
 
 Loads and prints input graph.
 
+.. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst
 
 perf
@@ -35,6 +39,7 @@ perf
 
 Compiles and runs input graph then prints performance report.
 
+.. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst
 
 .. option::  --iterations, -n [unsigned int]
@@ -48,11 +53,20 @@ verify
 
 Runs reference and CPU or GPU implementations and checks outputs for consistency.
 
+.. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst
 
-.. option::  --tolerance [double]
+.. option::  --rms-tol [double]
 
-Tolerance for errors (Default: 80)
+Tolerance for RMS error (Default: 0.001)
+
+.. option::  --atol [double]
+
+Tolerance for elementwise absolute difference (Default: 0.001)
+
+.. option::  --rtol [double]
+
+Tolerance for elementwise relative difference (Default: 0.001)
 
 .. option::  -i, --per-instruction
 
@@ -63,7 +77,7 @@ Verify each instruction
 Reduce program and verify
 
 roctx
-----
+-----
 
 .. program:: migraphx-driver roctx
 
@@ -78,4 +92,5 @@ An example command line combined with rocprof for tracing purposes is given belo
 After `rocprof` is run, the output directory will contain trace information for HIP, HCC and ROCTX in seperate `.txt` files.
 To understand the interactions between API calls, it is recommended to utilize `roctx.py` helper script as desribed in :ref:`dev/tools:rocTX` section. 
 
+.. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst

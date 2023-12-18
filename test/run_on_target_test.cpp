@@ -68,7 +68,7 @@ TEST_CASE(eval_run_on_target)
     std::vector<float> results_vector(3);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {0.5, 0.25, 0.125};
-    EXPECT(migraphx::verify::verify_range(results_vector, gold));
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

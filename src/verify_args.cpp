@@ -28,19 +28,20 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 bool verify_args(const std::string& name,
-                 const argument& ref_arg,
                  const argument& target_arg,
-                 double tolerance)
+                 const verify::expected<argument>& ref_arg,
+                 verify::tolerance tols)
 {
     bool passed = true;
-    visit_all(ref_arg, target_arg)([&](auto ref, auto target) {
-        double error;
-        passed = verify::verify_range(ref, target, tolerance, &error);
+    visit_all(ref_arg.data(), target_arg)([&](auto ref, auto target) {
+        double rms_error;
+        passed =
+            verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
         if(not passed)
         {
             // TODO: Check for nans
             std::cout << "FAILED: " << name << std::endl;
-            std::cout << "error: " << error << std::endl;
+            std::cout << "RMS Error: " << rms_error << std::endl;
             if(ref.size() < 32)
                 std::cout << "ref:" << ref << std::endl;
             if(target.size() < 32)
@@ -78,16 +79,6 @@ bool verify_args(const std::string& name,
             if(verify::range_zero(target))
                 std::cout << "Target data is all zeros" << std::endl;
 
-            // auto mxdiff = max_diff(ref, target);
-            // std::cout << "Max diff: " << mxdiff << std::endl;
-
-            // auto idx = mismatch_idx(ref, target, float_equal);
-            // if(idx < verify::range_distance(ref))
-            // {
-            //     std::cout << "Mismatch at " << idx << ": " << ref[idx] << " != " << target[idx]
-            //               << std::endl;
-            // }
-
             auto ref_nan_idx = find_idx(ref, verify::not_finite);
             if(ref_nan_idx >= 0)
                 std::cout << "Non finite number found in ref at " << ref_nan_idx << ": "
@@ -97,10 +88,20 @@ bool verify_args(const std::string& name,
             if(target_nan_idx >= 0)
                 std::cout << "Non finite number found in target at " << target_nan_idx << ": "
                           << target[target_nan_idx] << std::endl;
-            // std::cout << std::endl;
         }
     });
     return passed;
+}
+
+bool verify_args_with_tolerance(const std::string& name,
+                                const argument& target_arg,
+                                const verify::expected<argument>& ref_arg,
+                                std::size_t tolerance)
+{
+    double rms_tol = 0.001;
+    target_arg.visit([&](auto ta) { rms_tol = verify::get_rms_tol(ta, tolerance); });
+    verify::tolerance tols{rms_tol};
+    return verify_args(name, target_arg, ref_arg, tols);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

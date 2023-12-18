@@ -40,7 +40,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
-
+#include <migraphx/float8.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -142,6 +142,18 @@ struct npy_format_descriptor<half>
         return "e";
     }
     static constexpr auto name() { return _("half"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
+{
+    static std::string format()
+    {
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        // TODO: need to figure out correct encoding
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e4m3fnuz"); }
 };
 
 } // namespace detail
@@ -472,7 +484,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                map_dyn_input_dims,
            bool skip_unknown_operators,
            bool print_program_on_error,
-           int64_t max_loop_iterations) {
+           int64_t max_loop_iterations,
+           int64_t limit_max_iterations) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -481,6 +494,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
             options.max_loop_iterations    = max_loop_iterations;
+            options.limit_max_iterations   = limit_max_iterations;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -492,7 +506,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
-        py::arg("max_loop_iterations")    = 10);
+        py::arg("max_loop_iterations")    = 10,
+        py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max());
 
     m.def(
         "parse_onnx_buffer",
@@ -565,7 +580,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("prog"),
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
-          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
+          py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

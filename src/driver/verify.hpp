@@ -26,10 +26,17 @@
 
 #include "precision.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/verify.hpp>
 
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+verify::tolerance get_tolerances(const program& p,
+                                 precision quantize,
+                                 std::optional<double> rms_tol,
+                                 std::optional<double> atol,
+                                 std::optional<double> rtol);
 
 void verify_program(const std::string& name,
                     const program& p,
@@ -37,18 +44,18 @@ void verify_program(const std::string& name,
                     compile_options options     = compile_options{},
                     precision quantize          = precision::fp32,
                     const parameter_map& inputs = {},
-                    double tolerance            = 100);
+                    verify::tolerance tols      = verify::tolerance{});
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options = compile_options{},
                          precision quantize      = precision::fp32,
-                         double tolerance        = 80);
+                         verify::tolerance tols  = verify::tolerance{});
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
                             precision quantize          = precision::fp32,
                             const parameter_map& inputs = {},
-                            double tolerance            = 80);
+                            verify::tolerance tols      = verify::tolerance{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

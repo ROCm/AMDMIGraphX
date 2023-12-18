@@ -99,4 +99,29 @@ TEST_CASE(interpolate_string_custom3)
     EXPECT(s == "****b****");
 }
 
+TEST_CASE(slit_string_simple1)
+{
+    std::string input = "one,two,three";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 3);
+    EXPECT(resuts.front() == "one");
+    EXPECT(resuts.back() == "three");
+}
+
+TEST_CASE(slit_string_simple2)
+{
+    std::string input = "one";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 1);
+    EXPECT(resuts.front() == "one");
+}
+
+TEST_CASE(slit_string_simple3)
+{
+    std::string input = "one two three";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 1);
+    EXPECT(resuts.front() == "one two three");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

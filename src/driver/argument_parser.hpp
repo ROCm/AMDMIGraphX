@@ -105,6 +105,8 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     static const bool use_color = isatty(STDOUT_FILENO) != 0;
     if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
 #endif
     return os;
 }
@@ -185,6 +187,13 @@ struct value_parser
         result.insert(result.end(), value_parser<value_type>::apply(x));
         return result;
     }
+};
+
+// version for std::optional object
+template <class T>
+struct value_parser<std::optional<T>>
+{
+    static T apply(const std::string& x) { return value_parser<T>::apply(x); }
 };
 
 struct argument_parser
@@ -338,7 +347,7 @@ struct argument_parser
 
     MIGRAPHX_DRIVER_STATIC auto file_exist()
     {
-        return validate([](auto&, auto&, auto& params) {
+        return validate([](auto&, auto&, const auto& params) {
             if(params.empty())
                 throw std::runtime_error("No argument passed.");
             if(not fs::exists(params.back()))
@@ -348,13 +357,12 @@ struct argument_parser
 
     MIGRAPHX_DRIVER_STATIC auto matches(const std::unordered_set<std::string>& names)
     {
-        return validate([=](auto&, auto&, auto& params) {
-            for(const auto& p : params)
-            {
-                if(names.count(p) == 0)
-                    throw std::runtime_error("Invalid argument: " + p + ". Valid arguments are {" +
-                                             to_string_range(names) + "}");
-            }
+        return validate([=](auto&, auto&, const auto& params) {
+            auto invalid_param = std::find_if(
+                params.begin(), params.end(), [&](const auto& p) { return names.count(p) == 0; });
+            if(invalid_param != params.end())
+                throw std::runtime_error("Invalid argument: " + *invalid_param +
+                                         ". Valid arguments are {" + to_string_range(names) + "}");
         });
     }
 

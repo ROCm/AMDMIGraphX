@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,14 +28,16 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
+include(CheckCXXSourceCompiles)
 
-add_library(migraphx 
+add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
     auto_contiguous.cpp
     common.cpp
+    common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
     cpp_generator.cpp
@@ -79,7 +81,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
-    quantize_int8.cpp
+    quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
@@ -94,6 +96,7 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     simplify_algebra.cpp
+    simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
     target.cpp
@@ -101,6 +104,12 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+if(WIN32)
+    # Due to compilation crashing, we need to use type-erased matchers on Windows.
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+endif()
+
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -140,6 +149,7 @@ register_migraphx_ops(
     equal
     erf
     exp
+    fill
     flatten
     floor
     fmod
@@ -151,6 +161,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    isinf
     isnan
     layout
     leaky_relu
@@ -170,6 +181,7 @@ register_migraphx_ops(
     mul
     multibroadcast
     multinomial
+    nearbyint
     neg
     nonmaxsuppression
     nonzero
@@ -183,6 +195,8 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
+    random_uniform
+    random_seed
     recip
     reduce_max
     reduce_mean
@@ -191,13 +205,13 @@ register_migraphx_ops(
     reduce_sum
     relu
     reshape
+    reshape_lazy
     reverse
     rnn
     rnn_last_cell_output
     rnn_last_hs_output
     rnn_var_sl_last_output
     roialign
-    round
     rsqrt
     run_on_target
     scalar
@@ -207,6 +221,8 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    scatternd_max
+    scatternd_min
     select_module
     sigmoid
     sign
@@ -225,6 +241,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where
@@ -239,32 +256,68 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
-if(HAS_LIB_STD_FILESYSTEM)
-target_link_libraries(migraphx PRIVATE -lstdc++fs)
+if(NOT WIN32)
+    check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+    if(HAS_LIB_STD_FILESYSTEM)
+        target_link_libraries(migraphx PRIVATE -lstdc++fs)
+    endif()
+    target_link_libraries(migraphx PRIVATE -ldl)
 endif()
 
-target_link_libraries(migraphx PRIVATE -ldl)
-
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
-
-find_package(Threads)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
-if(USE_TBB)
-    find_package(TBB REQUIRED)
-    target_link_libraries(migraphx PRIVATE TBB::tbb)
-    message(STATUS "Using TBB for parallel execution")
+function(check_execution_par RESULT)
+    set(CMAKE_REQUIRED_LIBRARIES ${ARGN})
+    set(CMAKE_REQUIRED_FLAGS)
+    if(NOT MSVC)
+        set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+    endif()
+    string(MD5 _flags_hash "${CMAKE_REQUIRED_FLAGS} ${CMAKE_REQUIRED_LIBRARIES}")
+    set(_source "
+#include <execution>
+
+int main() {
+    int* i = nullptr;
+    std::sort(std::execution::par, i, i);
+}
+")
+    check_cxx_source_compiles("${_source}" _has_execution_${_flags_hash})
+    set(${RESULT} ${_has_execution_${_flags_hash}} PARENT_SCOPE)
+endfunction()
+
+set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
+find_package(TBB QUIET)
+if(TBB_FOUND)
+    check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
+    if(TBB_HAS_EXECUTION_PAR)
+        list(APPEND PACKAGE_DEPENDS PACKAGE TBB)
+        target_link_libraries(migraphx PUBLIC TBB::tbb)
+        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+        message(STATUS "Using TBB for parallel execution")
+    endif()
+else()
+    check_execution_par(HAS_EXECUTION_PAR)
+    if(HAS_EXECUTION_PAR)
+        set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+    endif()
+endif()
+
+option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
+if(MIGRAPHX_HAS_EXECUTORS)
+    message("Parallel STL enabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+else()
+    message("Parallel STL disabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 migraphx_generate_export_header(migraphx)
 
-find_package(PkgConfig)
-pkg_check_modules(SQLITE3 REQUIRED IMPORTED_TARGET sqlite3)
-target_link_libraries(migraphx PRIVATE PkgConfig::SQLITE3)
+find_package(SQLite3 REQUIRED)
+target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 find_package(msgpackc-cxx QUIET)
 if(NOT msgpackc-cxx_FOUND)
@@ -276,14 +329,14 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
-set(PACKAGE_DEPENDS)
-
 add_subdirectory(api)
 add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)
 
+if(MIGRAPHX_ENABLE_PYTHON)
 add_subdirectory(py)
+endif()
 add_subdirectory(targets/ref)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_ref)
 if(MIGRAPHX_ENABLE_CPU)

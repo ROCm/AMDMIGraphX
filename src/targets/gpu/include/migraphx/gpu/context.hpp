@@ -46,13 +46,7 @@ using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
 {
-    hip_device()
-    {
-        device_props.gcnArchName[0]      = '\0';
-        device_props.gcnArch             = 0;
-        device_props.multiProcessorCount = 0;
-        add_stream();
-    }
+    hip_device() : device_props{} { add_stream(); }
 
     hip_device(std::size_t id, std::size_t n) : device_id(id)
     {
@@ -171,7 +165,7 @@ struct hip_device
 
     std::size_t stream_id() const { return current_stream; }
 
-    std::string get_device_name() const { return get_arch_name(device_props); }
+    std::string get_device_name() const { return device_props.gcnArchName; }
 
     std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
 
@@ -305,23 +299,6 @@ struct context
 
     any_ptr get_queue() { return get_stream().get(); }
 
-    void enable_perf_measurement(bool b = true)
-    {
-        if(b)
-        {
-            start_event = create_event_for_timing();
-            stop_event  = create_event_for_timing();
-            get_stream().record(start_event.get());
-            get_stream().record(stop_event.get());
-        }
-        else
-        {
-            start_event = nullptr;
-            stop_event  = nullptr;
-        }
-        measure_perf = b;
-    }
-
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {
         if(measure_perf)
@@ -329,12 +306,12 @@ struct context
         return std::make_pair(nullptr, nullptr);
     }
 
-    float get_elapsed_ms() const
+    static float get_elapsed_ms(hipEvent_t start, hipEvent_t stop)
     {
         float result = 0;
-        if(start_event != nullptr and stop_event != nullptr)
+        if(start != nullptr and stop != nullptr)
         {
-            auto status = hipEventElapsedTime(&result, start_event.get(), stop_event.get());
+            auto status = hipEventElapsedTime(&result, start, stop);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed hipEventElapsedTime: " + hip_error(status));
         }

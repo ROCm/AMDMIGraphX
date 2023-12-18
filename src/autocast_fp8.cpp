@@ -74,9 +74,7 @@ void autocast_fp8_pass::apply(module& m) const
     }
     // Remove unused parameters with fp8 type
     for(const auto& i : remove_parameters)
-    {
         m.remove_instruction(i);
-    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -43,6 +43,7 @@ void autocast_fp8_pass::apply(module& m) const
             migraphx::shape new_shape = ins->get_shape().with_type(target_type);
             std::string param_name =
                 ins->get_operator().to_value()["parameter"].to<std::string>();
+            m.rename_parameter(ins, param_name + "_old");
             auto new_param = m.add_parameter(param_name, new_shape);
             auto new_ins = m.insert_instruction(
                 ins,

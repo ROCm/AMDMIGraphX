@@ -282,12 +282,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
+        MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        BUILD_DEV=
         __device__=
         __host__=
         __global__=
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
+        DOXYGEN
+        HAS_HALF_V1
+        TYPE_ERASED_DECLARATION
+        NDEBUG
 )
 
 include(ROCMCreatePackage)

@@ -39,15 +39,15 @@ void autocast_fp8_pass::apply(module& m) const
         const auto& ins_name = ins->name();
         if(ins_name == "@param" and contains(fp8_types, ins->get_shape().type()))
         {
-            shape::type_t fp8_type = ins->get_shape().type();
+            shape::type_t fp8_type    = ins->get_shape().type();
             migraphx::shape new_shape = ins->get_shape().with_type(target_type);
-            std::string param_name =
-                ins->get_operator().to_value()["parameter"].to<std::string>();
+            std::string param_name = ins->get_operator().to_value()["parameter"].to<std::string>();
             m.rename_parameter(ins, param_name + "_old");
             auto new_param = m.add_parameter(param_name, new_shape);
-            auto new_ins = m.insert_instruction(
+            auto new_ins   = m.insert_instruction(
                 ins,
-                migraphx::make_op("convert", {{"target_type", migraphx::to_value(fp8_type)}}), new_param);
+                migraphx::make_op("convert", {{"target_type", migraphx::to_value(fp8_type)}}),
+                new_param);
             m.replace_instruction(ins, new_ins);
             remove_parameters.push_back(ins);
         }
@@ -56,21 +56,19 @@ void autocast_fp8_pass::apply(module& m) const
         {
             std::vector<instruction_ref> inputs = ins->inputs();
             std::vector<instruction_ref> new_inputs;
-            std::transform(inputs.begin(),
-                           inputs.end(),
-                           std::back_inserter(new_inputs),
-                           [&](auto i) {
-                               if (contains(fp8_types, i->get_shape().type()))
-                               {
-                                   return m.insert_instruction(
-                                   ins,
-                                   migraphx::make_op(
-                                       "convert",
-                                        {{"target_type", migraphx::to_value(target_type)}}),
-                                        i);
-                               } else
-                                   return i;
-                           });
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(new_inputs), [&](auto i) {
+                    if(contains(fp8_types, i->get_shape().type()))
+                    {
+                        return m.insert_instruction(
+                            ins,
+                            migraphx::make_op("convert",
+                                              {{"target_type", migraphx::to_value(target_type)}}),
+                            i);
+                    }
+                    else
+                        return i;
+                });
             m.replace_return({new_inputs});
         }
     }

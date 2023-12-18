@@ -476,6 +476,7 @@ instruction_ref module::insert_literal(instruction_ref ins, literal l)
 
 instruction_ref module::insert_parameter(instruction_ref ins, std::string name, shape s)
 {
+    assert(get_parameter_shape(name) == shape{});
     impl->insert(ins, {builtin::param{std::move(name), impl->nparams}, std::move(s), {}});
     impl->nparams++;
     return std::prev(ins);

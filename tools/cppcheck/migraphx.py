@@ -80,11 +80,13 @@ def match_atom_any_of(token, atoms):
         return t
     return None
 
+
 def match_atom_not(token, atom):
     t = atom(token)
     if not t:
         return token
     return None
+
 
 def match_atom_until(token, atom):
     t = token
@@ -115,6 +117,7 @@ def compile_match_atom(p):
         return lambda token: match_atom_until(token, a)
     return lambda token: token if token.str == p else None
 
+
 def run_compile_match(token, atom_pairs, keys):
     end = None
     bindings = {}
@@ -129,9 +132,10 @@ def run_compile_match(token, atom_pairs, keys):
     bindings['end'] = end
     return MatchResult(True, bindings=bindings)
 
+
 def compileMatch(pattern):
     words = [bind_split(word) for word in pattern.split()]
-    keys = [x for p, x in words]+['end']
+    keys = [x for p, x in words] + ['end']
     atom_pairs = [(compile_match_atom(p), x) for p, x in words]
     return lambda token: run_compile_match(token, atom_pairs, keys)
 
@@ -220,7 +224,6 @@ def compileMatch(pattern):
 #     bindings['end'] = end
 #     return MatchResult(True, bindings=bindings)
 
-
 match_while_for_statement = compileMatch("for|while (*) {*}")
 # match_while_for_statement_ending = compileMatch("%any% ; }")
 # match_while_for_statement_break_continue = compileMatch("break|continue")
@@ -245,6 +248,7 @@ match_while_for_statement = compileMatch("for|while (*) {*}")
 #                 stmt, "style",
 #                 "Branching statement as the last statement inside a loop is very confusing."
 #             )
+
 
 @cppcheck.checker
 def AvoidBranchingStatementAsLastInLoop(cfg, data):
@@ -274,7 +278,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style", "These two if statements can be collapsed into one.")
 
-
 # @cppcheck.checker
 # def ConditionalAssert(cfg, data):
 #     for token in cfg.tokenlist:
@@ -285,7 +288,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(token, "style",
 #                              "The if condition should be included in assert.")
 
-
 # @cppcheck.checker
 # def EmptyCatchStatement(cfg, data):
 #     for token in cfg.tokenlist:
@@ -295,7 +297,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style", "An empty catch statement.")
 
-
 # @cppcheck.checker
 # def EmptyDoWhileStatement(cfg, data):
 #     for token in cfg.tokenlist:
@@ -304,7 +305,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         if not simpleMatch(token, "do { } while ("):
 #             continue
 #         cppcheck.reportError(token, "style", "Empty do-while.")
-
 
 # @cppcheck.checker
 # def EmptyElseBlock(cfg, data):
@@ -316,7 +316,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(token, "style",
 #                              "Empty else statement can be safely removed.")
 
-
 # @cppcheck.checker
 # def EmptyForStatement(cfg, data):
 #     for token in cfg.tokenlist:
@@ -325,7 +324,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         if not match(token, "for (*) { }"):
 #             continue
 #         cppcheck.reportError(token, "style", "Empty for statement.")
-
 
 # @cppcheck.checker
 # def EmptyIfStatement(cfg, data):
@@ -336,7 +334,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style", "Empty if statement.")
 
-
 # @cppcheck.checker
 # def EmptySwitchStatement(cfg, data):
 #     for token in cfg.tokenlist:
@@ -346,7 +343,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style", "Empty switch statement.")
 
-
 # @cppcheck.checker
 # def EmptyWhileStatement(cfg, data):
 #     for token in cfg.tokenlist:
@@ -355,7 +351,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         if not match(token, "while (*) { }"):
 #             continue
 #         cppcheck.reportError(token, "style", "Empty while statement.")
-
 
 # @cppcheck.checker
 # def ForLoopShouldBeWhileLoop(cfg, data):
@@ -373,14 +368,12 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(token, "style",
 #                              "For loop should be written as a while loop.")
 
-
 # @cppcheck.checker
 # def GotoStatement(cfg, data):
 #     for token in cfg.tokenlist:
 #         if token.str != 'goto':
 #             continue
 #         cppcheck.reportError(token, "style", "Goto considered harmful.")
-
 
 # # @cppcheck.checker
 # # def InvertedLogic(cfg, data):
@@ -394,7 +387,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 # #             continue
 # #         cppcheck.reportError(cond, "style", "It is cleaner to invert the logic.")
 
-
 # @cppcheck.checker
 # def LambdaAttribute(cfg, data):
 #     for token in cfg.tokenlist:
@@ -405,7 +397,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(
 #             token, "style",
 #             "Attributes to lambdas must come after parameter list.")
-
 
 # @cppcheck.checker
 # def MultipleUnaryOperator(cfg, data):
@@ -421,7 +412,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(token, "style",
 #                              "Muliple unary operators used together.")
 
-
 # @cppcheck.checker
 # def MutableVariable(cfg, data):
 #     for token in cfg.tokenlist:
@@ -431,7 +421,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style",
 #                              "Do not create mutable variables.")
-
 
 # @cppcheck.checker
 # def NestedBlocks(cfg, data):
@@ -444,7 +433,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         if not block:
 #             continue
 #         cppcheck.reportError(block, "style", "Block directly inside block.")
-
 
 # @cppcheck.checker
 # def RedundantCast(cfg, data):
@@ -464,7 +452,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #                 continue
 #         cppcheck.reportError(token, "style", "Static cast is redundant.")
 
-
 # @cppcheck.checker
 # def RedundantConditionalOperator(cfg, data):
 #     for token in cfg.tokenlist:
@@ -474,7 +461,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style",
 #                              "Conditional operator is redundant.")
-
 
 # @cppcheck.checker
 # def RedundantIfStatement(cfg, data):
@@ -486,7 +472,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #                 "if (*) { return true|false ; } else { return true|false ; }"):
 #             continue
 #         cppcheck.reportError(token, "style", "The if statement is redundant.")
-
 
 # @cppcheck.checker
 # def RedundantLocalVariable(cfg, data):
@@ -506,7 +491,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             "Variable is returned immediately after its declaration, can be simplified to just return expression."
 #         )
 
-
 # # @cppcheck.checker
 # # def UnnecessaryElseStatement(cfg, data):
 # #     for token in cfg.tokenlist:
@@ -521,7 +505,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 # #         if not match(stmt, "break|continue|return|throw"):
 # #             continue
 # #         cppcheck.reportError(m.else_statement, "style", "Else statement is not necessary.")
-
 
 # @cppcheck.checker
 # def UnnecessaryEmptyCondition(cfg, data):
@@ -548,14 +531,12 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             container, "style",
 #             "Unnecessary check for empty before for range loop.")
 
-
 # @cppcheck.checker
 # def UseDeviceLaunch(cfg, data):
 #     for token in cfg.tokenlist:
 #         if not simpleMatch(token, "hipLaunchKernelGGL ("):
 #             continue
 #         cppcheck.reportError(token, "style", "Use device::launch instead.")
-
 
 # @cppcheck.checker
 # def UseManagePointer(cfg, data):
@@ -573,7 +554,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #         cppcheck.reportError(token, "style",
 #                              "Use manage pointer for resource management.")
 
-
 # @cppcheck.checker
 # def UseSmartPointer(cfg, data):
 #     for token in cfg.tokenlist:
@@ -583,7 +563,6 @@ def AvoidBranchingStatementAsLastInLoop(cfg, data):
 #             continue
 #         cppcheck.reportError(token, "style",
 #                              "Use manage pointer for resource management.")
-
 
 # @cppcheck.checker
 # def useStlAlgorithms(cfg, data):

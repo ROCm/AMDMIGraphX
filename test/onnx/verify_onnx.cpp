@@ -669,8 +669,8 @@ TEST_CASE(group_norm_half_test)
     using migraphx::half;
     std::vector<half> scale{half{1.2}, half{0.8}};
     std::vector<half> bias{half{0.5}, half{0.2}};
-    std::vector<half> result_vector =
-        norm_test<half>({1, 4, 2}, scale, bias, migraphx::parse_onnx("group_norm_3d_half_test.onnx"));
+    std::vector<half> result_vector = norm_test<half>(
+        {1, 4, 2}, scale, bias, migraphx::parse_onnx("group_norm_3d_half_test.onnx"));
     std::vector<half> gold = {half{-1.10996256},
                               half{-0.0366542},
                               half{1.0366542},
@@ -1205,8 +1205,8 @@ TEST_CASE(layer_norm_half_test)
     using migraphx::half;
     std::vector<half> scale{half{1.2}, half{0.8}};
     std::vector<half> bias{half{0.5}, half{0.2}};
-    std::vector<half> result_vector =
-        norm_test<half>({1, 4, 2}, scale, bias, migraphx::parse_onnx("layer_norm_3d_half_test.onnx"));
+    std::vector<half> result_vector = norm_test<half>(
+        {1, 4, 2}, scale, bias, migraphx::parse_onnx("layer_norm_3d_half_test.onnx"));
     std::vector<half> gold = {half{-0.69997597},
                               half{0.99998398},
                               half{-0.69997597},
@@ -1424,7 +1424,8 @@ TEST_CASE(mvn_default_axes_test)
 TEST_CASE(mvn_default_axes_fp16_test)
 {
     using migraphx::half;
-    auto result = mvn_test<half>({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_fp16_test.onnx"));
+    auto result =
+        mvn_test<half>({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_fp16_test.onnx"));
     std::vector<half> gold{half{-1.324},
                            half{-1.084},
                            half{-0.843},
@@ -1454,7 +1455,8 @@ TEST_CASE(mvn_rank_2_test)
 TEST_CASE(mvn_rank_2_fp16_test)
 {
     using migraphx::half;
-    auto result = mvn_test<migraphx::half>({2, 2}, migraphx::parse_onnx("mvn_rank_2_fp16_test.onnx"));
+    auto result =
+        mvn_test<migraphx::half>({2, 2}, migraphx::parse_onnx("mvn_rank_2_fp16_test.onnx"));
     std::vector<migraphx::half> gold{half{-1}, half{1}, half{-1}, half{1}};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }

@@ -4705,7 +4705,7 @@ TEST_CASE(mean_integral_test)
 
 void mvn_n_rank_test(std::vector<int64_t> axes,
                      std::vector<size_t> input_shape,
-                     const std::string& test_file)
+                     const migraphx::program& prog)
 {
     using migraphx::make_op;
 
@@ -4728,14 +4728,12 @@ void mvn_n_rank_test(std::vector<int64_t> axes,
     auto divisor  = add_common_op(*mm, make_op("add"), {std, epsilon});
     add_common_op(*mm, make_op("div"), {dividend, divisor});
 
-    auto prog = optimize_onnx(test_file);
-
     EXPECT(p == prog);
 }
 
 TEST_CASE(mvn_default_axes_test)
 {
-    mvn_n_rank_test({0, 2, 3}, {2, 2, 2, 2}, "mvn_default_axes_test.onnx");
+    mvn_n_rank_test({0, 2, 3}, {2, 2, 2, 2}, optimize_onnx("mvn_default_axes_test.onnx"));
 }
 
 TEST_CASE(mvn_default_axes_rank_too_small_test)
@@ -4749,9 +4747,12 @@ TEST_CASE(mvn_default_axes_rank_too_big_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_big_test.onnx"); }));
 }
 
-TEST_CASE(mvn_rank_2_test) { mvn_n_rank_test({1}, {2, 2}, "mvn_rank_2_test.onnx"); }
+TEST_CASE(mvn_rank_2_test) { mvn_n_rank_test({1}, {2, 2}, optimize_onnx("mvn_rank_2_test.onnx")); }
 
-TEST_CASE(mvn_rank_3_test) { mvn_n_rank_test({0, 1}, {2, 2, 2}, "mvn_rank_3_test.onnx"); }
+TEST_CASE(mvn_rank_3_test)
+{
+    mvn_n_rank_test({0, 1}, {2, 2, 2}, optimize_onnx("mvn_rank_3_test.onnx"));
+}
 
 TEST_CASE(mvn_axes_rank_too_small_test)
 {

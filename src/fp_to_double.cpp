@@ -21,27 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void fp_to_double::apply(module& m) const
+void fp_to_double(program& prog)
 {
     std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
                                                 shape::type_t::float_type};
-    migraphx::run_passes(m,
-                         {migraphx::elminate_data_type migraphx::eliminate_convert{},
-                          migraphx::dead_code_elimination{}});
-    eliminate_data_type{convert_fp_types, shape::type_t::double_type} eliminate_convert {}
+    run_passes(prog,
+               {eliminate_data_type{convert_fp_types, shape::type_t::double_type},
+                eliminate_convert{},
+                migraphx::dead_code_elimination{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -24,23 +24,17 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct program;
 
 /**
  * Convert floating point values to double precision.
  */
-struct MIGRAPHX_EXPORT fp_to_double
-{
-    std::string name() const { return "fp_to_double"; }
-    void apply(module& m) const;
-};
+MIGRAPHX_EXPORT void fp_to_double(program& prog);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

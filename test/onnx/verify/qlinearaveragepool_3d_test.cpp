@@ -1,0 +1,30 @@
+
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
+
+
+TEST_CASE(qlinearaveragepool_3d_test)
+{
+    auto p = migraphx::parse_onnx("qlinearaveragepool_3d_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+    std::vector<int8_t> data_x = {
+        -61, 102, -6,  61,  -34, 6,   -13, -38,  -26,  105, 36,  116,  -62, 31,  113,  85,  126,
+        -52, 80,  38,  115, -89, -35, 67,  69,   -116, 11,  -47, -120, 120, 39,  96,   29,  5,
+        -89, 40,  58,  51,  -99, -77, -12, -107, 76,   -13, 126, -112, -64, -57, 99,   -54, 27,
+        99,  126, -46, -7,  109, 17,  77,  94,   -92,  84,  -92, 48,   71,  45,  -102, 95,  118,
+        24,  13,  -70, 33,  35,  -60, 102, 81,   34,   108, -79, 14,   -42};
+    migraphx::shape s_x{migraphx::shape::int8_type, {1, 3, 3, 3, 3}};
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s_x, data_x.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {56,  114, 49, 39, 32,  127, 3,   45, -4,  -13, 8,  22,
+                                -35, -98, 76, 15, 127, 67,  100, 20, 127, 84,  64, 68};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+

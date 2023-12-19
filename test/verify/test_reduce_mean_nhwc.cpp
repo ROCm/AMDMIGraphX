@@ -28,14 +28,14 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 
-struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc>
+template <migraphx::shape::type_t DType>
+struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto s   = migraphx::shape::from_permutation(
-            migraphx::shape::float_type, {4, 256, 2, 2}, {0, 2, 3, 1});
+        auto* mm    = p.get_main_module();
+        auto s      = migraphx::shape::from_permutation(DType, {4, 256, 2, 2}, {0, 2, 3, 1});
         auto x      = mm->add_parameter("x", s);
         auto reduce = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), x);
         auto abs    = mm->add_instruction(migraphx::make_op("abs"), reduce);
@@ -44,3 +44,7 @@ struct test_reduce_mean_nhwc : verify_program<test_reduce_mean_nhwc>
         return p;
     };
 };
+
+template struct test_reduce_mean_nhwc<migraphx::shape::float_type>;
+template struct test_reduce_mean_nhwc<migraphx::shape::half_type>;
+template struct test_reduce_mean_nhwc<migraphx::shape::fp8e4m3fnuz_type>;

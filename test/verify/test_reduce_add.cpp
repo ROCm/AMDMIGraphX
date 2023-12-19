@@ -27,14 +27,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/shape.hpp>
 
-struct test_reduce_add : verify_program<test_reduce_add>
+template <migraphx::shape::type_t DType>
+struct test_reduce_add : verify_program<test_reduce_add<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {4, 1000, 2, 2}};
+        migraphx::shape s{DType, {4, 1000, 2, 2}};
         migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
         auto x = mm->add_parameter("x", s);
         auto reduce_mean =
@@ -46,3 +48,6 @@ struct test_reduce_add : verify_program<test_reduce_add>
         return p;
     };
 };
+
+template struct test_reduce_add<migraphx::shape::float_type>;
+template struct test_reduce_add<migraphx::shape::fp8e4m3fnuz_type>;

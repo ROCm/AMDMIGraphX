@@ -27,15 +27,20 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_log : verify_program<test_log>
+template <migraphx::shape::type_t DType>
+struct test_log : verify_program<test_log<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {6}};
+        migraphx::shape s{DType, {6}};
         auto x = mm->add_instruction(migraphx::make_op("abs"), mm->add_parameter("x", s));
         mm->add_instruction(migraphx::make_op("log"), x);
         return p;
     }
 };
+
+template struct test_log<migraphx::shape::float_type>;
+template struct test_log<migraphx::shape::half_type>;
+template struct test_log<migraphx::shape::fp8e4m3fnuz_type>;

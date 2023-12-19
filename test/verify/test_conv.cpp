@@ -27,17 +27,19 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_conv : verify_program<test_conv>
+template <migraphx::shape::type_t DType>
+struct test_conv : verify_program<test_conv<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
         mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         return p;
     }
 };
+
+template struct test_conv<migraphx::shape::float_type>;
+template struct test_conv<migraphx::shape::fp8e4m3fnuz_type>;

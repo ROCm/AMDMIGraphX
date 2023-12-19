@@ -29,6 +29,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/par.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -95,11 +96,11 @@ struct binary : op_name<Derived>
     {
         argument result{dyn_out.computed_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            std::transform(input1.begin(),
-                           input1.end(),
-                           input2.begin(),
-                           output.begin(),
-                           static_cast<const Derived&>(*this).apply());
+            par_transform(input1.begin(),
+                          input1.end(),
+                          input2.begin(),
+                          output.begin(),
+                          static_cast<const Derived&>(*this).apply());
         });
         return result;
     }

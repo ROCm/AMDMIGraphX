@@ -14,3 +14,4 @@ Contributor Guide
    dev/pass
    dev/matchers
    dev/tools
+   dev/env_vars

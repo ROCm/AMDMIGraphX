@@ -296,10 +296,29 @@ TEST_CASE(averagepool_1d_test)
                                           {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
-                                           {"lengths", {3}}}),
+                                           {"lengths", {3}},
+                                           {"dilations", {1}}}),
                         l0);
 
     auto prog = optimize_onnx("averagepool_1d_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(averagepool_dilate_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::average},
+                                           {"padding", {1, 1}},
+                                           {"stride", {1}},
+                                           {"lengths", {2}},
+                                           {"dilations", {3}}}),
+                        input);
+
+    auto prog = optimize_onnx("averagepool_dilate_test.onnx");
+
     EXPECT(p == prog);
 }
 
@@ -312,7 +331,8 @@ TEST_CASE(averagepool_3d_test)
                                           {{"mode", migraphx::op::pooling_mode::average},
                                            {"padding", {0, 0, 0, 0, 0, 0}},
                                            {"stride", {1, 1, 1}},
-                                           {"lengths", {3, 3, 3}}}),
+                                           {"lengths", {3, 3, 3}},
+                                           {"dilations", {1, 1, 1}}}),
                         l0);
 
     auto prog = optimize_onnx("averagepool_3d_test.onnx");
@@ -332,6 +352,7 @@ TEST_CASE(averagepool_dyn_test)
                                                   {"mode", migraphx::op::pooling_mode::average},
                                                   {"stride", {2, 2, 2}},
                                                   {"lengths", {3, 3, 3}},
+                                                  {"dilations", {1, 1, 1}},
                                                   {"padding", {1, 1, 1, 1, 1, 1}},
                                                   {"padding_mode", 0},
                                               }),
@@ -357,6 +378,7 @@ TEST_CASE(averagepool_dyn_autopad_test)
                               {"mode", migraphx::op::pooling_mode::average},
                               {"stride", {2, 2, 2}},
                               {"lengths", {3, 3, 3}},
+                              {"dilations", {1, 1, 1}},
                               {"padding", {0, 0, 0, 0, 0, 0}},
                               {"padding_mode", migraphx::op::padding_mode_t::same_upper},
                           }),
@@ -394,7 +416,8 @@ TEST_CASE(averagepool_notset_test)
                                                        {{"mode", migraphx::op::pooling_mode::average},
                                                         {"padding", {2, 2, 2, 2}},
                                                         {"stride", {2, 2}},
-                                                        {"lengths", {6, 6}}}),
+                                                        {"lengths", {6, 6}},
+                                                        {"dilations", {1, 1}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {2, 2}}}), ins);
@@ -415,7 +438,8 @@ TEST_CASE(averagepool_nt_cip_test)
                                                                       {{"mode", migraphx::op::pooling_mode::average},
                                                                        {"padding", {0, 0, 0, 0}},
                                                                        {"stride", {2, 2}},
-                                                                       {"lengths", {6, 6}}}),
+                                                                       {"lengths", {6, 6}},
+                                                                       {"dilations", {1, 1}}}),
                                    ins_pad);
     mm->add_return({ret});
 
@@ -437,6 +461,7 @@ TEST_CASE(averagepool_same_lower_test)
                               {"padding", {1, 1, 1, 1}},
                               {"stride", {1, 1}},
                               {"lengths", {2, 2}},
+                              {"dilations", {1, 1}},
                               {"padding_mode", migraphx::op::padding_mode_t::default_},
                           }),
         input);
@@ -459,7 +484,8 @@ TEST_CASE(averagepool_sl_cip_test)
                                                                       {{"mode", migraphx::op::pooling_mode::average},
                                                                        {"padding", {0, 0, 0, 0}},
                                                                        {"stride", {1, 1}},
-                                                                       {"lengths", {2, 2}}}),
+                                                                       {"lengths", {2, 2}},
+                                                                       {"dilations", {1, 1}}}),
                                    ins_pad);
     mm->add_return({ret});
     auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
@@ -476,7 +502,8 @@ TEST_CASE(averagepool_same_upper_test)
                                                        {{"mode", migraphx::op::pooling_mode::average},
                                                         {"padding", {1, 1, 1, 1}},
                                                         {"stride", {1, 1}},
-                                                        {"lengths", {2, 2}}}),
+                                                        {"lengths", {2, 2}},
+                                                        {"dilations", {1, 1}}}),
                                    input);
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), ins);
@@ -1307,7 +1334,8 @@ TEST_CASE(conv_bn_relu_maxpool_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l7);
 
     auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
@@ -1505,7 +1533,8 @@ TEST_CASE(conv_relu_maxpool_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l6);
 
     auto prog = optimize_onnx("conv_relu_maxpool_test.onnx");
@@ -1530,7 +1559,8 @@ TEST_CASE(conv_relu_maxpool_x2_test)
                                                     {{"mode", migraphx::op::pooling_mode::max},
                                                      {"padding", {0, 0, 0, 0}},
                                                      {"stride", {2, 2}},
-                                                     {"lengths", {2, 2}}}),
+                                                     {"lengths", {2, 2}},
+                                                     {"dilations", {1, 1}}}),
                                   l6);
 
     auto l8 = mm->add_parameter("3", {migraphx::shape::float_type, {1, 5, 5, 5}});
@@ -1546,7 +1576,8 @@ TEST_CASE(conv_relu_maxpool_x2_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 0, 0}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         l13);
 
     auto prog = optimize_onnx("conv_relu_maxpool_x2_test.onnx");
@@ -1831,6 +1862,50 @@ TEST_CASE(depthtospace_simple_test)
         migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), tmp1);
     mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 4, 6}}}), tmp2);
     auto prog = optimize_onnx("depthtospace_simple_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(dynamicquantizelinear_2d_test)
+{
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto x_dims = {3, 4};
+    auto x_type = migraphx::shape::float_type;
+    auto x      = mm->add_parameter("x", {x_type, x_dims});
+
+    auto l0         = mm->add_literal({0.f});
+    auto x_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
+    x_reshaped = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x_reshaped, l0);
+
+    auto q_range = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
+
+    auto max_x = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), x_reshaped);
+    auto min_x = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), x_reshaped);
+
+    auto sub0    = mm->add_instruction(migraphx::make_op("sub"), max_x, min_x);
+    auto y_scale = mm->add_instruction(migraphx::make_op("div"), sub0, q_range);
+
+    auto q_min = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
+    auto q_max = mm->add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
+    auto sub1         = mm->add_instruction(migraphx::make_op("sub"), q_min, min_x);
+    auto interm_zp    = mm->add_instruction(migraphx::make_op("div"), sub1, y_scale);
+    auto saturate     = mm->add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
+    auto round        = mm->add_instruction(migraphx::make_op("nearbyint"), saturate);
+    auto y_zero_point = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), round);
+
+    auto scale_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_scale);
+
+    auto y_pt_c_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_zero_point);
+
+    mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
+
+    auto prog = optimize_onnx("dynamicquantizelinear_2d_test.onnx");
     EXPECT(p == prog);
 }
 
@@ -2832,12 +2907,12 @@ migraphx::program make_group_norm(const std::vector<int64_t>& input_dims,
 
     auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
 
-    auto x_reshaped =
+    auto x_reshapedd =
         mm->add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), x);
     auto mean =
-        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x_reshaped);
-    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshaped, mean});
-    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshaped, mean});
+        mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x_reshapedd);
+    auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x_reshapedd, mean});
+    auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x_reshapedd, mean});
     auto var     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}),
                                    x_sqdiff_mean);
     auto var_eps = add_common_op(*mm, migraphx::make_op("add"), {var, eps});
@@ -4245,6 +4320,7 @@ TEST_CASE(lppool_l1_test)
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
                                            {"lengths", {3}},
+                                           {"dilations", {1}},
                                            {"lp_order", 1}}),
                         l0);
     auto prog = optimize_onnx("lppool_l1_test.onnx");
@@ -4261,6 +4337,7 @@ TEST_CASE(lppool_l2_test)
                                            {"padding", {0, 0}},
                                            {"stride", {1}},
                                            {"lengths", {3}},
+                                           {"dilations", {1}},
                                            {"lp_order", 2}}),
                         l0);
     auto prog = optimize_onnx("lppool_l2_test.onnx");
@@ -4513,10 +4590,29 @@ TEST_CASE(maxpool_notset_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 1, 1}},
                                            {"stride", {2, 2}},
-                                           {"lengths", {6, 6}}}),
+                                           {"lengths", {6, 6}},
+                                           {"dilations", {1, 1}}}),
                         input);
 
     auto prog = optimize_onnx("maxpool_notset_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(maxpool_dilate_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 3}});
+    mm->add_instruction(migraphx::make_op("pooling",
+                                          {{"mode", migraphx::op::pooling_mode::max},
+                                           {"padding", {1, 1}},
+                                           {"stride", {1}},
+                                           {"lengths", {2}},
+                                           {"dilations", {3}}}),
+                        input);
+
+    auto prog = optimize_onnx("maxpool_dilate_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -4530,7 +4626,8 @@ TEST_CASE(maxpool_same_upper_test)
                                           {{"mode", migraphx::op::pooling_mode::max},
                                            {"padding", {0, 0, 1, 1}},
                                            {"stride", {1, 1}},
-                                           {"lengths", {2, 2}}}),
+                                           {"lengths", {2, 2}},
+                                           {"dilations", {1, 1}}}),
                         input);
 
     auto prog = optimize_onnx("maxpool_same_upper_test.onnx");
@@ -4773,8 +4870,9 @@ TEST_CASE(multinomial_test)
     migraphx::shape s{migraphx::shape::float_type, {1}};
     std::vector<float> seed_data = {seed};
     auto seed_input              = mm->add_literal(migraphx::literal(s, seed_data));
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy              = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size, sample_size}},
+                          std::vector<float>(batch_size * sample_size)});
 
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial"), cdf, randoms);
@@ -4925,8 +5023,9 @@ TEST_CASE(multinomial_int64_test)
     auto seed_input         = mm->add_literal(migraphx::literal(s, data));
 
     // static size
-    auto rand_dummy =
-        mm->add_literal(migraphx::literal{migraphx::shape::float_type, {batch_size * sample_size}});
+    auto rand_dummy = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {batch_size, sample_size}},
+                          std::vector<float>(batch_size * sample_size)});
     auto randoms = mm->add_instruction(migraphx::make_op("random_uniform"), seed_input, rand_dummy);
     mm->add_instruction(migraphx::make_op("multinomial", {{"dtype", dtype}}), cdf, randoms);
     auto prog = optimize_onnx("multinomial_int64_test.onnx");
@@ -5542,6 +5641,107 @@ TEST_CASE(qlinearadd_test)
     EXPECT(p.sort() == prog.sort());
 }
 
+TEST_CASE(qlinearaveragepool_notset_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto sc_x   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_x = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {0}});
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {10}});
+
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::int8_type, {1, 1, 5, 5}});
+
+    auto scale_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 5, 5}}}), sc_x);
+
+    auto z_pt_x_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 5, 5}}}), z_pt_x);
+
+    auto fp_x =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale_x_bcast, z_pt_x_bcast);
+
+    auto fp_y =
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::average},
+                                               {"padding", {2, 2, 2, 2}},
+                                               {"stride", {2, 2}},
+                                               {"lengths", {6, 6}}}),
+                            fp_x);
+
+    fp_y = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {2, 2}}}), fp_y);
+
+    auto scale_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1}}}), sc_y);
+
+    auto z_pt_y_bcast = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1}}}), z_pt_y);
+
+    auto y =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+    auto prog = migraphx::parse_onnx("qlinearaveragepool_notset_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(qlinearconcat_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {2}});
+
+    auto sc_0   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
+    auto z_pt_0 = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {1}});
+
+    auto sc_1   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.25}});
+    auto z_pt_1 = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {0}});
+
+    auto t0 = mm->add_parameter("t0", {migraphx::shape::int8_type, {2}});
+    auto t1 = mm->add_parameter("t1", {migraphx::shape::int8_type, {3}});
+
+    auto scale_0_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), sc_0);
+
+    auto z_pt_0_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), z_pt_0);
+
+    auto fp_0 =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), t0, scale_0_bcast, z_pt_0_bcast);
+
+    auto scale_1_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), sc_1);
+
+    auto z_pt_1_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3}}}), z_pt_1);
+
+    auto fp_1 =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), t1, scale_1_bcast, z_pt_1_bcast);
+
+    auto fp_y = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), fp_0, fp_1);
+
+    auto scale_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), sc_y);
+
+    auto z_pt_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), z_pt_y);
+
+    auto y =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+
+    auto prog = migraphx::parse_onnx("qlinearconcat_test.onnx");
+
+    EXPECT(p == prog);
+}
+
 TEST_CASE(qlinearconv_test)
 {
     migraphx::program p;
@@ -5638,6 +5838,46 @@ TEST_CASE(qlinearglobalavgpool_test)
     mm->add_return({y});
 
     auto prog = migraphx::parse_onnx("qlinearglobalavgpool_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(qlinearleakyrelu_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x = mm->add_parameter("X", {migraphx::shape::int8_type, {64}});
+
+    auto sc_x   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_x = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {0}});
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {10}});
+
+    auto scale_x_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_x);
+
+    auto z_pt_x_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_x);
+
+    auto fp_x =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale_x_bcast, z_pt_x_bcast);
+
+    auto fp_y = mm->add_instruction(migraphx::make_op("leaky_relu", {{"alpha", 1.1}}), fp_x);
+
+    auto scale_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_y);
+
+    auto z_pt_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_y);
+
+    auto y =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+
+    auto prog = migraphx::parse_onnx("qlinearleakyrelu_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }
@@ -5750,6 +5990,99 @@ TEST_CASE(qlinearmatmul_2D_test)
     mm->add_return({c});
 
     auto prog = migraphx::parse_onnx("qlinearmatmul_2D_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(qlinearmul_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto a = mm->add_parameter("A", {migraphx::shape::uint8_type, {64}});
+    auto b = mm->add_parameter("B", {migraphx::shape::uint8_type, {64}});
+
+    auto sc_a   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_a = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {0}});
+
+    auto sc_b   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_b = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {16}});
+
+    auto sc_c   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_c = mm->add_literal(migraphx::literal{migraphx::shape::uint8_type, {100}});
+
+    auto scale_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_a);
+
+    auto z_pt_a_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_a);
+
+    auto fp_a =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), a, scale_a_bcast, z_pt_a_bcast);
+
+    auto scale_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_b);
+
+    auto z_pt_b_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_b);
+
+    auto fp_b =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), b, scale_b_bcast, z_pt_b_bcast);
+
+    auto fp_c = mm->add_instruction(migraphx::make_op("mul"), fp_a, fp_b);
+
+    auto scale_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_c);
+
+    auto z_pt_c_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_c);
+
+    auto c =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_c, scale_c_bcast, z_pt_c_bcast);
+
+    mm->add_return({c});
+
+    auto prog = migraphx::parse_onnx("qlinearmul_test.onnx");
+
+    EXPECT(p.sort() == prog.sort());
+}
+
+TEST_CASE(qlinearsigmoid_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x = mm->add_parameter("X", {migraphx::shape::int8_type, {64}});
+
+    auto sc_x   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.05}});
+    auto z_pt_x = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {0}});
+
+    auto sc_y   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {0.0035}});
+    auto z_pt_y = mm->add_literal(migraphx::literal{migraphx::shape::int8_type, {-128}});
+
+    auto scale_x_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_x);
+
+    auto z_pt_x_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_x);
+
+    auto fp_x =
+        mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale_x_bcast, z_pt_x_bcast);
+
+    auto fp_y = mm->add_instruction(migraphx::make_op("sigmoid"), fp_x);
+
+    auto scale_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), sc_y);
+
+    auto z_pt_y_bcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64}}}), z_pt_y);
+
+    auto y =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
+
+    mm->add_return({y});
+
+    auto prog = migraphx::parse_onnx("qlinearsigmoid_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }
@@ -7041,18 +7374,33 @@ TEST_CASE(scatter_none_test)
     EXPECT(p == prog);
 }
 
-TEST_CASE(scatternd_test)
+void scatternd_test_base(const std::string& reduction, const std::string& onnx_file)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
     auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
     auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_none"), l0, l1, l2);
+    auto r   = mm->add_instruction(migraphx::make_op("scatternd_" + reduction), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_test.onnx");
+    auto prog = migraphx::parse_onnx(onnx_file);
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(scatternd_test) { scatternd_test_base("none", "scatternd_test.onnx"); }
+
+TEST_CASE(scatternd_add_test) { scatternd_test_base("add", "scatternd_add_test.onnx"); }
+
+TEST_CASE(scatternd_mul_test) { scatternd_test_base("mul", "scatternd_mul_test.onnx"); }
+
+TEST_CASE(scatternd_max_test) { scatternd_test_base("max", "scatternd_max_test.onnx"); }
+
+TEST_CASE(scatternd_min_test) { scatternd_test_base("min", "scatternd_min_test.onnx"); }
+
+TEST_CASE(scatternd_invalid_reduction_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("scatternd_invalid_reduction_test.onnx"); }));
 }
 
 TEST_CASE(scatternd_dyn_test)
@@ -7074,34 +7422,6 @@ TEST_CASE(scatternd_dyn_test)
     options.map_dyn_input_dims["indices"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     options.map_dyn_input_dims["updates"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     auto prog = migraphx::parse_onnx("scatternd_dyn_test.onnx", options);
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_add_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_add"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_add_test.onnx");
-
-    EXPECT(p == prog);
-}
-
-TEST_CASE(scatternd_mul_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("data", migraphx::shape{migraphx::shape::float_type, {2, 2, 2}});
-    auto l1 = mm->add_parameter("indices", migraphx::shape{migraphx::shape::int64_type, {2, 1, 2}});
-    auto l2 = mm->add_parameter("updates", migraphx::shape{migraphx::shape::float_type, {2, 1, 2}});
-    auto r  = mm->add_instruction(migraphx::make_op("scatternd_mul"), l0, l1, l2);
-    mm->add_return({r});
-    auto prog = migraphx::parse_onnx("scatternd_mul_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -8379,6 +8699,86 @@ TEST_CASE(undefined_test)
     mm->add_return({l2});
 
     auto prog = migraphx::parse_onnx("undefined_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_dynamic_sorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::float_type, {6}};
+    auto x = mm->add_parameter("X", s);
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+
+    mm->add_return({y, y_ind, x_ind, count});
+    auto prog = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_dynamic_sorted_3D_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::int64_type, {4, 4, 4}};
+    auto x = mm->add_parameter("X", s);
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+
+    mm->add_return({y, y_ind, x_ind, count});
+    auto prog = migraphx::parse_onnx("unique_dynamic_sorted_3D_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_sorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    std::vector<float> x_data = {2, 1, 1, 3, 4, 3};
+    auto x                    = mm->add_literal(migraphx::literal(s_x, x_data));
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 1}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+    mm->add_return({y, y_idx, x_idx, count});
+    auto prog = migraphx::parse_onnx("unique_sorted_test.onnx");
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(unique_unsorted_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s_x{migraphx::shape::float_type, {6}};
+    std::vector<float> x_data = {2, 1, 1, 3, 4, 3};
+    auto x                    = mm->add_literal(migraphx::literal(s_x, x_data));
+
+    auto out   = mm->add_instruction(migraphx::make_op("unique", {{"sorted", 0}, {"axis", 0}}), x);
+    auto y     = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto y_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    auto x_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
+    auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
+    mm->add_return({y, y_idx, x_idx, count});
+    auto prog = migraphx::parse_onnx("unique_unsorted_test.onnx");
 
     EXPECT(p == prog);
 }

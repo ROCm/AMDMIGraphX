@@ -8,6 +8,7 @@ def getnavi3xtargets() {
     return targets
 }
 
+// Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -27,6 +28,8 @@ def rocmtestnode(Map conf) {
         def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
+            echo "leak:libtbb.so" >> suppressions.txt
+            cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
@@ -141,12 +144,14 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, mlir_debug: rocmnode('mi100+') { cmake_build ->
     stage('MLIR Debug') {
-        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1']) {
+        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot']) {
             def sanitizers = "undefined"
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             def debug_flags_cxx = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
+            // Since the purpose of this run verify all things MLIR supports,
+            // enabling all possible types of offloads
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }

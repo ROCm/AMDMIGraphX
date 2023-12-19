@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(scatternd_dyn_test)
 {
     // dynamic input.
@@ -47,5 +46,3 @@ TEST_CASE(scatternd_dyn_test)
 
     EXPECT(p == prog);
 }
-
-

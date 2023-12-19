@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(hardsigmoid_default_test)
 {
     migraphx::program p;
@@ -57,5 +56,3 @@ TEST_CASE(hardsigmoid_default_test)
     auto prog = optimize_onnx("hardsigmoid_default_test.onnx");
     EXPECT(p == prog);
 }
-
-

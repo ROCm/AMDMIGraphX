@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_dynamic_batch_same_upper)
 {
     migraphx::program p;
@@ -45,5 +44,3 @@ TEST_CASE(conv_dynamic_batch_same_upper)
     auto prog = migraphx::parse_onnx("conv_dynamic_batch_same_upper_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

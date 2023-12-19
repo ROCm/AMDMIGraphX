@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(sum_type_test)
 {
     migraphx::program p;
@@ -74,5 +73,3 @@ TEST_CASE(sum_type_test)
 
     EXPECT(p == prog);
 }
-
-

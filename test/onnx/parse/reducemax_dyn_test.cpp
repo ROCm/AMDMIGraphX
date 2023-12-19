@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reducemax_dyn_test)
 {
     // input shape with 4 dynamic dimensions
@@ -42,5 +41,3 @@ TEST_CASE(reducemax_dyn_test)
 
     EXPECT(p == prog);
 }
-
-

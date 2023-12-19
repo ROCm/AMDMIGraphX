@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(split_test_default)
 {
     migraphx::program p;
@@ -39,5 +38,3 @@ TEST_CASE(split_test_default)
     auto prog = migraphx::parse_onnx("split_test_default.onnx");
     EXPECT(p == prog);
 }
-
-

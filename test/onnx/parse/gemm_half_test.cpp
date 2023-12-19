@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
-
 TEST_CASE(gemm_half_test)
 {
     migraphx::program p;
@@ -55,5 +54,3 @@ TEST_CASE(gemm_half_test)
     auto prog = optimize_onnx("gemm_half_test.onnx");
     EXPECT(p == prog);
 }
-
-

@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(constant_value_int_test)
 {
     migraphx::program p;
@@ -34,5 +33,3 @@ TEST_CASE(constant_value_int_test)
 
     EXPECT(p == prog);
 }
-
-

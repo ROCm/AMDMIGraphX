@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
 
-
 TEST_CASE(group_conv_test)
 {
     migraphx::program p;
@@ -39,5 +38,3 @@ TEST_CASE(group_conv_test)
 
     EXPECT(p == prog);
 }
-
-

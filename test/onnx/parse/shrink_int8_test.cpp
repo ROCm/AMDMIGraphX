@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shrink_int8_test)
 {
     migraphx::program p;
@@ -59,5 +58,3 @@ TEST_CASE(shrink_int8_test)
 
     EXPECT(p == prog);
 }
-
-

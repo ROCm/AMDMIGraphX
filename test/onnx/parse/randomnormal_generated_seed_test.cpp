@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(randomnormal_generated_seed_test)
 {
     auto p1 = optimize_onnx("randomnormal_generated_seed_test.onnx");
@@ -32,5 +31,3 @@ TEST_CASE(randomnormal_generated_seed_test)
 
     EXPECT(p1 != p2);
 }
-
-

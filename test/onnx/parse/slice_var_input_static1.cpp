@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(slice_var_input_static1)
 {
     migraphx::program p;
@@ -38,5 +37,3 @@ TEST_CASE(slice_var_input_static1)
 
     EXPECT(p == prog);
 }
-
-

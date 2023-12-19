@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(binary_dyn_brcst_mul_test)
 {
     migraphx::program p;
@@ -47,5 +46,3 @@ TEST_CASE(binary_dyn_brcst_mul_test)
 
     EXPECT(p == prog);
 }
-
-

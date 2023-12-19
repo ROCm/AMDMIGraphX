@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(nms_dynamic_batch_test)
 {
     migraphx::program p;
@@ -56,5 +55,3 @@ TEST_CASE(nms_dynamic_batch_test)
     auto prog = migraphx::parse_onnx("nms_dynamic_batch_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

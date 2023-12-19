@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reshape_variable_input_dyn_test)
 {
     migraphx::program p;
@@ -42,5 +41,3 @@ TEST_CASE(reshape_variable_input_dyn_test)
     auto prog                     = parse_onnx("reshape_variable_input_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

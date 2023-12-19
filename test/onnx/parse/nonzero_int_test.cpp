@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(nonzero_int_test)
 {
     migraphx::program p;
@@ -41,5 +40,3 @@ TEST_CASE(nonzero_int_test)
     auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
     EXPECT(p == prog);
 }
-
-

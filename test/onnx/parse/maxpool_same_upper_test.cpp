@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(maxpool_same_upper_test)
 {
     migraphx::program p;
@@ -43,5 +42,3 @@ TEST_CASE(maxpool_same_upper_test)
 
     EXPECT(p == prog);
 }
-
-

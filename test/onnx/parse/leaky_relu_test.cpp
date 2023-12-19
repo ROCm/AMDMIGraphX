@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(leaky_relu_test)
 {
     migraphx::program p;
@@ -37,5 +36,3 @@ TEST_CASE(leaky_relu_test)
 
     EXPECT(p == prog);
 }
-
-

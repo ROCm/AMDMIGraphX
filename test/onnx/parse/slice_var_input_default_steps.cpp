@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(slice_var_input_default_steps)
 {
     migraphx::program p;
@@ -43,5 +42,3 @@ TEST_CASE(slice_var_input_default_steps)
     auto prog                     = parse_onnx("slice_var_input_default_steps.onnx", options);
     EXPECT(p == prog);
 }
-
-

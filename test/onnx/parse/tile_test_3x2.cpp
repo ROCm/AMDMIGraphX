@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(tile_test_3x2)
 {
     migraphx::program p;
@@ -39,5 +38,3 @@ TEST_CASE(tile_test_3x2)
 
     EXPECT(p == prog);
 }
-
-

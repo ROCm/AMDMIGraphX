@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shape_gather_test)
 {
     migraphx::program p;
@@ -40,5 +39,3 @@ TEST_CASE(shape_gather_test)
 
     EXPECT(p == prog);
 }
-
-

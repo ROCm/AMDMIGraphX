@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(depthtospace_crd_test)
 {
     migraphx::program p;
@@ -38,5 +37,3 @@ TEST_CASE(depthtospace_crd_test)
     auto prog = optimize_onnx("depthtospace_crd_test.onnx");
     EXPECT(p == prog);
 }
-
-

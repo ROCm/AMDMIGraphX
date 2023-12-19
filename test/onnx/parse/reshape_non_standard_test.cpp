@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/reshape.hpp>
 
-
 TEST_CASE(reshape_non_standard_test)
 {
     migraphx::program p;
@@ -40,5 +39,3 @@ TEST_CASE(reshape_non_standard_test)
 
     EXPECT(p == prog);
 }
-
-

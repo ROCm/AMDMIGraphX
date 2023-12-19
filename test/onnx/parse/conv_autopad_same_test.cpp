@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/convolution.hpp>
 
-
 TEST_CASE(conv_autopad_same_test)
 {
     migraphx::program p;
@@ -39,5 +38,3 @@ TEST_CASE(conv_autopad_same_test)
     auto prog = optimize_onnx("conv_autopad_same_test.onnx");
     EXPECT(p == prog);
 }
-
-

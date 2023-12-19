@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(mean_single_input_test)
 {
     migraphx::program p;
@@ -36,5 +35,3 @@ TEST_CASE(mean_single_input_test)
 
     EXPECT(p == prog);
 }
-
-

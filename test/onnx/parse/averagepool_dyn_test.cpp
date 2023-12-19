@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(averagepool_dyn_test)
 {
     // Pooling with dynamic input and no auto padding
@@ -51,5 +50,3 @@ TEST_CASE(averagepool_dyn_test)
     auto prog                     = migraphx::parse_onnx("averagepool_dyn_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

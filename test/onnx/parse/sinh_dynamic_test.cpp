@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(sinh_dynamic_test)
 {
     migraphx::program p;
@@ -42,5 +41,3 @@ TEST_CASE(sinh_dynamic_test)
 
     EXPECT(p == prog);
 }
-
-

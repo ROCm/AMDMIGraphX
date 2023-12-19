@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(clip_dyn_min_only_test)
 {
     migraphx::program p;
@@ -43,5 +42,3 @@ TEST_CASE(clip_dyn_min_only_test)
 
     EXPECT(p == prog);
 }
-
-

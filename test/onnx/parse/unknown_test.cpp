@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/unknown.hpp>
 
-
 TEST_CASE(unknown_test)
 {
     migraphx::program p;
@@ -50,5 +49,3 @@ TEST_CASE(unknown_test_throw_print_error)
     options.print_program_on_error = true;
     EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx", options); }));
 }
-
-

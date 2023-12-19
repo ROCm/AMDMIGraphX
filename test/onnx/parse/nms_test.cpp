@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(nms_test)
 {
     migraphx::program p;
@@ -51,5 +50,3 @@ TEST_CASE(nms_test)
     auto prog = migraphx::parse_onnx("nms_test.onnx");
     EXPECT(p == prog);
 }
-
-

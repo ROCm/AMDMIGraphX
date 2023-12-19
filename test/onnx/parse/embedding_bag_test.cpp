@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(embedding_bag_test)
 {
     migraphx::program p;
@@ -45,5 +44,3 @@ TEST_CASE(embedding_bag_test)
 
     EXPECT(p == prog);
 }
-
-

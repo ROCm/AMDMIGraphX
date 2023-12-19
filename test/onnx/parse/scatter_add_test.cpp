@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-
 TEST_CASE(scatter_add_test)
 {
     migraphx::program p = create_scatter_program("scatter_add", -2);
@@ -33,5 +32,3 @@ TEST_CASE(scatter_add_test)
 
     EXPECT(p == prog);
 }
-
-

@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(const_of_shape_empty_input_test)
 {
     migraphx::program p;
@@ -37,5 +36,3 @@ TEST_CASE(const_of_shape_empty_input_test)
     auto prog = optimize_onnx("const_of_shape_empty_input_test.onnx");
     EXPECT(p == prog);
 }
-
-

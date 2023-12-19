@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reducesum_empty_axes_test)
 {
     migraphx::program p;
@@ -39,5 +38,3 @@ TEST_CASE(reducesum_empty_axes_test)
 
     EXPECT(p == prog);
 }
-
-

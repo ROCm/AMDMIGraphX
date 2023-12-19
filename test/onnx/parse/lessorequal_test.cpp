@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(lessorequal_test)
 {
     migraphx::program p;
@@ -42,5 +41,3 @@ TEST_CASE(lessorequal_test)
     auto prog = migraphx::parse_onnx("lessorequal_test.onnx");
     EXPECT(p == prog);
 }
-
-

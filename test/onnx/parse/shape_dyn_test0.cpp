@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shape_dyn_test0)
 {
     migraphx::program p;
@@ -41,5 +40,3 @@ TEST_CASE(shape_dyn_test0)
 
     EXPECT(p == prog);
 }
-
-

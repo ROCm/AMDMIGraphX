@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/common.hpp>
 
-
 TEST_CASE(averagepool_same_lower_test)
 {
     // auto_pad mode of SAME_LOWER with a static input shape is handled in parsing and
@@ -51,5 +50,3 @@ TEST_CASE(averagepool_same_lower_test)
 
     EXPECT(p == prog);
 }
-
-

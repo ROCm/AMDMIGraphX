@@ -25,7 +25,6 @@
 #include <onnx_test.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 TEST_CASE(averagepool_3d_test)
 {
     migraphx::program p;
@@ -42,5 +41,3 @@ TEST_CASE(averagepool_3d_test)
     auto prog = optimize_onnx("averagepool_3d_test.onnx");
     EXPECT(p == prog);
 }
-
-

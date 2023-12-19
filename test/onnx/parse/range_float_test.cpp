@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(range_float_test)
 {
     migraphx::program p;
@@ -38,5 +37,3 @@ TEST_CASE(range_float_test)
 
     EXPECT(p == prog);
 }
-
-

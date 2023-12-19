@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(gemm_dyn_bias_test)
 {
     migraphx::program p;
@@ -44,5 +43,3 @@ TEST_CASE(gemm_dyn_bias_test)
     auto prog                     = parse_onnx("gemm_dyn_bias_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

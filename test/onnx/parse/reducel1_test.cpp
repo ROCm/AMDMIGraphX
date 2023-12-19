@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reducel1_test)
 {
     migraphx::program p;
@@ -37,5 +36,3 @@ TEST_CASE(reducel1_test)
 
     EXPECT(p == prog);
 }
-
-

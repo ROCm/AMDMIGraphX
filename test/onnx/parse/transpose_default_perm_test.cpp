@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(transpose_default_perm_test)
 {
     migraphx::program p;
@@ -38,5 +37,3 @@ TEST_CASE(transpose_default_perm_test)
 
     EXPECT(p == prog);
 }
-
-

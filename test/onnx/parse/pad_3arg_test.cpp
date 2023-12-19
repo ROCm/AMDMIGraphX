@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(pad_3arg_test)
 {
     migraphx::program p;
@@ -40,5 +39,3 @@ TEST_CASE(pad_3arg_test)
 
     EXPECT(p == prog);
 }
-
-

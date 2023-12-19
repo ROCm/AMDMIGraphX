@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(instance_norm_dyn_batch_half_test)
 {
     // instancenorm with half type, dynamic input in the 0'th (batch) dimension
@@ -73,5 +72,3 @@ TEST_CASE(instance_norm_dyn_batch_half_test)
     auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_half_test.onnx", options);
     EXPECT(p == prog);
 }
-
-

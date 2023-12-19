@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(roialign_default_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {10, 4, 7, 8}};
@@ -50,5 +49,3 @@ TEST_CASE(roialign_default_test)
 
     EXPECT(p == prog);
 }
-
-

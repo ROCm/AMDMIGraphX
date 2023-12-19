@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(resize_upsample_pf_test)
 {
     migraphx::program p;
@@ -51,5 +50,3 @@ TEST_CASE(resize_upsample_pf_test)
 
     EXPECT(p == prog);
 }
-
-

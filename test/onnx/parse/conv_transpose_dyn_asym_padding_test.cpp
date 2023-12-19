@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(conv_transpose_dyn_asym_padding_error)
 {
     migraphx::onnx_options options;
@@ -32,5 +31,3 @@ TEST_CASE(conv_transpose_dyn_asym_padding_error)
     EXPECT(test::throws(
         [&] { migraphx::parse_onnx("conv_transpose_dyn_asym_padding_test.onnx", options); }));
 }
-
-

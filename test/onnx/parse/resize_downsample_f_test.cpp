@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(resize_downsample_f_test)
 {
     migraphx::program p;
@@ -50,5 +49,3 @@ TEST_CASE(resize_downsample_f_test)
 
     EXPECT(p == prog);
 }
-
-

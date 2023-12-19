@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(resize_downsample_linear_test)
 {
     migraphx::program p;
@@ -92,5 +91,3 @@ TEST_CASE(resize_downsample_linear_test)
     auto prog = migraphx::parse_onnx("resize_downsample_linear_test.onnx");
     EXPECT(p == prog);
 }
-
-

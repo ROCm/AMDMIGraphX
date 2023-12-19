@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reduce_log_sum_test)
 {
     migraphx::program p;
@@ -36,5 +35,3 @@ TEST_CASE(reduce_log_sum_test)
 
     EXPECT(p == prog);
 }
-
-

@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(split_test_uneven_num_outputs)
 {
     migraphx::program p;
@@ -43,5 +42,3 @@ TEST_CASE(split_test_uneven_num_outputs)
     auto prog = migraphx::parse_onnx("split_test_uneven_num_outputs.onnx");
     EXPECT(p == prog);
 }
-
-

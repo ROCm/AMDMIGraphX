@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(multinomial_generated_seed_test)
 {
     // multinomial op. no longer generates its own randoms
@@ -33,5 +32,3 @@ TEST_CASE(multinomial_generated_seed_test)
 
     EXPECT(p1 == p2);
 }
-
-

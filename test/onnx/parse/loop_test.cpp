@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(loop_test)
 {
     migraphx::program p;
@@ -61,5 +60,3 @@ TEST_CASE(loop_test)
 
     EXPECT(p == prog);
 }
-
-

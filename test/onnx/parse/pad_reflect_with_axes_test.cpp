@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(pad_reflect_with_axes_test)
 {
     migraphx::program p;
@@ -45,5 +44,3 @@ TEST_CASE(pad_reflect_with_axes_test)
 
     EXPECT(p == prog);
 }
-
-

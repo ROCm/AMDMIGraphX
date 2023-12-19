@@ -24,7 +24,6 @@
 
 #include <onnx_test.hpp>
 
-
 TEST_CASE(reversesequence_batch_test)
 {
     migraphx::program p;
@@ -67,5 +66,3 @@ TEST_CASE(reversesequence_batch_test)
     auto prog = migraphx::parse_onnx("reversesequence_batch_test.onnx");
     EXPECT(p == prog);
 }
-
-

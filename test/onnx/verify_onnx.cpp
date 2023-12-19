@@ -623,9 +623,8 @@ template <typename T = float>
 std::vector<T> norm_test(const std::vector<size_t>& x_dims,
                          std::vector<T>& scale,
                          std::vector<T>& bias,
-                         const std::string& onnx_file)
+                         migraphx::program p)
 {
-    migraphx::program p = migraphx::parse_onnx(onnx_file);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s_x{migraphx::shape::get_type<T>{}, x_dims};
@@ -653,7 +652,7 @@ TEST_CASE(group_norm_test)
     std::vector<float> scale{1.2, 0.8};
     std::vector<float> bias{0.5, 0.2};
     std::vector<float> result_vector =
-        norm_test<float>({1, 4, 2}, scale, bias, "group_norm_3d_test.onnx");
+        norm_test<float>({1, 4, 2}, scale, bias, migraphx::parse_onnx("group_norm_3d_test.onnx"));
     std::vector<float> gold = {-1.10996256,
                                -0.0366542,
                                1.0366542,
@@ -671,7 +670,7 @@ TEST_CASE(group_norm_half_test)
     std::vector<half> scale{half{1.2}, half{0.8}};
     std::vector<half> bias{half{0.5}, half{0.2}};
     std::vector<half> result_vector =
-        norm_test<half>({1, 4, 2}, scale, bias, "group_norm_3d_half_test.onnx");
+        norm_test<half>({1, 4, 2}, scale, bias, migraphx::parse_onnx("group_norm_3d_half_test.onnx"));
     std::vector<half> gold = {half{-1.10996256},
                               half{-0.0366542},
                               half{1.0366542},
@@ -1189,7 +1188,7 @@ TEST_CASE(layer_norm_test)
     std::vector<float> scale{1.2, 0.8};
     std::vector<float> bias{0.5, 0.2};
     std::vector<float> result_vector =
-        norm_test<float>({1, 4, 2}, scale, bias, "layer_norm_3d_test.onnx");
+        norm_test<float>({1, 4, 2}, scale, bias, migraphx::parse_onnx("layer_norm_3d_test.onnx"));
     std::vector<float> gold = {-0.69997597,
                                0.99998398,
                                -0.69997597,
@@ -1207,7 +1206,7 @@ TEST_CASE(layer_norm_half_test)
     std::vector<half> scale{half{1.2}, half{0.8}};
     std::vector<half> bias{half{0.5}, half{0.2}};
     std::vector<half> result_vector =
-        norm_test<half>({1, 4, 2}, scale, bias, "layer_norm_3d_half_test.onnx");
+        norm_test<half>({1, 4, 2}, scale, bias, migraphx::parse_onnx("layer_norm_3d_half_test.onnx"));
     std::vector<half> gold = {half{-0.69997597},
                               half{0.99998398},
                               half{-0.69997597},
@@ -1382,9 +1381,8 @@ TEST_CASE(mean_integral_test)
 }
 
 template <typename T = float>
-std::vector<T> mvn_test(std::vector<size_t> data_lens, const std::string& test_file)
+std::vector<T> mvn_test(std::vector<size_t> data_lens, migraphx::program p)
 {
-    migraphx::program p = migraphx::parse_onnx(test_file);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape data_shape(migraphx::shape::get_type<T>{}, std::move(data_lens));
@@ -1403,7 +1401,7 @@ std::vector<T> mvn_test(std::vector<size_t> data_lens, const std::string& test_f
 
 TEST_CASE(mvn_default_axes_test)
 {
-    auto result = mvn_test({2, 2, 2, 2}, "mvn_default_axes_test.onnx");
+    auto result = mvn_test({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_test.onnx"));
     std::vector<float> gold{-1.32424438,
                             -1.08347268,
                             -0.84270097,
@@ -1426,7 +1424,7 @@ TEST_CASE(mvn_default_axes_test)
 TEST_CASE(mvn_default_axes_fp16_test)
 {
     using migraphx::half;
-    auto result = mvn_test<half>({2, 2, 2, 2}, "mvn_default_axes_fp16_test.onnx");
+    auto result = mvn_test<half>({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_fp16_test.onnx"));
     std::vector<half> gold{half{-1.324},
                            half{-1.084},
                            half{-0.843},
@@ -1448,7 +1446,7 @@ TEST_CASE(mvn_default_axes_fp16_test)
 
 TEST_CASE(mvn_rank_2_test)
 {
-    auto result = mvn_test({2, 2}, "mvn_rank_2_test.onnx");
+    auto result = mvn_test({2, 2}, migraphx::parse_onnx("mvn_rank_2_test.onnx"));
     std::vector<float> gold{-1, 1, -1, 1};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
@@ -1456,14 +1454,14 @@ TEST_CASE(mvn_rank_2_test)
 TEST_CASE(mvn_rank_2_fp16_test)
 {
     using migraphx::half;
-    auto result = mvn_test<migraphx::half>({2, 2}, "mvn_rank_2_fp16_test.onnx");
+    auto result = mvn_test<migraphx::half>({2, 2}, migraphx::parse_onnx("mvn_rank_2_fp16_test.onnx"));
     std::vector<migraphx::half> gold{half{-1}, half{1}, half{-1}, half{1}};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
 TEST_CASE(mvn_rank_3_test)
 {
-    auto result = mvn_test({2, 2, 2}, "mvn_rank_3_test.onnx");
+    auto result = mvn_test({2, 2, 2}, migraphx::parse_onnx("mvn_rank_3_test.onnx"));
     std::vector<float> gold{-1.34164079,
                             -1.34164079,
                             -0.4472136,
@@ -1478,7 +1476,7 @@ TEST_CASE(mvn_rank_3_test)
 TEST_CASE(mvn_rank_3_fp16_test)
 {
     using migraphx::half;
-    auto result = mvn_test<half>({2, 2, 2}, "mvn_rank_3_fp16_test.onnx");
+    auto result = mvn_test<half>({2, 2, 2}, migraphx::parse_onnx("mvn_rank_3_fp16_test.onnx"));
     std::vector<half> gold{half{-1.342},
                            half{-1.342},
                            half{-0.4473},

@@ -38,7 +38,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/execution.hpp>
+#include <migraphx/par.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -254,7 +254,7 @@ struct nonmaxsuppression
                                return std::make_pair(sc, box_idx - 1);
                            });
         }
-        migraphx::sort(
+        par_sort(
             boxes_heap.begin(), boxes_heap.end(), std::greater<std::pair<double, int64_t>>{});
         return boxes_heap;
     }
@@ -301,7 +301,7 @@ struct nonmaxsuppression
 
                 std::vector<std::pair<double, int64_t>> remainder_boxes(boxes_heap.size());
 
-                auto it = migraphx::copy_if(
+                auto it = par_copy_if(
                     boxes_heap.begin() + 1,
                     boxes_heap.end(),
                     remainder_boxes.begin(),

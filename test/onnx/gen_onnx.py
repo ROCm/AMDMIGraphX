@@ -7323,6 +7323,7 @@ def resize_downsample_f_test():
 
 @onnx_test()
 def resize_downsample_f_dyn_test():
+    # scales is an input
     scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
@@ -7340,6 +7341,28 @@ def resize_downsample_f_dyn_test():
                                  nearest_mode='floor')
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_downsample_f_dyn2_test():
+    # output shape is an input
+    sizes = np.array([1, 1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'sizes', ''],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
 
 
 @onnx_test()
@@ -7362,6 +7385,28 @@ def resize_downsample_f_ref_test():
                                  nearest_mode='floor')
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_downsample_f_ref2_test():
+    # output shape is an input
+    sizes = np.array([2, 1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'sizes', ''],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
 
 
 @onnx_test()

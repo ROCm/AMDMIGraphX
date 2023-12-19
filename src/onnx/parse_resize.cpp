@@ -181,6 +181,7 @@ static std::string get_nearest_mode(const onnx_parser::attribute_map& attr)
     return nearest_mode;
 }
 
+// "scales" is an attribute of the deprecated Upsample op. ver7 only
 static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
 {
     std::vector<double> scales;
@@ -192,13 +193,18 @@ static std::vector<double> get_scales(const onnx_parser::attribute_map& attr)
     return scales;
 }
 
+// Hunts through the argument list to find either scales or sizes, and
+// populates both scales and sizes vectors from it.
+// r_arg: a reference to the argument that was found.
+//
 // return: true if argument is non-static (i.e. if eval() couldn't read it
 // at compile time).  If true, we'll need to use Resize op.
 static bool parse_args(const std::vector<instruction_ref>& args,
                        const std::vector<size_t>& in_lens,
                        const std::string& op_name,
                        std::vector<double>& vec_scale,
-                       std::vector<std::size_t>& out_lens)
+                       std::vector<std::size_t>& out_lens,
+                       instruction_ref& r_arg)
 {
     for(const auto& arg : args)
     {
@@ -214,10 +220,13 @@ static bool parse_args(const std::vector<instruction_ref>& args,
             continue;
         }
 
+        r_arg = arg;
+
         auto type = arg->get_shape().type();
         // output size
         if(type == shape::int64_type)
         {
+            // is_scale_input = false;
             auto arg_out_s = arg->eval();
             // check_arg_empty(arg_out_s,
             //                 "PARSE_" + op_name + ": dynamic output size is not supported!");
@@ -243,6 +252,7 @@ static bool parse_args(const std::vector<instruction_ref>& args,
         else
         {
             // scale input
+            // is_scale_input = true;
             if(lens[0] == in_lens.size())
             {
                 auto arg_scale = arg->eval();
@@ -335,12 +345,14 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<double> vec_scale = get_scales(info.attributes);
 
         // If `scales` was not an attribute, it must be an input
+        // bool is_scale_input{true};
+        instruction_ref scales_sizes_arg(args[0]);
         bool is_static_scale_input(not vec_scale.empty());
         if(not is_static_scale_input)
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
-            is_static_scale_input = not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens);
+            is_static_scale_input = not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
         }
 
         if(in_lens.size() != vec_scale.size())
@@ -363,34 +375,41 @@ struct parse_resize : op_parser<parse_resize>
         std::size_t out_elements = out_s.elements();
         auto idx_op              = get_original_idx_op(coord_trans_mode);
 
-
         if(mode == "nearest")
         {
-            // Todo:  combine the first two cases with AND and then branch on which 
-            // value is in arguments:  sizes or scales.
+            if (args[0]->get_shape().dynamic() or not is_static_scale_input)
+            {
+                // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes" 
+                // depending on its data type
+                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
+                        , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], scales_sizes_arg);
 
-            if(not is_static_scale_input)
-            {
-                // If vec_scale could not be read, this indicates that the scale input is 
-                // non-static.  Call the Resize op.
-                shape ind_s{shape::int32_type, {out_lens.size()}};
-                auto ins_ind = info.add_literal(literal(ind_s, out_lens));
-                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
-                , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
-            }
-            else if (args[0]->get_shape().dynamic())
-            {
-                // Dynamic input,  Call the Resize op. and pass the scales as a literal input
-                //    What happens if output sizes is the attribute?
-                //  TODO:  if branch here, check the attributes again
-                shape ind_s{shape::float_type, {vec_scale.size()}};
-                auto ins_ind = info.add_literal(literal(ind_s, vec_scale));
-                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
-                , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], ins_ind);
             }
             else
             {
+                // If there are no dynamic shapes and size/scale attributes are literals, then
+                // all the indexes can be calculated now at compile time and
+                // the Resize can be accomplished with Gather operation.  Preferred for
+                // better performance.
+
                 return make_gather_instruction(info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
+
+                // TODO: to make Onnx resize ALWAYS parse to a Resize op, replace the above line
+                //  with the following.  But it will break a lot of onnx tests.
+                //
+                //        ***  Call resize with only one argument and static scales or sizes attribute.
+                //
+                //  Default "mode" attribute is "nearest"
+                // if(scales_sizes_arg->get_shape().type()  == shape::int64_type )
+                // {
+                //     return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
+                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"sizes", in_lens}}), args[0]);
+                // }
+                // else
+                // {
+                //     return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
+                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"scales", vec_scale}}), args[0]);
+                // }
 
             }
         }

@@ -88,7 +88,7 @@ struct resize
     std::vector<int64_t> sizes;
     std::string nearest_mode;
 
-    std::string mode; // 1: nearest 2: bilinear/linear 3: cubic
+    std::string mode{"nearest"}; // 1: nearest 2: bilinear/linear 3: cubic
     std::string coordinate_transformation_mode;
 
     std::string name() const { return "resize"; }
@@ -106,6 +106,8 @@ struct resize
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1,2);
+
+        // TODO:  Error if mode is anything except "nearest"
 
         // Inputs are X, sizes or scale, ROI and axes not supported.
         if(inputs.size() == 1)
@@ -174,52 +176,51 @@ struct resize
         std::vector<size_t> out_lens(in_lens.size());        
 
         // Scales are either given, or calculated from output shape
-        std::vector<double> vec_scale(in_lens.size());
+        std::vector<double> vec_scale(in_lens.size(), 1.0f);
 
         if(dyn_out.computed_shape.dynamic())
         {
-            // calculate output shape from scales or sizes
-            if(not sizes.empty())
+            if(args.size() > 1)
             {
-                args[1].visit([&](auto size_input) {
-
-                    // TODO: inside a single "visit" put the following "if"
-                    // to distinguish between sizes/shapes by data type
-            // using type = typename decltype(output)::value_type;
-            // if constexpr(std::is_integral<type>{})
-                                // Copy the output size from args[1]
-                    std::transform(size_input.begin(), size_input.end(), out_lens.begin(),
-                                [](auto size_i) { 
-                            return size_i;                     
-                    }); 
-
-                    // Deduce the scales for each axis
-                    std::transform(size_input.begin(), size_input.end(), in_lens.begin(), vec_scale.begin(),
-                        [](auto sz, size_t in_len) {
-                            return static_cast<double>(sz)/in_len;                     
-                        });                   
+                args[1].visit([&](auto input) {
+                    using type = typename decltype(input)::value_type;
+                    if constexpr(std::is_integral<type>{})
+                    {
+                        // Copy the output size from args[1].
+                        std::transform(input.begin()+1, input.end(), out_lens.begin()+1,
+                                    [](auto size_i) { 
+                                        return size_i;                     
+                                    });
+                        //   Assume dimension 0 is 
+                        // batch size and leave input size alone.
+                        out_lens[0] = in_lens[0];
+                        // Deduce the scales for each axis
+                        std::transform(input.begin()+1, input.end(), in_lens.begin()+1, vec_scale.begin()+1,
+                            [](auto sz, size_t in_len) {
+                                return static_cast<double>(sz)/in_len;                     
+                        });
+                        vec_scale[0] = 1.0f;                   
+                   }
+                   else
+                   {
+                        // read the scale from args[1]-- vec_scale = input;
+                        //
+                        std::transform(input.begin(), input.end(), vec_scale.begin(),
+                                    [](auto scale_i) {
+    std::cout << "scale input " << scale_i << "\n";                                    
+                                return scale_i;                     
+                        }); 
+                        // compute the output dimensions from the given scales.  This computation
+                        // always rounds down, unlike the internal computation in Nearest mode 
+                        // which has several options as given in nearest_mode.
+                        std::transform(input.begin(), input.end(), in_lens.begin(), out_lens.begin(),
+                                    [](auto scale_i, size_t in_len) {
+                                return static_cast<size_t>(scale_i*in_len);                     
+                    });                    
+                   }          
                 });          
             }
-            else
-            {
-                args[1].visit([&](auto scale_input) {
-                    // read the scale from args[1]-- vec_scale = scale_input;
-                    //
-                    std::transform(scale_input.begin(), scale_input.end(), vec_scale.begin(),
-                                [](auto scale_i) {
-std::cout << "scale input " << scale_i << "\n";                                    
-                            return scale_i;                     
-                    }); 
 
-                    // compute the output dimensions from the given scales.  This computation
-                    // always rounds down, unlike the internal computation in Nearest mode 
-                    // which has several options as given in nearest_mode.
-                    std::transform(scale_input.begin(), scale_input.end(), in_lens.begin(), out_lens.begin(),
-                                [](auto scale_i, size_t in_len) {
-                            return static_cast<size_t>(scale_i*in_len);                     
-                    });                    
-                });
-            }
             output_shape = {args[0].get_shape().type(), out_lens};
         }
 

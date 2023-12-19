@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(instance_norm_test)
 {
     migraphx::program p = migraphx::parse_onnx("instance_norm_val_test.onnx");
@@ -34,5 +33,3 @@ TEST_CASE(instance_norm_test)
                                4.09838};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

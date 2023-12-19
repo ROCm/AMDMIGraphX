@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearconcat_test)
 {
     auto p = migraphx::parse_onnx("qlinearconcat_test.onnx");
@@ -25,5 +24,3 @@ TEST_CASE(qlinearconcat_test)
     std::vector<int8_t> gold = {3, 4, 5, 6, 7};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(layer_norm_half_test)
 {
     using migraphx::half;
@@ -22,5 +21,3 @@ TEST_CASE(layer_norm_half_test)
                               half{0.99998398}};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

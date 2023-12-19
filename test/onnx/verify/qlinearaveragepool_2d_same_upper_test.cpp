@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearaveragepool_2d_same_upper_test)
 {
     auto p = migraphx::parse_onnx("qlinearaveragepool_2d_same_upper_test.onnx");
@@ -26,5 +25,3 @@ TEST_CASE(qlinearaveragepool_2d_same_upper_test)
         8,   -128, -128, -101, -69, -104, -120, -128, -116, -128, -93, -128, -50, -128, -128, -128};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

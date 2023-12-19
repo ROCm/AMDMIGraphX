@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(greaterorequal_test)
 {
     migraphx::program p = migraphx::parse_onnx("greaterorequal_test.onnx");
@@ -24,5 +23,3 @@ TEST_CASE(greaterorequal_test)
     std::vector<float> gold = {1.0, 1.0, 0.0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

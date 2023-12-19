@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(round_half_test)
 {
     migraphx::program p = migraphx::parse_onnx("round_half_test.onnx");
@@ -40,5 +39,3 @@ TEST_CASE(round_half_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

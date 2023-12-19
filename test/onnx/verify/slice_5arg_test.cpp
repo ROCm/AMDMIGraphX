@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(slice_5arg_test)
 {
     migraphx::program p = migraphx::parse_onnx("slice_5arg_test.onnx");
@@ -23,5 +22,3 @@ TEST_CASE(slice_5arg_test)
     std::vector<float> gold = {10, 11, 12, 13, 15, 16, 17, 18};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(lpnormalization_2norm)
 {
     migraphx::program p = migraphx::parse_onnx("lpnormalization_l2_test.onnx");
@@ -31,5 +30,3 @@ TEST_CASE(lpnormalization_2norm)
                             0.f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

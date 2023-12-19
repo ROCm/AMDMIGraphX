@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(mean_integral_test)
 {
     migraphx::program p = migraphx::parse_onnx("mean_integral_test.onnx");
@@ -30,5 +29,3 @@ TEST_CASE(mean_integral_test)
     std::vector<int> gold(num_elms, mean);
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

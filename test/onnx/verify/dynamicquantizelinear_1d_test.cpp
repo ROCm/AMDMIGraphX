@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(dynamicquantizelinear_1d_test)
 {
     auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
@@ -57,5 +56,3 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
     std::vector<uint8_t> y_zpt_gold = {255};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
-
-

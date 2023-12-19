@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shrink_hard_test)
 {
     migraphx::program p = migraphx::parse_onnx("shrink_hard_test.onnx");
@@ -20,5 +19,3 @@ TEST_CASE(shrink_hard_test)
     std::vector<float> gold = {-2, 0, 0, 0, 2};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

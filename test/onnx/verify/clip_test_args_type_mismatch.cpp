@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(clip_args_type_mismatch)
 {
     auto p = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
@@ -19,5 +18,3 @@ TEST_CASE(clip_args_type_mismatch)
     std::vector<float> gold = {1.5, 2, 2, 1.9, 2.5, 3, 2.9, 3.2, 3.7};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

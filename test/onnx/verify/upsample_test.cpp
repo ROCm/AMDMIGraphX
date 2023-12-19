@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(upsample_test)
 {
     migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
@@ -22,5 +21,3 @@ TEST_CASE(upsample_test)
                                3, 3, 3, 4, 4, 4, 3, 3, 3, 4, 4, 4};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

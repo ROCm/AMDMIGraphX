@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(unique_dynamic_sorted_test)
 {
     migraphx::program p = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
@@ -36,5 +35,3 @@ TEST_CASE(unique_dynamic_sorted_test)
     result[3].visit([&](auto out) { y_ct_vec.assign(out.begin(), out.end()); });
     EXPECT(y_ct_vec == y_ct_gold);
 }
-
-

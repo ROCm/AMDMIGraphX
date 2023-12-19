@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(averagepool_notset_test)
 {
     auto p = migraphx::parse_onnx("averagepool_notset_test.onnx");
@@ -21,5 +20,3 @@ TEST_CASE(averagepool_notset_test)
     std::vector<float> gold = {12};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

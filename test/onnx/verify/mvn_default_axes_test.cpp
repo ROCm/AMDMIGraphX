@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(mvn_default_axes_test)
 {
     auto result = mvn_test({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_test.onnx"));
@@ -26,5 +25,3 @@ TEST_CASE(mvn_default_axes_test)
                             1.32424438};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
-
-

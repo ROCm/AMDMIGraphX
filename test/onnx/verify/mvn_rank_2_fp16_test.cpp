@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(mvn_rank_2_fp16_test)
 {
     using migraphx::half;
@@ -13,5 +12,3 @@ TEST_CASE(mvn_rank_2_fp16_test)
     std::vector<migraphx::half> gold{half{-1}, half{1}, half{-1}, half{1}};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
-
-

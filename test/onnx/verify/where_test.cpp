@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(where_test)
 {
     migraphx::program p = migraphx::parse_onnx("where_test.onnx");
@@ -45,5 +44,3 @@ TEST_CASE(where_test)
                                2.0f};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

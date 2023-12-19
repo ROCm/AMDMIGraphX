@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearleakyrelu_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearSigmoid
@@ -32,5 +31,3 @@ TEST_CASE(qlinearleakyrelu_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

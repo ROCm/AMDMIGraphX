@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(selu_test)
 {
     migraphx::program p = migraphx::parse_onnx("selu_test.onnx");
@@ -23,5 +22,3 @@ TEST_CASE(selu_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

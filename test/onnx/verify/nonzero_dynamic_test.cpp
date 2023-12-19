@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(nonzero_test)
 {
     migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
@@ -22,5 +21,3 @@ TEST_CASE(nonzero_test)
     std::vector<float> gold = {0, 0, 1, 0, 0, 1, 0, 0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

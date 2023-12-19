@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearconv_pad_1_test)
 {
     // https:xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
@@ -29,5 +28,3 @@ TEST_CASE(qlinearconv_pad_1_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

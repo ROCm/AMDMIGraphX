@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(triu_test)
 {
     migraphx::program p = migraphx::parse_onnx("triu_test.onnx");
@@ -15,5 +14,3 @@ TEST_CASE(triu_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

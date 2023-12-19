@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearaveragepool_2d_ceil_test)
 {
     auto p = migraphx::parse_onnx("qlinearaveragepool_2d_ceil_test.onnx");
@@ -20,5 +19,3 @@ TEST_CASE(qlinearaveragepool_2d_ceil_test)
     std::vector<uint8_t> gold = {120, 150, 240, 255};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

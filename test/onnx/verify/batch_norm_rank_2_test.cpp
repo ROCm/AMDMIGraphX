@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(batch_norm_rank_2_test)
 {
     migraphx::program p = migraphx::parse_onnx("batch_norm_rank_2_test.onnx");
@@ -40,5 +39,3 @@ TEST_CASE(batch_norm_rank_2_test)
                                12.72790933};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

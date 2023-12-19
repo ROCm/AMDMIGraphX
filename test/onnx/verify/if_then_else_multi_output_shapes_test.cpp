@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(if_then_else_multi_output_shapes_test)
 {
     migraphx::program p = migraphx::parse_onnx("if_then_else_multi_output_shapes_test.onnx");
@@ -34,5 +33,3 @@ TEST_CASE(if_then_else_multi_output_shapes_test)
         1.0625, 1.75, 0.9375, 1.125, 0.875, 0.4375, 0.125, 1.50, -0.125, 0.250, -0.250, -1.125};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

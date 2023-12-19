@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(gemm_test)
 {
     migraphx::program p = migraphx::parse_onnx("gemm_brcst_C_test.onnx");
@@ -47,5 +46,3 @@ TEST_CASE(gemm_test)
         1.2227502,  1.4568202,  1.1388762,  1.55058,   1.0958102,  1.4637487, 1.5756242};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

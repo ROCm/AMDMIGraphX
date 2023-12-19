@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(multinomial_dyn_test)
 {
     migraphx::onnx_options options;
@@ -74,5 +73,3 @@ TEST_CASE(multinomial_dyn_test)
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         res_norm, migraphx::verify::expected{norm}, migraphx::verify::tolerance{0.01}));
 }
-
-

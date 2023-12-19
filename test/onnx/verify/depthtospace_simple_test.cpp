@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(depthtospace_simple_test)
 {
     auto p = migraphx::parse_onnx("depthtospace_simple_test.onnx");
@@ -21,5 +20,3 @@ TEST_CASE(depthtospace_simple_test)
                                31, 43, 32, 44, 9,  21, 10, 22, 11, 23, 33, 45, 34, 46, 35, 47};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

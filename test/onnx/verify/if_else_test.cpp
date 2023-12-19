@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(if_else_test)
 {
     migraphx::program p = migraphx::parse_onnx("if_else_test.onnx");
@@ -25,5 +24,3 @@ TEST_CASE(if_else_test)
     std::vector<float> gold = {0.0866565, -0.371067, 0.017719, 0.0250614, 0.0612539, -0.744683};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearaveragepool_2d_pads_count_include_pad_test)
 {
     auto p = migraphx::parse_onnx("qlinearaveragepool_2d_pads_count_include_pad_test.onnx");
@@ -29,5 +28,3 @@ TEST_CASE(qlinearaveragepool_2d_pads_count_include_pad_test)
         -128, -83, 83,  127, 127, -1,  -66, -79, 40,  124, 127, 18,  -19, -77,  -15,  86,  127, 83};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

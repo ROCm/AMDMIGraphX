@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(size_verify_test)
 {
     migraphx::program p = migraphx::parse_onnx("size_verify_test.onnx");
@@ -18,5 +17,3 @@ TEST_CASE(size_verify_test)
     auto size_result = result.at<int64_t>();
     EXPECT(size_result == int64_t{30});
 }
-
-

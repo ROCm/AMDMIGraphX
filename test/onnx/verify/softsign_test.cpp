@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(softsign_test)
 {
     migraphx::program p = migraphx::parse_onnx("softsign_test.onnx");
@@ -24,5 +23,3 @@ TEST_CASE(softsign_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearaveragepool_nt_cip_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearAveragePool
@@ -22,5 +21,3 @@ TEST_CASE(qlinearaveragepool_nt_cip_test)
     std::vector<uint8_t> gold = {18};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

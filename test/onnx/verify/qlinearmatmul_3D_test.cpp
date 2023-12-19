@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearmatmul_3D_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearMatMul.html
@@ -31,5 +30,3 @@ TEST_CASE(qlinearmatmul_3D_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearaveragepool_2d_same_lower_test)
 {
     auto p = migraphx::parse_onnx("qlinearaveragepool_2d_same_lower_test.onnx");
@@ -26,5 +25,3 @@ TEST_CASE(qlinearaveragepool_2d_same_lower_test)
                                  44,  36,  95,  136, 151, 126, 108, 164, 185, 166, 140, 178};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

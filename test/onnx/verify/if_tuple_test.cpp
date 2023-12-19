@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(if_tuple_test)
 {
     auto run_prog = [](bool cond) {
@@ -52,5 +51,3 @@ TEST_CASE(if_tuple_test)
         EXPECT(migraphx::verify::verify_rms_range(results.at(1), gold1));
     }
 }
-
-

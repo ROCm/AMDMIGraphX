@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearconcat_3d_test)
 {
     auto p = migraphx::parse_onnx("qlinearconcat_3d_test.onnx");
@@ -27,5 +26,3 @@ TEST_CASE(qlinearconcat_3d_test)
                                 2, 2, 6, 6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 6, 6, 6, 6};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

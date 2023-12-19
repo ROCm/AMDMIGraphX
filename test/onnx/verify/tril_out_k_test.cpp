@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(tril_out_k_test)
 {
     migraphx::program p = migraphx::parse_onnx("tril_out_k_test.onnx");
@@ -15,5 +14,3 @@ TEST_CASE(tril_out_k_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

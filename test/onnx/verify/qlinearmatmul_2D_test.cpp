@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(qlinearmatmul_2D_test)
 {
     migraphx::program p = migraphx::parse_onnx("qlinearmatmul_2D_test.onnx");
@@ -27,5 +26,3 @@ TEST_CASE(qlinearmatmul_2D_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

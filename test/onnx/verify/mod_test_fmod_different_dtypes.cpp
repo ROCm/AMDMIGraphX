@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(mod_test_fmod_different_types)
 {
     migraphx::program p = migraphx::parse_onnx("mod_test_fmod_different_dtypes.onnx");
@@ -33,5 +32,3 @@ TEST_CASE(mod_test_fmod_different_types)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

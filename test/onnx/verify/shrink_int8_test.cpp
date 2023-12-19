@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(shrink_int8_test)
 {
     migraphx::program p = migraphx::parse_onnx("shrink_int8_test.onnx");
@@ -20,5 +19,3 @@ TEST_CASE(shrink_int8_test)
     std::vector<int8_t> gold = {-2, -1, 0, 0, 0, 0, 0, 1, 2};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

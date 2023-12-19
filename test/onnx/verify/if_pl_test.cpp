@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(if_pl_test)
 {
     auto run_prog = [](bool cond) {
@@ -43,5 +42,3 @@ TEST_CASE(if_pl_test)
         EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
     }
 }
-
-

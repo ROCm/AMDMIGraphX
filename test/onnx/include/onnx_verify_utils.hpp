@@ -2,7 +2,6 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_VERIFY_UTILS_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_VERIFY_UTILS_HPP
 
-
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
@@ -68,6 +67,5 @@ inline std::vector<float> gen_trilu_test(const migraphx::shape& s, const migraph
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     return result_vector;
 }
-
 
 #endif

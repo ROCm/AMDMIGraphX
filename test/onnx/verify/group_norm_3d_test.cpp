@@ -4,7 +4,6 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-
 TEST_CASE(group_norm_test)
 {
     std::vector<float> scale{1.2, 0.8};
@@ -21,5 +20,3 @@ TEST_CASE(group_norm_test)
                                1.27330837};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-
-

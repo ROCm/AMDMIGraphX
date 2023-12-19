@@ -3,7 +3,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(eyelike_verify_negk_test)
 {
     migraphx::program p = migraphx::parse_onnx("eyelike_verify_negk_test.onnx");
@@ -21,5 +20,3 @@ TEST_CASE(eyelike_verify_negk_test)
     std::vector<float> gold_eyelike_mat = {0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold_eyelike_mat));
 }
-
-

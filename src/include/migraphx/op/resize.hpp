@@ -1,9 +1,31 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #ifndef MIGRAPHX_GUARD_OPERATORS_RESIZE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RESIZE_HPP
 
 #include <array>
-// #include <migraphx/op/common.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/streamutils.hpp>
@@ -17,72 +39,72 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// from parse_resize.cpp
-auto& get_nearest_op(const std::string& near_mode)
-{
-    using nearest_op = std::function<std::size_t(std::size_t, double)>;
-    static std::unordered_map<std::string, nearest_op> const nearest_ops = {
-        {"round_prefer_floor",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::ceil((val - 0.5)));
-         }},
-        {"round_prefer_ceil",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::round((val)));
-         }},
-        {"floor",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::floor((val)));
-         }},
-        {"ceil", [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::ceil((val)));
-         }}};
-
-    if(not contains(nearest_ops, near_mode))
-    {
-        MIGRAPHX_THROW("RESIZE: nearest_mode " + near_mode + " not supported!");
-    }
-
-    return nearest_ops.at(near_mode);
-}
-
-const auto& get_original_idx_op(const std::string& mode)
-{
-    using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
-    static std::unordered_map<std::string, original_idx_op> const idx_ops = {
-        {"half_pixel",
-         [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-             return (idx + 0.5) / scale - 0.5;
-         }},
-        {"pytorch_half_pixel",
-         [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
-             return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
-         }},
-        {"align_corners",
-         [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-             return (l_out == 1) ? 0.0 : (1.0 * idx * (l_in - 1.0) / (l_out - 1.0));
-         }},
-        {"asymmetric",
-         [=](std::size_t, std::size_t, std::size_t idx, double scale) { return idx / scale; }},
-        {"tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-             return (idx + 0.5) / scale;
-         }}};
-
-    if(not contains(idx_ops, mode))
-    {
-        MIGRAPHX_THROW("RESIZE: coordinate_transformation_mode " + mode + " not supported!");
-    }
-
-    return idx_ops.at(mode);
-}
-
 struct resize
 {
-    // TODO:   indicators.  The real scales and sizes are inputs, not attributes.
+
+    auto& get_nearest_op(const std::string& near_mode) const
+    {
+        using nearest_op = std::function<std::size_t(std::size_t, double)>;
+        static std::unordered_map<std::string, nearest_op> const nearest_ops = {
+            {"round_prefer_floor",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::ceil((val - 0.5)));
+             }},
+            {"round_prefer_ceil",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::round((val)));
+             }},
+            {"floor",
+             [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::floor((val)));
+             }},
+            {"ceil", [=](std::size_t d_in, double val) {
+                 val = std::max(0.0, std::min(d_in - 1.0, val));
+                 return static_cast<std::size_t>(std::ceil((val)));
+             }}};
+
+        if(not contains(nearest_ops, near_mode))
+        {
+            MIGRAPHX_THROW("RESIZE: nearest_mode " + near_mode + " not supported!");
+        }
+
+        return nearest_ops.at(near_mode);
+    }
+
+    const auto& get_original_idx_op(const std::string& s_mode) const
+    {
+        using original_idx_op =
+            std::function<double(std::size_t, std::size_t, std::size_t, double)>;
+        static std::unordered_map<std::string, original_idx_op> const idx_ops = {
+            {"half_pixel",
+             [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                 return (idx + 0.5) / scale - 0.5;
+             }},
+            {"pytorch_half_pixel",
+             [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
+                 return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
+             }},
+            {"align_corners",
+             [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
+                 return (l_out == 1) ? 0.0 : (1.0 * idx * (l_in - 1.0) / (l_out - 1.0));
+             }},
+            {"asymmetric",
+             [=](std::size_t, std::size_t, std::size_t idx, double scale) { return idx / scale; }},
+            {"tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
+                 return (idx + 0.5) / scale;
+             }}};
+
+        if(not contains(idx_ops, s_mode))
+        {
+            MIGRAPHX_THROW("RESIZE: coordinate_transformation_mode " + s_mode + " not supported!");
+        }
+
+        return idx_ops.at(s_mode);
+    }
+
     std::vector<float> scales;
     std::vector<int64_t> sizes;
     std::string nearest_mode;

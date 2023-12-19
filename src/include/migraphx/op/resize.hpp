@@ -13,35 +13,34 @@
 #include <cmath>
 #include <utility>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-   // from parse_resize.cpp
+// from parse_resize.cpp
 auto& get_nearest_op(const std::string& near_mode)
 {
     using nearest_op = std::function<std::size_t(std::size_t, double)>;
     static std::unordered_map<std::string, nearest_op> const nearest_ops = {
         {"round_prefer_floor",
-        [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::ceil((val - 0.5)));
-        }},
+         [=](std::size_t d_in, double val) {
+             val = std::max(0.0, std::min(d_in - 1.0, val));
+             return static_cast<std::size_t>(std::ceil((val - 0.5)));
+         }},
         {"round_prefer_ceil",
-        [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::round((val)));
-        }},
+         [=](std::size_t d_in, double val) {
+             val = std::max(0.0, std::min(d_in - 1.0, val));
+             return static_cast<std::size_t>(std::round((val)));
+         }},
         {"floor",
-        [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::floor((val)));
-        }},
+         [=](std::size_t d_in, double val) {
+             val = std::max(0.0, std::min(d_in - 1.0, val));
+             return static_cast<std::size_t>(std::floor((val)));
+         }},
         {"ceil", [=](std::size_t d_in, double val) {
-            val = std::max(0.0, std::min(d_in - 1.0, val));
-            return static_cast<std::size_t>(std::ceil((val)));
-        }}};
+             val = std::max(0.0, std::min(d_in - 1.0, val));
+             return static_cast<std::size_t>(std::ceil((val)));
+         }}};
 
     if(not contains(nearest_ops, near_mode))
     {
@@ -98,14 +97,14 @@ struct resize
     {
         return pack(f(self.scales, "scales"),
                     f(self.sizes, "sizes"),
-                    f(self.nearest_mode,"nearest_mode"),
-                    f(self.mode,"mode"),
-                    f(self.coordinate_transformation_mode,"coordinate_transformation_mode"));
+                    f(self.nearest_mode, "nearest_mode"),
+                    f(self.mode, "mode"),
+                    f(self.coordinate_transformation_mode, "coordinate_transformation_mode"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.has(1,2);
+        check_shapes{inputs, *this, true}.has(1, 2);
 
         // TODO:  Error if mode is anything except "nearest"
 
@@ -120,32 +119,31 @@ struct resize
             auto input_s = inputs.front();
             // No size/scale input.  Size/scale must be an attribute and so output will be static.
             if((sizes.empty()) == (scales.empty()))
-                MIGRAPHX_THROW("RESIZE: One and only one of sizes or scales attributes must be given");
+                MIGRAPHX_THROW(
+                    "RESIZE: One and only one of sizes or scales attributes must be given");
             if(not sizes.empty())
             {
-                if(not (sizes.size() == input_s.ndim()))
+                if(not(sizes.size() == input_s.ndim()))
                     MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
                 std::vector<size_t> lens;
-                std::transform(sizes.begin(), sizes.end(), std::back_inserter(lens),
-                                    [](auto in_len) {
-                                        return static_cast<size_t>(in_len);                     
-                                    });
-
-                auto zap =                 shape{input_s.type(), lens};
-
+                std::transform(sizes.begin(),
+                               sizes.end(),
+                               std::back_inserter(lens),
+                               [](auto in_len) { return static_cast<size_t>(in_len); });
                 return shape{input_s.type(), lens};
             }
-            else{
-                if(not (scales.size() == input_s.ndim()))
+            else
+            {
+                if(not(scales.size() == input_s.ndim()))
                     MIGRAPHX_THROW("RESIZE: scales attribute's size must match rank of input X");
                 std::vector<size_t> lens;
-                std::transform(scales.begin(), scales.end(), input_s.lens().begin(), std::back_inserter(lens),
-                                                [](auto scale_i, size_t in_len) {
-                            return static_cast<size_t>(scale_i*in_len);                     
-                });
-
-                auto zap =                 shape{input_s.type(), lens};
-
+                std::transform(scales.begin(),
+                               scales.end(),
+                               input_s.lens().begin(),
+                               std::back_inserter(lens),
+                               [](auto scale_i, size_t in_len) {
+                                   return static_cast<size_t>(scale_i * in_len);
+                               });
                 return shape{input_s.type(), lens};
             }
         }
@@ -163,7 +161,7 @@ struct resize
             // The output shape is dynamic, with an unlimited size range.
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
-                                                            shape::dynamic_dimension{0, max_val});
+                                                           shape::dynamic_dimension{0, max_val});
             return {inputs.front().type(), dyn_dims};
         }
     }
@@ -173,7 +171,7 @@ struct resize
         // See scatter.hpp or gather.hpp for how to do a similar iteration with reduction
         shape output_shape;
         auto in_lens = args[0].get_shape().to_static(1).lens();
-        std::vector<size_t> out_lens(in_lens.size());        
+        std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
         std::vector<double> vec_scale(in_lens.size(), 1.0f);
@@ -187,38 +185,43 @@ struct resize
                     if constexpr(std::is_integral<type>{})
                     {
                         // Copy the output size from args[1].
-                        std::transform(input.begin()+1, input.end(), out_lens.begin()+1,
-                                    [](auto size_i) { 
-                                        return size_i;                     
-                                    });
-                        //   Assume dimension 0 is 
+                        std::transform(input.begin() + 1,
+                                       input.end(),
+                                       out_lens.begin() + 1,
+                                       [](auto size_i) { return size_i; });
+                        //   Assume dimension 0 is
                         // batch size and leave input size alone.
                         out_lens[0] = in_lens[0];
                         // Deduce the scales for each axis
-                        std::transform(input.begin()+1, input.end(), in_lens.begin()+1, vec_scale.begin()+1,
-                            [](auto sz, size_t in_len) {
-                                return static_cast<double>(sz)/in_len;                     
-                        });
-                        vec_scale[0] = 1.0f;                   
-                   }
-                   else
-                   {
+                        std::transform(input.begin() + 1,
+                                       input.end(),
+                                       in_lens.begin() + 1,
+                                       vec_scale.begin() + 1,
+                                       [](auto sz, size_t in_len) {
+                                           return static_cast<double>(sz) / in_len;
+                                       });
+                        vec_scale[0] = 1.0f;
+                    }
+                    else
+                    {
                         // read the scale from args[1]-- vec_scale = input;
                         //
-                        std::transform(input.begin(), input.end(), vec_scale.begin(),
-                                    [](auto scale_i) {
-    std::cout << "scale input " << scale_i << "\n";                                    
-                                return scale_i;                     
-                        }); 
+                        std::transform(input.begin(),
+                                       input.end(),
+                                       vec_scale.begin(),
+                                       [](auto scale_i) { return scale_i; });
                         // compute the output dimensions from the given scales.  This computation
-                        // always rounds down, unlike the internal computation in Nearest mode 
+                        // always rounds down, unlike the internal computation in Nearest mode
                         // which has several options as given in nearest_mode.
-                        std::transform(input.begin(), input.end(), in_lens.begin(), out_lens.begin(),
-                                    [](auto scale_i, size_t in_len) {
-                                return static_cast<size_t>(scale_i*in_len);                     
-                    });                    
-                   }          
-                });          
+                        std::transform(input.begin(),
+                                       input.end(),
+                                       in_lens.begin(),
+                                       out_lens.begin(),
+                                       [](auto scale_i, size_t in_len) {
+                                           return static_cast<size_t>(scale_i * in_len);
+                                       });
+                    }
+                });
             }
 
             output_shape = {args[0].get_shape().type(), out_lens};
@@ -227,7 +230,7 @@ struct resize
         argument result{output_shape};
         // TODO: there could be ways to optimize this function map
         auto nearest_op = get_nearest_op(nearest_mode);
-        auto idx_op              = get_original_idx_op(coordinate_transformation_mode);
+        auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
 
         // Populate each element in output by selecting "nearest" item in input.
         visit_all(result, args[0])([&](auto output, auto data) {
@@ -244,7 +247,6 @@ struct resize
         });
         return result;
     }
-
 };
 
 } // namespace op

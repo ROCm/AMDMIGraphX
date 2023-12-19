@@ -30,7 +30,6 @@
 
 #include <test.hpp>
 
-
 TEST_CASE(resize_test_1)
 {
     // batch size 1, 1 color channel, resize 3x3 to 5x8
@@ -44,23 +43,26 @@ TEST_CASE(resize_test_1)
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
-    auto a1  = mm->add_literal(migraphx::literal{size_input, size_values});
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
 
     // a0 = input data
     // a1 = sizes of output
-    mm->add_instruction(migraphx::make_op("resize", {{"sizes", {1}}, {"scales", {}}, {"nearest_mode", "floor"}
-      , {"coordinate_transformation_mode", "half_pixel"}}), a0, a1);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1}},
+                                           {"scales", {}},
+                                           {"nearest_mode", "floor"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0,
+                        a1);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-    std::vector<float> res_data(1*1*5*8);
-    std::vector<float> golden = {0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
-      0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
-      3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
-      3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
-      6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5};
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    std::vector<float> golden = {0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 0.5f, 0.5f,
+                                 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 3.5f, 3.5f, 3.5f, 3.5f,
+                                 4.5f, 4.5f, 4.5f, 5.5f, 3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f,
+                                 4.5f, 5.5f, 6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5};
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    for(auto aa : res_data) std::cout << aa << ", "; std::cout << " result \n";
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
@@ -71,7 +73,7 @@ TEST_CASE(resize_upsample_test_2)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> data(2*3*5);
+    std::vector<float> data(2 * 3 * 5);
     std::iota(data.begin(), data.end(), 0.1);
     // should upscale to 2x1x4x8
     migraphx::shape s{migraphx::shape::float_type, {2, 1, 3, 5}};
@@ -80,16 +82,21 @@ TEST_CASE(resize_upsample_test_2)
     //   scale input
     migraphx::shape scale_input{migraphx::shape::float_type, {4}};
     std::vector<float> scale_values = {1.0, 1.0, 1.601, 1.601};
-    auto a1  = mm->add_literal(migraphx::literal{scale_input, scale_values});
+    auto a1                         = mm->add_literal(migraphx::literal{scale_input, scale_values});
 
     // a0 = input data
     // a1 = scales
-    mm->add_instruction(migraphx::make_op("resize", {{"sizes", {}}, {"scales", {1}}, {"nearest_mode", "round_prefer_ceil"}
-      , {"coordinate_transformation_mode", "half_pixel"}}), a0, a1);
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {}},
+                                           {"scales", {1}},
+                                           {"nearest_mode", "round_prefer_ceil"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0,
+                        a1);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-    std::vector<float> res_data(2*1*4*8);
+    std::vector<float> res_data(2 * 1 * 4 * 8);
     // clang-format off
     std::vector<float> golden = { 
         0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
@@ -102,6 +109,5 @@ TEST_CASE(resize_upsample_test_2)
         25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
     // clang-format on
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
-    for(auto aa : res_data) std::cout << aa << ", "; std::cout << " result \n";
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }

@@ -6676,7 +6676,7 @@ TEST_CASE(resize_downsample_f_test)
 
     auto prog = migraphx::parse_onnx("resize_downsample_f_test.onnx");
 
-    EXPECT(p == prog);    
+    EXPECT(p == prog);
 }
 
 TEST_CASE(resize_downsample_f_dyn_test)
@@ -6685,15 +6685,20 @@ TEST_CASE(resize_downsample_f_dyn_test)
     auto* mm              = p.get_main_module();
     std::vector<float> ds = {1.f, 1.f, 0.601, 0.601};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
- 
+
     auto li = mm->add_literal(migraphx::literal{ss, ds});
     mm->add_instruction(migraphx::make_op("undefined"));
 
     migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}}};
     auto inx = mm->add_parameter("X", sx);
 
-    auto r = mm->add_instruction(migraphx::make_op("resize", {{"mode", "nearest"}, {"nearest_mode", "floor"},
-    {"coordinate_transformation_mode", "asymmetric"}}), inx, li);  
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"mode", "nearest"},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx,
+                            li);
 
     mm->add_return({r});
     migraphx::onnx_options options;

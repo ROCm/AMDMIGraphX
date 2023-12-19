@@ -277,21 +277,21 @@ struct parse_resize : op_parser<parse_resize>
     std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
 
     instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
-                    const std::size_t out_elements,
-                    const shape& in_s,
-                    shape& out_s,
-                    const std::vector<size_t>& in_lens,
-                    const std::vector<size_t>& out_lens,
-                    const std::vector<double>& vec_scale,
-                    instruction_ref args_0) const
+                                            const std::size_t out_elements,
+                                            const shape& in_s,
+                                            shape& out_s,
+                                            const std::vector<size_t>& in_lens,
+                                            const std::vector<size_t>& out_lens,
+                                            const std::vector<double>& vec_scale,
+                                            instruction_ref args_0) const
     {
         std::string nearest_mode = get_nearest_mode(info.attributes);
         std::vector<int> ind(out_elements);
 
         // map out_idx to in_idx
-        auto nearest_op = get_nearest_op(nearest_mode);
+        auto nearest_op              = get_nearest_op(nearest_mode);
         std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
-        auto idx_op              = get_original_idx_op(coord_trans_mode);
+        auto idx_op                  = get_original_idx_op(coord_trans_mode);
 
         shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
             std::vector<size_t> in_idx(out_idx_v.size());
@@ -307,7 +307,7 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
         auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args_0);
 
-        //ins_ind should be a multi dimensional index that will restore original rank
+        // ins_ind should be a multi dimensional index that will restore original rank
         shape ind_s{shape::int32_type, out_lens};
         auto ins_ind = info.add_literal(literal(ind_s, ind));
         return info.add_instruction(make_op("gather", {{"axis", 0}}), rsp, ins_ind);
@@ -352,7 +352,8 @@ struct parse_resize : op_parser<parse_resize>
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
-            is_static_scale_input = not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
+            is_static_scale_input =
+                not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
         }
 
         if(in_lens.size() != vec_scale.size())
@@ -377,13 +378,16 @@ struct parse_resize : op_parser<parse_resize>
 
         if(mode == "nearest")
         {
-            if (args[0]->get_shape().dynamic() or not is_static_scale_input)
+            if(args[0]->get_shape().dynamic() or not is_static_scale_input)
             {
-                // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes" 
+                // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
                 // depending on its data type
-                return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
-                        , {"coordinate_transformation_mode", coord_trans_mode}}), args[0], scales_sizes_arg);
-
+                return info.add_instruction(
+                    make_op("resize",
+                            {{"nearest_mode", nearest_mode},
+                             {"coordinate_transformation_mode", coord_trans_mode}}),
+                    args[0],
+                    scales_sizes_arg);
             }
             else
             {
@@ -392,25 +396,30 @@ struct parse_resize : op_parser<parse_resize>
                 // the Resize can be accomplished with Gather operation.  Preferred for
                 // better performance.
 
-                return make_gather_instruction(info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
+                return make_gather_instruction(
+                    info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
 
                 // TODO: to make Onnx resize ALWAYS parse to a Resize op, replace the above line
                 //  with the following.  But it will break a lot of onnx tests.
                 //
-                //        ***  Call resize with only one argument and static scales or sizes attribute.
+                //        ***  Call resize with only one argument and static scales or sizes
+                //        attribute.
                 //
                 //  Default "mode" attribute is "nearest"
                 // if(scales_sizes_arg->get_shape().type()  == shape::int64_type )
                 // {
-                //     return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
-                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"sizes", in_lens}}), args[0]);
+                //     return info.add_instruction(make_op("resize", { {"nearest_mode",
+                //     nearest_mode}
+                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"sizes",
+                //         in_lens}}), args[0]);
                 // }
                 // else
                 // {
-                //     return info.add_instruction(make_op("resize", { {"nearest_mode", nearest_mode}
-                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"scales", vec_scale}}), args[0]);
+                //     return info.add_instruction(make_op("resize", { {"nearest_mode",
+                //     nearest_mode}
+                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"scales",
+                //         vec_scale}}), args[0]);
                 // }
-
             }
         }
         // linear mode
@@ -419,7 +428,6 @@ struct parse_resize : op_parser<parse_resize>
             // reshape input to one-dimension
             std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
             auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
-
 
             auto nearest_floor = get_nearest_op("floor");
             auto nearest_ceil  = get_nearest_op("ceil");

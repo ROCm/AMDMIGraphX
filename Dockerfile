@@ -51,8 +51,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hipblas  \
     hipify-clang \
     half \
-    libtbb2 \
-    libtbb-dev \
     libssl-dev \
     zlib1g-dev && \
     apt-get clean && \

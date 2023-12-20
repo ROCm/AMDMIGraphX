@@ -32,30 +32,6 @@ if (NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
 endif()
 
-# Determine UNIX distribution
-if(NOT WIN32)
-    file(READ "/etc/os-release" ETC_ISSUE)
-    string(REGEX MATCH "Debian|Ubuntu|CentOS|RHEL|SLES" DIST ${ETC_ISSUE})
-    set(USE_TBB Off)
-
-    if (DIST STREQUAL "Debian")
-        message(STATUS "Debian OS detected!")
-        add_compile_definitions(DEBIAN_DISTRO)
-        set(USE_TBB On)
-    elseif(DIST STREQUAL "Ubuntu")
-        message(STATUS "Ubuntu OS detected!")
-        add_compile_definitions(DEBIAN_DISTRO)
-        set(USE_TBB On)
-    elseif(DIST STREQUAL "CentOS")
-        message(STATUS "CENTOS detected!")
-    elseif(DIST STREQUAL "Red Hat")
-        message(STATUS "Red Hat detected!")
-    elseif(DIST STREQUAL "SUSE")
-        message(STATUS "SLES detected!")
-    endif()
-endif()
-
-set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 get_property(MIGRAPHX_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE

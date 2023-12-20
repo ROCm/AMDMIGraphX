@@ -806,24 +806,6 @@ struct find_transpose_slice
     }
 };
 
-struct find_nested_convert
-{
-    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
-        auto input = x->inputs().front();
-
-        while(input->name() == "convert")
-        {
-            input = input->inputs().front();
-        }
-        m.replace_instruction(ins, input);
-    }
-};
-
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -839,7 +821,6 @@ void simplify_reshapes::apply(module& m) const
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
-                            find_nested_convert{},
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},

@@ -33,8 +33,9 @@ function(add_onnx_test TEST_NAME)
 endfunction()
 
 file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
+file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)
 
 add_onnx_test(test_onnx_test ${ONNX_PARSE_TESTS})
 add_onnx_test(test_onnx_rnn_test onnx_rnn_test.cpp)
-add_onnx_test(test_verify_onnx verify_onnx.cpp)
+add_onnx_test(test_verify_onnx ${ONNX_VERIFY_TESTS})
 

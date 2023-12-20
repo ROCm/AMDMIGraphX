@@ -285,10 +285,14 @@ rocm_enable_cppcheck(
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
+        migraphx-RedundantLocalVariable:*src/api/api.cpp
+        migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
-        ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
+    ADDONS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/migraphx.py
     SOURCES
         examples/
         src/
@@ -302,12 +306,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
+        MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        BUILD_DEV=
         __device__=
         __host__=
         __global__=
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
+        DOXYGEN
+        HAS_HALF_V1
+        TYPE_ERASED_DECLARATION
+        NDEBUG
 )
 
 include(ROCMCreatePackage)

@@ -191,8 +191,7 @@ double rms_range(const R1& r1, const R2& r2)
 template <class R>
 double get_rms_tol(const R&, std::size_t tolerance = 80)
 {
-    double threshold = std::numeric_limits<range_value<R>>::epsilon() * tolerance;
-    return threshold;
+    return std::numeric_limits<range_value<R>>::epsilon() * tolerance;
 }
 
 /*

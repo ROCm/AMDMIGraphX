@@ -1,4 +1,4 @@
-FROM registry.suse.com/suse/sle15:15.4
+FROM registry.suse.com/suse/sle15:15.4.27.14.128
 
 RUN sh -c 'echo -e "\
 [rocm]\n\

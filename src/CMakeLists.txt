@@ -81,7 +81,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
-    quantize_int8.cpp
+    quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
@@ -305,10 +305,10 @@ endif()
 
 option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS)
-    message("Parallel STL enabled")
+    message(STATUS "Parallel STL enabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
 else()
-    message("Parallel STL disabled")
+    message(STATUS "Parallel STL disabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 

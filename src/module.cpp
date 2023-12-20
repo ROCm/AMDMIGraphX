@@ -671,6 +671,15 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
+#ifndef BUILD_DEV
+    if(std::any_of(this->begin(), this->end(), [](const auto i) {
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+    {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+    }
+#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
@@ -1042,12 +1051,9 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
+        for(const auto* ssmod : mod_args)
         {
-            for(const auto* ssmod : mod_args)
-            {
-                calc_implicit_deps(*ssmod, pmod, ins, deps);
-            }
+            calc_implicit_deps(*ssmod, pmod, ins, deps);
         }
     }
 }

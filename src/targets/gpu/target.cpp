@@ -99,12 +99,37 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
+    unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
     unsupported_types.erase(shape::type_t::half_type);
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    // whiltelist supported Ops for the FP8
+    std::set<std::string> unsupported_fp8_ops = {};
+    if(not gpu::rocblas_fp8_available())
+    {
+        unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
+    }
+    // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8_ops.insert("pooling");
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
+    }
+    // add all device kernels
+    unsupported_fp8_ops.insert("logsoftmax");
+    unsupported_fp8_ops.insert("nonzero");
+    unsupported_fp8_ops.insert("prefix_scan_sum");
+    unsupported_fp8_ops.insert("scatter_none");
+    unsupported_fp8_ops.insert("topk");
+    unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8_ops.insert("multinomial");
+    unsupported_fp8_ops.insert("argmax");
+    unsupported_fp8_ops.insert("argmin");
     // clang-format off
     return
     {
@@ -136,6 +161,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
+        dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},

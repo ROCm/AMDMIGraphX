@@ -48,3 +48,7 @@ template struct test_softmax<0, migraphx::shape::half_type>;
 template struct test_softmax<1, migraphx::shape::half_type>;
 template struct test_softmax<2, migraphx::shape::half_type>;
 template struct test_softmax<3, migraphx::shape::half_type>;
+template struct test_softmax<0, migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_softmax<1, migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_softmax<2, migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_softmax<3, migraphx::shape::fp8e4m3fnuz_type>;

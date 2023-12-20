@@ -2344,6 +2344,8 @@ TEST_CASE(resize_downsample_f_dyn_test)
     std::vector<float> dx(sx.elements());
     std::iota(dx.begin(), dx.end(), 0.1f);
 
+    // TODO: How to create a test where scales is not a literal input?
+
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
 

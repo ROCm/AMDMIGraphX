@@ -55,6 +55,9 @@ namespace op {
  */
 struct resize
 {
+    // Selects one of several integer rounding rules for use with Nearest mode.
+    //
+    // Returns a lambda that returns size_t.
     auto& get_nearest_op(const std::string& near_mode) const
     {
         using nearest_op = std::function<std::size_t(std::size_t, double)>;
@@ -87,6 +90,11 @@ struct resize
         return nearest_ops.at(near_mode);
     }
 
+    // Selects one of several rules for converting a coordinate by a scaling factor.
+    // These rules differ in how they account for subpixel distances and end
+    // values.  They apply to all modes.
+    //
+    // Returns a lambda that returns double.
     const auto& get_original_idx_op(const std::string& s_mode) const
     {
         using original_idx_op =
@@ -120,9 +128,13 @@ struct resize
 
     std::vector<float> scales;
     std::vector<size_t> sizes;
+    // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode;
 
-    std::string mode{"nearest"}; // 1: nearest 2: bilinear/linear 3: cubic
+    // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
+    // Only "nearest" currently supported.
+    std::string mode{"nearest"};
+    // What floating-point conversion rule to use (any resizing mode)
     std::string coordinate_transformation_mode;
 
     std::string name() const { return "resize"; }
@@ -204,7 +216,6 @@ struct resize
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        // See scatter.hpp or gather.hpp for how to do a similar iteration with reduction
         shape output_shape;
         auto in_lens = args[0].get_shape().to_static(1).lens();
         std::vector<size_t> out_lens(in_lens.size());

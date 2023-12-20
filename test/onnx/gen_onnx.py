@@ -7324,6 +7324,7 @@ def resize_downsample_f_test():
 @onnx_test()
 def resize_downsample_f_dyn_test():
     # scales is an input
+    # TODO:  How to create an Onnx file where scales is a runtime input?
     scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,

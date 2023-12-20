@@ -209,27 +209,20 @@ static bool parse_args(const std::vector<instruction_ref>& args,
     for(const auto& arg : args)
     {
         if(arg->name() == "undefined" or arg == args.front())
-        {
             continue;
-        }
 
-        // skipped empty input
+        // skip any empty input (some of the Onnx args. are optional)
         auto lens = arg->get_shape().lens();
         if(lens.empty())
-        {
             continue;
-        }
 
         r_arg = arg;
 
         auto type = arg->get_shape().type();
-        // output size
         if(type == shape::int64_type)
         {
-            // is_scale_input = false;
+            // this argument is output sizes
             auto arg_out_s = arg->eval();
-            // check_arg_empty(arg_out_s,
-            //                 "PARSE_" + op_name + ": dynamic output size is not supported!");
             if(arg_out_s.empty())
                 return true;
             arg_out_s.visit([&](const auto& ol) { out_lens.assign(ol.begin(), ol.end()); });
@@ -237,10 +230,10 @@ static bool parse_args(const std::vector<instruction_ref>& args,
             if(out_lens.size() != in_lens.size())
             {
                 MIGRAPHX_THROW("PARSE_" + op_name +
-                               ": specified output size does not match input size");
+                               ": specified output size's rank does not match input size");
             }
 
-            // compute the scale
+            // compute the scales
             vec_scale.resize(in_lens.size());
             std::transform(in_lens.begin(),
                            in_lens.end(),
@@ -251,21 +244,15 @@ static bool parse_args(const std::vector<instruction_ref>& args,
         }
         else
         {
-            // scale input
-            // is_scale_input = true;
+            // this argument is scale input
             if(lens[0] == in_lens.size())
             {
                 auto arg_scale = arg->eval();
-                // check_arg_empty(arg_scale,
-                //                 "PARSE_" + op_name + ": dynamic input scale is not supported!");
                 if(arg_scale.empty())
                     return true;
 
                 arg_scale.visit([&](const auto& v) { vec_scale.assign(v.begin(), v.end()); });
-
-                // should we compute output sizes now?
             }
-
             return false;
         }
     }
@@ -276,6 +263,8 @@ struct parse_resize : op_parser<parse_resize>
 {
     std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
 
+    // Helper to add a "reshape" and "gather" instruction.  These can implement
+    // Nearest mode resizing if all sizes are known at compile time.
     instruction_ref make_gather_instruction(const onnx_parser::node_info& info,
                                             const std::size_t out_elements,
                                             const shape& in_s,
@@ -314,7 +303,7 @@ struct parse_resize : op_parser<parse_resize>
     }
 
     instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& /*parser*/,
+                          const onnx_parser&,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
@@ -326,6 +315,8 @@ struct parse_resize : op_parser<parse_resize>
 
         // nearest mode
         std::string nearest_mode = get_nearest_mode(info.attributes);
+
+        auto idx_op = get_original_idx_op(coord_trans_mode);
 
         // check exclude_outside, only support 0
         if(contains(info.attributes, "exclude_outside") and
@@ -356,25 +347,26 @@ struct parse_resize : op_parser<parse_resize>
                 not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
         }
 
-        if(in_lens.size() != vec_scale.size())
+        if(is_static_scale_input)
         {
-            MIGRAPHX_THROW("PARSE_" + opd.op_name + ": ranks of input and scale are different!");
-        }
+            // TODO:  How to make a test case where the scale input is not static?
+            if(in_lens.size() != vec_scale.size())
+            {
+                MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                               ": ranks of input and scale are different!");
+            }
 
-        // if the output was not calculated yet, we update it based on the scales
-        if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
-        {
-            std::transform(
-                in_lens.begin(),
-                in_lens.end(),
-                vec_scale.begin(),
-                out_lens.begin(),
-                [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+            // if the output was not calculated yet, we update it based on the scales
+            if(all_of(out_lens.cbegin(), out_lens.cend(), [](auto o) { return o == 0; }))
+            {
+                std::transform(
+                    in_lens.begin(),
+                    in_lens.end(),
+                    vec_scale.begin(),
+                    out_lens.begin(),
+                    [&](auto idx, auto scale) { return static_cast<std::size_t>(idx * scale); });
+            }
         }
-
-        shape out_s{in_s.type(), out_lens};
-        std::size_t out_elements = out_s.elements();
-        auto idx_op              = get_original_idx_op(coord_trans_mode);
 
         if(mode == "nearest")
         {
@@ -395,6 +387,9 @@ struct parse_resize : op_parser<parse_resize>
                 // all the indexes can be calculated now at compile time and
                 // the Resize can be accomplished with Gather operation.  Preferred for
                 // better performance.
+
+                shape out_s{in_s.type(), out_lens};
+                std::size_t out_elements = out_s.elements();
 
                 return make_gather_instruction(
                     info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
@@ -425,6 +420,14 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
+            // out_lens and other variables can't be populated if non-static inputs.
+            if(not is_static_scale_input)
+                MIGRAPHX_THROW("PARSE_" + opd.op_name +
+                               ": linear mode not supported for non-static inputs");
+
+            shape out_s{in_s.type(), out_lens};
+            std::size_t out_elements = out_s.elements();
+
             // reshape input to one-dimension
             std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
             auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);

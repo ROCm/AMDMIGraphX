@@ -110,11 +110,11 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         // 1. Computing y_scale
         // Note: currently, DynamicQuantizeLinear only has uint8 quantization:
-        const auto Q_MAX = std::numeric_limits<uint8_t>::max();
-        const auto Q_MIN = std::numeric_limits<uint8_t>::min();
+        const auto x_max = std::numeric_limits<uint8_t>::max();
+        const auto x_min = std::numeric_limits<uint8_t>::min();
 
         auto q_range =
-            info.add_literal(migraphx::literal{migraphx::shape{x_type}, {Q_MAX - Q_MIN}});
+            info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max - x_min}});
 
         // maximum(0, max(x))
         auto max_x =
@@ -129,8 +129,8 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         // 2. Computing y_zero_point
         // intermediate_zero_point = qmin - min(x) / y_scale
-        auto q_min     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {Q_MIN}});
-        auto q_max     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {Q_MAX}});
+        auto q_min     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_min}});
+        auto q_max     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max}});
         auto sub1      = info.add_common_op("sub", q_min, min_x);
         auto interm_zp = info.add_common_op("div", sub1, y_scale);
         // y_zero_point = cast(round(saturate(itermediate_zero_point)))

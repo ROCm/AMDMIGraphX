@@ -39,9 +39,22 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * The Resize operation mirrors the Onnx Resize operation with some differences.
+ * Currently, only Nearest mode is supported.  "Axes" and "ROI" attributes not recognized.
+ * When in put shape is a dynamic shape, the 0'th dimension is presumed to represent
+ * batch size and is not resized.
+ *
+ * Accepts either one or two runtime inputs.
+ * Input 0 - data to be resized
+ * Input 1 - sizes or scales.  If data type is uint64, Input 1 is interpreted as output sizes;
+ *           otherwise as scaling factors.
+ *
+ * If the second input is not used, either a "sizes" or "scales" attribute must be
+ * provided.
+ */
 struct resize
 {
-
     auto& get_nearest_op(const std::string& near_mode) const
     {
         using nearest_op = std::function<std::size_t(std::size_t, double)>;
@@ -106,7 +119,7 @@ struct resize
     }
 
     std::vector<float> scales;
-    std::vector<int64_t> sizes;
+    std::vector<size_t> sizes;
     std::string nearest_mode;
 
     std::string mode{"nearest"}; // 1: nearest 2: bilinear/linear 3: cubic
@@ -128,7 +141,8 @@ struct resize
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        // TODO:  Error if mode is anything except "nearest"
+        if(mode != "nearest")
+            MIGRAPHX_THROW("RESIZE: Only Nearest mode is supported");
 
         // Inputs are X, sizes or scale, ROI and axes not supported.
         if(inputs.size() == 1)
@@ -196,7 +210,7 @@ struct resize
         std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
-        std::vector<double> vec_scale(in_lens.size(), 1.0f);
+        std::vector<float> vec_scale(in_lens.size(), 1.0f);
 
         if(dyn_out.computed_shape.dynamic())
         {
@@ -245,12 +259,41 @@ struct resize
                     }
                 });
             }
-
             output_shape = {args[0].get_shape().type(), out_lens};
+        }
+        else
+        {
+            output_shape = dyn_out.computed_shape;
+            if(not sizes.empty())
+            {
+                out_lens = sizes;
+                // compute scales
+                std::transform(out_lens.begin(),
+                               out_lens.end(),
+                               in_lens.begin(),
+                               vec_scale.begin(),
+                               [](size_t out_len, size_t in_len) {
+                                   return (in_len == 0 ? 1.f
+                                                       : static_cast<float>(out_len) / in_len);
+                               });
+            }
+            else
+            {
+                vec_scale = this->scales;
+                // compute output sizes
+                const auto inputs = output_shape.lens();
+                std::transform(inputs.begin(),
+                               inputs.end(),
+                               scales.begin(),
+                               out_lens.begin(),
+                               [](auto scale_i, size_t in_len) {
+                                   return static_cast<size_t>(scale_i * in_len);
+                               });
+            }
         }
 
         argument result{output_shape};
-        // TODO: there could be ways to optimize this function map
+        // TODO: there could be ways to optimize this function map--is it worth it?
         auto nearest_op = get_nearest_op(nearest_mode);
         auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
 

@@ -49,7 +49,7 @@ TEST_CASE(resize_test_1)
     // a1 = sizes of output
     mm->add_instruction(migraphx::make_op("resize",
                                           {{"sizes", {1}},
-                                           {"scales", {}},
+                                           {"scales", {1}},
                                            {"nearest_mode", "floor"},
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         a0,
@@ -58,10 +58,15 @@ TEST_CASE(resize_test_1)
     auto result = p.eval({}).back();
 
     std::vector<float> res_data(1 * 1 * 5 * 8);
-    std::vector<float> golden = {0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 0.5f, 0.5f,
-                                 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 3.5f, 3.5f, 3.5f, 3.5f,
-                                 4.5f, 4.5f, 4.5f, 5.5f, 3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f,
-                                 4.5f, 5.5f, 6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5};
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f,
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
+        6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5
+        };
+    // clang-format on
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
@@ -93,6 +98,79 @@ TEST_CASE(resize_upsample_test_2)
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         a0,
                         a1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(2 * 1 * 4 * 8);
+    // clang-format off
+    std::vector<float> golden = { 
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        0.1f,  0.1f,    1.1f,  2.1f,    2.1f,  3.1f,    4.1f,  4.1f,  
+        5.1f,  5.1f,    6.1f,  7.1f,    7.1f,  8.1f,    9.1f,  9.1f,  
+        10.1f,  10.1f,  11.1f,  12.1f,  12.1f,  13.1f,  14.1f,  14.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
+        20.1f,  20.1f,  21.1f,  22.1f,  22.1f,  23.1f,  24.1f,  24.1f,  
+        25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_test_3_1_input)
+{
+    // same inputs and outputs as test 1
+    // batch size 1, 1 color channel, resize 3x3 to 5x8
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1, 1, 5, 8}},
+                                           {"nearest_mode", "floor"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f,
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
+        6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5
+        };
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_upsample_test_4_1_input)
+{
+    // batch size 2, 1 color channel, resize 3x5 by 1.6x
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(2 * 3 * 5);
+    std::iota(data.begin(), data.end(), 0.1);
+    // should upscale to 2x1x4x8
+    migraphx::shape s{migraphx::shape::float_type, {2, 1, 3, 5}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {}},
+                                           {"scales", {1.0, 1.0, 1.601, 1.601}},
+                                           {"nearest_mode", "round_prefer_ceil"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 

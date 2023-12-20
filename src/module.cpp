@@ -557,10 +557,9 @@ instruction_ref module::get_parameter(std::string name) const
 void module::rename_parameter(instruction_ref ins, const std::string name)
 {
     assert(ins->name() == "@param");
-    auto& op      = const_cast<operation&>(ins->get_operator());
-    auto param_op = any_cast<builtin::param>(&op);
-    assert(param_op != nullptr);
-    param_op->parameter = name;
+    auto op = any_cast<builtin::param>(ins->get_operator());
+    op.parameter = name;
+    ins->replace(op);
 }
 
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const

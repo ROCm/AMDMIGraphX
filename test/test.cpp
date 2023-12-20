@@ -31,7 +31,7 @@ TEST_CASE(globbing)
     EXPECT(glob_match("aabaabqqbaab", "a****baab"));
     EXPECT(glob_match("abcdd", "***d"));
     EXPECT(glob_match("abcdd", "***d****"));
-    
+
     // Single wildcard
     EXPECT(glob_match("abc", "a?c"));
 }

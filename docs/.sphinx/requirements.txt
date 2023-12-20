@@ -11,7 +11,7 @@ beautifulsoup4==4.12.2
     # via pydata-sphinx-theme
 breathe==4.34.0
     # via rocm-docs-core
-certifi==2022.12.7
+certifi==2023.7.22
     # via requests
 cffi==1.15.1
     # via
@@ -89,7 +89,7 @@ requests==2.28.2
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==0.30.2
+rocm-docs-core==0.30.3
     # via -r requirements.in
 smmap==5.0.0
     # via gitdb

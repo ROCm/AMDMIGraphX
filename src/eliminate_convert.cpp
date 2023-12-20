@@ -30,21 +30,34 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/**
+ * Matches with some sequence of sequential convert instructions.
+ * If input to the sequence of converts has the same shape as the last convert,
+ * replace last convert with the input.
+ * If input to the sequence is not the same shape as the last convert,
+ * replace last convert with convert from the input to the last shape.
+ */
 struct find_nested_convert
 {
     auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
-        auto input = x->inputs().front();
-
+        auto matched_ins  = mr.result;
+        auto prev_convert = matched_ins->inputs().front();
+        auto input        = prev_convert->inputs().front();
         while(input->name() == "convert")
         {
             input = input->inputs().front();
         }
-        m.replace_instruction(ins, input);
+        if(matched_ins->get_shape() == input->get_shape())
+        {
+            m.replace_instruction(matched_ins, input);
+        }
+        else
+        {
+            m.replace_instruction(matched_ins, matched_ins->get_operator(), input);
+        }
     }
 };
 

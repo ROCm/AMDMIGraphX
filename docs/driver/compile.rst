@@ -41,3 +41,7 @@ Quantize for int8
 .. option:: --fp8
 
 Quantize for Float8E4M3FNUZ type
+
+.. option:: --fp-to-double
+
+Convert floating point values to double for the ref target

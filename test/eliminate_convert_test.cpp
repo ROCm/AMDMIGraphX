@@ -58,7 +58,7 @@ TEST_CASE(nop_convert)
     EXPECT(m0 == m1);
 }
 
-TEST_CASE(nested_convert)
+TEST_CASE(nested_convert0)
 {
     migraphx::module m0;
     {
@@ -81,6 +81,37 @@ TEST_CASE(nested_convert)
         auto s = migraphx::shape{migraphx::shape::float_type, {1, 2, 3}};
         auto x = m1.add_parameter("x", s);
         m1.add_return({x});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(nested_convert1)
+{
+    migraphx::module m0;
+    {
+        auto s = migraphx::shape{migraphx::shape::half_type, {1, 2, 3}};
+        auto x = m0.add_parameter("x", s);
+        auto a = m0.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::double_type)}}),
+            x);
+        auto b = m0.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+            a);
+        m0.add_return({b});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto s = migraphx::shape{migraphx::shape::half_type, {1, 2, 3}};
+        auto x = m1.add_parameter("x", s);
+        auto a = m1.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::float_type)}}),
+            x);
+        m1.add_return({a});
     }
     EXPECT(m0 == m1);
 }
@@ -240,7 +271,8 @@ TEST_CASE(nested_branch_convert0)
     }
     run_pass(m0);
 
-    // Less than optimal end result, would need to look horizontally to reduce to a single convert
+    // TODO: Less than optimal end result, would need to look horizontally to reduce to a single
+    // convert
     migraphx::module m1;
     {
         auto s = migraphx::shape{migraphx::shape::half_type, {1, 2, 3}};

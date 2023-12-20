@@ -88,7 +88,6 @@ std::vector<argument> run_target(program p,
                                  precision quantize,
                                  const parameter_map& inputs)
 {
-    // NOTE: why do we have this here when driver/main.cpp:compiler already quantized
     if(quantize == precision::fp16)
     {
         quantize_fp16(p);

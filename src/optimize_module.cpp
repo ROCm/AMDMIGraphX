@@ -41,10 +41,10 @@ void optimize_module::apply(module_pass_manager& mpm) const
         for(int j = 0; j < 2; j++)
         {
             mpm.run_pass(simplify_reshapes{});
+            mpm.run_pass(eliminate_convert{});
+            mpm.run_pass(dead_code_elimination{});
             mpm.run_pass(simplify_algebra{});
         }
-        mpm.run_pass(eliminate_convert{});
-        mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(eliminate_common_subexpression{});
         mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(propagate_constant{});

@@ -22,23 +22,18 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fp_to_double.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void fp_to_double(program& prog)
+void fp_to_double::apply(module_pass_manager& mpm) const
 {
-    std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
-                                                shape::type_t::float_type};
-    run_passes(prog,
-               {eliminate_data_type{convert_fp_types, shape::type_t::double_type},
-                eliminate_convert{},
-                migraphx::dead_code_elimination{}});
+    mpm.run_pass(eliminate_data_type{convert_fp_types, shape::type_t::double_type});
+    mpm.run_pass(eliminate_convert{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

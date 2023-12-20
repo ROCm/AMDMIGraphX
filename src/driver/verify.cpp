@@ -30,7 +30,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/fp_to_double.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
@@ -73,10 +72,10 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
-std::vector<argument> run_ref(program p, const parameter_map& inputs)
+std::vector<argument>
+run_ref(program p, const compile_options& options, const parameter_map& inputs)
 {
-    fp_to_double(p);
-    p.compile(migraphx::make_target("ref"));
+    p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);
     std::cout << p << std::endl;
     return out;
@@ -117,7 +116,7 @@ void verify_program(const std::string& name,
                     const parameter_map& inputs,
                     verify::tolerance tols)
 {
-    auto ref_outs    = run_ref(p, inputs);
+    auto ref_outs    = run_ref(p, options, inputs);
     auto target_outs = run_target(p, t, options, quantize, inputs);
 
     std::size_t output_num = ref_outs.size();

@@ -40,6 +40,12 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    /**
+     * Converts floating point values to double on the ref target.
+     * Currently only used by the driver.
+     */
+    bool fp_to_double = false;
     tracer trace{};
 };
 

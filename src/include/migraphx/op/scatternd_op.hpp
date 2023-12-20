@@ -91,11 +91,10 @@ struct scatternd_op : op_name<Derived>
         auto data_dims = data_shape.to_dynamic().dyn_dims();
 
         // Check that corresponding portions of tensor shapes match.
-        if(not(std::equal(
-                   ind_dims.begin(), std::next(ind_dims.begin(), q - 1), upd_dims.begin()) and
-               std::equal(std::next(data_dims.begin(), k),
-                          data_dims.end(),
-                          std::next(upd_dims.begin(), q - 1))))
+        // Brackets around q - 1 are placed for safeguarding against the breaking iterator out of
+        // vector range.
+        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + (q - 1), upd_dims.begin()) and
+               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + (q - 1))))
             MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
                            "indices and data.");
 

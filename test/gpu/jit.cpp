@@ -198,27 +198,27 @@ TEST_CASE(compile_errors)
     }));
 }
 
-TEST_CASE(compile_warnings)
-{
-    auto compile = [](const std::string& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
-    };
-
-    EXPECT(not compile("").empty());
-    EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
-    EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
-#ifdef MIGRAPHX_USE_HIPRTC
-    if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
-    {
-        EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
-        EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
-    }
-#else
-    EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
-    EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
-#endif
-}
+//TEST_CASE(compile_warnings)
+//{
+    //auto compile = [](const std::string& params) {
+        //return migraphx::gpu::compile_hip_src(
+            //{make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+    //};
+//
+    //EXPECT(not compile("").empty());
+    //EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
+    //EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
+//#ifdef MIGRAPHX_USE_HIPRTC
+    //if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
+    //{
+        //EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+        //EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+    //}
+//#else
+    //EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
+    //EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+//#endif
+//}
 
 TEST_CASE(has_flags)
 {

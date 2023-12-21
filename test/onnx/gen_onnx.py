@@ -1969,6 +1969,40 @@ def dropout_test():
 
 
 @onnx_test()
+def dynamicquantizelinear_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [6])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
+def dynamicquantizelinear_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 4])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
 def elu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -6252,6 +6286,56 @@ def qlinearaveragepool_nt_cip_test():
 
 
 @onnx_test()
+def qlinearconcat_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [1])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.25])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [0])
+
+    y = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=0,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
+def qlinearconcat_3d_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [3, 4, 2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [10])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3, 2, 2])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.4])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [20])
+
+    y = helper.make_tensor_value_info('out', TensorProto.UINT8, [3, 6, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=1,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
 def qlinearconv_test():
     # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
@@ -7412,48 +7496,6 @@ def resize_downsample_f_ref2_test():
 
 @onnx_test()
 def resize_dyn_err1_test():
-    scales = np.array([1.0, 1.0, 1.601, 1.601], dtype=np.float32)
-    scale_tensor = helper.make_tensor(name='scales',
-                                      data_type=TensorProto.FLOAT,
-                                      dims=scales.shape,
-                                      vals=scales.flatten().astype(np.float32))
-
-    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, None, 3, 5])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
-
-    node = onnx.helper.make_node('Resize',
-                                 inputs=['X', '', 'scales'],
-                                 outputs=['Y'],
-                                 coordinate_transformation_mode='half_pixel',
-                                 mode='nearest',
-                                 nearest_mode='round_prefer_ceil')
-
-    return ([node], [X], [Y], [scale_tensor])
-
-
-@onnx_test()
-def resize_dyn_err2_test():
-    scales = np.array([1.601], dtype=np.float32)
-    scale_tensor = helper.make_tensor(name='scales',
-                                      data_type=TensorProto.FLOAT,
-                                      dims=scales.shape,
-                                      vals=scales.flatten().astype(np.float32))
-
-    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
-
-    node = onnx.helper.make_node('Resize',
-                                 inputs=['X', '', 'scales'],
-                                 outputs=['Y'],
-                                 coordinate_transformation_mode='half_pixel',
-                                 mode='nearest',
-                                 nearest_mode='round_prefer_ceil')
-
-    return ([node], [X], [Y], [scale_tensor])
-
-
-@onnx_test()
-def resize_dyn_err3_test():
     scales = np.array([1.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,

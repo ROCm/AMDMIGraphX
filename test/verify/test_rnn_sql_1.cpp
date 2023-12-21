@@ -31,7 +31,8 @@
 
 #include <migraphx/op/common.hpp>
 
-struct test_rnn_sql_1 : verify_program<test_rnn_sql_1>
+template <migraphx::shape::type_t DType>
+struct test_rnn_sql_1 : verify_program<test_rnn_sql_1<DType>>
 {
     migraphx::program create_program() const
     {
@@ -44,12 +45,12 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1>
 
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
-        migraphx::shape w_shape{migraphx::shape::float_type, {num_dirct, hidden_size, input_size}};
-        migraphx::shape r_shape{migraphx::shape::float_type, {num_dirct, hidden_size, hidden_size}};
-        migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 2 * hidden_size}};
+        migraphx::shape in_shape{DType, {seq_len, batch_size, input_size}};
+        migraphx::shape w_shape{DType, {num_dirct, hidden_size, input_size}};
+        migraphx::shape r_shape{DType, {num_dirct, hidden_size, hidden_size}};
+        migraphx::shape b_shape{DType, {num_dirct, 2 * hidden_size}};
         migraphx::shape s_shape{migraphx::shape::int32_type, {batch_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ih_shape{DType, {num_dirct, batch_size, hidden_size}};
 
         auto seq  = mm->add_parameter("seq", in_shape);
         auto w    = mm->add_parameter("w", w_shape);
@@ -81,3 +82,7 @@ struct test_rnn_sql_1 : verify_program<test_rnn_sql_1>
     }
     std::string section() const { return "rnn"; }
 };
+
+template struct test_rnn_sql_1<migraphx::shape::float_type>;
+template struct test_rnn_sql_1<migraphx::shape::half_type>;
+template struct test_rnn_sql_1<migraphx::shape::fp8e4m3fnuz_type>;

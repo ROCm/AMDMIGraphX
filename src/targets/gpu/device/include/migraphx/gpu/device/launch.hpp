@@ -89,7 +89,7 @@ inline auto launch(hipStream_t stream, index_int global, index_int local)
         */
         hipError_t flush_call = hipGetLastError();
         (void)(flush_call);
-        // cppcheck-suppress UseDeviceLaunch
+        // cppcheck-suppress migraphx-UseDeviceLaunch
         hipLaunchKernelGGL((launcher<f_type>), nblocks, nthreads, 0, stream, f);
         hipError_t kernel_launch_status = hipGetLastError();
         if(kernel_launch_status != hipSuccess)

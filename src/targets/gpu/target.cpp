@@ -110,6 +110,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
     }
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");

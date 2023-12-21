@@ -39,6 +39,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+template <class... Ms>
+auto skip_post_dq_ops(Ms... ms)
+{
+    return match::skip(
+        match::name("broadcast", "multibroadcast", "contiguous", "transpose", "reshape"))(ms...);
+}
+
 std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
@@ -112,10 +119,8 @@ struct match_find_quantizable_ops
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            match::arg(0)(match::skip_broadcasts_transposes_contiguous(
-                dequantizelinear_op("scale1", "zp1").bind("dq1"))),
-            match::arg(1)(match::skip_broadcasts_transposes_contiguous(
-                dequantizelinear_op("scale2", "zp2").bind("dq2"))));
+            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1"))),
+            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -210,9 +215,18 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     bool diff_shapes_equal_vals = false;
     visit_all(ins1->get_literal(), ins2->get_literal())([&](const auto l1, const auto l2) {
         diff_shapes_equal_vals =
-            std::all_of(
-                l1.begin() + 1, l1.end(), [&](auto v) { return float_equal(v, l1.front()); }) and
-            std::all_of(l2.begin(), l2.end(), [&](auto v) { return float_equal(v, l1.front()); });
+            std::all_of(l1.begin() + 1,
+                        l1.end(),
+                        [&](auto v) {
+                            return ((float_equal(v, l1.front())) or
+                                    (std::isinf(static_cast<double>(l1.front())) and
+                                     std::isinf(static_cast<double>(v))));
+                        }) and
+            std::all_of(l2.begin(), l2.end(), [&](auto v) {
+                return ((float_equal(v, l1.front())) or
+                        (std::isinf(static_cast<double>(l1.front())) and
+                         std::isinf(static_cast<double>(v))));
+            });
     });
 
     return (x == y) or diff_shapes_equal_vals;

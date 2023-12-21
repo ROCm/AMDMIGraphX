@@ -8,7 +8,7 @@ bool glob_match(const std::string& input, const std::string& pattern)
 
 TEST_CASE(globbing)
 {
-    for(int i = 0; i < 1000; i++)
+    for(int i = 0; i < 100000; i++)
     {
         EXPECT(not glob_match("ab", "a"));
         EXPECT(not glob_match("ba", "a"));
@@ -19,6 +19,7 @@ TEST_CASE(globbing)
         EXPECT(glob_match("/foo/bar/baz/blig/fig/blig", "/foo/*/blig"));
         EXPECT(glob_match("/foo/bar/baz/xlig/fig/blig", "/foo/*/blig"));
         EXPECT(glob_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "a*a*a*a*a*a*a*a*b"));
+        EXPECT(glob_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "a*a*a*a*a*a*a*a**a*a*a*a*b"));
         EXPECT(glob_match("aabaabaab", "a*"));
         EXPECT(glob_match("aabaabaab", "a*b*ab"));
         EXPECT(glob_match("aabaabaab", "a*baab"));
@@ -81,7 +82,7 @@ bool regex_match(const std::string& input, const std::string& pattern)
 
 TEST_CASE(regex)
 {
-    for(int i = 0; i < 1000; i++)
+    for(int i = 0; i < 100000; i++)
     {
         EXPECT(not regex_match("ab", "^a$"));
         EXPECT(not regex_match("ba", "^a$"));
@@ -93,6 +94,7 @@ TEST_CASE(regex)
         EXPECT(regex_match("/foo/bar/baz/xlig/fig/blig", "^/foo/.*/blig$"));
         EXPECT(
             regex_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "^a.*a.*a.*a.*a.*a.*a.*a.*b$"));
+        EXPECT(regex_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "^a.*a.*a.*a.*a.*a.*a.*a.*.*a.*a.*a.*a.*b$"));
         EXPECT(regex_match("aabaabaab", "^a.*$"));
         EXPECT(regex_match("aabaabaab", "^a.*b.*ab$"));
         EXPECT(regex_match("aabaabaab", "^a.*baab$"));

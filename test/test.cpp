@@ -9,6 +9,7 @@ TEST_CASE(globbing)
 {
     EXPECT(not glob_match("ab", "a"));
     EXPECT(not glob_match("ba", "a"));
+    EXPECT(not glob_match("bac", "a"));
     EXPECT(glob_match("ab", "ab"));
 
     // Star loop
@@ -39,6 +40,11 @@ TEST_CASE(globbing)
     EXPECT(glob_match("test.foo[gpu]", "test.foo[gpu]"));
     EXPECT(glob_match("test.foo[gpu]", "test.foo[*]"));
     EXPECT(glob_match("test.foo[gpu]", "*[*"));
+
+    EXPECT(glob_match("test.foo(gpu)", "test.foo(gpu)"));
+    EXPECT(glob_match("test.foo(gpu)", "test.foo(*)"));
+    EXPECT(glob_match("test.foo(gpu)", "*(*"));
+
     EXPECT(not glob_match("test.foog", "test.foo[gpu]"));
     EXPECT(not glob_match("test.foogpu", "test.foo[gpu]"));
     EXPECT(not glob_match("test_foo", "test.foo"));

@@ -43,7 +43,7 @@ struct MIGRAPHX_EXPORT fp_to_double
     std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
                                                 shape::type_t::float_type};
     std::string name() const { return "fp_to_double"; }
-    void apply(module_pass_manager& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

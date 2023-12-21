@@ -34,6 +34,14 @@ TEST_CASE(globbing)
 
     // Single wildcard
     EXPECT(glob_match("abc", "a?c"));
+
+    // Special characters
+    EXPECT(glob_match("test.foo[gpu]", "test.foo[gpu]"));
+    EXPECT(glob_match("test.foo[gpu]", "test.foo[*]"));
+    EXPECT(glob_match("test.foo[gpu]", "*[*"));
+    EXPECT(not glob_match("test.foog", "test.foo[gpu]"));
+    EXPECT(not glob_match("test.foogpu", "test.foo[gpu]"));
+    EXPECT(not glob_match("test_foo", "test.foo"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

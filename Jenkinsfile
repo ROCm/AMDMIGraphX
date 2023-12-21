@@ -3,7 +3,6 @@ def getgputargets() {
     return targets
 }
 
-// Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -12,7 +11,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
-    def ccache = "/var/jenkins/.cache/ccache"
+    def ccache = "/home/jenkins/workspace/.cache/ccache"
     def image = 'migraphxlib'
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
@@ -64,7 +63,7 @@ def rocmtestnode(Map conf) {
 
                     }
                 }
-                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
+                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins:/home/jenkins ${docker_args}") {
                     timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }

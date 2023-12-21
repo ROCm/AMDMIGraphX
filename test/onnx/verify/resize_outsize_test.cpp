@@ -56,4 +56,3 @@ TEST_CASE(resize_outsize_test)
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
-

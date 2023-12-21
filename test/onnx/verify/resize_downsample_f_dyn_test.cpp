@@ -73,4 +73,3 @@ TEST_CASE(resize_downsample_f_dyn_test)
     EXPECT(migraphx::verify::verify_range_with_tolerance(
         result_vector, migraphx::verify::expected{reference_vector}));
 }
-

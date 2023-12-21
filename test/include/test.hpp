@@ -402,7 +402,7 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
     return make_function("near", [](auto x, auto y, auto tol) { return std::abs(x - y) < tol; })(
         px, py, ptol);
 }
-
+#if 1
 template <class Iterator1, class Iterator2>
 bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
 {
@@ -426,7 +426,38 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
         start++;
     return start != last;
 }
-
+#else
+template<class Iterator1, class Iterator2>
+bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
+{
+    auto old = last;
+    auto pattern_old = pattern_last;
+    while(start != last)
+    {
+        std::tie(start, pattern_start) = std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
+            if (m == '?')
+                return true;
+            if (m == '*')
+                return false;
+            return c == m;
+        });
+        if(pattern_start == pattern_last and start == last)
+            return true;
+        if (pattern_start == pattern_last or *pattern_start != '*') {
+            if(pattern_old == pattern_last)
+                return false;
+            start = ++old;
+            pattern_start = pattern_old;
+        }
+        pattern_start = std::find_if(pattern_start, pattern_last, [](auto c) { return c != '*'; });
+        if(pattern_start == pattern_last)
+            return true;
+        old = start;
+        pattern_old = pattern_start;
+    }
+    return false;
+}
+#endif
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;
 
 template <class Keyword>

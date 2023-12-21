@@ -3125,7 +3125,6 @@ TEST_CASE(resize_single_input_err1)
 {
     // doesn't have either sizes or scales attribute
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
-    std::vector<size_t> sizes_vec{3, 4};
     throws_shape(migraphx::make_op(
                      "resize",
                      {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "asymmetric"}}),
@@ -3136,16 +3135,15 @@ TEST_CASE(resize_single_input_err2)
 {
     // can't have both sizes and scales attribute
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
-    std::vector<size_t> sizes_vec{3, 4};
     throws_shape(migraphx::make_op("resize", {{"scales", {0.75, 0.25}}, {"sizes", {87, 88}}}),
                  input);
 }
 
-TEST_CASE(resize_single_dyn_input)
+TEST_CASE(resize_single_dyn_input_err3)
 {
+    // single dynamic input not supported yet
     std::vector<migraphx::shape::dynamic_dimension> input_dims = {{4, 5}, {15, 16}};
     migraphx::shape input{migraphx::shape::float_type, input_dims};
-    std::vector<size_t> sizes_vec{3, 4};
     throws_shape(migraphx::make_op("resize", {{"scales", {0.75, 0.25}}}), input);
 }
 

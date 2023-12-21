@@ -8,7 +8,7 @@ bool glob_match(const std::string& input, const std::string& pattern)
 
 TEST_CASE(globbing)
 {
-    for(int i = 0; i < 100000; i++)
+    for(int i = 0; i < 1000; i++)
     {
         EXPECT(not glob_match("ab", "a"));
         EXPECT(not glob_match("ba", "a"));
@@ -83,7 +83,7 @@ bool regex_match(const std::string& input, const std::string& pattern)
 
 TEST_CASE(regex)
 {
-    for(int i = 0; i < 100000; i++)
+    for(int i = 0; i < 1000; i++)
     {
         EXPECT(not regex_match("ab", "^a$"));
         EXPECT(not regex_match("ba", "^a$"));

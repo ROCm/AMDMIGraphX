@@ -112,8 +112,7 @@ struct test_loop_op
                 auto loc               = name.find(out_prefix);
                 if(loc != std::string::npos)
                 {
-                    int index = std::stoi(name.substr(loc + out_prefix.size()));
-                    return index;
+                    return std::stoi(name.substr(loc + out_prefix.size()));
                 }
 
                 return -1;

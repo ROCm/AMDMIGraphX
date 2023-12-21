@@ -58,7 +58,7 @@ struct parse_gather_elements : op_parser<parse_gather_elements>
             MIGRAPHX_THROW("PARSE_GATHER_ELEMENTS: input data and index must have the same rank!");
         }
 
-        int n_rank     = static_cast<int>(data_s.lens().size());
+        int n_rank     = data_s.lens().size();
         int tuned_axis = tune_axis(n_rank, axis, opd.op_name);
 
         auto axis_stride      = data_s.strides()[tuned_axis];

@@ -17,7 +17,7 @@ TEST_CASE(globbing)
     EXPECT(glob_match("/foo/bar/baz/xlig/fig/blig", "/foo/*/blig"));
     EXPECT(glob_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "a*a*a*a*a*a*a*a*b"));
     EXPECT(glob_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
-                          "a*a*a*a*a*a*a*a**a*a*a*a*b"));
+                      "a*a*a*a*a*a*a*a**a*a*a*a*b"));
     EXPECT(glob_match("aabaabaab", "a*"));
     EXPECT(glob_match("aabaabaab", "a*b*ab"));
     EXPECT(glob_match("aabaabaab", "a*baab"));

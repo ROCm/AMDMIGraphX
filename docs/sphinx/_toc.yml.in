@@ -8,3 +8,6 @@ subtrees:
     - file: cpp_user_guide
     - file: driver
     - file: contributor_guide
+  - caption: About
+    entries:
+    - file: license

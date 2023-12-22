@@ -560,8 +560,8 @@ void module::rename_parameter(instruction_ref ins, const std::string name)
     auto op = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
     auto outputs = ins->outputs();
-    *ins = instruction{op, ins->get_shape(), {}};
-    for(auto output:outputs)
+    *ins         = instruction{op, ins->get_shape(), {}};
+    for(auto output : outputs)
         ins->add_output(output);
 }
 

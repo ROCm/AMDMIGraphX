@@ -42,6 +42,7 @@ Provides additional debug information related to data. Only use for debugging pu
 
 **Running inference with rocTX for a given ONNX file:**
 ::
+
     python roctx.py --run '--onnx --gpu fcn-resnet50-11.onnx' --out output_folder --repeat 5
 
 After a run, similar to output given below is expected at terminal. The output will provide `SUM`, `MIN`, `MAX` and `COUNT` information for each kernel executed for a given model.

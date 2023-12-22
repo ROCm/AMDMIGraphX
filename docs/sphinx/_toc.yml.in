@@ -4,10 +4,10 @@ root: index
 subtrees:
   - numbered: False
     entries:
-    - file: py_user_guide
-    - file: cpp_user_guide
-    - file: driver
-    - file: contributor_guide
+    - file: src/py_user_guide
+    - file: src/cpp_user_guide
+    - file: src/driver
+    - file: src/contributor_guide
   - caption: About
     entries:
-    - file: license
+    - file: src/license

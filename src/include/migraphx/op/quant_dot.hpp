@@ -40,12 +40,25 @@ struct quant_dot
     std::string name() const { return "quant_dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.same_type().has(2);
+        check_shapes{{inputs.at(0), inputs.at(1)}, *this}.has(2);
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
         std::set<migraphx::shape::type_t> suppported_types = {shape::int8_type,
+                                                              shape::uint8_type,
                                                               shape::fp8e4m3fnuz_type};
+
+        const auto shape_type_a = a.type();
+        const auto shape_type_b = b.type();
+
+        if(shape_type_a != shape_type_b) 
+        {
+            if(shape_type_a == shape::fp8e4m3fnuz_type || shape_type_b == shape::fp8e4m3fnuz_type)
+            {
+                MIGRAPHX_THROW("QUANT_DOT: only support mixed input uint8/int8 type");
+            }
+        }
+
         if(not contains(suppported_types, t))
         {
             MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t and fp8e4m3fnuz_type");

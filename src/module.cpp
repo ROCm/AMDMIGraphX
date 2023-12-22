@@ -559,7 +559,11 @@ void module::rename_parameter(instruction_ref ins, const std::string name)
     assert(ins->name() == "@param");
     auto op = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
+    auto outputs = ins->outputs();
     *ins = instruction{op, ins->get_shape(), {}};
+    for(auto output:outputs)
+        ins->add_output(output);
+
 }
 
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const

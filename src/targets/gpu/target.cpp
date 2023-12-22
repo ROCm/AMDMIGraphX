@@ -138,6 +138,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::int8_type},
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},

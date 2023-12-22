@@ -55,6 +55,7 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
  */
 struct MIGRAPHX_EXPORT module
 {
+    using inserter = std::function<instruction_ref(module&m, instruction_ref ins, const operation& op, const std::vector<instruction_ref>& inputs, const std::vector<module_ref>& mod_args)>;
     module(const std::string& name = "");
 
     // move constructor
@@ -122,32 +123,38 @@ struct MIGRAPHX_EXPORT module
 
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                     inserter insert = nullptr);
 
     std::vector<instruction_ref>
     add_instructions(const_module_ref m,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                     inserter insert = nullptr);
 
     std::vector<instruction_ref>
     add_instructions(instruction_ref start,
                      instruction_ref last,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                     inserter insert = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         const std::vector<instruction_ref>& instructions,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                        inserter insert = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         const_module_ref m,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                        inserter insert = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         instruction_ref start,
                         instruction_ref last,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {});
+                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
+                        inserter insert = nullptr);
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)

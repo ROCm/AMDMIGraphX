@@ -200,10 +200,10 @@ void module::assign(const module& m)
 template <class Range, class Inserter>
 static std::vector<instruction_ref>
 insert_generic_instructions_impl(module& m,
-                            instruction_ref ins,
-                            Range&& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
-                            Inserter insert)
+                                 instruction_ref ins,
+                                 Range&& instructions,
+                                 std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                                 Inserter insert)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
@@ -263,11 +263,17 @@ insert_generic_instructions(module& m,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins,
                             module::inserter insert)
 {
-    if (insert == nullptr)
-        return insert_generic_instructions_impl(m, ins, static_cast<Range&&>(instructions), std::move(map_ins), [](module& mm, auto&&... xs) {
-            return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
-        });
-    return insert_generic_instructions_impl(m, ins, static_cast<Range&&>(instructions), std::move(map_ins), insert);
+    if(insert == nullptr)
+        return insert_generic_instructions_impl(m,
+                                                ins,
+                                                static_cast<Range&&>(instructions),
+                                                std::move(map_ins),
+                                                [](module& mm, auto&&... xs) {
+                                                    return mm.insert_instruction(
+                                                        std::forward<decltype(xs)>(xs)...);
+                                                });
+    return insert_generic_instructions_impl(
+        m, ins, static_cast<Range&&>(instructions), std::move(map_ins), insert);
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
@@ -419,7 +425,8 @@ module::add_instructions(const std::vector<instruction_ref>& instructions,
                          std::unordered_map<instruction_ref, instruction_ref> map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), instructions, std::move(map_ins), std::move(insert));
+    return this->insert_instructions(
+        this->end(), instructions, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -436,7 +443,8 @@ module::add_instructions(instruction_ref start,
                          std::unordered_map<instruction_ref, instruction_ref> map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), start, last, std::move(map_ins), std::move(insert));
+    return this->insert_instructions(
+        this->end(), start, last, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -445,7 +453,8 @@ module::insert_instructions(instruction_ref ins,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins,
                             module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins), std::move(insert));
+    return insert_generic_instructions(
+        *this, ins, instructions, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -454,7 +463,8 @@ module::insert_instructions(instruction_ref ins,
                             std::unordered_map<instruction_ref, instruction_ref> map_ins,
                             module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins), std::move(insert));
+    return insert_generic_instructions(
+        *this, ins, iterator_for(*m), std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -465,7 +475,8 @@ module::insert_instructions(instruction_ref ins,
                             module::inserter insert)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins), std::move(insert));
+    return insert_generic_instructions(
+        *this, ins, iterator_for(r), std::move(map_ins), std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }

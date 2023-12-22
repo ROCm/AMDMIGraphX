@@ -30,7 +30,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/hip.hpp>
 
-void gpu_literal_test()
+TEST_CASE(gpu_literal_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -49,4 +49,4 @@ void gpu_literal_test()
     }
 }
 
-int main() { gpu_literal_test(); } // NOLINT (bugprone-exception-escape)
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

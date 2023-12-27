@@ -557,7 +557,7 @@ instruction_ref module::get_parameter(std::string name) const
 void module::rename_parameter(instruction_ref ins, const std::string name)
 {
     assert(ins->name() == "@param");
-    auto op = any_cast<builtin::param>(ins->get_operator());
+    auto op      = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
     auto outputs = ins->outputs();
     *ins         = instruction{op, ins->get_shape(), {}};

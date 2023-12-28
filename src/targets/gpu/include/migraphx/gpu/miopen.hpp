@@ -75,14 +75,43 @@ using miopen_find_options = MIGRAPHX_MANAGE_PTR(miopenFindOptions_t, miopenDestr
 using miopen_problem      = MIGRAPHX_MANAGE_PTR(miopenProblem_t, miopenDestroyProblem);
 using miopen_solution     = MIGRAPHX_MANAGE_PTR(miopenSolution_t, miopenDestroySolution);
 
-inline miopen_solution find_solution(miopenHandle_t handle, miopenProblem_t problem)
+inline miopen_solution find_solution(miopenHandle_t handle,
+                                     size_t num_inputs,
+                                     const miopenTensorArgument_t* tensor_args,
+                                     void* workspace,
+                                     size_t workspace_size,
+                                     miopenProblem_t problem,
+                                     bool tune = false)
 {
     miopenSolution_t solution;
-    size_t found = 0;
-    auto status  = miopenFindSolutions(handle, problem, nullptr, &solution, &found, 1);
-    auto result  = miopen_solution{solution};
+    size_t found           = 0;
+    miopen_find_options fo = make_obj<miopen_find_options>(&miopenCreateFindOptions);
+    if(tune)
+    {
+        miopenSetFindOptionTuning(fo.get(), 1);
+    }
+#ifdef MIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS
+    for(auto i : range(num_inputs))
+    {
+        auto status = miopenSetFindOptionPreallocatedTensor(
+            fo.get(), tensor_args[i].id, tensor_args[i].buffer);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen: failed to preallocate tensors for the find process");
+    }
+    auto status = miopenSetFindOptionPreallocatedWorkspace(fo.get(), workspace, workspace_size);
+    if(status != miopenStatusSuccess)
+        MIGRAPHX_THROW("MIOpen: failed to preallocate workspace for the find process");
+#else
+    miopenStatus_t status;
+    (void)(num_inputs);
+    (void)(tensor_args);
+    (void)(workspace_size);
+    (void)(workspace);
+#endif
+    status      = miopenFindSolutions(handle, problem, fo.get(), &solution, &found, 1);
+    auto result = miopen_solution{solution};
     if(status != miopenStatusSuccess or found == 0)
-        MIGRAPHX_THROW("MIOpen miopenFindSolutions failed");
+        MIGRAPHX_THROW("MIOpen: miopenFindSolutions failed");
     return result;
 }
 
@@ -98,7 +127,7 @@ inline void set_tensor_descriptor(miopenTensorArgumentId_t name,
 }
 #endif
 
-inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = false)
+inline tensor_descriptor make_tensor(const migraphx::shape& os)
 {
     auto s = os.normalize_standard();
     auto t = make_obj<tensor_descriptor>(&miopenCreateTensorDescriptor);
@@ -113,23 +142,9 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os, bool pack = fals
     else if(s.type() == shape::int32_type)
         d = miopenInt32;
     else if(s.type() == shape::int8_type)
-    {
-        if(pack)
-        {
-            // update the lens and corresponding strides
-            d          = miopenInt8x4;
-            lens[1]    = ((lens[1] + 3) / 4) * 4;
-            strides[0] = strides[1] * lens[1];
-        }
-        else
-        {
-            d = miopenInt8;
-        }
-    }
+        d = miopenInt8;
     else
-    {
         MIGRAPHX_THROW("MAKE_TENSOR: unsupported type");
-    }
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());
 
     return t;
@@ -163,7 +178,7 @@ inline convolution_descriptor make_conv(const T& op)
 }
 
 template <class T>
-inline convolution_descriptor make_deconv(const T& op)
+inline convolution_descriptor make_convolution_backwards(const T& op)
 {
     auto c = make_obj<convolution_descriptor>(&miopenCreateConvolutionDescriptor);
     miopenConvolutionMode_t c_mode = miopenTranspose;
@@ -195,6 +210,12 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
         std::stringstream ss("Unknown mode for pooling: ");
         ss << op.mode;
         MIGRAPHX_THROW(ss.str());
+    }
+    if(not std::all_of(
+           op.dilations.cbegin(), op.dilations.cend(), [](std::size_t d) { return d == 1; }))
+    {
+        MIGRAPHX_THROW("Unsupported dilations for pooling: [" + to_string_range(op.dilations) +
+                       "]");
     }
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
 

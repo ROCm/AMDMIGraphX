@@ -135,7 +135,7 @@ constexpr vec<vec_type<T>, N> vec_packed_at(T x, I i)
         return vec<T, N>{x};
     else
     {
-        MIGRAPHX_ASSERT((i + N) < vec_size<T>());
+        MIGRAPHX_ASSERT((i + N) <= vec_size<T>());
         vec<vec_type<T>, N> result = {0};
         for(int j = 0; j < N; j++)
         {
@@ -207,7 +207,7 @@ struct implicit_conversion_op
     template <class U>
     constexpr operator U() const
     {
-        return x;
+        return static_cast<U>(x);
     }
 };
 

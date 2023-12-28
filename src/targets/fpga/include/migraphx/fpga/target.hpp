@@ -43,13 +43,10 @@ struct target
     std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
     migraphx::context get_context() const { return context{}; }
     supported_segments find_supported(const_module_ref mod, support_metric m) const;
-
     argument copy_to(const argument& arg) const { return arg; }
     argument copy_from(const argument& arg) const { return arg; }
     argument allocate(const shape& s) const;
 };
-
-MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace fpga
 } // namespace MIGRAPHX_INLINE_NS

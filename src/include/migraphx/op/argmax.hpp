@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/float_equal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,12 +39,13 @@ namespace op {
 
 struct argmax
 {
-    int64_t axis = 0;
+    int64_t axis           = 0;
+    bool select_last_index = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.select_last_index, "select_last_index"));
     }
 
     value attributes() const
@@ -62,7 +64,7 @@ struct argmax
         if(s0.dynamic())
         {
             auto dyn_dims  = s0.dyn_dims();
-            dyn_dims[axis] = {1, 1, 0};
+            dyn_dims[axis] = {1, 1};
             return {shape::int64_type, dyn_dims};
         }
         else
@@ -85,6 +87,10 @@ struct argmax
             if(max_val < cur_val)
             {
                 max_val   = cur_val;
+                max_index = i;
+            }
+            else if(select_last_index and float_equal(max_val, cur_val))
+            {
                 max_index = i;
             }
         }

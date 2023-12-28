@@ -91,6 +91,19 @@ struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
     }
 };
 
+template <class F>
+struct execute_wrapper
+{
+    F f;
+    argument operator()(context&, const std::vector<argument>& args) const { return f(args); }
+};
+
+template <class F>
+execute_wrapper<F> make_execute_wrapper(F f)
+{
+    return {std::move(f)};
+}
+
 template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
 {
@@ -308,7 +321,7 @@ struct dnnl_op : auto_register_op<Derived>
 #ifndef NDEBUG
         auto prim_attr = get_primitive_attr(md);
 #endif
-        execute = [=](context&, const std::vector<argument>& args) {
+        execute = make_execute_wrapper([=](const std::vector<argument>& args) {
 #ifndef NDEBUG
             // Check that the memory descriptors have not changed
             auto debug_args = args;
@@ -379,7 +392,7 @@ struct dnnl_op : auto_register_op<Derived>
                 m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
             prim.execute(get_dnnl_context().stream, m);
             return args.back();
-        };
+        });
     }
     std::vector<shape> trim_post_op_inputs(const std::vector<shape>& inputs) const
     {
@@ -400,7 +413,11 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
     }
 
     // dnnl has some issues with non-packed inputs
-    void required(const check_shapes& cs) const { cs.packed_or_broadcasted(); }
+    template <class T>
+    void required(const check_shapes<T>& cs) const
+    {
+        cs.packed_or_broadcasted();
+    }
 
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(std::vector<shape> inputs) const

@@ -29,6 +29,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,27 +60,22 @@ struct flatten
         auto s = inputs[0];
         if(s.dynamic())
         {
+            // Doesn't handle optimals
             auto min_lens = s.min_lens();
             auto max_lens = s.max_lens();
-            auto opt_lens = s.opt_lens();
             // If any of the opt values is 0, output opt will be 0
             shape::dynamic_dimension x = {
                 std::accumulate(
                     min_lens.begin(), min_lens.begin() + axis, std::size_t{1}, std::multiplies<>{}),
                 std::accumulate(
                     max_lens.begin(), max_lens.begin() + axis, std::size_t{1}, std::multiplies<>{}),
-                std::accumulate(opt_lens.begin(),
-                                opt_lens.begin() + axis,
-                                std::size_t{1},
-                                std::multiplies<>{})};
+                {}};
             shape::dynamic_dimension y = {
                 std::accumulate(
                     min_lens.begin() + axis, min_lens.end(), std::size_t{1}, std::multiplies<>{}),
                 std::accumulate(
                     max_lens.begin() + axis, max_lens.end(), std::size_t{1}, std::multiplies<>{}),
-                std::accumulate(
-                    opt_lens.begin() + axis, opt_lens.end(), std::size_t{1}, std::multiplies<>{}),
-            };
+                {}};
             return {s.type(), {x, y}};
         }
         else

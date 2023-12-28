@@ -105,6 +105,8 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     static const bool use_color = isatty(STDOUT_FILENO) != 0;
     if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
 #endif
     return os;
 }
@@ -148,13 +150,21 @@ struct value_parser
     template <MIGRAPHX_REQUIRES(not std::is_enum<T>{} and not is_multi_value<T>{})>
     static T apply(const std::string& x)
     {
-        T result;
-        std::stringstream ss;
-        ss.str(x);
-        ss >> result;
-        if(ss.fail())
-            throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
-        return result;
+        // handle whitespace in string
+        if constexpr(std::is_same<T, std::string>{})
+        {
+            return x;
+        }
+        else
+        {
+            T result;
+            std::stringstream ss;
+            ss.str(x);
+            ss >> result;
+            if(ss.fail())
+                throw std::runtime_error("Failed to parse '" + x + "' as " + type_name<T>::apply());
+            return result;
+        }
     }
 
     template <MIGRAPHX_REQUIRES(std::is_enum<T>{} and not is_multi_value<T>{})>
@@ -177,6 +187,13 @@ struct value_parser
         result.insert(result.end(), value_parser<value_type>::apply(x));
         return result;
     }
+};
+
+// version for std::optional object
+template <class T>
+struct value_parser<std::optional<T>>
+{
+    static T apply(const std::string& x) { return value_parser<T>::apply(x); }
 };
 
 struct argument_parser
@@ -330,11 +347,22 @@ struct argument_parser
 
     MIGRAPHX_DRIVER_STATIC auto file_exist()
     {
-        return validate([](auto&, auto&, auto& params) {
+        return validate([](auto&, auto&, const auto& params) {
             if(params.empty())
                 throw std::runtime_error("No argument passed.");
             if(not fs::exists(params.back()))
-                throw std::runtime_error("Path does not exists: " + params.back());
+                throw std::runtime_error("Path does not exist: " + params.back());
+        });
+    }
+
+    MIGRAPHX_DRIVER_STATIC auto matches(const std::unordered_set<std::string>& names)
+    {
+        return validate([=](auto&, auto&, const auto& params) {
+            auto invalid_param = std::find_if(
+                params.begin(), params.end(), [&](const auto& p) { return names.count(p) == 0; });
+            if(invalid_param != params.end())
+                throw std::runtime_error("Invalid argument: " + *invalid_param +
+                                         ". Valid arguments are {" + to_string_range(names) + "}");
         });
     }
 
@@ -562,8 +590,7 @@ struct argument_parser
                         continue;
                     if(flag[0] != '-')
                         continue;
-                    auto d =
-                        levenshtein_distance(flag.begin(), flag.end(), input.begin(), input.end());
+                    std::ptrdiff_t d = levenshtein_distance(flag, input);
                     if(d < result.distance)
                         result = result_t{&arg, flag, input, d};
                 }

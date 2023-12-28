@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_GATHERND_HPP
 
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
@@ -47,33 +48,103 @@ struct gathernd
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2);
-        auto r = inputs.front().lens().size();
-        auto q = inputs.back().lens().size();
-        auto k = inputs.back().lens().back();
+        check_shapes{inputs, *this, true}.has(2);
+        auto i_shape    = inputs.back();
+        auto data_shape = inputs.front();
+        auto r          = data_shape.ndim();
+        auto q          = i_shape.ndim();
+
+        size_t k;
+        if(i_shape.dynamic())
+        {
+            // the rank of the output is a function of k, so it must be fixed.
+            if(not i_shape.dyn_dims().back().is_fixed())
+            {
+                MIGRAPHX_THROW(
+                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+            }
+            k = i_shape.dyn_dims().back().min;
+        }
+        else
+            k = i_shape.lens().back();
+
+        // Begin input validation checks.
+        int output_ndim = int(q) + r - k - batch_dims - 1;
+
         if(k > r - batch_dims)
         {
             MIGRAPHX_THROW("GATHERND: Indices of length " + std::to_string(k) +
                            " cannot be used to access data of rank " +
                            std::to_string(r - batch_dims));
         }
-        auto indices_lens_iter = inputs.back().lens().begin();
-        auto output_lens_size  = q + r - k - batch_dims - 1;
-        std::vector<std::size_t> output_lens(output_lens_size);
-        std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
-        if(k < r - batch_dims)
+
+        if(batch_dims >= q or batch_dims >= r)
         {
-            auto data_lens = inputs.front().lens();
-            std::copy(
-                data_lens.begin() + batch_dims + k, data_lens.end(), output_lens.begin() + q - 1);
+            MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
+                           std::to_string(batch_dims));
         }
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
+
+        if(output_ndim < 0)
+        {
+            MIGRAPHX_THROW("GATHERND: Indices too large for static data input: k=" +
+                           std::to_string(k));
+        }
+
+        if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
+        {
+            auto indices_lens_iter = i_shape.lens().begin();
+
+            // A rank 0 output is a scalar
+            if(output_ndim == 0)
+                return shape{data_shape.type(), {1}};
+
+            // Part of the output shape comes from indices tensor, part from data tensor
+            std::vector<std::size_t> output_lens(output_ndim);
+            std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
+            // fill the rest of output shape from data tensor
+            if(k + batch_dims < r)
+            {
+                auto data_lens = data_shape.lens();
+                std::copy(data_lens.begin() + batch_dims + k,
+                          data_lens.end(),
+                          output_lens.begin() + q - 1);
+            }
+            shape output_shape{data_shape.type(), output_lens};
+            return output_shape;
+        }
+        else
+        {
+            // If one or both inputs are dynamic shapes, the output is dynamic.
+            // Make both inputs dynamic to simplify computations.
+            data_shape = data_shape.to_dynamic();
+            i_shape    = i_shape.to_dynamic();
+
+            // A rank 0 output is a scalar
+            if(output_ndim == 0)
+                return shape(data_shape.type(), {shape::dynamic_dimension({1, 1})});
+
+            // Part of the output shape comes from indices tensor, part from data tensor
+            std::vector<shape::dynamic_dimension> output_dims(output_ndim);
+            std::copy(i_shape.dyn_dims().begin(),
+                      i_shape.dyn_dims().begin() + q - 1,
+                      output_dims.begin());
+
+            // fill the rest of output shape from data tensor
+            if(k + batch_dims < r)
+            {
+                auto data_dims = data_shape.dyn_dims();
+                std::copy(data_dims.begin() + batch_dims + k,
+                          data_dims.begin() + r,
+                          output_dims.begin() + q - 1);
+            }
+            shape output_shape(data_shape.type(), output_dims);
+            return output_shape;
+        }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0])([&](auto output, auto data) {
             args[1].visit([&](auto indices) {
                 auto indices_shape        = indices.get_shape();

@@ -26,6 +26,7 @@
 
 #include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/onnx/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,7 +38,7 @@ struct onnx_options
     std::size_t default_dim_value = 0;
     /// Default dynamic dimension size (if both default_dim_value and default_dyn_dim_value set
     /// parser throws)
-    shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
     /// Explicitly specify dynamic dims of an input (if both map_input_dims and map_dyn_input_dims
@@ -47,22 +48,30 @@ struct onnx_options
     bool skip_unknown_operators = false;
     /// Print program if an error occurs
     bool print_program_on_error = false;
-    /// Max iter num for the loop operator
+    /// Max iter num for the loop operator if trip count is not set
     int64_t max_loop_iterations = 10;
+    /// Max iter limit for the loop operator.
+    /// Since loop will become a tensor of max iter size a huge number can cause overflow during
+    /// shape computations.
+    int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     /// Use dynamic output for operators when available
     bool use_dyn_output = false;
 };
 
 /// Create a program from an onnx file
-program parse_onnx(const std::string& name, const onnx_options& = onnx_options{});
+MIGRAPHX_ONNX_EXPORT program parse_onnx(const std::string& name,
+                                        const onnx_options& = onnx_options{});
 
 /// Create a program from an onnx buffer
-program parse_onnx_buffer(const std::string& buffer, const onnx_options& options);
+MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const std::string& buffer,
+                                               const onnx_options& options);
 
 /// Create a program from an onnx buffer
-program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options& options);
+MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
+                                               std::size_t size,
+                                               const onnx_options& options);
 
-std::vector<std::string> get_onnx_operators();
+MIGRAPHX_ONNX_EXPORT std::vector<std::string> get_onnx_operators();
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -27,6 +27,7 @@ import re
 import runpy
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from pathlib import Path
 
 type_map: Dict[str, Callable[['Parameter'], None]] = {}
 cpp_type_map: Dict[str, str] = {}
@@ -35,6 +36,8 @@ cpp_classes: List['CPPClass'] = []
 error_type = ''
 success_type = ''
 try_wrap = ''
+
+export_c_macro = 'MIGRAPHX_C_EXPORT'
 
 c_header_preamble: List[str] = []
 c_api_body_preamble: List[str] = []
@@ -125,7 +128,7 @@ class Type:
 
 
 header_function = Template('''
-${error_type} ${name}(${params});
+${export_c_macro} ${error_type} ${name}(${params});
 ''')
 
 function_pointer_typedef = Template('''
@@ -177,7 +180,7 @@ class CFunction:
                                **kwargs)
 
     def generate_header(self) -> str:
-        return self.substitute(header_function)
+        return self.substitute(header_function, export_c_macro=export_c_macro)
 
     def generate_function_pointer(self, name: Optional[str] = None) -> str:
         return self.substitute(function_pointer_typedef,
@@ -764,10 +767,13 @@ const Target* object_cast(const U* x)
     return reinterpret_cast<const Target*>(x);
 }
 
-template<class T, class... Ts, class Target=std::remove_pointer_t<T>>
+template <class T, class... Ts, class Target = std::remove_pointer_t<T>>
 Target* allocate(Ts&&... xs)
 {
-    return new Target(std::forward<Ts>(xs)...); // NOLINT
+    if constexpr(std::is_aggregate<Target>{})
+        return new Target{std::forward<Ts>(xs)...}; // NOLINT
+    else
+        return new Target(std::forward<Ts>(xs)...); // NOLINT
 }
 
 template<class T>
@@ -1276,18 +1282,17 @@ def template_eval(template, **kwargs):
     return template
 
 
-def run(args: List[str]) -> None:
-    runpy.run_path(args[0])
-    if len(args) > 1:
-        f = open(args[1]).read()
-        r = template_eval(f)
+def run(path: Union[Path, str]) -> str:
+    return template_eval(open(path).read())
+
+
+if __name__ == "__main__":
+    sys.modules['api'] = sys.modules['__main__']
+    runpy.run_path(sys.argv[1])
+    if len(sys.argv) > 2:
+        r = run(sys.argv[2])
         sys.stdout.write(r)
     else:
         sys.stdout.write(generate_c_header())
         sys.stdout.write(generate_c_api_body())
         # sys.stdout.write(generate_cpp_header())
-
-
-if __name__ == "__main__":
-    sys.modules['api'] = sys.modules['__main__']
-    run(sys.argv[1:])

@@ -58,6 +58,16 @@ struct parse_loop : op_parser<parse_loop>
             }
         }
 
+        // cap max_iter because loop uses static shapes with max_iter size and huge numbers
+        // here can cause overflow
+        if(max_iterations > parser.limit_max_iterations)
+        {
+            std::cerr << "WARNING: PARSE_LOOP max_iterations exceeds the maximum loop "
+                         "iterations limit, it will be changed from "
+                      << max_iterations << " to " << parser.limit_max_iterations << ".\n";
+            max_iterations = parser.limit_max_iterations;
+        }
+
         // condition input is empty
         if(args.at(1)->name() == "undefined")
         {
@@ -71,7 +81,7 @@ struct parse_loop : op_parser<parse_loop>
         module_ref sub_mod    = parser.prog.create_module(mod_name);
 
         // parse the sub_graph
-        parser.parse_graph(sub_mod, sub_graph);
+        (void)parser.parse_graph(sub_mod, sub_graph);
 
         auto ret = info.add_instruction(
             make_op("loop", {{"max_iterations", max_iterations}}), args, {sub_mod});

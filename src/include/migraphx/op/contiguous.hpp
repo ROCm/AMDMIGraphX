@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ struct contiguous
     {
         check_shapes{inputs, *this, true}.has(1);
         auto s0 = inputs.front();
-        if(s0.dynamic() or s0.standard())
+        if(s0.dynamic())
         {
             return s0;
         }

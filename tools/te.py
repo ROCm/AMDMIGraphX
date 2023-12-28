@@ -24,8 +24,11 @@
 import string, sys, re
 
 trivial = [
-    'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref'
+    'std::size_t', 'instruction_ref', 'support_metric', 'const_module_ref',
+    'bool', 'any_ptr'
 ]
+
+export_macro = 'MIGRAPHX_EXPORT'
 
 headers = '''
 #include <algorithm>
@@ -40,7 +43,7 @@ form = string.Template('''
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct ${struct_name}
+struct ${export_macro} ${struct_name}
 {
 ${decl_members}
 };
@@ -67,7 +70,7 @@ struct ${struct_name}
     {
         using std::swap;
         auto * derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -178,7 +181,7 @@ private:
     private_detail_te_handle_base_type & private_detail_te_get_handle ()
     {
         assert(private_detail_te_handle_mem_var != nullptr); 
-        if (not private_detail_te_handle_mem_var.unique())
+        if (private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }
@@ -394,7 +397,8 @@ def generate_form(name, members):
                            default_members=''.join(default_members),
                            decl_members=''.join(decl_members),
                            comment_members='\n'.join(comment_members),
-                           struct_name=name)
+                           struct_name=name,
+                           export_macro=export_macro)
 
 
 def virtual(name, returns=None, **kwargs):
@@ -427,6 +431,9 @@ def template_eval(template, **kwargs):
     return template
 
 
-f = open(sys.argv[1]).read()
-r = template_eval(f)
-sys.stdout.write(r)
+def run(p):
+    return template_eval(open(p).read())
+
+
+if __name__ == '__main__':
+    sys.stdout.write(run(sys.argv[1]))

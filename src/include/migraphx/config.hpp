@@ -24,22 +24,35 @@
 #ifndef MIGRAPHX_GUARD_CONFIG_HPP
 #define MIGRAPHX_GUARD_CONFIG_HPP
 
-namespace migraphx {
+#include <migraphx/export.h>
+#include <ciso646>
 
 #if !defined(MIGRAPHX_USE_CLANG_TIDY) && !defined(DOXYGEN)
+
+#ifdef BUILD_DEV
 #define MIGRAPHX_INLINE_NS version_1
-#endif
+#else
+#include <migraphx/version.h>
+
+#define MIGRAPHX_VERSION_PRIMITIVE_CONCAT(x, y) x##_##y
+#define MIGRAPHX_VERSION_CONCAT(x, y) MIGRAPHX_VERSION_PRIMITIVE_CONCAT(x, y)
+
+#define MIGRAPHX_VERSION                                                         \
+    MIGRAPHX_VERSION_CONCAT(                                                     \
+        MIGRAPHX_VERSION_CONCAT(MIGRAPHX_VERSION_MAJOR, MIGRAPHX_VERSION_MINOR), \
+        MIGRAPHX_VERSION_PATCH)
+
+#define MIGRAPHX_INLINE_NS MIGRAPHX_VERSION_CONCAT(version, MIGRAPHX_VERSION)
+#endif // build_dev
+#endif // clang_tidy
 
 #ifdef DOXYGEN
 #define MIGRAPHX_INLINE_NS internal
-#endif
+#endif // doxygen
 
 #ifdef MIGRAPHX_USE_CLANG_TIDY
 #define MIGRAPHX_TIDY_CONST const
 #else
 #define MIGRAPHX_TIDY_CONST
-#endif
-
-} // namespace migraphx
-
-#endif
+#endif // tidy_const
+#endif // clang_tidy

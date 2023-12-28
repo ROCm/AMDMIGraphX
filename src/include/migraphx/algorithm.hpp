@@ -26,6 +26,8 @@
 
 #include <algorithm>
 #include <numeric>
+#include <string>
+#include <vector>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -88,6 +90,42 @@ levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterat
     auto x2 = levenshtein_distance(first1, last1, std::next(first2), last2);
     auto x3 = levenshtein_distance(std::next(first1), last1, first2, last2);
     return std::ptrdiff_t{1} + std::min({x1, x2, x3});
+}
+
+inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
+{
+    const size_t l1 = s1.length();
+    const size_t l2 = s2.length();
+
+    if(l1 < l2)
+        levenshtein_distance(s2, s1);
+
+    std::vector<size_t> d(l2 + 1);
+
+    std::iota(d.begin(), d.end(), 0);
+
+    for(size_t i = 1; i <= l1; i++)
+    {
+        size_t prev_cost = d[0];
+        d[0]             = i;
+
+        for(size_t j = 1; j <= l2; j++)
+        {
+            if(s1[i - 1] == s2[j - 1])
+            {
+                d[j] = prev_cost;
+            }
+            else
+            {
+                size_t cost_insert_or_delete = std::min(d[j - 1], d[j]);
+                size_t cost_substitute       = prev_cost;
+                prev_cost                    = d[j];
+                d[j]                         = std::min(cost_substitute, cost_insert_or_delete) + 1;
+            }
+        }
+    }
+
+    return d[l2];
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -56,7 +56,6 @@ struct oper
                 return name.substr(pos_ns + 2);
             }
         }
-
         return "unknown_operator_name";
     }
 };

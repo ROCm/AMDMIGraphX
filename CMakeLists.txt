@@ -21,37 +21,59 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directroy cannot be the same")
-endif()
-
-# This has to be initialized before the project() command appears
-# Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
-if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
-    set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
 # Setup valid strings for build type
 if (NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "Configs")
 endif()
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 
-# Default installation path
-if(WIN32)
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
-else()
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+get_property(MIGRAPHX_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if(NOT MIGRAPHX_GENERATOR_IS_MULTI_CONFIG)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${CMAKE_CONFIGURATION_TYPES})
 endif()
 
-project(migraphx)
+if(NOT WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+    set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/lib")
+endif()
+
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+
+project(migraphx LANGUAGES C CXX)
+include(CTest)
+
 find_package(ROCM REQUIRED)
+find_package(Threads REQUIRED)
+
+if(WIN32)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
+else()
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+endif()
+
+# By default build shared libraries
+option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
+if(WIN32) # CK is not yet ported to Windows
+option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
+else()
+option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
+endif()
 
 find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
 if (NOT HALF_INCLUDE_DIR)
     message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
+else()
+    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
 endif()
 
 include(CheckTypeSize)
@@ -63,8 +85,11 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 
 include(ROCMSetupVersion)
 
-rocm_setup_version(VERSION 2.5)
-set(MIGRAPHX_SO_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
+option(BUILD_DEV "Build for development purpose only" OFF)
+
+rocm_setup_version(VERSION 2.9.0)
+math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
+set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -83,19 +108,21 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
-set(CMAKE_CXX_STANDARD_DEFAULT "")
-add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
+if(WIN32)
+    add_compile_definitions("$<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES>")
+endif()
 
-if(${CMAKE_VERSION} VERSION_LESS "3.12.0")
-    set(CONFIGURE_DEPENDS)
+set(CMAKE_CXX_STANDARD_DEFAULT "")
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/std:c++17>)
 else()
-    set(CONFIGURE_DEPENDS CONFIGURE_DEPENDS)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
-if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
+if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+.*")
     set(MIGRAPHX_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 # Enable tidy on hip
 elseif(MIGRAPHX_ENABLE_GPU)
@@ -115,6 +142,7 @@ rocm_enable_clang_tidy(
         llvm-namespace-comment
         misc-*
 	-misc-confusable-identifiers
+        -misc-use-anonymous-namespace
         modernize-*
         performance-*
         readability-*
@@ -122,6 +150,7 @@ rocm_enable_clang_tidy(
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-signed-char-misuse
+        -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -145,6 +174,8 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-avoid-do-while
+        -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
@@ -156,6 +187,8 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
+        -cppcoreguidelines-rvalue-reference-param-not-moved
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
@@ -192,7 +225,6 @@ rocm_enable_clang_tidy(
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
-        "-Dmain\\\\(...\\\\)=main\\\\(__VA_ARGS__\\\\) // NOLINT"
     CLANG_ARGS
         -analyzer-max-loop 10
         -analyzer-inline-max-stack-depth 10
@@ -223,18 +255,20 @@ rocm_enable_cppcheck(
         shadowVar
         shadowVariable
         unsafeClassDivZero
+        # Disable because of too many FPs
+        arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
-        constParameter:*src/targets/gpu/*.cpp
-        constParameter:*src/targets/gpu/*.hpp
-        # Suppress mlir_conv.cpp since this file will be deleted
-        *:*src/targets/gpu/mlir_conv.cpp
+        migraphx-RedundantLocalVariable:*src/api/api.cpp
+        migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
-        ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
+    ADDONS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/migraphx.py
     SOURCES
         examples/
         src/
@@ -247,22 +281,33 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
+        MIGRAPHX_MLIR=1
+        MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        BUILD_DEV=
         __device__=
         __host__=
         __global__=
+    UNDEFINE
+        MIGRAPHX_USE_CLANG_TIDY
+        DOXYGEN
+        HAS_HALF_V1
+        TYPE_ERASED_DECLARATION
+        NDEBUG
 )
 
-enable_testing()
-
 include(ROCMCreatePackage)
+include(ROCMTest)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 add_subdirectory(src)
-add_subdirectory(doc)
-add_subdirectory(test)
+add_subdirectory(docs)
+if(BUILD_TESTING)
+    rocm_enable_test_package(migraphx)
+    add_subdirectory(test)
+endif()
 add_subdirectory(tools)
 
 set(DEST_DIR ${CMAKE_BINARY_DIR})
@@ -271,7 +316,6 @@ file(MAKE_DIRECTORY ${DEST_DIR}/lib/onnx_migraphx)
 foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
-configure_file(${CMAKE_SOURCE_DIR}/test/py/onnx_backend_test.py ${DEST_DIR}/onnx_backend_test.py COPYONLY)
 
 rocm_create_package(
     NAME MIGraphX

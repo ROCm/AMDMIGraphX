@@ -12,30 +12,52 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '5.3'
+        default: '5.7'
       performance_reports_repo:
-        description: Result repository
+        description: Repository where performance reports are stored
         required: true
         default: 'ROCmSoftwarePlatform/migraphx-reports'
+      benchmark_utils_repo:
+        description: Repository where benchmark utils are stored
+        required: true
+        default: "ROCmSoftwarePlatform/migraphx-benchmark-utils"
+      organization:
+        description: Organization based on which location of files will be different
+        required: true
+        default: "AMD"
       result_number:
         description: Last N results
         required: true
         default: '10'
+      model_timeout:
+        description: If model in performance test script passes this threshold, it will be skipped
+        required: true
+        default: '30m'
+      performance_backup_repo:
+        description: Repository for backup
+        required: true
+        default: migraphx-benchmark/performance-backup
       flags:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
-        default: '-s'
+        default: '-r'
 
-concurrency: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+concurrency: 
+  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  cancel-in-progress: true
 
 jobs:
   release:
     uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '5.3' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.7' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
-      flags: ${{ github.event.inputs.flags || '-s' }} 
-      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }} 
+      flags: ${{ github.event.inputs.flags || '-r' }}
+      performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
+      performance_backup_repo: ${{ github.event.inputs.performance_backup_repo || 'migraphx-benchmark/performance-backup' }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
+      organization: ${{ github.event.inputs.organization || 'AMD' }}
+      model_timeout: ${{ github.event.inputs.model_timeout || '30m' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
       mail_user: ${{ secrets.MAIL_USERNAME }}

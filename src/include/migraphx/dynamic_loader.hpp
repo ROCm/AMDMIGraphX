@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/optional.hpp>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -35,8 +36,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct dynamic_loader_impl;
 
-struct dynamic_loader
+struct MIGRAPHX_EXPORT dynamic_loader
 {
+    template <class T>
+    static fs::path path(T* address)
+    {
+        return path(reinterpret_cast<void*>(address));
+    }
+    static fs::path path(void* address);
+    static optional<dynamic_loader> try_load(const fs::path& p);
+
     dynamic_loader() = default;
 
     dynamic_loader(const fs::path& p);

@@ -38,7 +38,7 @@ struct module;
  * preserve the semantics of previous program state, therefore dead code elimination
  * should not be used afterwards.
  */
-struct eliminate_identity
+struct MIGRAPHX_EXPORT eliminate_identity
 {
     std::string name() const { return "eliminate_identity"; }
     void apply(module& m) const;

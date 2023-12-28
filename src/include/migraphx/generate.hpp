@@ -48,7 +48,7 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = 1UL << (sizeof(T) * 5);
+    const auto max      = 1ULL << (sizeof(T) * 5);
     const auto half_max = max / 2;
     return half_max - (z % max);
 }
@@ -58,7 +58,7 @@ template <class T,
                             not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1UL << (sizeof(T) * 5);
+    const auto max = 1ULL << (sizeof(T) * 5);
     return z % max;
 }
 
@@ -117,20 +117,20 @@ auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 }
 
 template <class T>
-auto fill_tensor_data(const migraphx::shape& s, unsigned long value = 0)
+auto fill_tensor_data(const migraphx::shape& s, double value = 0)
 {
     auto result = make_shared_array<T>(s.element_space());
     std::generate(result.get(), result.get() + s.element_space(), [=] { return value; });
     return result;
 }
 
-argument fill_argument(shape s, unsigned long value = 0);
+MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 
-argument generate_argument(shape s, unsigned long seed = 0);
+MIGRAPHX_EXPORT argument generate_argument(shape s, unsigned long seed = 0);
 
-literal generate_literal(shape s, unsigned long seed = 0);
+MIGRAPHX_EXPORT literal generate_literal(shape s, unsigned long seed = 0);
 
-literal abs(literal l);
+MIGRAPHX_EXPORT literal abs(literal l);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

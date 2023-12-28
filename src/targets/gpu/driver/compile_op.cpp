@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/driver/perf.hpp>
+#include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 
@@ -38,10 +38,8 @@ struct compile_op : action<compile_op>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms";
-        if(device_time > 0)
-            std::cout << ", " << device_time << "ms";
+        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        std::cout << op << ": " << t << "ms";
         std::cout << std::endl;
     }
 };

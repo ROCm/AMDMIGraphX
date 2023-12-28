@@ -37,10 +37,23 @@ namespace op {
 
 struct dequantizelinear
 {
+
+    value attributes() const
+    {
+        // Note: point_op attribute is not used in this op. Instead, in
+        // gpu compilation pipeline, rewrite_quantization will be invoked
+        // from generate_pointwise() to rewrite this op.
+        return {{"pointwise", true}};
+    }
+
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims();
+        check_shapes{inputs, *this}.same_dims().has(2, 3);
+        if(inputs.size() == 3 and inputs[0].type() != inputs[2].type())
+        {
+            MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");
+        }
         return {inputs[1].type(), inputs[0].lens(), inputs[0].strides()};
     }
 
@@ -59,8 +72,8 @@ struct dequantizelinear
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = static_cast<double>(static_cast<int64_t>(input[i]) -
-                                                    static_cast<int64_t>(zero_pts[i])) *
+                    output[i] = static_cast<double>(static_cast<double>(input[i]) -
+                                                    static_cast<double>(zero_pts[i])) *
                                 scales[i];
                 });
             });

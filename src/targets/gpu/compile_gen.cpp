@@ -29,6 +29,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -53,6 +54,11 @@ vectorize vectorize::elements(std::size_t axis,
                               const std::vector<shape>& inputs,
                               const std::vector<std::size_t>& sizes)
 {
+    // disable vectorization for fp8 types
+    if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+        return {1, axis};
     if(std::all_of(
            inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
         return {1, axis};
@@ -85,6 +91,11 @@ vectorize vectorize::elements(std::size_t axis,
 
 vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
 {
+    // disable vectorization for fp8 types
+    if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+        return {1, axis};
     if(inputs.empty())
         return {1, axis};
     std::size_t n = std::max_element(inputs.begin(),
@@ -168,10 +179,11 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-std::string generate_pointwise(const module& pm, const std::string& name)
+void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m, {eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m,
+               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
@@ -184,8 +196,141 @@ std::string generate_pointwise(const module& pm, const std::string& name)
     // Add explict conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
-    g.create_function(
-        g.generate_module(m).set_attributes({"__device__"}).set_generic_types(m).set_name(name));
+    gg.create_function(g.generate_module(m)
+                           .set_attributes({"__device__", "__attribute__((const))"})
+                           .set_generic_types(m)
+                           .set_name(name));
+}
+std::string generate_pointwise(const module& pm, const std::string& name)
+{
+    cpp_generator g;
+    generate_pointwise(g, pm, name);
+    return g.str();
+}
+
+std::string reduce_op::str() const
+{
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+}
+void reduce_op::set(instruction_ref ins, const operation& op)
+{
+    if(op.name() == "reduce_sum")
+    {
+        reduction = "op::sum{}";
+    }
+    else if(op.name() == "reduce_mean")
+    {
+        auto s               = ins->inputs().front()->get_shape();
+        auto reduce_elements = s.elements() / ins->get_shape().elements();
+        auto reduce_type     = s.type();
+        reduction            = "op::sum{}";
+        std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
+        // Use float accumulator when reduction size is too large for half
+        if(reduce_type == shape::half_type and reduce_elements > 16384)
+            read = "compose(" + mean + ", op::convert_to<float>{})";
+        else if(contains({shape::float_type, shape::half_type, shape::double_type}, reduce_type))
+            read = mean;
+        else
+            write = mean;
+    }
+    else if(op.name() == "reduce_max")
+    {
+        reduction = "op::max{}";
+        init      = "lowest{}";
+    }
+    else if(op.name() == "reduce_min")
+    {
+        reduction = "op::min{}";
+        init      = "highest{}";
+    }
+    else if(op.name() == "reduce_prod")
+    {
+        reduction = "op::product{}";
+        init      = "1";
+    }
+    else
+    {
+        MIGRAPHX_THROW("Unsupported reduce");
+    }
+}
+std::string reduce_op::generate(instruction_ref ins, const std::string& x)
+{
+    reduce_op r{x};
+    r.set(ins, ins->get_operator());
+    return r.str();
+}
+
+static bool use_lazy_inner(instruction_ref ins)
+{
+    if(ins->outputs().size() != 1)
+        return false;
+    auto output = ins->outputs().front();
+    return contains(output->name(), "reduce") or output->name() == "@return";
+}
+
+std::string generate_reduce(const module& m, const std::string& name)
+{
+    cpp_generator g;
+    auto ilens    = m.get_parameter_shapes().begin()->second.lens();
+    std::size_t i = 0;
+    auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
+        if(contains(ins->name(), "reduce"))
+        {
+            return reduce_op::generate(ins, names.at(ins->inputs().front()));
+        }
+        else if(ins->name() == "pointwise")
+        {
+            auto pointwise_name = "pointwise" + std::to_string(i);
+            i++;
+            generate_pointwise(g, *ins->module_inputs().front(), pointwise_name);
+            std::vector<instruction_ref> tensors;
+            std::copy_if(ins->inputs().begin(),
+                         ins->inputs().end(),
+                         std::back_inserter(tensors),
+                         [&](auto input) {
+                             return input->get_shape().lens() == ilens and
+                                    not input->get_shape().broadcasted();
+                         });
+            auto inner_names = names;
+            for(auto input : ins->inputs())
+            {
+                if(input->name() != "@param")
+                    continue;
+                if(contains(tensors, input))
+                    continue;
+                inner_names[input] += "[out_idx]";
+            }
+            for(auto input : tensors)
+                inner_names[input] += "_lambda_param";
+            auto call_function =
+                pointwise_name + "(" +
+                join_strings(cpp_generator::to_args(ins->inputs(), inner_names), ", ") + ")";
+            if(tensors.empty())
+                return call_function;
+            const std::string inner_template =
+                "r.${inner}([=](${params}) { return ${call}; })(${args})";
+            std::string inner_name = use_lazy_inner(ins) ? "lazy_inner" : "inner";
+            auto args              = cpp_generator::to_args(tensors, names);
+            auto params            = cpp_generator::to_args(tensors, inner_names);
+            std::transform(
+                params.begin(), params.end(), params.begin(), [](auto s) { return "auto " + s; });
+            return interpolate_string(inner_template,
+                                      {{"inner", inner_name},
+                                       {"params", join_strings(params, ", ")},
+                                       {"args", join_strings(args, ", ")},
+                                       {"call", call_function}});
+        }
+        else if(ins->name() == "multibroadcast")
+        {
+            return names.at(ins->inputs().front());
+        }
+        MIGRAPHX_THROW("Unknown operator: " + ins->name());
+    });
+    f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
+    f.add_generic_param("r");
+    f.add_generic_param("out_idx");
+    f.unused_param("out_idx");
+    g.create_function(f);
     return g.str();
 }
 
@@ -196,7 +341,17 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        result.push_back(ins.name());
+        if(contains({"multibroadcast", "contiguous"}, ins.name()))
+            continue;
+        if(ins.name() == "pointwise")
+        {
+            auto names = get_op_names(*ins.module_inputs().front());
+            result.insert(result.end(), names.begin(), names.end());
+        }
+        else
+        {
+            result.push_back(ins.name());
+        }
     }
     return result;
 }

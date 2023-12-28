@@ -42,11 +42,11 @@ inline namespace MIGRAPHX_INLINE_NS {
  * or it can be owned by the argument.
  *
  */
-struct argument : raw_data<argument>
+struct MIGRAPHX_EXPORT argument : raw_data<argument>
 {
     argument() = default;
 
-    argument(const shape& s);
+    explicit argument(const shape& s);
 
     template <class F, MIGRAPHX_REQUIRES(std::is_pointer<decltype(std::declval<F>()())>{})>
     argument(shape s, F d)
@@ -93,6 +93,16 @@ struct argument : raw_data<argument>
     /// Return the ith element
     argument element(std::size_t i) const;
 
+    // Keeps the same data ordering as the given container
+    template <class Iterator>
+    void fill(Iterator start, Iterator end)
+    {
+        assert(std::distance(start, end) <= m_shape.elements());
+        this->visit([&](auto output) {
+            std::copy(start, end, output.begin());
+        });
+    }
+
     private:
     void assign_buffer(std::function<char*()> d);
     struct data_t
@@ -107,9 +117,9 @@ struct argument : raw_data<argument>
     data_t m_data{};
 };
 
-std::vector<shape> to_shapes(const std::vector<argument>& args);
-void migraphx_to_value(value& v, const argument& a);
-void migraphx_from_value(const value& v, argument& a);
+MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<argument>& args);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const argument& a);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, argument& a);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

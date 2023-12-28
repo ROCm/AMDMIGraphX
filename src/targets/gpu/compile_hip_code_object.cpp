@@ -29,7 +29,6 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
-#include <hip/hip_runtime_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -80,6 +79,7 @@ std::string generate_args_hpp(const std::vector<shape>& inputs)
 
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/types.hpp>
 
 namespace migraphx {
 
@@ -91,28 +91,39 @@ __content__
     return replace_string(args_hpp, "__content__", inner);
 }
 
+static std::vector<std::string> get_compiler_warnings()
+{
+    std::vector<std::string> warnings = {
+        "-Weverything",
+        "-Wno-c++98-compat",
+        "-Wno-c++98-compat-pedantic",
+        "-Wno-conversion",
+        "-Wno-double-promotion",
+        "-Wno-exit-time-destructors",
+        "-Wno-extra-semi",
+        "-Wno-extra-semi-stmt",
+        "-Wno-float-conversion",
+        "-Wno-gnu-anonymous-struct",
+        "-Wno-gnu-zero-variadic-macro-arguments",
+        "-Wno-missing-prototypes",
+        "-Wno-nested-anon-types",
+        "-Wno-padded",
+        "-Wno-shorten-64-to-32",
+        "-Wno-sign-conversion",
+        "-Wno-sign-compare",
+        "-Wno-unused-command-line-argument",
+        "-Wno-weak-vtables",
+        "-Wno-c99-extensions",
+    };
+
+    if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
+        warnings.push_back("-Wno-unsafe-buffer-usage");
+    return warnings;
+}
+
 const std::vector<std::string>& compiler_warnings()
 {
-    static std::vector<std::string> warnings = {"-Weverything",
-                                                "-Wno-c++98-compat",
-                                                "-Wno-c++98-compat-pedantic",
-                                                "-Wno-conversion",
-                                                "-Wno-double-promotion",
-                                                "-Wno-exit-time-destructors",
-                                                "-Wno-extra-semi",
-                                                "-Wno-extra-semi-stmt",
-                                                "-Wno-float-conversion",
-                                                "-Wno-gnu-anonymous-struct",
-                                                "-Wno-gnu-zero-variadic-macro-arguments",
-                                                "-Wno-missing-prototypes",
-                                                "-Wno-nested-anon-types",
-                                                "-Wno-padded",
-                                                "-Wno-shorten-64-to-32",
-                                                "-Wno-sign-conversion",
-                                                "-Wno-sign-compare",
-                                                "-Wno-unused-command-line-argument",
-                                                "-Wno-weak-vtables",
-                                                "-Wno-c99-extensions"};
+    static std::vector<std::string> warnings = get_compiler_warnings();
     return warnings;
 }
 
@@ -128,6 +139,12 @@ void hip_compile_options::set_launch_params(
         global = compute_global(local);
 }
 
+static bool hip_accept_non_uniform_wg()
+{
+    static bool non_uniform_wg = hip_has_flags({"-fno-offload-uniform-block"});
+    return non_uniform_wg;
+}
+
 std::function<std::size_t(std::size_t local)>
 compute_global_for(context& ctx, std::size_t n, std::size_t over)
 {
@@ -135,10 +152,15 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
-        std::size_t groups     = (n + local - 1) / local;
+        std::size_t num_elements = n;
+        if(not hip_accept_non_uniform_wg())
+        {
+            num_elements = (1 + (n - 1) / local) * local;
+        }
+        std::size_t groups     = 1 + (num_elements - 1) / local;
         std::size_t max_blocks = max_global / local;
         std::size_t nglobal    = std::min(max_blocks * over, groups) * local;
-        return std::min(nglobal, n);
+        return std::min(nglobal, num_elements);
     };
 }
 
@@ -156,28 +178,29 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     assert(not options.inputs.empty());
     assert(options.inputs.size() == options.virtual_inputs.size() or
            options.virtual_inputs.empty());
-    std::vector<src_file> srcs;
-    std::transform(migraphx_kernels().begin(),
-                   migraphx_kernels().end(),
-                   std::back_inserter(srcs),
-                   [](auto&& p) {
-                       auto&& name = p.first;
-                       auto&& c    = p.second;
-                       auto path   = fs::path{"migraphx"} / "kernels" / name;
-                       return src_file{path, c};
-                   });
-    srcs.push_back(src_file{fs::path{"main.cpp"},
-                            std::make_pair(content.data(), content.data() + content.size())});
+    std::vector<src_file> srcs = options.additional_src_files;
+    static auto kernels{::migraphx_kernels()};
+    std::transform(
+        kernels.begin(),
+        kernels.end(),
+        std::back_inserter(srcs),
+        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
+    srcs.emplace_back("main.cpp", content);
     auto args_hpp =
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
-    srcs.push_back(src_file{fs::path{"args.hpp"},
-                            std::make_pair(args_hpp.data(), args_hpp.data() + args_hpp.size())});
+    srcs.emplace_back("args.hpp", args_hpp);
+
+    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+        options.params += " -fno-offload-uniform-block";
+    else
+        assert(options.global % options.local == 0);
+
     options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
     options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
     options.params += " " + join_strings(compiler_warnings(), " ");
     options.params += " -ftemplate-backtrace-limit=0";
     options.params += " -Werror";
-    auto cos = compile_hip_src(srcs, std::move(options.params), get_device_name());
+    auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return code_object_op{value::binary{cos.front()},

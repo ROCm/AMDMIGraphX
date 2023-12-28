@@ -39,16 +39,22 @@ struct target_info
 
 struct run_verify
 {
-    std::vector<migraphx::argument> run_ref(migraphx::program p,
-                                            migraphx::parameter_map inputs) const;
+    std::pair<migraphx::program, std::vector<migraphx::argument>>
+    run_ref(migraphx::program p,
+            migraphx::parameter_map inputs,
+            const migraphx::compile_options& c_opts) const;
+
     std::pair<migraphx::program, std::vector<migraphx::argument>>
     run_target(const migraphx::target& t,
                migraphx::program p,
-               const migraphx::parameter_map& inputs) const;
+               const migraphx::parameter_map& inputs,
+               const migraphx::compile_options& c_opts) const;
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
                   const migraphx::parameter_map& m) const;
-    void verify(const std::string& name, const migraphx::program& p) const;
+    void verify(const std::string& name,
+                const migraphx::program& p,
+                const migraphx::compile_options& c_opts) const;
     void run(int argc, const char* argv[]) const;
 
     target_info get_target_info(const std::string& name) const;

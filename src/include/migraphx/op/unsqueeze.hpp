@@ -81,7 +81,7 @@ struct unsqueeze
             {
                 if(std::find(axes.begin(), axes.end(), i) != axes.end())
                 {
-                    dyn_dims.push_back({1, 1, 0});
+                    dyn_dims.push_back({1, 1});
                 }
                 else
                 {
@@ -95,13 +95,10 @@ struct unsqueeze
             auto type        = input_shape.type();
             auto old_lens    = input_shape.lens();
             auto old_strides = input_shape.strides();
-            if(input_shape.scalar())
-            {
-                if(old_lens.size() == 1 and old_lens.front() == 1)
-                    return shape{type, old_lens};
-                else
-                    MIGRAPHX_THROW("UNSQUEEZE: Input must be a scalar");
-            }
+            auto is_scalar   = input_shape.scalar();
+
+            if(is_scalar and old_lens.size() == 1 and old_lens.front() == 1)
+                return shape{type, old_lens};
 
             if(steps.size() > axes.size())
                 MIGRAPHX_THROW("UNSQUEEZE: Steps provided with no axis");
@@ -121,13 +118,15 @@ struct unsqueeze
                         step = steps[axis_idx];
                     if(step == 0)
                         MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero");
+                    if(is_scalar and step != 1)
+                        MIGRAPHX_THROW("UNSQUEEZE: step must be 1 when input is scalar");
                     new_lens[i] = step;
                     if(p < old_strides.size())
                     {
                         if((old_lens[p] % step) != 0)
                             MIGRAPHX_THROW("UNSQUEEZE: Axis dimenstion is not divisible by step");
                         old_lens[p] /= step;
-                        new_strides[i] = old_strides[p] * old_lens[p];
+                        new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
                     }
                     else
                     {

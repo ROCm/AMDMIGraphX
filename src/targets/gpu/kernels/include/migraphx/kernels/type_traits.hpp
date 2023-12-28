@@ -142,6 +142,25 @@ MIGRAPHX_BUILTIN_TYPE_TRAITN(is_nothrow_constructible);
 MIGRAPHX_BUILTIN_TYPE_TRAITN(is_trivially_constructible);
 
 template <class T>
+struct remove_cv
+{
+    using type = T;
+};
+
+template <class T>
+struct remove_cv<const T> : remove_cv<T>
+{
+};
+
+template <class T>
+struct remove_cv<volatile T> : remove_cv<T>
+{
+};
+
+template <class T>
+using remove_cv_t = typename remove_cv<T>::type;
+
+template <class T>
 struct remove_reference
 {
     using type = T;
@@ -167,6 +186,11 @@ struct add_pointer : type_identity<typename remove_reference<T>::type*>
 
 template <class T>
 using add_pointer_t = typename add_pointer<T>::type;
+
+template <class T>
+struct is_void : is_same<void, remove_cv_t<T>>
+{
+};
 
 template <class... Ts>
 struct common_type;
@@ -194,7 +218,15 @@ using common_type_t = typename common_type<Ts...>::type;
 
 #define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 
-constexpr unsigned long int_max(unsigned long n) { return (1u << (n * 8)) - 1; }
+constexpr unsigned long int_max(unsigned long n)
+{
+    // Note, left shift cannot be used to get the maximum value of int64_type or
+    // uint64_type because it is undefined behavior to left shift 64 bits for
+    // these types
+    if(n == sizeof(int64_t))
+        return -1;
+    return (1ul << (n * 8)) - 1;
+}
 
 template <class T,
           MIGRAPHX_REQUIRES(is_integral<T>{} or is_floating_point<T>{} or
@@ -204,9 +236,9 @@ constexpr T numeric_max()
     if constexpr(is_integral<T>{})
     {
         if constexpr(is_unsigned<T>{})
-            return int_max(sizeof(T)) * 2;
-        else
             return int_max(sizeof(T));
+        else
+            return int_max(sizeof(T)) / 2;
     }
     else if constexpr(is_same<T, double>{})
         return __DBL_MAX__;
@@ -219,7 +251,7 @@ constexpr T numeric_max()
 }
 
 template <class T>
-constexpr T numeric_lowest()
+constexpr auto numeric_lowest() -> decltype(numeric_max<T>())
 {
     if constexpr(is_integral<T>{})
     {

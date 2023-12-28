@@ -38,11 +38,21 @@ macro(find_python version)
     find_program(PYTHON_CONFIG_${version} python${version}-config)
     if(EXISTS ${PYTHON_CONFIG_${version}})
         py_exec(COMMAND ${PYTHON_CONFIG_${version}} --includes OUTPUT_VARIABLE _python_include_args)
+        execute_process(COMMAND ${PYTHON_CONFIG_${version}} --ldflags --embed OUTPUT_VARIABLE _python_ldflags_args RESULT_VARIABLE _python_ldflags_result)
+        if(NOT _python_ldflags_result EQUAL 0)
+            py_exec(COMMAND ${PYTHON_CONFIG_${version}} --ldflags OUTPUT_VARIABLE _python_ldflags_args)
+        endif()
         separate_arguments(_python_includes UNIX_COMMAND "${_python_include_args}")
+        separate_arguments(_python_ldflags UNIX_COMMAND "${_python_ldflags_args}")
         string(REPLACE "-I" "" _python_includes "${_python_includes}")
         add_library(python${version}::headers INTERFACE IMPORTED GLOBAL)
         set_target_properties(python${version}::headers PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES "${_python_includes}"
+        )
+        add_library(python${version}::runtime INTERFACE IMPORTED GLOBAL)
+        set_target_properties(python${version}::runtime PROPERTIES
+            INTERFACE_LINK_OPTIONS "${_python_ldflags}"
+            INTERFACE_LINK_LIBRARIES python${version}::headers
         )
         py_exec(COMMAND ${PYTHON_CONFIG_${version}} --prefix OUTPUT_VARIABLE _python_prefix)
         string(STRIP "${_python_prefix}" _python_prefix)
@@ -76,7 +86,7 @@ function(py_add_module NAME)
     )
 
 endfunction()
-set(PYTHON_SEARCH_VERSIONS 2.7 3.5 3.6 3.7 3.8 3.9)
+set(PYTHON_SEARCH_VERSIONS 3.5 3.6 3.7 3.8 3.9 3.10)
 set(PYTHON_DISABLE_VERSIONS "" CACHE STRING "")
 foreach(PYTHON_DISABLE_VERSION ${PYTHON_DISABLE_VERSIONS})
     list(REMOVE_ITEM PYTHON_SEARCH_VERSIONS ${PYTHON_DISABLE_VERSION})

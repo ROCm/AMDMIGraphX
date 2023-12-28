@@ -31,7 +31,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/reduce_dims.hpp>
-#include <migraphx/type_name.hpp>
 #include <utility>
 #include <iostream>
 

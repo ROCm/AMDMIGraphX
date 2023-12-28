@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <vector>
 #include <cmath>
 #include <utility>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
@@ -60,6 +61,7 @@ struct reverse
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        check_shapes{inputs, *this}.has(1);
         return inputs[0].with_lens(inputs[0].lens());
     }
 
@@ -68,13 +70,13 @@ struct reverse
         argument result{s};
         auto lens = s.lens();
         visit_all(result, args.front())([&](auto output, auto input) {
-            shape_for_each(s, [&](const auto& out_idx) {
-                auto in_idx = out_idx;
+            shape_for_each(s, [&](const auto& out_idx_v, size_t out_idx) {
+                auto in_idx = out_idx_v;
                 for(const auto& axis : axes)
                 {
-                    in_idx[axis] = lens[axis] - 1 - out_idx[axis];
+                    in_idx[axis] = lens[axis] - 1 - out_idx_v[axis];
                 }
-                output[s.index(out_idx)] = input[s.index(in_idx)];
+                output[out_idx] = input[s.index(in_idx)];
             });
         });
 

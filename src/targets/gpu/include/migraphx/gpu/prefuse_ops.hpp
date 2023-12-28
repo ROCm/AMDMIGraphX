@@ -24,20 +24,20 @@
 #ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 #define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
-struct prefuse_ops
+struct MIGRAPHX_GPU_EXPORT prefuse_ops
 {
     std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

@@ -25,6 +25,7 @@
 add_executable(driver 
     main.cpp
     verify.cpp
+    passes.cpp
     perf.cpp
     resnet50.cpp
     inceptionv3.cpp
@@ -32,17 +33,28 @@ add_executable(driver
     marker_roctx.cpp
 )
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
-# Copy driver for backwards compatibility
-add_custom_command(
-        TARGET driver 
+if(NOT WIN32)
+    # Copy driver for backwards compatibility (Linux only)
+    add_custom_command(
+        TARGET driver
         POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
                 $<TARGET_FILE:driver>
                 ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver
         BYPRODUCTS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver
-)
-set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
+    )
+    set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
+endif()
 rocm_clang_tidy_check(driver)
+
+file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
+target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
+
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+
+if(MIGRAPHX_ENABLE_PYTHON)
+    target_link_libraries(driver migraphx_py)
+    target_compile_definitions(driver PRIVATE MIGRAPHX_ENABLE_PYTHON)
+endif()
 
 rocm_install_targets(
   TARGETS driver

@@ -44,7 +44,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void gather_kernel(void* in_data, void* in_indices, void* output) 
+MIGRAPHX_GLOBAL void gather_kernel(void* in_data, void* in_indices, void* output) 
 {
     make_tensors()(in_data, in_indices, output)([](auto&&... xs) { 
         gather<${axis}>(xs...); 
@@ -80,7 +80,7 @@ struct gather_compiler : compiler<gather_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 

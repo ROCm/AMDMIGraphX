@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_KERNELS_HPP
 
 #include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/device/config.hpp>
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
@@ -33,7 +33,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void contiguous(hipStream_t stream, const argument& result, const argument& arg);
+void MIGRAPHX_DEVICE_EXPORT contiguous(hipStream_t stream,
+                                       const argument& result,
+                                       const argument& arg);
 
 } // namespace device
 } // namespace gpu

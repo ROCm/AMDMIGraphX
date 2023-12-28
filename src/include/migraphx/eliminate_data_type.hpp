@@ -38,10 +38,11 @@ struct module;
  * Remove data types. This will instert convert operators so the data type
  * is not used by any operator.
  */
-struct eliminate_data_type
+struct MIGRAPHX_EXPORT eliminate_data_type
 {
-    std::set<shape::type_t> types;
+    std::set<shape::type_t> unsupported_types;
     shape::type_t target_type;
+    std::set<std::string> unsupported_ops = {"all"};
     std::string name() const { return "eliminate_data_type"; }
     void apply(module& m) const;
 };

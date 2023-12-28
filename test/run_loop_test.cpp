@@ -27,7 +27,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/make_op.hpp>
@@ -112,8 +112,7 @@ struct test_loop_op
                 auto loc               = name.find(out_prefix);
                 if(loc != std::string::npos)
                 {
-                    int index = std::stoi(name.substr(loc + out_prefix.size()));
-                    return index;
+                    return std::stoi(name.substr(loc + out_prefix.size()));
                 }
 
                 return -1;
@@ -207,7 +206,7 @@ static auto run_prog(migraphx::program p, int64_t iter_num, bool cond, int64_t i
     migraphx::shape s{migraphx::shape::int64_type, {1}};
     migraphx::shape sc{migraphx::shape::bool_type};
 
-    p.compile(migraphx::ref::target{});
+    p.compile(migraphx::make_target("ref"));
     migraphx::parameter_map pp;
     pp["iter_num"] = migraphx::argument(si, &iter_num);
     pp["ccond"]    = migraphx::argument(sc, &cond);

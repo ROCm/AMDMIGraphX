@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,7 +91,7 @@ struct reduce_op : op_name<Derived>
     {
         value normalize;
         normalize["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
+        return {{"normalize_axes", normalize}, {"reduce", true}};
     }
 
     std::vector<int64_t> tune_axes(std::size_t n_dim) const
@@ -123,9 +123,7 @@ struct reduce_op : op_name<Derived>
             auto tuned_axes      = tune_axes(output_dyn_dims.size());
             for(const auto& axis : tuned_axes)
             {
-                // At the time of writing, there's no functional difference between
-                // optimum of 0 (no opt) or 1.
-                output_dyn_dims[axis] = {1, 1, 0};
+                output_dyn_dims[axis] = {1, 1};
             }
 
             return shape{s.type(), output_dyn_dims};
@@ -165,7 +163,7 @@ struct reduce_op : op_name<Derived>
         auto& self        = static_cast<const Derived&>(*this);
         auto data_idx     = out_idx;
         accumulator val   = self.init();
-        shape_for_each(batch_shape, [&](auto b_idx) {
+        shape_for_each(batch_shape, [&](const auto& b_idx) {
             this->tune_dims(tuned_axes, b_idx, data_idx);
             accumulator x = input(data_idx.begin(), data_idx.end());
             val           = self.op()(accumulator{self.input()(x)}, val);

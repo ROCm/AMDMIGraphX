@@ -33,13 +33,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Remove memory allocations. It uses graph coloring to find memory allocations that can be reused.
+ * Remove multiple memory allocations using graph coloring to find memory allocations that can be
+ * reused.
  */
-struct memory_coloring
+struct MIGRAPHX_EXPORT memory_coloring
 {
     std::string allocation_op{};
     bool verify = false;
-    std::string name() const { return "memory coloring"; }
+    std::string name() const { return "memory_coloring"; }
     void apply(module& m) const;
 };
 

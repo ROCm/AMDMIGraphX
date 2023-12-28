@@ -51,6 +51,24 @@ struct parse_if : op_parser<parse_if>
                            " condition input can have only one element!");
         }
 
+        // Fold instruction if condition is constant thus can be evaled
+        // prior to inference
+        if(args.front()->can_eval())
+        {
+            auto cond_arg = args.front()->eval();
+            auto* mod     = info.mod;
+            // then branch
+            if(cond_arg.at<bool>())
+            {
+                return parser.parse_graph(mod, then_graph, true);
+            }
+            // else branch
+            else
+            {
+                return parser.parse_graph(mod, else_graph, true);
+            }
+        }
+
         std::string then_name = info.name + "_if";
         module_ref then_mdl   = parser.prog.create_module(then_name);
 
@@ -58,10 +76,10 @@ struct parse_if : op_parser<parse_if>
         module_ref else_mdl   = parser.prog.create_module(else_name);
 
         // parse the then sub_graph
-        parser.parse_graph(then_mdl, then_graph);
+        (void)parser.parse_graph(then_mdl, then_graph);
 
         // parse_the else sub_graph
-        parser.parse_graph(else_mdl, else_graph);
+        (void)parser.parse_graph(else_mdl, else_graph);
 
         auto then_out_shapes = then_mdl->get_output_shapes();
         auto else_out_shapes = else_mdl->get_output_shapes();

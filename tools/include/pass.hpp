@@ -57,7 +57,7 @@ struct pass
 
 #else
 
-module& get_module(module_pass_manager& mpm);
+MIGRAPHX_EXPORT module& get_module(module_pass_manager& mpm);
 
 namespace detail {
 

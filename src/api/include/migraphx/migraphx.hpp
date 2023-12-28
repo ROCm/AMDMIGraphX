@@ -66,7 +66,7 @@ template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
     std::string name;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     name = typeid(PrivateMigraphTypeNameProbe).name();
     name = name.substr(7);
 #else
@@ -572,9 +572,89 @@ using require_interface =
 #define MIGRAPHX_CONST_HANDLE_BASE(name) MIGRAPHX_DETAIL_HANDLE_BASE(name, const)
 
 /**
+ * Container to hold optimal dynamic dimension values.
+ */
+struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(optimals)
+
+    optimals(std::initializer_list<size_t> init_list)
+    {
+        this->make_handle(&migraphx_optimals_create, init_list.begin(), init_list.size());
+    }
+};
+
+/**
+ * @brief Dynamic dimension object.
+ * @details minimum, maximum, and optimal dimensions
+ */
+struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimension)
+
+    dynamic_dimension(size_t min, size_t max)
+    {
+        this->make_handle(&migraphx_dynamic_dimension_create_min_max, min, max);
+    }
+
+    dynamic_dimension(size_t min, size_t max, const optimals& opts)
+    {
+        this->make_handle(
+            &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
+    }
+
+    bool is_fixed() const
+    {
+        bool result = false;
+        call(&migraphx_dynamic_dimension_is_fixed, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    friend bool operator==(const dynamic_dimension& x, const dynamic_dimension& y)
+    {
+        bool pout;
+        call(&migraphx_dynamic_dimension_equal, &pout, x.get_handle_ptr(), y.get_handle_ptr());
+        return pout;
+    }
+
+    friend bool operator!=(const dynamic_dimension& x, const dynamic_dimension& y)
+    {
+        return not(x == y);
+    }
+};
+
+/**
+ * Container to hold dynamic_dimension objects.
+ */
+struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
+
+    template <class... Ts>
+    dynamic_dimensions(Ts... xs)
+    {
+        std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
+        this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
+    }
+
+    size_t size() const
+    {
+        size_t pout;
+        call(&migraphx_dynamic_dimensions_size, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    dynamic_dimension operator[](size_t pidx) const
+    {
+        const_migraphx_dynamic_dimension_t pout;
+        call(&migraphx_dynamic_dimensions_get, &pout, this->get_handle_ptr(), pidx);
+        return {pout, this->share_handle()};
+    }
+};
+
+/**
  * @brief Describe shape of tensor
  * @details A shape consists of a data type, lengths of multi-dimension tensor, and strides
- *
  */
 struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
 {
@@ -598,6 +678,13 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         this->make_handle(&migraphx_shape_create, type, plengths.data(), plengths.size());
     }
 
+    // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
+    // shape(type_t, std::vector<std::size_t> l)
+    shape(migraphx_shape_datatype_t t, std::initializer_list<std::size_t> d)
+        : shape::shape(t, std::vector<std::size_t>{d.begin(), d.end()})
+    {
+    }
+
     shape(migraphx_shape_datatype_t type,
           std::vector<size_t> plengths,
           std::vector<size_t> pstrides)
@@ -608,6 +695,11 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
                           plengths.size(),
                           pstrides.data(),
                           pstrides.size());
+    }
+
+    shape(migraphx_shape_datatype_t type, const dynamic_dimensions& dyn_dims)
+    {
+        this->make_handle(&migraphx_shape_create_dynamic, type, dyn_dims.get_handle_ptr());
     }
 
     std::vector<size_t> lengths() const
@@ -624,6 +716,14 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
         size_t pout_size;
         call(&migraphx_shape_strides, &pout, &pout_size, this->get_handle_ptr());
         return {pout, pout + pout_size};
+    }
+
+    /// Get the dynamic dimensions of the shape
+    dynamic_dimensions dyn_dims() const
+    {
+        migraphx_dynamic_dimensions_t pout;
+        call(&migraphx_shape_dyn_dims, &pout, this->get_handle_ptr());
+        return {pout, own{}};
     }
 
     migraphx_shape_datatype_t type() const
@@ -651,6 +751,14 @@ struct shape : MIGRAPHX_CONST_HANDLE_BASE(shape)
     {
         bool result = false;
         call(&migraphx_shape_standard, &result, this->get_handle_ptr());
+        return result;
+    }
+
+    /// Is the shape dynamic
+    bool dynamic() const
+    {
+        bool result = false;
+        call(&migraphx_shape_dynamic, &result, this->get_handle_ptr());
         return result;
     }
 
@@ -686,6 +794,11 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
 
     MIGRAPHX_DEPRECATED("Contructor without lifetime annotation is deprecated.")
     argument(const migraphx_argument* p) { this->set_handle(p, borrow{}); }
+
+    argument(shape pshape)
+    {
+        this->make_handle(&migraphx_argument_create_empty, pshape.get_handle_ptr());
+    }
 
     argument(shape pshape, void* pbuffer)
     {
@@ -1015,6 +1128,12 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_fast_math, this->get_handle_ptr(), value);
     }
+
+    /// Set or un-set exhaustive search to find fastest kernel
+    void set_exhaustive_tune_flag(bool value = true)
+    {
+        call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
+    }
 };
 
 /// A program represents the all computation graphs to be compiled and executed
@@ -1176,16 +1295,37 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              dim.size());
     }
 
+    void set_dyn_input_parameter_shape(const std::string& name, const dynamic_dimensions& dyn_dims)
+    {
+        call(&migraphx_onnx_options_set_dyn_input_parameter_shape,
+             this->get_handle_ptr(),
+             name.c_str(),
+             dyn_dims.get_handle_ptr());
+    }
+
     /// When there is a dimension parameter, then use this default value
     void set_default_dim_value(unsigned int value)
     {
         call(&migraphx_onnx_options_set_default_dim_value, this->get_handle_ptr(), value);
     }
 
+    void set_default_dyn_dim_value(const dynamic_dimension& dd)
+    {
+        call(&migraphx_onnx_options_set_default_dyn_dim_value,
+             this->get_handle_ptr(),
+             dd.get_handle_ptr());
+    }
+
     /// Set default max iteration number for the loop operator
     void set_default_loop_iterations(int64_t value)
     {
         call(&migraphx_onnx_options_set_default_loop_iterations, this->get_handle_ptr(), value);
+    }
+
+    /// Set max iteration limit for the loop operator
+    void set_limit_loop_iterations(int64_t value)
+    {
+        call(&migraphx_onnx_options_set_limit_loop_iterations, this->get_handle_ptr(), value);
     }
 };
 
@@ -1353,13 +1493,17 @@ quantize_int8(const program& prog, const target& ptarget, const quantize_int8_op
 
 struct experimental_custom_op_base
 {
+    experimental_custom_op_base()                                   = default;
+    experimental_custom_op_base(const experimental_custom_op_base&) = default;
+    experimental_custom_op_base& operator=(const experimental_custom_op_base&) = default;
+    virtual ~experimental_custom_op_base()                                     = default;
+
     virtual std::string name() const                                            = 0;
     virtual argument compute(context ctx, shape output, arguments inputs) const = 0;
     virtual shape compute_shape(shapes inputs) const                            = 0;
     virtual std::vector<size_t> output_alias(shapes) const { return {}; }
     // TODO: Return target string instead of bool
     virtual bool runs_on_offload_target() const = 0;
-    virtual ~experimental_custom_op_base()      = default;
 };
 
 struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental_custom_op)>

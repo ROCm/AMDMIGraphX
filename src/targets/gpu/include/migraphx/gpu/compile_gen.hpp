@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/module_ref.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,6 +35,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct shape;
+struct operation;
 
 namespace gpu {
 
@@ -72,7 +74,22 @@ std::string make_transformer_args(Ts... xs)
 
 std::string generate_pointwise(const module& pm, const std::string& name);
 
+std::string generate_reduce(const module& m, const std::string& name);
+
 std::string generate_name_from_ops(const module& m);
+
+struct reduce_op
+{
+    std::string input     = "";
+    std::string reduction = "";
+    std::string init      = "0";
+    std::string read      = "op::id{}";
+    std::string write     = "op::id{}";
+
+    void set(instruction_ref ins, const operation& op);
+    std::string str() const;
+    static std::string generate(instruction_ref ins, const std::string& x);
+};
 
 } // namespace gen
 } // namespace gpu

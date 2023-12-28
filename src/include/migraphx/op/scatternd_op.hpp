@@ -91,8 +91,10 @@ struct scatternd_op : op_name<Derived>
         auto data_dims = data_shape.to_dynamic().dyn_dims();
 
         // Check that corresponding portions of tensor shapes match.
-        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + q - 1, upd_dims.begin()) and
-               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + q - 1)))
+        // Brackets around q - 1 are placed for safeguarding against the breaking iterator out of
+        // vector range.
+        if(not(std::equal(ind_dims.begin(), ind_dims.begin() + (q - 1), upd_dims.begin()) and
+               std::equal(data_dims.begin() + k, data_dims.end(), upd_dims.begin() + (q - 1))))
             MIGRAPHX_THROW("ScatterND: incorrect update shape. Update dimensions must match "
                            "indices and data.");
 
@@ -121,7 +123,8 @@ struct scatternd_op : op_name<Derived>
                 auto k             = indices_shape.lens().back();
                 auto q             = indices_shape.ndim();
                 auto r             = dyn_out.computed_shape.ndim();
-                par_for(updates_shape.elements(), [&](const auto i) {
+                for(auto i = 0u; i < updates_shape.elements(); ++i)
+                {
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
@@ -135,7 +138,7 @@ struct scatternd_op : op_name<Derived>
                     std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
                     self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
-                });
+                }
             });
         });
 

@@ -45,7 +45,10 @@ __device__ void dpp_reduce(T& in, Op op)
     in  = op(in, out);
     out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
     in  = op(in, out);
-#if __AMDGCN_WAVEFRONT_SIZE == 64
+#if __AMDGCN_WAVEFRONT_SIZE == 32
+    out = dpp_swizzle<0x1e0>(in);
+    in  = op(in, out);
+#else
     out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
     in  = op(in, out);
     out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
@@ -54,9 +57,11 @@ __device__ void dpp_reduce(T& in, Op op)
 }
 #if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins) x = 1
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f) \
+    (void)f;                               \
+    x = 1
 #elif __AMDGCN_WAVEFRONT_SIZE == 64
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins)                                       \
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                    \
     __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"                 \
                      "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"                 \
                      "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"   \
@@ -65,29 +70,42 @@ __device__ void dpp_reduce(T& in, Op op)
                      "s_nop 1\n" #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n" \
                      "s_nop 1\n"                                              \
                      : "=v"(x)                                                \
-                     : "0"(x))
+                     : "0"(x));                                               \
+    (void)f
 #else
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins)                                     \
+#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                  \
     __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"               \
                      "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"               \
                      "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n" \
                      "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n" \
-                     "s_nop 1\n"                                            \
-                     "s_nop 1\n"                                            \
                      : "=v"(x)                                              \
-                     : "0"(x))
+                     : "0"(x));                                             \
+    auto y = dpp_swizzle<0x1e0>(x);                                         \
+    x      = f(x, y)
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                                                      \
-    __device__ inline void dpp_reduce(double& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64); } \
-    __device__ inline void dpp_reduce(float& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32); }  \
-    __device__ inline void dpp_reduce(half& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16); }   \
-    __device__ inline void dpp_reduce(int32_t& x, op)                                              \
-    {                                                                                              \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32);                                              \
-    }                                                                                              \
-    __device__ inline void dpp_reduce(uint32_t& x, op) { MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32); }
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)            \
+    __device__ inline void dpp_reduce(double& x, op f)   \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(float& x, op f)    \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(half& x, op f)     \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16, f);     \
+    }                                                    \
+    __device__ inline void dpp_reduce(int32_t& x, op f)  \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32, f); \
+    }                                                    \
+    __device__ inline void dpp_reduce(uint32_t& x, op f) \
+    {                                                    \
+        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32, f);     \
+    }
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
@@ -99,14 +117,10 @@ template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-#if __AMDGCN_WAVEFRONT_SIZE == 32
-    constexpr index_int lanes_per_thread = 16;
-#else
-    constexpr index_int lanes_per_thread = 64;
-#endif
+    constexpr index_int lanes_per_thread = __AMDGCN_WAVEFRONT_SIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
-    type x = init;
+    type x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
@@ -117,7 +131,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     }
     __syncthreads();
 
-    type y = init;
+    type y = type(init);
     for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
     {
         y = op(y, buffer[i]);
@@ -244,9 +258,8 @@ struct reducer_base
         {
             auto&& derived = static_cast<const Derived&>(*this);
             auto t         = derived.slice(x);
-            return make_storage_access<typename decltype(t)::type>([=](auto i, auto...) -> auto& {
-                return t[i];
-            });
+            return make_storage_access<typename decltype(t)::type>(
+                [=](auto i, auto...) -> auto& { return t[i]; });
         }
     }
 
@@ -393,7 +406,7 @@ struct block
         {
             using max_iterations = decltype(idx.max_local_stride_iterations(n));
             inner_storage<R, max_iterations{}, N> storage;
-            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            idx.local_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
             return storage;
         }
     };
@@ -482,7 +495,7 @@ struct lane
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
         {
             using type = remove_reference_t<decltype(x(0, _c<0>))>;
-            type r     = init;
+            type r     = type(init);
             for(index_int j = 0; j < n; j++)
             {
                 r = op(r, read(x(j, _c<0>), xs(j, _c<0>)...));

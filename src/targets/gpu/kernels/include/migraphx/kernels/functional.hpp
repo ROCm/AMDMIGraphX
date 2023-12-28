@@ -26,10 +26,12 @@
 
 #include <migraphx/kernels/integral_constant.hpp>
 
+// Similiar to decltype(auto) except it will propagate any substitution failures
 // NOLINTNEXTLINE
 #define MIGRAPHX_RETURNS(...) \
     ->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
+// Lifts an expression into a function object so it can be passed to a higher-order function
 // NOLINTNEXTLINE
 #define MIGRAPHX_LIFT(...)                           \
     [](auto&&... private_lifts_xs) MIGRAPHX_RETURNS( \

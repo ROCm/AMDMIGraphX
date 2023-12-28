@@ -37,7 +37,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 3
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -73,6 +73,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -299,6 +300,8 @@ struct mlir_program
                 result = mlirF32TypeGet(ctx.get());
             else if(as.type_enum() == shape::half_type)
                 result = mlirF16TypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fnuz_type)
+                result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
@@ -318,31 +321,30 @@ struct mlir_program
         return result;
     }
 
-    MlirType make_tensor(const shape& s) const
+    MlirType make_mlir_shaped(const shape& s) const
     {
-        if(not s.standard())
-            MIGRAPHX_THROW("MLIR expects all tensors to be in standard shape");
         if(s.dynamic())
             MIGRAPHX_THROW("MLIR does not support dynamic shapes");
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
-        return mlirRankedTensorTypeGet(
-            lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());
+        std::vector<int64_t> strides(s.strides().begin(), s.strides().end());
+        return rocmlirMIXRShapedTypeGet(
+            lens.size(), lens.data(), strides.data(), make_type(s.type()));
     }
 
     template <class Range>
-    std::vector<MlirType> make_tensors(const Range& r)
+    std::vector<MlirType> make_mlir_shapeds(const Range& r)
     {
         std::vector<MlirType> result;
         std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& s) {
-            return make_tensor(s);
+            return make_mlir_shaped(s);
         });
         return result;
     }
 
     MlirType make_function_type(const std::vector<shape>& inputs, const std::vector<shape>& outputs)
     {
-        auto in  = make_tensors(inputs);
-        auto out = make_tensors(outputs);
+        auto in  = make_mlir_shapeds(inputs);
+        auto out = make_mlir_shapeds(outputs);
         return mlirFunctionTypeGet(ctx.get(), in.size(), in.data(), out.size(), out.data());
     }
 
@@ -504,11 +506,7 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            std::vector<shape> reshaped(outputs.size());
-            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
-                return shape{r.type(), r.lens()};
-            });
-            auto x = prog->make_tensors(reshaped);
+            auto x = prog->make_mlir_shapeds(outputs);
             if(not x.empty())
             {
                 mlirOperationStateAddResults(&op_state, x.size(), x.data());
@@ -581,7 +579,7 @@ struct mlir_program
         std::vector<shape> outputs = m.get_output_shapes();
 
         std::vector<MlirLocation> arg_locs(inputs.size(), location);
-        auto body_inputs   = make_tensors(inputs);
+        auto body_inputs   = make_mlir_shapeds(inputs);
         mlir_region region = mlirRegionCreate();
         mlir_block fbody = mlirBlockCreate(body_inputs.size(), body_inputs.data(), arg_locs.data());
         MlirBlock result = fbody.get();
@@ -607,7 +605,7 @@ struct mlir_program
             return "func.return";
         if(ins->name() == "@literal")
         {
-            return "tosa.const";
+            return "migraphx.literal";
         }
         return "migraphx." + ins->name();
     }
@@ -666,7 +664,8 @@ struct mlir_program
             if(ins->name() == "@literal")
             {
                 literal r            = ins->get_literal();
-                MlirType tensor_type = make_tensor(ins->get_shape());
+                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+                MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
                 MlirAttribute mlir_value_attr =
                     mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
                 ops.add_attributes({{"value", mlir_value_attr}});
@@ -796,7 +795,9 @@ struct mlir_program
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
-        for(auto i : range(mlirRockTuningGetNumParams(params.get())))
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
             if(not mlirRockTuningParamGet(params.get(), i, param.get()))
@@ -942,35 +943,7 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         auto param        = m.get_parameter(name);
         if(input.standard())
             continue;
-        auto lens    = input.lens();
-        auto strides = input.strides();
-        std::vector<operation> ops;
-        if(input.transposed())
-        {
-            auto perm  = find_permutation(input);
-            auto iperm = invert_permutation(perm);
-            lens       = reorder_dims(lens, iperm);
-            strides    = reorder_dims(strides, iperm);
-            ops.push_back(make_op("transpose", {{"permutation", perm}}));
-        }
-        if(input.broadcasted())
-        {
-            std::transform(lens.begin(),
-                           lens.end(),
-                           strides.begin(),
-                           lens.begin(),
-                           [](auto len, auto stride) -> std::size_t {
-                               if(stride == 0)
-                                   return 1;
-                               return len;
-                           });
-            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
-        }
-        auto new_param =
-            std::accumulate(ops.begin(),
-                            ops.end(),
-                            m.add_parameter(name + ".0", shape{input.type(), lens}),
-                            [&](auto x, auto op) { return m.insert_instruction(param, op, x); });
+        auto new_param = m.add_parameter(name + ".0", input);
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
@@ -1032,6 +1005,15 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    static std::mutex mutex;
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
     return mp.get_tuning_config(exhaustive);
 }
 

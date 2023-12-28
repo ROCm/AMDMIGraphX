@@ -601,7 +601,7 @@ struct driver
                 failures() = 0;
                 f();
             }
-            // cppcheck-suppress EmptyCatchStatement
+            // cppcheck-suppress migraphx-EmptyCatchStatement
             catch(const failure_error&)
             {
             }

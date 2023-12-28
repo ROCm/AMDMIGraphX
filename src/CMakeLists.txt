@@ -35,6 +35,7 @@ add_library(migraphx
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
+    autocast_fp8.cpp
     auto_contiguous.cpp
     common.cpp
     common_dims.cpp
@@ -81,7 +82,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
-    quantize_int8.cpp
+    quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
@@ -221,6 +222,8 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    scatternd_max
+    scatternd_min
     select_module
     sigmoid
     sign
@@ -239,6 +242,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where
@@ -284,10 +288,11 @@ int main() {
 endfunction()
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
-find_package(TBB)
+find_package(TBB QUIET)
 if(TBB_FOUND)
     check_execution_par(TBB_HAS_EXECUTION_PAR TBB::tbb)
     if(TBB_HAS_EXECUTION_PAR)
+        list(APPEND PACKAGE_DEPENDS PACKAGE TBB)
         target_link_libraries(migraphx PUBLIC TBB::tbb)
         set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
         message(STATUS "Using TBB for parallel execution")
@@ -301,10 +306,10 @@ endif()
 
 option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS)
-    message("Parallel STL enabled")
+    message(STATUS "Parallel STL enabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
 else()
-    message("Parallel STL disabled")
+    message(STATUS "Parallel STL disabled")
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
 endif()
 

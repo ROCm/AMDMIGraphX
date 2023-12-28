@@ -1969,6 +1969,40 @@ def dropout_test():
 
 
 @onnx_test()
+def dynamicquantizelinear_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [6])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
+def dynamicquantizelinear_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 4])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
 def elu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -5995,6 +6029,313 @@ def qlinearadd_bcast_test():
 
 
 @onnx_test()
+def qlinearaveragepool_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 32])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.05])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 31])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.05])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [16])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2],
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.05])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 3, 3, 3])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.015])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [16])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2, 2],
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_ceil_test():
+    x = helper.make_tensor_value_info('x', TensorProto.UINT8, [1, 1, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.UINT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [1, 1, 2, 2])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.05])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.UINT8, [],
+                                      [0])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[3, 3],
+        strides=[2, 2],
+        ceil_mode=True,
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_dilations_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 1, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 1, 2, 2])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.25])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [84])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2, 2],
+        strides=[1, 1],
+        dilations=[2, 2],
+        ceil_mode=True,
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_pads_count_include_pad_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.05])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 3, 6, 6])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.01])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [32])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[3, 3],
+        pads=[2, 2, 2, 2],
+        count_include_pad=1,
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_same_lower_test():
+    x = helper.make_tensor_value_info('x', TensorProto.UINT8, [1, 3, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.UINT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [1, 3, 4, 4])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.UINT8, [],
+                                      [0])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2, 2],
+        auto_pad="SAME_LOWER",
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_same_upper_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 4, 4])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [32])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 3, 4, 4])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.25])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2, 2],
+        auto_pad="SAME_UPPER",
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_2d_strides_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 8, 8])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.05])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 3, 2, 2])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.05])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [8])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[5, 5],
+        strides=[2, 2],
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_3d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 3, 3, 3, 3])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.05])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 3, 2, 2, 2])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.02])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [0])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[2, 2, 2],
+    )
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_notset_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT8, [1, 1, 5, 5])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.INT8, [],
+                                      [0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT8, [1, 1, 1, 1])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.INT8, [],
+                                      [10])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[6, 6],
+        strides=[2, 2],
+        pads=[0, 0, 1, 1],
+        channels_last=0,
+        auto_pad='NOTSET')
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearaveragepool_nt_cip_test():
+    x = helper.make_tensor_value_info('x', TensorProto.UINT8, [1, 1, 5, 5])
+    x_scale = helper.make_tensor('x_scale', TensorProto.FLOAT, [], [0.5])
+    x_zero_point = helper.make_tensor('x_zero_point', TensorProto.UINT8, [],
+                                      [0])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [1, 1, 1, 1])
+    y_scale = helper.make_tensor('y_scale', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('y_zero_point', TensorProto.UINT8, [],
+                                      [10])
+
+    node = onnx.helper.make_node(
+        'QLinearAveragePool',
+        inputs=['x', 'x_scale', 'x_zero_point', 'y_scale', 'y_zero_point'],
+        outputs=['y'],
+        kernel_shape=[6, 6],
+        strides=[2, 2],
+        pads=[0, 0, 1, 1],
+        channels_last=0,
+        auto_pad='NOTSET',
+        count_include_pad=1)
+
+    return ([node], [x], [y], [x_scale, x_zero_point, y_scale, y_zero_point])
+
+
+@onnx_test()
+def qlinearconcat_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [1])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.25])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [0])
+
+    y = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=0,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
+def qlinearconcat_3d_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [3, 4, 2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [10])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3, 2, 2])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.4])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [20])
+
+    y = helper.make_tensor_value_info('out', TensorProto.UINT8, [3, 6, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=1,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
 def qlinearconv_test():
     # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
@@ -7455,8 +7796,7 @@ def scatter_none_test():
     return ([node], [x, i, u], [y])
 
 
-@onnx_test()
-def scatternd_add_test():
+def make_scatternd_test(reduction="none"):
     data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
     indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
                                             [2, 1, 2])
@@ -7468,44 +7808,39 @@ def scatternd_add_test():
     node = onnx.helper.make_node('ScatterND',
                                  inputs=['data', 'indices', 'updates'],
                                  outputs=['output'],
-                                 reduction="add")
+                                 reduction=reduction)
 
     return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
+def scatternd_add_test():
+    return make_scatternd_test("add")
 
 
 @onnx_test()
 def scatternd_mul_test():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
-    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
-                                            [2, 1, 2])
-    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
-                                            [2, 1, 2])
-    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
-                                           [2, 2, 2])
+    return make_scatternd_test("mul")
 
-    node = onnx.helper.make_node('ScatterND',
-                                 inputs=['data', 'indices', 'updates'],
-                                 outputs=['output'],
-                                 reduction="mul")
 
-    return ([node], [data, indices, updates], [output])
+@onnx_test()
+def scatternd_max_test():
+    return make_scatternd_test("max")
+
+
+@onnx_test()
+def scatternd_min_test():
+    return make_scatternd_test("min")
 
 
 @onnx_test()
 def scatternd_test():
-    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 2, 2])
-    indices = helper.make_tensor_value_info('indices', TensorProto.INT64,
-                                            [2, 1, 2])
-    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
-                                            [2, 1, 2])
-    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
-                                           [2, 2, 2])
+    return make_scatternd_test()
 
-    node = onnx.helper.make_node('ScatterND',
-                                 inputs=['data', 'indices', 'updates'],
-                                 outputs=['output'])
 
-    return ([node], [data, indices, updates], [output])
+@onnx_test()
+def scatternd_invalid_reduction_test():
+    return make_scatternd_test("invalid")
 
 
 @onnx_test()
@@ -9290,6 +9625,97 @@ def undefined_test():
     node = onnx.helper.make_node('Identity', inputs=[''], outputs=['1'])
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def unique_dynamic_sorted_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [4])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [6])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [4])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        axis=0,
+        sorted=1)
+    return ([node], [x], [y, y_ind, x_ind, count])
+
+
+@onnx_test()
+def unique_dynamic_sorted_3D_test():
+    x = helper.make_tensor_value_info('X', TensorProto.INT64, [4, 4, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [16])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [16])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [64])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [16])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        sorted=1)
+    return ([node], [x], [y, y_ind, x_ind, count])
+
+
+@onnx_test()
+def unique_dynamic_unsorted_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [4])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [6])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [4])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        axis=0,
+        sorted=0)
+    return ([node], [x], [y, y_ind, x_ind, count])
+
+
+@onnx_test()
+def unique_sorted_test():
+    x = helper.make_tensor('X', TensorProto.FLOAT, [6], [2, 1, 1, 3, 4, 3])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [4])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [6])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [4])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        axis=0,
+        sorted=1)
+    return ([node], [], [y, y_ind, x_ind, count], [x])
+
+
+@onnx_test()
+def unique_unsorted_test():
+    x = helper.make_tensor('X', TensorProto.FLOAT, [6], [2, 1, 1, 3, 4, 3])
+
+    y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [4])
+    y_ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [4])
+    x_ind = helper.make_tensor_value_info('inverse_indices', TensorProto.INT64,
+                                          [6])
+    count = helper.make_tensor_value_info('counts', TensorProto.INT64, [4])
+
+    node = onnx.helper.make_node(
+        'Unique',
+        inputs=['X'],
+        outputs=['Y', 'indices', 'inverse_indices', 'counts'],
+        axis=0,
+        sorted=0)
+    return ([node], [], [y, y_ind, x_ind, count], [x])
 
 
 @onnx_test()

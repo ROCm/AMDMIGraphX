@@ -49,6 +49,12 @@ std::string get_device_name()
     return props.gcnArchName;
 }
 
+bool gfx_has_fp8_intrinsics()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx940");
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

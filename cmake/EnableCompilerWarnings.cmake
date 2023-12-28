@@ -101,6 +101,7 @@ else()
                 -Wno-unused-command-line-argument
                 -Wno-weak-vtables
                 -Wno-c99-extensions
+                -Wunsafe-buffer-usage
                 # -Wno-c++2a-designator
             )
         else()

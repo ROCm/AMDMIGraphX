@@ -175,7 +175,7 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref get_parameter(std::string name) const;
 
-    void rename_parameter(instruction_ref ins, std::string& name);
+    void rename_parameter(instruction_ref ins, const std::string& name);
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 

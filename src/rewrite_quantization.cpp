@@ -28,9 +28,12 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 void apply_quantizelinear(module& m, instruction_ref ins)
 {
@@ -40,31 +43,44 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 
     if(x->get_shape().type() != y_scale->get_shape().type())
     {
-        x = m.insert_instruction(ins, make_op("convert", {{"target_type", shape::float_type}}), x);
+        x = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", y_scale->get_shape().type()}}), x);
     }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
-    auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
+    auto add_zero_point = m.insert_instruction(ins, make_op("nearbyint"), div);
 
     if(ins->inputs().size() == 3)
     {
-        auto zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+        auto zero_point =
+            m.insert_instruction(ins,
+                                 make_op("convert", {{"target_type", y_scale->get_shape().type()}}),
+                                 ins->inputs()[2]);
         add_zero_point = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
     }
 
-    int64_t max_quant = 0;
-    int64_t min_quant = 0;
+    double max_quant = 0;
+    double min_quant = 0;
     ins->get_shape().visit_type([&](auto qt) {
         max_quant = qt.max();
         min_quant = qt.min();
     });
     auto s = add_zero_point->get_shape();
-    std::vector<int> min_data(s.elements(), min_quant);
-    std::vector<int> max_data(s.elements(), max_quant);
-    auto min_arg = m.add_literal(literal(s, min_data));
-    auto max_arg = m.add_literal(literal(s, max_data));
+    instruction_ref min_arg;
+    instruction_ref max_arg;
 
-    auto saturate = m.insert_instruction(ins, make_op("clip"), add_zero_point, min_arg, max_arg);
+    if(enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
+    {
+        std::vector<double> min_data(s.elements(), min_quant);
+        std::vector<double> max_data(s.elements(), max_quant);
+        min_arg = m.add_literal(literal(s, min_data));
+        max_arg = m.add_literal(literal(s, max_data));
+    }
+    else
+    {
+        min_arg = m.add_literal(literal{shape{s.type()}, {min_quant}});
+        max_arg = m.add_literal(literal{shape{s.type()}, {max_quant}});
+    }
+    auto saturate = insert_common_op(m, ins, make_op("clip"), {add_zero_point, min_arg, max_arg});
     m.replace_instruction(
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), saturate);
 }
@@ -72,14 +88,16 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 void apply_dequantizelinear(module& m, instruction_ref ins)
 {
     assert(ins->name() == "dequantizelinear");
-    auto x = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[0]);
     auto x_scale = ins->inputs()[1];
+    auto x       = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", x_scale->get_shape().type()}}), ins->inputs()[0]);
 
     if(ins->inputs().size() == 3)
     {
-        auto x_zero_point = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::float_type}}), ins->inputs()[2]);
+        auto x_zero_point =
+            m.insert_instruction(ins,
+                                 make_op("convert", {{"target_type", x_scale->get_shape().type()}}),
+                                 ins->inputs()[2]);
         x = m.insert_instruction(ins, make_op("sub"), x, x_zero_point);
     }
 

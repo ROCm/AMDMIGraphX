@@ -135,7 +135,7 @@ constexpr vec<vec_type<T>, N> vec_packed_at(T x, I i)
         return vec<T, N>{x};
     else
     {
-        MIGRAPHX_ASSERT((i + N) < vec_size<T>());
+        MIGRAPHX_ASSERT((i + N) <= vec_size<T>());
         vec<vec_type<T>, N> result = {0};
         for(int j = 0; j < N; j++)
         {
@@ -183,6 +183,38 @@ constexpr auto vec_reduce(T x, Op op)
             result = op(result, x[i]);
         return result;
     }
+}
+
+template <class T>
+struct implicit_conversion_op
+{
+    T x;
+
+    template <index_int N, class U>
+    constexpr operator vec<U, N>() const
+    {
+        if constexpr(vec_size<T>() == 0)
+        {
+            return x;
+        }
+        else
+        {
+            static_assert(vec_size<T>() == N, "Vector mismatch size");
+            return __builtin_convertvector(x, vec<U, N>);
+        }
+    }
+
+    template <class U>
+    constexpr operator U() const
+    {
+        return static_cast<U>(x);
+    }
+};
+
+template <class T>
+constexpr implicit_conversion_op<T> implicit_conversion(T x)
+{
+    return {x};
 }
 
 } // namespace migraphx

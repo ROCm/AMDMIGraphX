@@ -34,12 +34,29 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
+#include <onnx.pb.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
 namespace onnx {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+
+static shape shape_from_dyn_dims(shape::type_t shape_type,
+                                 const std::vector<shape::dynamic_dimension>& dyn_dims)
+{
+    if(std::all_of(dyn_dims.begin(), dyn_dims.end(), [](auto dd) { return dd.is_fixed(); }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(dyn_dims.cbegin(), dyn_dims.cend(), std::back_inserter(dims), [](auto d) {
+            return d.max;
+        });
+        return {shape_type, dims};
+    }
+    return {shape_type, dyn_dims};
+}
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
 {
@@ -110,9 +127,19 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
 {
     if(args.size() == 3)
     {
-        auto bias_bcast = mod->add_instruction(
-            make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
-            args[2]);
+        instruction_ref bias_bcast;
+        // if curr_ins has a dynamic output shape use 2 input broadcast
+        if(curr_ins->get_shape().dynamic())
+        {
+            bias_bcast =
+                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+        }
+        else
+        {
+            bias_bcast = mod->add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
+                args[2]);
+        }
         return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
@@ -125,6 +152,25 @@ instruction_ref onnx_parser::node_info::add_broadcastable_binary_op(const std::s
     return this->add_common_op(op_name, arg0, arg1);
 }
 
+/**
+ * @brief A wrapper for insert_common_args(), which constructs an argument list
+ * and inserts multibroadcast and convert ops to match inputs to a common shape and type
+ * as required.  The requested operation is placed after the added multibroadcast and convert ops,
+ * if any, so that their results are transparent to the programmer.
+ *
+ * Use add_common_op() to match input sizes when inputs may be
+ *  either static or dynamic.
+ *
+ * @param op_name               string; Name of operation (op) to add; valid names are the same as
+ * for make_op()
+ *
+ * @param inputs                vector of instruction_ref.  List of instructions for the new
+ * operator.  Multibroadcast and convert operations, if needed, are deduced from these too.
+ *
+ * @return instruction_ref      Returns an instruction_ref which is the result of the requested
+ * operation.
+ *
+ */
 instruction_ref onnx_parser::node_info::add_common_op(const std::string& op_name,
                                                       std::vector<instruction_ref> inputs) const
 {
@@ -200,7 +246,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
-        this->path = parent_path;
+        this->path = parent_path.string();
 
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
@@ -210,7 +256,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
-            this->parse_graph(mm, model.graph());
+            (void)this->parse_graph(mm, model.graph());
         }
     }
     else
@@ -230,7 +276,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
-            this->parse_graph(mm, model.graph());
+            (void)this->parse_graph(mm, model.graph());
         }
     }
     else
@@ -254,15 +300,48 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
+void print_added_instructions(module* mod,
+                              const std::vector<instruction_ref>& args,
+                              const std::vector<instruction_ref>& result)
+{
+    // Print instructions added by the parser not in args
+    std::vector<instruction_ref> added_instructions;
+    fix([&](auto self, auto r) {
+        for(auto ins : r)
+        {
+            if(contains(args, ins))
+                continue;
+            if(contains(added_instructions, ins))
+                continue;
+            self(ins->inputs());
+            added_instructions.push_back(ins);
+        }
+    })(result);
+    mod->debug_print(added_instructions);
+}
+
+std::unordered_map<std::string, instruction_ref>
+parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
-        mod_insts[f.name()] = mod->add_literal(parse_tensor(f));
+        mod_insts[f.name()] = mod->add_literal(parser.parse_tensor(f));
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            mod->debug_print(mod_insts[f.name()]);
     }
+    return mod_insts;
+}
 
+std::unordered_map<std::string, instruction_ref>
+parse_inputs(const onnx_parser& parser,
+             module* mod,
+             const onnx::GraphProto& graph,
+             std::unordered_map<std::string, instruction_ref> mod_insts)
+{
     for(auto&& input : graph.input())
     {
         const std::string& name = input.name();
@@ -273,36 +352,48 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
             // scenario that a nested subgraph contains a parameter with the
             // name existed in its parent graph.
             // In the current implementation, MIGraphX throws an exception for that.
-            if(contains(instructions, name))
+            if(contains(parser.instructions, name))
             {
                 MIGRAPHX_THROW("module \"" + mod->name() + "\" has parameter name \"" + name +
                                "\" existing in parent graph!");
             }
 
             shape s;
-            std::vector<std::size_t> dims;
-            if(map_input_dims.count(name) > 0)
+            if(parser.map_input_dims.count(name) > 0)
             {
-                dims = map_input_dims.at(name);
-                s    = parse_type(input.type(), dims);
+                std::vector<std::size_t> dims = parser.map_input_dims.at(name);
+                s    = parser.parse_type(input.type(), dims);
             }
-            else if(map_dyn_input_dims.count(name) > 0)
+            else if(parser.map_dyn_input_dims.count(name) > 0)
             {
                 shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s                        = {shape_type, map_dyn_input_dims.at(name)};
+                s = shape_from_dyn_dims(shape_type, parser.map_dyn_input_dims.at(name));
             }
             else
             {
-                s = parse_type(input.type(), dims);
+                s = parser.parse_type(input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
     }
+    return mod_insts;
+}
+
+std::vector<instruction_ref>
+onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
+{
+    std::unordered_map<std::string, instruction_ref> mod_insts =
+        parse_intializer(*this, mod, graph);
+
+    mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
     for(auto&& node : graph.node())
     {
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+            std::cout << "operator: " << node.op_type() << std::endl;
+
         std::vector<instruction_ref> args;
         for(auto&& input : node.input())
         {
@@ -319,7 +410,7 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num = static_cast<std::size_t>(node.output().size());
+        std::size_t output_num = node.output().size();
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -340,6 +431,11 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
+
+        if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            print_added_instructions(mod, args, result);
+        }
     }
 
     // Find instructions corresponding to the output
@@ -362,11 +458,16 @@ void onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph)
                    std::back_inserter(output_ins),
                    [&](const auto& name) { return instructions[name]; });
 
-    // add the return instuction
-    mod->add_return(output_ins);
+    if(not inlining)
+    {
+        // add the return instuction
+        mod->add_return(output_ins);
 
-    // remove instructions added in this mod
-    erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+        // Remove instructions added in module (this is turned off for subgraph inlining)
+        erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
+    }
+
+    return output_ins;
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
@@ -385,6 +486,8 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     case onnx::AttributeProto::TENSORS:
     case onnx::AttributeProto::SPARSE_TENSOR:
     case onnx::AttributeProto::SPARSE_TENSORS:
+    case onnx::AttributeProto::TYPE_PROTOS:
+    case onnx::AttributeProto::TYPE_PROTO:
     case onnx::AttributeProto::GRAPHS: return {};
     }
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
@@ -393,18 +496,31 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     std::vector<std::size_t> dims(t.dims().begin(), t.dims().end());
-    if(not t.external_data().empty())
+    auto type = get_type(t.data_type());
+    shape tensor_shape(type, dims);
+    auto external_data = t.external_data();
+    if(not external_data.empty())
     {
-        const std::string& data_file = t.external_data().at(0).value();
-        auto raw_buffer              = read_buffer(path + "/" + data_file);
+        const std::string& data_file = external_data.at(0).value();
+        size_t num_data_fields       = external_data.size();
+        size_t offset                = 0;
+        size_t nbytes                = tensor_shape.bytes();
+
+        if(num_data_fields > 1) // if offset field is present
+        {
+            offset = std::stoul(t.external_data().at(1).value());
+        }
+        if(num_data_fields > 2) // if nbytes field is present
+        {
+            nbytes = std::stoul(t.external_data().at(2).value());
+        }
+        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
-        auto type = get_type(t.data_type());
         return create_literal(type, dims, s.data());
     }
     if(t.has_raw_data())
     {
         const std::string& s = t.raw_data();
-        auto type            = get_type(t.data_type());
         return create_literal(type, dims, s.data());
     }
 
@@ -433,6 +549,18 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::DOUBLE:
         return create_literal(shape::double_type, dims, t.double_data());
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
+    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
+        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
+        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
+        std::transform(data_int32.begin(),
+                       data_int32.end(),
+                       std::back_inserter(data_fp8),
+                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
+        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
+    }
+    case onnx::TensorProto::FLOAT8E5M2FNUZ:
+    case onnx::TensorProto::FLOAT8E5M2:
+    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -440,14 +568,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     }
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
-    if(not input_dims.empty())
-    {
-        return {shape_type, input_dims};
-    }
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
@@ -462,7 +585,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                                return default_dyn_dim_value;
                            }
                            std::size_t tmp = d.dim_value();
-                           return {tmp, tmp, 0};
+                           return {tmp, tmp};
                        }
                        else
                        {
@@ -474,16 +597,16 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     {
         return {shape_type};
     }
-    if(std::all_of(dynamic_dims.begin(), dynamic_dims.end(), [](auto dd) { return dd.is_fixed(); }))
-    {
-        std::vector<std::size_t> dims;
-        std::transform(dynamic_dims.begin(),
-                       dynamic_dims.end(),
-                       std::back_inserter(dims),
-                       [](auto d) { return d.max; });
-        return {shape_type, dims};
-    }
-    return {shape_type, dynamic_dims};
+    return shape_from_dyn_dims(shape_type, dynamic_dims);
+}
+
+shape onnx_parser::parse_type(const onnx::TypeProto& t,
+                              const std::vector<std::size_t>& input_dims) const
+{
+    shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    if(input_dims.empty())
+        return {shape_type};
+    return {shape_type, input_dims};
 }
 
 shape::type_t get_type(int dtype)
@@ -502,6 +625,17 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 18: {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+        return shape::fp8e4m3fnuz_type;
+    }
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 19:
+    case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }

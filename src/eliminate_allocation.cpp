@@ -28,10 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/serialize.hpp>
-
 #include <migraphx/make_op.hpp>
-
-#include <migraphx/pass_config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

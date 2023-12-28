@@ -113,8 +113,7 @@ void subgraph::apply(module_pass_manager& mpm) const
     // TODO(varunsh): this code may be replaceable by code in the fuse_pointwise pass
 
     // assuming all FPGA instructions are in one contiguous range
-    pm->insert_instructions(pm->end(), first, last, {});
-
+    pm->insert_instructions(pm->end(), first, std::next(last), {});
     migraphx::instruction_ref placeholder_ins;
     for(auto it : iterator_for(mod))
     {

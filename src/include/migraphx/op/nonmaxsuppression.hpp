@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_NONMAXSUPPRESSION_HPP
 #define MIGRAPHX_GUARD_OPERATORS_NONMAXSUPPRESSION_HPP
 
+#include <array>
 #include <cmath>
 #include <queue>
 #include <cstdint>
@@ -119,8 +120,8 @@ struct nonmaxsuppression
                 fixed_shape_error_check();
             }
             std::vector<shape::dynamic_dimension> out_lens = {};
-            out_lens.push_back({0, max_num_boxes, 0});
-            out_lens.push_back({3, 3, 0});
+            out_lens.push_back({0, max_num_boxes});
+            out_lens.push_back({3, 3});
             return {shape::int64_type, out_lens};
         }
         else
@@ -143,16 +144,22 @@ struct nonmaxsuppression
 
         void sort()
         {
-            std::sort(x.begin(), x.end());
-            std::sort(y.begin(), y.end());
+            if(x[0] > x[1])
+            {
+                std::swap(x[0], x[1]);
+            }
+            if(y[0] > y[1])
+            {
+                std::swap(y[0], y[1]);
+            }
         }
 
         std::array<double, 2>& operator[](std::size_t i) { return i == 0 ? x : y; }
 
         double area() const
         {
-            assert(std::is_sorted(x.begin(), x.end()));
-            assert(std::is_sorted(y.begin(), y.end()));
+            assert(x[0] <= x[1]);
+            assert(y[0] <= y[1]);
             return (x[1] - x[0]) * (y[1] - y[0]);
         }
     };
@@ -190,14 +197,10 @@ struct nonmaxsuppression
         {
             intersection[i][0] = std::max(b1[i][0], b2[i][0]);
             intersection[i][1] = std::min(b1[i][1], b2[i][1]);
-        }
-
-        std::vector<std::array<double, 2>> bbox = {intersection.x, intersection.y};
-        if(std::any_of(bbox.begin(), bbox.end(), [](auto bx) {
-               return not std::is_sorted(bx.begin(), bx.end());
-           }))
-        {
-            return false;
+            if(intersection[i][0] > intersection[i][1])
+            {
+                return false;
+            }
         }
 
         const double area1             = b1.area();
@@ -256,7 +259,7 @@ struct nonmaxsuppression
         selected_boxes_inside_class.reserve(max_output_shape.elements());
         // iterate over batches and classes
         shape comp_s{shape::double_type, {num_batches, num_classes}};
-        shape_for_each(comp_s, [&](auto idx) {
+        shape_for_each(comp_s, [&](const auto& idx) {
             auto batch_idx = idx[0];
             auto class_idx = idx[1];
             // index offset for this class
@@ -265,31 +268,31 @@ struct nonmaxsuppression
             auto batch_boxes_start = boxes.begin() + batch_idx * num_boxes * 4;
             auto boxes_heap = filter_boxes_by_score(scores_start, num_boxes, score_threshold);
             selected_boxes_inside_class.clear();
-            // Get the next box with top score, filter by iou_threshold
             while(not boxes_heap.empty() &&
                   selected_boxes_inside_class.size() < max_output_boxes_per_class)
             {
-                // Check with existing selected boxes for this class, remove box if it
-                // exceeds the IOU (Intersection Over Union) threshold
+                // select next top scorer box and remove any boxes from boxes_heap that exceeds IOU
+                // threshold with the selected box
                 const auto next_top_score = boxes_heap.top();
-                bool not_selected =
-                    std::any_of(selected_boxes_inside_class.begin(),
-                                selected_boxes_inside_class.end(),
-                                [&](auto selected_index) {
-                                    return this->suppress_by_iou(
-                                        batch_box(batch_boxes_start, next_top_score.second),
-                                        batch_box(batch_boxes_start, selected_index.second),
-                                        iou_threshold);
-                                });
-
-                if(not not_selected)
-                {
-                    selected_boxes_inside_class.push_back(next_top_score);
-                    selected_indices.push_back(batch_idx);
-                    selected_indices.push_back(class_idx);
-                    selected_indices.push_back(next_top_score.second);
-                }
                 boxes_heap.pop();
+                selected_boxes_inside_class.push_back(next_top_score);
+                selected_indices.push_back(batch_idx);
+                selected_indices.push_back(class_idx);
+                selected_indices.push_back(next_top_score.second);
+                std::priority_queue<std::pair<double, int64_t>> remainder_boxes;
+                while(not boxes_heap.empty())
+                {
+                    auto iou_candidate_box = boxes_heap.top();
+                    if(not this->suppress_by_iou(
+                           batch_box(batch_boxes_start, iou_candidate_box.second),
+                           batch_box(batch_boxes_start, next_top_score.second),
+                           iou_threshold))
+                    {
+                        remainder_boxes.push(iou_candidate_box);
+                    }
+                    boxes_heap.pop();
+                }
+                boxes_heap = remainder_boxes;
             }
         });
         std::copy(selected_indices.begin(), selected_indices.end(), output.begin());

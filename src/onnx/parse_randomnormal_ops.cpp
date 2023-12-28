@@ -35,8 +35,7 @@ namespace onnx {
 
 struct parse_randomnormal_ops : op_parser<parse_randomnormal_ops>
 {
-    const std::set<shape::type_t> valid_types = {
-        shape::float_type, shape::half_type, shape::double_type};
+    std::set<shape::type_t> valid_types = {shape::float_type, shape::half_type, shape::double_type};
 
     std::vector<op_desc> operators() const { return {{"RandomNormal"}, {"RandomNormalLike"}}; }
 

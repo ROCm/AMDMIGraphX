@@ -26,6 +26,10 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#include <migraphx/api/export.h>
+
 // Add new types here
 // clang-format off
 #define MIGRAPHX_SHAPE_VISIT_TYPES(m) \
@@ -40,7 +44,8 @@
     m(int32_type, int32_t) \
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
-    m(uint64_type, uint64_t)
+    m(uint64_type, uint64_t) \
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -66,7 +71,9 @@ typedef enum
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
-<% generate_c_header() %>
+<%
+    generate_c_header()
+%>
 
 #ifdef __cplusplus
 }

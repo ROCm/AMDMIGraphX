@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include <vector>
+#include <migraphx/register_target.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
@@ -63,7 +64,7 @@ int main() {}
 
 migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
-    return {name, std::make_pair(content.data(), content.data() + content.size())};
+    return {name, content};
 }
 
 hip_stream_ptr get_stream()
@@ -133,7 +134,7 @@ TEST_CASE(test_stream_sync)
     auto mult_out = mm->add_instruction(migraphx::make_op("dot"), x, y);
     mm->add_instruction(migraphx::make_op("add"), mult_out, test_val);
 
-    p.compile(migraphx::gpu::target{});
+    p.compile(migraphx::make_target("gpu"));
 
     // Run network and then verify with kernel
     auto args = p.eval({{"x", ginput}, {"output", goutput}}, {pstream.get(), true});

@@ -35,13 +35,12 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
-#include <migraphx/type_name.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
-
+#include <migraphx/float8.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -63,6 +62,7 @@ namespace py = pybind11;
     PYBIND11_MODULE(__VA_ARGS__)      \
     MIGRAPHX_POP_WARNING
 
+#define MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM(x, t) .value(#x, migraphx::shape::type_t::x)
 namespace migraphx {
 
 migraphx::value to_value(py::kwargs kwargs);
@@ -94,6 +94,10 @@ void visit_py(T x, F f)
     else if(py::isinstance<py::str>(x))
     {
         f(x.template cast<std::string>());
+    }
+    else if(py::isinstance<migraphx::shape::dynamic_dimension>(x))
+    {
+        f(migraphx::to_value(x.template cast<migraphx::shape::dynamic_dimension>()));
     }
     else
     {
@@ -140,6 +144,18 @@ struct npy_format_descriptor<half>
     static constexpr auto name() { return _("half"); }
 };
 
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
+{
+    static std::string format()
+    {
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        // TODO: need to figure out correct encoding
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e4m3fnuz"); }
+};
+
 } // namespace detail
 } // namespace pybind11
 
@@ -165,7 +181,10 @@ template <class T>
 py::buffer_info to_buffer_info(T& x)
 {
     migraphx::shape s = x.get_shape();
-    auto strides      = s.strides();
+    assert(s.type() != migraphx::shape::tuple_type);
+    if(s.dynamic())
+        MIGRAPHX_THROW("MIGRAPHX PYTHON: dynamic shape argument passed to to_buffer_info");
+    auto strides = s.strides();
     std::transform(
         strides.begin(), strides.end(), strides.begin(), [&](auto i) { return i * s.type_size(); });
     py::buffer_info b;
@@ -177,7 +196,7 @@ py::buffer_info to_buffer_info(T& x)
             b = py::buffer_info(x.data(),
                                 as.size(),
                                 py::format_descriptor<bool>::format(),
-                                s.lens().size(),
+                                s.ndim(),
                                 s.lens(),
                                 strides);
         }
@@ -186,7 +205,7 @@ py::buffer_info to_buffer_info(T& x)
             b = py::buffer_info(x.data(),
                                 as.size(),
                                 py::format_descriptor<decltype(as())>::format(),
-                                s.lens().size(),
+                                s.ndim(),
                                 s.lens(),
                                 strides);
         }
@@ -236,10 +255,18 @@ migraphx::shape to_shape(const py::buffer_info& info)
 
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
-    py::class_<migraphx::shape>(m, "shape")
+    py::class_<migraphx::shape> shape_cls(m, "shape");
+    shape_cls
         .def(py::init([](py::kwargs kwargs) {
-            auto v    = migraphx::to_value(kwargs);
-            auto t    = migraphx::shape::parse_type(v.get("type", "float"));
+            auto v = migraphx::to_value(kwargs);
+            auto t = migraphx::shape::parse_type(v.get("type", "float"));
+            if(v.contains("dyn_dims"))
+            {
+                auto dyn_dims =
+                    migraphx::from_value<std::vector<migraphx::shape::dynamic_dimension>>(
+                        v.at("dyn_dims"));
+                return migraphx::shape(t, dyn_dims);
+            }
             auto lens = v.get<std::size_t>("lens", {1});
             if(v.contains("strides"))
                 return migraphx::shape(t, lens, v.at("strides").to_vector<std::size_t>());
@@ -249,18 +276,33 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("type", &migraphx::shape::type)
         .def("lens", &migraphx::shape::lens)
         .def("strides", &migraphx::shape::strides)
+        .def("ndim", &migraphx::shape::ndim)
         .def("elements", &migraphx::shape::elements)
         .def("bytes", &migraphx::shape::bytes)
         .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
+        .def("dyn_dims", &migraphx::shape::dyn_dims)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
         .def("broadcasted", &migraphx::shape::broadcasted)
         .def("standard", &migraphx::shape::standard)
         .def("scalar", &migraphx::shape::scalar)
+        .def("dynamic", &migraphx::shape::dynamic)
         .def("__eq__", std::equal_to<migraphx::shape>{})
         .def("__ne__", std::not_equal_to<migraphx::shape>{})
         .def("__repr__", [](const migraphx::shape& s) { return migraphx::to_string(s); });
+
+    py::enum_<migraphx::shape::type_t>(shape_cls, "type_t")
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM);
+
+    py::class_<migraphx::shape::dynamic_dimension>(shape_cls, "dynamic_dimension")
+        .def(py::init<>())
+        .def(py::init<std::size_t, std::size_t>())
+        .def(py::init<std::size_t, std::size_t, std::set<std::size_t>>())
+        .def_readwrite("min", &migraphx::shape::dynamic_dimension::min)
+        .def_readwrite("max", &migraphx::shape::dynamic_dimension::max)
+        .def_readwrite("optimals", &migraphx::shape::dynamic_dimension::optimals)
+        .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed);
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
@@ -283,7 +325,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     py::class_<migraphx::target>(m, "target");
 
-    py::class_<migraphx::instruction_ref>(m, "instruction_ref");
+    py::class_<migraphx::instruction_ref>(m, "instruction_ref")
+        .def("shape", [](migraphx::instruction_ref i) { return i->get_shape(); })
+        .def("op", [](migraphx::instruction_ref i) { return i->get_operator(); });
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
         .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
@@ -329,15 +373,21 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("is_compiled", &migraphx::program::is_compiled)
         .def(
             "compile",
-            [](migraphx::program& p, const migraphx::target& t, bool offload_copy, bool fast_math) {
+            [](migraphx::program& p,
+               const migraphx::target& t,
+               bool offload_copy,
+               bool fast_math,
+               bool exhaustive_tune) {
                 migraphx::compile_options options;
-                options.offload_copy = offload_copy;
-                options.fast_math    = fast_math;
+                options.offload_copy    = offload_copy;
+                options.fast_math       = fast_math;
+                options.exhaustive_tune = exhaustive_tune;
                 p.compile(t, options);
             },
             py::arg("t"),
-            py::arg("offload_copy") = true,
-            py::arg("fast_math")    = true)
+            py::arg("offload_copy")    = true,
+            py::arg("fast_math")       = true,
+            py::arg("exhaustive_tune") = false)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
@@ -428,44 +478,63 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         "parse_onnx",
         [](const std::string& filename,
            unsigned int default_dim_value,
+           migraphx::shape::dynamic_dimension default_dyn_dim_value,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+           std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
+               map_dyn_input_dims,
            bool skip_unknown_operators,
            bool print_program_on_error,
-           int64_t max_loop_iterations) {
+           int64_t max_loop_iterations,
+           int64_t limit_max_iterations) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
+            options.default_dyn_dim_value  = default_dyn_dim_value;
             options.map_input_dims         = map_input_dims;
+            options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
             options.max_loop_iterations    = max_loop_iterations;
+            options.limit_max_iterations   = limit_max_iterations;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
         py::arg("filename"),
-        py::arg("default_dim_value") = 1,
-        py::arg("map_input_dims")    = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("default_dim_value")     = 0,
+        py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("map_dyn_input_dims") =
+            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
-        py::arg("max_loop_iterations")    = 10);
+        py::arg("max_loop_iterations")    = 10,
+        py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max());
 
     m.def(
         "parse_onnx_buffer",
         [](const std::string& onnx_buffer,
            unsigned int default_dim_value,
+           migraphx::shape::dynamic_dimension default_dyn_dim_value,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
+           std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
+               map_dyn_input_dims,
            bool skip_unknown_operators,
            bool print_program_on_error) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
+            options.default_dyn_dim_value  = default_dyn_dim_value;
             options.map_input_dims         = map_input_dims;
+            options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
         py::arg("filename"),
-        py::arg("default_dim_value") = 1,
-        py::arg("map_input_dims")    = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("default_dim_value")     = 0,
+        py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
+        py::arg("map_dyn_input_dims") =
+            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false);
 
@@ -493,6 +562,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("format") = "msgpack");
 
     m.def("get_target", &migraphx::make_target);
+    m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {
+        if(values.size() != s.elements())
+            MIGRAPHX_THROW("Values and shape elements do not match");
+        migraphx::argument a{s};
+        a.fill(values.begin(), values.end());
+        return a;
+    });
     m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
     m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",
@@ -504,7 +580,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("prog"),
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
-          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
+          py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/pass.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/tracer.hpp>
 #include <vector>
 
@@ -39,14 +40,21 @@ struct module_pass_manager
     virtual module& get_module()                           = 0;
     virtual module* create_module(const std::string& name) = 0;
     virtual module* get_common_parent()                    = 0;
+    virtual module* get_root_module()                      = 0;
     virtual void run_pass(const pass& p)                   = 0;
 
     protected:
     virtual ~module_pass_manager() {}
 };
 
-void run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
+MIGRAPHX_EXPORT void run_passes(program& prog,
+                                module_ref root_mod,
+                                const std::vector<pass>& passes,
+                                tracer trace = tracer{});
+MIGRAPHX_EXPORT void
+run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
+MIGRAPHX_EXPORT void
+run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

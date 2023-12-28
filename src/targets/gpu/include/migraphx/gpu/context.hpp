@@ -24,12 +24,14 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 #define MIGRAPHX_GUARD_RTGLIB_CONTEXT_HPP
 
+#include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/gpu/device_name.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -44,13 +46,7 @@ using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
 
 struct hip_device
 {
-    hip_device()
-    {
-        device_props.gcnArchName[0]      = '\0';
-        device_props.gcnArch             = 0;
-        device_props.multiProcessorCount = 0;
-        add_stream();
-    }
+    hip_device() : device_props{} { add_stream(); }
 
     hip_device(std::size_t id, std::size_t n) : device_id(id)
     {
@@ -171,6 +167,8 @@ struct hip_device
 
     std::string get_device_name() const { return device_props.gcnArchName; }
 
+    std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
+
     std::size_t get_device_major() const { return device_props.major; }
 
     std::size_t get_device_minor() const { return device_props.minor; }
@@ -214,6 +212,10 @@ struct context
         assert(current_device != nullptr);
         return *current_device;
     }
+
+    bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
+
+    void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
@@ -273,7 +275,8 @@ struct context
         auto v_streams        = v.at("streams");
         std::size_t n_streams = v_streams.without_key().to<std::size_t>();
 
-        this->current_device = std::make_shared<hip_device>(0, n_streams);
+        auto device          = get_device_id();
+        this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
     void wait_for(any_ptr queue)
@@ -296,23 +299,6 @@ struct context
 
     any_ptr get_queue() { return get_stream().get(); }
 
-    void enable_perf_measurement(bool b = true)
-    {
-        if(b)
-        {
-            start_event = create_event_for_timing();
-            stop_event  = create_event_for_timing();
-            get_stream().record(start_event.get());
-            get_stream().record(stop_event.get());
-        }
-        else
-        {
-            start_event = nullptr;
-            stop_event  = nullptr;
-        }
-        measure_perf = b;
-    }
-
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {
         if(measure_perf)
@@ -320,12 +306,12 @@ struct context
         return std::make_pair(nullptr, nullptr);
     }
 
-    float get_elapsed_ms() const
+    static float get_elapsed_ms(hipEvent_t start, hipEvent_t stop)
     {
         float result = 0;
-        if(start_event != nullptr and stop_event != nullptr)
+        if(start != nullptr and stop != nullptr)
         {
-            auto status = hipEventElapsedTime(&result, start_event.get(), stop_event.get());
+            auto status = hipEventElapsedTime(&result, start, stop);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed hipEventElapsedTime: " + hip_error(status));
         }
@@ -336,7 +322,8 @@ struct context
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
-    bool measure_perf = false;
+    bool exhaustive_tune = false;
+    bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;

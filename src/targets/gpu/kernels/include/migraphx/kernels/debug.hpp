@@ -122,12 +122,14 @@ struct source_location_capture
 {
     T x;
     source_location loc;
-    template <class U, class = decltype(T(U{}))>
+    // declval is a workaround since default constructor for "U" is not working with rocm-5.6
+    template <class U>
+    static U&& declval();
+    template <class U, class = decltype(T(declval<U>()))>
     constexpr source_location_capture(U px, source_location ploc = source_location{})
         : x(px), loc(ploc)
     {
     }
-
     constexpr operator source_location() const { return loc; }
 
     constexpr operator T() const { return x; }
@@ -177,6 +179,10 @@ MIGRAPHX_HIP_NORETURN inline __host__ __device__ void assert_fail(const source_l
 #define MIGRAPHX_ASSERT(cond)
 #define MIGRAPHX_WARN(...)
 #endif
+
+#define MIGRAPHX_STATIC_ASSERT_FOR(...) \
+    static_assert(__VA_ARGS__);         \
+    if constexpr(__VA_ARGS__)
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_DEBUG_HPP

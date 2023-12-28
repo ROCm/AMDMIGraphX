@@ -68,8 +68,7 @@ instruction_ref parse_reduce_oper(const std::string& op_name,
         }
         else
         {
-            std::size_t n_dim = args.front()->get_shape().lens().size();
-            axes.resize(n_dim);
+            axes.resize(args.front()->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), 0);
         }
     }

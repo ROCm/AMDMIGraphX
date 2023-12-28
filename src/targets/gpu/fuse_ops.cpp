@@ -165,7 +165,8 @@ struct fusion
 
 const std::unordered_set<std::string>& get_supported_archs()
 {
-    static std::unordered_set<std::string> supported_archs{"gfx900", "gfx906", "gfx908", "gfx1030"};
+    static std::unordered_set<std::string> supported_archs{
+        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
     return supported_archs;
 }
 
@@ -553,11 +554,13 @@ struct find_gemm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(
+        auto gemm_op   = match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm");
+        auto binary_op = match::all_of(
             match::nargs(3),
             match::either_arg(0, 1)(
-                match::any_of(match::standard_shape(), match::is_constant()).bind("c"),
-                match::name("gpu::gemm")(match::nargs(3), match::used_once()).bind("gemm")));
+                match::any_of(match::standard_shape(), match::is_constant()).bind("c"), gemm_op));
+        auto unary_op = match::all_of(match::nargs(2), match::arg(0)(gemm_op));
+        return precompile_name("pointwise")(match::any_of(binary_op, unary_op));
     }
 
     // TODO: Move to matcher.hpp
@@ -589,61 +592,84 @@ struct find_gemm_pointwise
         return match::name("@return")(match::args(match::any_of(add, mul_add, add_mul)));
     }
 
+    static auto match_mul(const std::string& input)
+    {
+        auto mul = match_mul_const(match_param(input), "alpha");
+        return match::name("@return")(match::args(mul));
+    }
+
     static float get_float(instruction_ref ins) { return ins->get_literal().at<float>(); }
 
     template <class Gemm>
     static bool update_gemm(Gemm& gemm, module_ref pm, unsigned input)
     {
         auto names = pm->get_parameter_names();
-        if(names.size() != 2)
-            return false;
         std::sort(names.begin(), names.end());
-        unsigned output = input == 0 ? 1 : 0;
-        auto mr         = match::match_instruction(
-            *pm, std::prev(pm->end()), match_add(names[input], names[output]));
-        if(mr.result == pm->end())
-            return false;
-        if(contains(mr.instructions, "alpha_mul"))
-            gemm.alpha *= get_float(mr.instructions["alpha"]);
-        else if(contains(mr.instructions, "beta_mul"))
-            gemm.beta *= get_float(mr.instructions["beta"]);
-        else if(contains(mr.instructions, "gamma_mul"))
+        if(names.size() == 1)
         {
-            gemm.alpha *= get_float(mr.instructions["gamma"]);
-            gemm.beta *= get_float(mr.instructions["gamma"]);
+            auto mr = match::match_instruction(*pm, std::prev(pm->end()), match_mul(names[input]));
+            if(mr.result == pm->end())
+                return false;
+            gemm.alpha *= get_float(mr.instructions["alpha"]);
+            return true;
         }
-        return true;
+        else if(names.size() == 2)
+        {
+            unsigned output = input == 0 ? 1 : 0;
+            auto mr         = match::match_instruction(
+                *pm, std::prev(pm->end()), match_add(names[input], names[output]));
+            if(mr.result == pm->end())
+                return false;
+            if(contains(mr.instructions, "alpha_mul"))
+                gemm.alpha *= get_float(mr.instructions["alpha"]);
+            else if(contains(mr.instructions, "beta_mul"))
+                gemm.beta *= get_float(mr.instructions["beta"]);
+            else if(contains(mr.instructions, "gamma_mul"))
+            {
+                gemm.alpha *= get_float(mr.instructions["gamma"]);
+                gemm.beta *= get_float(mr.instructions["gamma"]);
+            }
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
-        auto c_ins    = r.instructions["c"];
 
         auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
         if(not float_equal(gemm.beta, 0))
             return;
-        gemm.beta = 1;
+        if(ins->inputs().size() == 3)
+            gemm.beta = 1;
 
         if(not update_gemm(
                gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
             return;
 
-        // const-fold input if not standard shape since rocblas can't handle it
-        if(not c_ins->get_shape().standard())
-        {
-            auto c = make_op("contiguous");
-            auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
-            c_ins  = m.add_literal(l.get_shape(), l.data());
-        }
-
         auto inputs = gemm_ins->inputs();
         inputs.pop_back();
 
-        inputs.push_back(c_ins);
+        if(ins->inputs().size() == 3)
+        {
+            auto c_ins = r.instructions["c"];
+            // const-fold input if not standard shape since rocblas can't handle it
+            if(not c_ins->get_shape().standard())
+            {
+                auto c = make_op("contiguous");
+                auto l = c.compute(c.compute_shape({c_ins->get_shape()}), {c_ins->eval()});
+                c_ins  = m.add_literal(l.get_shape(), l.data());
+            }
+            inputs.push_back(c_ins);
+        }
+
         inputs.push_back(ins->inputs().back());
 
         m.replace_instruction(ins, gemm, inputs);
@@ -764,24 +790,57 @@ struct find_layernorm_pointwise
 {
     auto matcher() const
     {
-        return precompile_name("pointwise")(match::arg(0)(
+        return precompile_name("pointwise")(match::any_of[match::inputs()](
             precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins       = r.result;
+        auto pw_ins    = r.result;
         auto layernorm = r.instructions["layernorm"];
-        auto* pm       = ins->module_inputs().front();
-
         if(not layernorm->module_inputs().empty())
             return;
-
+        auto* pm       = pw_ins->module_inputs().front();
+        auto pw_inputs = pw_ins->inputs();
+        auto ln_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), layernorm);
+        assert(ln_pos != pw_inputs.end());
+        pw_inputs.erase(ln_pos);
         auto inputs = layernorm->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+
+        m.replace_instruction(pw_ins, layernorm->get_operator(), inputs, {pm});
+    }
+};
+
+struct find_concat_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::arg(0)(precompile_name("concat").bind("concat")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins    = r.result;
+        auto concat = r.instructions["concat"];
+        if(not concat->module_inputs().empty())
+            return;
+
+        // TODO: Handle type conversions
+        if(ins->get_shape().type() != concat->get_shape().type())
+            return;
+
+        auto* pm    = ins->module_inputs().front();
+        auto inputs = concat->inputs();
         inputs.pop_back();
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
 
-        m.replace_instruction(ins, layernorm->get_operator(), inputs, {pm});
+        auto op = concat->get_operator();
+        op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
+
+        m.replace_instruction(ins, op, inputs, {pm});
     }
 };
 
@@ -792,8 +851,9 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
-                        find_layernorm_pointwise{},
                         find_gemm_pointwise{},
+                        find_layernorm_pointwise{},
+                        find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});

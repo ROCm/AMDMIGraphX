@@ -39,7 +39,7 @@ struct module;
 /**
  * Rewrite rnn to gemm and add.
  */
-struct rewrite_rnn
+struct MIGRAPHX_EXPORT rewrite_rnn
 {
     std::string name() const { return "rewrite_rnn"; }
     void apply(module& m) const;
@@ -51,7 +51,7 @@ struct rewrite_rnn
                                                   module& m,
                                                   instruction_ref ins,
                                                   std::vector<instruction_ref> inputs,
-                                                  operation& actv_func) const;
+                                                  const operation& actv_func) const;
     std::vector<operation> vanilla_rnn_actv_funcs(instruction_ref ins) const;
 
     // for gru operators

@@ -55,7 +55,7 @@ struct allocate
                                const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return {output_shape};
+        return migraphx::argument{output_shape};
     }
 };
 
@@ -89,17 +89,13 @@ bool is_overlap_load(migraphx::instruction_ref a, migraphx::instruction_ref b)
 
 bool is_disjoint(const std::vector<migraphx::instruction_ref>& inss)
 {
-    for(auto ins1 : inss)
-    {
-        for(auto ins2 : inss)
-        {
+    return std::none_of(inss.begin(), inss.end(), [&](auto ins1) {
+        return std::none_of(inss.begin(), inss.end(), [&](auto ins2) {
             if(ins1 == ins2)
-                continue;
-            if(is_overlap_load(ins1, ins2))
-                return false;
-        }
-    }
-    return true;
+                return true;
+            return is_overlap_load(ins1, ins2);
+        });
+    });
 }
 
 TEST_CASE(test1)
@@ -691,7 +687,7 @@ TEST_CASE(test38)
     auto p83    = m.add_instruction(pass_op{}, p78, p77);
     m.add_instruction(pass_op{}, output, p83, p63);
     run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 7225344); // Optimal solution is 6422528
+    CHECK(m.get_parameter_shape("scratch").bytes() == 6422528);
     CHECK(no_allocate(m));
 }
 
@@ -729,7 +725,7 @@ TEST_CASE(test39)
         run_pass(*smod);
     }
 
-    CHECK(mm->get_parameter_shape("scratch").bytes() == 4);
+    CHECK(mm->get_parameter_shape("scratch").bytes() == 1);
     CHECK(then_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(else_mod->get_parameter_shape("scratch").bytes() == 24);
     CHECK(no_allocate(*mm));
@@ -3374,7 +3370,7 @@ TEST_CASE(rnn_dom)
     m.add_instruction(pass_op{}, moutput, mx250, mx249, mx248);
 
     run_pass(m);
-    CHECK(m.get_parameter_shape("scratch").bytes() == 1600);
+    CHECK(m.get_parameter_shape("scratch").bytes() == 1824); // Optimal is 1600
     CHECK(no_allocate(m));
     CHECK(is_disjoint({mx0, mx8}));
     CHECK(is_disjoint({mx0, mx8}));
@@ -3788,6 +3784,25 @@ TEST_CASE(literal_test)
     run_pass(*mm);
     auto result = p.eval({}).back();
     CHECK(lit == result);
+}
+
+TEST_CASE(test_tuple)
+{
+    migraphx::module m;
+
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {8}};
+    auto s2 = migraphx::shape{migraphx::shape::half_type, {10}};
+
+    auto s = migraphx::shape{{s1, s2}};
+
+    auto a1 = add_alloc(m, s);
+    auto m1 = m.add_instruction(pass_op{}, a1);
+    auto a2 = add_alloc(m, {migraphx::shape::float_type, {4}});
+    m.add_instruction(pass_op{}, a2, m1);
+    run_pass(m);
+    CHECK(m.get_parameter_shape("scratch").bytes() == 68);
+    CHECK(no_allocate(m));
+    CHECK(is_disjoint({a1, a2}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

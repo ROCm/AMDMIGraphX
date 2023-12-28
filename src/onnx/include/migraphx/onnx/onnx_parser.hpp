@@ -94,13 +94,14 @@ struct onnx_parser
     node_map nodes;
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
-    shape::dynamic_dimension default_dyn_dim_value = {1, 1, 0};
+    shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
-    bool use_dyn_output         = false;
-    bool skip_unknown_operators = false;
-    int64_t max_loop_iterations = 10;
-    int64_t opset_version       = 13;
+    bool use_dyn_output          = false;
+    bool skip_unknown_operators  = false;
+    int64_t max_loop_iterations  = 10;
+    int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
+    int64_t opset_version        = 13;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -113,9 +114,11 @@ struct onnx_parser
 
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);
-    void parse_graph(module* mod, const onnx::GraphProto& graph);
+    std::vector<instruction_ref>
+    parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
+    shape parse_type(const onnx::TypeProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
 };
 

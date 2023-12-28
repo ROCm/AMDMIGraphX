@@ -140,8 +140,10 @@ template <class T>
 auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
     -> decltype(x.normalize_compute_shape(inputs))
 {
+    if(inputs.empty())
+        MIGRAPHX_THROW("At least one input is required for " + x.name());
     dependent_type<operation, T> y = x;
-    normalize_attributes(y, inputs[0].max_lens());
+    normalize_attributes(y, inputs[0]);
     return any_cast<T>(y).normalize_compute_shape(inputs);
 }
 
@@ -259,11 +261,13 @@ auto compute_op(rank<1>,
 template <class T, class F>
 argument compute_op(rank<0>,
                     const T& x,
-                    const shape&,
-                    const std::vector<argument>&,
-                    const std::vector<module_ref>&,
+                    const shape& output,
+                    const std::vector<argument>& inputs,
+                    const std::vector<module_ref>& module_args,
                     F)
 {
+    if(module_args.empty())
+        return compute_op(x, output, inputs);
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
 }
@@ -671,8 +675,8 @@ bool has_finalize(const T& x)
     return detail::has_finalize_op(x);
 }
 
-void migraphx_to_value(value& v, const operation& op);
-void migraphx_from_value(const value& v, operation& op);
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const operation& op);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, operation& op);
 
 #endif
 

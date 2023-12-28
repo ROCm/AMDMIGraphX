@@ -48,6 +48,8 @@
 
 /CMakeSettings.json
 
+# documentation artifacts
+_toc.yml
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
@@ -61,3 +63,26 @@ test/onnx/models
 # VS2017 and VSCode config files.
 .vscode
 .vs
+
+# documentation artifacts
+docs/_build
+docs/_images
+docs/_static
+docs/_templates
+docs/doxygen/DoxygenWarningLog.txt
+docs/doxygen/html/
+docs/doxygen/xml/
+docs/_doxygen
+docs/html
+/_readthedocs
+
+# JetBrains config directories (ignoring symlinks)
+.idea/
+cmake-build*/
+build*/
+
+# Recommended location to install rbuild dependencies from README.md
+depend*/
+
+# local Python virtual environment
+.venv/

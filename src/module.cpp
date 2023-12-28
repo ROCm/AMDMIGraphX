@@ -166,6 +166,7 @@ void module::assign(const module& m)
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
                                     {builtin::param{name, order}, std::move(s), {}});
+            impl->nparams++;
         }
         else if(ins->name() == "@outline")
         {
@@ -325,6 +326,8 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 
     if(ins == std::prev(this->end()))
     {
+        // "rep" instruction could be used earlier in the program and moving it at the end
+        // may cause invalid program, therefore make an identity operation in this case.
         return replace_instruction(ins, make_op("identity"), rep);
     }
 
@@ -457,11 +460,11 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    impl->push_back({builtin::returns{}, {}, std::move(args)});
+    shape instr_shape = compute_shape(builtin::returns{}, args);
+    impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
     instruction::backreference(result);
     assert(result->valid(begin()));
-
     return result;
 }
 
@@ -551,6 +554,17 @@ instruction_ref module::get_parameter(std::string name) const
         return this->end();
 }
 
+void module::rename_parameter(instruction_ref ins, const std::string& name)
+{
+    assert(ins->name() == "@param");
+    auto op      = any_cast<builtin::param>(ins->get_operator());
+    op.parameter = name;
+    auto outputs = ins->outputs();
+    *ins         = instruction{op, ins->get_shape(), {}};
+    for(auto output : outputs)
+        ins->add_output(output);
+}
+
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -592,6 +606,14 @@ std::vector<shape> module::get_output_shapes() const
     {
         return {last_ins.get_shape()};
     }
+}
+
+std::vector<instruction_ref> module::get_returns() const
+{
+    auto last = std::prev(this->end());
+    if(last->name() == "@return")
+        return last->inputs();
+    return {last};
 }
 
 instruction_ref module::validate() const
@@ -641,8 +663,9 @@ instruction_ref module::find_dangling_reference() const
     return end();
 }
 
-void module::finalize(context& ctx)
+void module::finalize(std::vector<context>& contexts)
 {
+    assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
     for(auto ins : iterator_for(*this))
     {
@@ -651,12 +674,21 @@ void module::finalize(context& ctx)
             std::cout << "Finalize: ";
             this->debug_print(ins);
         }
-        ins->finalize(ctx);
+        ins->finalize(contexts[ins->get_target_id()]);
         for(const auto& smod : ins->module_inputs())
         {
-            smod->finalize(ctx);
+            smod->finalize(contexts);
         }
     }
+#ifndef BUILD_DEV
+    if(std::any_of(this->begin(), this->end(), [](const auto i) {
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+    {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+    }
+#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
@@ -714,15 +746,15 @@ std::unordered_map<instruction_ref, std::string> module::print(
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
+        if(not this->name().empty() and this->name() != "main")
+            var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
-            var_name = any_cast<builtin::param>(ins->get_operator()).parameter;
+            var_name.append(any_cast<builtin::param>(ins->get_operator()).parameter);
         }
         else
         {
-            var_name = this->name();
-            var_name.append((this->name().empty() ? "@" : ":@"));
-            var_name.append(std::to_string(count));
+            var_name.append("@" + std::to_string(count));
         }
         // count every instruction so index matches loc in the printout program
         count++;
@@ -786,7 +818,26 @@ static std::string to_c_id(const std::string& name, char rep = '_')
 
 static std::string cpp_var_name(const std::string& name)
 {
-    return to_c_id("x_" + replace_string(name, ":", "_module_"));
+    std::string prefix = "x_";
+    if(not contains(name, "@"))
+        prefix = "p_";
+    return to_c_id(prefix + replace_string(name, ":", "_module_"));
+}
+
+static void print_py_op(std::ostream& os, const operation& op)
+{
+    auto v = op.to_value();
+    os << "migraphx.op(" << enclose_name(op.name());
+
+    auto default_values = make_op(op.name()).to_value();
+    for(auto&& x : v)
+    {
+        auto name = x.get_key();
+        if(default_values[name] == x)
+            continue;
+        os << ", " << name << "=" << to_json_string(x.without_key());
+    }
+    os << ")";
 }
 
 static void print_make_op(std::ostream& os, const operation& op)
@@ -804,6 +855,15 @@ static void print_make_op(std::ostream& os, const operation& op)
     os << ")";
 }
 
+static void print_py_shape(std::ostream& os, const migraphx::shape& s)
+{
+    os << "migraphx.shape(type=" << to_json_string(s.type_string())
+       << ", lens=" << to_json_string(s.lens());
+    if(not s.standard())
+        os << ", strides=" << to_json_string(s.strides());
+    os << ")";
+}
+
 static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
 {
     os << "migraphx::shape{migraphx::shape::" << s.type_string();
@@ -811,6 +871,67 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     if(not s.standard())
         os << ", {" << to_string_range(s.strides()) << "}";
     os << "}";
+}
+
+std::unordered_map<instruction_ref, std::string>
+module::print_py(std::ostream& os,
+                 const std::string& mname,
+                 std::unordered_map<instruction_ref, std::string> names) const
+{
+    // cppcheck-suppress variableScope
+    unsigned long seed = names.size();
+    auto last          = std::prev(this->end());
+    names              = this->print(
+        [&](auto ins, auto ins_names) {
+            std::vector<std::string> input_vars;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(input_vars),
+                           [&](auto input) { return cpp_var_name(ins_names.at(input)); });
+            if(ins != last)
+                os << cpp_var_name(ins_names.at(ins)) << " = ";
+            if(ins->name() == "@literal")
+            {
+                os << mname << ".add_literal(";
+                const bool use_abs = false;
+                // Disable abs for now
+                // ins->get_literal().visit([&](auto v) {
+                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                // });
+                if(use_abs)
+                    os << "migraphx.abs_literal(";
+                os << "migraphx.generate_argument(";
+                print_py_shape(os, ins->get_shape());
+                os << ", " << seed << ")";
+                if(use_abs)
+                    os << ")";
+                os << ")" << std::endl;
+                seed++;
+            }
+            else if(ins->name() == "@param")
+            {
+                std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
+                os << mname << ".add_parameter(" << enclose_name(name) << ",";
+                print_py_shape(os, ins->get_shape());
+                os << ")" << std::endl;
+            }
+            else if(ins->name() == "@return")
+            {
+                os << mname << ".add_return([" << join_strings(input_vars, ", ") << "])"
+                   << std::endl;
+            }
+            else
+            {
+                assert(ins->name().front() != '@');
+                os << mname << ".add_instruction(";
+                print_py_op(os, ins->get_operator());
+                os << ", [" << join_strings(input_vars, ", ") << "]";
+                os << ")" << std::endl;
+            }
+        },
+        names);
+
+    return names;
 }
 
 std::unordered_map<instruction_ref, std::string>
@@ -874,6 +995,8 @@ module::print_cpp(std::ostream& os,
     return names;
 }
 
+void module::print_py(std::ostream& os) const { this->print_py(os, this->name(), {}); }
+
 void module::print_cpp(std::ostream& os) const { this->print_cpp(os, this->name(), {}); }
 
 void module::annotate(std::ostream& os, std::function<void(instruction_ref)> a) const
@@ -907,9 +1030,17 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
-        for(auto child : ins->inputs())
+        auto ins_inputs = ins->inputs();
+        if(implicit_deps.find(ins) != implicit_deps.end())
+        {
+            auto ins_implict_inputs = implicit_deps.at(ins);
+            ins_inputs.insert(
+                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+        }
+        for(auto child : ins_inputs)
         {
             if(not contains(this->impl->instructions, child))
             {
@@ -941,12 +1072,9 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
+        for(const auto* ssmod : mod_args)
         {
-            for(const auto* ssmod : mod_args)
-            {
-                calc_implicit_deps(*ssmod, pmod, ins, deps);
-            }
+            calc_implicit_deps(*ssmod, pmod, ins, deps);
         }
     }
 }

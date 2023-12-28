@@ -21,17 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "verify.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
+#include "passes.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#ifdef MIGRAPHX_ENABLE_PYTHON
+#include <migraphx/py.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
+#include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
@@ -54,6 +60,13 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+inline std::string get_version()
+{
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+           "." MIGRAPHX_VERSION_TWEAK;
+}
+
 struct loader
 {
     std::string model;
@@ -67,8 +80,11 @@ struct loader
     bool brief                  = false;
     std::string output_type;
     std::string output;
+    std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
+    std::vector<std::string> passes;
 
     void parse(argument_parser& ap)
     {
@@ -77,12 +93,17 @@ struct loader
            {"--model"},
            ap.help("Load model"),
            ap.type("resnet50|inceptionv3|alexnet"),
+           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
-        ap(batch, {"--batch"}, ap.help("Set batch size for model"));
+        ap(batch,
+           {"--batch"},
+           ap.help("For a static model, sets default_dim_value size (commonly batch size). For a "
+                   "dynamic batch model, sets the batch "
+                   "size at runtime."));
         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
         ap(skip_unknown_operators,
            {"--skip-unknown-operators"},
@@ -95,13 +116,23 @@ struct loader
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
            ap.append(),
            ap.nargs(2));
-
+        ap(dyn_param_dims,
+           {"--dyn-input-dim"},
+           ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
+                   "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
+                   "single integer value for a dimension to specify it as fixed."),
+           ap.append(),
+           ap.nargs(2));
+        ap(default_dyn_dim,
+           {"--default-dyn-dim"},
+           ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -109,8 +140,12 @@ struct loader
         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
         ap(output_type,
            {"--cpp"},
-           ap.help("Print out the program as cpp program."),
+           ap.help("Print out the program as C++ program."),
            ap.set_value("cpp"));
+        ap(output_type,
+           {"--python", "--py"},
+           ap.help("Print out the program as python program."),
+           ap.set_value("py"));
         ap(output_type, {"--json"}, ap.help("Print out program as json."), ap.set_value("json"));
         ap(output_type,
            {"--text"},
@@ -142,6 +177,40 @@ struct loader
         return map_input_dims;
     }
 
+    static auto parse_dyn_dims_json(const std::string& dd_json)
+    {
+        // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
+        auto v = from_json_string(convert_to_json(dd_json));
+        std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+        std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](auto x) {
+            if(x.is_object())
+                return from_value<migraphx::shape::dynamic_dimension>(x);
+            auto d = x.template to<std::size_t>();
+            return migraphx::shape::dynamic_dimension{d, d};
+        });
+        return dyn_dims;
+    }
+
+    static auto parse_dyn_dims_map(const std::vector<std::string>& param_dyn_dims)
+    {
+        // expecting vector of strings formatted like
+        // {"@param_name_0", "dd_json_0", "@param_name_1", "dd_json_1", ...}
+        std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
+        std::string name = "";
+        for(auto&& x : param_dyn_dims)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                map_dyn_input_dims[name] = parse_dyn_dims_json(x);
+            }
+        }
+        return map_dyn_input_dims;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -153,37 +222,70 @@ struct loader
         return output_node_names;
     }
 
+    tf_options get_tf_options() const
+    {
+        auto map_input_dims    = parse_param_dims(param_dims);
+        auto output_node_names = parse_output_names(output_names);
+        tf_options options;
+        options.is_nhwc           = is_nhwc;
+        options.batch_size        = batch;
+        options.map_input_dims    = map_input_dims;
+        options.output_node_names = output_node_names;
+        return options;
+    }
+
+    onnx_options get_onnx_options() const
+    {
+        auto map_input_dims     = parse_param_dims(param_dims);
+        auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+        onnx_options options;
+        if(default_dyn_dim.empty())
+        {
+            options.default_dim_value = batch;
+        }
+        else
+        {
+            auto v                        = from_json_string(convert_to_json(default_dyn_dim));
+            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+        }
+        options.skip_unknown_operators = skip_unknown_operators;
+        options.print_program_on_error = true;
+        options.map_input_dims         = map_input_dims;
+        options.map_dyn_input_dims     = map_dyn_input_dims;
+        return options;
+    }
+
+    static std::string get_file_type(const std::string& file)
+    {
+        if(ends_with(file, ".onnx"))
+            return "onnx";
+        else if(ends_with(file, ".pb"))
+            return "tf";
+        else if(ends_with(file, ".json"))
+            return "json";
+        else if(ends_with(file, ".py"))
+            return "py";
+        else
+            return "migraphx";
+    }
+
     program load()
     {
         program p;
         if(model.empty())
         {
-            auto map_input_dims    = parse_param_dims(param_dims);
-            auto output_node_names = parse_output_names(output_names);
             if(file_type.empty())
             {
-                if(ends_with(file, ".onnx"))
-                    file_type = "onnx";
-                else if(ends_with(file, ".pb"))
-                    file_type = "tf";
-                else if(ends_with(file, ".json"))
-                    file_type = "json";
-                else
-                    file_type = "migraphx";
+                file_type = get_file_type(file);
             }
             std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
             {
-                onnx_options options;
-                options.default_dim_value      = batch;
-                options.skip_unknown_operators = skip_unknown_operators;
-                options.print_program_on_error = true;
-                options.map_input_dims         = map_input_dims;
-                p                              = parse_onnx(file, options);
+                p = parse_onnx(file, get_onnx_options());
             }
             else if(file_type == "tf")
             {
-                p = parse_tf(file, tf_options{is_nhwc, batch, map_input_dims, output_node_names});
+                p = parse_tf(file, get_tf_options());
             }
             else if(file_type == "json")
             {
@@ -191,6 +293,12 @@ struct loader
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_PYTHON
+            else if(file_type == "py")
+            {
+                p = migraphx::load_py(file);
+            }
+#endif
             else if(file_type == "migraphx")
             {
                 p = migraphx::load(file);
@@ -232,6 +340,8 @@ struct loader
                                      migraphx::dead_code_elimination{},
                                  });
         }
+        if(not passes.empty())
+            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
         return p;
     }
 
@@ -259,7 +369,9 @@ struct loader
                 type = "binary";
         }
 
-        if(type == "cpp")
+        if(type == "py")
+            p.print_py(*os);
+        else if(type == "cpp")
             p.print_cpp(*os);
         else if(type == "graphviz")
             p.print_graph(*os, brief);
@@ -282,14 +394,21 @@ struct program_params
         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
     }
 
-    auto generate(const program& p, const target& t, bool offload)
+    auto generate(const program& p, const target& t, bool offload, unsigned batch)
     {
         parameter_map m;
+        auto param_shapes = p.get_parameter_shapes();
+        std::unordered_map<std::string, shape> static_param_shapes;
+        std::transform(
+            param_shapes.cbegin(),
+            param_shapes.cend(),
+            std::inserter(static_param_shapes, static_param_shapes.end()),
+            [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
         for(auto&& s : fill0)
-            m[s] = fill_argument(p.get_parameter_shape(s), 0);
+            m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
-            m[s] = fill_argument(p.get_parameter_shape(s), 1);
-        fill_param_map(m, p, t, offload);
+            m[s] = fill_argument(static_param_shapes.at(s), 1);
+        fill_param_map(m, static_param_shapes, t, offload);
         return m;
     }
 };
@@ -298,8 +417,12 @@ struct compiler_target
 {
 #ifdef HAVE_GPU
     std::string target_name = "gpu";
-#else
+#elif defined(HAVE_CPU)
     std::string target_name = "cpu";
+#elif defined(HAVE_FPGA)
+    std::string target_name = "fpga";
+#else
+    std::string target_name = "ref";
 #endif
 
     void parse(argument_parser& ap)
@@ -320,9 +443,10 @@ struct compiler
     loader l;
     program_params parameters;
     compiler_target ct;
-    bool offload_copy  = false;
-    bool fast_math     = true;
-    precision quantize = precision::fp32;
+    compile_options co;
+    bool to_fp16 = false;
+    bool to_fp8  = false;
+    bool to_int8 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -331,39 +455,76 @@ struct compiler
         l.parse(ap);
         parameters.parse(ap);
         ct.parse(ap);
-        ap(offload_copy,
+        ap(co.offload_copy,
            {"--enable-offload-copy"},
            ap.help("Enable implicit offload copying"),
            ap.set_value(true));
-        ap(fast_math,
+        ap(co.fast_math,
            {"--disable-fast-math"},
            ap.help("Disable fast math optimization"),
            ap.set_value(false));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
-        ap(quantize, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(precision::int8));
+        ap(co.exhaustive_tune,
+           {"--exhaustive-tune"},
+           ap.help("Exhastively search for best tuning parameters for kernels"),
+           ap.set_value(true));
+        ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+        ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
     }
 
-    auto params(const program& p) { return parameters.generate(p, ct.get_target(), offload_copy); }
+    auto params(const program& p)
+    {
+        return parameters.generate(p, ct.get_target(), co.offload_copy, l.batch);
+    }
+
+    auto host_params(const program& p)
+    {
+        return parameters.generate(p, ct.get_target(), true, l.batch);
+    }
 
     program compile()
     {
         auto p = l.load();
         // Dont compile if its already been compiled
+
         if(p.is_compiled())
+        {
+            if(ct.target_name == "gpu")
+            {
+                if(is_offload_copy_set(p) and not co.offload_copy)
+                {
+                    std::cout
+                        << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
+                           "set, Try "
+                           "passing "
+                           "`--enable-offload-copy` if program run fails.\n";
+                }
+                else if(co.offload_copy)
+                {
+                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
+                                 "offload_copy set, Try "
+                                 "removing "
+                                 "`--enable-offload-copy` flag if passed to driver, if program run "
+                                 "fails.\n";
+                }
+            }
+
             return p;
+        }
         auto t = ct.get_target();
-        if(quantize == precision::fp16)
+        if(to_fp16)
         {
             quantize_fp16(p);
         }
-        else if(quantize == precision::int8)
+        if(to_int8)
         {
-            quantize_int8(p, t, {params(p)});
+            quantize_int8(p, t, {host_params(p)});
         }
-        compile_options options;
-        options.offload_copy = offload_copy;
-        options.fast_math    = fast_math;
-        p.compile(t, options);
+        if(to_fp8)
+        {
+            quantize_fp8(p, t, {host_params(p)});
+        }
+        p.compile(t, co);
         l.save(p);
         return p;
     }
@@ -396,71 +557,61 @@ struct params : command<params>
 
 struct verify : command<verify>
 {
-    loader l;
-    program_params parameters;
-    compiler_target ct;
-    double tolerance     = 80;
+    compiler c;
+    std::optional<double> rms_tol;
+    std::optional<double> atol;
+    std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
-    bool offload_copy    = false;
-    bool fast_math       = true;
-    precision quantize   = precision::fp32;
     void parse(argument_parser& ap)
     {
-        l.parse(ap);
-        parameters.parse(ap);
-        ct.parse(ap);
-        ap(offload_copy,
-           {"--enable-offload-copy"},
-           ap.help("Enable implicit offload copying"),
-           ap.set_value(true));
-        ap(fast_math,
-           {"--disable-fast-math"},
-           ap.help("Disable fast math optimization"),
-           ap.set_value(false));
-        ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
+        c.parse(ap);
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+        ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+        ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
-        ap(quantize, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(precision::fp16));
     }
 
     void run()
     {
-        auto p = l.load();
-        l.save(p);
+        auto p = c.l.load();
+        c.l.save(p);
         std::cout << p << std::endl;
 
-        compile_options options;
-        options.offload_copy = offload_copy;
-        options.fast_math    = fast_math;
-        auto t               = ct.get_target();
-        auto m               = parameters.generate(p, t, true);
+        auto t = c.ct.get_target();
+        auto m = c.parameters.generate(p, t, true, c.l.batch);
+
+        auto quantize = precision::fp32;
+        if(c.to_fp16)
+        {
+            quantize = precision::fp16;
+        }
+        if(c.to_int8)
+        {
+            quantize = precision::int8;
+        }
+
+        auto tols = get_tolerances(p, quantize, rms_tol, atol, rtol);
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
-            verify_instructions(p, t, options, quantize, tolerance);
+            verify_instructions(p, t, c.co, quantize, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, options, quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, quantize, m, tols);
         }
         else
         {
-            verify_program(l.file, p, t, options, quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, quantize, m, tols);
         }
-    }
-};
-
-struct version : command<version>
-{
-    void parse(const argument_parser&) {}
-    void run() const
-    {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << std::endl;
     }
 };
 
@@ -578,6 +729,26 @@ struct onnx : command<onnx>
     }
 };
 
+struct tf : command<tf>
+{
+    bool show_ops = false;
+    void parse(argument_parser& ap)
+    {
+        ap(show_ops,
+           {"--list", "-l"},
+           ap.help("List all tf operators supported by MIGraphX"),
+           ap.set_value(true));
+    }
+    void run() const
+    {
+        if(show_ops)
+        {
+            for(const auto& name : get_tf_operators())
+                std::cout << name << std::endl;
+        }
+    }
+};
+
 struct main_command
 {
     static std::string get_command_help(const std::string& title = colorize(color::fg_yellow,
@@ -596,14 +767,14 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR);
+        std::string version_str = get_version();
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+        ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -623,7 +794,7 @@ struct main_command
         {
             std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
                       << "' is not a valid command." << std::endl;
-            std::cout << get_command_help("Available commands:") << std::endl;
+            std::cout << get_command_help("Available commands:");
         }
         else
         {
@@ -646,7 +817,6 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
-
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -655,9 +825,28 @@ int main(int argc, const char* argv[])
 
     auto&& m = get_commands();
     auto cmd = args.front();
+
+    if(cmd == "--ort-sha")
+    {
+        std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+    if(cmd == "-v" or cmd == "--version")
+    {
+        std::cout << get_version() << std::endl;
+        return 0;
+    }
+
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
+        std::string driver_invocation =
+            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        m.at(cmd)(argv[0],
+                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }
     else
     {

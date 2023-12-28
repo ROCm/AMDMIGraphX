@@ -66,7 +66,7 @@ TEST_CASE(load_and_run_init_list)
 
 TEST_CASE(quantize_fp16)
 {
-    auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
     const auto& p2 = p1;
     const auto& p3 = p1;
     migraphx::quantize_fp16(p1);
@@ -82,7 +82,7 @@ TEST_CASE(quantize_fp16)
 
 TEST_CASE(quantize_int8)
 {
-    auto p1        = migraphx::parse_onnx("gemm_ex_test.onnx");
+    auto p1        = migraphx::parse_onnx("gemm_test.onnx");
     const auto& p2 = p1;
     auto t         = migraphx::target("ref");
     migraphx::quantize_int8_options options;
@@ -145,15 +145,15 @@ TEST_CASE(zero_parameter)
 
 TEST_CASE(set_scalar_parameter)
 {
-    auto p1 = migraphx::parse_onnx("add_bcast_test.onnx");
-    migraphx::shape s1(migraphx_shape_float_type, {3, 4});
+    auto p1 = migraphx::parse_onnx("implicit_add_bcast_test.onnx");
+    migraphx::shape s1(migraphx_shape_float_type, {3, 4, 1});
     auto param_shapes = p1.get_parameter_shapes();
     auto s1_orig      = param_shapes["1"];
     CHECK(bool{s1 == s1_orig});
 
     migraphx::onnx_options option;
     option.set_input_parameter_shape("1", {});
-    auto p2 = migraphx::parse_onnx("add_bcast_test.onnx", option);
+    auto p2 = migraphx::parse_onnx("implicit_add_bcast_test.onnx", option);
     migraphx::shape s_scalar(migraphx_shape_float_type);
     auto param_shapes_1 = p2.get_parameter_shapes();
     auto s_scalar_after = param_shapes_1["1"];
@@ -195,6 +195,31 @@ TEST_CASE(set_loop_default_iter_num)
     std::vector<std::size_t> out_lens0 = {1};
     EXPECT(out_shapes[0].lengths() == out_lens0);
     std::vector<std::size_t> out_lens1 = {15, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_loop_limit_iterations)
+{
+    migraphx::onnx_options option;
+    option.set_default_loop_iterations(15);
+    option.set_limit_loop_iterations(10);
+    auto p                             = migraphx::parse_onnx("loop_default_test.onnx", option);
+    auto out_shapes                    = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_loop_limit_iterations2)
+{
+    migraphx::onnx_options option;
+    option.set_limit_loop_iterations(10);
+    auto p          = migraphx::parse_onnx("loop_test_implicit_tripcnt.onnx", option);
+    auto out_shapes = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
     EXPECT(out_shapes[1].lengths() == out_lens1);
 }
 

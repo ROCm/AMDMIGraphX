@@ -21,18 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_CONVOLUTION_HPP
 
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <unordered_map>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -58,7 +57,6 @@ template <class Op>
 struct miopen_convolution
 {
     Op op;
-    bool int8_x4_format               = false;
     shared<convolution_descriptor> cd = nullptr;
     miopenConvFwdAlgorithm_t algo{};
 #ifdef MIGRAPHX_HAS_FIND_2_API
@@ -75,7 +73,6 @@ struct miopen_convolution
                     f(self.solution_object, "solution_object"),
 #endif
                     f(self.algo, "algo"),
-                    f(self.int8_x4_format, "int8_x4_format"),
                     f(self.solution_id, "solution_id"));
     }
 
@@ -83,18 +80,21 @@ struct miopen_convolution
 
     inline shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, op}.has(4).standard();
+        check_shapes{inputs, op}.has(4);
         std::vector<shape> conv_inputs(inputs.begin(), inputs.begin() + 2);
-        check_shapes{conv_inputs, op}.max_ndims(5);
+        check_shapes{conv_inputs, *this}
+            .max_ndims(5)
+            .packed_layouts({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}})
+            .same_layout();
         return migraphx::compute_shape<Op>(op, conv_inputs);
     }
 
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto x_desc = make_tensor(reshape_if_1d(args[0].get_shape()), int8_x4_format);
-        auto w_desc = make_tensor(reshape_if_1d(args[1].get_shape()), int8_x4_format);
-        auto y_desc = make_tensor(reshape_if_1d(output_shape));
+        auto x_desc                = make_tensor(reshape_if_1d(args[0].get_shape()));
+        auto w_desc                = make_tensor(reshape_if_1d(args[1].get_shape()));
+        auto y_desc                = make_tensor(reshape_if_1d(output_shape));
         auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         auto workspace_size        = args[2].get_shape().bytes();
 
@@ -144,12 +144,10 @@ struct miopen_convolution
 #endif
     }
 
-    inline void set_conv_descriptor()
+    void set_conv_descriptor()
     {
-        if(cd == nullptr)
-        {
-            cd = (op.name() == "deconvolution") ? make_deconv(op) : make_conv(op);
-        }
+        cd =
+            (op.name() == "convolution_backwards") ? make_convolution_backwards(op) : make_conv(op);
     }
 
     value compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input)
@@ -162,10 +160,26 @@ struct miopen_convolution
     shape find(context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
     {
         shape workspace_shape{};
-        auto x_desc                = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
-        auto w_desc                = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
-        auto y_desc                = make_tensor(reshape_if_1d(output_shape));
+        auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+        auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
+        auto y_desc = make_tensor(reshape_if_1d(output_shape));
+
+        auto* miopen_stream_handle = ctx.get_stream().get_miopen();
         std::size_t workspace_size = 0;
+        auto status                = miopenConvolutionForwardGetWorkSpaceSize(miopen_stream_handle,
+                                                               w_desc.get(),
+                                                               x_desc.get(),
+                                                               cd.get(),
+                                                               y_desc.get(),
+                                                               &workspace_size);
+        if(status != miopenStatusSuccess)
+            MIGRAPHX_THROW("MIOpen" + op.name() + " : Failed to get forward workspace size");
+
+        workspace_shape = shape{shape::int8_type, {workspace_size}};
+
+        const auto& x_shape = inputs[0];
+        const auto& w_shape = inputs[1];
+
 #ifdef MIGRAPHX_HAS_FIND_2_API
         {
             auto conv_problem = make_obj<miopen_problem>(
@@ -173,12 +187,34 @@ struct miopen_convolution
 
             set_tensor_descriptor(miopenTensorConvolutionX, x_desc, conv_problem);
             set_tensor_descriptor(miopenTensorConvolutionW, w_desc, conv_problem);
+            bool preallocate = false;
+#ifdef MIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS
+            // MIOpen has APIs to pass pre-allocated buffers starting from rocm-5.6
+            preallocate = true;
+#endif
+            auto x = preallocate ? to_gpu(generate_argument(x_shape)) : argument{inputs[0]};
+            auto w = preallocate ? to_gpu(generate_argument(w_shape)) : argument{inputs[1]};
+            auto y = preallocate ? allocate_gpu(output_shape) : argument{inputs[2]};
+            auto workspace =
+                preallocate ? allocate_gpu(workspace_shape) : migraphx::argument(workspace_shape);
+
             set_tensor_descriptor(miopenTensorConvolutionY, y_desc, conv_problem);
 
-            auto* miopen_stream_handle = ctx.get_stream().get_miopen();
+            const miopenTensorArgument_t tensor_args[3] = {
+                {miopenTensorConvolutionX, nullptr, x.implicit()},
+                {miopenTensorConvolutionW, nullptr, w.implicit()},
+                {miopenTensorConvolutionY, nullptr, y.implicit()},
+            };
 
-            solution_ptr = find_solution(miopen_stream_handle, conv_problem.get());
-            auto status  = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
+            solution_ptr = find_solution(miopen_stream_handle,
+                                         3,
+                                         tensor_args,
+                                         workspace.implicit(),
+                                         workspace_size,
+                                         conv_problem.get(),
+                                         ctx.get_exhaustive_tune_flag());
+
+            status = miopenGetSolutionWorkspaceSize(solution_ptr.get(), &workspace_size);
             if(status != miopenStatusSuccess)
                 MIGRAPHX_THROW("MIOpen" + op.name() + " : failed to get solution's workspace size");
 
@@ -197,29 +233,10 @@ struct miopen_convolution
             return shape{shape::int8_type, {workspace_size}};
         }
 #else
-        auto status = miopenConvolutionForwardGetWorkSpaceSize(ctx.get_stream().get_miopen(),
-                                                               w_desc.get(),
-                                                               x_desc.get(),
-                                                               cd.get(),
-                                                               y_desc.get(),
-                                                               &workspace_size);
-        if(status != miopenStatusSuccess)
-            MIGRAPHX_THROW("MIOpen" + op.name() + " : Failed to get forward workspace size");
-
-        workspace_shape = shape{shape::int8_type, {workspace_size}};
-
-        auto x_shape = inputs[0];
-        auto w_shape = inputs[1];
-        if(int8_x4_format)
-        {
-            x_shape = pack_int8_shape(x_shape);
-            w_shape = pack_int8_shape(w_shape);
-        }
         auto x         = to_gpu(generate_argument(x_shape));
         auto w         = to_gpu(generate_argument(w_shape));
         auto y         = allocate_gpu(output_shape);
         auto workspace = allocate_gpu(workspace_shape);
-
         int algo_count = 1;
         miopenConvAlgoPerf_t perf;
         status = miopenFindConvolutionForwardAlgorithm(ctx.get_stream().get_miopen(),
@@ -235,11 +252,10 @@ struct miopen_convolution
                                                        &perf,
                                                        workspace.implicit(),
                                                        workspace_size,
-                                                       false);
+                                                       ctx.get_exhaustive_tune_flag());
         if(status != miopenStatusSuccess)
             MIGRAPHX_THROW("MIOpen " + op.name() + " : find convolution failed");
         algo = perf.fwd_algo;
-
         size_t solution_count;
 
         status = miopenConvolutionForwardGetSolutionCount(ctx.get_stream().get_miopen(),
@@ -304,8 +320,8 @@ struct miopen_convolution
                                    ": workspace has changed during finalization.");
             }
 
-            auto x_desc = make_tensor(reshape_if_1d(inputs[0]), int8_x4_format);
-            auto w_desc = make_tensor(reshape_if_1d(inputs[1]), int8_x4_format);
+            auto x_desc = make_tensor(reshape_if_1d(inputs[0]));
+            auto w_desc = make_tensor(reshape_if_1d(inputs[1]));
             auto y_desc = make_tensor(reshape_if_1d(output_shape));
 
             auto status = miopenConvolutionForwardCompileSolution(ctx.get_stream().get_miopen(),
@@ -324,22 +340,8 @@ struct miopen_convolution
     {
         return shapes.size() - 1;
     }
-
-    inline shape pack_int8_shape(const shape& s) const
-    {
-        if(s.type() != shape::int8_type)
-        {
-            return s;
-        }
-
-        auto lens    = s.lens();
-        auto strides = s.strides();
-        lens[1]      = (lens[1] + 3) / 4 * 4;
-        strides[0]   = strides[1] * lens[1];
-
-        return {s.type(), lens, strides};
-    }
 };
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

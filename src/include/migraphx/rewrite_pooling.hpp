@@ -26,6 +26,7 @@
 
 #include <string>
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,7 +36,7 @@ struct module;
 /**
  * Rewrite pooling to reduce_mean
  */
-struct rewrite_pooling
+struct MIGRAPHX_EXPORT rewrite_pooling
 {
     std::string name() const { return "rewrite_pooling"; }
     void apply(module& m) const;

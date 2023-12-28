@@ -6,11 +6,36 @@ on:
       rocm_release:
         description: ROCm release version
         required: true
+      benchmark-utils_repo:
+        description: Repository for benchmark utils
+        required: true
+        default: 'ROCmSoftwarePlatform/migraphx-benchmark-utils'
+      base_image:
+        description: Base image for rocm Docker build
+        required: true
+        default: "rocm/dev-ubuntu-20.04"
+      docker_image:
+        description: Docker image name for rocm Docker build
+        required: true
+        default: "rocm-migraphx"
+      build_navi:
+        description: Build navi number
+        required: true
+        default: "0"
+      overwrite:
+        type: boolean
+        description: Overwrite image if it already exists
+        required: true
 
 jobs:
   release:
-    uses: ROCmSoftwarePlatform/actions/.github/workflows/rocm-release.yml@main
+    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/rocm-release.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '5.1' }}
+      benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
+      base_image: ${{ github.event.inputs.base_image || 'rocm/dev-ubuntu-20.04' }}
+      docker_image: ${{ github.event.inputs.docker_image || 'rocm-migraphx' }}
+      build_navi: ${{ github.event.inputs.build_navi || '0' }}
+      overwrite: ${{ github.event.inputs.overwrite == 'true' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

@@ -91,6 +91,19 @@ struct post_op : reflect_equality<post_op>, reflect_stream<post_op>
     }
 };
 
+template <class F>
+struct execute_wrapper
+{
+    F f;
+    argument operator()(context&, const std::vector<argument>& args) const { return f(args); }
+};
+
+template <class F>
+execute_wrapper<F> make_execute_wrapper(F f)
+{
+    return {std::move(f)};
+}
+
 template <class Derived, class Primitive>
 struct dnnl_op : auto_register_op<Derived>
 {
@@ -167,7 +180,7 @@ struct dnnl_op : auto_register_op<Derived>
         std::iota(result.begin(), result.end(), MIGRAPHX_DNNL_PREFIX(ARG_SRC_0));
         return result;
     }
-    shape base_adjust_shape(const shape& s) const
+    shape base_adjust_shape(const shape& s, const shape& output) const
     {
         if(s.broadcasted())
         {
@@ -183,7 +196,8 @@ struct dnnl_op : auto_register_op<Derived>
                                else
                                    return len;
                            });
-            return shape{s.type(), lens};
+            // Use the permutation of the output
+            return output.with_lens(s.type(), lens);
         }
         return s;
     }
@@ -204,7 +218,10 @@ struct dnnl_op : auto_register_op<Derived>
             i++;
         }
     }
-    shape adjust_shape(const shape& s, int) const { return base_adjust_shape(s); }
+    shape adjust_shape(const shape& s, int, const shape& output) const
+    {
+        return base_adjust_shape(s, output);
+    }
     std::vector<int> create_arg_map(std::size_t input_size) const
     {
         const auto& self     = static_cast<const Derived&>(*this);
@@ -224,12 +241,12 @@ struct dnnl_op : auto_register_op<Derived>
         const auto& self = static_cast<const Derived&>(*this);
         std::unordered_map<int, dnnl::memory::desc> result;
         result[MIGRAPHX_DNNL_PREFIX(ARG_DST)] =
-            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size()));
+            to_dnnl_memory_desc(self.adjust_shape(output_shape, inputs.size(), output_shape));
         auto m = create_arg_map(inputs.size());
         assert(m.size() >= inputs.size());
         for(int i = 0; i < inputs.size(); i++)
         {
-            result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i], i));
+            result[m[i]] = to_dnnl_memory_desc(self.adjust_shape(inputs[i], i, output_shape));
         }
         return result;
     }
@@ -304,7 +321,7 @@ struct dnnl_op : auto_register_op<Derived>
 #ifndef NDEBUG
         auto prim_attr = get_primitive_attr(md);
 #endif
-        execute = [=](context&, const std::vector<argument>& args) {
+        execute = make_execute_wrapper([=](const std::vector<argument>& args) {
 #ifndef NDEBUG
             // Check that the memory descriptors have not changed
             auto debug_args = args;
@@ -375,7 +392,7 @@ struct dnnl_op : auto_register_op<Derived>
                 m[arg_lookup[i]] = to_dnnl_memory(md.at(arg_lookup[i]), args[i]);
             prim.execute(get_dnnl_context().stream, m);
             return args.back();
-        };
+        });
     }
     std::vector<shape> trim_post_op_inputs(const std::vector<shape>& inputs) const
     {
@@ -396,7 +413,11 @@ struct dnnl_extend_op : dnnl_op<Derived, Primitive>
     }
 
     // dnnl has some issues with non-packed inputs
-    void required(const check_shapes& cs) const { cs.packed_or_broadcasted(); }
+    template <class T>
+    void required(const check_shapes<T>& cs) const
+    {
+        cs.packed_or_broadcasted();
+    }
 
     std::string name() const { return "dnnl::" + op.name(); }
     shape compute_shape(std::vector<shape> inputs) const

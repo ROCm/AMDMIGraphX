@@ -31,18 +31,32 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// different attributes
-// 1) use_input(default)/use_output
-// 2) use_rank(default)/use_len
-// 3) clip_min(default)/not_clip_min
-//   3.1) include_min(default)/exclude_min
-// 4) clip_max(default)/not_clip_max
-//   4.1) exclude_max(default)/include_max
-// 5) normalize padding
+/**
+ * `normalize_attribute` settings:
+ * Note that default options are not included as enums.
+ * 1. `use_input` (default) vs. `use_output`:
+ *  Affects the rank of the attribute.
+ *  `use_input -> lens.size()`, `use_output -> lens.size() + vec.size()`.
+ * 2. use_rank (default) vs use_len:
+ *  `use_rank` sets the max value/index of the attribute as the rank of lens.
+ *  `use_lens` sets the max value/index as the corresponding value in lens at the axes index.
+ *      Uses the dynamic_dimension.max value for dynamic shapes. Returns the original vector
+ *      (no normalization) if any of dynamic_dimension[axes] are not fixed.
+ * 3. `clip_min` vs. `not_clip_min` (default):
+ *  Clip values less than the minimum to the minimum or not.
+ * 4. `include_min` vs. `exclude_min` (default):
+ *  Include or exclude the minimum value/index for range checking and clipping.
+ * 5. `clip_max` vs. `not_clip_max` (default):
+ *  Clip values greater than the maximum or not.
+ * 6. `include_max` vs. `exclude_max` (default):
+ *  Include or exclude the maximum value/index for range checking and clipping.
+ * 7. `normalize_padding`:
+ *  To normalize the padding to `2*(pad ndim)` dimensions.
+ */
 enum class normalize_attribute
 {
-    use_len,
     use_output,
+    use_len,
     clip_max,
     clip_min,
     include_max,

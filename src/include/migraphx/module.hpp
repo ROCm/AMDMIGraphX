@@ -42,6 +42,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_EXPORT
 const operation& get_operation(instruction_ref ins);
 
 struct module_impl;
@@ -52,7 +53,7 @@ using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<ins
 /**
  * @brief Stores the instruction stream
  */
-struct module
+struct MIGRAPHX_EXPORT module
 {
     module(const std::string& name = "");
 
@@ -174,9 +175,13 @@ struct module
 
     instruction_ref get_parameter(std::string name) const;
 
+    void rename_parameter(instruction_ref ins, const std::string& name);
+
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     bool has_instruction(instruction_ref ins) const;
+
+    std::vector<instruction_ref> get_returns() const;
 
     std::size_t size() const;
     instruction_ref begin() const;
@@ -187,7 +192,7 @@ struct module
     instruction_ref validate() const;
     instruction_ref find_dangling_reference() const;
 
-    void finalize(context& ctx);
+    void finalize(std::vector<context>& contexts);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -205,6 +210,12 @@ struct module
 
     void print_graph(std::ostream& os, bool brief = false) const;
 
+    void print_py(std::ostream& os) const;
+    std::unordered_map<instruction_ref, std::string>
+    print_py(std::ostream& os,
+             const std::string& mname,
+             std::unordered_map<instruction_ref, std::string> names) const;
+
     void print_cpp(std::ostream& os) const;
     std::unordered_map<instruction_ref, std::string>
     print_cpp(std::ostream& os,
@@ -214,11 +225,21 @@ struct module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+    /* sorts the module in topological order aka reverse-post order (RPO) DFS order
+       it takes last instruction or @return as the root and walks back the graph and moves inputs
+       of the each instruction such that it appears before the instruction itself.
+    */
     module& sort();
+    /* Any instruction "X" can have module arguments and those modules inside them can use any other
+     * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
+     * module args are not listed as input instructions to "X". But those instructions "Y" must be
+     * evaluted before the instruction "X" can. Therefore such "Y" instructions are considered
+     * implicit dependency to "X".
+     */
     ins_dep_map calc_implicit_deps() const;
 
-    friend std::ostream& operator<<(std::ostream& os, const module& m);
-    friend bool operator==(const module& x, const module& y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
+    MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
     private:

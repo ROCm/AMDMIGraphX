@@ -42,7 +42,7 @@ void any_cast()
 template <class T>
 struct auto_any_caster
 {
-    T& x;
+    T& x; // NOLINT
 
     template <class U>
     operator U&()

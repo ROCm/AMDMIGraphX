@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_DEVICE_ARGMIN_HPP
 
 #include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/device/config.hpp>
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
@@ -33,7 +33,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
-void argmin(hipStream_t stream, const argument& result, const argument& arg, int64_t axis);
+void MIGRAPHX_DEVICE_EXPORT argmin(hipStream_t stream,
+                                   const argument& result,
+                                   const argument& arg,
+                                   int64_t axis,
+                                   bool select_last_index);
 
 } // namespace device
 } // namespace gpu

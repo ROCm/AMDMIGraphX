@@ -92,7 +92,7 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
 
     // process sequence length
     instruction_ref seq_lens = m.end();
-    if((args.size() >= 5) && args[4]->name() != "undefined")
+    if((args.size() >= 5) and not args[4]->is_undefined())
     {
         seq_lens = args[4];
     }
@@ -117,7 +117,7 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
         // process bias
         instruction_ref bias_forward = m.end();
         instruction_ref bias_reverse = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
@@ -129,7 +129,7 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
         // or the 5th one (if the sequence len argument is ignored)
         instruction_ref ih_forward{};
         instruction_ref ih_reverse{};
-        if(args.size() == 6 && args[5]->name() != "undefined")
+        if(args.size() == 6 and not args[5]->is_undefined())
         {
             ih_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
@@ -195,14 +195,14 @@ void rewrite_rnn::apply_vanilla_rnn(module& m, instruction_ref ins) const
 
         // process bias and initial hidden state
         instruction_ref bias = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias = args[3];
         }
 
         // process intial hidden state
         instruction_ref ih;
-        if(args.size() == 6 && args[5]->name() != "undefined")
+        if(args.size() == 6 and not args[5]->is_undefined())
         {
             ih = args[5];
         }
@@ -246,7 +246,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                                                            module& m,
                                                            instruction_ref ins,
                                                            std::vector<instruction_ref> inputs,
-                                                           operation& actv_func) const
+                                                           const operation& actv_func) const
 {
     assert(inputs.size() == 6);
     auto seq      = inputs.at(0);
@@ -273,7 +273,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref bb{};
     if(bias != m.end())
     {
-        long hs    = static_cast<long>(r->get_shape().lens()[2]);
+        long hs    = r->get_shape().lens()[2];
         auto sbias = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
         auto wb    = m.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), sbias);
@@ -398,7 +398,7 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
 
     // process sequence length
     instruction_ref seq_lens = m.end();
-    if((args.size() >= 5) && args[4]->name() != "undefined")
+    if((args.size() >= 5) and not args[4]->is_undefined())
     {
         seq_lens = args[4];
     }
@@ -423,7 +423,7 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
         // bias
         instruction_ref bias_forward = m.end();
         instruction_ref bias_reverse = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
@@ -434,7 +434,7 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
         // intial hidden state
         instruction_ref ih_forward{};
         instruction_ref ih_reverse{};
-        if(args.size() == 6 && args[5]->name() != "undefined")
+        if(args.size() == 6 and not args[5]->is_undefined())
         {
             ih_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
@@ -501,14 +501,14 @@ void rewrite_rnn::apply_gru(module& m, instruction_ref ins) const
 
         // bias
         instruction_ref bias = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias = args[3];
         }
 
         // intial hidden state
         instruction_ref ih{};
-        if(args.size() == 6 && args[5]->name() != "undefined")
+        if(args.size() == 6 and not args[5]->is_undefined())
         {
             ih = args[5];
         }
@@ -784,7 +784,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
     // process sequence length
     instruction_ref seq_lens = m.end();
-    if((args.size() >= 5) && args[4]->name() != "undefined")
+    if((args.size() >= 5) and not args[4]->is_undefined())
     {
         seq_lens = args[4];
     }
@@ -813,7 +813,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         // process bias
         instruction_ref bias_forward = m.end();
         instruction_ref bias_reverse = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[3]);
@@ -824,7 +824,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         // process intial hidden state, it is the 6th argument
         instruction_ref ih_forward{};
         instruction_ref ih_reverse{};
-        if(args.size() >= 6 && args[5]->name() != "undefined")
+        if(args.size() >= 6 and not args[5]->is_undefined())
         {
             ih_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[5]);
@@ -840,7 +840,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         // process initial cell value
         instruction_ref ic_forward{};
         instruction_ref ic_reverse{};
-        if(args.size() >= 7 && args[6]->name() != "undefined")
+        if(args.size() >= 7 and not args[6]->is_undefined())
         {
             ic_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[6]);
@@ -856,7 +856,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
         // process weight of the peephole
         instruction_ref pph_forward = m.end();
         instruction_ref pph_reverse = m.end();
-        if(args.size() == 8 && args[7]->name() != "undefined")
+        if(args.size() == 8 and not args[7]->is_undefined())
         {
             pph_forward = m.insert_instruction(
                 ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), args[7]);
@@ -940,14 +940,14 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         // bias
         instruction_ref bias = m.end();
-        if(args.size() >= 4 && args[3]->name() != "undefined")
+        if(args.size() >= 4 and not args[3]->is_undefined())
         {
             bias = args[3];
         }
 
         // initial hidden state
         instruction_ref ih{};
-        if(args.size() >= 6 && args[5]->name() != "undefined")
+        if(args.size() >= 6 and not args[5]->is_undefined())
         {
             ih = args[5];
         }
@@ -958,7 +958,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         // initial cell value
         instruction_ref ic{};
-        if(args.size() >= 7 && args[6]->name() != "undefined")
+        if(args.size() >= 7 and not args[6]->is_undefined())
         {
             ic = args[6];
         }
@@ -969,7 +969,7 @@ void rewrite_rnn::apply_lstm(module& m, instruction_ref ins) const
 
         // process weight of the peephole
         instruction_ref pph = m.end();
-        if(args.size() == 8 && args[7]->name() != "undefined")
+        if(args.size() == 8 and not args[7]->is_undefined())
         {
             pph = args[7];
         }

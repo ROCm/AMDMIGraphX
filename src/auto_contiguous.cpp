@@ -25,7 +25,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
@@ -59,6 +58,8 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
+        if(ins->name() == "layout")
+            continue;
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)
             continue;

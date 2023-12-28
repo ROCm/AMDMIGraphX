@@ -49,6 +49,25 @@ TEST_CASE(literal_test)
     EXPECT(l4.empty());
 }
 
+TEST_CASE(literal_nstd_shape_vector)
+{
+    migraphx::shape nstd_shape{migraphx::shape::float_type, {1, 3, 2, 2}, {12, 1, 6, 3}};
+    std::vector<float> data(12);
+    std::iota(data.begin(), data.end(), 0);
+    auto l0 = migraphx::literal{nstd_shape, data};
+
+    // check data buffer is read in correctly
+    std::vector<float> expected_buffer = {0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11};
+    const auto* start                  = reinterpret_cast<const float*>(l0.data());
+    std::vector<float> l0_data{start, start + 12};
+    EXPECT(l0_data == expected_buffer);
+
+    // check that using visit() (that uses a tensor view) gives data in correct order
+    std::vector<float> results_vector(12);
+    l0.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(results_vector == data);
+}
+
 TEST_CASE(literal_os1)
 {
     migraphx::literal l{1};
@@ -156,6 +175,12 @@ TEST_CASE(value_literal)
     EXPECT(l3 == l1);
     auto l4 = migraphx::from_value<migraphx::literal>(v2);
     EXPECT(l4 == l2);
+}
+
+TEST_CASE(literal_to_string_float_precision)
+{
+    migraphx::literal x{126.99993142003703f};
+    EXPECT(x.to_string() != "127");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

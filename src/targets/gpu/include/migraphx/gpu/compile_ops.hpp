@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <string>
 
 namespace migraphx {
@@ -36,9 +36,10 @@ namespace gpu {
 
 struct context;
 
-struct compile_ops
+struct MIGRAPHX_GPU_EXPORT compile_ops
 {
-    context* ctx = nullptr;
+    context* ctx         = nullptr;
+    bool exhaustive_tune = false;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module& m) const;
 };

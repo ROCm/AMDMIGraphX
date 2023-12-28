@@ -38,12 +38,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
 
-void quantize_fp16(program& prog, const std::vector<std::string>& ins_names = {"all"});
+MIGRAPHX_EXPORT void quantize_fp16(program& prog,
+                                   const std::vector<std::string>& ins_names = {"all"});
 
-void quantize_int8(program& prog,
-                   const target& t,
-                   const std::vector<parameter_map>& calibration,
-                   const std::vector<std::string>& ins_names = {"dot", "convolution"});
+MIGRAPHX_EXPORT void quantize_int8(program& prog,
+                                   const target& t,
+                                   const std::vector<parameter_map>& calibration,
+                                   const std::unordered_set<std::string>& ins_names = {
+                                       "dot", "convolution"});
+MIGRAPHX_EXPORT void
+quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

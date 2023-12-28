@@ -10,51 +10,59 @@ The MIGraphX driver is installed with MIGraphX and can be found in `/opt/rocm/bi
 See below for a comprehensive list of commands and option arguments, as well as some usage examples.
 
 ### Commands
-| Command | Description |
-| --- | ---| 
-| op | When followed by the option --list or -l, prints all operators of MIGraphX |
-| params | Prints the input and output parameter shapes |
-| run | Compiles, allocates parameters, evaluates, and prints input graph |
-| read | Loads and prints input graph |
-| compile | Compiles and prints input graph |
-| verify | Runs reference and GPU implementations and checks outputs for consistency |
-| perf | Compiles and runs input graph then prints performance report |
+| Command | Description                                                                |
+| ------- | -------------------------------------------------------------------------- |
+| op      | When followed by the option --list or -l, prints all operators of MIGraphX |
+| params  | Prints the input and output parameter shapes                               |
+| run     | Compiles, allocates parameters, evaluates, and prints input graph          |
+| read    | Loads and prints input graph                                               |
+| compile | Compiles and prints input graph                                            |
+| verify  | Runs reference and GPU implementations and checks outputs for consistency  |
+| perf    | Compiles and runs input graph then prints performance report               |
 
 ### Options
-| Option | Description |
-| --- | --- | 
-| --help \| -h | Show help | 
-| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models |
-| --onnx | Load file as onnx graph |
-| --tf | Load file as a tensorflow graph |
-| --migraphx | Load file as a migraphx graph |
-| --migraphx-json | Load file as a migraphx JSON graph |
-| --nhwc | Treat tensorflow format as nhwc | 
-| --nchw | Treat tensorflow format as nchw |
-| --skip-unknown-operators | Skip unknown operators when parsing and continue to parse |
-| --trim \| -t | Trim instructions from the end |
-| --optimize \| -O | Optimize when reading |
-| --graphviz \| -g | Print out a graphviz representation |
-| --brief | Make the output brief |
-| --cpp | Print out the program as cpp program |
-| --json | Print out program as json |
-| --text | Print out program in text format |
-| --binary | Print out program in binary format |
-| --output \| -o | Output to file |
-| --fill0 | Fill parameter with 0s |
-| --fill1 | Fill parameter with 1s |
-| --gpu | Compile on the gpu |
-| --cpu | Compile on the cpu |
-| --ref | Compile on the reference implementation |
-| --enable-offload-copy | Enable implicit offload copying |
-| --disable-fast-math | Disable fast math optimization |
-| --fp16 | Quantize for fp16 |
-| --int8 | Quantize for int8 |
-| --tolerance | Tolerance for errors |
-| --per-instruction \| -i | Verify each instruction |
-| --reduce \| -r | Reduce program and verify |
-| --iterations \| -n | Number of iterations to run for perf report |
-| --list \| -l | List all the operators of MIGraphX |
+| Option                                   | Description                                               |
+| ---------------------------------------- | --------------------------------------------------------- |
+| --help \| -h                             | Show help                                                 |
+| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models                     |
+| --onnx                                   | Load file as onnx graph                                   |
+| --tf                                     | Load file as a tensorflow graph                           |
+| --migraphx                               | Load file as a migraphx graph                             |
+| --migraphx-json                          | Load file as a migraphx JSON graph                        |
+| --batch                                  | For a static model, set batch size. For a dynamic batch model, sets the batch size at runtime.|
+| --nhwc                                   | Treat tensorflow format as nhwc                           |
+| --nchw                                   | Treat tensorflow format as nchw                           |
+| --skip-unknown-operators                 | Skip unknown operators when parsing and continue to parse |
+| --trim \| -t                             | Trim instructions from the end                            |
+| --optimize \| -O                         | Optimize when reading                                     |
+| --graphviz \| -g                         | Print out a graphviz representation                       |
+| --brief                                  | Make the output brief                                     |
+| --cpp                                    | Print out the program as cpp program                      |
+| --json                                   | Print out program as json                                 |
+| --text                                   | Print out program in text format                          |
+| --binary                                 | Print out program in binary format                        |
+| --output \| -o                           | Output to file                                            |
+| --fill0                                  | Fill parameter with 0s                                    |
+| --fill1                                  | Fill parameter with 1s                                    |
+| --input-dim                              | Set static dimensions of a parameter                      |
+| --dyn-input-dim                          | Set dynamic dimensions of a parameter                     |
+| --default-dyn-dim                        | Set default dynamic dimension                             |
+| --gpu                                    | Compile on the gpu                                        |
+| --cpu                                    | Compile on the cpu                                        |
+| --ref                                    | Compile on the reference implementation                   |
+| --enable-offload-copy                    | Enable implicit offload copying                           |
+| --disable-fast-math                      | Disable fast math optimization                            |
+| --exhaustive-tune                        | Enable exhaustive search to find fastest kernel           |
+| --fp16                                   | Quantize for fp16                                         |
+| --int8                                   | Quantize for int8                                         |
+| --fp8                                    | Quantize for Float8E4M3FNUZ type                          |
+| --rms-tol                                | Tolerance for the RMS error (Default: 0.001)              |
+| --atol                                   | Tolerance for elementwise absolute difference (Default: 0.001) |
+| --rtol                                   | Tolerance for elementwise relative difference (Default: 0.001) |
+| --per-instruction \| -i                  | Verify each instruction                                   |
+| --reduce \| -r                           | Reduce program and verify                                 |
+| --iterations \| -n                       | Number of iterations to run for perf report               |
+| --list \| -l                             | List all the operators of MIGraphX                        |
 
 ## Usage Examples
 The examples below supply a simple MNIST ConvNet as the input graph. Models of higher complexity will have considerably larger outputs in most cases.
@@ -86,7 +94,7 @@ batch_norm_inference
 broadcast
 capture
 ceil
-check_context::migraphx::version_1::gpu::context
+check_context::migraphx::gpu::context
 clip
 concat
 contiguous
@@ -142,9 +150,6 @@ gpu::gelu
 gpu::gelu_new
 gpu::gemm
 gpu::greater
-gpu::int8_conv_pack
-gpu::int8_gemm_pack_a
-gpu::int8_gemm_pack_b
 gpu::layernorm
 gpu::leaky_relu
 gpu::less
@@ -302,7 +307,7 @@ $ /opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx
 ```
 Compiling ... 
 Reading: simple_graph.onnx
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:1] -> float_type, {784, 128}, {128, 1}
 x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -325,7 +330,7 @@ x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
 @18 = @return(@17)
 
 Allocating params ... 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:1] -> float_type, {784, 128}, {128, 1}
 x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -397,7 +402,7 @@ $ /opt/rocm/bin/migraphx-driver compile --gpu --fp16 simple_graph.pb
 ```
 Compiling ... 
 Reading: simple_graph.pb
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {456}, {1},id=scratch] -> float_type, {456}, {1}
 @2 = hip::hip_copy_literal[id=@literal:0] -> half_type, {784, 128}, {128, 1}
 @3 = load[offset=256,end=1824](@1) -> half_type, {1, 28, 28}, {784, 28, 1}
@@ -500,7 +505,7 @@ x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
 @18 = ref::softmax[axis=1](@17) -> float_type, {1, 10}, {10, 1}
 @19 = ref::identity(@18) -> float_type, {1, 10}, {10, 1}
 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
 x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
@@ -536,7 +541,7 @@ $ /opt/rocm/bin/migraphx-driver perf simple_graph.pb
 ```
 Compiling ... 
 Reading: simple_graph.pb
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
 @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}
@@ -559,7 +564,7 @@ output = @param:output -> float_type, {1, 10}, {10, 1}
 
 Allocating params ... 
 Running performance report ... 
-@0 = check_context::migraphx::version_1::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
+@0 = check_context::migraphx::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
 @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}: 0.000295ms, 1%
 @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}: 0.00027942ms, 1%
 @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}: 0.000232ms, 1%
@@ -589,7 +594,7 @@ hip::hip_copy_literal: 0.00186824ms, 1%
 load: 0.0016288ms, 1%
 @param: 0.0013428ms, 1%
 broadcast: 0.00118042ms, 1%
-check_context::migraphx::version_1::gpu::context: 0.00057782ms, 1%
+check_context::migraphx::gpu::context: 0.00057782ms, 1%
 reshape: 0.00033842ms, 1%
 hip::hip_allocate_memory: 0.000295ms, 1%
 

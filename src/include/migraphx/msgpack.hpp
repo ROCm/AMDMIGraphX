@@ -26,13 +26,16 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<char> to_msgpack(const value& v);
-value from_msgpack(const std::vector<char>& buffer);
-value from_msgpack(const char* buffer, std::size_t size);
+MIGRAPHX_EXPORT void to_msgpack(const value& v,
+                                std::function<void(const char*, std::size_t)> writer);
+MIGRAPHX_EXPORT std::vector<char> to_msgpack(const value& v);
+MIGRAPHX_EXPORT value from_msgpack(const std::vector<char>& buffer);
+MIGRAPHX_EXPORT value from_msgpack(const char* buffer, std::size_t size);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

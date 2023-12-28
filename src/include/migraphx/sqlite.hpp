@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct sqlite_impl;
 
-struct sqlite
+struct MIGRAPHX_EXPORT sqlite
 {
     sqlite() = default;
     static sqlite read(const fs::path& p);

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/program.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
@@ -82,7 +82,7 @@ TEST_CASE(as_file)
 TEST_CASE(compiled)
 {
     migraphx::program p1 = create_program();
-    p1.compile(migraphx::ref::target{});
+    p1.compile(migraphx::make_target("ref"));
     std::vector<char> buffer = migraphx::save_buffer(p1);
     migraphx::program p2     = migraphx::load_buffer(buffer);
     EXPECT(p1.sort() == p2.sort());

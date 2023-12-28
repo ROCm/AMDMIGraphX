@@ -57,6 +57,12 @@ struct parse_binary_op : op_parser<parse_binary_op>
                 parser.parse_value(info.attributes.at("broadcast")).at<uint64_t>();
             if(broadcasted != 0)
             {
+                if(std::any_of(
+                       args.cbegin(), args.cend(), [](auto a) { return a->get_shape().dynamic(); }))
+                {
+                    MIGRAPHX_THROW(
+                        "Binary op broadcast attribute not supported for dynamic input shapes");
+                }
                 uint64_t axis = parser.parse_value(info.attributes.at("axis")).at<uint64_t>();
                 auto l        = info.add_instruction(
                     make_op("broadcast",

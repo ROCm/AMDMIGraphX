@@ -45,15 +45,17 @@
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/cosh.hpp>
 #include <migraphx/op/cos.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/dimensions_of.hpp>
 #include <migraphx/op/div.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/elu.hpp>
 #include <migraphx/op/equal.hpp>
 #include <migraphx/op/erf.hpp>
 #include <migraphx/op/exp.hpp>
+#include <migraphx/op/fill.hpp>
 #include <migraphx/op/flatten.hpp>
 #include <migraphx/op/floor.hpp>
 #include <migraphx/op/fmod.hpp>
@@ -82,6 +84,7 @@
 #include <migraphx/op/mod.hpp>
 #include <migraphx/op/mul.hpp>
 #include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/op/nearbyint.hpp>
 #include <migraphx/op/neg.hpp>
 #include <migraphx/op/nonmaxsuppression.hpp>
 #include <migraphx/op/nonzero.hpp>
@@ -108,7 +111,6 @@
 #include <migraphx/op/rnn_variable_seq_lens.hpp>
 #include <migraphx/op/rnn_var_sl_last_output.hpp>
 #include <migraphx/op/roialign.hpp>
-#include <migraphx/op/round.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
 #include <migraphx/op/scatter_add.hpp>
@@ -117,6 +119,8 @@
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>
+#include <migraphx/op/scatternd_max.hpp>
+#include <migraphx/op/scatternd_min.hpp>
 #include <migraphx/op/sigmoid.hpp>
 #include <migraphx/op/sign.hpp>
 #include <migraphx/op/sinh.hpp>
@@ -135,6 +139,7 @@
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unique.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/op/where.hpp>

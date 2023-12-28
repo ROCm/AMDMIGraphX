@@ -23,7 +23,6 @@
  */
 
 #include <migraphx/auto_contiguous.hpp>
-#include <migraphx/check_context.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
@@ -33,6 +32,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
@@ -61,7 +61,7 @@ namespace cpu {
 
 std::string target::name() const { return "cpu"; }
 
-// cppcheck-suppress constParameter
+// cppcheck-suppress constParameterReference
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options&) const
 {
     auto& ctx = any_cast<context>(gctx);
@@ -81,6 +81,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},
+            simplify_reshapes{},
+            dead_code_elimination{},
             simplify_reshapes{},
             simplify_algebra{},
             auto_contiguous{},

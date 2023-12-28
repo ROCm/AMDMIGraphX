@@ -28,6 +28,8 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/dyn_output.hpp>
+#include <migraphx/par.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -60,10 +62,19 @@ struct binary : op_name<Derived>
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, static_cast<const Derived&>(*this)}.has(2).same_type().same_dims();
+        check_shapes{inputs, static_cast<const Derived&>(*this), true}
+            .has(2)
+            .same_type()
+            .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
-        if(s0 == s1 and s0.packed())
+        if(s0.dynamic() or s1.dynamic())
+        {
+            if(s0 == s1)
+                return s0;
+            MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
+        }
+        else if(s0 == s1 and s0.packed())
         {
             return s0;
         }
@@ -81,15 +92,15 @@ struct binary : op_name<Derived>
         }
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
         visit_all(result, args[0], args[1])([&](auto output, auto input1, auto input2) {
-            std::transform(input1.begin(),
-                           input1.end(),
-                           input2.begin(),
-                           output.begin(),
-                           static_cast<const Derived&>(*this).apply());
+            par_transform(input1.begin(),
+                          input1.end(),
+                          input2.begin(),
+                          output.begin(),
+                          static_cast<const Derived&>(*this).apply());
         });
         return result;
     }

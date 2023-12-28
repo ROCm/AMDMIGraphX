@@ -55,7 +55,7 @@ bool is_device_ptr(const void* ptr)
     auto status = hipPointerGetAttributes(&attr, ptr);
     if(status != hipSuccess)
         return false;
-    return attr.memoryType == hipMemoryTypeDevice;
+    return attr.type == hipMemoryTypeDevice;
 }
 
 std::size_t get_available_gpu_memory()
@@ -146,7 +146,11 @@ std::vector<T> read_from_gpu(const void* x, std::size_t sz)
     gpu_sync();
     std::vector<T> result(sz);
     assert(not is_device_ptr(result.data()));
-    assert(is_device_ptr(x));
+    if(not is_device_ptr(x))
+    {
+        MIGRAPHX_THROW(
+            "read_from_gpu() requires Src buffer to be on the GPU, Copy from gpu failed\n");
+    }
     auto status = hipMemcpy(result.data(), x, sz * sizeof(T), hipMemcpyDeviceToHost);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy from gpu failed: " + hip_error(status)); // NOLINT
@@ -189,19 +193,40 @@ argument register_on_gpu(const argument& arg)
 
 argument to_gpu(const argument& arg, bool host)
 {
-    auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
-    return {arg.get_shape(), p};
+    argument result;
+    arg.visit(
+        [&](auto x) {
+            auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
+            result = {x.get_shape(), p};
+        },
+        [&](const auto& xs) {
+            std::vector<argument> args;
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+                return to_gpu(x, host);
+            });
+            result = argument{args};
+        });
+    return result;
 }
 
 argument from_gpu(const argument& arg)
 {
     argument result;
-    arg.visit([&](auto x) {
-        using type = typename decltype(x)::value_type;
-        auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
-        // cppcheck-suppress returnDanglingLifetime
-        result = {x.get_shape(), [v]() mutable { return v.data(); }};
-    });
+    arg.visit(
+        [&](auto x) {
+            using type = typename decltype(x)::value_type;
+            auto v     = read_from_gpu<type>(arg.data(), x.get_shape().bytes() / sizeof(type));
+            // cppcheck-suppress returnDanglingLifetime
+            result = {x.get_shape(), [v]() mutable { return v.data(); }};
+        },
+        [&](const auto& xs) {
+            std::vector<argument> args;
+            std::transform(xs.begin(), xs.end(), std::back_inserter(args), [&](auto x) {
+                return from_gpu(x);
+            });
+            result = argument{args};
+        });
+
     return result;
 }
 

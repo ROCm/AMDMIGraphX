@@ -76,14 +76,6 @@ struct shape
 
     constexpr index_int index(index_array x) const { return x.dot(strides); }
 
-    constexpr index_int index(std::initializer_list<index_int> x) const
-    {
-        index_int idx = 0;
-        for(index_int i = 0; i < x.size(); i++)
-            idx += *(x.begin() + i) * strides[i];
-        return idx;
-    }
-
     constexpr index_int index(index_int i) const
     {
         if(this->standard())
@@ -128,6 +120,7 @@ struct shape
         result[0] = tidx;
         return result;
     }
+
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const
     {

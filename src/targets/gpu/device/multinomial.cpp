@@ -67,18 +67,19 @@ void multinomial(hipStream_t stream,
     size_t class_size  = arg0.get_shape().lens().back();
     size_t sample_size = result.get_shape().lens().back();
 
-    hip_visit_all(arg0, arg1)([&](auto cdf, auto dist) {
-        result.visit([&](auto out) {
-            hip_visit_views(out)([&](auto output) {
-                gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
-                    auto idx       = output.get_shape().multi(i);
-                    auto cdf_begin = cdf.begin() + (idx.front() * class_size);
-                    auto cdf_end   = cdf_begin + class_size;
-                    auto sample_iter =
-                        upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
-                    output[i] = std::distance(cdf_begin, sample_iter);
+    visit_all(arg0, arg1)([&](auto cdf_host, auto dist_host) {
+        result.visit([&](auto output_host) {
+            hip_visit_views(cdf_host, dist_host, output_host)(
+                [&](auto cdf, auto dist, auto output) {
+                    gs_launch(stream, batch_size * sample_size)([=](auto i) __device__ {
+                        auto idx       = output.get_shape().multi(i);
+                        auto cdf_begin = cdf.begin() + (idx.front() * class_size);
+                        auto cdf_end   = cdf_begin + class_size;
+                        auto* sample_iter =
+                            upper_bound(cdf_begin, cdf_end, dist[i] * *(std::prev(cdf_end)));
+                        output[i] = std::distance(cdf_begin, sample_iter);
+                    });
                 });
-            });
         });
     });
 }

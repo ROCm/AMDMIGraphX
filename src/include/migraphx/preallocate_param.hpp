@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-struct preallocate_param
+struct MIGRAPHX_EXPORT preallocate_param
 {
     std::string param;
     allocation_model model;

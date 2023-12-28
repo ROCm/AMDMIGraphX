@@ -21,11 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <string>
 #include <unordered_map>
 #include <migraphx/register_target.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/dynamic_loader.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+void store_target_lib(const dynamic_loader& lib)
+{
+    static std::vector<dynamic_loader> target_loader;
+    target_loader.emplace_back(lib);
+}
 
 std::unordered_map<std::string, target>& target_map()
 {
@@ -33,14 +42,31 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
+void register_target_init() { (void)target_map(); }
+
+void unregister_target(const std::string& name)
+{
+    assert(target_map().count(name));
+    target_map().erase(name);
+}
+
 void register_target(const target& t) { target_map()[t.name()] = t; }
 
 target make_target(const std::string& name)
 {
+    if(not contains(target_map(), name))
+    {
+#ifdef _WIN32
+        std::string target_name = "migraphx_" + name + ".dll";
+#else
+        std::string target_name = "libmigraphx_" + name + ".so";
+#endif
+        store_target_lib(dynamic_loader(target_name));
+    }
     const auto it = target_map().find(name);
     if(it == target_map().end())
     {
-        MIGRAPHX_THROW("Requested target '" + name + "' is not enabled or not supported");
+        MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
 }

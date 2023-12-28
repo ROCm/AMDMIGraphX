@@ -43,9 +43,9 @@ struct dnnl_convolution
         return {MIGRAPHX_DNNL_PREFIX(ARG_SRC), MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)};
     }
 
-    shape adjust_shape(const shape& x, int i) const
+    shape adjust_shape(const shape& x, int i, const shape& output) const
     {
-        auto s = base_adjust_shape(x);
+        auto s = base_adjust_shape(x, output);
         if(i == 1 and op.group > 1)
         {
             // TODO: Add support for transposed weights

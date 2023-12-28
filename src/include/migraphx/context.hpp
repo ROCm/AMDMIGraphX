@@ -66,6 +66,7 @@ any_ptr get_queue_context(T&)
 {
     return {};
 }
+
 template <class T>
 void wait_for_context(T&, any_ptr)
 {
@@ -79,7 +80,7 @@ void finish_on_context(T&, any_ptr)
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
-struct context
+struct MIGRAPHX_EXPORT context
 {
     // (optional)
     value to_value() const;
@@ -117,7 +118,7 @@ struct context
     {
         using std::swap;
         auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
-        if(derived and private_detail_te_handle_mem_var.unique())
+        if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
         }
@@ -302,7 +303,7 @@ struct context
             PrivateDetailTypeErasedT value,
             typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
                                     int>::type* = nullptr) noexcept
-            : private_detail_te_value(value)
+            : private_detail_te_value(std::move(value))
         {
         }
 
@@ -372,7 +373,7 @@ struct context
     private_detail_te_handle_base_type& private_detail_te_get_handle()
     {
         assert(private_detail_te_handle_mem_var != nullptr);
-        if(not private_detail_te_handle_mem_var.unique())
+        if(private_detail_te_handle_mem_var.use_count() > 1)
             private_detail_te_handle_mem_var = private_detail_te_handle_mem_var->clone();
         return *private_detail_te_handle_mem_var;
     }
@@ -412,6 +413,7 @@ inline const ValueType& any_cast(const context& x)
 #endif
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
+
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 
 #endif

@@ -23,16 +23,53 @@
 #####################################################################################
 import migraphx
 
-p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
-print(p)
-print("Compiling ...")
-p.compile(migraphx.get_target("gpu"), offload_copy=False)
-print(p)
-params = {}
 
-for key, value in p.get_parameter_shapes().items():
-    print("Parameter {} -> {}".format(key, value))
-    params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
+def test_conv_relu():
+    p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
+    print(p)
+    print("Compiling ...")
+    p.compile(migraphx.get_target("gpu"), offload_copy=False)
+    print(p)
+    params = {}
 
-r = migraphx.from_gpu(p.run(params)[-1])
-print(r)
+    for key, value in p.get_parameter_shapes().items():
+        print("Parameter {} -> {}".format(key, value))
+        params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
+
+    r = migraphx.from_gpu(p.run(params)[-1])
+    print(r)
+
+
+# TODO: placeholder until tuple shapes and arguments exposed
+#def test_dyn_batch():
+#    a = migraphx.shape.dynamic_dimension(1, 4, {2, 4})
+#    b = migraphx.shape.dynamic_dimension(3, 3)
+#    c = migraphx.shape.dynamic_dimension(32, 32)
+#    dd_map = {"0": [a, b, c, c]}
+#    p = migraphx.parse_onnx("conv_relu_maxpool_test.onnx",
+#                            map_dyn_input_dims=dd_map)
+#    print(p)
+#    print("Compiling ...")
+#    p.compile(migraphx.get_target("gpu"), offload_copy=False)
+#
+#    print(p)
+#
+#    def run_prog(batch_size):
+#        params = {}
+#        for key, value in p.get_parameter_shapes().items():
+#            print("Parameter {} -> {}".format(key, value))
+#            params[key] = migraphx.to_gpu(
+#                migraphx.generate_argument(value.to_static(batch_size)))
+#
+#        print("before_output")
+#        outputs = p.run(params)
+#        print(outputs)
+#        r = migraphx.from_gpu(p.run(params)[-1])
+#        print(r)
+#
+#    run_prog(1)
+#    run_prog(2)
+#    run_prog(3)
+#    run_prog(4)
+
+test_conv_relu()

@@ -59,18 +59,29 @@ struct pad
     std::string name() const { return "pad"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
-        auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(idims.begin(), idims.end());
-        std::size_t num_dims = rdims.size();
-
-        for(std::size_t i = 0; i < num_dims; i++)
+        check_shapes{inputs, *this, true}.has(1);
+        const auto& s0 = inputs.front();
+        if(s0.dynamic())
         {
-            rdims[i] += pads[i] + pads[i + num_dims];
+            auto out_dyn_dims = s0.dyn_dims();
+            for(std::size_t i = 0; i < s0.ndim(); ++i)
+            {
+                out_dyn_dims[i] += pads[i] + pads[i + s0.ndim()];
+            }
+            return {s0.type(), out_dyn_dims};
         }
-
-        shape s{inputs.front().type(), rdims};
-        return s;
+        else
+        {
+            auto&& idims = s0.lens();
+            std::vector<std::size_t> rdims(idims.begin(), idims.end());
+            std::size_t num_dims = rdims.size();
+            for(std::size_t i = 0; i < num_dims; i++)
+            {
+                rdims[i] += pads[i] + pads[i + num_dims];
+            }
+            shape s{s0.type(), rdims};
+            return s;
+        }
     }
 
     std::size_t pad_ndims() const

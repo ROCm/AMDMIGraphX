@@ -41,7 +41,7 @@ namespace migraphx {
 
 extern "C" {
 
-__global__ void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
+MIGRAPHX_GLOBAL void roialign_kernel(void* in_x, void* in_rois, void* in_ind, void* y) 
 {
     make_tensors()(in_x, in_rois, in_ind, y)([](auto&&... xs) {
         auto settings = make_roalign_settings(MIGRAPHX_MAKE_CONSTANT(float{ROIS_OFFSET}),
@@ -81,7 +81,7 @@ struct roialign_compiler : compiler<roialign_compiler>
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
-        float rois_offset = (ctm == "output_half_pixel") ? -0.5f : 0.0f;
+        float rois_offset = (ctm == "half_pixel") ? -0.5f : 0.0f;
         options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
 
         // spatial_scale
@@ -92,7 +92,7 @@ struct roialign_compiler : compiler<roialign_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return replace(compile_op(ctx, to_shapes(ins->inputs()), op.to_value()));
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 

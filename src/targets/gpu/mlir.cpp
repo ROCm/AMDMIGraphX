@@ -22,7 +22,9 @@
  * THE SOFTWARE.
  */
 #include "migraphx/make_op.hpp"
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <ostream>
 
 #ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
@@ -30,9 +32,20 @@
 #include <mlir-c/BuiltinTypes.h>
 #include <mlir-c/Diagnostics.h>
 #include <mlir-c/Dialect/MIGraphX.h>
+#include <mlir-c/Dialect/Rock.h>
 #include <mlir-c/IntegerSet.h>
 #include <mlir-c/Pass.h>
-#include <mlir-c/Registration.h>
+#include <mlir-c/Support.h>
+#include <mutex>
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+#warning "Incompatible version of rocMLIR library used, disabling"
+// Only undefine when not using cppcheck
+#ifndef CPPCHECK
+#undef MIGRAPHX_MLIR
+#endif
+#else
+#include <mlir-c/RegisterRocMLIR.h>
+#endif
 #endif
 
 #include <migraphx/env.hpp>
@@ -43,22 +56,26 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/perfdb.hpp>
+#include <migraphx/gpu/tuning_config.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <deque>
 #include <variant>
-
-#if defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) && MLIR_MIGRAPHX_DIALECT_API_VERSION >= 2
-#define MIGRAPHX_MLIR_BARE_POINTER
-#endif
+#include <fstream>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -81,6 +98,8 @@ struct mlir_handle
         friend bool operator==(ptr x, ptr y) { return x.get_value() == y.get_value(); }
 
         friend bool operator!=(ptr x, ptr y) { return not(x == y); }
+
+        explicit operator bool() const noexcept { return obj != ptr(); }
         T obj{};
     };
 
@@ -101,7 +120,10 @@ struct mlir_handle
 
     mlir_handle(T p) : handle(ptr{p}) {}
 
-    T get() const { return handle.get().get(); }
+    T get() const
+    {
+        return handle.get().get(); // NOLINT(readability-redundant-smartptr-get)
+    }
 
     T release() { return handle.release().get(); }
 
@@ -111,7 +133,10 @@ struct mlir_handle
 
 #define MIGRAPHX_MANAGE_MLIR_HANDLE(T, F) migraphx::gpu::mlir_handle<T, decltype(&F), &F> // NOLINT
 
-using mlir_context           = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+using mlir_context     = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirContext, mlirContextDestroy);
+using mlir_thread_pool = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirLlvmThreadPool, mlirLlvmThreadPoolDestroy);
+using mlir_dialect_registry  = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirDialectRegistry,
+                                                          mlirDialectRegistryDestroy);
 using mlir_module            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirModule, mlirModuleDestroy);
 using mlir_operation         = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOperation, mlirOperationDestroy);
 using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
@@ -119,6 +144,12 @@ using mlir_op_printing_flags = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirOpPrintingFlags,
 using mlir_region            = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRegion, mlirRegionDestroy);
 using mlir_block             = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirBlock, mlirBlockDestroy);
 using mlir_pass_manager      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirPassManager, mlirPassManagerDestroy);
+using mlir_tuning_table      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningTable,
+                                                      mlirRockTuningTableDestroy);
+using mlir_tuning_space      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningSpace,
+                                                      mlirRockTuningSpaceDestroy);
+using mlir_tuning_param      = MIGRAPHX_MANAGE_MLIR_HANDLE(MlirRockTuningParam,
+                                                      mlirRockTuningParamDestroy);
 
 std::string_view to_string_view(MlirStringRef s) { return {s.data, s.length}; }
 
@@ -152,23 +183,113 @@ std::string mlir_print(F f, T x)
     return ss.str();
 }
 
-const std::unordered_set<std::string>& get_xdlops_archs()
+struct mlir_logger
 {
-    static std::unordered_set<std::string> supported_archs{"gfx908", "gfx90a"};
-    return supported_archs;
+    std::stringstream ss;
+    mlir_context* ctx;
+    std::optional<MlirDiagnosticHandlerID> id;
+
+    mlir_logger() : ctx(nullptr), id(std::nullopt) {}
+
+    mlir_logger(mlir_context* context) : ctx(context)
+    {
+        id =
+            mlirContextAttachDiagnosticHandler(ctx->get(), mlir_diagnostic_print_cb, this, nullptr);
+    }
+
+    ~mlir_logger()
+    {
+        if(id.has_value())
+            mlirContextDetachDiagnosticHandler(ctx->get(), *id);
+    }
+
+    mlir_logger(const mlir_logger& other)            = delete;
+    mlir_logger& operator=(const mlir_logger& other) = delete;
+
+    mlir_logger(mlir_logger&& other) noexcept
+        : ss(std::move(other.ss)), ctx(other.ctx), id(other.id)
+    {
+        other.ctx = nullptr;
+        other.id  = std::nullopt;
+    }
+
+    mlir_logger& operator=(mlir_logger other) noexcept
+    {
+        std::swap(ss, other.ss);
+        std::swap(ctx, other.ctx);
+        std::swap(id, other.id);
+        return *this;
+    }
+
+    std::string str() const { return ss.str(); }
+
+    void clear() { ss = std::stringstream{}; }
+
+    static MlirLogicalResult mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger);
+
+    MlirLogicalResult handle(MlirDiagnostic diag);
+};
+
+MlirLogicalResult mlir_logger::mlir_diagnostic_print_cb(MlirDiagnostic diag, void* logger)
+{
+    return reinterpret_cast<mlir_logger*>(logger)->handle(diag);
+}
+
+MlirLogicalResult mlir_logger::handle(MlirDiagnostic diag)
+{
+    MlirDiagnosticSeverity sev = mlirDiagnosticGetSeverity(diag);
+    switch(sev)
+    {
+    case MlirDiagnosticSeverity::MlirDiagnosticError: ss << "Error: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticWarning: ss << "Warning: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticNote: ss << "Note: "; break;
+    case MlirDiagnosticSeverity::MlirDiagnosticRemark: ss << "Remark: "; break;
+    }
+    mlir_print(mlirDiagnosticPrint, diag, [&](auto s) { ss << s; });
+    ss << std::endl;
+    for(intptr_t i = 0, e = mlirDiagnosticGetNumNotes(diag); i < e; ++i)
+    {
+        (void)handle(mlirDiagnosticGetNote(diag, i));
+    }
+    return mlirLogicalResultSuccess();
 }
 
 struct mlir_program
 {
     mlir_program()
-        : ctx(mlirContextCreate()),
+        : ctx(mlirContextCreateWithRegistry(get_dialect_registry().get(),
+                                            /*threadingEnable=*/false)),
           location(mlirLocationUnknownGet(ctx.get())),
-          mmodule(mlirModuleCreateEmpty(location))
+          mmodule(mlirModuleCreateEmpty(location)),
+          logger(&ctx)
     {
-        MlirDialectHandle mixr_handle = mlirGetDialectHandle__migraphx__();
-        mlirDialectHandleRegisterDialect(mixr_handle, ctx.get());
-        mlirRegisterAllDialects(ctx.get());
-        mlirContextSetAllowUnregisteredDialects(ctx.get(), true /*allow*/);
+        mlirContextSetThreadPool(ctx.get(), get_thread_pool().get());
+        mlirContextLoadAllAvailableDialects(ctx.get());
+    }
+
+    static mlir_dialect_registry& get_dialect_registry()
+    {
+        static std::once_flag init_guard;
+        static mlir_dialect_registry the_registry;
+        // The MLIR registration functions (for dialects and passes) are not
+        // necessarily thread-safe and need to be executed exactly once
+        // (especially since they eventually call non-thread-safe LLVM
+        // initilizations).
+        std::call_once(init_guard, [&]() {
+            the_registry = mlirDialectRegistryCreate();
+            mlirRegisterRocMLIRDialects(the_registry.get());
+            mlirRegisterRocMLIRPasses();
+        });
+        return the_registry;
+    }
+
+    static mlir_thread_pool& get_thread_pool()
+    {
+        // To save on overhead, we create one LLVM thread pool and reuse it
+        // across all MLIR contexts as recommended by MLIR upstream.
+        // Note that this is thread-safe as of C++11.
+        static mlir_thread_pool the_pool = mlirLlvmThreadPoolCreate();
+        return the_pool;
     }
 
     MlirType make_type(shape::type_t t) const
@@ -179,14 +300,20 @@ struct mlir_program
                 result = mlirF32TypeGet(ctx.get());
             else if(as.type_enum() == shape::half_type)
                 result = mlirF16TypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fnuz_type)
+                result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
             {
-                if(as.is_signed())
-                    result = mlirIntegerTypeSignedGet(ctx.get(), as.size() * 8);
-                else
-                    result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
+                // Note: rocMLIR use signless integer type for tensors types. This
+                // will translate to signed implementation for current supported
+                // operations.
+                if(as.is_unsigned())
+                {
+                    MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
+                }
+                result = mlirIntegerTypeGet(ctx.get(), as.size() * 8);
             }
             else
                 MIGRAPHX_THROW("Unsupported type: " + std::to_string(as.type_enum()));
@@ -194,28 +321,30 @@ struct mlir_program
         return result;
     }
 
-    MlirType make_tensor(const shape& s) const
+    MlirType make_mlir_shaped(const shape& s) const
     {
-        assert(s.standard());
+        if(s.dynamic())
+            MIGRAPHX_THROW("MLIR does not support dynamic shapes");
         std::vector<int64_t> lens(s.lens().begin(), s.lens().end());
-        return mlirRankedTensorTypeGet(
-            lens.size(), lens.data(), make_type(s.type()), mlirAttributeGetNull());
+        std::vector<int64_t> strides(s.strides().begin(), s.strides().end());
+        return rocmlirMIXRShapedTypeGet(
+            lens.size(), lens.data(), strides.data(), make_type(s.type()));
     }
 
     template <class Range>
-    std::vector<MlirType> make_tensors(const Range& r)
+    std::vector<MlirType> make_mlir_shapeds(const Range& r)
     {
         std::vector<MlirType> result;
         std::transform(r.begin(), r.end(), std::back_inserter(result), [&](const auto& s) {
-            return make_tensor(s);
+            return make_mlir_shaped(s);
         });
         return result;
     }
 
     MlirType make_function_type(const std::vector<shape>& inputs, const std::vector<shape>& outputs)
     {
-        auto in  = make_tensors(inputs);
-        auto out = make_tensors(outputs);
+        auto in  = make_mlir_shapeds(inputs);
+        auto out = make_mlir_shapeds(outputs);
         return mlirFunctionTypeGet(ctx.get(), in.size(), in.data(), out.size(), out.data());
     }
 
@@ -226,8 +355,6 @@ struct mlir_program
 
     MlirAttribute attribute(std::int64_t i) const
     {
-        if(i < 0)
-            MIGRAPHX_THROW("MLIR cant handle negative values since they are ambiguous");
         return mlirIntegerAttrGet(mlirIntegerTypeGet(ctx.get(), 64), i);
     }
     MlirAttribute attribute(std::uint64_t i) const
@@ -306,7 +433,8 @@ struct mlir_program
                                      std::string,
                                      value,
                                      std::vector<value>,
-                                     MlirType>;
+                                     MlirType,
+                                     MlirAttribute>;
     using named_attribute_t = std::pair<std::string_view, attribute_t>;
 
     MlirNamedAttribute name_attribute(const named_attribute_t& na) const
@@ -347,14 +475,20 @@ struct mlir_program
         mlir_operation_state& add_attributes(const std::vector<named_attribute_t>& named_attrs)
         {
             auto attributes = prog->name_attributes(named_attrs);
-            mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            if(not attributes.empty())
+            {
+                mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            }
             return *this;
         }
 
         mlir_operation_state& add_attribute_value(const value& v)
         {
             auto attributes = prog->name_attributes(v);
-            mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            if(not attributes.empty())
+            {
+                mlirOperationStateAddAttributes(&op_state, attributes.size(), attributes.data());
+            }
             return *this;
         }
 
@@ -372,18 +506,20 @@ struct mlir_program
 
         mlir_operation_state& add_results(const std::vector<shape>& outputs)
         {
-            std::vector<shape> reshaped(outputs.size());
-            std::transform(outputs.begin(), outputs.end(), reshaped.begin(), [](const shape& r) {
-                return shape{r.type(), r.lens()};
-            });
-            auto x = prog->make_tensors(reshaped);
-            mlirOperationStateAddResults(&op_state, x.size(), x.data());
+            auto x = prog->make_mlir_shapeds(outputs);
+            if(not x.empty())
+            {
+                mlirOperationStateAddResults(&op_state, x.size(), x.data());
+            }
             return *this;
         }
 
         mlir_operation_state& add_operands(const std::vector<MlirValue>& inputs)
         {
-            mlirOperationStateAddOperands(&op_state, inputs.size(), inputs.data());
+            if(not inputs.empty())
+            {
+                mlirOperationStateAddOperands(&op_state, inputs.size(), inputs.data());
+            }
             return *this;
         }
 
@@ -393,7 +529,10 @@ struct mlir_program
             std::transform(regions.begin(), regions.end(), mregions.begin(), [](const auto& r) {
                 return r.get();
             });
-            mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
+            if(not mregions.empty())
+            {
+                mlirOperationStateAddOwnedRegions(&op_state, mregions.size(), mregions.data());
+            }
             mlir_operation op(mlirOperationCreate(&op_state));
             // Release memory since mlir_operation owns it
             for(auto& r : regions)
@@ -440,7 +579,7 @@ struct mlir_program
         std::vector<shape> outputs = m.get_output_shapes();
 
         std::vector<MlirLocation> arg_locs(inputs.size(), location);
-        auto body_inputs   = make_tensors(inputs);
+        auto body_inputs   = make_mlir_shapeds(inputs);
         mlir_region region = mlirRegionCreate();
         mlir_block fbody = mlirBlockCreate(body_inputs.size(), body_inputs.data(), arg_locs.data());
         MlirBlock result = fbody.get();
@@ -448,8 +587,10 @@ struct mlir_program
 
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
-                            {"sym_name", std::string("main")},
-                            {"kernel", std::string("mixr")}});
+                            {"sym_name", sym_name},
+                            {"kernel", std::string("mixr")},
+                            {"arch", target_arch},
+                            {"num_cu", num_cu}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -462,13 +603,17 @@ struct mlir_program
     {
         if(ins->name() == "@return")
             return "func.return";
+        if(ins->name() == "@literal")
+        {
+            return "migraphx.literal";
+        }
         return "migraphx." + ins->name();
     }
 
     static value get_operator_value(const operation& op)
     {
         auto v = op.to_value();
-        if(op.name() == "convolution")
+        if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())
@@ -490,31 +635,45 @@ struct mlir_program
         return ins->get_shape();
     }
 
+    static std::string get_symbol_name(const module& m)
+    {
+        return "mlir_" + gen::generate_name_from_ops(m);
+    }
+
     void parse(const module& m)
     {
+        sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
         auto fbody = insert(mbody, m, ins_map);
+
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@param")
                 continue;
+            if(ins->name() == "contiguous")
+            {
+                ins_map[ins] = ins_map[ins->inputs().at(0)];
+                continue;
+            }
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins->get_operator()));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
-            if(ins->name() == "convolution")
+            if(ins->name() == "@literal")
+            {
+                literal r            = ins->get_literal();
+                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+                MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
+                MlirAttribute mlir_value_attr =
+                    mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
+                ops.add_attributes({{"value", mlir_value_attr}});
+            }
+            if(ins->name() == "convolution" or ins->name() == "dot")
             {
                 pp =
                     problem_params{ins->get_operator(), to_shapes(ins->inputs()), ins->get_shape()};
-                // check if HW supports xdlops
-                bool xdlops       = contains(get_xdlops_archs(), target_name);
-                std::string tuned = get_tune_params(xdlops);
-                if(not tuned.empty())
-                    ops.add_attributes({{"perf_config", tuned}});
-                if(xdlops)
-                    ops.add_attributes({{"xdlopsV2", true}});
             }
 
             std::vector<MlirValue> inputs;
@@ -531,31 +690,71 @@ struct mlir_program
         }
     }
 
-    code_object_op compile() MIGRAPHX_TIDY_CONST
+    void run_high_level_pipeline()
     {
-        mlir_pass_manager pm{mlirPassManagerCreate(ctx.get())};
+        mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
+        mlirMIGraphXAddHighLevelPipeline(pm_front.get());
+        logger.clear();
+        if(mlirLogicalResultIsFailure(
+               mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
+        {
+            std::string error = "Invalid MLIR created: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
+            MIGRAPHX_THROW(error);
+        }
+    }
+
+    void run_backend_pipeline()
+    {
+        mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        logger.clear();
+        const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
+        static std::mutex mutex;
+        auto mod_op = mlirModuleGetOperation(mmodule.get());
+        if(trace >= 2)
+        {
+            const std::lock_guard<std::mutex> lock(mutex);
+            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+        }
+
+        if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
+        {
+            std::string error = "MLIR backend compilation failed: " + logger.str();
+            if(enabled(MIGRAPHX_TRACE_MLIR{}))
+            {
+                std::cout << error << std::endl;
+            }
+            MIGRAPHX_THROW(error);
+        }
+    }
+
+    code_object_op compile(const value& solution)
+    {
         // 1st pipeline to call
-        mlirMIGraphXAddHighLevelPipeline(pm.get());
+        run_high_level_pipeline();
+        if(solution.is_null())
+            get_module_tuned();
+        else
+            set_tuning(solution);
         // 2nd pipeline to call
-        mlirMIGraphXAddBackendPipeline(pm.get(), target_name.c_str(), "amdgcn-amd-amdhsa", "");
-        mlirPassManagerRun(pm.get(), mmodule.get());
+        run_backend_pipeline();
 
         code_object_op op{};
-        op.symbol_name                = "main";
+        op.symbol_name                = sym_name;
         op.code_object                = get_binary();
         std::tie(op.global, op.local) = get_launch_params();
         return op;
     }
 
-    void find_target()
+    void set_gpu_properties(const context& migraphx_ctx)
     {
-        std::string tname = get_device_name();
-        // HACK: Since MLIR can't handle the full target name
-        target_name = trim(split_string(tname, ':').front());
-        if(tname.size() != target_name.size())
-            std::cout
-                << "*************** WARNING: MLIR may not compile the correct target features for: "
-                << tname << std::endl;
+        const auto& device = migraphx_ctx.get_current_device();
+        target_arch        = device.get_device_name();
+        num_cu             = device.get_cu_count();
     }
 
     std::pair<std::size_t, std::size_t> get_launch_params() const
@@ -570,7 +769,7 @@ struct mlir_program
 
     value::binary get_binary() const
     {
-        int size = 0;
+        size_t size = 0;
         mlirGetBinary(mmodule.get(), &size, nullptr);
         value::binary result(size);
         if(mlirGetBinary(mmodule.get(), &size, reinterpret_cast<char*>(result.data())))
@@ -578,14 +777,151 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    std::string get_tune_params(bool xdlops) { return get_mlir_perf_for_conv(pp, xdlops); }
+    void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
+    {
+        const auto* str = v.if_string();
+        if(str == nullptr)
+            MIGRAPHX_THROW("mlir tuning solutions must be strings");
+        if(not mlirRockTuningSetFromStr(mmodule.get(), make_mlir_string_ref(*str)))
+            MIGRAPHX_THROW("Failed setting tuning key: " + *str);
+    }
+
+    tuning_config get_tuning_config(bool exhaustive)
+    {
+        tuning_config tc;
+        run_high_level_pipeline();
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+        if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
+            tuning_mode = RocmlirTuningParamSetKindExhaustive;
+        mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
+        {
+            mlir_tuning_param param{mlirRockTuningParamCreate()};
+            if(not mlirRockTuningParamGet(params.get(), i, param.get()))
+                MIGRAPHX_THROW("Incorrect mlir tuning parameter: " + std::to_string(i));
+            std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> perf_key;
+            size_t perf_key_bytes =
+                mlirRockTuningParamToString(param.get(), perf_key.data(), perf_key.size());
+            if(perf_key_bytes > perf_key.size())
+                MIGRAPHX_THROW("Tuning perf key was " + std::to_string(perf_key_bytes) +
+                               " bytes and thus too long");
+            tc.solutions.emplace_back(
+                std::string(perf_key.begin(), perf_key.begin() + perf_key_bytes));
+        }
+        std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> tuning_key;
+        size_t tuning_key_bytes =
+            mlirRockTuningGetKey(mmodule.get(), tuning_key.data(), tuning_key.size());
+        if(tuning_key_bytes > tuning_key.size())
+            MIGRAPHX_THROW("Tuning table key was " + std::to_string(tuning_key_bytes) +
+                           " bytes and thus too long");
+        tc.problem = std::string(tuning_key.begin(), tuning_key.begin() + tuning_key_bytes);
+        return tc;
+    }
+
+    std::string get_tune_params(bool xdlops) const { return get_mlir_perf_for_conv(pp, xdlops); }
+
+    // This function appends to tuning cfg file that could be
+    // used with rocMLIR tuning scripts.
+    void dump_tuning_cfg(const std::string& prob_config) const
+    {
+        std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
+        if(not tuning_cfg_path.empty())
+        {
+            std::vector<std::string> tokens = split_string(prob_config, '\t');
+            std::string prob                = tokens[2];
+
+            if(starts_with(prob, "conv"))
+            {
+                tuning_cfg_path += ".conv";
+            }
+            else
+            {
+                tuning_cfg_path += ".gemm";
+            }
+            std::ofstream tuning_cfg(tuning_cfg_path, std::ios::app);
+            prob =
+                trim(prob, [](unsigned char c) { return (c == '\0') or (std::isspace(c) != 0); });
+            tuning_cfg << prob << std::endl;
+        }
+    }
+
+    static std::pair<mlir_tuning_table, bool> load_tuning_table()
+    {
+        mlir_tuning_table tuning_table{mlirRockTuningTableCreate()};
+        bool found_table           = false;
+        std::string tuning_db_path = string_value_of(MIGRAPHX_MLIR_TUNING_DB{});
+        if(not tuning_db_path.empty())
+        {
+            std::ifstream tuning_db_tsv(tuning_db_path);
+            if(tuning_db_tsv)
+            {
+                found_table = true;
+                std::string line;
+                while(std::getline(tuning_db_tsv, line))
+                {
+                    std::vector<std::string> tokens = split_string(line, '\t');
+                    std::string arch                = tokens[0];
+                    std::string num_cu              = tokens[1];
+                    std::string prob                = tokens[2];
+                    std::string perf                = tokens[3];
+                    std::string key = arch.append("\t").append(num_cu).append("\t").append(prob);
+                    mlirRockTuningUpdateTable(tuning_table.get(),
+                                              make_mlir_string_ref(key),
+                                              make_mlir_string_ref(perf),
+                                              1.0);
+                }
+            }
+        }
+        else
+        {
+            found_table = false;
+            std::cerr
+                << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
+                   "optimal performance."
+                << std::endl;
+        }
+        return std::make_pair(std::move(tuning_table), found_table);
+    }
+
+    bool get_module_tuned() const
+    {
+        static std::pair<mlir_tuning_table, bool> tuning_table = load_tuning_table();
+        if(not mlirRockTuningSetFromTable(tuning_table.first.get(), mmodule.get()))
+        {
+            std::array<char, ROCMLIR_TUNING_KEY_BUFSZ> prob_config;
+            size_t prob_config_bytes =
+                mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
+            if(prob_config_bytes >= prob_config.size())
+            {
+                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                          << " bytes" << std::endl;
+                return false;
+            }
+            std::string prob_config_str(prob_config.begin(),
+                                        prob_config.begin() + prob_config_bytes);
+            if(tuning_table.second)
+            {
+                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
+                          << std::endl;
+            }
+            dump_tuning_cfg(prob_config_str);
+            return false;
+        }
+        return true;
+    }
 
     mlir_context ctx;
     MlirLocation location;
     mlir_module mmodule;
+    mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_name;
+    std::string target_arch = "";
+    std::size_t num_cu      = 0;
+    std::string sym_name;
 };
 
 std::string dump_mlir(const module& m)
@@ -596,65 +932,50 @@ std::string dump_mlir(const module& m)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-void adjust_param_shapes(module& m, const std::vector<instruction_ref>& inputs)
+void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
     for(auto i : range(names.size()))
     {
         const auto& name  = names[i];
-        const auto& input = inputs[i]->get_shape();
+        const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
         if(input.standard())
             continue;
-        auto lens    = input.lens();
-        auto strides = input.strides();
-        std::vector<operation> ops;
-        if(input.transposed())
-        {
-            auto perm  = find_permutation(input);
-            auto iperm = invert_permutation(perm);
-            lens       = reorder_dims(lens, iperm);
-            strides    = reorder_dims(strides, iperm);
-            ops.push_back(make_op("transpose", {{"permutation", perm}}));
-        }
-        if(input.broadcasted())
-        {
-            std::transform(lens.begin(),
-                           lens.end(),
-                           strides.begin(),
-                           lens.begin(),
-                           [](auto len, auto stride) -> std::size_t {
-                               if(stride == 0)
-                                   return 1;
-                               return len;
-                           });
-            ops.push_back(make_op("multibroadcast", {{"out_lens", input.lens()}}));
-        }
-        auto new_param =
-            std::accumulate(ops.begin(),
-                            ops.end(),
-                            m.add_parameter(name + ".0", shape{input.type(), lens}),
-                            [&](auto x, auto op) { return m.insert_instruction(param, op, x); });
+        auto new_param = m.add_parameter(name + ".0", input);
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
 }
 
-code_object_op compile_mlir(const context&, module m, const std::vector<instruction_ref>& inputs)
+code_object_op compile_mlir(const context& migraphx_ctx,
+                            module m,
+                            const std::vector<instruction_ref>& inputs,
+                            const value& solution)
 {
-    adjust_param_shapes(m, inputs);
+    adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+
+    static std::mutex mutex;
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << m << std::endl;
+    }
+
     mlir_program mp;
-    mp.find_target();
+    mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    auto co   = mp.compile();
-    co.output = m.get_output_shapes().front();
+    }
+    auto co            = mp.compile(solution);
+    co.expected_inputs = to_shapes(inputs);
+    co.output          = m.get_output_shapes().front();
     return co;
 }
 
@@ -666,49 +987,34 @@ instruction_ref insert_mlir(module& m,
 
     std::vector<instruction_ref> refs;
     std::size_t last = 0;
-#ifdef MIGRAPHX_MLIR_BARE_POINTER
     refs.reserve(inputs.size());
     std::copy(inputs.begin(), inputs.end(), std::back_inserter(refs));
-    last = refs.size() - 1;
-#else
-    refs.reserve(inputs.size() * 15);
-    std::unordered_map<uint64_t, instruction_ref> literal_map{};
-    auto get_literal = [&](uint64_t value) {
-        auto fi = literal_map.find(value);
-        if(fi != literal_map.end())
-            return fi->second;
-        auto lit = m.add_literal(value);
-        literal_map.emplace(value, lit);
-        return lit;
-    };
-
-    for(auto input : inputs)
-    {
-        const size_t offset = 0;
-        auto s              = input->get_shape();
-        last                = refs.size();
-        refs.push_back(input);
-        refs.push_back(input);
-        refs.push_back(get_literal(offset)); // offset
-
-        // dim sizes
-        std::transform(s.lens().begin(),
-                       s.lens().end(),
-                       std::back_inserter(refs),
-                       [&](const auto& lval) { return get_literal(lval); });
-        // refs.push_back(get_literal(1)); // G
-
-        // dim strides
-        std::transform(s.strides().begin(),
-                       s.strides().end(),
-                       std::back_inserter(refs),
-                       [&](const auto& lval) { return get_literal(lval); });
-        // refs.push_back(get_literal(1)); // G
-    }
-#endif
+    last               = refs.size() - 1;
     co.expected_inputs = to_shapes(refs);
     co.output_arg      = last;
     return m.insert_instruction(ins, co, refs);
+}
+
+tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
+                                     module m,
+                                     const std::vector<shape>& inputs,
+                                     bool exhaustive)
+{
+    adjust_param_shapes(m, inputs);
+
+    mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
+    mp.parse(m);
+
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    static std::mutex mutex;
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    }
+    return mp.get_tuning_config(exhaustive);
 }
 
 #else
@@ -722,19 +1028,26 @@ void use(T&)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-code_object_op compile_mlir(const context&, module, const std::vector<instruction_ref>&)
+code_object_op
+compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
 {
     return {};
 }
-// NOLINTEND(performance-unnecessary-value-param)
 
 instruction_ref
 // cppcheck-suppress funcArgNamesDifferent
 insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<instruction_ref>&)
 {
     use(co);
+    use(m);
     return m.end();
 }
+
+tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
+{
+    return {};
+}
+// NOLINTEND(performance-unnecessary-value-param)
 
 #endif
 

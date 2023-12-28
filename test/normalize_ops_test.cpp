@@ -57,7 +57,7 @@ struct normalize_test_op
                                const migraphx::shape& output_shape,
                                const std::vector<migraphx::argument>&) const
     {
-        return {output_shape};
+        return migraphx::argument{output_shape};
     }
 };
 

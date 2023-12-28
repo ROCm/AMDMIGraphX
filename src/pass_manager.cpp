@@ -39,6 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PASSES);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TIME_PASSES);
 
 void validate_pass(module& mod, const pass& p, tracer trace)
 {
@@ -67,11 +68,17 @@ void run_pass(program& prog, const pass& p, tracer trace)
 struct module_pm : module_pass_manager
 {
     module* mod           = nullptr;
+    module* root_mod      = nullptr;
     tracer* t             = nullptr;
     module* common_parent = nullptr;
     program* prog         = nullptr;
 
     module_pm(module* pmod = nullptr, tracer* pt = nullptr) : mod(pmod), t(pt) {}
+
+    module_pm(module* pmod = nullptr, module* rmod = nullptr, tracer* pt = nullptr)
+        : mod(pmod), root_mod(rmod), t(pt)
+    {
+    }
 
     template <class... Ts>
     void trace(Ts&&... xs) const
@@ -85,18 +92,38 @@ struct module_pm : module_pass_manager
         assert(mod);
         return *mod;
     }
+
     virtual module* create_module(const std::string& name) override
     {
         assert(prog);
         return prog->create_module(name);
     }
+
     virtual module* get_common_parent() override { return common_parent; }
+
+    virtual module* get_root_module() override
+    {
+        if(root_mod != nullptr)
+            return root_mod;
+        assert(prog);
+        return prog->get_main_module();
+    }
+
     virtual void run_pass(const pass& p) override
     {
+        trace("Pass: ", p.name());
         assert(mod);
-        trace("Module: ", mod->name(), ", Pass: ", p.name());
         assert(mod->validate() == mod->end());
-        p.apply(*this);
+        if(enabled(MIGRAPHX_TIME_PASSES{}))
+        {
+            using milliseconds = std::chrono::duration<double, std::milli>;
+            auto ms            = time<milliseconds>([&] { p.apply(*this); });
+            std::cout << p.name() << ": " << ms << "ms\n";
+        }
+        else
+        {
+            p.apply(*this);
+        }
         trace(*mod);
         validate_pass(*mod, p, *t);
     }
@@ -104,33 +131,24 @@ struct module_pm : module_pass_manager
 
 module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 
-void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
-{
-    if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{std::cout};
-    for(const auto& p : passes)
-    {
-        module_pm{&mod, &trace}.run_pass(p);
-    }
-}
-
-void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
         trace = tracer{std::cout};
     std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
-        auto mods = prog.get_modules();
-        auto tree = prog.get_module_tree();
+        auto tree                        = prog.get_module_tree();
+        std::vector<module_ref> sub_mods = root_mod->get_sub_modules();
+        sub_mods.insert(sub_mods.begin(), root_mod);
         visited.clear();
-        for(const auto& mod : reverse(mods))
+        for(const auto& mod : reverse(sub_mods))
         {
             if(mod->bypass())
                 continue;
             if(not visited.insert(mod).second)
                 continue;
-            module_pm mpm{mod, &trace};
+            module_pm mpm{mod, root_mod, &trace};
             mpm.prog      = &prog;
             auto parents  = range(tree.equal_range(mod));
             auto nparents = distance(parents);
@@ -146,6 +164,21 @@ void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
         }
         run_pass(prog, p, trace);
     }
+}
+
+void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
+{
+    if(enabled(MIGRAPHX_TRACE_PASSES{}))
+        trace = tracer{std::cout};
+    for(const auto& p : passes)
+    {
+        module_pm{&mod, &mod, &trace}.run_pass(p);
+    }
+}
+
+void run_passes(program& prog, const std::vector<pass>& passes, tracer trace)
+{
+    run_passes(prog, prog.get_main_module(), passes, trace);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

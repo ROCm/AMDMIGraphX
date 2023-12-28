@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct pass;
 namespace ref {
 
-struct target
+struct MIGRAPHX_REF_EXPORT target
 {
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& ctx, const compile_options&) const;
@@ -45,8 +45,6 @@ struct target
     argument copy_from(const argument& arg) const { return arg; }
     argument allocate(const shape& s) const;
 };
-
-MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS

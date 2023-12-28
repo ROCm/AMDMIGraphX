@@ -78,7 +78,7 @@ template <class T>
 struct wrapper
 {
     using type = typename remove_rvalue_reference<T>::type;
-    type data;
+    type data; // NOLINT
     type get() const { return data; }
 };
 

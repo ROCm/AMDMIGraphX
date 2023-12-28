@@ -26,7 +26,7 @@
 #include "verify_program.hpp"
 #include "test.hpp"
 #include <migraphx/env.hpp>
-#include <migraphx/ref/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/load_save.hpp>
@@ -44,12 +44,11 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
-                                                                    bool parallel = true)
+std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
-        using result_type = typename std::result_of<Function()>::type;
+        using result_type = typename std::invoke_result<Function>::type;
         std::packaged_task<result_type()> task(std::forward<Function>(f));
         auto fut = task.get_future();
         std::thread(std::move(task)).detach();
@@ -67,15 +66,17 @@ inline void verify_load_save(const migraphx::program& p)
     EXPECT(p == loaded);
 }
 
-inline void compile_check(migraphx::program& p, const migraphx::target& t, bool show_trace = false)
+inline void compile_check(migraphx::program& p,
+                          const migraphx::target& t,
+                          migraphx::compile_options c_opts,
+                          bool show_trace = false)
 {
     auto name   = t.name();
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
-    migraphx::compile_options options;
     if(show_trace)
-        options.trace = migraphx::tracer{std::cout};
-    p.compile(t, options);
+        c_opts.trace = migraphx::tracer{std::cout};
+    p.compile(t, c_opts);
     if(shapes.size() != p.get_output_shapes().size())
     {
         std::cout << ss.str() << std::endl;
@@ -86,10 +87,31 @@ inline void compile_check(migraphx::program& p, const migraphx::target& t, bool 
     auto num = shapes.size();
     for(std::size_t i = 0; i < num; ++i)
     {
-        if(p.get_output_shapes()[i].lens() != shapes[i].lens())
+        auto output_shape = p.get_output_shapes()[i];
+        if(output_shape.dynamic() and shapes[i].dynamic())
+        {
+            if(output_shape.dyn_dims() != shapes[i].dyn_dims())
+            {
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name +
+                                         " alters its dynamic output dimensions");
+            }
+        }
+        else if(not(output_shape.dynamic() or shapes[i].dynamic()))
+        {
+            if(output_shape.lens() != shapes[i].lens())
+            {
+                std::cout << ss.str() << std::endl;
+                throw std::runtime_error("Compiling program with " + name +
+                                         " alters its static output dimensions");
+            }
+        }
+        else
         {
             std::cout << ss.str() << std::endl;
-            throw std::runtime_error("Compiling program with " + name + " alters its shape");
+            throw std::runtime_error(
+                "Compiling program with " + name +
+                " alters its output dimensions (static shape vs dynamic shape)");
         }
     }
     if(t.name() != "ref")
@@ -114,20 +136,27 @@ void run_verify::validate(const migraphx::target& t,
         ti.validate(p, m);
 }
 
-std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
-                                                    migraphx::parameter_map inputs) const
+std::pair<migraphx::program, std::vector<migraphx::argument>>
+run_verify::run_ref(migraphx::program p,
+                    migraphx::parameter_map inputs,
+                    const migraphx::compile_options& c_opts) const
 {
-    migraphx::ref::target t{};
+    migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
-    compile_check(p, t);
-    return p.eval(std::move(inputs));
+    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    compile_check(p, t, c_opts, (trace_target == "ref"));
+    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
 }
-std::pair<migraphx::program, std::vector<migraphx::argument>> run_verify::run_target(
-    const migraphx::target& t, migraphx::program p, const migraphx::parameter_map& inputs) const
+
+std::pair<migraphx::program, std::vector<migraphx::argument>>
+run_verify::run_target(const migraphx::target& t,
+                       migraphx::program p,
+                       const migraphx::parameter_map& inputs,
+                       const migraphx::compile_options& c_opts) const
 {
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
-    compile_check(p, t, (trace_target == t.name()));
+    compile_check(p, t, c_opts, (trace_target == t.name()));
     migraphx::parameter_map m;
     for(auto&& input : inputs)
     {
@@ -157,7 +186,9 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name, const migraphx::program& p) const
+void run_verify::verify(const std::string& name,
+                        const migraphx::program& p,
+                        const migraphx::compile_options& c_opts) const
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
@@ -185,20 +216,29 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
         migraphx::parameter_map m;
         for(auto&& x : p.get_parameter_shapes())
         {
-            m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
+            if(x.second.dynamic())
+            {
+                // create static shape using maximum dimensions
+                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
+                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
+            }
+            else
+            {
+                m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
+            }
         }
 
-        auto gold_f = detach_async([=] { return run_ref(p, m); });
+        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
             auto t         = migraphx::make_target(tname);
-            results.emplace_back(tname,
-                                 detach_async([=] { return run_target(t, p, m); }, ti.parallel));
+            results.emplace_back(
+                tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
         }
 
-        assert(gold_f.valid());
-        auto gold = gold_f.get();
+        assert(ref_f.valid());
+        auto ref_results = ref_f.get();
 
         for(auto&& pp : results)
         {
@@ -207,19 +247,20 @@ void run_verify::verify(const std::string& name, const migraphx::program& p) con
             auto x      = pp.second.get();
             auto cp     = x.first;
             auto result = x.second;
-
+            auto gold   = ref_results.second;
             bool passed = true;
             passed &= (gold.size() == result.size());
             std::size_t num = gold.size();
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
-                passed &= migraphx::verify_args(tname, gold[i], result[i]);
+                passed &= migraphx::verify_args_with_tolerance(
+                    tname, result[i], migraphx::verify::expected{gold[i]});
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
             {
                 std::cout << p << std::endl;
-                std::cout << "ref:\n" << p << std::endl;
+                std::cout << "ref:\n" << ref_results.first << std::endl;
                 std::cout << tname << ":\n" << cp << std::endl;
                 std::cout << std::endl;
             }
@@ -235,7 +276,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program()); });
+        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

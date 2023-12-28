@@ -37,22 +37,26 @@ argument scatter(
     hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis)
 {
     auto ds            = arg0.get_shape();
-    auto inds          = arg1.get_shape();
+    auto s1            = arg1.get_shape();
     auto axis_dim_size = ds.lens()[axis];
-    hip_visit_all(result, arg0, inds)([&](auto output, auto data, auto s1) {
+    hip_visit_all(result, arg0, arg2)([&](auto output, auto data, auto update) {
         auto* output_ptr     = device_cast(output.data());
         const auto* data_ptr = device_cast(data.data());
         gs_launch(stream, ds.elements())([=](auto i) __device__ { output_ptr[i] = data_ptr[i]; });
-        hip_visit_all(arg1, arg2)([&](auto indices, auto update) {
-            const auto* upd_ptr     = device_cast(update.data());
-            const auto* indices_ptr = device_cast(indices.data());
-            gs_launch(stream, inds.elements())([=](auto i) __device__ {
-                auto out_idx    = s1.multi(i);
-                auto index      = indices_ptr[i];
-                index           = index < 0 ? index + axis_dim_size : index;
-                out_idx[axis]   = index;
-                output[out_idx] = upd_ptr[i];
-            });
+
+        hip_visit_all(arg1)([&](auto indices) {
+            if constexpr(indices.get_shape().lens.size() == output.get_shape().lens.size())
+            {
+                const auto* upd_ptr     = device_cast(update.data());
+                const auto* indices_ptr = device_cast(indices.data());
+                gs_launch(stream, s1.elements())([=](auto i) __device__ {
+                    auto out_idx    = indices.get_shape().multi(i);
+                    auto index      = indices_ptr[i];
+                    index           = index < 0 ? index + axis_dim_size : index;
+                    out_idx[axis]   = index;
+                    output[out_idx] = upd_ptr[i];
+                });
+            }
         });
     });
 

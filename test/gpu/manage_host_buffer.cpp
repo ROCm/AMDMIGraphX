@@ -25,7 +25,7 @@
 #include <iostream>
 #include <vector>
 #include <hip/hip_runtime_api.h>
-#include <migraphx/gpu/target.hpp>
+#include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <test.hpp>
 #include <basic_ops.hpp>
@@ -53,18 +53,18 @@ TEST_CASE(host_same_buffer_copy)
     migraphx::parameter_map pp;
     std::vector<float> a_vec(ss.elements(), -1);
     std::vector<float> b_vec(ss.elements(), 2);
-    std::vector<float> c_vec(ss.elements(), 0);
     pp["a"] = migraphx::argument(ss, a_vec.data());
     pp["b"] = migraphx::argument(ss, b_vec.data());
     std::vector<float> gpu_result;
-    migraphx::target gpu_t = migraphx::gpu::target{};
+    migraphx::target gpu_t = migraphx::make_target("gpu");
     migraphx::compile_options options;
     options.offload_copy = true;
     p.compile(gpu_t, options);
     auto result = p.eval(pp).back();
     std::vector<float> results_vector(ss.elements(), -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify_range(c_vec, results_vector));
+    std::vector<float> gold_vec(ss.elements(), 0);
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_vec));
 }
 
 TEST_CASE(arguments_lifetime)

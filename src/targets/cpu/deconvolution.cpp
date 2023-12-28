@@ -23,23 +23,23 @@
  */
 #include <migraphx/config.hpp>
 #include <migraphx/cpu/dnnl.hpp>
-#include <migraphx/op/deconvolution.hpp>
+#include <migraphx/op/convolution_backwards.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
 struct dnnl_deconvolution
-    : dnnl_extend_op<dnnl_deconvolution, dnnl::deconvolution_forward, op::deconvolution>
+    : dnnl_extend_op<dnnl_deconvolution, dnnl::deconvolution_forward, op::convolution_backwards>
 {
     std::vector<int> arg_map(int) const
     {
         return {MIGRAPHX_DNNL_PREFIX(ARG_SRC), MIGRAPHX_DNNL_PREFIX(ARG_WEIGHTS)};
     }
 
-    shape adjust_shape(const shape& x, int i) const
+    shape adjust_shape(const shape& x, int i, const shape& output) const
     {
-        auto s = base_adjust_shape(x);
+        auto s = base_adjust_shape(x, output);
         if(i == 1)
         {
             // The input and output channels are flipped for dnnl

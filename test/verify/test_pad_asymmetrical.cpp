@@ -27,28 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_mul_dot_b : verify_program<test_mul_dot_b<DType>>
-
+struct test_pad_asymmetrical : verify_program<test_pad_asymmetrical>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape as{DType, {2, 256, 32}};
-        migraphx::shape bs{DType, {2, 32, 128}};
-        auto b = mm->add_parameter("input", bs);
-        auto lit  = mm->add_literal(migraphx::generate_literal({DType, {1, 32, 1}}));
-        auto litb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", bs.lens()}}), lit);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), b, litb);
-        auto a   = mm->add_literal(migraphx::generate_literal(as));
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, mul);
-        mm->add_return({dot});
+        migraphx::shape s{migraphx::shape::int32_type, {1, 16, 1, 1}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), x);
         return p;
     }
 };
-
-template struct test_mul_dot_b<migraphx::shape::float_type>;
-template struct test_mul_dot_b<migraphx::shape::half_type>;
-template struct test_mul_dot_b<migraphx::shape::fp8e4m3fnuz_type>;

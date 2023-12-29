@@ -71,11 +71,10 @@ The following is a list of prerequisites for building MIGraphX.
 
 Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.
 
-```note
-If you get an `rbuild: command not found` error, it's because `rbuild` is installed in `$HOME/.local/bin`,
-which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` to add
-the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 command when installing `rbuild`.
-```
+> [!NOTE]
+> If you get an `rbuild: command not found` error, it's because `rbuild` is installed in `$HOME/.local/bin`,
+> which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` to add
+> the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 command when installing `rbuild`.
 
 ### Use CMake to build MIGraphX
 

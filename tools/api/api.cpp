@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -164,6 +164,11 @@ void set_default_loop_iterations(onnx_options& options, int64_t value)
     options.max_loop_iterations = value;
 }
 
+void set_limit_loop_iterations(onnx_options& options, int64_t value)
+{
+    options.limit_max_iterations = value;
+}
+
 void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
@@ -227,12 +232,12 @@ void quantize_fp16_with_op_names(program& prog, std::vector<std::string>& names)
 struct quantize_int8_options
 {
     std::vector<parameter_map> calibration = {};
-    std::vector<std::string> op_names      = {};
+    std::unordered_set<std::string> op_names = {};
 };
 
 void add_op_name(quantize_int8_options& options, const char* name)
 {
-    options.op_names.push_back(name);
+    options.op_names.insert(name);
 }
 
 void add_calibration_data(quantize_int8_options& options, parameter_map& data)

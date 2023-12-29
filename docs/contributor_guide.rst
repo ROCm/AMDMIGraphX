@@ -1,11 +1,11 @@
 Contributor Guide
-===============
+=================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   dev_intro
+   dev/dev_intro
    dev/data
    dev/operators
    dev/program
@@ -14,3 +14,4 @@ Contributor Guide
    dev/pass
    dev/matchers
    dev/tools
+   dev/env_vars

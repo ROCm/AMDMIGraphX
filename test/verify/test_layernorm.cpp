@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -112,6 +112,19 @@ struct test_layernorm_fp16 : verify_program<test_layernorm_fp16>
         auto* mm                 = p.get_main_module();
         std::vector<size_t> dims = {1, 24, 64};
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::half_type, dims});
+        add_layernorm(*mm, x, dims);
+        return p;
+    }
+};
+
+struct test_layernorm_fp8 : verify_program<test_layernorm_fp8>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm                 = p.get_main_module();
+        std::vector<size_t> dims = {1, 24, 64};
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, dims});
         add_layernorm(*mm, x, dims);
         return p;
     }

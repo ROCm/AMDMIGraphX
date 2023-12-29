@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,9 @@ struct parse_slice : op_parser<parse_slice>
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
+        /**
+         * Either insert argument into `this->op_args` or return the constant value of the argument
+         */
         std::vector<int64_t> insert(instruction_ref arg)
         {
             std::vector<int64_t> result;
@@ -144,15 +147,14 @@ struct parse_slice : op_parser<parse_slice>
             sd.op.axes = axes;
         }
 
-        if(not sd.steps.empty())
+        if(std::any_of(sd.steps.begin(), sd.steps.end(), [](auto s) { return s != 1; }))
         {
             if(sd.op.starts.empty() or sd.op.ends.empty())
-                MIGRAPHX_THROW("PARSE_SLICE: steps and variable starts and ends is not supported");
+                MIGRAPHX_THROW(
+                    "PARSE_SLICE: steps and variable starts and/or ends is not supported");
             if(sd.op.axes.empty())
                 MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
         }
-
-        assert(sd.steps.empty() or sd.steps.size() == sd.op.axes.size());
 
         // If any axes have negative step, prepare to add a "reverse" op
         for(auto i : range(sd.steps.size()))

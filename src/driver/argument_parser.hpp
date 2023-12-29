@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -105,6 +105,8 @@ inline std::ostream& operator<<(std::ostream& os, const color& c)
     static const bool use_color = isatty(STDOUT_FILENO) != 0;
     if(use_color)
         return os << "\033[" << static_cast<std::size_t>(c) << "m";
+#else
+    (void)c;
 #endif
     return os;
 }

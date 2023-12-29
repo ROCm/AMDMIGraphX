@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,9 @@
 #####################################################################################
 google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
 nlohmann/json@v3.8.0
-live-clones/blaze@v3.8 -X header -DHEADER_DIR=blaze -H sha256:d0ff011f47538285178908ea5f2cab46bb6a8f55b1edb6e03224a82dbc1a3212
 ROCmSoftwarePlatform/half@rocm-5.6.0
 pybind/pybind11@d159a563383d10c821ba7b2a71905d1207db6de4 --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
 sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
 ROCmSoftwarePlatform/composable_kernel@70eefcf4f263aa5c25f3c9ff0db8f6f199ef0fb9 -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCmSoftwarePlatform/rocMLIR@3700afd2564e21267a4d1fd8f1f80465f45daa93 -DBUILD_FAT_LIBROCKCOMPILER=On
+ROCmSoftwarePlatform/rocMLIR@08597bdd875eab888d2df826863828cdca5c8bb4 -DBUILD_FAT_LIBROCKCOMPILER=On

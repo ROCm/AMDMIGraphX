@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,21 +24,21 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_TUNE_AXIS_HPP
 #define MIGRAPHX_GUARD_OPERATORS_TUNE_AXIS_HPP
 
-#include <utility>
-#include <cstdint>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-inline int tune_axis(const int n_dim, const int axis, const std::string& op_name = "OPERATOR")
+inline int tune_axis(int n_dim, int axis, const std::string& op_name = "OPERATOR")
 {
-    if(axis >= n_dim or std::abs(axis) > n_dim)
-    {
+    if(axis < 0)
+        axis += n_dim;
+
+    if(axis < 0 or axis >= n_dim)
         MIGRAPHX_THROW(to_upper(op_name) + ": axis is out of range.");
-    }
-    return (axis < 0) ? axis + n_dim : axis;
+
+    return axis;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

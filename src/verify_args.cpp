@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -88,7 +88,6 @@ bool verify_args(const std::string& name,
             if(target_nan_idx >= 0)
                 std::cout << "Non finite number found in target at " << target_nan_idx << ": "
                           << target[target_nan_idx] << std::endl;
-            std::cout << "MIGraphX verification passed successfully." << std::endl;
         }
     });
     return passed;

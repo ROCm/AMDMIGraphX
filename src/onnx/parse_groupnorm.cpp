@@ -120,8 +120,7 @@ struct parse_groupnorm : op_parser<parse_groupnorm>
             info.add_instruction(make_op("broadcast", {{"axis", 1}, {"out_lens", dims}}), bias);
         auto scaled     = info.add_instruction(make_op("mul"), result, scale_bcast);
         auto y          = info.add_instruction(make_op("add"), scaled, bias_bcast);
-        auto y_reshaped = info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
-        return y_reshaped;
+        return info.add_instruction(make_op("reshape", {{"dims", x_dims}}), y);
     }
 };
 

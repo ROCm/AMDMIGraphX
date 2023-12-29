@@ -69,8 +69,9 @@ docs/_build
 docs/_images
 docs/_static
 docs/_templates
-docs/.doxygen/docBin
-docs/.doxygen/DoxygenWarningLog.txt
+docs/doxygen/DoxygenWarningLog.txt
+docs/doxygen/html/
+docs/doxygen/xml/
 docs/_doxygen
 docs/html
 /_readthedocs
@@ -81,5 +82,7 @@ cmake-build*/
 build*/
 
 # Recommended location to install rbuild dependencies from README.md
-depend
+depend*/
 
+# local Python virtual environment
+.venv/

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,10 +58,10 @@ struct hiprtc_src_file
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 
 MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>> compile_hip_src_with_hiprtc(
-    std::vector<hiprtc_src_file> srcs, std::string params, const std::string& arch);
+    std::vector<hiprtc_src_file> srcs, const std::string& params, const std::string& arch);
 
-MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>>
-compile_hip_src(const std::vector<src_file>& srcs, std::string params, const std::string& arch);
+MIGRAPHX_GPU_EXPORT std::vector<std::vector<char>> compile_hip_src(
+    const std::vector<src_file>& srcs, const std::string& params, const std::string& arch);
 
 MIGRAPHX_GPU_EXPORT std::string enum_params(std::size_t count, std::string param);
 

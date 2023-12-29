@@ -340,7 +340,6 @@ struct cpu_apply
                               {"reduce_min", "reduction_min"},
                               {"reduce_sum", "reduction_sum"},
                           });
-
         extend_op("concat", "dnnl::concat");
         extend_op("contiguous", "dnnl::reorder");
         extend_op("convolution", "dnnl::convolution");
@@ -376,6 +375,12 @@ struct cpu_apply
         // Apply these operators first so the inputs can be const folded
         for(auto it : iterator_for(*modl))
         {
+            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
+            // supported yet.
+            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
+                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+               }))
+                continue;
             if(it->name() == "pow")
             {
                 apply_pow(it);
@@ -383,6 +388,12 @@ struct cpu_apply
         }
         for(auto it : iterator_for(*modl))
         {
+            // skip lowering if input has fp8 as one of the inputs since oneDNN doesn't have fp8
+            // supported yet.
+            if(std::any_of(it->inputs().begin(), it->inputs().end(), [](const auto& i) {
+                   return i->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+               }))
+                continue;
             if(it->name() == "pooling")
             {
                 apply_pooling(it);

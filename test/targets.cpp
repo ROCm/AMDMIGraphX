@@ -23,7 +23,7 @@
  */
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
-#include <migraphx/par_for.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include "test.hpp"
 
 TEST_CASE(make_target)

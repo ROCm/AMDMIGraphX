@@ -177,7 +177,7 @@ To use MIGraphX's Python module, you can set `PYTHONPATH` or use the `.deb` pack
 To use MIGraphX's C/C++ API in your CMake project, you must set `CMAKE_PREFIX_PATH` to the
 MIGraphX installation location and run:
 
-```bash
+```cmake
 find_package(migraphx)
 target_link_libraries(myApp migraphx::c)
 ```

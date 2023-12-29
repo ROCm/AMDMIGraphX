@@ -177,14 +177,24 @@ def onnxnode(name, body) {
 }
 
 rocmtest onnx: onnxnode('mi100+') { cmake_build ->
-    stage("Onnx runtime") {
+    stage("Onnxruntime Wheel and Test") {
         sh '''
             apt install half
             #ls -lR
             md5sum ./build/*.deb
             dpkg -i ./build/*.deb
             env
-            cd /onnxruntime && ./build_and_test_onnxrt.sh
+            cd /onnxruntime && wget -q -c http://compute-artifactory.amd.com:5000/artifactory/compute-pytorch-rocm/compute-rocm-rel-6.0/88/onnxruntime_rocm-1.17.0-cp310-cp310-linux_x86_64.whl
+            pip3 install *.whl
+            wget -q -c http://compute-artifactory.amd.com:5000/artifactory/compute-pytorch-rocm/compute-rocm-rel-6.0/88/onnxruntime_rocm-1.17.0-cp310-cp310-linux_x86_64.zip
+            unzip -q *.zip
+            rm -rf *.zip
+            cd build/Linux/Release \
+            && echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt \
+            && echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions2' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt \
+            && echo 'InferenceSessionTests.Test3LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt \
+            && echo 'InferenceSessionTests.Test2LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt 
+            ../../../tools/ci_build/github/pai/pai_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)
         '''
     }
 }

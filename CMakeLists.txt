@@ -323,5 +323,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half libtbb2
 )

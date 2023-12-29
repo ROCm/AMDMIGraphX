@@ -128,14 +128,15 @@ struct scatternd_op : op_name<Derived>
                     auto updates_idx = updates_std.multi(i);
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
-                        updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());
+                        updates_idx.begin(), updates_idx.begin() + (q - 1), indices_idx.begin());
                     auto index_start = indices.begin() +
                                        indices_shape.index(indices_idx.begin(), indices_idx.end());
                     auto index_end = index_start + k;
 
                     std::vector<std::size_t> out_idx(r, 0);
                     std::copy(index_start, index_end, out_idx.begin());
-                    std::copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
+                    std::copy(
+                        updates_idx.begin() + (q - 1), updates_idx.end(), out_idx.begin() + k);
 
                     self.reduction()(output[dyn_out.computed_shape.index(out_idx)], updates[i]);
                 }

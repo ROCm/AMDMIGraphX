@@ -90,8 +90,7 @@ struct not_finite_fn
     template <class T>
     bool operator()(T x) const
     {
-        using std::isfinite;
-        return not isfinite(x);
+        return not std::isfinite(static_cast<double>(x));
     }
 };
 static constexpr not_finite_fn not_finite{};
@@ -101,8 +100,7 @@ struct compare_mag_fn
     template <class T, class U>
     bool operator()(T x, U y) const
     {
-        using std::fabs;
-        return fabs(x) < fabs(y);
+        return std::fabs(x) < std::fabs(y);
     }
 };
 static constexpr compare_mag_fn compare_mag{};
@@ -193,8 +191,7 @@ double rms_range(const R1& r1, const R2& r2)
 template <class R>
 double get_rms_tol(const R&, std::size_t tolerance = 80)
 {
-    double threshold = std::numeric_limits<range_value<R>>::epsilon() * tolerance;
-    return threshold;
+    return std::numeric_limits<range_value<R>>::epsilon() * tolerance;
 }
 
 /*

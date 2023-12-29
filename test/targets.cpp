@@ -42,11 +42,7 @@ TEST_CASE(make_invalid_target)
 
 TEST_CASE(targets)
 {
-    // GCC doesn't load libmigraphx_ref unless necesssary even though it is linked to the test.
-    // Force it to load by making ref target
-#if defined(__GNUC__) && !defined(__clang__)
     auto ref_target = migraphx::make_target("ref");
-#endif
     auto ts = migraphx::get_targets();
     EXPECT(ts.size() >= 1);
 }

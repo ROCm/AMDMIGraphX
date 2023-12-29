@@ -1,199 +1,203 @@
 # AMD MIGraphX
 
-AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. AMD MIGraphX can be used by
-installing binaries directly or building from source code.
+AMD MIGraphX is AMD's graph inference engine, which accelerates machine learning model inference.
+To use MIGraphX, you can install the binaries or build from source code. Refer to the following sections
+for Ubuntu installation instructions (we'll provide instructions for other Linux distributions in the future).
 
-In the following, instructions of how to build and install MIGraphX are described with Ubuntu as the OS
-(Instructions of installation on other Linux OSes will come later). Note that all the following instructions assume 
-ROCm has been installed successfully. ROCm installation instructions are explained in the [ROCm installation
-guide](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
+```note
+You must [install ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html) before
+installing MIGraphX.
+```
 
 ## Installing from binaries
-With ROCm installed correctly, MIGraphX binaries can be installed on Ubuntu with the following command:
-```
+
+Install binaries using:
+
+```bash
 sudo apt update && sudo apt install -y migraphx
 ```
-then the header files and libs are installed under `/opt/rocm-<version>`, where `<version>` is the ROCm version.
+
+Header files and libraries are installed under `/opt/rocm-<version>`, where `<version>` is the ROCm
+version.
 
 ## Building from source
 
-There are three ways to build the MIGraphX sources. 
-* [Use the ROCm build tool](#use-the-rocm-build-tool-rbuild)
-    
-    This approach uses [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install the prerequisites and
-build the libs with just one command. 
+You have three options for building from source:
 
-* [Use cmake](#use-cmake-to-build-migraphx)
-    
-    This approach uses a script to install the prerequisites, then use cmake to build the source.
-      
-* [Use docker](#use-docker)
-    
-    This approach builds a docker image with all prerequisites installed, then build the MIGraphX sources inside a docker container. 
+* [ROCm build tool](#use-the-rocm-build-tool-rbuild): Uses
+  [rbuild](https://github.com/RadeonOpenCompute/rbuild) to install prerequisites, then you can build
+  the libraries with a single command.
 
-In the following, we will first list the prerequisites required to build MIGraphX source code, then describe 
-each of the three approaches.
+* [CMake](#use-cmake-to-build-migraphx): Uses a script to install prerequisites, then you can use
+  CMake to build the source.
 
-### List of prerequisites
-The following is a list of prerequisites required to build MIGraphX source. 
+* [Docker](#use-docker): Builds a Docker image with all prerequisites installed, then you can build the
+  MIGraphX sources inside a Docker container.
 
-* [ROCm cmake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
+### Build prerequisites
+
+The following is a list of prerequisites for building MIGraphX.
+
+* [ROCm CMake modules](https://github.com/RadeonOpenCompute/rocm-cmake) **required**
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen) for running on the GPU
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS) for running on the GPU
 * [HIP](https://github.com/ROCm-Developer-Tools/HIP) for running on the GPU
-* [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx) files
-* [Half](http://half.sourceforge.net/) - IEEE 754-based half-precision floating point library
-* [pybind11](https://pybind11.readthedocs.io/en/stable/) - for python bindings
-* [JSON](https://github.com/nlohmann/json) - for model serialization to json string format
-* [MessagePack](https://msgpack.org/index.html) - for model serialization to binary format
-* [SQLite3](https://www.sqlite.org/index.html) - to create database of kernels' tuning information or execute queries on existing database
+* [Protobuf](https://github.com/google/protobuf) for reading [onnx](https://github.com/onnx/onnx)
+  files
+* [Half](http://half.sourceforge.net/), an IEEE 754-based half-precision floating point library
+* [pybind11](https://pybind11.readthedocs.io/en/stable/) for python bindings
+* [JSON](https://github.com/nlohmann/json) for model serialization to json string format
+* [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
+* [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
 
-#### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
 
-In this approach, we use the [rbuild](https://github.com/RadeonOpenCompute/rbuild) build tool to
-build MIGraphX. The specific steps are as follows:
+1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
 
-1) Install rocm-cmake, pip3, rocblas, and miopen-hip with the command
+    ```bash
+    sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
+    ```
 
-```
-sudo apt install -y rocm-cmake python3-pip rocblas miopen-hip
-```
+2. Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required):
 
-2) Install [rbuild](https://github.com/RadeonOpenCompute/rbuild) (sudo may be required here.)
+    ```bash
+    pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+    ```
 
-```
-pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
-```
+3. Build MIGraphX source code:
 
-3) Build MIGraphX source code
+    ```bash
+    rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
 
-```
-rbuild build -d depend -B build
-```
+Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.
 
-then all the prerequisites are in the folder `depend`, and MIGraphX is built in the `build` directory.
-
-Also note that you may meet the error of `rbuild: command not found`. It is because rbuild is installed 
-at `$HOME/.local/bin`, which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` 
-to add the folder to `PATH` or add the option `--prefix /usr/local` in the pip3 command when installing rbuild.
-
-#### Use cmake to build MIGraphX
-
-If using this approach, we need to install the prerequisites, configure the cmake, and then build the source.
-
-##### Installing the prerequisites
-
-For convenience, the prerequisites can be built automatically with rbuild as:
-
-```
-rbuild prepare -d depend
+```note
+If you get an `rbuild: command not found` error, it's because `rbuild` is installed in `$HOME/.local/bin`,
+which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` to add
+the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 command when installing `rbuild`.
 ```
 
-then all the prerequisites are in the folder `depend`, and they can be used in the `cmake` configuration
-as `-DCMAKE_PREFIX_PATH=depend`.
+### Use CMake to build MIGraphX
 
-If you have sudo access, as an alternative to the rbuild command, you can install the prerequisites just 
-like in the dockerfile by calling `./tools/install_prereqs.sh`.
+1. Install the prerequisites:
 
-(Note that this script is for Ubuntu. By default, all prerequisites are installed at the default location `/usr/local` 
-and are accessible by all users. For the default location, `sudo` is required to run the script.
-You can also specify a location at which the prerequisites are installed with `./tools/install_prereqs.sh $your_loc`.)
+    ```bash
+    rbuild prepare -d depend
+    ```
 
-##### Building MIGraphX source and install libs
+    This puts all the prerequisites are in `depend` the folder. They can be used in the `cmake`
+    configuration as `-DCMAKE_PREFIX_PATH=depend`.
 
-With the above prerequisites installed, we can build source as:
+    If you have sudo access, as an alternative to the `rbuild` command, you can install the prerequisites
+    in the same way as a Dockerfile, by calling `./tools/install_prereqs.sh`.
 
-1) Go to the project folder and create a `build` directory:
+    By default, all prerequisites are installed at the default location (`/usr/local`) and are accessible by all
+    users. For the default location, `sudo` is required to run the script. You can also specify a different
+    location using `./tools/install_prereqs.sh $custom_location`.
 
+2. Go to the project folder and create a `build` directory:
 
-```
-mkdir build
-cd build
-```
+    ```bash
+    mkdir build
+    cd build
+    ```
 
-2) Configure the cmake. If the prerequisites are installed at the default location `/usr/local`, the command is:
+3. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
 
-```
-CXX=/opt/rocm/llvm/bin/clang++ cmake ..
-```
-Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure the cmake. 
+    ```bash
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
 
-3) Build MIGraphX source code
+    Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
-```
-make -j$(nproc)
-```
+4. Build MIGraphX source code:
 
-Correctness can be verified as:
+    ```cpp
+    make -j$(nproc)
+    ```
 
-```
-make -j$(nproc) check
-```
+    You can verify this using:
 
-MIGraphX libs can be installed as:
+    ```cpp
+    make -j$(nproc) check
+    ```
 
-```
-make install
-```
+5. Install MIGraphX libraries:
 
-#### Use docker
+    ```cpp
+    make install
+    ```
 
-The easiest way to setup the development environment is to use docker. With the dockerfile, you can build a docker image as:
+### Use Docker
 
-    docker build -t migraphx .
+The easiest way to set up the development environment is to use Docker.
 
-Then to enter the developement environment use `docker run`:
+1. With the Dockerfile, build a Docker image:
 
-    docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /code/AMDMIGraphX --group-add video -it migraphx
+    ```bash
+        docker build -t migraphx .
+    ```
 
-In the docker container, all the required prerequisites are already installed, so users can just go to the folder 
-`/code/AMDMIGraphX` and follow the steps in the above [Build MIGraphX source and install
-libs](#building-migraphx-source-and-install-libs)
-section to build MIGraphX source.
+2. Enter the development environment using `docker run`:
 
-### Using MIGraphX Python Module
-To use MIGraphX's Python module, please either set `PYTHONPATH` or use `.deb` package as explained below:
+    ```bash
+        docker run --device='/dev/kfd' --device='/dev/dri' -v=`pwd`:/code/AMDMIGraphX -w /code/AMDMIGraphX --group-add video -it migraphx
+    ```
 
-- Setting `PYTHONPATH` :
-```
-export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
-```
-- Creating and installing the package:
+3. In the Docker container, all required prerequisites are already installed, so you can go to the folder
+    `/code/AMDMIGraphX` and follow the steps (starting from 2) in the
+    [Use CMake to build MIGraphX](#use-cmake-to-build-migraphx).
 
-To create deb package:
-```
-make package
-```
-This will provide the path of .deb package.
+## Using the MIGraphX Python module
 
-To install:
-```
-dpkg -i <path_to_deb_file>
-```
+To use MIGraphX's Python module, you can set `PYTHONPATH` or use the `.deb` package:
 
-### Calling MIGraphX APIs
-To use MIGraphX's C/C++ API in your cmake project, we need to set `CMAKE_PREFIX_PATH` to the MIGraphX
-installation location and then do 
-```
+* Setting `PYTHONPATH`:
+
+    ```bash
+    export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
+    ```
+
+* Creating the `deb` package:
+
+    ```bash
+    make package
+    ```
+
+    This provides the path for .deb package.
+
+    To install:
+
+    ```bash
+    dpkg -i <path_to_deb_file>
+    ```
+
+## Calling MIGraphX APIs
+
+To use MIGraphX's C/C++ API in your CMake project, you must set `CMAKE_PREFIX_PATH` to the
+MIGraphX installation location and run:
+
+```bash
 find_package(migraphx)
 target_link_libraries(myApp migraphx::c)
 ```
-Where `myApp` is the cmake target in your project.
+
+Where `myApp` is the CMake target in your project.
 
 ## Building for development
 
-Using rbuild, the dependencies for development can be installed with:
+Using `rbuild`, you can install the dependencies for development with:
 
-```
+```bash
 rbuild develop
 ```
 
-This will install the dependencies for development into the `deps` directory and
-configure `cmake` to use those dependencies in the `build` directory. These
-directories can be changed by passing the `--deps-dir` and `--build-dir` flags
-to `rbuild` command:
+This installs development dependencies in the `deps` directory and configures `cmake` to use those
+dependencies in the `build` directory. You can change these directories by passing the `--deps-dir` and
+`--build-dir` flags to the `rbuild` command:
 
-```
+```bash
 rbuild develop --build-dir build_rocm_55 --deps-dir /home/user/deps_dir
 ```
 
@@ -209,10 +213,10 @@ Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/down
 
 Run the steps below to build documentation locally.
 
-```
+```bash
 cd docs
 
-pip3 install -r .sphinx/requirements.txt
+pip3 install -r sphinx/requirements.txt
 
 python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 ```
@@ -223,12 +227,12 @@ Depending on your setup `sudo` may be required for the pip install.
 
 All the code is formatted using clang-format. To format a file, use:
 
-```
+```clang
 clang-format-10 -style=file -i <path-to-source-file>
 ```
 
 Also, githooks can be installed to format the code per-commit:
 
-```
+```bash
 ./.githooks/install
 ```

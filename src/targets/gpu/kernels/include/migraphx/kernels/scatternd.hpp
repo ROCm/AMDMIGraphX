@@ -26,35 +26,9 @@
 
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 
 namespace migraphx {
-
-struct assign_none
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x = y;
-    }
-};
-
-struct assign_add
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x += y;
-    }
-};
-
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x *= y;
-    }
-};
 
 template <class T, class U, class V, class F>
 __device__ void scatternd(const T& indices_t, const U& updates_t, const V& output_t, F f)

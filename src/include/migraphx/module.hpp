@@ -42,6 +42,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_EXPORT
 const operation& get_operation(instruction_ref ins);
 
 struct module_impl;
@@ -173,6 +174,8 @@ struct MIGRAPHX_EXPORT module
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;
+
+    void rename_parameter(instruction_ref ins, const std::string& name);
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 

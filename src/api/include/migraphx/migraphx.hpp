@@ -66,7 +66,7 @@ template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
     std::string name;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     name = typeid(PrivateMigraphTypeNameProbe).name();
     name = name.substr(7);
 #else
@@ -1320,6 +1320,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     void set_default_loop_iterations(int64_t value)
     {
         call(&migraphx_onnx_options_set_default_loop_iterations, this->get_handle_ptr(), value);
+    }
+
+    /// Set max iteration limit for the loop operator
+    void set_limit_loop_iterations(int64_t value)
+    {
+        call(&migraphx_onnx_options_set_limit_loop_iterations, this->get_handle_ptr(), value);
     }
 };
 

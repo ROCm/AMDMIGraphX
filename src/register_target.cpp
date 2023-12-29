@@ -100,7 +100,11 @@ target make_target(const std::string& name)
     auto t = find_target(name);
     if(t == nullopt)
     {
+#ifdef _WIN32
+        std::string target_name = "migraphx_" + name + ".dll";
+#else
         std::string target_name = "libmigraphx_" + name + ".so";
+#endif
         // register_target is called by this
         store_target_lib(dynamic_loader(target_name));
         t = find_target(name);

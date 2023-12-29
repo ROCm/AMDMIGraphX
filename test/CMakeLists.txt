@@ -25,7 +25,7 @@
 cmake_policy(SET CMP0057 NEW)
 
 find_package(Threads REQUIRED)
-rocm_test_link_libraries(Threads::Threads migraphx migraphx_ref migraphx_onnx migraphx_tf)
+rocm_test_link_libraries(Threads::Threads migraphx migraphx_onnx migraphx_tf)
 rocm_test_include_directories(include)
 
 set(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS Off CACHE BOOL "")
@@ -78,18 +78,7 @@ endif()
 
 # Onnx test
 set(TEST_ONNX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/onnx)
-file(GLOB ONNX_TESTS ${TEST_ONNX_DIR}/*.cpp)
-
-foreach(ONNX_TEST ${ONNX_TESTS})
-    get_filename_component(BASE_NAME ${ONNX_TEST} NAME_WE)
-    set(TEST_NAME test_${BASE_NAME})
-    add_executable(${TEST_NAME} ${ONNX_TEST})
-    rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref)
-    target_include_directories(${TEST_NAME} PUBLIC include)
-    add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR})
-    rocm_mark_as_test(${TEST_NAME})
-endforeach()
+add_subdirectory(onnx)
 
 # tf test
 set(TEST_TF_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tf)
@@ -146,7 +135,11 @@ endfunction()
 
 function(test_headers PREFIX)
     file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})
-
+    if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
+        list(REMOVE_ITEM HEADERS
+              ${CMAKE_SOURCE_DIR}/src/targets/gpu/include/migraphx/gpu/ck.hpp)
+    endif()
+    list(REMOVE_ITEM HEADERS ${CMAKE_SOURCE_DIR}/src/include/migraphx/float8_impl.hpp)
     foreach(HEADER ${HEADERS})
         file(RELATIVE_PATH HEADER_REL ${CMAKE_SOURCE_DIR} ${HEADER})
         string(MAKE_C_IDENTIFIER ${HEADER_REL} TEST_NAME)

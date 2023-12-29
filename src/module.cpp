@@ -554,6 +554,17 @@ instruction_ref module::get_parameter(std::string name) const
         return this->end();
 }
 
+void module::rename_parameter(instruction_ref ins, const std::string& name)
+{
+    assert(ins->name() == "@param");
+    auto op      = any_cast<builtin::param>(ins->get_operator());
+    op.parameter = name;
+    auto outputs = ins->outputs();
+    *ins         = instruction{op, ins->get_shape(), {}};
+    for(auto output : outputs)
+        ins->add_output(output);
+}
+
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -669,6 +680,15 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
+#ifndef BUILD_DEV
+    if(std::any_of(this->begin(), this->end(), [](const auto i) {
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+    {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+    }
+#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
@@ -1052,12 +1072,9 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
+        for(const auto* ssmod : mod_args)
         {
-            for(const auto* ssmod : mod_args)
-            {
-                calc_implicit_deps(*ssmod, pmod, ins, deps);
-            }
+            calc_implicit_deps(*ssmod, pmod, ins, deps);
         }
     }
 }

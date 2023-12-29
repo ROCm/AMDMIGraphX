@@ -347,7 +347,7 @@ void program::finalize()
 template <class T>
 std::string classify(T x)
 {
-    switch(std::fpclassify(x))
+    switch(std::fpclassify(static_cast<double>(x)))
     {
     case FP_INFINITE: return "inf";
     case FP_NAN: return "nan";
@@ -507,10 +507,8 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        if(not ins->get_shape().any_of_dynamic())
-        {
-            assert(results.at(ins).get_shape() == ins->get_shape());
-        }
+        assert(ins->get_shape().any_of_dynamic() or
+               results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -936,7 +934,7 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
-    os << "Rate: " << rate * batch << "/sec" << std::endl;
+    os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"

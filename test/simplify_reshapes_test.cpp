@@ -67,6 +67,57 @@ migraphx::module make_concat_multibroadcast(const std::vector<size_t>& in_lens,
     return m;
 }
 
+TEST_CASE(broadcast_transpose)
+{
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto t1 =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 2, 3}}}), t1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(broadcast_transpose_opt)
+{
+    // extra transpose from transformation will be optimized out
+    migraphx::module m1;
+    {
+        auto l = m1.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 5}}}), l);
+        auto t1 =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), mb);
+        m1.add_return({t1});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
+        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5}}}), u1);
+        m2.add_return({mb});
+    }
+
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(broadcast_transpose_scalar)
 {
     migraphx::module m1;
@@ -837,9 +888,8 @@ TEST_CASE(optimize_resize)
         std::vector<int64_t> mb_dims = {1, 2, 2, 2, 2, 3};
         auto mbx =
             m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_dims}}), rspx);
-        auto std_mb                    = m.add_instruction(migraphx::make_op("contiguous"), mbx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), std_mb);
+        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), mbx);
         auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmb);
         m.add_return({r});
 
@@ -1249,10 +1299,9 @@ TEST_CASE(transpose_contiguous_reshape_unary)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
         auto transpose_ins = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
-        auto relu     = m2.add_instruction(migraphx::make_op("relu"), transpose_ins);
-        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), relu);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), transpose_ins);
         auto reshape_ins2 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), cont_ins);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), relu);
         m2.add_instruction(pass_op{}, reshape_ins2);
     }
     EXPECT(m1 == m2);
@@ -1277,8 +1326,7 @@ TEST_CASE(transpose_contiguous_squeeze_unary)
         auto transpose_ins =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
         auto rsqrt    = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
-        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), rsqrt);
-        auto sq_ins   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), cont_ins);
+        auto sq_ins   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsqrt);
         m2.add_instruction(pass_op{}, sq_ins);
     }
     EXPECT(m1 == m2);
@@ -1294,7 +1342,7 @@ TEST_CASE(transpose_contiguous_unsqueeze_unary)
         auto cont_ins = m1.add_instruction(migraphx::make_op("contiguous"), transpose_ins);
         auto unsq_ins =
             m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cont_ins);
-        auto round = m1.add_instruction(migraphx::make_op("round"), unsq_ins);
+        auto round = m1.add_instruction(migraphx::make_op("nearbyint"), unsq_ins);
         m1.add_instruction(pass_op{}, round);
     }
     run_pass(m1);
@@ -1303,10 +1351,8 @@ TEST_CASE(transpose_contiguous_unsqueeze_unary)
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 5, 5}});
         auto transpose_ins =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
-        auto round    = m2.add_instruction(migraphx::make_op("round"), transpose_ins);
-        auto cont_ins = m2.add_instruction(migraphx::make_op("contiguous"), round);
-        auto unsq_ins =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), cont_ins);
+        auto round    = m2.add_instruction(migraphx::make_op("nearbyint"), transpose_ins);
+        auto unsq_ins = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), round);
         m2.add_instruction(pass_op{}, unsq_ins);
     }
     EXPECT(m1 == m2);

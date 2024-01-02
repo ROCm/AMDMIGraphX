@@ -184,7 +184,7 @@ def openAndWriteFile(filename, message, commentChar, rfile):
                     ) and lastCommitYear > 2022:
                         if debug:
                             print(
-                                f"....Already stamped but wrong year: Updating the year to {current_year}"
+                                f"....Already stamped but wrong year: Updating the year to {lastCommitYear}"
                             )
                         return updateYear(filename, lastCommitYear)
 

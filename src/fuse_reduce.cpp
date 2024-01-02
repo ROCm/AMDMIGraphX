@@ -144,10 +144,7 @@ insert_module_in_submodule(module_ref sm,
     return sm->add_instructions(m, map_ins, std::move(insert));
 }
 
-static auto
-insert_module_in_submodule(module_ref sm,
-                           instruction_ref ins,
-                           module::inserter insert)
+static auto insert_module_in_submodule(module_ref sm, instruction_ref ins, module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     return insert_module_in_submodule(sm, ins, map_ins, insert);
@@ -347,15 +344,14 @@ struct reduce_reshape : rewrite_reshapes_base
 {
     static std::string name() { return "fused_reduce"; }
 
-    template<class Transform>
+    template <class Transform>
     static auto transform_op(Transform t)
     {
         return [=](module& m,
-                                                   instruction_ref ins,
-                                                   const operation& op,
-                                                   const std::vector<instruction_ref>& inputs,
-                                                   const std::vector<module_ref>& mod_args)
-        {
+                   instruction_ref ins,
+                   const operation& op,
+                   const std::vector<instruction_ref>& inputs,
+                   const std::vector<module_ref>& mod_args) {
             auto new_op = t(op);
             return m.insert_instruction(ins, new_op, inputs, mod_args);
         };
@@ -369,20 +365,22 @@ struct reduce_reshape : rewrite_reshapes_base
     {
         auto op = any_cast<fused_reduce>(ins->get_operator());
         std::vector<int64_t> axes;
-        for(auto axis:op.axes) {
+        for(auto axis : op.axes)
+        {
             auto new_axes = am.at(axis);
             axes.insert(axes.end(), new_axes.begin(), new_axes.end());
         }
         auto* oldm = ins->module_inputs().front();
-        auto* sm = mpm.create_module(oldm->name() + "_reshape");
-        insert_module_in_submodule(sm, ins, transform_op([&](const operation& sop) {
-            if (contains(sop.name(), "reduce"))
-                return make_op(sop.name(), {{"axes", axes}}); 
-            if (sop.name() == "multibroadcast")
-                return make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}});
-            assert(sop.name() == "pointwise");
-            return sop;
-        }));
+        auto* sm   = mpm.create_module(oldm->name() + "_reshape");
+        insert_module_in_submodule(
+            sm, ins, transform_op([&](const operation& sop) {
+                if(contains(sop.name(), "reduce"))
+                    return make_op(sop.name(), {{"axes", axes}});
+                if(sop.name() == "multibroadcast")
+                    return make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}});
+                assert(sop.name() == "pointwise");
+                return sop;
+            }));
         return mpm.get_module().insert_instruction(
             ins, ins->get_operator(), inputs, ins->module_inputs());
     }

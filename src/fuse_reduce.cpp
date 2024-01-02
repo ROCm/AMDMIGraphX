@@ -32,6 +32,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 #include <map>
 
@@ -130,7 +131,8 @@ static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
 static auto
 insert_module_in_submodule(module_ref sm,
                            instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                           module::inserter insert = nullptr)
 {
     insert_params(sm, ins, map_ins);
     auto* m        = ins->module_inputs().front();
@@ -139,7 +141,16 @@ insert_module_in_submodule(module_ref sm,
     {
         map_ins[param] = map_ins.at(input);
     }
-    return sm->add_instructions(m, map_ins);
+    return sm->add_instructions(m, map_ins, std::move(insert));
+}
+
+static auto
+insert_module_in_submodule(module_ref sm,
+                           instruction_ref ins,
+                           module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    return insert_module_in_submodule(sm, ins, map_ins, insert);
 }
 
 static std::vector<instruction_ref>
@@ -332,6 +343,51 @@ struct find_reduce_reduce
     }
 };
 
+struct reduce_reshape : rewrite_reshapes_base
+{
+    static std::string name() { return "fused_reduce"; }
+
+    template<class Transform>
+    static auto transform_op(Transform t)
+    {
+        return [=](module& m,
+                                                   instruction_ref ins,
+                                                   const operation& op,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   const std::vector<module_ref>& mod_args)
+        {
+            auto new_op = t(op);
+            return m.insert_instruction(ins, new_op, inputs, mod_args);
+        };
+    }
+
+    template <class AxesMap>
+    static instruction_ref insert(module_pass_manager& mpm,
+                                  instruction_ref ins,
+                                  const std::vector<instruction_ref>& inputs,
+                                  const AxesMap& am)
+    {
+        auto op = any_cast<fused_reduce>(ins->get_operator());
+        std::vector<int64_t> axes;
+        for(auto axis:op.axes) {
+            auto new_axes = am.at(axis);
+            axes.insert(axes.end(), new_axes.begin(), new_axes.end());
+        }
+        auto* oldm = ins->module_inputs().front();
+        auto* sm = mpm.create_module(oldm->name() + "_reshape");
+        insert_module_in_submodule(sm, ins, transform_op([&](const operation& sop) {
+            if (contains(sop.name(), "reduce"))
+                return make_op(sop.name(), {{"axes", axes}}); 
+            if (sop.name() == "multibroadcast")
+                return make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}});
+            assert(sop.name() == "pointwise");
+            return sop;
+        }));
+        return mpm.get_module().insert_instruction(
+            ins, ins->get_operator(), inputs, ins->module_inputs());
+    }
+};
+
 } // namespace
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
@@ -340,6 +396,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)
     {
+        mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

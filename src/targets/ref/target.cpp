@@ -35,7 +35,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/eliminate_data_type.hpp>
-#include <migraphx/fp_to_double.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,7 +42,7 @@ namespace ref {
 
 std::string target::name() const { return "ref"; }
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options& options) const
+std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
     return {normalize_ops{},
             eliminate_pad{},

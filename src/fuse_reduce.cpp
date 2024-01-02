@@ -370,6 +370,7 @@ struct reduce_reshape : rewrite_reshapes_base
             auto new_axes = am.at(axis);
             axes.insert(axes.end(), new_axes.begin(), new_axes.end());
         }
+        std::sort(axes.begin(), axes.end());
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         insert_module_in_submodule(

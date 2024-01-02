@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -410,7 +410,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num = static_cast<std::size_t>(node.output().size());
+        std::size_t output_num = node.output().size();
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)

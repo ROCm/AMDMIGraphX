@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -110,6 +110,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
     }
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");

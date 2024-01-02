@@ -136,11 +136,10 @@ def check_correctness(gold_outputs,
                 if verbose:
                     with np.printoptions(threshold=np.inf):
                         print('\nOutput {} is incorrect ...'.format(i))
-                        #print('Expected value: \n{}'.format(gold_outputs[i]))
-                        #print('\n......\n')
-                        #print('Actual value: \n{}\n'.format(outputs[i]))
+                        print('Expected value: \n{}'.format(gold_outputs[i]))
+                        print('\n......\n')
+                        print('Actual value: \n{}\n'.format(outputs[i]))
                         diff = gold_outputs[i] - outputs[i]
-                        #print(f'Difference: {diff}')
                         max_diff = np.max(np.abs(diff))
                         print(f'Max Difference: {max_diff}')
                 else:

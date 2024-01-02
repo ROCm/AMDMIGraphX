@@ -38,14 +38,14 @@ struct gelu_tanh_matcher
     F f;
 
     /// x ^ 3
-    auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0f))); }
+    auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0f, 10, 10))); }
 
     /// tanh( sqrt(2/M_PI) * (x + 0.044715 * x ^ 3 )
     auto tanh_fn() const
     {
-        auto mul_const_pow       = f("mul")(either_arg(0, 1)(has_value(0.044715f), pow_fn()));
+        auto mul_const_pow = f("mul")(either_arg(0, 1)(has_value(0.044715f, 10, 10), pow_fn()));
         auto add_any_mul         = f("add")(any_arg(0, 1)(mul_const_pow));
-        auto either_SQRT2RPI_add = either_arg(0, 1)(has_value(sqrt(M_2_PI)), add_any_mul);
+        auto either_SQRT2RPI_add = either_arg(0, 1)(has_value(sqrt(M_2_PI), 10, 10), add_any_mul);
         return f("tanh")(used_once(), arg(0)(f("mul")(either_SQRT2RPI_add)));
     }
 
@@ -53,7 +53,7 @@ struct gelu_tanh_matcher
     /// <item>? question mark means it doesn't explicitly match that item (anything will work)
     auto matcher_v0() const
     {
-        auto mul_half_tanh = f("mul")(either_arg(0, 1)(has_value(0.5f), tanh_fn()));
+        auto mul_half_tanh = f("mul")(either_arg(0, 1)(has_value(0.5f, 10, 10), tanh_fn()));
         auto add_any_mul   = f("add")(any_arg(0, 1)(mul_half_tanh));
         return f("mul")(either_arg(0, 1)(any().bind("x"), add_any_mul));
     }
@@ -61,8 +61,10 @@ struct gelu_tanh_matcher
     /// x * 0.5 * (1.0 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x ^ 3) ) )
     auto matcher_v1() const
     {
-        auto add_one_tanh = f("add")(used_once(), either_arg(0, 1)(has_value(1.0), tanh_fn()));
-        auto mul_half_x = f("mul")(used_once(), either_arg(0, 1)(has_value(0.5), any().bind("x")));
+        auto add_one_tanh =
+            f("add")(used_once(), either_arg(0, 1)(has_value(1.0, 10, 10), tanh_fn()));
+        auto mul_half_x =
+            f("mul")(used_once(), either_arg(0, 1)(has_value(0.5, 10, 10), any().bind("x")));
         return f("mul")(either_arg(0, 1)(mul_half_x, add_one_tanh));
     }
 };

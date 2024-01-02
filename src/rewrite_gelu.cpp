@@ -59,10 +59,8 @@ struct find_gelu_erf
 };
 
 /**
- * Find fastGELU blocks (where the graph already does a GELU approximation) and replace them
- * with an alternative approximation that is less likely to overflow.
- * The replacement approximation is equivalent to:
- * GELU(x) ~= 0.5 * x * ( 1 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x^3)))
+ * Find tanh fastGELU blocks (where the graph already does a GELU approximation) and replace them
+ * with the erf version.
  */
 struct find_tanh_fast_gelu
 {
@@ -70,11 +68,9 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        /*
-        auto ins        = r.result;
-        auto x          = r.instructions["x"];
-        auto sqrt_2_rpi = m.add_literal(
-            literal{shape{x->get_shape().type()},
+        /* Algebraically rearranged version of the tanh GELU approximation that is more numerically
+        stable auto ins        = r.result; auto x          = r.instructions["x"]; auto sqrt_2_rpi =
+        m.add_literal( literal{shape{x->get_shape().type()},
                     {0.7978845608028653558798921198687637369517172623298693153318516593}});
         auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
         auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});

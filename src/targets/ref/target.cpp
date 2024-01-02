@@ -55,8 +55,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options& 
             auto_contiguous{},
             dead_code_elimination{},
             lowering{},
-            dead_code_elimination{},
-            enable_pass(options.fp_to_double, fp_to_double{})};
+            dead_code_elimination{}};
 }
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }

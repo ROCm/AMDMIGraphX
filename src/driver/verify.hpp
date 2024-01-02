@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 #define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 
-#include "precision.hpp"
+#include "verify_options.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/verify.hpp>
 
@@ -33,7 +33,7 @@ namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
 verify::tolerance get_tolerances(const program& p,
-                                 precision quantize,
+                                 verify_options vo,
                                  std::optional<double> rms_tol,
                                  std::optional<double> atol,
                                  std::optional<double> rtol);
@@ -42,18 +42,18 @@ void verify_program(const std::string& name,
                     const program& p,
                     const target& t,
                     compile_options options     = compile_options{},
-                    precision quantize          = precision::fp32,
+                    verify_options vo = verify_options{},
                     const parameter_map& inputs = {},
                     verify::tolerance tols      = verify::tolerance{});
 void verify_instructions(const program& prog,
                          const target& t,
                          compile_options options = compile_options{},
-                         precision quantize      = precision::fp32,
+                         verify_options vo = verify_options{},
                          verify::tolerance tols  = verify::tolerance{});
 void verify_reduced_program(const program& p,
                             const target& t,
                             compile_options options     = compile_options{},
-                            precision quantize          = precision::fp32,
+                            verify_options vo = verify_options{},
                             const parameter_map& inputs = {},
                             verify::tolerance tols      = verify::tolerance{});
 

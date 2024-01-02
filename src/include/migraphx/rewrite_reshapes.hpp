@@ -13,26 +13,27 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct rewrite_reshapes_base
 {
-    template<class AxesMap>
-    static instruction_ref insert(module_pass_manager& mpm, instruction_ref ins, const std::vector<instruction_ref>& inputs, const AxesMap&)
+    template <class AxesMap>
+    static instruction_ref insert(module_pass_manager& mpm,
+                                  instruction_ref ins,
+                                  const std::vector<instruction_ref>& inputs,
+                                  const AxesMap&)
     {
-        return mpm.get_module().insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        return mpm.get_module().insert_instruction(
+            ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 
-    template<class AxesMap>
+    template <class AxesMap>
     static bool supports(instruction_ref, std::vector<std::size_t>&, const AxesMap&)
     {
         return true;
     }
 };
 
-template<class T>
+template <class T>
 struct rewrite_reshapes
 {
-    std::string name() const
-    {
-        return "rewrite_reshapes";
-    }
+    std::string name() const { return "rewrite_reshapes"; }
     struct find_op_reshape_op
     {
         std::string op1;
@@ -42,7 +43,8 @@ struct rewrite_reshapes
             auto reshape =
                 match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
             auto skip_contiguous = [](auto... ms) {
-                return match::arg(0)(match::skip(match::name("contiguous")(match::used_once()))(ms...));
+                return match::arg(0)(
+                    match::skip(match::name("contiguous")(match::used_once()))(ms...));
             };
             auto pointwise         = match::name(op1)(match::used_once());
             auto reshape_pointwise = reshape(skip_contiguous(pointwise.bind("x"))).bind("reshape");
@@ -55,9 +57,9 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto reshape_ins = r.instructions["reshape"];
 
-            if (not same_dims(ins))
+            if(not same_dims(ins))
                 return;
-            if (not same_dims(x_ins))
+            if(not same_dims(x_ins))
                 return;
 
             auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
@@ -76,8 +78,9 @@ struct rewrite_reshapes
                 };
             };
             auto x_inputs = x_ins->inputs();
-            std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
-            auto new_x_ins =insert(mpm, x_ins, x_inputs, cd.axes_map1);
+            std::transform(
+                x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
+            auto new_x_ins = insert(mpm, x_ins, x_inputs, cd.axes_map1);
 
             auto inputs = ins->inputs();
             std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
@@ -86,7 +89,8 @@ struct rewrite_reshapes
                 return reshape_input(ins)(input);
             });
             auto pw = insert(mpm, ins, inputs, cd.axes_map2);
-            mpm.get_module().replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
+            mpm.get_module().replace_instruction(
+                ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
         }
 
         static bool same_dims(instruction_ref ins)
@@ -96,28 +100,31 @@ struct rewrite_reshapes
             });
         }
 
-        template<class AxesMap>
-        static instruction_ref insert(module_pass_manager& mpm, instruction_ref ins, const std::vector<instruction_ref>& inputs, const AxesMap& am)
+        template <class AxesMap>
+        static instruction_ref insert(module_pass_manager& mpm,
+                                      instruction_ref ins,
+                                      const std::vector<instruction_ref>& inputs,
+                                      const AxesMap& am)
         {
             if(ins->name() == "pointwise")
-                return mpm.get_module().insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+                return mpm.get_module().insert_instruction(
+                    ins, ins->get_operator(), inputs, ins->module_inputs());
             return T::insert(mpm, ins, inputs, am);
         }
     };
 
     void apply(module_pass_manager& mpm) const
     {
-        if (T::name() == "pointwise")
+        if(T::name() == "pointwise")
         {
             match::find_matches(mpm, find_op_reshape_op{"pointwise", T::name()});
         }
         else
         {
-            match::find_matches(mpm, 
-                find_op_reshape_op{"pointwise", T::name()},
-                find_op_reshape_op{T::name(), "pointwise"},
-                find_op_reshape_op{T::name(), T::name()}
-            );
+            match::find_matches(mpm,
+                                find_op_reshape_op{"pointwise", T::name()},
+                                find_op_reshape_op{T::name(), "pointwise"},
+                                find_op_reshape_op{T::name(), T::name()});
         }
         mpm.run_pass(simplify_reshapes{1});
     }

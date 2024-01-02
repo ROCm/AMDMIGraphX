@@ -27,17 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct quant_conv : verify_program<quant_conv>
+template <migraphx::shape::type_t DType>
+struct quant_conv : verify_program<quant_conv<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        migraphx::shape a_shape{DType, {2, 3, 4, 4}};
         auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        migraphx::shape c_shape{DType, {2, 3, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
         mm->add_instruction(migraphx::make_op("quant_convolution"), pa, pc);
         return p;
     }
 };
+
+template struct quant_conv<migraphx::shape::int8_type>;
+template struct quant_conv<migraphx::shape::fp8e4m3fnuz_type>;

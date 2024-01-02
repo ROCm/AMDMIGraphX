@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
+#include "passes.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
@@ -83,6 +84,7 @@ struct loader
     std::vector<std::string> param_dims;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
+    std::vector<std::string> passes;
 
     void parse(argument_parser& ap)
     {
@@ -130,6 +132,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -337,6 +340,8 @@ struct loader
                                      migraphx::dead_code_elimination{},
                                  });
         }
+        if(not passes.empty())
+            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
         return p;
     }
 
@@ -440,6 +445,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_fp8  = false;
     bool to_int8 = false;
 
     std::vector<std::string> fill0;
@@ -463,6 +469,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -512,6 +519,10 @@ struct compiler
         if(to_int8)
         {
             quantize_int8(p, t, {host_params(p)});
+        }
+        if(to_fp8)
+        {
+            quantize_fp8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);

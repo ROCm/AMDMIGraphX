@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -118,9 +118,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_convtranspose_1d_cpu')
     backend_test.exclude(r'test_det_2d_cpu')
     backend_test.exclude(r'test_det_nd_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_max_adjusted_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_min_adjusted_cpu')
     backend_test.exclude(r'test_edge_pad_cpu')
     backend_test.exclude(r'test_einsum_batch_diagonal_cpu')
     backend_test.exclude(r'test_einsum_batch_matmul_cpu')
@@ -634,8 +631,6 @@ def disabled_tests_onnx_1_11_0(backend_test):
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
     backend_test.exclude(r'test_roialign_aligned_true_cpu')
-    backend_test.exclude(r'test_scatternd_add_cpu')
-    backend_test.exclude(r'test_scatternd_multiply_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest
@@ -744,8 +739,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
         r'test_reduce_sum_square_negative_axes_keepdims_example_cpu')
     backend_test.exclude(
         r'test_reduce_sum_square_negative_axes_keepdims_random_cpu')
-    backend_test.exclude(r'test_scatternd_max_cpu')
-    backend_test.exclude(r'test_scatternd_min_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest

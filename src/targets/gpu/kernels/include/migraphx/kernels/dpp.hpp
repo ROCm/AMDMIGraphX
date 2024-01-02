@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,12 +49,8 @@ constexpr unsigned int dpp_row_bcast(unsigned int x)
     return y;
 }
 
-template <unsigned int DppCtrl,
-          unsigned int RowMask  = 0xf,
-          unsigned int BankMask = 0xf,
-          bool BoundCtrl        = false,
-          class T>
-__device__ T dpp_mov(T& x)
+template <class T, class F>
+__device__ T dpp_op(T& x, F f)
 {
     static const index_int n = sizeof(T) < 4 ? 1 : sizeof(T) / 4;
     union type
@@ -68,10 +64,28 @@ __device__ T dpp_mov(T& x)
     input.data = x;
     for(index_int i = 0; i < n; i++)
     {
-        output.reg[i] = __hip_move_dpp(input.reg[i], DppCtrl, RowMask, BankMask, BoundCtrl);
+        output.reg[i] = f(input.reg[i]);
     }
     return output.data;
 }
+
+template <unsigned int DppCtrl,
+          unsigned int RowMask  = 0xf,
+          unsigned int BankMask = 0xf,
+          bool BoundCtrl        = false,
+          class T>
+__device__ T dpp_mov(T& x)
+{
+    return dpp_op(x,
+                  [](auto i) { return __hip_move_dpp(i, DppCtrl, RowMask, BankMask, BoundCtrl); });
+}
+
+template <unsigned int Mask, class T>
+__device__ T dpp_swizzle(T& x)
+{
+    return dpp_op(x, [](auto i) { return __hip_ds_swizzle(i, Mask); });
+}
+
 #endif // MIGRAPHX_HAS_DPP
 
 } // namespace migraphx

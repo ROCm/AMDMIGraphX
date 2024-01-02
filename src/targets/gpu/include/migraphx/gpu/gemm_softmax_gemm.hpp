@@ -66,6 +66,10 @@ struct gemm_softmax_gemm
     }
 
     static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }
+    static bool is_mlir_supported_type(shape::type_t t)
+    {
+        return contains({shape::type_t::float_type, shape::half_type}, t);
+    }
 };
 
 } // namespace gpu

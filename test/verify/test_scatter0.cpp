@@ -27,16 +27,17 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_scatter0 : verify_program<test_scatter0>
+template <migraphx::shape::type_t DType>
+struct test_scatter0 : verify_program<test_scatter0<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape sd{DType, {3, 3}};
         migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
         std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+        migraphx::shape su{DType, {2, 3}};
 
         auto pd = mm->add_parameter("data", sd);
         auto li = mm->add_literal(migraphx::literal{si, vi});
@@ -47,3 +48,7 @@ struct test_scatter0 : verify_program<test_scatter0>
         return p;
     }
 };
+
+template struct test_scatter0<migraphx::shape::float_type>;
+template struct test_scatter0<migraphx::shape::half_type>;
+template struct test_scatter0<migraphx::shape::fp8e4m3fnuz_type>;

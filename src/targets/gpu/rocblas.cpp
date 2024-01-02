@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,15 @@ bool get_compute_fp32_flag()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
     return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
+}
+
+bool rocblas_fp8_available()
+{
+#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
+    return false;
+#else
+    return gfx_has_fp8_intrinsics();
+#endif
 }
 
 } // namespace gpu

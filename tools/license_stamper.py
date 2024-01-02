@@ -88,10 +88,10 @@ def getYearOfLatestCommit(rfile: str) -> datetime:
     return year
 
 
-def updateYear(filename: str) -> None:
+def updateYear(filename: str, lastCommitYear: str) -> None:
     with open(filename, 'r') as f:
         newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
-                                f'2015-{current_year} Advanced Micro Devices',
+                                f'2015-{lastCommitYear} Advanced Micro Devices',
                                 f.read())
 
     with open(filename, 'w') as f:
@@ -186,7 +186,7 @@ def openAndWriteFile(filename, message, commentChar, rfile):
                             print(
                                 f"....Already stamped but wrong year: Updating the year to {current_year}"
                             )
-                        return updateYear(filename)
+                        return updateYear(filename, lastCommitYear)
 
                     if debug:
                         print("....Already Stamped: Skipping file ")

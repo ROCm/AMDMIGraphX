@@ -333,20 +333,8 @@ inline const ValueType& any_cast(const pass& x)
 
 #endif
 
-/// Dummy pass for default return
-struct id_pass
-{
-    std::string name() const { return "id"; }
-    void apple(const module&) const {}
-};
-
 /// Used in the targets to enable/disable compiler passes
-inline pass enable_pass(bool enabled, pass p)
-{
-    if(enabled)
-        return p;
-    return id_pass{};
-}
+pass enable_pass(bool enabled, pass p);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

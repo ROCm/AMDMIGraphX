@@ -21,28 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
-#include "precision.hpp"
+#include <migraphx/pass.hpp>
 
 namespace migraphx {
-namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct verify_options
+/// Dummy pass for default return
+struct id_pass
 {
-    /// Quantization precision
-    precision quantize = precision::fp32;
-
-    /**
-     * Converts floating point values to double on the ref target.
-     */
-    bool ref_use_double = false;
+    std::string name() const { return "id"; }
+    void apply(const module&) const {}
 };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace driver
-} // namespace migraphx
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
+}
 
-#endif
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

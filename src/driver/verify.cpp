@@ -73,8 +73,10 @@ verify::tolerance get_tolerances(const program& p,
     return result;
 }
 
-std::vector<argument>
-run_ref(program p, const compile_options& options, const verify_options& vo, const parameter_map& inputs)
+std::vector<argument> run_ref(program p,
+                              const compile_options& options,
+                              const verify_options& vo,
+                              const parameter_map& inputs)
 {
     p.compile(migraphx::make_target("ref"), options);
     if(vo.ref_use_double)

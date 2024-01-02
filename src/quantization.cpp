@@ -54,7 +54,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
 // avoid loss of precision.
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
-    run_passes(prog, {optimize_module{}, quantize_fp16_pass{ins_names}, optimize_module{}});
+    run_passes(
+        prog,
+        {simplify_qdq{}, optimize_module{}, quantize_fp16_pass{ins_names}, optimize_module{}});
 }
 
 void quantize_8bits(program& prog,

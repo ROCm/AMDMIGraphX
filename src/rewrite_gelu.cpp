@@ -59,8 +59,10 @@ struct find_gelu_erf
 };
 
 /**
- * Find tanh fastGELU blocks (where the graph already does a GELU approximation) and replace them
- * with the erf version.
+ * Find fastGELU blocks (where the graph already does a GELU approximation) and replace them
+ * with an alternative approximation that is less likely to overflow.
+ * The replacement approximation is equivalent to:
+ * GELU(x) ~= 0.5 * x * ( 1 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x^3)))
  */
 struct find_tanh_fast_gelu
 {
@@ -68,9 +70,12 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        /* Algebraically rearranged version of the tanh GELU approximation that is more numerically
-        stable auto ins        = r.result; auto x          = r.instructions["x"]; auto sqrt_2_rpi =
-        m.add_literal( literal{shape{x->get_shape().type()},
+        // Algebraically rearranged version of the tanh GELU approximation that is more numerically
+        // stable
+        auto ins        = r.result;
+        auto x          = r.instructions["x"];
+        auto sqrt_2_rpi = m.add_literal(
+            literal{shape{x->get_shape().type()},
                     {0.7978845608028653558798921198687637369517172623298693153318516593}});
         auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
         auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
@@ -86,7 +91,8 @@ struct find_tanh_fast_gelu
         auto cdf       = insert_common_op(m, ins, make_op("div"), {one, e});
         auto y         = m.insert_instruction(ins, make_op("mul"), x, cdf);
         m.replace_instruction(ins, y);
-        */
+
+        /* erf() version of GELU
         auto ins      = r.result;
         auto x        = r.instructions["x"];
         auto sqrt1_2  = m.add_literal(literal{shape{x->get_shape().type()}, {M_SQRT1_2}});
@@ -98,6 +104,7 @@ struct find_tanh_fast_gelu
         auto b        = insert_common_op(m, ins, make_op("mul"), {one_half, add_erf});
         auto y        = m.insert_instruction(ins, make_op("mul"), x, b);
         m.replace_instruction(ins, y);
+        */
     }
 };
 

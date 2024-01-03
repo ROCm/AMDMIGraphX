@@ -163,7 +163,7 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
                  "incorrect final outputs\n";
 
     std::unordered_set<std::string> supported_ins_names;
-    auto* mm                                     = prog.get_main_module();
+    auto* mm = prog.get_main_module();
     for(auto ins : iterator_for(*mm))
     {
         if(ins->name() == "convert")

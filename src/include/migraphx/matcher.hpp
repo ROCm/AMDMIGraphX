@@ -857,9 +857,10 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
+// TODO: Mostly the same code, I did not find a decent way to combine functions though
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < atol + rtol(abs(y))
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y))
  */
 template <class T>
 inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
@@ -877,7 +878,7 @@ inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
             auto eps   = std::numeric_limits<type>::epsilon();
             if(std::all_of(v.begin(), v.end(), [&](auto val) {
                    return std::fabs(val - static_cast<type>(x)) <
-                          (atol_mult * eps + rtol_mult * eps * std::fabs(val));
+                          eps * (atol_mult + rtol_mult * std::fabs(val));
                }))
                 b = true;
         });

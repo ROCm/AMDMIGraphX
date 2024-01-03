@@ -33,6 +33,8 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_pointwise.hpp>
+#include <migraphx/fuse_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/normalize_ops.hpp>
@@ -69,6 +71,8 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         eliminate_data_type{},
         eliminate_identity{},
         eliminate_pad{},
+        fuse_pointwise{},
+        fuse_reduce{},
         inline_module{},
         insert_pad{},
         normalize_ops{},

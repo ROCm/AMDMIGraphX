@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,9 +39,11 @@ struct target_info
 
 struct run_verify
 {
-    std::vector<migraphx::argument> run_ref(migraphx::program p,
-                                            migraphx::parameter_map inputs,
-                                            const migraphx::compile_options& c_opts) const;
+    std::pair<migraphx::program, std::vector<migraphx::argument>>
+    run_ref(migraphx::program p,
+            migraphx::parameter_map inputs,
+            const migraphx::compile_options& c_opts) const;
+
     std::pair<migraphx::program, std::vector<migraphx::argument>>
     run_target(const migraphx::target& t,
                migraphx::program p,

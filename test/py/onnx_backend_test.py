@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -118,9 +118,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_convtranspose_1d_cpu')
     backend_test.exclude(r'test_det_2d_cpu')
     backend_test.exclude(r'test_det_nd_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_max_adjusted_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_min_adjusted_cpu')
     backend_test.exclude(r'test_edge_pad_cpu')
     backend_test.exclude(r'test_einsum_batch_diagonal_cpu')
     backend_test.exclude(r'test_einsum_batch_matmul_cpu')
@@ -190,7 +187,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_negative_log_likelihood_loss_input_shape_is_NCd1d2d3d4d5_none_no_weight_cpu'
     )
-    backend_test.exclude(r'test_qlinearconv_cpu')
     backend_test.exclude(r'test_qlinearmatmul_2D_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_cpu')
     backend_test.exclude(r'test_range_float_type_positive_delta_expanded_cpu')
@@ -575,6 +571,8 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
+    # MaxPool dialtion is partially supported on GPU by a workaround
+    # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
 
@@ -632,8 +630,6 @@ def disabled_tests_onnx_1_11_0(backend_test):
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
     backend_test.exclude(r'test_roialign_aligned_true_cpu')
-    backend_test.exclude(r'test_scatternd_add_cpu')
-    backend_test.exclude(r'test_scatternd_multiply_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest
@@ -742,8 +738,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
         r'test_reduce_sum_square_negative_axes_keepdims_example_cpu')
     backend_test.exclude(
         r'test_reduce_sum_square_negative_axes_keepdims_random_cpu')
-    backend_test.exclude(r'test_scatternd_max_cpu')
-    backend_test.exclude(r'test_scatternd_min_cpu')
 
     # errors
     # from OnnxBackendNodeModelTest

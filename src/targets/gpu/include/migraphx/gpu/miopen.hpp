@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -210,6 +210,12 @@ inline pooling_descriptor make_pooling(const migraphx::op::pooling& op)
         std::stringstream ss("Unknown mode for pooling: ");
         ss << op.mode;
         MIGRAPHX_THROW(ss.str());
+    }
+    if(not std::all_of(
+           op.dilations.cbegin(), op.dilations.cend(), [](std::size_t d) { return d == 1; }))
+    {
+        MIGRAPHX_THROW("Unsupported dilations for pooling: [" + to_string_range(op.dilations) +
+                       "]");
     }
     auto p = make_obj<pooling_descriptor>(&miopenCreatePoolingDescriptor);
 

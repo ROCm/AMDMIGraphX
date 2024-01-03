@@ -66,9 +66,8 @@ instruction_ref bcast_scalar_instr(const migraphx::shape& shape_out,
                                    instruction_ref arg_in,
                                    const onnx_parser::node_info& info)
 {
-    auto bcast_instr_out = info.add_instruction(
+    return info.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", shape_out.lens()}}), arg_in);
-    return bcast_instr_out;
 }
 
 } // namespace onnx

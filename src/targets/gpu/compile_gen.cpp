@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,11 @@ vectorize vectorize::elements(std::size_t axis,
                               const std::vector<shape>& inputs,
                               const std::vector<std::size_t>& sizes)
 {
+    // disable vectorization for fp8 types
+    if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+        return {1, axis};
     if(std::all_of(
            inputs.begin(), inputs.end(), [&](const auto& s) { return s.lens()[axis] == 1; }))
         return {1, axis};
@@ -86,6 +91,11 @@ vectorize vectorize::elements(std::size_t axis,
 
 vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
 {
+    // disable vectorization for fp8 types
+    if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
+           return ishape.type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+        return {1, axis};
     if(inputs.empty())
         return {1, axis};
     std::size_t n = std::max_element(inputs.begin(),

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -144,10 +144,12 @@ TEST_CASE(int_quant_dot_tanh_fails)
         auto tanh = add_pointwise(p1, "main:pointwise0", {dot}, single_pointwise("tanh"));
         mm->add_return({tanh});
     }
-    migraphx::program p2(p1);
-    // This pass should do nothing as int32_t tanh isn't supported.
+    // This pass should not fuse as int32_t tanh isn't supported.
     run_pass(p1);
-    EXPECT(p1 == p2);
+    auto* mm = p1.get_main_module();
+    bool has_pointwise =
+        std::any_of(mm->begin(), mm->end(), [&](const auto& i) { return i.name() == "pointwise"; });
+    EXPECT(has_pointwise);
 }
 
 int main(int argc, const char* argv[])

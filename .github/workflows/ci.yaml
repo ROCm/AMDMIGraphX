@@ -179,8 +179,8 @@ jobs:
       uses: actions/cache/restore@v3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
-        restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
+        key: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
+        restore-keys: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-
 
     - name: Cppcheck
       shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
@@ -465,7 +465,7 @@ jobs:
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
       env:
-        CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+        CODECOV_TOKEN: "f5d5a10b-3177-4c76-b25f-9b1c2f165e8b"
       run: |
         sudo apt-get install -y lcov
         cd build

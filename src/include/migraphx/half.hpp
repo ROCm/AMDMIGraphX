@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 
 #include <half/half.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/float8.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -65,6 +66,18 @@ struct common_type<migraphx::half, T> : std::common_type<float, T> // NOLINT
 template <class T>
 struct common_type<T, migraphx::half> : std::common_type<float, T> // NOLINT
 {
+};
+
+template <>
+struct common_type<migraphx::fp8::fp8e4m3fnuz, migraphx::half>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::half, migraphx::fp8::fp8e4m3fnuz>
+{
+    using type = float;
 };
 
 template <>

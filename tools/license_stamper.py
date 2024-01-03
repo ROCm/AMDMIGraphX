@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -88,11 +88,11 @@ def getYearOfLatestCommit(rfile: str) -> datetime:
     return year
 
 
-def updateYear(filename: str) -> None:
+def updateYear(filename: str, lastCommitYear: str) -> None:
     with open(filename, 'r') as f:
-        newfileContent = re.sub("2015-\d+ Advanced Micro Devices",
-                                f'2015-{current_year} Advanced Micro Devices',
-                                f.read())
+        newfileContent = re.sub(
+            "2015-\d+ Advanced Micro Devices",
+            f'2015-{lastCommitYear} Advanced Micro Devices', f.read())
 
     with open(filename, 'w') as f:
         f.write(newfileContent)
@@ -184,9 +184,9 @@ def openAndWriteFile(filename, message, commentChar, rfile):
                     ) and lastCommitYear > 2022:
                         if debug:
                             print(
-                                f"....Already stamped but wrong year: Updating the year to {current_year}"
+                                f"....Already stamped but wrong year: Updating the year to {lastCommitYear}"
                             )
-                        return updateYear(filename)
+                        return updateYear(filename, lastCommitYear)
 
                     if debug:
                         print("....Already Stamped: Skipping file ")

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@ void rnn_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_
     std::vector<int64_t> perm{1, 0, 2};
     args[0] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[0]);
 
-    if(args.size() == 6 and not args[5]->is_undefined())
+    if(not args[5]->is_undefined())
     {
         args[5] = info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[5]);
     }

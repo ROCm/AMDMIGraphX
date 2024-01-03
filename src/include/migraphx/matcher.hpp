@@ -857,8 +857,18 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
-// TODO: Mostly the same code for has_value() functions, I did not find a decent way to combine
-// functions though
+template <class F>
+inline auto literal_value_checker(F f)
+{
+    return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "@literal")
+            return false;
+        auto l = ins->get_literal();
+        if(l.empty())
+            return false;
+        return f(l);
+    }));
+}
 
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
@@ -867,12 +877,7 @@ auto skip_broadcasts_converts(Ms... ms)
 template <class T>
 inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
 {
-    return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "@literal")
-            return false;
-        auto l = ins->get_literal();
-        if(l.empty())
-            return false;
+    return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
@@ -882,21 +887,19 @@ inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
                    return std::fabs(val - static_cast<type>(x)) <
                           eps * (atol_mult + rtol_mult * std::fabs(val));
                }))
+            {
                 b = true;
+            }
         });
         return b;
-    }));
+    });
 }
 
+/// Check literal value with an explicit floating point tolerance
 template <class T, class F, MIGRAPHX_REQUIRES(std::is_floating_point<F>{})>
 inline auto has_value(T x, F tolerance)
 {
-    return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
-        if(ins->name() != "@literal")
-            return false;
-        auto l = ins->get_literal();
-        if(l.empty())
-            return false;
+    return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
@@ -904,12 +907,15 @@ inline auto has_value(T x, F tolerance)
             if(std::all_of(v.begin(), v.end(), [&](auto val) {
                    return std::fabs(val - static_cast<type>(x)) < tolerance;
                }))
+            {
                 b = true;
+            }
         });
         return b;
-    }));
+    });
 }
 
+// To keep the previous default behavior
 template <class T>
 inline auto has_value(T x)
 {

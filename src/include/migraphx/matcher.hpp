@@ -857,7 +857,9 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
-// TODO: Mostly the same code, I did not find a decent way to combine functions though
+// TODO: Mostly the same code for has_value() functions, I did not find a decent way to combine
+// functions though
+
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
  * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y))

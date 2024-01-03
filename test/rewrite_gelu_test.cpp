@@ -150,6 +150,7 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
     migraphx::dead_code_elimination dce;
     dce.apply(m1);
 
+    /* erf() version
     migraphx::module m2;
     {
         auto x        = m2.add_parameter("x", s1);
@@ -161,6 +162,30 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
         auto add_erf  = add_common_op(m2, migraphx::make_op("add"), {one, erf});
         auto b        = add_common_op(m2, migraphx::make_op("mul"), {one_half, add_erf});
         auto y        = m2.add_instruction(migraphx::make_op("mul"), x, b);
+        m2.add_return({y});
+    }
+    */
+    migraphx::module m2;
+    {
+        auto x          = m2.add_parameter("x", s1);
+        auto sqrt_2_rpi = m2.add_literal(migraphx::literal{
+            migraphx::shape{x->get_shape().type()},
+            {0.7978845608028653558798921198687637369517172623298693153318516593}});
+        auto fit_const =
+            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0.044715f}});
+        auto one =
+            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {1.0f}});
+        auto xb    = add_common_op(m2, migraphx::make_op("mul"), {x, sqrt_2_rpi});
+        auto a     = add_common_op(m2, migraphx::make_op("mul"), {xb, fit_const});
+        auto b     = m2.add_instruction(migraphx::make_op("mul"), a, x);
+        auto c     = m2.add_instruction(migraphx::make_op("mul"), b, x);
+        auto u     = m2.add_instruction(migraphx::make_op("add"), c, xb);
+        auto neg_u = m2.add_instruction(migraphx::make_op("neg"), u);
+        auto d     = m2.add_instruction(migraphx::make_op("sub"), neg_u, u);
+        auto emu   = m2.add_instruction(migraphx::make_op("exp"), d);
+        auto e     = add_common_op(m2, migraphx::make_op("add"), {one, emu});
+        auto cdf   = add_common_op(m2, migraphx::make_op("div"), {one, e});
+        auto y     = m2.add_instruction(migraphx::make_op("mul"), x, cdf);
         m2.add_return({y});
     }
 

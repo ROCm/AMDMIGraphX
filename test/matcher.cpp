@@ -911,8 +911,7 @@ TEST_CASE(match_has_value_eps1)
     std::vector<float> data1{3.f, 3.f, 3.f};
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    auto sum2 = mm.add_instruction(sum_op{}, sum1, l1);
-    mm.add_instruction(pass_op{}, sum2);
+    mm.add_return({sum1});
     auto m = match::has_value(7.f, 10, 10);
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == l0});
@@ -927,11 +926,10 @@ TEST_CASE(match_has_value_eps2)
     std::vector<float> data1{3.f, 3.f, 3.f};
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    auto sum2 = mm.add_instruction(sum_op{}, sum1, l1);
-    mm.add_instruction(pass_op{}, sum2);
-    auto m = match::has_value(10.f, 10, 10);
+    mm.add_return({sum1});
+    auto m = match::has_value(3.f, 10, 10);
     auto r = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
+    EXPECT(bool{r.result == l1});
 }
 
 TEST_CASE(match_has_value_eps3)
@@ -943,10 +941,9 @@ TEST_CASE(match_has_value_eps3)
     std::vector<float> data1{3.f, 3.f, 3.f};
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    auto sum2 = mm.add_instruction(sum_op{}, sum1, l1);
-    mm.add_instruction(pass_op{}, sum2);
+    mm.add_return({sum1});
     auto eps = std::numeric_limits<float>::epsilon();
-    auto m   = match::has_value(10.f + 12 * eps, 10, 10);
+    auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
     auto r   = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }
@@ -960,12 +957,10 @@ TEST_CASE(match_has_value_eps4)
     std::vector<float> data1{3.f, 3.f, 3.f};
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    auto sum2 = mm.add_instruction(sum_op{}, sum1, l1);
-    mm.add_instruction(pass_op{}, sum2);
-    auto eps = std::numeric_limits<float>::epsilon();
-    auto m   = match::has_value(10.0 + 1e-12, 1e-6);
+    mm.add_return({sum1});
+    auto m   = match::has_value(7.0 + 1e-12, 1e-6);
     auto r   = find_match(mm, m);
-    EXPECT(bool{r.result == sum1});
+    EXPECT(bool{r.result == l0});
 }
 
 TEST_CASE(match_has_value_eps5)
@@ -977,10 +972,8 @@ TEST_CASE(match_has_value_eps5)
     std::vector<float> data1{3.f, 3.f, 3.f};
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    auto sum2 = mm.add_instruction(sum_op{}, sum1, l1);
-    mm.add_instruction(pass_op{}, sum2);
-    auto eps = std::numeric_limits<float>::epsilon();
-    auto m   = match::has_value(10.1, 1e-6);
+    mm.add_return({sum1});
+    auto m   = match::has_value(7.1, 1e-6);
     auto r   = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }

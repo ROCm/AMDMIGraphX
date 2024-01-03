@@ -958,8 +958,8 @@ TEST_CASE(match_has_value_eps4)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m   = match::has_value(7.0 + 1e-12, 1e-6);
-    auto r   = find_match(mm, m);
+    auto m = match::has_value(7.0 + 1e-12, 1e-6);
+    auto r = find_match(mm, m);
     EXPECT(bool{r.result == l0});
 }
 
@@ -973,8 +973,8 @@ TEST_CASE(match_has_value_eps5)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m   = match::has_value(7.1, 1e-6);
-    auto r   = find_match(mm, m);
+    auto m = match::has_value(7.1, 1e-6);
+    auto r = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }
 

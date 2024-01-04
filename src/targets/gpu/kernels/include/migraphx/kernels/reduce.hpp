@@ -79,7 +79,6 @@ __device__ void dpp_reduce(T& in, Op op)
 #endif
 }
 
-#if 1
 #if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE_ASM_FUN(type, op, ins)   \
@@ -155,7 +154,6 @@ MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
 MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
-#endif
 
 template <class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)

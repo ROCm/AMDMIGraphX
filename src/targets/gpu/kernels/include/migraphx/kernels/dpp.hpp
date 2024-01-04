@@ -30,7 +30,7 @@
 
 namespace migraphx {
 
-constexpr bool is_power_of_2(unsigned int x) { return x > 0 && !(x & (x - 1)); }
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 && (x & (x - 1)) == 0u; }
 
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1

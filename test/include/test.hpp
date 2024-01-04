@@ -403,6 +403,22 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
         px, py, ptol);
 }
 
+// This implements the basic globbing algorithm where `*` matches any number
+// of characters(including none) and `?` matches any single character. It
+// doesnt support character classes. 
+// 
+// This is a simple recursive implementation that scans the string where the
+// string and pattern matches. When a `*` is found in the pattern, the
+// `glob_match` function is called recursively to compare the rest of the
+// pattern to the rest of the string. If the recursive call returns true,
+// then we have a match. However, if it returns false, then we advance one
+// character and call the recusrsive call again. This is referred to as a
+// star-loop, which will consume zero or more characters.
+// 
+// This simple recursive implementation works well for short string and
+// patterns with few stars. First, it is unlikely to use many stars to glob
+// test names. Secondly, using many stars is still signficantly faster than
+// using the equivalent std::regex, which has a much slower time complexity.
 template <class Iterator1, class Iterator2>
 bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
 {
@@ -415,15 +431,21 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
                 return false;
             return c == m;
         });
+    // If there is no more pattern then return true if there is no more string to match
     if(pattern_start == pattern_last)
         return start == last;
+    // If the pattern is not a star then its a mismatch
     if(*pattern_start != '*')
         return false;
+    // Multiple stars are the same as a single star so skip over multiple stars
     pattern_start = std::find_if(pattern_start, pattern_last, [](auto c) { return c != '*'; });
+    // If the star is at the end then return true
     if(pattern_start == pattern_last)
         return true;
+    // star-loop: match the rest of the pattern and text
     while(not glob_match(start, last, pattern_start, pattern_last) and start != last)
         start++;
+    // If the string is empty then it means a match was never found
     return start != last;
 }
 

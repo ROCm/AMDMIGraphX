@@ -45,8 +45,8 @@ struct gelu_tanh_matcher
     {
         auto mul_const_pow = f("mul")(either_arg(0, 1)(has_value(0.044715f, 10, 10), pow_fn()));
         auto add_any_mul         = f("add")(any_arg(0, 1)(mul_const_pow));
-        auto either_SQRT2RPI_add = either_arg(0, 1)(has_value(sqrt(M_2_PI), 10, 10), add_any_mul);
-        return f("tanh")(used_once(), arg(0)(f("mul")(either_SQRT2RPI_add)));
+        auto mul_SQRT2RPI_add = f("mul")(either_arg(0, 1)(has_value(sqrt(M_2_PI), 10, 10), add_any_mul));
+        return f("tanh")(used_once(), arg(0)(mul_SQRT2RPI_add));
     }
 
     /// x * (0.5? + 0.5 * tanh( sqrt(2/M_PI) * (x? + 0.044715 * x? ^ 3) ) )
@@ -73,7 +73,7 @@ struct gelu_tanh_matcher
 template <class F>
 auto gelu_tanh(F f)
 {
-    return detail::gelu_tanh_matcher<F>{f}.matcher_v1();
+    return any_of(detail::gelu_tanh_matcher<F>{f}.matcher_v0(), detail::gelu_tanh_matcher<F>{f}.matcher_v1());
 }
 
 inline auto gelu_tanh()

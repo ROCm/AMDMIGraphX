@@ -21,29 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
-#define MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/argument.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct identity
+struct module_pass_manager;
+
+struct MIGRAPHX_EXPORT fuse_concat
 {
-    std::string name() const { return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(shape, std::vector<argument> args) const { return args[0]; }
-
-    value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
-
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::string name() const { return "fuse_concat"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP

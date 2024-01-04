@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -341,7 +341,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {
@@ -356,9 +356,11 @@ static std::vector<std::string> get_op_names(const module& m)
     return result;
 }
 
-std::string generate_name_from_ops(const module& m)
+std::string generate_name_from_ops(const module& m, const std::string& postname)
 {
     auto op_names = get_op_names(m);
+    if(not postname.empty())
+        op_names.push_back(postname);
     return join_strings(op_names, "_");
 }
 

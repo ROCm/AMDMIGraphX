@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
-#define MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/argument.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct identity
+TEST_CASE(matmulinteger_uns_test)
 {
-    std::string name() const { return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(shape, std::vector<argument> args) const { return args[0]; }
+    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
+    migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};
+    std::vector<uint8_t> data0 = {11, 7, 3, 10, 6, 2, 9, 5, 1, 8, 4, 0};
+    migraphx::shape s1{migraphx::shape::uint8_type, {3, 2}};
+    std::vector<uint8_t> data1 = {1, 4, 2, 5, 3, 6};
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
-};
+    migraphx::parameter_map pp;
+    pp["1"] = migraphx::argument(s0, data0.data());
+    pp["2"] = migraphx::argument(s1, data1.data());
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    auto result = p.eval(pp).back();
+    std::vector<int32_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int32_t> gold = {34, 97, 28, 82, 22, 67, 16, 52};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

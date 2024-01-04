@@ -872,10 +872,12 @@ inline auto literal_value_checker(F f)
 
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y))
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y)).
+ * atol_mult controls the absolute tolerance.
+ * rtol_mult controls the relative tolerance.
  */
 template <class T>
-inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
+inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
 {
     return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
@@ -893,33 +895,6 @@ inline auto has_value(T x, std::size_t atol_mult, std::size_t rtol_mult)
         });
         return b;
     });
-}
-
-/// Check literal value with an explicit floating point tolerance
-template <class T, class F, MIGRAPHX_REQUIRES(std::is_floating_point<F>{})>
-inline auto has_value(T x, F tolerance)
-{
-    return literal_value_checker([=](migraphx::literal l) {
-        bool b = false;
-        l.visit([&](auto v) {
-            // cast to the literal's data type before comparing
-            using type = typename decltype(v)::value_type;
-            if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                   return std::fabs(val - static_cast<type>(x)) < tolerance;
-               }))
-            {
-                b = true;
-            }
-        });
-        return b;
-    });
-}
-
-// To keep the previous default behavior
-template <class T>
-inline auto has_value(T x)
-{
-    return has_value(x, 1e-6);
 }
 
 inline auto has_attribute(const std::string& name)

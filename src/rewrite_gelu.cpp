@@ -64,7 +64,10 @@ struct find_gelu_erf
  * The replacement approximation is equivalent to:
  * GELU(x) ~= 0.5 * x * ( 1 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x^3)))
  * You can rearrange to the form used in this by recognizing that
- * 1 + tanh(x) = (2) / (1 + exp(-2 * x))
+ * 1 + tanh(x) = (2) / (1 + exp(-2 * x)).
+ * The fitting constant 0.044715 is from
+ * A. Choudhury, ‘A simple approximation to the area under standard normal curve’, Mathematics and
+ * Statistics, vol. 2, no. 3, pp. 147–149, 2014.
  */
 struct find_tanh_fast_gelu
 {
@@ -74,7 +77,7 @@ struct find_tanh_fast_gelu
     {
         auto ins        = r.result;
         auto x          = r.instructions["x"];
-        double sqrt_2_rpi   = std::sqrt(2.0 / M_PI);
+        double sqrt_2_rpi   = sqrt(M_2_PI);
         auto sqrt_2_rpi_lit = m.add_literal(literal{shape{x->get_shape().type()}, {sqrt_2_rpi}});
         auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
         auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
@@ -95,7 +98,14 @@ struct find_tanh_fast_gelu
 
 void rewrite_gelu::apply(module& m) const
 {
-    match::find_matches(m, find_gelu_erf{}, find_tanh_fast_gelu{});
+    if(fast_math)
+    {
+        match::find_matches(m, find_gelu_erf{}, find_tanh_fast_gelu{});
+    }
+    else
+    {
+        match::find_matches(m, find_tanh_fast_gelu{});
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

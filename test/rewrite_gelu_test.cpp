@@ -152,7 +152,7 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
 
     migraphx::module m2;
     {
-        auto x          = m2.add_parameter("x", s1);
+        auto x            = m2.add_parameter("x", s1);
         double sqrt_2_rpi = sqrt(M_2_PI);
         auto sqrt_2_rpi_lit =
             m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {sqrt_2_rpi}});

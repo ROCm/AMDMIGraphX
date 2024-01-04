@@ -75,23 +75,23 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins        = r.result;
-        auto x          = r.instructions["x"];
+        auto ins            = r.result;
+        auto x              = r.instructions["x"];
         double sqrt_2_rpi   = sqrt(M_2_PI);
         auto sqrt_2_rpi_lit = m.add_literal(literal{shape{x->get_shape().type()}, {sqrt_2_rpi}});
-        auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
-        auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
+        auto fit_const      = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
+        auto one            = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
         auto xb             = insert_common_op(m, ins, make_op("mul"), {x, sqrt_2_rpi_lit});
-        auto a         = insert_common_op(m, ins, make_op("mul"), {xb, fit_const});
-        auto b         = m.insert_instruction(ins, make_op("mul"), a, x);
-        auto c         = m.insert_instruction(ins, make_op("mul"), b, x);
-        auto u         = m.insert_instruction(ins, make_op("add"), c, xb);
-        auto neg_u     = m.insert_instruction(ins, make_op("neg"), u);
-        auto d         = m.insert_instruction(ins, make_op("sub"), neg_u, u);
-        auto emu       = m.insert_instruction(ins, make_op("exp"), d);
-        auto e         = insert_common_op(m, ins, make_op("add"), {one, emu});
-        auto cdf       = insert_common_op(m, ins, make_op("div"), {one, e});
-        auto y         = m.insert_instruction(ins, make_op("mul"), x, cdf);
+        auto a              = insert_common_op(m, ins, make_op("mul"), {xb, fit_const});
+        auto b              = m.insert_instruction(ins, make_op("mul"), a, x);
+        auto c              = m.insert_instruction(ins, make_op("mul"), b, x);
+        auto u              = m.insert_instruction(ins, make_op("add"), c, xb);
+        auto neg_u          = m.insert_instruction(ins, make_op("neg"), u);
+        auto d              = m.insert_instruction(ins, make_op("sub"), neg_u, u);
+        auto emu            = m.insert_instruction(ins, make_op("exp"), d);
+        auto e              = insert_common_op(m, ins, make_op("add"), {one, emu});
+        auto cdf            = insert_common_op(m, ins, make_op("div"), {one, e});
+        auto y              = m.insert_instruction(ins, make_op("mul"), x, cdf);
         m.replace_instruction(ins, y);
     }
 };

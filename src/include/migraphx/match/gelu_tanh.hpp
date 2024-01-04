@@ -44,7 +44,7 @@ struct gelu_tanh_matcher
     auto tanh_fn() const
     {
         auto mul_const_pow = f("mul")(either_arg(0, 1)(has_value(0.044715f, 10, 10), pow_fn()));
-        auto add_any_mul         = f("add")(any_arg(0, 1)(mul_const_pow));
+        auto add_any_mul   = f("add")(any_arg(0, 1)(mul_const_pow));
         auto mul_SQRT2RPI_add =
             f("mul")(either_arg(0, 1)(has_value(sqrt(M_2_PI), 10, 10), add_any_mul));
         return f("tanh")(used_once(), arg(0)(mul_SQRT2RPI_add));

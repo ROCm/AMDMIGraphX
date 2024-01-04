@@ -824,10 +824,12 @@ TEST_CASE(match_bind_modules2)
     EXPECT(bool{r.result == pass});
 }
 
+//Note that mm.add_literal(1) makes a scalar int32 literal with value 1
 TEST_CASE(match_has_value1)
 {
     migraphx::module mm;
     auto one  = mm.add_literal(1);
+    mm.debug_print(one);
     auto two  = mm.add_literal(2);
     auto sum1 = mm.add_instruction(sum_op{}, one, two);
     auto sum2 = mm.add_instruction(sum_op{}, sum1, two);

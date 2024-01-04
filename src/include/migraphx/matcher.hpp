@@ -875,6 +875,7 @@ inline auto literal_value_checker(F f)
  * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y)).
  * atol_mult controls the absolute tolerance.
  * rtol_mult controls the relative tolerance.
+ * Uses no tolerance for integral types.
  */
 template <class T>
 inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
@@ -884,13 +885,23 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
             using type = typename decltype(v)::value_type;
-            auto eps   = std::numeric_limits<type>::epsilon();
-            if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                   return std::fabs(val - static_cast<type>(x)) <
-                          eps * (atol_mult + rtol_mult * std::fabs(val));
-               }))
+            if constexpr(std::is_integral<type>{})
             {
-                b = true;
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {return val == static_cast<type>(x);}))
+                {
+                    b = true;
+                }
+            }
+            else
+            {
+                auto eps   = std::numeric_limits<type>::epsilon();
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return std::fabs(val - static_cast<type>(x)) <
+                              eps * (atol_mult + rtol_mult * std::fabs(val));
+                   }))
+                {
+                    b = true;
+                }
             }
         });
         return b;

@@ -21,29 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
-#define MIGRAPHX_GUARD_OPERATORS_IDENTITY_HPP
 
-#include <migraphx/op/unary.hpp>
-#include <migraphx/argument.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct identity
+struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_relu>
 {
-    std::string name() const { return "identity"; }
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(0); }
-    argument compute(shape, std::vector<argument> args) const { return args[0]; }
-
-    value attributes() const { return {{"pointwise", true}, {"point_op", "${0}"}}; }
-
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+        migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        mm->add_return({relu});
+        return p;
+    }
 };
-
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

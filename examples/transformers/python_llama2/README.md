@@ -1,6 +1,6 @@
 # Llama-2
 
-This version was tested with [rocm 5.7](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-5.7.0) revision.
+This version was tested with [rocm 6.0](https://github.com/ROCm/AMDMIGraphX/tree/rocm-6.0.0) revision.
 
 ## Jupyter notebook
 
@@ -26,6 +26,7 @@ Use MIGraphX Python Module
 
 ```bash
 export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
+export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
 ```
 
 Llama2 requires logging to access the models

@@ -529,6 +529,25 @@ struct driver
         arguments.push_back(argument{flags, help, 0});
     }
 
+    static void wrap(std::ostream& os, const std::string& text, std::string prefix = "", unsigned int line_length = 80)
+    {
+        std::istringstream iss(text);
+        std::string line = prefix;
+        do
+        {
+            std::string word;
+            iss >> word;
+            if (line.length() + word.length() > line_length)
+            {
+                os << line << std::endl;
+                line = prefix;
+            }
+            line += word + " ";
+        } while (iss);
+        if(not line.empty())
+            os << line << std::endl;
+    }
+
     void show_help(const std::string& exe) const
     {
         std::cout << std::endl;
@@ -542,13 +561,7 @@ struct driver
         std::cout << color::fg_green << "<test-case>..." << color::reset;
         std::cout << std::endl;
 
-        std::cout << "        "
-                  << "Test cases to run. A test case can be either the exact test case name"
-                  << std::endl;
-        std::cout << "        "
-                  << "or a glob. A glob expression uses a '*' to select zero or more" << std::endl;
-        std::cout << "        "
-                  << "characters or a '?' to select any single character." << std::endl;
+        wrap(std::cout, "Test cases to run. A test case can be either the exact test case name or a glob. A glob expression uses a '*' to select zero or more characters or a '?' to select any single character.", "        ");
 
         std::cout << std::endl;
         std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;

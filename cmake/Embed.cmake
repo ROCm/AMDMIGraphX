@@ -167,6 +167,7 @@ function(embed_file FILE BASE_DIRECTORY)
             VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "CArrays")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
         # reads source file contents as hex string
         file(READ ${FILE} HEX_STRING HEX)

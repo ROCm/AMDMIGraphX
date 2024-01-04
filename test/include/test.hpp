@@ -531,7 +531,7 @@ struct driver
 
     static void wrap(std::ostream& os,
                      const std::string& text,
-                     std::string prefix       = "",
+                     const std::string& prefix       = "",
                      unsigned int line_length = 80)
     {
         std::istringstream iss(text);
@@ -553,6 +553,7 @@ struct driver
 
     void show_help(const std::string& exe) const
     {
+        const std::string prefix = "    ";
         std::cout << std::endl;
         std::cout << color::fg_yellow << "USAGE:" << color::reset << std::endl;
         std::cout << "    ";
@@ -568,22 +569,22 @@ struct driver
              "Test cases to run. A test case can be either the exact test case name or a glob. A "
              "glob expression uses a '*' to select zero or more characters or a '?' to select any "
              "single character.",
-             "        ");
+             prefix+prefix);
 
         std::cout << std::endl;
         std::cout << color::fg_yellow << "OPTIONS:" << color::reset << std::endl;
         for(auto&& arg : arguments)
         {
-            std::string prefix = "    ";
             std::cout << color::fg_green;
+            std::string arg_prefix = prefix;
             for(const std::string& a : arg.flags)
             {
-                std::cout << prefix;
+                std::cout << arg_prefix;
                 std::cout << a;
-                prefix = ", ";
+                arg_prefix = ", ";
             }
             std::cout << color::reset << std::endl;
-            std::cout << "        " << arg.help << std::endl;
+            wrap(std::cout, arg.help, prefix+prefix);
         }
     }
 

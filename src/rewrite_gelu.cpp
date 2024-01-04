@@ -63,6 +63,8 @@ struct find_gelu_erf
  * with an alternative approximation that is less likely to overflow.
  * The replacement approximation is equivalent to:
  * GELU(x) ~= 0.5 * x * ( 1 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x^3)))
+ * You can rearrange to the form used in this by recognizing that
+ * 1 + tanh(x) = (2) / (1 + exp(-2 * x))
  */
 struct find_tanh_fast_gelu
 {
@@ -70,16 +72,13 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        // Algebraically rearranged version of the tanh GELU approximation that is more numerically
-        // stable
         auto ins        = r.result;
         auto x          = r.instructions["x"];
-        auto sqrt_2_rpi = m.add_literal(
-            literal{shape{x->get_shape().type()},
-                    {0.7978845608028653558798921198687637369517172623298693153318516593}});
+        double sqrt_2_rpi   = std::sqrt(2.0 / M_PI);
+        auto sqrt_2_rpi_lit = m.add_literal(literal{shape{x->get_shape().type()}, {sqrt_2_rpi}});
         auto fit_const = m.add_literal(literal{shape{x->get_shape().type()}, {0.044715f}});
         auto one       = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        auto xb        = insert_common_op(m, ins, make_op("mul"), {x, sqrt_2_rpi});
+        auto xb             = insert_common_op(m, ins, make_op("mul"), {x, sqrt_2_rpi_lit});
         auto a         = insert_common_op(m, ins, make_op("mul"), {xb, fit_const});
         auto b         = m.insert_instruction(ins, make_op("mul"), a, x);
         auto c         = m.insert_instruction(ins, make_op("mul"), b, x);
@@ -91,20 +90,6 @@ struct find_tanh_fast_gelu
         auto cdf       = insert_common_op(m, ins, make_op("div"), {one, e});
         auto y         = m.insert_instruction(ins, make_op("mul"), x, cdf);
         m.replace_instruction(ins, y);
-
-        /* erf() version of GELU
-        auto ins      = r.result;
-        auto x        = r.instructions["x"];
-        auto sqrt1_2  = m.add_literal(literal{shape{x->get_shape().type()}, {M_SQRT1_2}});
-        auto one      = m.add_literal(literal{shape{x->get_shape().type()}, {1.0f}});
-        auto one_half = m.add_literal(literal{shape{x->get_shape().type()}, {0.5f}});
-        auto a        = insert_common_op(m, ins, make_op("mul"), {x, sqrt1_2});
-        auto erf      = m.insert_instruction(ins, make_op("erf"), a);
-        auto add_erf  = insert_common_op(m, ins, make_op("add"), {one, erf});
-        auto b        = insert_common_op(m, ins, make_op("mul"), {one_half, add_erf});
-        auto y        = m.insert_instruction(ins, make_op("mul"), x, b);
-        m.replace_instruction(ins, y);
-        */
     }
 };
 

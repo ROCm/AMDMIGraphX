@@ -150,21 +150,6 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
     migraphx::dead_code_elimination dce;
     dce.apply(m1);
 
-    /* erf() version
-    migraphx::module m2;
-    {
-        auto x        = m2.add_parameter("x", s1);
-        auto sqrt1_2  = m2.add_literal(migraphx::literal{s2, {M_SQRT1_2}});
-        auto one      = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        auto one_half = m2.add_literal(migraphx::literal{s2, {0.5f}});
-        auto a        = add_common_op(m2, migraphx::make_op("mul"), {x, sqrt1_2});
-        auto erf      = m2.add_instruction(migraphx::make_op("erf"), a);
-        auto add_erf  = add_common_op(m2, migraphx::make_op("add"), {one, erf});
-        auto b        = add_common_op(m2, migraphx::make_op("mul"), {one_half, add_erf});
-        auto y        = m2.add_instruction(migraphx::make_op("mul"), x, b);
-        m2.add_return({y});
-    }
-    */
     migraphx::module m2;
     {
         auto x          = m2.add_parameter("x", s1);

@@ -164,7 +164,7 @@ __device__ void dpp_reduce(T& in, Op op)
 template <unsigned int SubWaveSize, class Op, class T, class Index, class F>
 __device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
 {
-    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal() or (idx.nlocal() % SubWaveSize) == 0);
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     auto x     = type(init);
     idx.local_subwave_stride<SubWaveSize>(

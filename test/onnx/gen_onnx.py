@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -4898,6 +4898,38 @@ def matmulinteger_dyn_error():
     )
 
     return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_uns_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_uns_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.UINT8, [], [12])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
 
 
 @onnx_test()

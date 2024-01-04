@@ -405,8 +405,8 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
 
 // This implements the basic globbing algorithm where `*` matches any number
 // of characters(including none) and `?` matches any single character. It
-// doesnt support character classes. 
-// 
+// doesnt support character classes.
+//
 // This is a simple recursive implementation that scans the string where the
 // string and pattern matches. When a `*` is found in the pattern, the
 // `glob_match` function is called recursively to compare the rest of the
@@ -414,7 +414,7 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
 // then we have a match. However, if it returns false, then we advance one
 // character and call the recusrsive call again. This is referred to as a
 // star-loop, which will consume zero or more characters.
-// 
+//
 // This simple recursive implementation works well for short string and
 // patterns with few stars. First, it is unlikely to use many stars to glob
 // test names. Secondly, using many stars is still signficantly faster than

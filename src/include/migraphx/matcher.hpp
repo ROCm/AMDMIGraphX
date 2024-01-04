@@ -887,14 +887,15 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
             using type = typename decltype(v)::value_type;
             if constexpr(std::is_integral<type>{})
             {
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {return val == static_cast<type>(x);}))
+                if(std::all_of(
+                       v.begin(), v.end(), [&](auto val) { return val == static_cast<type>(x); }))
                 {
                     b = true;
                 }
             }
             else
             {
-                auto eps   = std::numeric_limits<type>::epsilon();
+                auto eps = std::numeric_limits<type>::epsilon();
                 if(std::all_of(v.begin(), v.end(), [&](auto val) {
                        return std::fabs(val - static_cast<type>(x)) <
                               eps * (atol_mult + rtol_mult * std::fabs(val));

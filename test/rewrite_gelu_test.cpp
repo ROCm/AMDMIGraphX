@@ -153,14 +153,14 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
     migraphx::module m2;
     {
         auto x          = m2.add_parameter("x", s1);
-        auto sqrt_2_rpi = m2.add_literal(migraphx::literal{
-            migraphx::shape{x->get_shape().type()},
-            {0.7978845608028653558798921198687637369517172623298693153318516593}});
+        double sqrt_2_rpi = sqrt(M_2_PI);
+        auto sqrt_2_rpi_lit =
+            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {sqrt_2_rpi}});
         auto fit_const =
             m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0.044715f}});
         auto one =
             m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {1.0f}});
-        auto xb    = add_common_op(m2, migraphx::make_op("mul"), {x, sqrt_2_rpi});
+        auto xb    = add_common_op(m2, migraphx::make_op("mul"), {x, sqrt_2_rpi_lit});
         auto a     = add_common_op(m2, migraphx::make_op("mul"), {xb, fit_const});
         auto b     = m2.add_instruction(migraphx::make_op("mul"), a, x);
         auto c     = m2.add_instruction(migraphx::make_op("mul"), b, x);

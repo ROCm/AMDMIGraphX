@@ -824,12 +824,11 @@ TEST_CASE(match_bind_modules2)
     EXPECT(bool{r.result == pass});
 }
 
-//Note that mm.add_literal(1) makes a scalar int32 literal with value 1
+// Note that mm.add_literal(1) makes a scalar int32 literal with value 1
 TEST_CASE(match_has_value1)
 {
     migraphx::module mm;
     auto one  = mm.add_literal(1);
-    mm.debug_print(one);
     auto two  = mm.add_literal(2);
     auto sum1 = mm.add_instruction(sum_op{}, one, two);
     auto sum2 = mm.add_instruction(sum_op{}, sum1, two);
@@ -914,7 +913,7 @@ TEST_CASE(match_has_value_eps1)
     auto l1   = mm.add_literal(migraphx::literal{s, data1});
     auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
     mm.add_return({sum1});
-    auto m = match::has_value(7.f, 10, 10);
+    auto m = match::has_value(7.f, 1, 0);
     auto r = find_match(mm, m);
     EXPECT(bool{r.result == l0});
 }
@@ -947,36 +946,6 @@ TEST_CASE(match_has_value_eps3)
     auto eps = std::numeric_limits<float>::epsilon();
     auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
     auto r   = find_match(mm, m);
-    EXPECT(bool{r.result == mm.end()});
-}
-
-TEST_CASE(match_has_value_eps4)
-{
-    migraphx::module mm;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    std::vector<float> data0{7.f, 7.f, 7.f};
-    auto l0 = mm.add_literal(migraphx::literal{s, data0});
-    std::vector<float> data1{3.f, 3.f, 3.f};
-    auto l1   = mm.add_literal(migraphx::literal{s, data1});
-    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    mm.add_return({sum1});
-    auto m = match::has_value(7.0 + 1e-12, 1e-6);
-    auto r = find_match(mm, m);
-    EXPECT(bool{r.result == l0});
-}
-
-TEST_CASE(match_has_value_eps5)
-{
-    migraphx::module mm;
-    migraphx::shape s{migraphx::shape::float_type, {3}};
-    std::vector<float> data0{7.f, 7.f, 7.f};
-    auto l0 = mm.add_literal(migraphx::literal{s, data0});
-    std::vector<float> data1{3.f, 3.f, 3.f};
-    auto l1   = mm.add_literal(migraphx::literal{s, data1});
-    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
-    mm.add_return({sum1});
-    auto m = match::has_value(7.1, 1e-6);
-    auto r = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }
 

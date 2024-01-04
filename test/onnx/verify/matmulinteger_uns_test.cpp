@@ -22,27 +22,27 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_gemm_transposea_ex : verify_program<test_gemm_transposea_ex<DType>>
+TEST_CASE(matmulinteger_uns_test)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("a", migraphx::shape{DType, {1, 1, 5, 4}});
-        auto b   = mm->add_parameter("b", migraphx::shape{DType, {1, 1, 5, 3}});
-        auto at =
-            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), a);
-        mm->add_instruction(migraphx::make_op("dot"), at, b);
-        return p;
-    }
-};
+    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-template struct test_gemm_transposea_ex<migraphx::shape::float_type>;
-template struct test_gemm_transposea_ex<migraphx::shape::half_type>;
-template struct test_gemm_transposea_ex<migraphx::shape::fp8e4m3fnuz_type>;
+    migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};
+    std::vector<uint8_t> data0 = {11, 7, 3, 10, 6, 2, 9, 5, 1, 8, 4, 0};
+    migraphx::shape s1{migraphx::shape::uint8_type, {3, 2}};
+    std::vector<uint8_t> data1 = {1, 4, 2, 5, 3, 6};
+
+    migraphx::parameter_map pp;
+    pp["1"] = migraphx::argument(s0, data0.data());
+    pp["2"] = migraphx::argument(s1, data1.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<int32_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int32_t> gold = {34, 97, 28, 82, 22, 67, 16, 52};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

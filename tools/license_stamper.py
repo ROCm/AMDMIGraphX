@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -22,10 +22,19 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 #####################################################################################
-import subprocess, os
+#################################### GUIDE ##########################################
+#####################################################################################
+# This license_stamper script is to be triggered manually via users to update the license stamps for all the
+# files in the current local branch. It works by generating a list of all the files in the current active
+# local branch via GIT LS-FILES and then compares each files license stamp year to the latest
+# commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then
+# it will add a stamp at the begenning of the file with the year set to the current year.
+#####################################################################################
+import subprocess, os, datetime, re
 
-#Debug flag
 debug = False
+
+current_year = datetime.date.today().year
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
@@ -38,7 +47,7 @@ def getipynb_markdownBlockAsList():
         '\t\t"cell_type": "code",\n', '\t\t"execution_count": null,\n',
         '\t\t"metadata": {},\n', '\t\t"outputs": [],\n', '\t\t"source": [\n',
         '\t\t\t\"#  The MIT License (MIT)\\n\",\n', '\t\t\t\"#\\n\",\n',
-        '\t\t\t\"#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
+        f'\t\t\t\"#  Copyright (c) 2015-{current_year} Advanced Micro Devices, Inc. All rights reserved.\\n\",\n',
         '\t\t\t\"#\\n\",\n',
         '\t\t\t\"#  Permission is hereby granted, free of charge, to any person obtaining a copy\\n\",\n',
         '\t\t\t\"#  of this software and associated documentation files (the \'Software\'), to deal\\n\",\n',
@@ -67,6 +76,26 @@ def hasKeySequence(inputfile, key_message):
         result = True
 
     return result
+
+
+def getYearOfLatestCommit(rfile: str) -> datetime:
+    proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
+                           shell=True,
+                           stdout=subprocess.PIPE,
+                           cwd=__repo_dir__)
+    year = datetime.datetime.strptime(proc2.stdout.decode().strip(),
+                                      '%Y-%m-%d').year
+    return year
+
+
+def updateYear(filename: str, lastCommitYear: str) -> None:
+    with open(filename, 'r') as f:
+        newfileContent = re.sub(
+            "2015-\d+ Advanced Micro Devices",
+            f'2015-{lastCommitYear} Advanced Micro Devices', f.read())
+
+    with open(filename, 'w') as f:
+        f.write(newfileContent)
 
 
 # Header and footer of the comment block
@@ -101,7 +130,7 @@ def bottomFooter(commentChar):
 
 
 #Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(filename, message, commentChar):
+def openAndWriteFile(filename, message, commentChar, rfile):
     add_shebang = False
     #markdown file stamping for .ipynb
     save_markdown_lines = []
@@ -111,13 +140,11 @@ def openAndWriteFile(filename, message, commentChar):
     if debug is True:
         print("Open", filename, end='')
 
-    #with open(filename, 'r') as contents:
-    #    save = contents.read()
     try:
         file = open(filename, 'r')
     except OSError as e:
         if debug is True:
-            print(str(e) + "....Open Error: Skipping  file ")
+            print(str(e) + "....Open Error: Skipping file ")
         file.close()
         return
     else:
@@ -145,12 +172,24 @@ def openAndWriteFile(filename, message, commentChar):
                     save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
 
-                #Check if we have a licence stamp already
+                #Check if we have a licence stamp already and the latest commit year matches license year (unless commit year is pre-2023, which case its ignored)
                 if hasAmdLic or hasOtherLic is True:
-                    if debug is True:
-                        print("....Already Stamped: Skipping  file ")
-
                     contents.close()
+
+                    lastCommitYear = getYearOfLatestCommit(rfile)
+
+                    if not hasKeySequence(
+                            save,
+                            f'2015-{lastCommitYear} Advanced Micro Devices'
+                    ) and lastCommitYear > 2022:
+                        if debug:
+                            print(
+                                f"....Already stamped but wrong year: Updating the year to {lastCommitYear}"
+                            )
+                        return updateYear(filename, lastCommitYear)
+
+                    if debug:
+                        print("....Already Stamped: Skipping file ")
                     return
 
             except UnicodeDecodeError as eu:
@@ -228,8 +267,6 @@ def main():
     message = open(os.path.join(__repo_dir__, 'LICENSE')).read()
 
     #Get a list of all the files in our git repo
-    #bashCommand = "git ls-files --exclude-standard"
-    #print (bashCommand.split())
     proc = subprocess.run("git ls-files --exclude-standard",
                           shell=True,
                           stdout=subprocess.PIPE,
@@ -243,10 +280,9 @@ def main():
 
     for rfile in fileList:
         file = os.path.join(__repo_dir__, rfile)
-        #print(file)
         commentDelim = getDelimiter(file)
         if commentDelim is not None:
-            openAndWriteFile(file, message, commentDelim)
+            openAndWriteFile(file, message, commentDelim, rfile)
 
 
 if __name__ == "__main__":

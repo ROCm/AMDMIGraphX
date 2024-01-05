@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,10 +65,36 @@ struct pad_compiler : compiler<pad_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        auto padding    = v.at("pads").to_vector<int64_t>();
+        auto input_lens = inputs.front().lens();
+        std::vector<size_t> offsets(input_lens.size());
+        std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
+
+        auto offset_lens = input_lens;
+        std::transform(input_lens.begin(),
+                       input_lens.end(),
+                       offsets.begin(),
+                       offset_lens.begin(),
+                       [&](auto input, auto offset) { return input + offset; });
+
+        auto vinputs = inputs;
+        vinputs.push_back(inputs.front().with_lens(offset_lens));
+        auto rinputs = reduce_dims(vinputs);
+
+        auto rinput_lens  = rinputs.front().lens();
+        auto roffset_lens = rinputs.back().lens();
+        std::vector<size_t> roffsets(roffset_lens.size());
+        std::transform(rinput_lens.begin(),
+                       rinput_lens.end(),
+                       roffset_lens.begin(),
+                       roffsets.begin(),
+                       [](auto input, auto offset_dim) { return offset_dim - input; });
+        rinputs.pop_back();
+
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
+        options.virtual_inputs = rinputs;
         options.kernel_name    = "pad_kernel";
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
@@ -79,14 +105,9 @@ struct pad_compiler : compiler<pad_compiler>
         if(float_equal(pad_val, std::numeric_limits<float>::max()))
             pad_val_string = "highest{}";
 
-        auto padding    = v.at("pads").to_vector<int64_t>();
-        auto input_lens = inputs.front().lens();
-        std::vector<size_t> offsets(input_lens.size());
-        std::copy(padding.begin(), padding.begin() + offsets.size(), offsets.begin());
-
         auto src = interpolate_string(
             pointwise_kernel,
-            {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(offsets)}});
+            {{"pad_val", to_string(pad_val_string)}, {"offsets", to_string_range(roffsets)}});
         return compile_hip_code_object(src, options);
     }
 

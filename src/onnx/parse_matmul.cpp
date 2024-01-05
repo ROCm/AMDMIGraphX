@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,9 +62,10 @@ struct parse_matmul : op_parser<parse_matmul>
             a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
         }
 
+        auto is_quant_dot = opd.op_name == "quant_dot";
         if(s0.dynamic() or s1.dynamic())
         {
-            if(opd.op_name == "quant_dot")
+            if(is_quant_dot)
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: dynamic MatMulInteger not supported");
             }
@@ -111,7 +112,28 @@ struct parse_matmul : op_parser<parse_matmul>
                         make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
                 }
             }
-            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+
+            // parse a_zero_point and b_zero_point values
+            if(args.size() > 2)
+            {
+                ba0 = info.add_instruction(
+                    make_op("convert", {{"target_type", migraphx::shape::float_type}}), ba0);
+
+                ba0 = info.add_common_op("sub", ba0, args[2]);
+                if(args.size() > 3)
+                {
+                    ba1 = info.add_instruction(
+                        make_op("convert", {{"target_type", migraphx::shape::float_type}}), ba1);
+                    ba1 = info.add_common_op("sub", ba1, args[3]);
+                }
+                dot_res = info.add_instruction(make_op("dot"), ba0, ba1);
+                dot_res = info.add_instruction(
+                    make_op("convert", {{"target_type", migraphx::shape::int32_type}}), dot_res);
+            }
+            else
+            {
+                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+            }
         }
 
         // squeeze the appended or prepended dimensions

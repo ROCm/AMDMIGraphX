@@ -134,10 +134,11 @@ def check_correctness(gold_outputs,
             if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
                 ret = False
                 if verbose:
-                    print('\nOutput {} is incorrect ...'.format(i))
-                    print('Expected value: \n{}'.format(gold_outputs[i]))
-                    print('......')
-                    print('Actual value: \n{}\n'.format(outputs[i]))
+                    with np.printoptions(threshold=np.inf):
+                        print('\nOutput {} is incorrect ...'.format(i))
+                        print('Expected value: \n{}\n'.format(gold_outputs[i]))
+                        print('\n......\n')
+                        print('Actual value: \n{}\n'.format(outputs[i]))
                 else:
                     print('Outputs do not match')
                     break

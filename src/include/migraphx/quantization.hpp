@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,8 +44,10 @@ MIGRAPHX_EXPORT void quantize_fp16(program& prog,
 MIGRAPHX_EXPORT void quantize_int8(program& prog,
                                    const target& t,
                                    const std::vector<parameter_map>& calibration,
-                                   const std::vector<std::string>& ins_names = {"dot",
-                                                                                "convolution"});
+                                   const std::unordered_set<std::string>& ins_names = {
+                                       "dot", "convolution"});
+MIGRAPHX_EXPORT void
+quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

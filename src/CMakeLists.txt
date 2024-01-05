@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,13 +28,14 @@ include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
- 
+include(CheckCXXSourceCompiles)
 
-add_library(migraphx 
+add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
     apply_alpha_beta.cpp
     argument.cpp
+    autocast_fp8.cpp
     auto_contiguous.cpp
     common.cpp
     common_dims.cpp
@@ -53,6 +54,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_reduce.cpp
     generate.cpp
@@ -81,7 +83,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
-    quantize_int8.cpp
+    quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp
     register_target.cpp
@@ -104,6 +106,12 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+if(WIN32)
+    # Due to compilation crashing, we need to use type-erased matchers on Windows.
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
+endif()
+
 configure_file(version.h.in include/migraphx/version.h)
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
@@ -215,6 +223,8 @@ register_migraphx_ops(
     scatternd_add
     scatternd_mul
     scatternd_none
+    scatternd_max
+    scatternd_min
     select_module
     sigmoid
     sign
@@ -233,6 +243,7 @@ register_migraphx_ops(
     transpose
     unary_not
     undefined
+    unique
     unknown
     unsqueeze
     where
@@ -240,6 +251,7 @@ register_migraphx_ops(
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
 register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
 rocm_clang_tidy_check(migraphx)
+migraphx_generate_export_header(migraphx)
 rocm_install_targets(
   TARGETS migraphx
   INCLUDE
@@ -247,20 +259,32 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
-
-check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
-if(HAS_LIB_STD_FILESYSTEM)
-target_link_libraries(migraphx PRIVATE -lstdc++fs)
+if(NOT WIN32)
+    check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
+    if(HAS_LIB_STD_FILESYSTEM)
+        target_link_libraries(migraphx PRIVATE -lstdc++fs)
+    endif()
+    target_link_libraries(migraphx PRIVATE -ldl)
 endif()
-
-target_link_libraries(migraphx PRIVATE -ldl)
 
 target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
+if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
+    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE TBB)
+endif()
+
+if(MIGRAPHX_HAS_EXECUTORS)
+    message(STATUS "Parallel STL enabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=1)
+    target_link_libraries(migraphx PUBLIC ${ParallelSTL_LIBRARIES})
+else()
+    message(STATUS "Parallel STL disabled")
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_HAS_EXECUTORS=0)
+endif()
+
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
-migraphx_generate_export_header(migraphx)
 
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
@@ -274,8 +298,6 @@ target_link_libraries(migraphx PRIVATE msgpackc-cxx)
 target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
-
-set(PACKAGE_DEPENDS)
 
 add_subdirectory(api)
 add_subdirectory(driver)
@@ -293,7 +315,7 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND PACKAGE_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -317,7 +339,7 @@ rocm_export_targets(
   NAMESPACE migraphx::
   DEPENDS
     Threads
-    ${PACKAGE_DEPENDS}
+    ${MIGRAPHX_CONFIG_DEPENDS}
 )
  
 

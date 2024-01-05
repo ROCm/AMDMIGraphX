@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,11 @@ bool skip_propagate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propagate(ins); }
+bool is_const_ins(instruction_ref ins, std::unordered_set<std::string> skip_ops)
+{
+    return ins->can_eval() and not skip_propagate(ins) and
+           skip_ops.find(ins->name()) == skip_ops.end();
+}
 
 void propagate_constant::apply(module& m) const
 {
@@ -57,7 +61,7 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        const bool is_const = is_const_ins(i);
+        const bool is_const = is_const_ins(i, skip_ops);
         if(is_const and i != last)
             continue;
 
@@ -71,7 +75,7 @@ void propagate_constant::apply(module& m) const
                          i->inputs().end(),
                          std::inserter(const_instrs, const_instrs.begin()),
                          [&](const instruction_ref ins) {
-                             return is_const_ins(ins) and ins->name() != "@literal";
+                             return is_const_ins(ins, skip_ops) and ins->name() != "@literal";
                          });
         }
     }

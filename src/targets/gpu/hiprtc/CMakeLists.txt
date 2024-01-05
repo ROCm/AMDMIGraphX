@@ -28,6 +28,10 @@ add_executable(migraphx-hiprtc-driver
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
-rocm_install_targets(
-    TARGETS migraphx-hiprtc-driver
-)
+
+# For ASAN Enabled Build no need to package binaries
+if( NOT ENABLE_ASAN_PACKAGING )
+  rocm_install_targets(
+      TARGETS migraphx-hiprtc-driver
+  )
+endif()

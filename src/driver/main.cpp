@@ -342,7 +342,7 @@ struct loader
                                  });
         }
         if(not passes.empty())
-            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
+            migraphx::run_passes(p, get_passes(passes));
         return p;
     }
 

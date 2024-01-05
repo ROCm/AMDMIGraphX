@@ -425,8 +425,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
 {
 #if 1
     std::string esc_pattern;
-    const auto meta = {
-        '.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '\\', '|'};
+    const auto meta = {'.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '\\', '|'};
 
     std::for_each(pattern_start, pattern_last, [&](auto c) {
         if(c == '*')

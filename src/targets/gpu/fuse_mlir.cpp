@@ -389,7 +389,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
 
 bool is_requested(std::string_view option, bool fallback = false)
 {
-    auto string_value  = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
+    auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
     if(string_value.empty())
         return fallback;
     const auto options = split_string(string_value, ',');

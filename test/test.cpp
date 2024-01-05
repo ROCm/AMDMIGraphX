@@ -52,6 +52,7 @@ TEST_CASE(globbing)
     EXPECT(glob_match("abcdd", "*d*"));
     EXPECT(glob_match("daaadabadmanda", "da*da*da*"));
     EXPECT(glob_match("mississippi", "m*issip*"));
+    EXPECT(glob_match("abc", "ab*c"));
 
     // Repeated star
     EXPECT(glob_match("aabaabqqbaab", "a****baab"));
@@ -60,6 +61,7 @@ TEST_CASE(globbing)
 
     // Single wildcard
     EXPECT(glob_match("abc", "a?c"));
+    EXPECT(not glob_match("abc", "ab?c"));
 
     // Special characters
     EXPECT(glob_match("test.foo[gpu]", "test.foo[gpu]"));

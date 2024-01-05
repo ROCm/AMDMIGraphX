@@ -35,6 +35,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+#include <regex>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -422,6 +423,24 @@ auto within_abs(T px, U py, double ptol = 1e-6f)
 template <class Iterator1, class Iterator2>
 bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterator2 pattern_last)
 {
+#if 1
+    std::string esc_pattern;
+    const auto meta = {
+        '.', '^', '$', '*', '+', '?', '(', ')', '[', ']', '{', '}', '\\', '|'};
+
+    std::for_each(pattern_start, pattern_last, [&](auto c) {
+        if(c == '*')
+            esc_pattern.append(".*");
+        else if(c == '?')
+            esc_pattern.append(".");
+        else if(std::find(meta.begin(), meta.end(), c) != meta.end())
+            esc_pattern.append("\\" + c);
+        else
+            esc_pattern.append(1, c);
+    });
+    std::regex rex_pattern(esc_pattern);
+    return std::regex_match(start, last, rex_pattern);
+#else
     std::tie(start, pattern_start) =
         std::mismatch(start, last, pattern_start, pattern_last, [](auto c, auto m) {
             if(m == '?')
@@ -447,6 +466,7 @@ bool glob_match(Iterator1 start, Iterator1 last, Iterator2 pattern_start, Iterat
         start++;
     // If the string is empty then it means a match was never found
     return start != last;
+#endif
 }
 
 using string_map = std::unordered_map<std::string, std::vector<std::string>>;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -915,10 +915,10 @@ TEST_CASE(gru_test_actv_funcs)
                 {{"hidden_size", hs},
                  {"actv_func",
                   migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                        migraphx::make_op("sigmoid"),
                                                        migraphx::make_op("tanh"),
-                                                       migraphx::make_op("sigmoid")})},
+                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,
@@ -929,48 +929,6 @@ TEST_CASE(gru_test_actv_funcs)
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         auto prog = optimize_onnx("onnx_gru_bi_2.onnx");
-
-        EXPECT(p == prog);
-    }
-
-    // bidirection, 3 actv functions
-    {
-        nd = 2;
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-
-        auto seq =
-            mm->add_parameter("seq", migraphx::shape{migraphx::shape::float_type, {sl, bs, is}});
-        auto w =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {nd, 3 * hs, is}});
-        auto r =
-            mm->add_parameter("r", migraphx::shape{migraphx::shape::float_type, {nd, 3 * hs, hs}});
-        auto bias =
-            mm->add_parameter("bias", migraphx::shape{migraphx::shape::float_type, {nd, 6 * hs}});
-        auto seq_len =
-            mm->add_parameter("seq_len", migraphx::shape{migraphx::shape::int32_type, {bs}});
-        auto ih =
-            mm->add_parameter("h0", migraphx::shape{migraphx::shape::float_type, {nd, bs, hs}});
-
-        auto out_hs = mm->add_instruction(
-            migraphx::make_op(
-                "gru",
-                {{"hidden_size", hs},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                 {"clip", clip}}),
-            seq,
-            w,
-            r,
-            bias,
-            seq_len,
-            ih);
-        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_bi_3.onnx");
 
         EXPECT(p == prog);
     }

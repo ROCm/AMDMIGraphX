@@ -204,10 +204,10 @@ auto is_mlir_dot(mlir_mode mode)
         // auto m = a.lens()[a.lens().size() - 2];
         // auto n = b.lens().back();
         auto k = a.lens().back();
-        // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
+        // Skipping GEMMs with a K dimension greater than 1024 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 2048;
+        return k < 1024;
     });
 }
 
@@ -539,12 +539,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(mpm,
                         find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
-                                            .dot_mode  = get_mode("fused", mode)});
+                                            .dot_mode  = is_navi ? mlir_mode::fast : get_mode("fused", mode)});
 
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
-        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
+        find_mlir_standalone_dot_op{is_navi ? mlir_mode::fast : get_mode("dot", mlir_mode::none)});
 #else
     (void)mpm;
 #endif

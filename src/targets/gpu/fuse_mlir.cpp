@@ -537,9 +537,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_standalone_attention_op{});
     }
 
-    match::find_matches(mpm,
-                        find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
-                                            .dot_mode  = is_navi ? mlir_mode::fast : get_mode("fused", mode)});
+    match::find_matches(
+        mpm,
+        find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
+                            .dot_mode  = is_navi ? mlir_mode::fast : get_mode("fused", mode)});
 
     match::find_matches(
         mpm,

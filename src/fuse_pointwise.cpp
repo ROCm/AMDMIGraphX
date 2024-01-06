@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/instruction.hpp>
@@ -242,6 +243,7 @@ struct find_pointwise_reshape_pointwise
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
+    mpm.run_pass(eliminate_identity{});
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))

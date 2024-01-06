@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,8 +57,8 @@ struct parse_range : op_parser<parse_range>
             auto limit_val = limit.front();
             auto delta_val = delta.front();
 
-            size_t num_elements = static_cast<size_t>(
-                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val)));
+            size_t num_elements =
+                ceil(static_cast<double>(limit_val - start_val) / static_cast<double>(delta_val));
 
             assert(num_elements > 0);
 

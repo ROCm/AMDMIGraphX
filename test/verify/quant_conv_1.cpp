@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,17 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/quant_convolution.hpp>
 
-struct quant_conv_1 : verify_program<quant_conv_1>
+template <migraphx::shape::type_t DType>
+struct quant_conv_1 : verify_program<quant_conv_1<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape a_shape{migraphx::shape::int8_type, {2, 3, 4, 4}};
+        migraphx::shape a_shape{DType, {2, 3, 4, 4}};
         auto pa = mm->add_parameter("a", a_shape);
-        migraphx::shape c_shape{migraphx::shape::int8_type, {2, 3, 3, 3}};
+        migraphx::shape c_shape{DType, {2, 3, 3, 3}};
         auto pc = mm->add_parameter("c", c_shape);
         mm->add_instruction(migraphx::op::quant_convolution{{{0, 0}}, {{1, 1}}, {{1, 1}}}, pa, pc);
         return p;
     }
 };
+
+template struct quant_conv_1<migraphx::shape::int8_type>;
+template struct quant_conv_1<migraphx::shape::fp8e4m3fnuz_type>;

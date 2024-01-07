@@ -54,7 +54,7 @@ void eliminate_identity::apply(module& m) const
                 const instruction_ref& identity_input = ins->inputs().front();
                 if(identity_input->outputs().size() == 1)
                 {
-                    m.move_instruction(identity_input, i);
+                    m.move_instruction(identity_input, last);
                     // since this is the last instruction, removing it only
                     // requires changing "last" and calling remove below
                     last = std::prev(last);

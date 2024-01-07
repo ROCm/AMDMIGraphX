@@ -30,9 +30,14 @@
 
 #include <test.hpp>
 
+void run_pass(migraphx::module& m)
+{
+    migraphx::run_passes(m, {migraphx::eliminate_identity{}});
+}
+
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(*p.get_main_module(), {migraphx::eliminate_identity{}});
+    run_pass(*p.get_main_module());
 }
 
 TEST_CASE(simple_test)
@@ -90,6 +95,23 @@ TEST_CASE(simple_test_end_dependency)
     }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3.0});
+}
+
+TEST_CASE(input_first_ins)
+{
+    migraphx::module m1;
+    {
+        m1.add_parameter("x", {migraphx::shape::float_type});
+        auto lit = m1.add_literal(0);
+        m1.add_instruction(migraphx::make_op("identity"), lit);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        m2.add_literal(0);
+        m2.add_parameter("x", {migraphx::shape::float_type});
+    }
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

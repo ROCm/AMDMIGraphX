@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbytes = 0)
+T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(nbytes == 0)
@@ -43,31 +43,32 @@ T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbyte
         nbytes -= offset;
     }
     if(nbytes < 1)
-        MIGRAPHX_THROW("Invalid size for: " + filename);
+        MIGRAPHX_THROW("Invalid size for: " + filename.string());
     is.seekg(offset, std::ios::beg);
 
     T buffer(nbytes, 0);
     if(not is.read(&buffer[0], nbytes))
-        MIGRAPHX_THROW("Error reading file: " + filename);
+        MIGRAPHX_THROW("Error reading file: " + filename.string());
     return buffer;
 }
 
-std::vector<char> read_buffer(const std::string& filename, size_t offset, size_t nbytes)
+std::vector<char> read_buffer(const fs::path& filename, size_t offset, size_t nbytes)
 {
     return generic_read_file<std::vector<char>>(filename, offset, nbytes);
 }
 
-std::string read_string(const std::string& filename)
+std::string read_string(const fs::path& filename)
 {
     return generic_read_file<std::string>(filename);
 }
 
-void write_buffer(const std::string& filename, const char* buffer, std::size_t size)
+void write_buffer(const fs::path& filename, const char* buffer, std::size_t size)
 {
     std::ofstream os(filename);
     os.write(buffer, size);
 }
-void write_buffer(const std::string& filename, const std::vector<char>& buffer)
+
+void write_buffer(const fs::path& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }

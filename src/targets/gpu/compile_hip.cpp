@@ -280,7 +280,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
             to_msgpack(v, writer);
         });
         if(fs::exists(out))
-            return {read_buffer(out.string())};
+            return {read_buffer(out)};
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch);
 }

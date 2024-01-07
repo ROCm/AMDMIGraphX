@@ -188,7 +188,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_function") +
                             "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm, post_ck_gemm_function);";
             v["post"]   = "ck_function_adaptor<post_ck_gemm>";
-            v["kernel"] = "ck_gemm_" + generate_name_from_ops(*pm) + "_kernel";
+            v["kernel"] = to_c_id("ck_gemm_" + generate_name_from_ops(*pm) + "_kernel");
         }
         return v;
     }

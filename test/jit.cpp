@@ -28,8 +28,14 @@
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
+#ifdef _WIN32
+#define EXPORT_SYMBOL R"migraphx(__declspec(dllexport) )migraphx"
+#else
+#define EXPORT_SYMBOL
+#endif
+
 // NOLINTNEXTLINE
-const std::string add_42_src = R"migraphx(
+const std::string add_42_src = EXPORT_SYMBOL R"migraphx(
 extern "C" int add(int x)
 {
     return x+42;
@@ -63,7 +69,7 @@ std::function<F> compile_module(const migraphx::module& m, const std::string& fl
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });
-    g.create_function(g.generate_module(m).set_attributes({"extern \"C\""}));
+    g.create_function(g.generate_module(m).set_attributes({EXPORT_SYMBOL "extern \"C\""}));
 
     return compile_function<F>(preamble + g.str(), flags, m.name());
 }

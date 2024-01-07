@@ -83,7 +83,7 @@ tmp_dir::tmp_dir(const std::string& prefix)
 
 void tmp_dir::execute(const std::string& exe, const std::string& args) const
 {
-    process{exe + " " + args}.cwd(this->path).exec();
+    process{exe}.cwd(this->path).exec(args);
 }
 
 tmp_dir::~tmp_dir()

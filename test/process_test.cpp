@@ -185,13 +185,12 @@ TEST_CASE(read_stdout)
     DWORD read;
     EXPECT(ReadFile(handle, buffer.data(), size, &read, nullptr) == TRUE);
     CloseHandle(handle);
+    EXPECT(std::filesystem::remove(out));
 #else
     std::string buffer = ss.str();
     std::cout.rdbuf(old);
 #endif
     EXPECT(buffer == string_data);
-
-    EXPECT(std::filesystem::remove(out));
 }
 
 TEST_CASE(current_working_dir)
@@ -247,6 +246,7 @@ TEST_CASE(environment_variable)
     DWORD read;
     EXPECT(ReadFile(handle, buffer.data(), size, &read, nullptr) == TRUE);
     CloseHandle(handle);
+    EXPECT(std::filesystem::remove(out));
 #else
     std::string buffer = ss.str();
     std::cout.rdbuf(old);
@@ -254,8 +254,6 @@ TEST_CASE(environment_variable)
     std::string reversed(string_data);
     std::reverse(reversed.begin(), reversed.end());
     EXPECT(buffer == reversed);
-
-    EXPECT(std::filesystem::remove(out));
 }
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE)

@@ -162,19 +162,15 @@ class pipe
         return result;
     }
 
-    std::optional<std::pair<bool, DWORD>> read(LPVOID buffer, DWORD length) const
+    std::pair<bool, DWORD> read(LPVOID buffer, DWORD length) const
     {
         DWORD bytes_read;
-        if(ReadFile(m_read, buffer, length, &bytes_read, nullptr) == FALSE)
+        if(ReadFile(m_read, buffer, length, &bytes_read, nullptr) == FALSE and
+           GetLastError() == ERROR_MORE_DATA)
         {
-            DWORD error{GetLastError()};
-            if(error != ERROR_MORE_DATA)
-            {
-                return std::nullopt;
-            }
-            return {{true, bytes_read}};
+            return {true, bytes_read};
         }
-        return {{false, bytes_read}};
+        return {false, bytes_read};
     }
 
     HANDLE get_read_handle() const { return m_read; }
@@ -277,15 +273,12 @@ int exec(const std::pair<std::string, std::string>& cmd)
                : exec(cmd, [&](const pipe<direction::input>&, const pipe<direction::output>& out) {
                      for(;;)
                      {
-                         if(auto result = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE))
-                         {
-                             auto& [more_data, bytes_read] = *result;
-                             if(not more_data or bytes_read == 0)
-                                 break;
-                             DWORD written;
-                             if(WriteFile(std_out, buffer, bytes_read, &written, nullptr) == FALSE)
-                                 break;
-                         }
+                         auto [more_data, bytes_read] = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE);
+                         if(not more_data or bytes_read == 0)
+                             break;
+                         DWORD written;
+                         if(WriteFile(std_out, buffer, bytes_read, &written, nullptr) == FALSE)
+                             break;
                      }
                  });
 }

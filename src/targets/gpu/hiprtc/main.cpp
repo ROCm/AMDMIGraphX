@@ -32,32 +32,19 @@
 #include <cstring>
 
 #ifdef _WIN32
-// cppcheck-suppress definePrefix
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <fcntl.h>
+#include <io.h>
 #endif
 
 std::vector<char> read_stdin()
 {
     std::vector<char> result;
-#ifdef _WIN32
-    HANDLE std_in = GetStdHandle(STD_INPUT_HANDLE);
-    if(std_in == INVALID_HANDLE_VALUE)
-        MIGRAPHX_THROW("STDIN invalid handle (" + std::to_string(GetLastError()) + ")");
-    constexpr std::size_t BUFFER_SIZE = 1024;
-    DWORD bytes_read;
-    TCHAR buffer[BUFFER_SIZE];
-    for(;;)
-    {
-        BOOL status = ReadFile(std_in, buffer, BUFFER_SIZE, &bytes_read, nullptr);
-        if(status == FALSE or bytes_read == 0)
-            break;
-
-        result.insert(result.end(), buffer, buffer + bytes_read);
-    }
-#else
     std::array<char, 1024> buffer;
     std::size_t len = 0;
+#ifdef _WIN32
+    if(_setmode(_fileno(stdin), _O_BINARY) == -1)
+        throw std::runtime_error{"failure setting IO mode to binary"};
+#endif
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
         if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
@@ -65,7 +52,6 @@ std::vector<char> read_stdin()
 
         result.insert(result.end(), buffer.data(), buffer.data() + len);
     }
-#endif
     return result;
 }
 

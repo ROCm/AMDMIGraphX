@@ -45,6 +45,8 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <io.h>
+#include <fcntl.h>
 #undef getpid
 #define getpid _getpid
 #endif
@@ -62,24 +64,12 @@ static std::string string_data = "Lorem ipsum dolor sit amet, consectetur adipis
 std::vector<char> read_stdin()
 {
     std::vector<char> result;
-#ifdef _WIN32
-    HANDLE std_in{GetStdHandle(STD_INPUT_HANDLE)};
-    if(std_in == INVALID_HANDLE_VALUE)
-        throw std::runtime_error{std::to_string(GetLastError())};
-    constexpr std::size_t BUFFER_SIZE = 1024;
-    DWORD bytes_read;
-    TCHAR buffer[BUFFER_SIZE];
-    for(;;)
-    {
-        BOOL status{ReadFile(std_in, buffer, BUFFER_SIZE, &bytes_read, nullptr)};
-        if(status == FALSE or bytes_read == 0)
-            break;
-
-        result.insert(result.end(), buffer, buffer + bytes_read);
-    }
-#else
     std::array<char, 1024> buffer{};
     std::size_t len = 0;
+#ifdef _WIN32
+    if(_setmode(_fileno(stdin), _O_BINARY) == -1)
+        throw std::runtime_error{"failure setting IO mode to binary"};
+#endif
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
         if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
@@ -87,20 +77,7 @@ std::vector<char> read_stdin()
 
         result.insert(result.end(), buffer.begin(), buffer.begin() + len);
     }
-#endif
     return result;
-}
-
-void write_stdout(const std::vector<char>& buffer)
-{
-#ifdef _WIN32
-    HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
-    if(std_out == INVALID_HANDLE_VALUE)
-        throw std::runtime_error{std::to_string(GetLastError())};
-    WriteFile(std_out, buffer.data(), buffer.size(), nullptr, nullptr);
-#else
-    std::fwrite(buffer.data(), 1, buffer.size(), stdout);
-#endif
 }
 
 std::string get_temp_file(std::string_view test_id)
@@ -273,7 +250,7 @@ int main(int argc, const char* argv[])
             std::vector<char> result{string_data.begin(), string_data.end()};
             if(migraphx::enabled(MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE{}))
                 std::reverse(result.begin(), result.end());
-            write_stdout(result);
+            std::fwrite(result.data(), 1, result.size(), stdout);
             return 0;
         }
     }

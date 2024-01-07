@@ -289,10 +289,9 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 
 // clang-format off
 int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
-         const std::string& envs)
+         const std::string& envs, HANDLE std_out)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
-    HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
     return (std_out == nullptr or std_out == INVALID_HANDLE_VALUE)
                ? GetLastError() : exec(cmd, cwd, args, envs,
                     [&](const pipe<direction::input>&, const pipe<direction::output>& out) {
@@ -328,6 +327,9 @@ struct process_impl
     std::string command{};
     fs::path cwd{};
 
+#ifdef _WIN32
+    HANDLE std_out = INVALID_HANDLE_VALUE;
+#endif
 
     std::string get_command() const
     {
@@ -372,6 +374,14 @@ process& process::cwd(const fs::path& p)
     impl->cwd = p;
     return *this;
 }
+
+#ifdef _WIN32
+process& process::redirect_std_out(void* rout)
+{
+    impl->std_out = rout != nullptr ? rout : INVALID_HANDLE_VALUE;
+    return *this;
+}
+#endif
 
 void process::exec(std::string_view args, std::string_view envs)
 {

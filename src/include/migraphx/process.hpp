@@ -57,6 +57,10 @@ struct MIGRAPHX_EXPORT process
                std::string_view args = "",
                std::string_view envs = "");
 
+#ifdef _WIN32
+    process& redirect_std_out(void* rout);
+#endif
+
     private:
     std::unique_ptr<process_impl> impl;
 };

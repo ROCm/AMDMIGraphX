@@ -276,9 +276,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         tmp_dir td{};
         auto out = td.path / "output";
 
-        process(driver.string() + " " + out.string()).write([&](auto writer) {
-            to_msgpack(v, writer);
-        });
+        process(driver).write([&](auto writer) { to_msgpack(v, writer); }, out.string());
         if(fs::exists(out))
             return {read_buffer(out)};
     }

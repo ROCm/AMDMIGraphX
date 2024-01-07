@@ -40,6 +40,8 @@ struct MIGRAPHX_EXPORT process
     using writer = std::function<void(const char*, std::size_t)>;
     process(const std::string& cmd);
 
+    process(const fs::path& cmd) : process(cmd.string()) {}
+
     // move constructor
     process(process&&) noexcept;
 
@@ -50,8 +52,10 @@ struct MIGRAPHX_EXPORT process
 
     process& cwd(const fs::path& p);
 
-    void exec();
-    void write(std::function<void(process::writer)> pipe_in);
+    void exec(std::string_view args = "", std::string_view envs = "");
+    void write(std::function<void(process::writer)> pipe_in,
+               std::string_view args = "",
+               std::string_view envs = "");
 
     private:
     std::unique_ptr<process_impl> impl;

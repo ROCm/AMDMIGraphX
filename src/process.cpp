@@ -33,6 +33,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <cstring>
+#include <sstream>
 #else
 #include <unistd.h>
 #endif
@@ -187,20 +188,44 @@ class pipe
     HANDLE m_write = nullptr, m_read = nullptr;
 };
 
+// clang-format off
 template <typename F>
-int exec(const std::pair<std::string, std::string>& command, F f)
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+         const std::string& envs, F f)
+// clang-format on
 {
-    auto& [cwd, cmd] = command;
+    if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
+    {
+        std::cout << "[cwd=" << cwd << "];  cmd='" << cmd << "\'; args='" << args << "'; envs='"
+                  << envs << "'\n";
+    }
 
-    if((cmd.length() + 1) > MAX_PATH)
-        MIGRAPHX_THROW("Command too long, required maximum " + std::to_string(MAX_PATH) +
-                       " characters (including terminating null character)");
+    // See CreateProcess() WIN32 documentation for details.
+    constexpr std::size_t CMDLINE_LENGTH = 32767;
+
+    // Build lpCommandLine parameter.
+    TCHAR cmdline[CMDLINE_LENGTH];
+    std::strncpy(cmdline, cmd.c_str(), CMDLINE_LENGTH);
+
+    if(!args.empty())
+        std::strncat(std::strncat(cmdline, " ", CMDLINE_LENGTH), args.c_str(), CMDLINE_LENGTH);
+
+    // Build lpEnvironment parameter.
+    std::vector<TCHAR> environment{};
+    if(!envs.empty())
+    {
+        std::istringstream iss{envs};
+        std::string str;
+        while(iss >> str)
+        {
+            environment.insert(environment.end(), str.begin(), str.end());
+            environment.push_back('\0');
+        }
+        environment.push_back('\0');
+    }
 
     try
     {
-        if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-            std::cout << "[cwd=" << cwd << "];  cmd='" << cmd << "'\n";
-
         STARTUPINFO info;
         PROCESS_INFORMATION process_info;
 
@@ -214,24 +239,23 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         info.hStdInput  = input.get_read_handle();
         info.dwFlags |= STARTF_USESTDHANDLES;
 
-        TCHAR cmdline[MAX_PATH];
-        std::strncpy(cmdline, cmd.c_str(), MAX_PATH);
-
         ZeroMemory(&process_info, sizeof(process_info));
 
-        if(CreateProcess(nullptr,
+        if(CreateProcess(cmd.c_str(),
                          cmdline,
                          nullptr,
                          nullptr,
                          TRUE,
                          0,
-                         nullptr,
+                         environment.empty() ? nullptr : environment.data(),
                          cwd.empty() ? nullptr : static_cast<LPCSTR>(cwd.c_str()),
                          &info,
                          &process_info) == FALSE)
         {
             MIGRAPHX_THROW("Error creating process (" + std::to_string(GetLastError()) + ")");
         }
+
+        CloseHandle(process_info.hThread);
 
         if(not output.close_write_handle())
             MIGRAPHX_THROW("Error closing STDOUT handle for writing (" +
@@ -253,7 +277,6 @@ int exec(const std::pair<std::string, std::string>& command, F f)
         GetExitCodeProcess(process_info.hProcess, &status);
 
         CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
 
         return static_cast<int>(status);
     }
@@ -264,50 +287,58 @@ int exec(const std::pair<std::string, std::string>& command, F f)
     }
 }
 
-int exec(const std::pair<std::string, std::string>& cmd)
+// clang-format off
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+         const std::string& envs)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
     HANDLE std_out{GetStdHandle(STD_OUTPUT_HANDLE)};
     return (std_out == nullptr or std_out == INVALID_HANDLE_VALUE)
-               ? GetLastError()
-               : exec(cmd, [&](const pipe<direction::input>&, const pipe<direction::output>& out) {
-                     for(;;)
-                     {
-                         auto [more_data, bytes_read] = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE);
-                         if(not more_data or bytes_read == 0)
-                             break;
-                         DWORD written;
-                         if(WriteFile(std_out, buffer, bytes_read, &written, nullptr) == FALSE)
-                             break;
-                     }
-                 });
+               ? GetLastError() : exec(cmd, cwd, args, envs,
+                    [&](const pipe<direction::input>&, const pipe<direction::output>& out) {
+                         for(;;)
+                         {
+                             auto [more_data, bytes_read] = out.read(buffer, MIGRAPHX_PROCESS_BUFSIZE);
+                             if(bytes_read == 0)
+                                 break;
+                             if(WriteFile(std_out, buffer, bytes_read, nullptr, nullptr) == FALSE)
+                                 break;
+                             if(not more_data)
+                                 break;
+                         }
+                    });
 }
 
-int exec(const std::pair<std::string, std::string>& cmd,
-         std::function<void(process::writer)> std_in)
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+         const std::string& envs, std::function<void(process::writer)> std_in)
 {
-    return exec(cmd, [&](const pipe<direction::input>& input, const pipe<direction::output>&) {
-        std_in([&](const char* buffer, std::size_t n) { input.write(buffer, n); });
-    });
+    return exec(cmd, cwd, args, envs,
+        [&](const pipe<direction::input>& input, const pipe<direction::output>&) {
+            std_in([&](const char* buffer, std::size_t n) { input.write(buffer, n); });
+        });
 }
+// clang-format on
 
 #endif
 
 struct process_impl
 {
+    std::string args{};
+    std::string envs{};
     std::string command{};
     fs::path cwd{};
 
-#ifdef _WIN32
-    std::pair<std::string, std::string> get_params() const { return {cwd.string(), command}; }
-#endif
 
     std::string get_command() const
     {
         std::string result;
         if(not cwd.empty())
             result += "cd " + cwd.string() + "; ";
+        if(not envs.empty())
+            result += envs + " ";
         result += command;
+        if(not args.empty())
+            result += " " + args;
         return result;
     }
 
@@ -342,21 +373,34 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-void process::exec()
+void process::exec(std::string_view args, std::string_view envs)
 {
+    impl->args = args;
+    impl->envs = envs;
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), redirect_to(std::cout));
 #else
-    impl->check_exec(impl->get_params());
+    // clang-format off
+    impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
+                     impl->std_out != INVALID_HANDLE_VALUE ?
+                                impl->std_out : GetStdHandle(STD_OUTPUT_HANDLE));
+    // clang-format on
 #endif
 }
 
-void process::write(std::function<void(process::writer)> pipe_in)
+void process::write(std::function<void(process::writer)> pipe_in,
+                    std::string_view args,
+                    std::string_view envs)
 {
+    impl->args = args;
+    impl->envs = envs;
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), std::move(pipe_in));
 #else
-    impl->check_exec(impl->get_params(), std::move(pipe_in));
+    // clang-format off
+    impl->check_exec(impl->command, impl->cwd.string(),
+                     impl->args, impl->envs, std::move(pipe_in));
+    // clang-format on
 #endif
 }
 

@@ -39,6 +39,7 @@
 std::vector<char> read_stdin()
 {
     std::vector<char> result;
+
     std::array<char, 1024> buffer;
     std::size_t len = 0;
 #ifdef _WIN32

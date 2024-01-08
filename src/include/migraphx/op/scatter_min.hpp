@@ -21,8 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MIN_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_MIN_HPP
 
-#include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
+#include <migraphx/op/scatter_op.hpp>
 
-TEST_CASE(scatter_add_test) { scatter_test_base("add", -2, "scatter_add_test.onnx"); }
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct scatter_min : public scatter_op<scatter_min>
+{
+    auto reduction() const
+    {
+        return [](auto& x, const auto& y) { x = std::min(x, y); };
+    }
+};
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

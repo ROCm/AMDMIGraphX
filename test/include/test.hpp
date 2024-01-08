@@ -663,14 +663,12 @@ struct driver
     {
         std::vector<std::pair<std::string, test_case>> result;
         std::copy_if(get_test_cases().begin(),
-                                 get_test_cases().end(),
-                                 std::back_inserter(result),
-                                 [&](auto&& p) {
-                                     return glob_match(p.first.begin(),
-                                                       p.first.end(),
-                                                       pattern.begin(),
-                                                       pattern.end());
-                                 });
+                     get_test_cases().end(),
+                     std::back_inserter(result),
+                     [&](auto&& p) {
+                         return glob_match(
+                             p.first.begin(), p.first.end(), pattern.begin(), pattern.end());
+                     });
         return result;
     }
 

@@ -60,9 +60,8 @@ struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
 
     std::string make_interpolated_string(const operation& op) const
     {
-        const auto reduction =
-            op.name().substr(std::char_traits<char>::length("scatter_"));
-        auto axis = std::to_string(op.to_value().get("axis", 0));
+        const auto reduction = op.name().substr(std::char_traits<char>::length("scatter_"));
+        auto axis            = std::to_string(op.to_value().get("axis", 0));
 
         return interpolate_string(scatter_elements_kernel,
                                   {{"reduction", "assign_" + reduction}, {"axis", axis}});

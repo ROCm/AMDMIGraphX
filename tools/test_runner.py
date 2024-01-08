@@ -21,9 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import os, sys
-import numpy as np
+import os
+import sys
 import argparse
+import numpy as np
 import onnx
 from onnx import numpy_helper
 import migraphx
@@ -48,6 +49,29 @@ def parse_args():
                         type=float,
                         default=1e-3,
                         help='The relative tolerance parameter')
+    parser.add_argument('--verbose',
+                        action='store_true',
+                        help='show verbose information (for debugging)')
+    parser.add_argument(
+        '--disable-offload-copy',
+        dest="offload_copy",
+        action='store_false',
+        default=True,
+        help=
+        'Disable offload copying (user must handle copy to and from device)')
+
+    parser.add_argument(
+        '--disable-fast-math',
+        dest="fast_math",
+        action='store_false',
+        default=True,
+        help='Disable fast math optimizations (etc: rewrite_gelu)')
+
+    parser.add_argument('--exhaustive_tune',
+                        dest="exhaustive_tune",
+                        action='store_true',
+                        default=False,
+                        help='Enable exhaustive tuning for solutions')
     args = parser.parse_args()
 
     return args
@@ -103,14 +127,14 @@ def wrapup_inputs(io_folder, param_names):
 
     if len(name_array) < len(data_array):
         param_map = {}
-        for i in range(len(param_names)):
-            param_map[param_names[i]] = data_array[i]
+        for param, i in enumerate(param_names):
+            param_map[param] = data_array[i]
 
         return param_map
 
     for name in param_names:
-        if not name in param_map.keys():
-            print("Input {} does not exist!".format(name))
+        if not name in param_map:
+            print(f"Input {name} does not exist!")
             sys.exit()
 
     return param_map
@@ -142,7 +166,7 @@ def model_parameter_names(model_file_name):
         data_str = pfile.read()
         model_proto = onnx.ModelProto()
         model_proto.ParseFromString(data_str)
-        init_names = set([(i.name) for i in model_proto.graph.initializer])
+        init_names = {i.name for i in model_proto.graph.initializer}
         param_names = [
             input.name for input in model_proto.graph.input
             if input.name not in init_names
@@ -175,8 +199,8 @@ def get_input_shapes(sample_case, param_names):
 
     if len(name_array) < len(shape_array):
         param_shape_map = {}
-        for i in range(len(param_names)):
-            param_shape_map[param_names[i]] = shape_array[i]
+        for param, i in enumerate(param_names):
+            param_shape_map[param] = shape_array[i]
 
         return param_shape_map
 
@@ -205,22 +229,32 @@ def run_one_case(model, param_map):
     return outputs
 
 
-def check_correctness(gold_outputs, outputs, rtol=1e-3, atol=1e-3):
+def check_correctness(gold_outputs,
+                      outputs,
+                      rtol=1e-3,
+                      atol=1e-3,
+                      verbose=False):
     if len(gold_outputs) != len(outputs):
-        print("Number of outputs {} is not equal to expected number {}".format(
-            len(outputs), len(gold_outputs)))
+        print(
+            f'Number of outputs {len(outputs)} is not equal to expected number {len(gold_outputs)}'
+        )
         return False
 
     out_num = len(gold_outputs)
     ret = True
+
     for i in range(out_num):
         if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
-            print("\nOutput {} is incorrect ...".format(i))
-            print("Expected value: \n{}".format(gold_outputs[i]))
-            print("......")
-            print("Actual value: \n{}\n".format(outputs[i]))
             ret = False
-
+            if verbose:
+                with np.printoptions(threshold=np.inf):
+                    print(f'\nOutput {i} is incorrect ...')
+                    print(f'Expected value: \n{gold_outputs[i]}\n')
+                    print('\n......\n')
+                    print(f'Actual value: \n{outputs[i]}\n')
+            else:
+                print('Outputs do not match')
+                break
     return ret
 
 
@@ -239,12 +273,10 @@ def tune_input_shape(model, input_data):
 def main():
     args = parse_args()
     test_loc = args.test_dir
-    target = args.target
-
     test_name = os.path.basename(os.path.normpath(test_loc))
 
     print("Running test \"{}\" on target \"{}\" ...\n".format(
-        test_name, target))
+        test_name, args.target))
 
     # get model full path
     model_name = get_model_name(test_loc)
@@ -268,7 +300,13 @@ def main():
     model = migraphx.parse_onnx(model_path_name, map_input_dims=param_shapes)
     if args.fp16:
         migraphx.quantize_fp16(model)
-    model.compile(migraphx.get_target(target))
+
+    model.compile(
+        migraphx.get_target(args.target),
+        offload_copy=args.offload_copy,
+        fast_math=args.fast_math,
+        exhaustive_tune=args.exhaustive_tune,
+    )
 
     # get test cases
     case_num = len(cases)
@@ -281,10 +319,10 @@ def main():
         # if input shape is different from model shape, reload and recompile
         # model
         input_shapes = tune_input_shape(model, input_data)
-        if not len(input_shapes) == 0:
+        if len(input_shapes) != 0:
             model = migraphx.parse_onnx(model_path_name,
                                         map_input_dims=input_shapes)
-            model.compile(migraphx.get_target(target))
+            model.compile(migraphx.get_target(args.target))
 
         # run the model and return outputs
         output_data = run_one_case(model, input_data)
@@ -293,7 +331,8 @@ def main():
         ret = check_correctness(gold_outputs,
                                 output_data,
                                 atol=args.atol,
-                                rtol=args.rtol)
+                                rtol=args.rtol,
+                                verbose=args.verbose)
         if ret:
             correct_num += 1
 

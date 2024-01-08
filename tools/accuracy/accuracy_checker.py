@@ -21,11 +21,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
+import sys
 import argparse
 import numpy as np
 import migraphx
 import onnxruntime as ort
-import sys
 
 
 def parse_args():

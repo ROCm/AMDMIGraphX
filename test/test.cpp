@@ -58,6 +58,7 @@ TEST_CASE(globbing)
     EXPECT(glob_match("aabaabqqbaab", "a****baab"));
     EXPECT(glob_match("abcdd", "***d"));
     EXPECT(glob_match("abcdd", "***d****"));
+    EXPECT(not glob_match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "a**z"));
 
     // Single wildcard
     EXPECT(glob_match("abc", "a?c"));

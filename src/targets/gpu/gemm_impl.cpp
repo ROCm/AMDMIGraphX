@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -195,8 +195,8 @@ struct gemm_impl
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
-        output_type = arg_type;
-        if(output_type == rocblas_datatype_i8_r)
+        output_type = get_type(input_shapes[2].type());
+        if(output_type == rocblas_datatype_i8_r or output_type == rocblas_datatype_u8_r)
         {
             output_type = rocblas_datatype_i32_r;
         }

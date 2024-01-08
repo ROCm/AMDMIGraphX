@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -118,9 +118,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_convtranspose_1d_cpu')
     backend_test.exclude(r'test_det_2d_cpu')
     backend_test.exclude(r'test_det_nd_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_max_adjusted_cpu')
-    backend_test.exclude(r'test_dynamicquantizelinear_min_adjusted_cpu')
     backend_test.exclude(r'test_edge_pad_cpu')
     backend_test.exclude(r'test_einsum_batch_diagonal_cpu')
     backend_test.exclude(r'test_einsum_batch_matmul_cpu')
@@ -134,7 +131,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_hardmax_example_cpu')
     backend_test.exclude(r'test_hardmax_negative_axis_cpu')
     backend_test.exclude(r'test_hardmax_one_hot_cpu')
-    backend_test.exclude(r'test_matmulinteger_cpu')
     backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
@@ -573,7 +569,6 @@ def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     # MaxPool dialtion is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly

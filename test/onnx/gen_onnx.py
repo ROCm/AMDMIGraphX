@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -1966,6 +1966,40 @@ def dropout_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def dynamicquantizelinear_1d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [6])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [6])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
+
+
+@onnx_test()
+def dynamicquantizelinear_2d_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.UINT8, [3, 4])
+    y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
+    y_zero_point = helper.make_tensor_value_info('y_zero_point',
+                                                 TensorProto.UINT8, [1])
+
+    node = onnx.helper.make_node(
+        'DynamicQuantizeLinear',
+        inputs=['x'],
+        outputs=['y', 'y_scale', 'y_zero_point'],
+    )
+
+    return ([node], [x], [y, y_scale, y_zero_point])
 
 
 @onnx_test()
@@ -4867,6 +4901,38 @@ def matmulinteger_dyn_error():
 
 
 @onnx_test()
+def matmulinteger_uns_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_uns_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.UINT8, [], [12])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
+
+
+@onnx_test()
 def max_test():
     a = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     b = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])
@@ -6252,6 +6318,56 @@ def qlinearaveragepool_nt_cip_test():
 
 
 @onnx_test()
+def qlinearconcat_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [1])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.25])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [0])
+
+    y = helper.make_tensor_value_info('out', TensorProto.INT8, [5])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=0,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
+def qlinearconcat_3d_test():
+    y_scale = helper.make_tensor('1', TensorProto.FLOAT, [], [0.5])
+    y_zero_point = helper.make_tensor('2', TensorProto.INT8, [], [2])
+
+    t0 = helper.make_tensor_value_info('t0', TensorProto.INT8, [3, 4, 2])
+    s0 = helper.make_tensor('3', TensorProto.FLOAT, [], [0.5])
+    zp0 = helper.make_tensor('4', TensorProto.INT8, [], [10])
+
+    t1 = helper.make_tensor_value_info('t1', TensorProto.INT8, [3, 2, 2])
+    s1 = helper.make_tensor('5', TensorProto.FLOAT, [], [0.4])
+    zp1 = helper.make_tensor('6', TensorProto.INT8, [], [20])
+
+    y = helper.make_tensor_value_info('out', TensorProto.UINT8, [3, 6, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConcat',
+        inputs=['1', '2', 't0', '3', '4', 't1', '5', '6'],
+        axis=1,
+        outputs=['out'],
+    )
+
+    return ([node], [t0, t1], [y], [y_scale, y_zero_point, s0, zp0, s1, zp1])
+
+
+@onnx_test()
 def qlinearconv_test():
     # https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearConv.html
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 7, 7])
@@ -7605,6 +7721,130 @@ def reversesequence_time_test():
         sequence_lens=[4, 3, 2, 1],
     )
     return ([node], [x], [y])
+
+
+@onnx_test()
+def rnn_bi_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 2, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 2, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_f_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='forward',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_f_5arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r', 'bias', 'seq_len'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh', 'sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len], [hs, output])
+
+
+@onnx_test()
+def rnn_r_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='reverse',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_r_3arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh', 'sigmoid'],
+                                 clip=0,
+                                 direction='reverse',
+                                 hidden_size=20,
+                                 layout=1)
+
+    return ([node], [seq, w, r], [hs, output])
 
 
 @onnx_test()

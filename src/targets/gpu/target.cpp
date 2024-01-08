@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -110,6 +111,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
     }
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");
@@ -140,6 +142,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_dot"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
@@ -165,6 +169,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
+        dead_code_elimination{},
+        fuse_concat{},
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),

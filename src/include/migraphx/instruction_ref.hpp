@@ -33,7 +33,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct instruction;
-#if defined(_WIN32) && !defined(NDEBUG)
+#if defined(_WIN32) && !defined(NDEBUG) && !defined(CPPCHECK)
 struct instruction_ref : std::list<instruction>::iterator
 {
     using instruction_iter       = std::list<instruction>::iterator;

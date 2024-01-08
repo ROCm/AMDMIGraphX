@@ -659,6 +659,21 @@ struct driver
         return msg;
     }
 
+    static std::vector<std::pair<std::string, test_case>> glob_tests(const std::string& pattern)
+    {
+        std::vector<std::pair<std::string, test_case>> result;
+        std::copy_if(get_test_cases().begin(),
+                                 get_test_cases().end(),
+                                 std::back_inserter(result),
+                                 [&](auto&& p) {
+                                     return glob_match(p.first.begin(),
+                                                       p.first.end(),
+                                                       pattern.begin(),
+                                                       pattern.end());
+                                 });
+        return result;
+    }
+
     void run_test_case(const std::string& name, const test_case& f, const string_map& args)
     {
         ran++;
@@ -746,15 +761,7 @@ struct driver
                     auto f = m.find(pattern);
                     if(f == m.end())
                     {
-                        std::copy_if(get_test_cases().begin(),
-                                     get_test_cases().end(),
-                                     std::back_inserter(found_cases),
-                                     [&](auto&& p) {
-                                         return glob_match(p.first.begin(),
-                                                           p.first.end(),
-                                                           pattern.begin(),
-                                                           pattern.end());
-                                     });
+                        found_cases = glob_tests(pattern);
                     }
                     else
                     {

@@ -33,6 +33,8 @@ template <class T>
 T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
+    if(not is.is_open())
+        MIGRAPHX_THROW("Failure opening file: " + filename.string());
     if(nbytes == 0)
     {
         // if there is a non-zero offset and nbytes is not set,
@@ -49,6 +51,7 @@ T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes =
     T buffer(nbytes, 0);
     if(not is.read(&buffer[0], nbytes))
         MIGRAPHX_THROW("Error reading file: " + filename.string());
+    is.close();
     return buffer;
 }
 

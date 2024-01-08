@@ -439,7 +439,7 @@ TEST_CASE(assert_type_min_max)
             options.local  = 1024;
             options.inputs = {input};
             options.output = input;
-            options.params = "-Wno-float-equal";
+            options.params = "-Wno-float-equal -Wno-tautological-value-range-compare";
 
             auto co = migraphx::gpu::compile_hip_code_object(src, options);
         });

@@ -88,9 +88,26 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 
 tmp_dir::~tmp_dir()
 {
+    constexpr int MAX_RETRIES_COUNT = 5;
     if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
-    {
-        fs::remove_all(this->path);
+    {       
+        int count = 0;
+        while(count < MAX_RETRIES_COUNT)
+        {
+            try
+            {
+                fs::remove_all(this->path);
+                break;
+            }
+            catch(const fs::filesystem_error& err)
+            {
+                if(enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
+                    std::cerr << err.what() << std::endl;
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(125));
+            }
+            ++count;
+        }
     }
 }
 

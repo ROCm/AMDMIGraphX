@@ -28,7 +28,8 @@
 #include <migraphx/make_op.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_scatter0 : verify_program<test_scatter0<DType>>
+struct test_scatter_elements_none_axis_neg_1
+    : verify_program<test_scatter_elements_none_axis_neg_1<DType>>
 {
     migraphx::program create_program() const
     {
@@ -49,6 +50,6 @@ struct test_scatter0 : verify_program<test_scatter0<DType>>
     }
 };
 
-template struct test_scatter0<migraphx::shape::float_type>;
-template struct test_scatter0<migraphx::shape::half_type>;
-template struct test_scatter0<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_scatter_elements_none_axis_neg_1<migraphx::shape::float_type>;
+template struct test_scatter_elements_none_axis_neg_1<migraphx::shape::half_type>;
+template struct test_scatter_elements_none_axis_neg_1<migraphx::shape::fp8e4m3fnuz_type>;

@@ -21,24 +21,56 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_SCATTER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_SCATTER_HPP
-
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "scatter.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-namespace device {
 
-argument MIGRAPHX_DEVICE_EXPORT scatter(
-    hipStream_t stream, argument result, argument arg0, argument arg1, argument arg2, int64_t axis);
+// NOLINTNEXTLINE
+static const char* const scatter_elements_kernel = R"__migraphx__(
+#include <migraphx/kernels/scatter.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
+#include <args.hpp>
 
-} // namespace device
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void scatter_elements_kernel(void* in_indices, void* in_updates, void* output) 
+{
+    make_tensors()(in_indices, in_updates, output)([](auto&&... xs) { 
+        scatter<${axis}>(xs..., ${reduction}{}); 
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
+{
+    std::vector<std::string> names() const
+    {
+        return {"scatter_none", "scatter_add", "scatter_mul", "scatter_min", "scatter_max"};
+    }
+
+    std::string make_interpolated_string(const operation& op) const
+    {
+        const auto reduction =
+            op.name().substr(std::char_traits<char>::length("scatter_"));
+        auto axis = std::to_string(op.to_value().get("axis", 0));
+
+        return interpolate_string(scatter_elements_kernel,
+                                  {{"reduction", "assign_" + reduction}, {"axis", axis}});
+    }
+
+    std::string get_kernel_name(const operation&) const { return "scatter_elements_kernel"; }
+};
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

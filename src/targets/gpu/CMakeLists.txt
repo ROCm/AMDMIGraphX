@@ -144,7 +144,6 @@ add_library(migraphx_gpu
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
-    scatter.cpp
     schedule_model.cpp
     sync_device.cpp
     target.cpp
@@ -172,7 +171,6 @@ register_migraphx_gpu_ops(hip_
     nonzero
     prefix_scan_sum
     reverse
-    scatter
     topk
 )
 register_migraphx_gpu_ops(miopen_

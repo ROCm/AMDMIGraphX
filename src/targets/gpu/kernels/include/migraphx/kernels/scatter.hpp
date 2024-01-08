@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,44 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_SCATTER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_SCATTER_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
+#define MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/scatter_none.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_scatter
+template <uint64_t Axis, class T, class U, class V, class F>
+__device__ void scatter(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
-    // scatter_none is an exact replacement for previous op::scatter,
-    // renamed to match an Onnx option.  Don't use base class op::scatter
-    op::scatter_none op;
+    auto gpu_index     = make_index();
+    auto indices_shape = indices_t.get_shape();
+    auto axis_dim_size = output_t.get_shape().lens[Axis];
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
+    gpu_index.global_stride(indices_shape.elements(), [&](auto i) {
+        auto out_idx  = indices_shape.multi(i);
+        auto index    = indices_t[i];
+        index         = index < 0 ? index + axis_dim_size : index;
+        out_idx[Axis] = index;
 
-    std::string name() const { return "gpu::scatter_none"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
-};
+        f(output_t[out_idx], updates_t[i]);
+    });
+}
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
 #endif

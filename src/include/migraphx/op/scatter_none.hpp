@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,24 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_NONE_HPP
-#define MIGRAPHX_GUARD_OPERATORS_SCATTER_NONE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_NONE_HPP
+#define MIGRAPHX_GUARD_OPERATORS_SCATTER_ELEMENTS_NONE_HPP
 
-#include <array>
-#include <migraphx/config.hpp>
-#include <migraphx/op/scatter.hpp>
+#include <migraphx/op/scatter_op.hpp>
 
-// Scatter op. with "none" as the reduction function (just copies the value).  This is identical to
-// the previously existing Scatter op.
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-struct scatter_none : scatter<scatter_none>
+struct scatter_none : public scatter_op<scatter_none>
 {
-    // reduction (pointwise operation) is called by the parent struct's compute() method.
-    // It works much like a virtual function overload.
-    // For the scatter operators, there are three different reduction functions.
     auto reduction() const
     {
         return [](auto& x, const auto& y) { x = y; };

@@ -26,7 +26,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/par_for.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
 #include <unordered_set>
 
@@ -79,7 +79,7 @@ void propagate_constant::apply(module& m) const
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     std::vector<argument> literals(const_instrs_vec.size());
-    par_for(const_instrs_vec.size(), 1, [&](const auto i) {
+    simple_par_for(const_instrs_vec.size(), 1, [&](const auto i) {
         literals[i] = const_instrs_vec[i]->eval();
     });
 

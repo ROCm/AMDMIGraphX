@@ -169,10 +169,10 @@ auto is_mlir_dot(mlir_mode mode)
         // auto m = a.lens()[a.lens().size() - 2];
         // auto n = b.lens().back();
         auto k = a.lens().back();
-        // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
+        // Skipping GEMMs with a K dimension greater than 1024 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 2048;
+        return k < 1024;
     });
 }
 

@@ -29,7 +29,7 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m, std::unordered_set<std::string> skip_ops = {})
+void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
     migraphx::run_passes(
         m, {migraphx::propagate_constant{skip_ops}, migraphx::dead_code_elimination{}});

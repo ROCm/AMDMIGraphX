@@ -38,7 +38,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT rewrite_gelu
 {
-    bool fast_math = false;
+    bool fast_math = true;
     std::string name() const { return "rewrite_gelu"; }
     void apply(module& m) const;
 };

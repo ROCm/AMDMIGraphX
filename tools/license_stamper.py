@@ -32,8 +32,6 @@
 #####################################################################################
 import subprocess, os, datetime, re, argparse
 
-debug = False
-
 current_year = datetime.date.today().year
 
 __repo_dir__ = os.path.normpath(
@@ -187,7 +185,7 @@ def bottomFooter(commentChar):
 
 
 # Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(rfile, message, commentChar, useLastCommitYear=False):
+def openAndWriteFile(rfile, message, commentChar, useLastCommitYear=False, debug=False):
 
     filename = os.path.join(__repo_dir__, rfile)
     add_shebang = False
@@ -302,6 +300,9 @@ def main():
                         '--all',
                         action='store_true',
                         help='Update all files')
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='Enable debug output')
     args = parser.parse_args()
 
     message = open(os.path.join(__repo_dir__, 'LICENSE')).read().split('\n')
@@ -313,9 +314,9 @@ def main():
     else:
         fileList = get_files_changed(get_merge_base(args.against))
 
-    if debug is True:
-        print("Target file list:\n" + str(fileList))
-        print("Output Message:\n" + str(message))
+    if args.debug is True:
+        print("Target file list:\n" + '\n'.join(fileList))
+        print("Output Message:\n" + '\n'.join(message))
 
     for rfile in fileList:
         commentDelim = getDelimiter(rfile)
@@ -324,7 +325,7 @@ def main():
             openAndWriteFile(rfile,
                              message,
                              commentDelim,
-                             useLastCommitYear=args.all)
+                             useLastCommitYear=args.all, debug=args.debug)
 
 
 if __name__ == "__main__":

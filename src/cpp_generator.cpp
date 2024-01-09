@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,8 +48,8 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         ss << "// " << ins->get_operator() << " -> " << ins->get_shape() << "\n";
         if(ins->name() == "@param")
         {
-            names[ins] =
-                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+            names[ins] = to_c_id(
+                migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter);
         }
         else if(ins->name() == "@return")
         {
@@ -95,13 +95,13 @@ cpp_generator::function& cpp_generator::function::set_generic_types(const module
     std::map<std::string, shape> input_map(pmap.begin(), pmap.end());
     std::transform(
         input_map.begin(), input_map.end(), std::back_inserter(this->params), [&](auto&& p) {
-            return param{p.first, "T" + p.first};
+            return param{p.first, "T" + to_c_id(p.first)};
         });
 
     std::transform(input_map.begin(),
                    input_map.end(),
                    std::back_inserter(this->tparams),
-                   [&](auto&& p) { return "class T" + p.first; });
+                   [&](auto&& p) { return "class T" + to_c_id(p.first); });
     this->return_type = "auto";
     return *this;
 }
@@ -200,13 +200,9 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                                                        const generate_module_callback& g)
 {
     function f;
-    auto name = transform_string(m.name(), [](char c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return '_';
-    });
-    f.set_name(name).set_types(m).set_body(
-        m, [&](instruction_ref ins, const auto& names) -> std::string {
+    f.set_name(to_c_id(m.name()))
+        .set_types(m)
+        .set_body(m, [&](instruction_ref ins, const auto& names) -> std::string {
             if(ins->name() == "@literal")
             {
                 std::string string_literal;
@@ -265,7 +261,7 @@ std::string cpp_generator::create_function(const cpp_generator::function& f)
         impl->fs << delim;
     for(auto&& p : f.params)
     {
-        impl->fs << delim << p.type << " " << p.name;
+        impl->fs << delim << p.type << " " << to_c_id(p.name);
         delim = ',';
     }
     impl->fs << ") {\n" << f.body << "\n}\n";

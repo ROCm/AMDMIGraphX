@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -104,7 +104,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             auto* pm           = ins->module_inputs().front();
             auto pf            = generate_pointwise(*pm, "inner_pointwise");
             std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-            auto kernel_name   = generate_name_from_ops(*pm) + "_kernel";
+            auto kernel_name   = generate_name_from_ops(*pm, "kernel");
             return compile_op(ctx,
                               to_shapes(ins->inputs()),
                               {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});

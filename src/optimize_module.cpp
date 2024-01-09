@@ -44,7 +44,7 @@ void optimize_module::apply(module_pass_manager& mpm) const
         }
         mpm.run_pass(eliminate_common_subexpression{});
         mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{const_prop_skip_ops});
+        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
         mpm.run_pass(dead_code_elimination{});
     }
 }

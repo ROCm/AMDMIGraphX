@@ -335,6 +335,5 @@ def main():
             print(f"No valid delimeter for file: {rfile}")
 
 
-
 if __name__ == "__main__":
     main()

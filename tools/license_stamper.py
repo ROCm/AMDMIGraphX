@@ -52,6 +52,7 @@ delimiters = {
 }
 extensions = delimiters.keys()
 
+
 # Get the delimiter from the file type based on what we care about to tag with our licence
 # file. Otherwise return None for the delimiter and skip the file
 def getDelimiter(filename):
@@ -61,6 +62,7 @@ def getDelimiter(filename):
             delimiter = delimiters[extension]
             break
     return delimiter
+
 
 def eval(cmd, **kwargs):
     return subprocess.run(cmd,
@@ -73,7 +75,6 @@ def eval(cmd, **kwargs):
 # def get_top():
 #     return eval("git rev-parse --show-toplevel")
 
-
 # def get_head():
 #     return eval("git rev-parse --abbrev-ref HEAD")
 
@@ -82,10 +83,12 @@ def get_merge_base(branch):
     head = get_head()
     return eval(f"git merge-base {branch} {head}")
 
+
 def get_files_changed(against):
     files = eval(f"git diff-index --cached --name-only {against}",
                  cwd=__repo_dir__).splitlines()
     return (f for f in files if getDelimiter(f))
+
 
 def get_all_files():
     files = eval("git ls-files --exclude-standard",
@@ -140,8 +143,10 @@ def getYearOfLatestCommit(rfile: str) -> int:
                                       '%Y-%m-%d').year
     return year
 
+
 def currentYear() -> int:
     return datetime.datetime.now().date().year
+
 
 def updateYear(filename: str, lastCommitYear: int) -> None:
     with open(filename, 'r') as f:
@@ -185,7 +190,11 @@ def bottomFooter(commentChar):
 
 
 # Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(filename, message, commentChar, rfile, useLastCommitYear=False):
+def openAndWriteFile(filename,
+                     message,
+                     commentChar,
+                     rfile,
+                     useLastCommitYear=False):
     add_shebang = False
     #markdown file stamping for .ipynb
     save_markdown_lines = []
@@ -231,11 +240,11 @@ def openAndWriteFile(filename, message, commentChar, rfile, useLastCommitYear=Fa
                 if hasAmdLic or hasOtherLic is True:
                     contents.close()
 
-                    year = getYearOfLatestCommit(rfile) if useLastCommitYear else currentYear()
+                    year = getYearOfLatestCommit(
+                        rfile) if useLastCommitYear else currentYear()
 
                     if not hasKeySequence(
-                            save,
-                            f'2015-{year} Advanced Micro Devices'
+                            save, f'2015-{year} Advanced Micro Devices'
                     ) and year > 2022:
                         if debug:
                             print(
@@ -288,10 +297,14 @@ def openAndWriteFile(filename, message, commentChar, rfile, useLastCommitYear=Fa
     if debug is True:
         print("...done")
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('against', default='develop', nargs='?')
-    parser.add_argument('-a', '--all', action='store_true', help='Update all files')
+    parser.add_argument('-a',
+                        '--all',
+                        action='store_true',
+                        help='Update all files')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
 
@@ -317,7 +330,11 @@ def main():
             if args.dry_run:
                 print(f"Updating file: {file}")
             else:
-                openAndWriteFile(file, message, commentDelim, rfile, useLastCommitYear=args.all)
+                openAndWriteFile(file,
+                                 message,
+                                 commentDelim,
+                                 rfile,
+                                 useLastCommitYear=args.all)
 
 
 if __name__ == "__main__":

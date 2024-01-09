@@ -219,8 +219,8 @@ auto is_mlir_conv(mlir_mode mode)
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
         auto input_arg_t = ins->inputs().front()->get_shape().type();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
+        value v          = ins->get_operator().to_value();
+        auto group       = v.at("group").to<int>();
         if(group != 1)
             return false;
         // Avoid MLIR assertion: Index < Length && "Invalid index!"

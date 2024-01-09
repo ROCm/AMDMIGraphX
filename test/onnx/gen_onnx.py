@@ -7463,7 +7463,7 @@ def resize_downsample_f_dyn_test():
 @onnx_test()
 def resize_downsample_f_dyn2_test():
     # output shape is an input
-    sizes = np.array([1, 1, 3, 5], dtype=np.int64)
+    sizes = np.array([2, 1, 3, 5], dtype=np.int64)
     sizes_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
                                       dims=sizes.shape,

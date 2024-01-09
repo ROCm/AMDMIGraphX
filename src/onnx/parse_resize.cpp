@@ -397,31 +397,6 @@ struct parse_resize : op_parser<parse_resize>
 
                 return make_gather_instruction(
                     info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
-
-                // TODO: to make Onnx resize ALWAYS parse to a Resize op, replace the above line
-                //  with the following.  But it will break a lot of onnx tests.  Note that this 
-                // can only be done if a compiler pass is made to convert to the gather 
-                // version from the Resize op. 
-                // Additionally the current Resize op will need to handle all the needed cases.
-                //
-                //        ***  Call resize with only one argument and static scales or sizes
-                //        attribute.
-                //
-                //  Default "mode" attribute is "nearest"
-                // if(scales_sizes_arg->get_shape().type()  == shape::int64_type )
-                // {
-                //     return info.add_instruction(make_op("resize", { {"nearest_mode",
-                //     nearest_mode}
-                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"sizes",
-                //         in_lens}}), args[0]);
-                // }
-                // else
-                // {
-                //     return info.add_instruction(make_op("resize", { {"nearest_mode",
-                //     nearest_mode}
-                //         , {"coordinate_transformation_mode", coord_trans_mode}, {"scales",
-                //         vec_scale}}), args[0]);
-                // }
             }
         }
         // linear mode

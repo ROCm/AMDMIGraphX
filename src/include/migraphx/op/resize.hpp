@@ -42,8 +42,6 @@ namespace op {
 /**
  * The Resize operation mirrors the Onnx Resize operation with some differences.
  * Currently, only Nearest mode is supported.  "Axes" and "ROI" attributes not recognized.
- * When in put shape is a dynamic shape, the 0'th dimension is presumed to represent
- * batch size and is not resized.
  *
  * Accepts either one or two runtime inputs.
  * Input 0 - data to be resized
@@ -200,10 +198,10 @@ struct resize
             // Dynamic output shape.
             if(inputs.back().ndim() != 1)
                 MIGRAPHX_THROW("RESIZE: size/scale input must have rank 1");
-            if(inputs.back().dynamic() and not inputs.back().dyn_dims()[0].is_fixed())
-                MIGRAPHX_THROW("RESIZE: size/scale input must be fixed size");
+            if(inputs.back().dynamic())
+                MIGRAPHX_THROW("RESIZE: size/scale input must be static size");
 
-            if(inputs.front().ndim() != inputs.back().to_static(1).lens()[0])
+            if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
             // The output shape is dynamic, with an unlimited size range.

@@ -185,7 +185,11 @@ def bottomFooter(commentChar):
 
 
 # Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(rfile, message, commentChar, useLastCommitYear=False, debug=False):
+def openAndWriteFile(rfile,
+                     message,
+                     commentChar,
+                     useLastCommitYear=False,
+                     debug=False):
 
     filename = os.path.join(__repo_dir__, rfile)
     add_shebang = False
@@ -325,7 +329,8 @@ def main():
             openAndWriteFile(rfile,
                              message,
                              commentDelim,
-                             useLastCommitYear=args.all, debug=args.debug)
+                             useLastCommitYear=args.all,
+                             debug=args.debug)
 
 
 if __name__ == "__main__":

@@ -34,14 +34,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
+#include <migraphx/pass_manager.hpp>
+
 
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::simplify_qdq sqdq;
-    sqdq.apply(m);
+    run_passes(m, {migraphx::simplify_qdq{}});
 }
 
 migraphx::instruction_ref broadcast_scale(migraphx::module& m,
@@ -63,6 +64,15 @@ migraphx::instruction_ref broadcast_scale(migraphx::module& m,
     return scale_mb;
 }
 
+migraphx::instruction_ref broadcast_shift(migraphx::module& m,
+                                          migraphx::instruction_ref shift,
+                                          const std::vector<std::size_t>& out_lens)
+{
+    if(shift->get_shape().lens() == out_lens)
+        return shift;
+    return m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), shift);;
+}
+
 migraphx::instruction_ref add_quantize_op(migraphx::module& m,
                                           const std::string& name,
                                           migraphx::instruction_ref x,
@@ -72,8 +82,7 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
 {
     auto lens     = x->get_shape().lens();
     auto scale_mb = broadcast_scale(m, scale, lens, q_axis);
-    auto shift_mb =
-        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), shift);
+    auto shift_mb = broadcast_shift(m, shift, lens);
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
 }
 
@@ -1146,6 +1155,66 @@ TEST_CASE(dot_correctness)
     std::vector<float> rv2(sh3.elements());
     result2.visit([&](auto output) { rv2.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(rv1, rv2));
+}
+
+TEST_CASE(dot_reused)
+{
+    migraphx::shape sh{migraphx::shape::float_type, {256, 256}};
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", sh);
+        auto y    = m1.add_parameter("y", sh);
+        auto w1    = m1.add_parameter("w1", sh);
+        auto w2    = m1.add_parameter("w2", sh);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto q1  = add_quantize_op(m1, "quantizelinear", x, scale, zero);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
+        auto q2  = add_quantize_op(m1, "quantizelinear", w1, scale, zero);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), d1, d2);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), dot1, y);
+
+        auto q3  = add_quantize_op(m1, "quantizelinear", add1, scale, zero);
+        auto d3  = add_quantize_op(m1, "dequantizelinear", q3, scale, zero);
+        auto q4  = add_quantize_op(m1, "quantizelinear", w2, scale, zero);
+        auto d4  = add_quantize_op(m1, "dequantizelinear", q4, scale, zero);
+        auto dot2 = m1.add_instruction(migraphx::make_op("dot"), d3, d4);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), dot2, add1);
+        m1.add_return({add2});
+    }
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", sh);
+        auto y    = m2.add_parameter("y", sh);
+        auto w1    = m2.add_parameter("w1", sh);
+        auto w2    = m2.add_parameter("w2", sh);
+        auto scale = m2.add_literal(0.5f);
+        auto zero  = m2.add_literal(std::int8_t{0});
+
+        auto q1 = add_quantize_op(m2, "quantizelinear", x, scale, zero);
+        auto q2 = add_quantize_op(m2, "quantizelinear", w1, scale, zero);
+
+        auto dot1       = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
+        auto out_scale1 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
+        auto d1        = add_quantize_op(m2, "dequantizelinear", dot1, out_scale1);
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), d1, y);
+        
+        auto q3 = add_quantize_op(m2, "quantizelinear", add1, scale, zero);
+        auto q4 = add_quantize_op(m2, "quantizelinear", w2, scale, zero);
+        auto dot2       = m2.add_instruction(migraphx::make_op("quant_dot"), q3, q4);
+        auto out_scale2 = add_scale_mul(m2, scale, scale, 1, 1, sh.lens());
+        auto d2        = add_quantize_op(m2, "dequantizelinear", dot2, out_scale2);
+        auto d3        = add_quantize_op(m2, "dequantizelinear", q3, q3->inputs()[1], q3->inputs()[2]);
+        auto add2 = m2.add_instruction(migraphx::make_op("add"), d2, d3);
+        m2.add_return({add2});
+    }
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

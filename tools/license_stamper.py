@@ -71,8 +71,10 @@ def eval(cmd, **kwargs):
                           check=True,
                           **kwargs).stdout.decode('utf-8').strip()
 
+
 def get_head():
     return eval("git rev-parse --abbrev-ref HEAD")
+
 
 def get_merge_base(branch):
     head = get_head()
@@ -185,11 +187,8 @@ def bottomFooter(commentChar):
 
 
 # Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(rfile,
-                     message,
-                     commentChar,
-                     useLastCommitYear=False):
-    
+def openAndWriteFile(rfile, message, commentChar, useLastCommitYear=False):
+
     filename = os.path.join(__repo_dir__, rfile)
     add_shebang = False
     #markdown file stamping for .ipynb

@@ -71,13 +71,8 @@ def eval(cmd, **kwargs):
                           check=True,
                           **kwargs).stdout.decode('utf-8').strip()
 
-
-# def get_top():
-#     return eval("git rev-parse --show-toplevel")
-
-# def get_head():
-#     return eval("git rev-parse --abbrev-ref HEAD")
-
+def get_head():
+    return eval("git rev-parse --abbrev-ref HEAD")
 
 def get_merge_base(branch):
     head = get_head()
@@ -190,11 +185,12 @@ def bottomFooter(commentChar):
 
 
 # Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(filename,
+def openAndWriteFile(rfile,
                      message,
                      commentChar,
-                     rfile,
                      useLastCommitYear=False):
+    
+    filename = os.path.join(__repo_dir__, rfile)
     add_shebang = False
     #markdown file stamping for .ipynb
     save_markdown_lines = []
@@ -266,9 +262,9 @@ def openAndWriteFile(filename,
         print("...Writing header", end='')
 
     with open(filename, 'w') as contents:
-        #append the licence to the top of the file
+        # append the licence to the top of the file
 
-        #Append shebang before license
+        # Append shebang before license
         if add_shebang is True:
             contents.write(saved_shebang + "\n")
 
@@ -292,7 +288,7 @@ def openAndWriteFile(filename,
         if delim is not None:
             contents.write(delim)
 
-        #write remaining contents
+        # write remaining contents
         contents.write(save)
     if debug is True:
         print("...done")
@@ -305,36 +301,29 @@ def main():
                         '--all',
                         action='store_true',
                         help='Update all files')
-    parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
 
-    message = open(os.path.join(__repo_dir__, 'LICENSE')).read()
+    message = open(os.path.join(__repo_dir__, 'LICENSE')).read().split('\n')
 
     # Get a list of all the files in our git repo
     fileList = None
     if args.all:
         fileList = get_all_files()
     else:
-        fileList = get_files_changed(args.against)
-
-    message = message.split('\n')
+        fileList = get_files_changed(get_merge_base(args.against))
 
     if debug is True:
         print("Target file list:\n" + str(fileList))
         print("Output Message:\n" + str(message))
 
     for rfile in fileList:
-        file = os.path.join(__repo_dir__, rfile)
-        commentDelim = getDelimiter(file)
+        commentDelim = getDelimiter(rfile)
         if commentDelim is not None:
-            if args.dry_run:
-                print(f"Updating file: {file}")
-            else:
-                openAndWriteFile(file,
-                                 message,
-                                 commentDelim,
-                                 rfile,
-                                 useLastCommitYear=args.all)
+            print(f"Updating file: {rfile}")
+            openAndWriteFile(rfile,
+                             message,
+                             commentDelim,
+                             useLastCommitYear=args.all)
 
 
 if __name__ == "__main__":

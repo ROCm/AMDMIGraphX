@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/scatter.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/scatter.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-shape hip_scatter::compute_shape(std::vector<shape> inputs) const
+struct test_scatter_elements_none_axis_neg_2 : verify_program<test_scatter_elements_none_axis_neg_2>
 {
-    inputs.pop_back();
-    return op.normalize_compute_shape(inputs);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-argument hip_scatter::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::scatter(ctx.get_stream().get(), args.back(), args[0], args[1], args[2], op.axis);
-}
+        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+        std::vector<int> vi = {-2, 0, 2, 0, -1, 1};
+        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+        auto pd = mm->add_parameter("data", sd);
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto pu = mm->add_parameter("update", su);
+        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -2}}), pd, li, pu);
+        mm->add_return({r});
+
+        return p;
+    }
+};

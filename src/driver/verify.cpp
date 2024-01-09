@@ -78,11 +78,11 @@ std::vector<argument> run_ref(program p,
                               const verify_options& vo,
                               const parameter_map& inputs)
 {
-    p.compile(migraphx::make_target("ref"), options);
     if(vo.ref_use_double)
     {
         run_passes(p, {fp_to_double{}});
     }
+    p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);
     std::cout << p << std::endl;
     return out;

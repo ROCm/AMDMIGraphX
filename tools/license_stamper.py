@@ -231,7 +231,9 @@ def openAndWriteFile(rfile, message, commentChar, useLastCommitYear=False):
                     save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
 
-                # Check if we have a licence stamp already and the latest commit year matches license year (unless commit year is pre-2023, which case its ignored)
+                # Check if we have a licence stamp already and the latest
+                # commit year matches license year (unless commit year is
+                # pre-2023, which case its ignored)
                 if hasAmdLic or hasOtherLic is True:
                     contents.close()
 

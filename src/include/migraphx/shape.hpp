@@ -286,7 +286,7 @@ struct MIGRAPHX_EXPORT shape
     bool any_of_dynamic() const;
 
     shape normalize_standard() const;
-    
+
     shape as_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;

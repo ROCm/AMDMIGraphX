@@ -108,7 +108,8 @@ static void insert_params(module_ref sm,
     {
         if(contains(map_ins, input))
             continue;
-        map_ins[input] = sm->add_parameter("x" + std::to_string(n++), input->get_shape().as_standard());
+        map_ins[input] =
+            sm->add_parameter("x" + std::to_string(n++), input->get_shape().as_standard());
     }
 }
 

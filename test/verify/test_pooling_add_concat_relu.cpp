@@ -26,29 +26,25 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_scatter0 : verify_program<test_scatter0<DType>>
+struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_relu>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape sd{DType, {3, 3}};
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-        migraphx::shape su{DType, {2, 3}};
-
-        auto pd = mm->add_parameter("data", sd);
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
-        mm->add_return({r});
-
+        migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+        migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        mm->add_return({relu});
         return p;
     }
 };
-
-template struct test_scatter0<migraphx::shape::float_type>;
-template struct test_scatter0<migraphx::shape::half_type>;
-template struct test_scatter0<migraphx::shape::fp8e4m3fnuz_type>;

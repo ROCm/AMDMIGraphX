@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,9 +31,12 @@
 #include <migraphx/ranges.hpp>
 #include <test.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
 
 #include <migraphx/serialize.hpp>
 #include <migraphx/pass_manager.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK_WORKAROUNDS);
 
 bool is_quantizelinear(migraphx::instruction& ins) { return ins.name() == "quantizelinear"; }
 bool is_dequantizelinear(migraphx::instruction& ins) { return ins.name() == "dequantizelinear"; }
@@ -82,7 +85,11 @@ TEST_CASE(quantizelinear)
     EXPECT(any_of(*p1.get_main_module(), &is_quantizelinear));
     EXPECT(none_of(*p2.get_main_module(), &is_quantizelinear));
     // ensure clip literals created in quantized program are scalar
-    EXPECT(any_of(*p2.get_main_module(), &is_clip_scalar));
+    // unless CK workarounds are enabled
+    if(migraphx::enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
+        EXPECT(none_of(*p2.get_main_module(), &is_clip_scalar));
+    else
+        EXPECT(any_of(*p2.get_main_module(), &is_clip_scalar));
 }
 
 TEST_CASE(dequantizelinear)

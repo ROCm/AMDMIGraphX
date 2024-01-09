@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ constexpr auto concat_slice(Output out, Input, Start)
 template <index_int Axis, class Input, class Start, class... Ts>
 constexpr auto concat_slices(Input input, Start start, Ts... xs)
 {
-    return [=](auto f) { f(concat_slice<Axis>(xs, input, start)...); };
+    return [=](auto f) { return f(concat_slice<Axis>(xs, input, start)...); };
 }
 
 template <index_int Axis, class Input>
@@ -59,18 +59,27 @@ constexpr auto concat_ends(Input)
     return _c<lens[Axis]>;
 }
 
-template <index_int Axis, class... Inputs>
-__device__ auto concat(Inputs... inputs)
+template <index_int Axis, class Start, class InputPack, class F, class... Ts>
+__device__ auto concat_each(index idx, Start start, InputPack input_pack, F f, Ts... ts)
+{
+    return input_pack([&](auto g, auto x, auto... xs) {
+        return concat_slices<Axis>(x, start, ts...)([&](auto z, auto... ys) {
+            idx.global_stride(x.get_shape().elements(),
+                              [&](auto i) { z[i] = f(g(x[i], xs[i]...), ys[i]...); });
+
+            return start + concat_ends<Axis>(x);
+        });
+    });
+}
+
+template <index_int Axis, class... InputPacks>
+__device__ auto concat(InputPacks... input_packs)
 {
     return [=](auto f, auto... ts) {
         auto idx = make_index();
-        fold([&](auto start, auto input) {
-            concat_slices<Axis>(input, start, ts...)([&](auto y, auto... xs) {
-                idx.global_stride(input.get_shape().elements(),
-                                  [&](auto i) { y[i] = f(input[i], xs[i]...); });
-            });
-            return start + concat_ends<Axis>(input);
-        })(_c<0>, inputs...);
+        fold([&](auto start, auto input_pack) {
+            return concat_each<Axis>(idx, start, input_pack, f, ts...);
+        })(_c<0>, input_packs...);
     };
 }
 

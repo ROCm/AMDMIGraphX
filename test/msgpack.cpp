@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,9 +97,12 @@ TEST_CASE(test_msgpack_bool)
 
 TEST_CASE(test_msgpack_float)
 {
-    migraphx::value v = 3.0;
+    // changed all double values in this code to not end with .0 because on msgpack for Windows if
+    // input type is double and ends with .0 it could be converted to uint64_t or int64_t and the
+    // goal of these functions is to test double without conversions
+    migraphx::value v = 3.01;
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(3.0));
+    EXPECT(buffer == msgpack_buffer(3.01));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
@@ -129,10 +132,10 @@ TEST_CASE(test_msgpack_empty_array)
 
 TEST_CASE(test_msgpack_object)
 {
-    migraphx::value v = {{"one", 1.0}, {"three", 3.0}, {"two", 2.0}};
+    migraphx::value v = {{"one", 1.01}, {"three", 3.01}, {"two", 2.01}};
     auto buffer       = migraphx::to_msgpack(v);
     EXPECT(buffer == msgpack_buffer(std::map<std::string, double>{
-                         {"one", 1.0}, {"three", 3.0}, {"two", 2.0}}));
+                         {"one", 1.01}, {"three", 3.01}, {"two", 2.01}}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
@@ -157,17 +160,17 @@ struct foo
 
 TEST_CASE(test_msgpack_object_class)
 {
-    migraphx::value v = {{"a", 1.0}, {"b", "abc"}};
+    migraphx::value v = {{"a", 1.01}, {"b", "abc"}};
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(foo{1.0, "abc"}));
+    EXPECT(buffer == msgpack_buffer(foo{1.01, "abc"}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 
 TEST_CASE(test_msgpack_array_class)
 {
-    migraphx::value v = {{{"a", 1.0}, {"b", "abc"}}, {{"a", 3.0}, {"b", "xyz"}}};
+    migraphx::value v = {{{"a", 1.01}, {"b", "abc"}}, {{"a", 3.01}, {"b", "xyz"}}};
     auto buffer       = migraphx::to_msgpack(v);
-    EXPECT(buffer == msgpack_buffer(std::vector<foo>{foo{1.0, "abc"}, foo{3.0, "xyz"}}));
+    EXPECT(buffer == msgpack_buffer(std::vector<foo>{foo{1.01, "abc"}, foo{3.01, "xyz"}}));
     EXPECT(migraphx::from_msgpack(buffer) == v);
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 #define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/config.hpp>
 #include <string>
 
 namespace migraphx {
@@ -34,7 +34,7 @@ struct module_pass_manager;
 
 namespace gpu {
 
-struct prefuse_ops
+struct MIGRAPHX_GPU_EXPORT prefuse_ops
 {
     std::string name() const { return "gpu::prefuse_ops"; }
     void apply(module_pass_manager& mpm) const;

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -40,4 +40,4 @@ echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions' >> ../../../tool
 echo 'InferenceSessionTests.CheckRunProfilerWithSessionOptions2' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 echo 'InferenceSessionTests.Test3LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
 echo 'InferenceSessionTests.Test2LayerNestedSubgraph' >> ../../../tools/ci_build/github/pai/migraphx-excluded-tests.txt
-../../../tools/ci_build/github/pai/migraphx_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)
+../../../tools/ci_build/github/pai/pai_test_launcher.sh || (gdb ./onnxruntime_test_all core -batch -ex bt && exit 1)

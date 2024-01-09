@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,10 +38,8 @@ struct compile_op : action<compile_op>
         context ctx;
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms";
-        if(device_time > 0)
-            std::cout << ", " << device_time << "ms";
+        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        std::cout << op << ": " << t << "ms";
         std::cout << std::endl;
     }
 };

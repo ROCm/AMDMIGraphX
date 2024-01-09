@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -588,6 +589,19 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
     auto s = ins->inputs().front()->get_shape();
     return std::all_of(
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
+}
+
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return false;
+    bool all_same = false;
+    ins->get_literal().visit([&](auto s) {
+        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
+            return float_equal(scale, s.front());
+        });
+    });
+    return all_same;
 }
 
 MIGRAPHX_BASIC_MATCHER(output, const matcher_context&, instruction_ref ins)

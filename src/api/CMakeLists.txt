@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,10 @@ migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 # migraphx_c is stable API interface library. SO version of this should be 
 # bumped when binary compatibility is broken. 
 rocm_set_soversion(migraphx_c 3.0)   
+
+if(BUILD_TESTING)
+    target_compile_definitions(migraphx_c PRIVATE MIGRAPHX_BUILD_TESTING)
+endif()
 
 rocm_clang_tidy_check(migraphx_c)
 target_link_libraries(migraphx_c PRIVATE migraphx migraphx_tf migraphx_onnx)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,8 +87,7 @@ struct parse_depthtospace : op_parser<parse_depthtospace>
 
         auto temp1 = info.add_instruction(make_op("reshape", {{"dims", lens1}}), args[0]);
         auto temp2 = info.add_instruction(make_op("transpose", {{"permutation", perm}}), temp1);
-        return info.add_instruction(make_op("reshape", {{"dims", lens2}}),
-                                    info.make_contiguous(temp2));
+        return info.add_instruction(make_op("reshape", {{"dims", lens2}}), temp2);
     }
 };
 

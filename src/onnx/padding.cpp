@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ void cal_auto_padding_size(onnx_parser::node_info info,
         return;
     }
 
-    auto auto_pad = info.attributes["auto_pad"].s();
+    auto auto_pad = to_upper(info.attributes["auto_pad"].s());
     if(auto_pad.find("SAME") != std::string::npos)
     {
         bool is_same_upper = (auto_pad.find("SAME_UPPER") != std::string::npos);

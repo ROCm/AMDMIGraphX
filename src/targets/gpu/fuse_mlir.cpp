@@ -171,7 +171,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
         instruction_ref prev_input =
-            mm->add_parameter("y" + std::to_string(input_cnt++), upper_input->get_shape());
+            mm->add_parameter("y" + std::to_string(input_cnt++), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -282,7 +282,7 @@ fold_pointwise_mod(instruction_ref pm_ins,
                        if(ins_map.count(input))
                            return std::make_pair(pm->get_parameter(name), ins_map.at(input));
                        return std::make_pair(pm->get_parameter(name),
-                                             parent_mod->add_parameter(name, input->get_shape()));
+                                             parent_mod->add_parameter(name, input->get_shape().as_standard()));
                    });
     return parent_mod->insert_instructions(parent_mod->end(), pm, param_map);
 }
@@ -473,7 +473,7 @@ struct find_mlir_standalone_attention_op
             make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
         auto [old_upper_v, upper_v_op_stream] =
             get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
-        instruction_ref new_upper_v = mm->add_parameter("z", old_upper_v->get_shape());
+        instruction_ref new_upper_v = mm->add_parameter("z", old_upper_v->get_shape().as_standard());
         for(const auto& op : reverse(upper_v_op_stream))
         {
             new_upper_v = mm->add_instruction(op, {new_upper_v});

@@ -470,6 +470,14 @@ shape shape::normalize_standard() const
         return *this;
 }
 
+shape shape::as_standard() const
+{
+    if(not this->dynamic())
+        return {this->type(), this->lens()};
+    else
+        return *this;
+}
+
 shape shape::with_lens(type_t t, const std::vector<std::size_t>& l) const
 {
     if(this->dynamic())

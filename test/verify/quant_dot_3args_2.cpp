@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,22 +28,29 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct quant_dot_3args_2 : verify_program<quant_dot_3args_2>
+template <typename DType, typename CType>
+struct quant_dot_3args_2 : verify_program<quant_dot_3args_2<DType, CType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::int8_type, {8, 2}};
-        migraphx::shape m2_shape{migraphx::shape::int8_type, {8, 7}};
-        migraphx::shape m3_shape{migraphx::shape::int32_type, {2, 7}};
+        auto ctype = migraphx::shape::get_type<CType>();
+        auto dtype = migraphx::shape::get_type<DType>();
+        migraphx::shape m1_shape{dtype, {8, 2}};
+        migraphx::shape m2_shape{dtype, {8, 7}};
+        migraphx::shape m3_shape{ctype, {2, 7}};
 
         auto l1 = mm->add_parameter("a", m1_shape);
         auto tl1 =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
         auto l2 = mm->add_parameter("b", m2_shape);
         auto l3 = mm->add_parameter("c", m3_shape);
-        migraphx::add_apply_alpha_beta(*mm, {tl1, l2, l3}, migraphx::make_op("quant_dot"), 1, 3);
+        migraphx::add_apply_alpha_beta(
+            *mm, {tl1, l2, l3}, migraphx::make_op("quant_dot"), CType{1}, CType{3});
         return p;
     }
 };
+
+template struct quant_dot_3args_2<int8_t, int32_t>;
+template struct quant_dot_3args_2<migraphx::fp8::fp8e4m3fnuz, float>;

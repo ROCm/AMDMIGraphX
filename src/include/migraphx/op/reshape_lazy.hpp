@@ -110,22 +110,69 @@ struct reshape_lazy
         return it;
     }
 
+    template <class OptionalPair>
+    static OptionalPair try_merge_pairs(OptionalPair p2, OptionalPair p1)
+    {
+        if(not p1.has_value())
+            return nullopt;
+        if(not p2.has_value())
+            return nullopt;
+        auto dim1     = p1->first;
+        auto dim2     = p2->first;
+        auto stride1  = p1->second;
+        auto stride2  = p2->second;
+        auto elements = dim1 * dim2;
+        // Transposed
+        if(stride2 > stride1)
+            return nullopt;
+        // Broadcasted check to avoid division by zero
+        if(stride2 == 0)
+        {
+            if(stride1 == 0)
+                return {{elements, 0}};
+            return nullopt;
+        }
+        if(stride1 % stride2 != 0)
+            return nullopt;
+        auto space = (stride1 * dim1 + stride2 * dim2 - stride1) / stride2;
+        // Nonpacked
+        if(space != elements)
+            return nullopt;
+        return {{elements, stride2}};
+    }
+
+    template <class DimIterator, class StrideIterator>
+    static optional<std::size_t> merge_strides(DimIterator dim_start,
+                                               DimIterator dim_last,
+                                               StrideIterator stride_start,
+                                               StrideIterator stride_last)
+    {
+        if(dim_start == dim_last)
+            return nullopt;
+        (void)stride_start; // Is only used in the assert
+        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
+        auto make_pair_optional = [&](auto dim, auto stride) {
+            return std::make_optional(std::make_pair(dim, stride));
+        };
+        auto dim_stride_pair =
+            std::inner_product(std::make_reverse_iterator(dim_last - 1),
+                               std::make_reverse_iterator(dim_start),
+                               std::make_reverse_iterator(stride_last - 1),
+                               make_pair_optional(*std::prev(dim_last), *std::prev(stride_last)),
+                               MIGRAPHX_LIFT(try_merge_pairs),
+                               make_pair_optional);
+        if(not dim_stride_pair.has_value())
+            return nullopt;
+        return dim_stride_pair->second;
+    }
+
     template <class DimIterator, class StrideIterator>
     static auto can_strides_merge(DimIterator dim_start,
                                   DimIterator dim_last,
                                   StrideIterator stride_start,
                                   StrideIterator stride_last)
     {
-        assert(std::distance(dim_start, dim_last) == std::distance(stride_start, stride_last));
-        auto cstride = *std::prev(stride_last);
-        return std::equal(std::make_reverse_iterator(dim_last),
-                          std::make_reverse_iterator(dim_start + 1),
-                          std::make_reverse_iterator(stride_last - 1),
-                          std::make_reverse_iterator(stride_start),
-                          [&](auto dim, auto stride) {
-                              cstride *= dim;
-                              return stride == cstride;
-                          });
+        return merge_strides(dim_start, dim_last, stride_start, stride_last).has_value();
     }
 
     // This will attempt to alias the dimensions of the input shape to the lens of

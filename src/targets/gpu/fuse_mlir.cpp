@@ -218,23 +218,18 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
-        auto input_arg_t = ins->inputs().front()->get_shape().type();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
-        if(group != 1)
-            return false;
+        auto input = ins->inputs().front()->get_shape();
+        value v          = ins->get_operator().to_value();
+        auto group       = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;
-        if(ins->get_shape().type() == shape::fp8e4m3fnuz_type)
+        if (contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;
-        if(ins->get_shape().type() == shape::float_type and input_arg_t == shape::fp8e4m3fnuz_type)
-            return true;
-        if(ins->get_shape().type() == shape::int8_type)
-            return true;
-        if(mode == mlir_mode::int8)
-            return false;
         if(mode == mlir_mode::all)
+            return true;
+        // No windograd for group convolution
+        if(group > 1)
             return true;
         auto w = ins->inputs().at(1)->get_shape();
         if(w.lens().size() != 4)

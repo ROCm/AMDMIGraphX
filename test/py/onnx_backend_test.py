@@ -622,9 +622,6 @@ def disabled_tests_onnx_1_10_0(backend_test):
 
 
 def disabled_tests_onnx_1_11_0(backend_test):
-    # crash
-    backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
-
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
@@ -819,8 +816,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_axes_2_3_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_axes_3_2_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_larger_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
 
 
 def disabled_tests_onnx_1_14_0(backend_test):

@@ -25,4 +25,7 @@
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
 
-TEST_CASE(scatter_add_test) { scatter_test_base("add", -2, "scatter_add_test.onnx"); }
+TEST_CASE(scatter_invalid_reduction_test)
+{
+    EXPECT(test::throws([&] { optimize_onnx("scatter_elements_invalid_reduction_test.onnx"); }));
+}

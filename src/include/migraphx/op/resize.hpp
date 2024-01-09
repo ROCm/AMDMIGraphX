@@ -217,7 +217,7 @@ struct resize
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         shape output_shape;
-        auto in_lens = args[0].get_shape().to_static(1).lens();
+        auto in_lens = args[0].get_shape().lens();
         std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
@@ -230,25 +230,22 @@ struct resize
                 if constexpr(std::is_integral<type>{})
                 {
                     // Copy the output size from args[1].
-                    std::transform(input.begin() + 1,
+                    std::transform(input.begin(),
                                    input.end(),
-                                   out_lens.begin() + 1,
+                                   out_lens.begin(),
                                    [](auto size_i) { return size_i; });
-                    //   Assume dimension 0 is
-                    // batch size and leave input size alone.
-                    out_lens[0] = in_lens[0];
                     // Deduce the scales for each axis
                     std::transform(
-                        input.begin() + 1,
+                        input.begin(),
                         input.end(),
-                        in_lens.begin() + 1,
-                        vec_scale.begin() + 1,
+                        in_lens.begin(),
+                        vec_scale.begin(),
                         [](auto sz, size_t in_len) { return static_cast<double>(sz) / in_len; });
                     vec_scale[0] = 1.0f;
                 }
                 else
                 {
-                    // read the scale from args[1]-- vec_scale = input;
+                    // read the scale from args[1]
                     //
                     std::transform(input.begin(), input.end(), vec_scale.begin(), [](auto scale_i) {
                         return scale_i;

@@ -338,18 +338,22 @@ struct parse_resize : op_parser<parse_resize>
         // If `scales` was not an attribute, it must be an input
         // bool is_scale_input{true};
         instruction_ref scales_sizes_arg(args[0]);
-        bool is_static_scale_input(not vec_scale.empty());
-        if(not is_static_scale_input)
+
+        //  boolean indicates whether the size of the output can be determined
+        // at compile time, i.e. its values come from literal input(s) and have 
+        // no dependencies anywhere in the graph on runtime inputs.
+        bool is_constant_scale_input(not vec_scale.empty());
+        if(not is_constant_scale_input)
         {
             // Depending on the args, it *must* populate the `vec_scale`, and might populate
             // `out_lens`
-            is_static_scale_input =
+            is_constant_scale_input =
                 not parse_args(args, in_lens, opd.op_name, vec_scale, out_lens, scales_sizes_arg);
         }
 
-        if(is_static_scale_input)
+        if(is_constant_scale_input)
         {
-            // TODO:  How to make a test case where the scale input is not static?
+            // TODO:  How to make a test case where the scale input is not constant?
             if(in_lens.size() != vec_scale.size())
             {
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +
@@ -370,7 +374,7 @@ struct parse_resize : op_parser<parse_resize>
 
         if(mode == "nearest")
         {
-            if(args[0]->get_shape().dynamic() or not is_static_scale_input)
+            if(args[0]->get_shape().dynamic() or not is_constant_scale_input)
             {
                 // Resize's compute_shape() will read scales_sizes_arg as "scales" or "sizes"
                 // depending on its data type
@@ -395,7 +399,10 @@ struct parse_resize : op_parser<parse_resize>
                     info, out_elements, in_s, out_s, in_lens, out_lens, vec_scale, args[0]);
 
                 // TODO: to make Onnx resize ALWAYS parse to a Resize op, replace the above line
-                //  with the following.  But it will break a lot of onnx tests.
+                //  with the following.  But it will break a lot of onnx tests.  Note that this 
+                // can only be done if a compiler pass is made to convert to the gather 
+                // version from the Resize op. 
+                // Additionally the current Resize op will need to handle all the needed cases.
                 //
                 //        ***  Call resize with only one argument and static scales or sizes
                 //        attribute.
@@ -420,10 +427,10 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
-            // out_lens and other variables can't be populated if non-static inputs.
-            if(not is_static_scale_input)
+            // out_lens and other variables can't be populated if non-constant (runtime) size inputs.
+            if(not is_constant_scale_input)
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +
-                               ": linear mode not supported for non-static inputs");
+                               ": linear mode not supported for non-constant inputs");
 
             shape out_s{in_s.type(), out_lens};
             std::size_t out_elements = out_s.elements();

@@ -82,13 +82,13 @@ def get_merge_base(branch):
 def get_files_changed(against):
     files = eval(f"git diff-index --cached --name-only {against}",
                  cwd=__repo_dir__).splitlines()
-    return (f for f in files if getDelimiter(f))
+    return [f for f in files if getDelimiter(f)]
 
 
 def get_all_files():
     files = eval("git ls-files --exclude-standard",
                  cwd=__repo_dir__).splitlines()
-    return (f for f in files if getDelimiter(f))
+    return [f for f in files if getDelimiter(f)]
 
 
 # Markdown code blob we should use to insert into notebook files
@@ -331,6 +331,9 @@ def main():
                              commentDelim,
                              useLastCommitYear=args.all,
                              debug=args.debug)
+        elif args.debug:
+            print(f"No valid delimeter for file: {rfile}")
+
 
 
 if __name__ == "__main__":

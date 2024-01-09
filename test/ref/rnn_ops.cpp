@@ -4098,13 +4098,13 @@ TEST_CASE(gru_bidirectional_layout)
     // last output for output, linear_before_reset = 0
     {
         migraphx::program p;
-        auto* mm       = p.get_main_module();
-        auto seq       = mm->add_literal(migraphx::literal{in_shape, input});
-        auto w         = mm->add_literal(migraphx::literal{w_shape, w_data});
-        auto r         = mm->add_literal(migraphx::literal{r_shape, r_data});
-        auto bias      = mm->add_literal(migraphx::literal{b_shape, bias_data});
-        auto und       = mm->add_instruction(migraphx::make_op("undefined"));
-        auto ih        = mm->add_literal(migraphx::literal{ih_shape, ih_data});
+        auto* mm  = p.get_main_module();
+        auto seq  = mm->add_literal(migraphx::literal{in_shape, input});
+        auto w    = mm->add_literal(migraphx::literal{w_shape, w_data});
+        auto r    = mm->add_literal(migraphx::literal{r_shape, r_data});
+        auto bias = mm->add_literal(migraphx::literal{b_shape, bias_data});
+        auto und  = mm->add_instruction(migraphx::make_op("undefined"));
+        auto ih   = mm->add_literal(migraphx::literal{ih_shape, ih_data});
 
         std::vector<int64_t> perm{1, 0, 2};
         seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);

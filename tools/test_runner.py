@@ -127,7 +127,7 @@ def wrapup_inputs(io_folder, param_names):
 
     if len(name_array) < len(data_array):
         param_map = {}
-        for param, i in enumerate(param_names):
+        for i, param in enumerate(param_names):
             param_map[param] = data_array[i]
 
         return param_map
@@ -199,7 +199,7 @@ def get_input_shapes(sample_case, param_names):
 
     if len(name_array) < len(shape_array):
         param_shape_map = {}
-        for param, i in enumerate(param_names):
+        for i, param in enumerate(param_names):
             param_shape_map[param] = shape_array[i]
 
         return param_shape_map

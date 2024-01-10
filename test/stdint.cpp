@@ -1,7 +1,6 @@
 #include <dual_test.hpp>
 #include <rocm/stdint.hpp>
 
-
 ROCM_DUAL_TEST_CASE()
 {
     static_assert(sizeof(rocm::int8_t) == 1, "int8_t must be 1 bytes");

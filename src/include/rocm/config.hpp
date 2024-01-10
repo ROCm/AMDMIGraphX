@@ -9,4 +9,3 @@ namespace rocm {
 
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_CONFIG_HPP
-

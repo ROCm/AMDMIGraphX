@@ -10,6 +10,5 @@ __global__ void run() { tests(); }
 
 #define ROCM_DUAL_TEST_CASE() TEST_CASE(tests)
 
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }
 #endif

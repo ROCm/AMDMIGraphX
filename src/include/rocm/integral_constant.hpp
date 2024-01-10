@@ -18,7 +18,7 @@ struct integral_constant
 };
 
 // NOLINTNEXTLINE
-#define ROCM_INTEGRAL_CONSTANT_BINARY_OP(op)                                \
+#define ROCM_INTEGRAL_CONSTANT_BINARY_OP(op)                                    \
     template <class T, T V, class U, U w>                                       \
     constexpr inline integral_constant<decltype(V op w), (V op w)> operator op( \
         integral_constant<T, V>, integral_constant<U, w>) noexcept              \
@@ -27,7 +27,7 @@ struct integral_constant
     }
 
 // NOLINTNEXTLINE
-#define ROCM_INTEGRAL_CONSTANT_UNARY_OP(op)                             \
+#define ROCM_INTEGRAL_CONSTANT_UNARY_OP(op)                                 \
     template <class T, T V>                                                 \
     constexpr inline integral_constant<decltype(op V), (op V)> operator op( \
         integral_constant<T, V>) noexcept                                   \

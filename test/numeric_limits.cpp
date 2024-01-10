@@ -3,19 +3,21 @@
 #include <rocm/type_traits.hpp>
 
 #define ROCM_CHECK_NUMERIC_LIMITS_MEM(expected, ...) \
-static_assert(rocm::is_same<expected, rocm::remove_cv_t<decltype(__VA_ARGS__)>>{})
+    static_assert(rocm::is_same<expected, rocm::remove_cv_t<decltype(__VA_ARGS__)>>{})
 
-template<class T, bool Specialized, class U=T>
+template <class T, bool Specialized, class U = T>
 constexpr void test_numeric_limits()
 {
     using nl = rocm::numeric_limits<T>;
     static_assert(nl::is_specialized == Specialized);
-    if constexpr(rocm::is_integral<U>{}) {
+    if constexpr(rocm::is_integral<U>{})
+    {
         static_assert(nl::is_integer);
         static_assert(nl::is_exact);
         static_assert(nl::is_signed == not rocm::is_unsigned<U>{});
     }
-    if constexpr(rocm::is_floating_point<U>{}) {
+    if constexpr(rocm::is_floating_point<U>{})
+    {
         static_assert(not nl::is_integer);
         static_assert(not nl::is_exact);
         static_assert(nl::is_signed);
@@ -52,7 +54,7 @@ constexpr void test_numeric_limits()
     ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::denorm_min());
 }
 
-template<class T, bool Specialized=true>
+template <class T, bool Specialized = true>
 constexpr void test_numeric_limits_all()
 {
     test_numeric_limits<T, Specialized, T>();
@@ -61,7 +63,9 @@ constexpr void test_numeric_limits_all()
     test_numeric_limits<const volatile T, Specialized, T>();
 }
 
-struct foo {};
+struct foo
+{
+};
 
 ROCM_DUAL_TEST_CASE()
 {

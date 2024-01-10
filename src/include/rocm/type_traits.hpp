@@ -14,7 +14,7 @@ struct type_identity
     using type = T;
 };
 
-template< class T >
+template <class T>
 using type_identity_t = typename type_identity<T>::type;
 
 template <bool B, class T = void>
@@ -121,25 +121,25 @@ struct common_type<T, U, Us...>
 template <class... Ts>
 using common_type_t = typename common_type<Ts...>::type;
 
-template<class...>
+template <class...>
 using void_t = void;
 
 // NOLINTNEXTLINE
-#define ROCM_BUILTIN_TYPE_TRAIT1(name)   \
+#define ROCM_BUILTIN_TYPE_TRAIT1(name)       \
     template <class T>                       \
     struct name : bool_constant<__##name(T)> \
     {                                        \
     }
 
 // NOLINTNEXTLINE
-#define ROCM_BUILTIN_TYPE_TRAIT2(name)      \
+#define ROCM_BUILTIN_TYPE_TRAIT2(name)          \
     template <class T, class U>                 \
     struct name : bool_constant<__##name(T, U)> \
     {                                           \
     }
 
 // NOLINTNEXTLINE
-#define ROCM_BUILTIN_TYPE_TRAITN(name)       \
+#define ROCM_BUILTIN_TYPE_TRAITN(name)           \
     template <class... Ts>                       \
     struct name : bool_constant<__##name(Ts...)> \
     {                                            \

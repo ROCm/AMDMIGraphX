@@ -18,5 +18,4 @@ ROCM_DUAL_TEST_CASE()
     static_assert(not rocm::is_void<test_tt::incomplete_type>{});
     static_assert(not rocm::is_void<int&>{});
     static_assert(not rocm::is_void<int&&>{});
-
 }

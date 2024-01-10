@@ -4,7 +4,7 @@
 #include <cmath>
 #include <test.hpp>
 
-template<class T>
+template <class T>
 void test_numeric_limits()
 {
     EXPECT(std::numeric_limits<T>::is_specialized == rocm::numeric_limits<T>::is_specialized);

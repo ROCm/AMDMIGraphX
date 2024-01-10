@@ -29,4 +29,3 @@ using uint64_t = std::uint64_t;
 } // namespace ROCM_INLINE_NS
 } // namespace rocm
 #endif // ROCM_GUARD_ROCM_STDINT_HPP
-

@@ -9,10 +9,10 @@ inline namespace ROCM_INLINE_NS {
 enum float_round_style
 {
     round_indeterminate       = -1,
-    round_toward_zero         =  0,
-    round_to_nearest          =  1,
-    round_toward_infinity     =  2,
-    round_toward_neg_infinity =  3
+    round_toward_zero         = 0,
+    round_to_nearest          = 1,
+    round_toward_infinity     = 2,
+    round_toward_neg_infinity = 3
 };
 
 namespace detail {
@@ -33,9 +33,10 @@ struct numeric_limits_integer
     static constexpr const bool is_specialized = true;
 
     static constexpr const bool is_signed = T(-1) < T(0);
-    static constexpr const int  digits = static_cast<int>(sizeof(T) * 8 - static_cast<unsigned long>(is_signed));
-    static constexpr const int  digits10 = digits * 3 / 10;
-    static constexpr const int  max_digits10 = 0;
+    static constexpr const int digits =
+        static_cast<int>(sizeof(T) * 8 - static_cast<unsigned long>(is_signed));
+    static constexpr const int digits10     = digits * 3 / 10;
+    static constexpr const int max_digits10 = 0;
     static constexpr T min() noexcept
     {
         if constexpr(is_signed)
@@ -48,113 +49,112 @@ struct numeric_limits_integer
             return int_max(sizeof(T)) / 2;
         return int_max(sizeof(T));
     }
-    static constexpr T lowest() noexcept {return min();}
+    static constexpr T lowest() noexcept { return min(); }
 
     static constexpr const bool is_integer = true;
-    static constexpr const bool is_exact = true;
-    static constexpr const int  radix = 2;
-    static constexpr T epsilon() noexcept {return T(0);}
-    static constexpr T round_error() noexcept {return T(0);}
+    static constexpr const bool is_exact   = true;
+    static constexpr const int radix       = 2;
+    static constexpr T epsilon() noexcept { return T(0); }
+    static constexpr T round_error() noexcept { return T(0); }
 
-    static constexpr const int  min_exponent = 0;
-    static constexpr const int  min_exponent10 = 0;
-    static constexpr const int  max_exponent = 0;
-    static constexpr const int  max_exponent10 = 0;
+    static constexpr const int min_exponent   = 0;
+    static constexpr const int min_exponent10 = 0;
+    static constexpr const int max_exponent   = 0;
+    static constexpr const int max_exponent10 = 0;
 
     static constexpr const bool has_infinity = false;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = false;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = false;
-    static constexpr T infinity() noexcept {return T(0);}
+    static constexpr T infinity() noexcept { return T(0); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr T quiet_NaN() noexcept {return T(0);}
+    static constexpr T quiet_NaN() noexcept { return T(0); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr T signaling_NaN() noexcept {return T(0);}
-    static constexpr T denorm_min() noexcept {return T(0);}
+    static constexpr T signaling_NaN() noexcept { return T(0); }
+    static constexpr T denorm_min() noexcept { return T(0); }
 
-    static constexpr const bool is_iec559 = false;
+    static constexpr const bool is_iec559  = false;
     static constexpr const bool is_bounded = true;
-    static constexpr const bool is_modulo = not is_signed;
+    static constexpr const bool is_modulo  = not is_signed;
 
-    static constexpr const bool traps = false;
-    static constexpr const bool tinyness_before = false;
+    static constexpr const bool traps                    = false;
+    static constexpr const bool tinyness_before          = false;
     static constexpr const float_round_style round_style = round_toward_zero;
 };
 
-template<class Base>
-struct numeric_limits_fp_mixin
-: Base
+template <class Base>
+struct numeric_limits_fp_mixin : Base
 {
     static constexpr const bool is_specialized = true;
 
-    static constexpr const bool is_signed = true;
-    static constexpr const int  max_digits10 = 2+(Base::digits * 30103L)/100000L;
-    static constexpr const bool is_integer = false;
-    static constexpr const bool is_exact = false;
-    static constexpr const int  radix = __FLT_RADIX__;
-    static constexpr typename Base::type round_error() noexcept {return 0.5F;}
-    static constexpr typename Base::type lowest() noexcept {return -Base::max();}
+    static constexpr const bool is_signed   = true;
+    static constexpr const int max_digits10 = 2 + (Base::digits * 30103L) / 100000L;
+    static constexpr const bool is_integer  = false;
+    static constexpr const bool is_exact    = false;
+    static constexpr const int radix        = __FLT_RADIX__;
+    static constexpr typename Base::type round_error() noexcept { return 0.5F; }
+    static constexpr typename Base::type lowest() noexcept { return -Base::max(); }
     static constexpr const bool has_infinity = true;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = true;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = true;
-    static constexpr const bool is_iec559 = true;
-    static constexpr const bool is_bounded = true;
-    static constexpr const bool is_modulo = false;
+    static constexpr const bool is_iec559         = true;
+    static constexpr const bool is_bounded        = true;
+    static constexpr const bool is_modulo         = false;
 
-    static constexpr const bool traps = false;
-    static constexpr const bool tinyness_before = false;
+    static constexpr const bool traps                    = false;
+    static constexpr const bool tinyness_before          = false;
     static constexpr const float_round_style round_style = round_to_nearest;
 };
 
 struct numeric_limits_float
 {
-    using type = float;
-    static constexpr const int  digits = __FLT_MANT_DIG__;
-    static constexpr const int  digits10 = __FLT_DIG__;
-    static constexpr type min() noexcept {return __FLT_MIN__;}
-    static constexpr type max() noexcept {return __FLT_MAX__;}
+    using type                          = float;
+    static constexpr const int digits   = __FLT_MANT_DIG__;
+    static constexpr const int digits10 = __FLT_DIG__;
+    static constexpr type min() noexcept { return __FLT_MIN__; }
+    static constexpr type max() noexcept { return __FLT_MAX__; }
 
-    static constexpr type epsilon() noexcept {return __FLT_EPSILON__;}
+    static constexpr type epsilon() noexcept { return __FLT_EPSILON__; }
 
-    static constexpr const int  min_exponent = __FLT_MIN_EXP__;
-    static constexpr const int  min_exponent10 = __FLT_MIN_10_EXP__;
-    static constexpr const int  max_exponent = __FLT_MAX_EXP__;
-    static constexpr const int  max_exponent10 = __FLT_MAX_10_EXP__;
+    static constexpr const int min_exponent   = __FLT_MIN_EXP__;
+    static constexpr const int min_exponent10 = __FLT_MIN_10_EXP__;
+    static constexpr const int max_exponent   = __FLT_MAX_EXP__;
+    static constexpr const int max_exponent10 = __FLT_MAX_10_EXP__;
 
-    static constexpr type infinity() noexcept {return __builtin_huge_valf();}
+    static constexpr type infinity() noexcept { return __builtin_huge_valf(); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type quiet_NaN() noexcept {return __builtin_nanf("");}
+    static constexpr type quiet_NaN() noexcept { return __builtin_nanf(""); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type signaling_NaN() noexcept {return __builtin_nansf("");}
-    static constexpr type denorm_min() noexcept {return __FLT_DENORM_MIN__;}
+    static constexpr type signaling_NaN() noexcept { return __builtin_nansf(""); }
+    static constexpr type denorm_min() noexcept { return __FLT_DENORM_MIN__; }
 };
 
 struct numeric_limits_double
 {
     using type = double;
 
-    static constexpr const int  digits = __DBL_MANT_DIG__;
-    static constexpr const int  digits10 = __DBL_DIG__;
-    static constexpr type min() noexcept {return __DBL_MIN__;}
-    static constexpr type max() noexcept {return __DBL_MAX__;}
+    static constexpr const int digits   = __DBL_MANT_DIG__;
+    static constexpr const int digits10 = __DBL_DIG__;
+    static constexpr type min() noexcept { return __DBL_MIN__; }
+    static constexpr type max() noexcept { return __DBL_MAX__; }
 
-    static constexpr const int  radix = __FLT_RADIX__;
-    static constexpr type epsilon() noexcept {return __DBL_EPSILON__;}
+    static constexpr const int radix = __FLT_RADIX__;
+    static constexpr type epsilon() noexcept { return __DBL_EPSILON__; }
 
-    static constexpr const int  min_exponent = __DBL_MIN_EXP__;
-    static constexpr const int  min_exponent10 = __DBL_MIN_10_EXP__;
-    static constexpr const int  max_exponent = __DBL_MAX_EXP__;
-    static constexpr const int  max_exponent10 = __DBL_MAX_10_EXP__;
+    static constexpr const int min_exponent   = __DBL_MIN_EXP__;
+    static constexpr const int min_exponent10 = __DBL_MIN_10_EXP__;
+    static constexpr const int max_exponent   = __DBL_MAX_EXP__;
+    static constexpr const int max_exponent10 = __DBL_MAX_10_EXP__;
 
-    static constexpr type infinity() noexcept {return __builtin_huge_val();}
+    static constexpr type infinity() noexcept { return __builtin_huge_val(); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type quiet_NaN() noexcept {return __builtin_nan("");}
+    static constexpr type quiet_NaN() noexcept { return __builtin_nan(""); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type signaling_NaN() noexcept {return __builtin_nans("");}
-    static constexpr type denorm_min() noexcept {return __DBL_DENORM_MIN__;}
+    static constexpr type signaling_NaN() noexcept { return __builtin_nans(""); }
+    static constexpr type denorm_min() noexcept { return __DBL_DENORM_MIN__; }
 };
 
 #ifdef __FLT16_MAX__
@@ -162,91 +162,94 @@ struct numeric_limits_fp16
 {
     using type = _Float16;
 
-    static constexpr const int  digits = __FLT16_MANT_DIG__;
-    static constexpr const int  digits10 = __FLT16_DIG__;
-    static constexpr type min() noexcept {return __FLT16_MIN__;}
-    static constexpr type max() noexcept {return __FLT16_MAX__;}
+    static constexpr const int digits   = __FLT16_MANT_DIG__;
+    static constexpr const int digits10 = __FLT16_DIG__;
+    static constexpr type min() noexcept { return __FLT16_MIN__; }
+    static constexpr type max() noexcept { return __FLT16_MAX__; }
 
-    static constexpr const int  radix = __FLT_RADIX__;
-    static constexpr type epsilon() noexcept {return __FLT16_EPSILON__;}
+    static constexpr const int radix = __FLT_RADIX__;
+    static constexpr type epsilon() noexcept { return __FLT16_EPSILON__; }
 
-    static constexpr const int  min_exponent = __FLT16_MIN_EXP__;
-    static constexpr const int  min_exponent10 = __FLT16_MIN_10_EXP__;
-    static constexpr const int  max_exponent = __FLT16_MAX_EXP__;
-    static constexpr const int  max_exponent10 = __FLT16_MAX_10_EXP__;
+    static constexpr const int min_exponent   = __FLT16_MIN_EXP__;
+    static constexpr const int min_exponent10 = __FLT16_MIN_10_EXP__;
+    static constexpr const int max_exponent   = __FLT16_MAX_EXP__;
+    static constexpr const int max_exponent10 = __FLT16_MAX_10_EXP__;
 
-    static constexpr type infinity() noexcept {return __builtin_huge_valf16();}
+    static constexpr type infinity() noexcept { return __builtin_huge_valf16(); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type quiet_NaN() noexcept {return __builtin_nanf16("");}
+    static constexpr type quiet_NaN() noexcept { return __builtin_nanf16(""); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr type signaling_NaN() noexcept {return __builtin_nansf16("");}
-    static constexpr type denorm_min() noexcept {return __FLT16_DENORM_MIN__;}
+    static constexpr type signaling_NaN() noexcept { return __builtin_nansf16(""); }
+    static constexpr type denorm_min() noexcept { return __FLT16_DENORM_MIN__; }
 };
 #endif
 
 } // namespace detail
 
-template<class T>
+template <class T>
 struct numeric_limits
 {
-    static constexpr const  bool is_specialized = false;
-    static constexpr T min() noexcept {return T();}
-    static constexpr T max() noexcept {return T();}
-    static constexpr T lowest() noexcept {return T();}
+    static constexpr const bool is_specialized = false;
+    static constexpr T min() noexcept { return T(); }
+    static constexpr T max() noexcept { return T(); }
+    static constexpr T lowest() noexcept { return T(); }
 
-    static constexpr const int  digits = 0;
-    static constexpr const int  digits10 = 0;
-    static constexpr const int  max_digits10 = 0;
-    static constexpr const bool is_signed = false;
-    static constexpr const bool is_integer = false;
-    static constexpr const bool is_exact = false;
-    static constexpr const int  radix = 0;
-    static constexpr T epsilon() noexcept {return T();}
-    static constexpr T round_error() noexcept {return T();}
+    static constexpr const int digits       = 0;
+    static constexpr const int digits10     = 0;
+    static constexpr const int max_digits10 = 0;
+    static constexpr const bool is_signed   = false;
+    static constexpr const bool is_integer  = false;
+    static constexpr const bool is_exact    = false;
+    static constexpr const int radix        = 0;
+    static constexpr T epsilon() noexcept { return T(); }
+    static constexpr T round_error() noexcept { return T(); }
 
-    static constexpr const int  min_exponent = 0;
-    static constexpr const int  min_exponent10 = 0;
-    static constexpr const int  max_exponent = 0;
-    static constexpr const int  max_exponent10 = 0;
+    static constexpr const int min_exponent   = 0;
+    static constexpr const int min_exponent10 = 0;
+    static constexpr const int max_exponent   = 0;
+    static constexpr const int max_exponent10 = 0;
 
     static constexpr const bool has_infinity = false;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = false;
     // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = false;
-    static constexpr T infinity() noexcept {return T();}
+    static constexpr T infinity() noexcept { return T(); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr T quiet_NaN() noexcept {return T();}
+    static constexpr T quiet_NaN() noexcept { return T(); }
     // NOLINTNEXTLINE(readability-identifier-naming)
-    static constexpr T signaling_NaN() noexcept {return T();}
-    static constexpr T denorm_min() noexcept {return T();}
+    static constexpr T signaling_NaN() noexcept { return T(); }
+    static constexpr T denorm_min() noexcept { return T(); }
 
-    static constexpr const bool is_iec559 = false;
+    static constexpr const bool is_iec559  = false;
     static constexpr const bool is_bounded = false;
-    static constexpr const bool is_modulo = false;
+    static constexpr const bool is_modulo  = false;
 
-    static constexpr const bool traps = false;
-    static constexpr const bool tinyness_before = false;
+    static constexpr const bool traps                    = false;
+    static constexpr const bool tinyness_before          = false;
     static constexpr const float_round_style round_style = round_toward_zero;
 };
 
-template<class T>
-struct numeric_limits<const T>
-: numeric_limits<T>
-{};
+template <class T>
+struct numeric_limits<const T> : numeric_limits<T>
+{
+};
 
-template<class T>
-struct numeric_limits<volatile T>
-: numeric_limits<T>
-{};
+template <class T>
+struct numeric_limits<volatile T> : numeric_limits<T>
+{
+};
 
-template<class T>
-struct numeric_limits<const volatile T>
-: numeric_limits<T>
-{};
+template <class T>
+struct numeric_limits<const volatile T> : numeric_limits<T>
+{
+};
 
-#define ROCM_DEFINE_NUMERIC_LIMITS_INT(T) \
-template <> struct numeric_limits<T> : detail::numeric_limits_integer<T> {}
+#define ROCM_DEFINE_NUMERIC_LIMITS_INT(T)                        \
+    template <>                                                  \
+    struct numeric_limits<T> : detail::numeric_limits_integer<T> \
+    {                                                            \
+    }
 
 ROCM_DEFINE_NUMERIC_LIMITS_INT(char);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(signed char);
@@ -263,8 +266,11 @@ ROCM_DEFINE_NUMERIC_LIMITS_INT(unsigned long);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(long long);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(unsigned long long);
 
-#define ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(T, base) \
-template <> struct numeric_limits<T> : detail::numeric_limits_fp_mixin<detail::base> {}
+#define ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(T, base)                            \
+    template <>                                                              \
+    struct numeric_limits<T> : detail::numeric_limits_fp_mixin<detail::base> \
+    {                                                                        \
+    }
 
 ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(float, numeric_limits_float);
 ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(double, numeric_limits_double);

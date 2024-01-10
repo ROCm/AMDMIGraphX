@@ -1,27 +1,31 @@
 #include <type_traits_test.hpp>
 
-struct c1 {};
-    
-struct c2 {};
-  
-struct c3 : c2 {};
-struct c1c2 {
+struct c1
+{
+};
+
+struct c2
+{
+};
+
+struct c3 : c2
+{
+};
+struct c1c2
+{
     c1c2() {}
     c1c2(c1 const&) {}
     c1c2(c2 const&) {}
-    c1c2& operator=(c1c2 const&) {
-        return *this;
-    }
+    c1c2& operator=(c1c2 const&) { return *this; }
 };
 
-#define ROCM_CHECK_COMMON_TYPE(expected, ...) \
+#define ROCM_CHECK_COMMON_TYPE(expected, ...)                        \
     ROCM_CHECK_TYPE(rocm::common_type<__VA_ARGS__>::type, expected); \
     ROCM_CHECK_TYPE(rocm::common_type_t<__VA_ARGS__>, expected);
 
 #define ROCM_CHECK_COMMON_TYP_E2(expected, a, b) \
-    ROCM_CHECK_COMMON_TYPE(expected, a, b); \
+    ROCM_CHECK_COMMON_TYPE(expected, a, b);      \
     ROCM_CHECK_COMMON_TYPE(expected, b, a);
-
 
 ROCM_DUAL_TEST_CASE()
 {

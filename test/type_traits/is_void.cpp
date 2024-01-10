@@ -1,6 +1,6 @@
 #include <type_traits_test.hpp>
 
-DUAL_TEST_CASE()
+ROCM_DUAL_TEST_CASE()
 {
     static_assert(rocm::is_void<void>{});
     static_assert(rocm::is_void<void const>{});

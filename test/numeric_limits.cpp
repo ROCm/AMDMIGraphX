@@ -2,7 +2,7 @@
 #include <rocm/limits.hpp>
 #include <rocm/type_traits.hpp>
 
-#define CHECK_NUMERIC_LIMITS_MEM(expected, ...) \
+#define ROCM_CHECK_NUMERIC_LIMITS_MEM(expected, ...) \
 static_assert(rocm::is_same<expected, rocm::remove_cv_t<decltype(__VA_ARGS__)>>{})
 
 template<class T, bool Specialized, class U=T>
@@ -20,36 +20,36 @@ constexpr void test_numeric_limits()
         static_assert(not nl::is_exact);
         static_assert(nl::is_signed);
     }
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_specialized);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::digits);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::digits10);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::max_digits10);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_signed);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_integer);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_exact);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::radix);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::min_exponent);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::min_exponent10);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::max_exponent);
-    CHECK_NUMERIC_LIMITS_MEM(int, nl::max_exponent10);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_infinity);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_quiet_NaN);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_signaling_NaN);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_iec559);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_bounded);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_modulo);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::traps);
-    CHECK_NUMERIC_LIMITS_MEM(bool, nl::tinyness_before);
-    CHECK_NUMERIC_LIMITS_MEM(rocm::float_round_style, nl::round_style);
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::min());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::lowest());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::max());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::epsilon());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::round_error());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::infinity());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::quiet_NaN());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::signaling_NaN());
-    CHECK_NUMERIC_LIMITS_MEM(U, nl::denorm_min());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_specialized);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::digits);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::digits10);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::max_digits10);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_signed);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_integer);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_exact);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::radix);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::min_exponent);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::min_exponent10);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::max_exponent);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(int, nl::max_exponent10);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_infinity);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_quiet_NaN);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::has_signaling_NaN);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_iec559);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_bounded);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::is_modulo);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::traps);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(bool, nl::tinyness_before);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(rocm::float_round_style, nl::round_style);
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::min());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::lowest());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::max());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::epsilon());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::round_error());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::infinity());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::quiet_NaN());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::signaling_NaN());
+    ROCM_CHECK_NUMERIC_LIMITS_MEM(U, nl::denorm_min());
 }
 
 template<class T, bool Specialized=true>
@@ -63,7 +63,7 @@ constexpr void test_numeric_limits_all()
 
 struct foo {};
 
-DUAL_TEST_CASE()
+ROCM_DUAL_TEST_CASE()
 {
     // test_numeric_limits_all<bool>();
     test_numeric_limits_all<char>();

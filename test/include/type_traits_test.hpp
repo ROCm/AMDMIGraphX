@@ -15,7 +15,7 @@ struct is_same<T, T> {
     constexpr operator bool() const noexcept { return true; }
 };
 
-#define CHECK_TYPE(...) static_assert(test_tt::is_same<__VA_ARGS__>{})
+#define ROCM_CHECK_TYPE(...) static_assert(test_tt::is_same<__VA_ARGS__>{})
 
 
 enum enum1
@@ -37,26 +37,26 @@ struct udt
    int f4(int, float);
 };
 
-typedef void(*f1)();
-typedef int(*f2)(int);
-typedef int(*f3)(int, bool);
-typedef void (udt::*mf1)();
-typedef int (udt::*mf2)();
-typedef int (udt::*mf3)(int);
-typedef int (udt::*mf4)(int, float);
-typedef int (udt::*mp);
-typedef int (udt::*cmf)(int) const;
-typedef int (udt::*mf8)(...);
+using f1 = void (*)();
+using f2 = int (*)(int);
+using f3 = int (*)(int, bool);
+using mf1 = void (udt::*)();
+using mf2 = int (udt::*)();
+using mf3 = int (udt::*)(int);
+using mf4 = int (udt::*)(int, float);
+using mp = int (udt::*);
+using cmf = int (udt::*)(int) const;
+using mf8 = int (udt::*)(...);
 
-typedef void foo0_t();
-typedef void foo1_t(int);
-typedef void foo2_t(int&, double);
-typedef void foo3_t(int&, bool, int, int);
-typedef void foo4_t(int, bool, int*, int[], int, int, int, int, int);
+using foo0_t = void ();
+using foo1_t = void (int);
+using foo2_t = void (int &, double);
+using foo3_t = void (int &, bool, int, int);
+using foo4_t = void (int, bool, int *, int *, int, int, int, int, int);
 
 struct incomplete_type;
 
-#define VISIT_TYPES(m, ...) \
+#define ROCM_VISIT_TYPES(m, ...) \
     m(bool, __VA_ARGS__) \
     m(char, __VA_ARGS__) \
     m(wchar_t, __VA_ARGS__) \
@@ -74,12 +74,12 @@ struct incomplete_type;
     m(test_tt::udt, __VA_ARGS__) \
     m(test_tt::enum1, __VA_ARGS__)
 
-#define TRANSFORM_CHECK_VISITOR(x, name, from_suffix, to_suffix) \
-    CHECK_TYPE(x to_suffix, name<x from_suffix>::type); \
-    CHECK_TYPE(x to_suffix, name##_t<x from_suffix>);
+#define ROCM_TRANSFORM_CHECK_VISITOR(x, name, from_suffix, to_suffix) \
+    ROCM_CHECK_TYPE(x to_suffix, name<x from_suffix>::type); \
+    ROCM_CHECK_TYPE(x to_suffix, name##_t<x from_suffix>);
 
-#define TRANSFORM_CHECK(name, from_suffix, to_suffix) \
-    VISIT_TYPES(TRANSFORM_CHECK_VISITOR, name, from_suffix, to_suffix)
+#define ROCM_TRANSFORM_CHECK(name, from_suffix, to_suffix) \
+    ROCM_VISIT_TYPES(ROCM_TRANSFORM_CHECK_VISITOR, name, from_suffix, to_suffix)
 
 
 } // namespace test_tt

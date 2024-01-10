@@ -33,7 +33,7 @@ struct numeric_limits_integer
     static constexpr const bool is_specialized = true;
 
     static constexpr const bool is_signed = T(-1) < T(0);
-    static constexpr const int  digits = static_cast<int>(sizeof(T) * 8 - is_signed);
+    static constexpr const int  digits = static_cast<int>(sizeof(T) * 8 - static_cast<unsigned long>(is_signed));
     static constexpr const int  digits10 = digits * 3 / 10;
     static constexpr const int  max_digits10 = 0;
     static constexpr T min() noexcept
@@ -89,7 +89,7 @@ struct numeric_limits_fp_mixin
     static constexpr const bool is_specialized = true;
 
     static constexpr const bool is_signed = true;
-    static constexpr const int  max_digits10 = 2+(Base::digits * 30103l)/100000l;
+    static constexpr const int  max_digits10 = 2+(Base::digits * 30103L)/100000L;
     static constexpr const bool is_integer = false;
     static constexpr const bool is_exact = false;
     static constexpr const int  radix = __FLT_RADIX__;

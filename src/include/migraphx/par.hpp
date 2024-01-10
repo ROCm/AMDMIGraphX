@@ -90,7 +90,7 @@ OutputIt par_transform(
     return std::transform(
         std::execution::par, first1, last1, first2, d_first, std::move(binary_op));
 #else
-    return std::transform(first1, last1, first2, d_first, std::move(binary_op))
+    return std::transform(first1, last1, first2, d_first, std::move(binary_op));
 #endif
 }
 

@@ -76,11 +76,11 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        }
                        else if(a.within_range(b))
                        {
-                           return a;
+                           return shape::dynamic_dimension{a.min, a.max};
                        }
                        else if(b.within_range(a))
                        {
-                           return b;
+                           return shape::dynamic_dimension{b.min, b.max};
                        }
                        else
                        {
@@ -223,6 +223,21 @@ instruction_ref insert_common_op(module& m,
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
 {
     return insert_common_op(m, m.end(), op, std::move(inputs));
+}
+
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<std::size_t>& bcast_lens,
+                       const std::size_t& offset)
+{
+    std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
+    for(std::ptrdiff_t i = input_shape.ndim() - 1; i >= 0; i--)
+    {
+        if(bcast_lens[i + offset] == input_shape.lens()[i])
+        {
+            bcast_strides[i + offset] = input_shape.strides()[i];
+        }
+    }
+    return shape{input_shape.type(), bcast_lens, bcast_strides};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -45,12 +45,13 @@ TEST_CASE(dot_broadcast_static)
     auto dot_broadcast = mm->add_instruction(migraphx::make_op("dot_broadcast"), l0, l1);
     mm->add_return({dot_broadcast});
     p.compile(migraphx::make_target("ref"));
+
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold(16);
     std::iota(gold.begin(), gold.begin() + 8, 0.0);
-    std::iota(gold.begin() + 9, gold.end(), 0.0);
+    std::iota(gold.begin() + 8, gold.end(), 0.0);
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -80,6 +81,6 @@ TEST_CASE(dot_broadcast_dyn)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<int> gold(16);
     std::iota(gold.begin(), gold.begin() + 8, 0.0);
-    std::iota(gold.begin() + 9, gold.end(), 0.0);
+    std::iota(gold.begin() + 8, gold.end(), 0.0);
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

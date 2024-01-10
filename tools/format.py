@@ -23,8 +23,9 @@
 #####################################################################################
 import os, shutil, argparse, subprocess
 
-CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
+# find src/ test/ -name '*.[hc]pp' | xargs /opt/rocm/llvm/bin/clang-format -
 
+CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
 def run(cmd, **kwargs):
     print(cmd)

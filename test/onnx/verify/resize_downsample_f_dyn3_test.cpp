@@ -26,12 +26,13 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(resize_downsample_f_dyn_test)
+TEST_CASE(resize_downsample_f_dyn3_test)
 {
+    // scales is a runtime, not a literal, input
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
 
-    auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
+    auto p = migraphx::parse_onnx("resize_downsample_f_dyn3_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 
     // A Resize op. with static input shape goes through a different code path
@@ -43,8 +44,13 @@ TEST_CASE(resize_downsample_f_dyn_test)
     std::vector<float> dx(sx.elements());
     std::iota(dx.begin(), dx.end(), 0.1f);
 
+    migraphx::shape scales{migraphx::shape::float_type, {4}};
+    std::vector<float> d_scales{1.f, 1.f, 0.601, 0.601};
+
+
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
+    pp["scales"] = migraphx::argument(scales, d_scales.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;

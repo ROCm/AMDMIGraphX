@@ -40,7 +40,6 @@ TEST_CASE(resize_downsample_f_dyn2_test)
     reference_p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};
-    // migraphx::shape sx{migraphx::shape::float_type, {1, 1, 1, 2}};
     std::vector<float> dx(sx.elements());
     std::iota(dx.begin(), dx.end(), 0.1f);
 

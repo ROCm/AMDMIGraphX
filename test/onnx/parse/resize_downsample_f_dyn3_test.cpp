@@ -37,7 +37,7 @@ TEST_CASE(resize_downsample_f_dyn3_test)
     auto inx = mm->add_parameter("X", sx);
 
     // auto li = mm->add_literal(migraphx::literal{ss, ds});
-    auto li   = mm->add_parameter("scales", ss);
+    auto li = mm->add_parameter("scales", ss);
 
     auto r =
         mm->add_instruction(migraphx::make_op("resize",

@@ -47,9 +47,8 @@ TEST_CASE(resize_downsample_f_dyn3_test)
     migraphx::shape scales{migraphx::shape::float_type, {4}};
     std::vector<float> d_scales{1.f, 1.f, 0.601, 0.601};
 
-
     migraphx::parameter_map pp;
-    pp["X"] = migraphx::argument(sx, dx.data());
+    pp["X"]      = migraphx::argument(sx, dx.data());
     pp["scales"] = migraphx::argument(scales, d_scales.data());
 
     auto result = p.eval(pp).back();

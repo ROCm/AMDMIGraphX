@@ -228,10 +228,9 @@ struct resize
                 if constexpr(std::is_integral<type>{})
                 {
                     // Copy the output size from args[1].
-                    std::transform(input.begin(),
-                                   input.end(),
-                                   out_lens.begin(),
-                                   [](auto size_i) { return size_i; });
+                    std::transform(input.begin(), input.end(), out_lens.begin(), [](auto size_i) {
+                        return size_i;
+                    });
                     // Deduce the scales for each axis
                     std::transform(
                         input.begin(),

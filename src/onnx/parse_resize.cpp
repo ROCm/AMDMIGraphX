@@ -340,7 +340,7 @@ struct parse_resize : op_parser<parse_resize>
         instruction_ref scales_sizes_arg(args[0]);
 
         //  boolean indicates whether the size of the output can be determined
-        // at compile time, i.e. its values come from literal input(s) and have 
+        // at compile time, i.e. its values come from literal input(s) and have
         // no dependencies anywhere in the graph on runtime inputs.
         bool is_constant_scale_input(not vec_scale.empty());
         if(not is_constant_scale_input)
@@ -402,7 +402,8 @@ struct parse_resize : op_parser<parse_resize>
         // linear mode
         else
         {
-            // out_lens and other variables can't be populated if non-constant (runtime) size inputs.
+            // out_lens and other variables can't be populated if non-constant (runtime) size
+            // inputs.
             if(not is_constant_scale_input)
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +
                                ": linear mode not supported for non-constant inputs");

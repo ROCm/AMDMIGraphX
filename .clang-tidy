@@ -24,7 +24,7 @@ CheckOptions:
   - key:             readability-function-size.ParameterThreshold
     value:           '10'
   - key:             readability-function-size.StatementThreshold
-    value:           '150'
+    value:           '1500'
   - key:             readability-identifier-naming.NamespaceCase
     value:           lower_case
   - key:             readability-identifier-naming.InlineNamespaceCase

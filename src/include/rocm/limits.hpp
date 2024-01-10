@@ -62,10 +62,14 @@ struct numeric_limits_integer
     static constexpr const int  max_exponent10 = 0;
 
     static constexpr const bool has_infinity = false;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = false;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = false;
     static constexpr T infinity() noexcept {return T(0);}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr T quiet_NaN() noexcept {return T(0);}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr T signaling_NaN() noexcept {return T(0);}
     static constexpr T denorm_min() noexcept {return T(0);}
 
@@ -92,7 +96,9 @@ struct numeric_limits_fp_mixin
     static constexpr typename Base::type round_error() noexcept {return 0.5F;}
     static constexpr typename Base::type lowest() noexcept {return -Base::max();}
     static constexpr const bool has_infinity = true;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = true;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = true;
     static constexpr const bool is_iec559 = true;
     static constexpr const bool is_bounded = true;
@@ -119,7 +125,9 @@ struct numeric_limits_float
     static constexpr const int  max_exponent10 = __FLT_MAX_10_EXP__;
 
     static constexpr type infinity() noexcept {return __builtin_huge_valf();}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type quiet_NaN() noexcept {return __builtin_nanf("");}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type signaling_NaN() noexcept {return __builtin_nansf("");}
     static constexpr type denorm_min() noexcept {return __FLT_DENORM_MIN__;}
 };
@@ -142,7 +150,9 @@ struct numeric_limits_double
     static constexpr const int  max_exponent10 = __DBL_MAX_10_EXP__;
 
     static constexpr type infinity() noexcept {return __builtin_huge_val();}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type quiet_NaN() noexcept {return __builtin_nan("");}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type signaling_NaN() noexcept {return __builtin_nans("");}
     static constexpr type denorm_min() noexcept {return __DBL_DENORM_MIN__;}
 };
@@ -166,7 +176,9 @@ struct numeric_limits_fp16
     static constexpr const int  max_exponent10 = __FLT16_MAX_10_EXP__;
 
     static constexpr type infinity() noexcept {return __builtin_huge_valf16();}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type quiet_NaN() noexcept {return __builtin_nanf16("");}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr type signaling_NaN() noexcept {return __builtin_nansf16("");}
     static constexpr type denorm_min() noexcept {return __FLT16_DENORM_MIN__;}
 };
@@ -198,10 +210,14 @@ struct numeric_limits
     static constexpr const int  max_exponent10 = 0;
 
     static constexpr const bool has_infinity = false;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_quiet_NaN = false;
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr const bool has_signaling_NaN = false;
     static constexpr T infinity() noexcept {return T();}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr T quiet_NaN() noexcept {return T();}
+    // NOLINTNEXTLINE(readability-identifier-naming)
     static constexpr T signaling_NaN() noexcept {return T();}
     static constexpr T denorm_min() noexcept {return T();}
 

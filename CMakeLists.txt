@@ -98,6 +98,7 @@ rocm_enable_clang_tidy(
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -hicpp-signed-bitwise
         -misc-macro-parentheses
         -misc-no-recursion
         -modernize-concat-nested-namespaces

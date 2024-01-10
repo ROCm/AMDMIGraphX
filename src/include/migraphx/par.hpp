@@ -90,8 +90,7 @@ OutputIt par_transform(
     return std::transform(
         std::execution::par, first1, last1, first2, d_first, std::move(binary_op));
 #else
-    simple_par_for(last1 - first1, [&](auto i) { d_first[i] = binary_op(first1[i], first2[i]); });
-    return d_first + (last1 - first1);
+    return std::transform(first1, last1, first2, d_first, std::move(binary_op))
 #endif
 }
 

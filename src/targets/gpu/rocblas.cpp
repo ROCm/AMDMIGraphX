@@ -33,6 +33,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// for hipblaslt only
+static size_t workspace_size = HIPBLASLT_WORKSPACE_SIZE;
+static void *d_workspace;
+
 rocblas_handle_ptr create_rocblas_handle_ptr()
 {
     rocblas_handle handle;
@@ -45,6 +49,35 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
     rocblas_handle_ptr rb = create_rocblas_handle_ptr();
     rocblas_set_stream(rb.get(), s);
     return rb;
+}
+
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
+{
+    hipblasLtHandle_t handle;
+    hipblasLtCreate(&handle);
+    return hipblaslt_handle_ptr{handle};
+}
+
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s)
+{
+    hipblaslt_handle_ptr hblt = create_hipblaslt_handle_ptr();
+    hipblasSetStream(hblt.get(), s);
+    return hblt;
+}
+
+hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
+{
+    hipblasLtMatmulPreference_t preference;
+    hipblasLtMatmulPreferenceCreate(&preference);
+    CHECK_HIPBLAS_ERROR(hipblasLtMatmulPreferenceSetAttribute(
+        preference, HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspace_size, sizeof(workspace_size)));
+    return hipblaslt_preference_ptr{preference};
+}
+
+hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr()
+{
+    CHECK_HIP_ERROR(hipMalloc(&d_workspace, workspace_size));
+    return hipblaslt_workspace_ptr{d_workspace};
 }
 
 bool get_compute_fp32_flag()

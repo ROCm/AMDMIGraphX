@@ -116,6 +116,39 @@ struct hip_device
             return rbhandle.get();
         }
 
+        auto get_hipblaslt()
+        {
+            setup();
+            if(hblthandle == nullptr)
+            {
+                hblthandle = create_hipblaslt_handle_ptr(get());
+            }
+            assert(hblthandle.get() != nullptr);
+            return hblthandle.get();
+        }
+
+        auto get_hipblaslt_preference()
+        {
+            setup();
+            if(hbltpreference == nullptr)
+            {
+                hbltpreference = create_hipblaslt_preference_ptr();
+            }
+            assert(hbltpreference.get() != nullptr);
+            return hbltpreference.get();
+        }
+
+        auto get_hipblaslt_workspace()
+        {
+            setup();
+            if(hbltworkspace == nullptr)
+            {
+                hbltworkspace = create_hipblaslt_workspace_ptr();
+            }
+            assert(hbltworkspace.get() != nullptr);
+            return hbltworkspace.get();
+        }
+
         void wait() const
         {
             if(s == nullptr)
@@ -147,6 +180,9 @@ struct hip_device
         shared<hip_stream_ptr> s            = nullptr;
         shared<miopen_handle> mihandle      = nullptr;
         shared<rocblas_handle_ptr> rbhandle = nullptr;
+        shared<hipblaslt_handle_ptr> hblthandle = nullptr;
+        shared<hipblaslt_preference_ptr> hbltpreference = nullptr;
+        shared<hipblaslt_workspace_ptr> hbltworkspace = nullptr;
     };
 
     void add_stream() { streams.emplace_back(device_id); }

@@ -27,6 +27,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -106,7 +107,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
             return false;
     }
     auto device_name = trim(split_string(get_device_name(), ':').front());
-    if(device_name == "gfx940")
+    if(starts_with(device_name, "gfx9") and device_name >= "gfx940")
     {
         if(ins->get_shape().type() == shape::half_type)
         {

@@ -37,6 +37,14 @@ message(STATUS "MIGraphX is using MIOpen")
 find_package(rocblas REQUIRED)
 message(STATUS "MIGraphX build with rocBLAS")
 
+# hipblaslt
+find_package(hipblas REQUIRED)
+message(STATUS "MIGraphX build with hipBLAS")
+
+# hipblaslt
+find_package(hipblaslt REQUIRED)
+message(STATUS "MIGraphX build with hipBlasLt")
+
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
@@ -295,7 +303,7 @@ else()
     message(STATUS "rocBLAS does not have Fp8 Beta API")
 endif()
 
-target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
+target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas roc::hipblas roc::hipblaslt)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)

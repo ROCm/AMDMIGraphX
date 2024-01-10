@@ -24,6 +24,8 @@
 
 #include <rocblas/internal/rocblas-types.h>
 #include <rocblas/rocblas.h>
+#include <hipblaslt/hipblaslt.h>
+#include <hipblaslt/hipblaslt-ext.hpp>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -36,6 +38,12 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+struct hipblaslt_args
+{
+    hipblasLtHandle_t handle;
+    hipblasLtMatmulPreference_t preference;
+};
 
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
@@ -73,6 +81,30 @@ rocblas_datatype get_type(shape::type_t type)
     }
 
     MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
+}
+
+// Convert hipBLAS datatypes to equivalent Migraphx data types
+hipblasltDatatype_t get_type_hipblas(shape::type_t type)
+{
+    switch(type)
+    {
+    case shape::double_type: return HIPBLASLT_R_64F;
+    case shape::float_type: return HIPBLASLT_R_32F;
+    case shape::half_type: return HIPBLASLT_R_16F;
+    case shape::int8_type: return HIPBLASLT_R_8I;
+    case shape::uint8_type: return HIPBLASLT_R_8U;
+    case shape::int32_type: return HIPBLASLT_R_32I;
+    case shape::uint32_type: return HIPBLASLT_R_32U;
+    case shape::fp8e4m3fnuz_type: return HIPBLASLT_R_8F_E4M3;
+    case shape::tuple_type:
+    case shape::bool_type:
+    case shape::uint16_type:
+    case shape::int16_type:
+    case shape::int64_type:
+    case shape::uint64_type: MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
+    }
+
+    MIGRAPHX_THROW("HIPBLAS_GEMM: data type not supported!");
 }
 
 void blas_shape(const shape& s)
@@ -129,6 +161,32 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
     });
 }
 
+/**
+ * Returns results of rocblas_status_success, rocblas_status_perf_degraded,
+ * or rocblas_status_invalid_value.  Caller
+ * is expected to check for invalid index.  Any other result causes an exception.
+ *
+ */
+template <class F, class Pack, class... Ts>
+auto hipblaslt_invoke(F f, Pack p, Ts... xs)
+{
+    return p([=](auto... ws) {
+        auto status = f(ws..., xs...);
+        if(status != HIPBLAS_STATUS_SUCCESS)
+        //if(status != HIPBLAS_STATUS_SUCCESS and status != HIPBLAS_STATUS_INVALID_VALUE)
+        {
+//            if(status == rocblas_status_perf_degraded)
+//            {
+//                std::cerr << "WARNING: degraded perf. in rocBLAS call" << std::endl;
+//            }
+//            else
+                MIGRAPHX_THROW("hipblaslt_invoke: hipBlasLt call failed with status " +
+                               std::to_string(status));
+        }
+        return status;
+    });
+}
+
 static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
 
 static rocblas_int get_batch_stride(const shape& s)
@@ -156,7 +214,8 @@ struct gemm_impl
               T alpha_param,
               T beta_param,
               bool compute_fp32_flag)
-        : alpha(alpha_param),
+        : solution(),
+          alpha(alpha_param),
           beta(beta_param),
           is_3inputs(input_shapes.size() == 4),
           compute_fp32(compute_fp32_flag)
@@ -227,7 +286,8 @@ struct gemm_impl
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
         strided_batched = num_matrices > 1;
-        if(strided_batched and b_stride == 0 and input_shapes[0].standard())
+        bool rocblas_fallback = strided_batched and b_stride == 0 and input_shapes[0].standard();
+        if(rocblas_fallback)
         {
             // If the batch dimension of B is broadcasted, then we can
             // multiply m by the batch_size and use rocblas_gemm_ex
@@ -235,61 +295,217 @@ struct gemm_impl
             m *= num_matrices;
             strided_batched = false;
         }
+
+        // hipblaslt
+        dtype = get_type_hipblas(input_shapes[0].type());
+
+        // casting from rocblas_int which is int64_t
+        const uint64_t m_ = static_cast<uint64_t>(n);
+        const uint64_t n_ = static_cast<uint64_t>(rocblas_fallback ? m/num_matrices : m);
+        const uint64_t k_ = static_cast<uint64_t>(k);
+
+        op_A = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_B = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+
+        const int lda_ = static_cast<int>(ldb);
+        const int ldb_ = static_cast<int>(lda);
+        const int ldc_ = static_cast<int>(ldc);
+        const int ldd_ = static_cast<int>(ldd);
+
+        if(op_A == HIPBLAS_OP_N)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, m_, k_, lda_));
+        }
+        else
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, k_, m_, lda_));
+        }
+        if(op_B == HIPBLAS_OP_N)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, k_, n_, ldb_));
+        }
+        else
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, n_, k_, ldb_));
+        }
+        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matC, dtype, m_, n_, ldc_));
+        if(is_3inputs)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matD, dtype, m_, n_, ldd_));
+        }
+
+        if(num_matrices > 1)
+        {
+            const int64_t a_stride_ = static_cast<int64_t>(b_stride);
+            const int64_t b_stride_ = static_cast<int64_t>(a_stride);
+            const int64_t c_stride_ = static_cast<int64_t>(c_stride);
+            const int64_t d_stride_ = static_cast<int64_t>(d_stride);
+
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matA, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matB, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matC, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
+
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matA, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &a_stride_, sizeof(a_stride_)));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matB, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &b_stride_, sizeof(b_stride_)));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                matC, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &c_stride_, sizeof(c_stride_)));
+
+
+            if(is_3inputs)
+            {
+                CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                    matD, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
+                CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
+                    matD, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &d_stride_, sizeof(d_stride_)));
+            }
+        }
+
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(&hipblaslt_desc, HIPBLASLT_COMPUTE_F32, HIPBLASLT_R_32F));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(
+            hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_A, sizeof(int32_t)));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(
+            hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_B, sizeof(int32_t)));
     }
 
-    void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) const
+    ~gemm_impl()
     {
-#ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
-        if(rocblas_fp8_available() and
-           std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
-               return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
-           }))
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescDestroy(hipblaslt_desc));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutDestroy(matA));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutDestroy(matB));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutDestroy(matC));
+        if(is_3inputs)
         {
-            if(strided_batched)
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutDestroy(matD));
+        }
+    }
+
+    struct solution
+    {
+        solution() : handle(nullptr), preference(nullptr) {}
+
+        void init(context& ctx)
+        {
+            if (handle == nullptr)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
-                               common_args,
-                               rocblas_gemm_algo_standard,
-                               solution_idx,
-                               gemm_flags);
+                handle = ctx.get_stream().get_hipblaslt();
+                preference = ctx.get_stream().get_hipblaslt_preference();
+            }
+        }
+
+        // Suppose neither rocblasa or hipblaslt index uses bits up to 30
+        const int BLAS_BIT = 30;
+        bool is_rocblas_idx(int32_t idx) { return ((idx >> BLAS_BIT) & 1); }
+        int32_t from_mgx_to_blas_idx(int32_t idx) { return (idx & ~(1 << BLAS_BIT)); }
+        int32_t from_blas_to_mgx_idx(int32_t idx, bool is_rocblas) { return is_rocblas? idx : (idx | (1 << BLAS_BIT)); }
+
+        auto &get_result(context& ctx, gemm_impl& gemm, int32_t idx)
+        {
+            init(ctx);
+
+            if(idx == 0)
+            {
+                // use default solution
+                const int n_sol = 1;
+                int returnedAlgoCount;
+                heuristicResult.resize(n_sol);
+                CHECK_HIPBLAS_ERROR(hipblasLtMatmulAlgoGetHeuristic(
+                    handle, gemm.hipblaslt_desc, gemm.matA, gemm.matB, gemm.matC, gemm.matC,
+                    preference, n_sol, heuristicResult.data(), &returnedAlgoCount));
+                if(returnedAlgoCount != n_sol)
+                {
+                    std::cout << "less solution found! request: " << n_sol
+                              << ", found: " << returnedAlgoCount << std::endl;
+                }
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_ex3,
-                               common_args,
-                               rocblas_gemm_algo_standard,
-                               solution_idx,
-                               gemm_flags);
+                // query for the solutions. 1st as the best.
+                std::vector<int> algoIndex(1);
+                algoIndex[0] = idx;
+                CHECK_HIPBLAS_ERROR(hipblaslt_ext::getAlgosFromIndex(handle, algoIndex, heuristicResult));
+            }
+            return heuristicResult;
+        }
+
+        private:
+
+        hipblasLtHandle_t handle;
+        hipblasLtMatmulPreference_t preference;
+        std::vector<hipblasLtMatmulHeuristicResult_t> heuristicResult;
+    } solution;
+
+#define IS_ROCBLAS(x)   solution.is_rocblas_idx(x)
+#define AS_BLAS_IDX(x)  solution.from_mgx_to_blas_idx(x)
+#define AS_MGX_IDX(x,b) solution.from_blas_to_mgx_idx(x,b)
+
+    void run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) //const
+    {
+        if(IS_ROCBLAS(solution_idx))
+        {
+            solution_idx = AS_BLAS_IDX(solution_idx);
+#ifdef MIGRAPHX_USE_ROCBLAS_FP8_API
+            if(rocblas_fp8_available() and
+               std::any_of(input_args.begin(), input_args.end(), [](const auto i) {
+                   return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+               }))
+            {
+                if(strided_batched)
+                {
+                    auto common_args = create_strided_batched_args_common(ctx, input_args);
+                    rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
+                                   common_args,
+                                   rocblas_gemm_algo_standard,
+                                   solution_idx,
+                                   gemm_flags);
+                }
+                else
+                {
+                    auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                    rocblas_invoke(&rocblas_gemm_ex3,
+                                   common_args,
+                                   rocblas_gemm_algo_standard,
+                                   solution_idx,
+                                gemm_flags);
+                }
+            }
+            else
+#endif
+            {
+                if(strided_batched)
+                {
+                    auto common_args = create_strided_batched_args_common(ctx, input_args);
+                    rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                                   common_args,
+                                   rocblas_gemm_algo_solution_index,
+                                   solution_idx,
+                                   gemm_flags);
+                }
+                else
+                {
+                    auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                    rocblas_invoke(&rocblas_gemm_ex,
+                                   common_args,
+                                   rocblas_gemm_algo_solution_index,
+                                   solution_idx,
+                                   gemm_flags);
+                }
             }
         }
         else
-#endif
         {
-            if(strided_batched)
-            {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                               common_args,
-                               rocblas_gemm_algo_solution_index,
-                               solution_idx,
-                               gemm_flags);
-            }
-            else
-            {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_ex,
-                               common_args,
-                               rocblas_gemm_algo_solution_index,
-                               solution_idx,
-                               gemm_flags);
-            }
+            solution_idx = AS_BLAS_IDX(solution_idx);
+            auto common_args = create_hipblaslt_args_common(ctx, input_args, solution_idx);
+            hipblaslt_invoke(&hipblasLtMatmul, common_args);
         }
     }
 
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
-    auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx) const
+    auto validate(context& ctx, const std::vector<shape>& input_shapes, int32_t solution_idx)// const
     {
         // Create dummy arguments for the shapes, and call the overloaded method
         std::vector<argument> input_args;
@@ -311,35 +527,52 @@ struct gemm_impl
      * to choose a solution.
      */
     int32_t
-    validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx) const
+    validate(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx)// const
     {
-        rocblas_status_ check_valid(rocblas_status_success);
-
-        if(strided_batched)
+        if(IS_ROCBLAS(solution_idx))
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
-            check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                                         common_args,
-                                         rocblas_gemm_algo_solution_index,
-                                         solution_idx,
-                                         rocblas_gemm_flags_check_solution_index);
+            rocblas_status_ check_valid(rocblas_status_success);
+            solution_idx = AS_BLAS_IDX(solution_idx);
+            if(strided_batched)
+            {
+                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
+                                             common_args,
+                                             rocblas_gemm_algo_solution_index,
+                                             solution_idx,
+                                             rocblas_gemm_flags_check_solution_index);
+            }
+            else
+            {
+                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                check_valid      = rocblas_invoke(&rocblas_gemm_ex,
+                                             common_args,
+                                             rocblas_gemm_algo_solution_index,
+                                             solution_idx,
+                                             rocblas_gemm_flags_check_solution_index);
+            }
+
+            if(check_valid == rocblas_status_invalid_value)
+            {
+                std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+                return 0;
+            }
+            return AS_MGX_IDX(solution_idx, true);
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
-            check_valid      = rocblas_invoke(&rocblas_gemm_ex,
-                                         common_args,
-                                         rocblas_gemm_algo_solution_index,
-                                         solution_idx,
-                                         rocblas_gemm_flags_check_solution_index);
-        }
+            hipblasStatus_t check_valid(HIPBLAS_STATUS_SUCCESS);
+            solution_idx = AS_BLAS_IDX(solution_idx);
+            auto common_args = create_hipblaslt_args_common(ctx, input_args, solution_idx);
+            check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args);
+            if(check_valid == HIPBLAS_STATUS_SUCCESS)
+            {
+                std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
+                return 0;
+            }
 
-        if(check_valid == rocblas_status_invalid_value)
-        {
-            std::cerr << "WARNING:  tuned solution is invalid; reverting to default" << std::endl;
-            return 0;
+            return AS_MGX_IDX(solution_idx, false);
         }
-        return solution_idx;
     }
 #endif
 
@@ -417,16 +650,79 @@ struct gemm_impl
                     compute_type);
     }
 
+    /**
+     * Helper method to create that subset of a long hipblaslt argument list that is common
+     * to multiple "gemm_ex..." calls.
+     *
+     * The hipblaslt GEMM API handles inputs and output matrices as
+     *  column-major format. When doing a C = A * B, we actually do
+     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
+     *   A and args[0] as B in calling the hipblaslt GEMM.
+     *
+     * */
+    auto create_hipblaslt_args_common(context& ctx, const std::vector<argument>& args, int32_t solution_idx)
+    {
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_desc,
+                    get_alpha(),     // alpha
+                    args[1].data(),  // A
+                    matA,            // Adesc
+                    args[0].data(),  // B
+                    matB,            // Bdesc
+                    get_beta(),      // beta
+                    args[2].data(),  // C
+                    matC,            // Cdesc
+                    is_3inputs ? args[3].data() : args[2].data(),  // D
+                    is_3inputs ? matD: matC,                       // Ddesc
+                    &solution.get_result(ctx, *this, solution_idx)[0].algo,                     // algo
+                    ctx.get_stream().get_hipblaslt_workspace(),    // workspace
+                    HIPBLASLT_WORKSPACE_SIZE,                      // workspaceSizeInBytes
+                    ctx.get_stream().get()                         // stream
+                    );
+    }
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+    auto create_hipblaslt_tuning_args_common(context& ctx, const std::vector<argument>& args, std::vector<hipblasLtMatmulHeuristicResult_t> result) const
+    {
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
+                    op_A,
+                    op_B,
+                    dtype,
+                    dtype,
+                    dtype,
+                    dtype,
+                    HIPBLASLT_COMPUTE_F32,
+                    result
+                    );
+    }
+
+    auto create_hipblaslt_supporting_args_common(context& ctx, const std::vector<argument>& args, hipblasLtMatmulAlgo_t &algo, size_t &workspace_size) const
+    {
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_desc,
+                    get_alpha(),
+                    matA,
+                    matB,
+                    get_beta(),
+                    matC,
+                    matC,
+                    algo,
+                    workspace_size
+                    );
+    }
+#endif
+
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     /**
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-    int tune(context& ctx, const std::vector<shape>& input_shapes) const
+    int tune(context& ctx, const std::vector<shape>& input_shapes) //const
     {
         // tuning meta parameters
         const int hot_calls = 40;
 
+        // First part: rocBLAS
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),
@@ -438,7 +734,7 @@ struct gemm_impl
         // 2.  Get the solutions
         //
         rocblas_int list_size = 0;
-        std::vector<rocblas_int> solution_indices;
+        std::vector<rocblas_int> solution_indices_0;
         if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
@@ -448,14 +744,14 @@ struct gemm_impl
                            gemm_flags,
                            nullptr,
                            &list_size);
-            solution_indices.resize(list_size);
+            solution_indices_0.resize(list_size);
 
             auto common_sol_args = create_strided_batched_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
                            gemm_flags,
-                           solution_indices.data(),
+                           solution_indices_0.data(),
                            &list_size);
         }
         else
@@ -467,19 +763,90 @@ struct gemm_impl
                            gemm_flags,
                            nullptr,
                            &list_size);
-            solution_indices.resize(list_size);
+            solution_indices_0.resize(list_size);
 
             auto common_sol_args = create_gemm_ex_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
                            gemm_flags,
-                           solution_indices.data(),
+                           solution_indices_0.data(),
                            &list_size);
         }
 
+        // Second part: hipblasLt
+        std::vector<hipblasLtMatmulHeuristicResult_t> result;
+#if 1
+        hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
+                    op_A,
+                    op_B,
+                    dtype,
+                    dtype,
+                    dtype,
+                    dtype,
+                    HIPBLASLT_COMPUTE_F32,
+                    result
+                    );
+#else
+        auto tuning_args = create_hipblaslt_tuning_args_common(ctx, input_args, result);
+        hipblaslt_invoke(&hipblaslt_ext::getAllAlgos,
+                         tuning_args
+                         );
+
+#endif
+        std::vector<int> solution_indices_1;
+        int returned_algo_count = result.size();
+        for (int i = 0; i < returned_algo_count; i++)
+        {
+            auto algo = result[i].algo;
+            size_t ret_workspace_size = 0;
+   
+#if 1
+            auto status = hipblaslt_ext::matmulIsAlgoSupported(
+                                ctx.get_stream().get_hipblaslt(),
+                                hipblaslt_desc,
+                                get_alpha(),
+                                matA,
+                                matB,
+                                get_beta(),
+                                matC,
+                                matC,
+                                algo,
+                                ret_workspace_size
+                                );
+#else
+            auto supporting_args = create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
+            auto status = hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported,
+                            supporting_args
+                            );
+#endif
+            if (status == HIPBLAS_STATUS_SUCCESS)
+            { 
+                if (ret_workspace_size < HIPBLASLT_WORKSPACE_SIZE)
+                {
+                    solution_indices_1.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+                }
+                else
+                {
+                    std::cout << "Need space larger than given workspace!" << std::endl;
+                }
+            }
+        }
+
+        // Third part: comparing rocBLAS and hipblasLt solutions
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
+        std::vector<int32_t> result_0, result_1;
+        std::vector<int32_t> solution_indices;
+
+        std::transform(solution_indices_0.begin(), solution_indices_0.end(), std::back_inserter(result_0),
+                       [this](int32_t elem) { return this->AS_MGX_IDX(elem, false); });
+        std::transform(solution_indices_1.begin(), solution_indices_1.end(), std::back_inserter(result_1),
+                       [this](int32_t elem) { return this->AS_MGX_IDX(elem, true); });
+        std::copy(result_0.begin(), result_0.end(), std::back_inserter(solution_indices));
+        std::copy(result_1.begin(), result_1.end(), std::back_inserter(solution_indices));
+
         // Initialize to default solution index
         rocblas_int best_sol = 0;
         for(auto sol : solution_indices)
@@ -506,12 +873,17 @@ struct gemm_impl
                 best_time = host_time;
             }
         }
-        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
+
+        std::cout << "Winning GEMM solution: "
+                  << (AS_BLAS_IDX(best_sol))
+                  << " (" << (IS_ROCBLAS(best_sol) ? "rocblas" : "hipblaslt") << ")"
+                  << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
         return best_sol;
     }
 #endif
     private:
+    // rocblas
     size_t num_matrices = 0;
     rocblas_int m       = 0;
     rocblas_int n       = 0;
@@ -538,6 +910,15 @@ struct gemm_impl
     bool strided_batched          = true;
     bool is_3inputs               = true;
     bool compute_fp32             = true;
+
+    // hipblaslt
+    hipblasltDatatype_t dtype;
+    hipblasLtMatmulDesc_t hipblaslt_desc;
+    hipblasOperation_t op_A;
+    hipblasOperation_t op_B;
+    hipblasLtMatrixLayout_t matA, matB, matC, matD;
+    hipblasLtHandle_t handle;
+    hipblasLtMatmulPreference_t preference;
 }; // gemm_impl
 
 void gemm_compute(context& ctx,
@@ -571,6 +952,7 @@ void gemm_compute(context& ctx,
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
     auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
+
     gemm_item.run(ctx, args, solution_idx);
 }
 

@@ -83,6 +83,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-explicit-virtual-functions
         -cppcoreguidelines-init-variables
+        -cppcoreguidelines-macro-usage
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic

@@ -87,7 +87,7 @@ def yapf_format(against, apply=False):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('against', default='develop', nargs='?')
+    parser.add_argument('against', default='master', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
     args = parser.parse_args()

@@ -30,14 +30,65 @@
 # commit year (which is found via GIT LOG). It then updates the year if needed. If a license stamp is not found, then
 # it will add a stamp at the begenning of the file with the year set to the current year.
 #####################################################################################
-import subprocess, os, datetime, re
-
-debug = False
+import subprocess, os, datetime, re, argparse
 
 current_year = datetime.date.today().year
 
 __repo_dir__ = os.path.normpath(
     os.path.join(os.path.realpath(__file__), '..', '..'))
+
+delimiters = {
+    ".cpp": "*",
+    ".hpp": "*",
+    ".h": "*",
+    ".ipynb": "//",
+    ".py": "#",
+    ".txt": "#",
+    ".bsh": "#",
+    ".sh": "#",
+    ".cmake": "#"
+}
+extensions = delimiters.keys()
+
+
+# Get the delimiter from the file type based on what we care about to tag with our licence
+# file. Otherwise return None for the delimiter and skip the file
+def getDelimiter(filename):
+    delimiter = None
+    for extension in extensions:
+        if extension in filename:
+            delimiter = delimiters[extension]
+            break
+    return delimiter
+
+
+def eval(cmd, **kwargs):
+    return subprocess.run(cmd,
+                          capture_output=True,
+                          shell=True,
+                          check=True,
+                          **kwargs).stdout.decode('utf-8').strip()
+
+
+def get_head():
+    return eval("git rev-parse --abbrev-ref HEAD")
+
+
+def get_merge_base(branch):
+    head = get_head()
+    return eval(f"git merge-base {branch} {head}")
+
+
+def get_files_changed(against):
+    files = eval(f"git diff-index --cached --name-only {against}",
+                 cwd=__repo_dir__).splitlines()
+    return [f for f in files if getDelimiter(f)]
+
+
+def get_all_files():
+    files = eval("git ls-files --exclude-standard",
+                 cwd=__repo_dir__).splitlines()
+    return [f for f in files if getDelimiter(f)]
 
 
 # Markdown code blob we should use to insert into notebook files
@@ -78,7 +129,7 @@ def hasKeySequence(inputfile, key_message):
     return result
 
 
-def getYearOfLatestCommit(rfile: str) -> datetime:
+def getYearOfLatestCommit(rfile: str) -> int:
     proc2 = subprocess.run(f"git log -1 --format=%cd --date=short {rfile}",
                            shell=True,
                            stdout=subprocess.PIPE,
@@ -88,7 +139,11 @@ def getYearOfLatestCommit(rfile: str) -> datetime:
     return year
 
 
-def updateYear(filename: str, lastCommitYear: str) -> None:
+def currentYear() -> int:
+    return datetime.datetime.now().date().year
+
+
+def updateYear(filename: str, lastCommitYear: int) -> None:
     with open(filename, 'r') as f:
         newfileContent = re.sub(
             "2015-\d+ Advanced Micro Devices",
@@ -129,8 +184,14 @@ def bottomFooter(commentChar):
     return delim
 
 
-#Simple just open and write stuff to each file with the license stamp
-def openAndWriteFile(filename, message, commentChar, rfile):
+# Simple just open and write stuff to each file with the license stamp
+def openAndWriteFile(rfile,
+                     message,
+                     commentChar,
+                     useLastCommitYear=False,
+                     debug=False):
+
+    filename = os.path.join(__repo_dir__, rfile)
     add_shebang = False
     #markdown file stamping for .ipynb
     save_markdown_lines = []
@@ -172,21 +233,23 @@ def openAndWriteFile(filename, message, commentChar, rfile):
                     save, "Advanced Micro Devices, Inc. All rights reserved")
                 hasOtherLic = hasKeySequence(save, "Software License")
 
-                #Check if we have a licence stamp already and the latest commit year matches license year (unless commit year is pre-2023, which case its ignored)
+                # Check if we have a licence stamp already and the latest
+                # commit year matches license year (unless commit year is
+                # pre-2023, which case its ignored)
                 if hasAmdLic or hasOtherLic is True:
                     contents.close()
 
-                    lastCommitYear = getYearOfLatestCommit(rfile)
+                    year = getYearOfLatestCommit(
+                        rfile) if useLastCommitYear else currentYear()
 
                     if not hasKeySequence(
-                            save,
-                            f'2015-{lastCommitYear} Advanced Micro Devices'
-                    ) and lastCommitYear > 2022:
+                            save, f'2015-{year} Advanced Micro Devices'
+                    ) and year > 2022:
                         if debug:
                             print(
-                                f"....Already stamped but wrong year: Updating the year to {lastCommitYear}"
+                                f"....Already stamped but wrong year: Updating the year to {year}"
                             )
-                        return updateYear(filename, lastCommitYear)
+                        return updateYear(filename, year)
 
                     if debug:
                         print("....Already Stamped: Skipping file ")
@@ -202,9 +265,9 @@ def openAndWriteFile(filename, message, commentChar, rfile):
         print("...Writing header", end='')
 
     with open(filename, 'w') as contents:
-        #append the licence to the top of the file
+        # append the licence to the top of the file
 
-        #Append shebang before license
+        # Append shebang before license
         if add_shebang is True:
             contents.write(saved_shebang + "\n")
 
@@ -228,61 +291,48 @@ def openAndWriteFile(filename, message, commentChar, rfile):
         if delim is not None:
             contents.write(delim)
 
-        #write remaining contents
+        # write remaining contents
         contents.write(save)
     if debug is True:
         print("...done")
 
 
-# Get the file type based on what we care about to tag with our licence
-# file. Otherwise return None for the delimiter and skip the file
-
-
-def getDelimiter(filename):
-
-    delimiterDict = {
-        ".cpp": "*",
-        ".hpp": "*",
-        ".h": "*",
-        ".ipynb": "//",
-        ".py": "#",
-        ".txt": "#",
-        ".bsh": "#",
-        ".sh": "#",
-        ".cmake": "#"
-    }
-    listOfKeys = delimiterDict.keys()
-    delimiter = None
-
-    for extension in listOfKeys:
-        if extension in filename:
-            delimiter = delimiterDict[extension]
-            break
-
-    return delimiter
-
-
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('against', default='develop', nargs='?')
+    parser.add_argument('-a',
+                        '--all',
+                        action='store_true',
+                        help='Update all files')
+    parser.add_argument('--debug',
+                        action='store_true',
+                        help='Enable debug output')
+    args = parser.parse_args()
 
-    message = open(os.path.join(__repo_dir__, 'LICENSE')).read()
+    message = open(os.path.join(__repo_dir__, 'LICENSE')).read().split('\n')
 
-    #Get a list of all the files in our git repo
-    proc = subprocess.run("git ls-files --exclude-standard",
-                          shell=True,
-                          stdout=subprocess.PIPE,
-                          cwd=__repo_dir__)
-    fileList = proc.stdout.decode().split('\n')
-    message = message.split('\n')
+    # Get a list of all the files in our git repo
+    fileList = None
+    if args.all:
+        fileList = get_all_files()
+    else:
+        fileList = get_files_changed(get_merge_base(args.against))
 
-    if debug is True:
-        print("Target file list:\n" + str(fileList))
-        print("Output Message:\n" + str(message))
+    if args.debug is True:
+        print("Target file list:\n" + '\n'.join(fileList))
+        print("Output Message:\n" + '\n'.join(message))
 
     for rfile in fileList:
-        file = os.path.join(__repo_dir__, rfile)
-        commentDelim = getDelimiter(file)
+        commentDelim = getDelimiter(rfile)
         if commentDelim is not None:
-            openAndWriteFile(file, message, commentDelim, rfile)
+            print(f"Updating file: {rfile}")
+            openAndWriteFile(rfile,
+                             message,
+                             commentDelim,
+                             useLastCommitYear=args.all,
+                             debug=args.debug)
+        elif args.debug:
+            print(f"No valid delimeter for file: {rfile}")
 
 
 if __name__ == "__main__":

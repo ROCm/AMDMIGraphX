@@ -221,8 +221,6 @@ auto is_mlir_conv(mlir_mode mode)
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        if(group != 1)
-            return false;
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;

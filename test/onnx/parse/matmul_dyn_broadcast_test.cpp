@@ -23,10 +23,26 @@
  */
 
 #include <onnx_test.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 
-TEST_CASE(matmul_dyn_broadcast_error)
+TEST_CASE(matmul_dyn_broadcast_test)
 {
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto p0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto p1  = mm->add_parameter(
+        "2", migraphx::shape{migraphx::shape::float_type, {{5, 5}, {7, 7}, {4, 8, {6}}}});
+    auto sp1          = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), p1);
+    auto broadcast_p0 = mm->add_instruction(migraphx::make_op("dot_broadcast"), p0, sp1);
+    auto broadcast_p1 = mm->add_instruction(migraphx::make_op("dot_broadcast"), sp1, p0);
+    auto res          = migraphx::add_apply_alpha_beta(
+        *mm, {broadcast_p0, broadcast_p1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), res);
+    mm->add_return({ret});
+
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("matmul_dyn_broadcast_error.onnx", options); }));
+    options.map_dyn_input_dims["1"] = {{5, 5}, {7, 7}, {4, 8, {6}}};
+    auto prog                       = parse_onnx("matmul_dyn_broadcast_test.onnx", options);
+
+    EXPECT(p == prog);
 }

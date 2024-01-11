@@ -1788,7 +1788,8 @@ TEST_CASE(multibroadcast_2in_static_dyn_within1)
 {
     // dynamic_dimension.within_range for first dimension
     migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
-    std::vector<migraphx::shape::dynamic_dimension> b{{1, 4}, {6, 6}};
+    auto max_val = std::numeric_limits<std::size_t>::max();
+    std::vector<migraphx::shape::dynamic_dimension> b{{0, max_val}, {6, 6}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {6, 6}}},
                  migraphx::make_op("multibroadcast"),

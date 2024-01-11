@@ -124,7 +124,7 @@ struct unsqueeze
                     if(p < old_strides.size())
                     {
                         if((old_lens[p] % step) != 0)
-                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimenstion is not divisible by step");
+                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension is not divisible by step");
                         old_lens[p] /= step;
                         new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
                     }

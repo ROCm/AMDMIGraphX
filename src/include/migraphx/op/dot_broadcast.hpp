@@ -50,6 +50,8 @@ struct dot_broadcast
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
+        check_shapes{{inputs.at(0)}, *this, true}.min_ndims(2);
+        check_shapes{{inputs.at(1)}, *this, true}.min_ndims(2);
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())

@@ -195,11 +195,11 @@ struct resize
         }
         else
         {
-            // Dynamic output shape.
+            // 2 inputs: 2nd sets sizes/scales for output.
             if(inputs.back().ndim() != 1)
                 MIGRAPHX_THROW("RESIZE: size/scale input must have rank 1");
             if(inputs.back().dynamic())
-                MIGRAPHX_THROW("RESIZE: size/scale input must be static size");
+                MIGRAPHX_THROW("RESIZE: size/scale input must have static shape");
 
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
@@ -245,7 +245,7 @@ struct resize
                                in_lens.end(),
                                scales.begin(),
                                out_lens.begin(),
-                               []( size_t in_len, auto scale_i) {
+                               [](size_t in_len, auto scale_i) {
                                    return static_cast<size_t>(scale_i * in_len);
                                });
             }
@@ -268,9 +268,7 @@ struct resize
                         input.end(),
                         in_lens.begin(),
                         vec_scale.begin(),
-                        [](auto sz, size_t in_len) { 
-                            return static_cast<double>(sz) / in_len; 
-                            });
+                        [](auto sz, size_t in_len) { return static_cast<double>(sz) / in_len; });
                     vec_scale[0] = 1.0f;
                 }
                 else

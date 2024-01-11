@@ -47,6 +47,7 @@ TEST_CASE(resize_test_1)
 
     // a0 = input data
     // a1 = sizes of output
+    // non-matching sizes/scales attributes are ignored for 2 input arguments
     mm->add_instruction(migraphx::make_op("resize",
                                           {{"sizes", {1}},
                                            {"scales", {1}},
@@ -188,4 +189,188 @@ TEST_CASE(resize_upsample_test_4_1_input)
     // clang-format on
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_fail_test_1)
+{
+    // invalid resize mode
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {0.75, 0.25, 1., 1.}},
+                                               {"mode", "invalid"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            {a0});
+    }));
+}
+
+TEST_CASE(resize_fail_test_2)
+{
+    // "sizes" attribute wrong vector size
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 2}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            {a0});
+    }));
+}
+
+TEST_CASE(resize_fail_test_3)
+{
+    // "scales" attribute wrong vector size
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"scales", {1., 2.}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            {a0});
+    }));
+}
+
+TEST_CASE(resize_fail_test_4)
+{
+    // invalid coordinate_transformation_mode
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::module m;
+
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"scales", {1., 1., 0.75, 0.25}},
+                                           {"nearest_mode", "round_prefer_floor"},
+                                           {"coordinate_transformation_mode", "invalid"}}),
+                        {a0});
+    p.compile(migraphx::make_target("ref"));
+    EXPECT(test::throws([&] { p.eval({}).back(); }));
+}
+
+TEST_CASE(resize_fail_test_5)
+{
+    // invalid nearest_mode
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::module m;
+
+    mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"scales", {1., 1., 0.75, 0.25}},
+                           {"nearest_mode", "invalid"},
+                           {"coordinate_transformation_mode", "pytorch_half_pixel"}}),
+        {a0});
+    p.compile(migraphx::make_target("ref"));
+    EXPECT(test::throws([&] { p.eval({}).back(); }));
+}
+
+TEST_CASE(resize_fail_test_6)
+{
+    // wrong dimension for second input
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {3}};
+    std::vector<int> size_values = {1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            a0,
+                            a1);
+    }));
+}
+
+TEST_CASE(resize_fail_test_7)
+{
+    // wrong rank for second input
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4, 1}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            a0,
+                            a1);
+    }));
+}
+
+TEST_CASE(resize_fail_test_8)
+{
+    // dynamic second input
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape::dynamic_dimension dd{4, 4};
+    migraphx::shape size_input{migraphx::shape::int32_type, {dd}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_parameter("Y", size_input);
+
+    // a0 = input data
+    // a1 = sizes of output
+    EXPECT(test::throws([&] {
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            a0,
+                            a1);
+    }));
 }

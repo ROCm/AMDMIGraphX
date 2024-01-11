@@ -65,7 +65,125 @@ TEST_CASE(resize_test_1)
         0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
         3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f,
         3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
-        6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5
+        6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5f
+        };
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_test_2)
+{
+    // nearest_mode= "round_prefer_floor" coordinate_transformation_mode= "pytorch_half_pixel"
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"nearest_mode", "round_prefer_floor"},
+                           {"coordinate_transformation_mode", "pytorch_half_pixel"}}),
+        a0,
+        a1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f,  0.5f,  0.5f,  1.5f,  1.5f,  2.5f,  2.5f,  2.5f,
+        0.5f,  0.5f,  0.5f,  1.5f,  1.5f,  2.5f,  2.5f,  2.5f,
+        3.5f,  3.5f,  3.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,
+        6.5f,  6.5f,  6.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,
+        6.5f,  6.5f,  6.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f
+        };
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_test_3)
+{
+    // nearest_mode= "ceil" coordinate_transformation_mode= "pytorch_half_pixel"
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"nearest_mode", "ceil"},
+                                           {"coordinate_transformation_mode", "align_corners"}}),
+                        a0,
+                        a1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f,  1.5f,  1.5f,  1.5f,  2.5f,  2.5f,  2.5f,  2.5f,
+        3.5f,  4.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,  5.5f,
+        3.5f,  4.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,  5.5f,
+        6.5f,  7.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,
+        6.5f,  7.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5
+        };
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_test_4)
+{
+    // nearest_mode= "ceil" coordinate_transformation_mode= "pytorch_half_pixel"
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    // to do: non-literal
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    mm->add_instruction(
+        migraphx::make_op(
+            "resize", {{"nearest_mode", "ceil"}, {"coordinate_transformation_mode", "asymmetric"}}),
+        a0,
+        a1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f,  1.5f,  1.5f,  2.5f,  2.5f,  2.5f,  2.5f,  2.5f,
+        3.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,  5.5f,  5.5f,
+        6.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f,
+        6.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f,
+        6.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f
         };
     // clang-format on
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,23 +36,34 @@ template <class F>
 struct gelu_tanh_matcher
 {
     F f;
-    auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0f))); }
 
+    /// x ^ 3
+    auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0))); }
+
+    /// tanh( sqrt(2/M_PI) * (x + 0.044715 * x ^ 3 )
     auto tanh_fn() const
     {
-        return f("tanh")(
-            used_once(),
-            arg(0)(f("mul")(either_arg(0, 1)(has_value(sqrt(M_2_PI), 1e-3),
-                                             f("add")(any_arg(0, 1)(f("mul")(either_arg(0, 1)(
-                                                 has_value(0.044715f), pow_fn()))))))));
+        auto mul_const_pow    = f("mul")(either_arg(0, 1)(has_value(0.044715), pow_fn()));
+        auto add_any_mul      = f("add")(any_arg(0, 1)(mul_const_pow));
+        auto mul_sqrt2rpi_add = f("mul")(either_arg(0, 1)(has_value(sqrt(M_2_PI)), add_any_mul));
+        return f("tanh")(used_once(), arg(0)(mul_sqrt2rpi_add));
     }
 
-    auto matcher() const
+    /// x * (0.5? + 0.5 * tanh( sqrt(2/M_PI) * (x? + 0.044715 * x? ^ 3) ) )
+    /// <item>? question mark means it doesn't explicitly match that item (anything will work)
+    auto matcher_v0() const
     {
-        return f("mul")(used_once(),
-                        either_arg(0, 1)(any().bind("x"),
-                                         f("add")(any_arg(0, 1)(f("mul")(
-                                             either_arg(0, 1)(has_value(0.5f), tanh_fn()))))));
+        auto mul_half_tanh = f("mul")(either_arg(0, 1)(has_value(0.5), tanh_fn()));
+        auto add_any_mul   = f("add")(any_arg(0, 1)(mul_half_tanh));
+        return f("mul")(either_arg(0, 1)(any().bind("x"), add_any_mul));
+    }
+
+    /// x * 0.5 * (1.0 + tanh( sqrt(2/M_PI) * (x + 0.044715 * x ^ 3) ) )
+    auto matcher_v1() const
+    {
+        auto add_one_tanh = f("add")(used_once(), either_arg(0, 1)(has_value(1.0), tanh_fn()));
+        auto mul_half_x = f("mul")(used_once(), either_arg(0, 1)(has_value(0.5), any().bind("x")));
+        return f("mul")(either_arg(0, 1)(mul_half_x, add_one_tanh));
     }
 };
 } // namespace detail
@@ -60,7 +71,8 @@ struct gelu_tanh_matcher
 template <class F>
 auto gelu_tanh(F f)
 {
-    return detail::gelu_tanh_matcher<F>{f}.matcher();
+    auto gtm = detail::gelu_tanh_matcher<F>{f};
+    return any_of(gtm.matcher_v0(), gtm.matcher_v1());
 }
 
 inline auto gelu_tanh()

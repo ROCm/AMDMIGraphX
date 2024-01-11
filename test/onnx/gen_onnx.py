@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -2916,6 +2916,157 @@ def group_norm_invalid_bias_shape_test():
 
 
 @onnx_test()
+def gru_bi_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 60, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 120])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 2, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 2, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'GRU',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid', 'relu', 'tanh'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def gru_bi_5arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 60, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 120])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 2, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'GRU',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid', 'relu', 'tanh'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        linear_before_reset=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len], [hs, output])
+
+
+@onnx_test()
+def gru_f_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 120])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'GRU',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='forward',
+        hidden_size=20,
+        linear_before_reset=1,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def gru_f_3arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh', 'sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 layout=1)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
+def gru_r_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 120])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'GRU',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='reverse',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def gru_r_4arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 120])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r', 'bias'],
+                                 outputs=['hs', 'output'],
+                                 activations=['relu', 'tanh'],
+                                 clip=0,
+                                 direction='reverse',
+                                 hidden_size=20,
+                                 linear_before_reset=1,
+                                 layout=1)
+
+    return ([node], [seq, w, r, bias], [hs, output])
+
+
+@onnx_test()
 def hardsigmoid_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 4, 5])
@@ -4898,6 +5049,38 @@ def matmulinteger_dyn_error():
     )
 
     return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_uns_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_uns_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.UINT8, [], [12])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
 
 
 @onnx_test()
@@ -7689,6 +7872,130 @@ def reversesequence_time_test():
         sequence_lens=[4, 3, 2, 1],
     )
     return ([node], [x], [y])
+
+
+@onnx_test()
+def rnn_bi_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [2, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 2, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 2, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 2, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='bidirectional',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_f_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='forward',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_f_5arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r', 'bias', 'seq_len'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh', 'sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len], [hs, output])
+
+
+@onnx_test()
+def rnn_r_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT, [1, 40])
+    seq_len = helper.make_tensor_value_info('seq_len', TensorProto.INT32, [3])
+    h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, [3, 1, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node(
+        'RNN',
+        inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
+        outputs=['hs', 'output'],
+        activations=['tanh', 'sigmoid'],
+        clip=0,
+        direction='reverse',
+        hidden_size=20,
+        layout=1)
+
+    return ([node], [seq, w, r, bias, seq_len, h0], [hs, output])
+
+
+@onnx_test()
+def rnn_r_3arg_layout_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [3, 5, 1, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [3, 1, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh', 'sigmoid'],
+                                 clip=0,
+                                 direction='reverse',
+                                 hidden_size=20,
+                                 layout=1)
+
+    return ([node], [seq, w, r], [hs, output])
 
 
 @onnx_test()

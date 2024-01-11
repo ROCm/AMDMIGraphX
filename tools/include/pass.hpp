@@ -89,6 +89,9 @@ interface('pass',
 )
 %>
 
+/// Used in the targets to enable/disable compiler passes
+pass enable_pass(bool enabled, pass p);
+
 #endif
 
 } // namespace MIGRAPHX_INLINE_NS

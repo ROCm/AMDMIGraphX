@@ -1006,13 +1006,6 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-<<<<<<< HEAD
-    static std::mutex mutex;
-    if(enabled(MIGRAPHX_TRACE_MLIR{}))
-    {
-        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        const std::lock_guard<std::mutex> lock(mutex);
-=======
 
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
@@ -1020,7 +1013,6 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     {
         const std::lock_guard<std::mutex> lock(mutex);
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
->>>>>>> e751814191161dc4d627b5efe949f0b82995020e
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return mp.get_tuning_config(exhaustive);

@@ -1,0 +1,31 @@
+FROM ubuntu:22.04
+
+ARG PREFIX=/usr/local
+
+#Prequisite packages to begin getting files
+RUN apt update && apt install -y wget
+
+#Aquire and install ROCm
+RUN wget https://repo.radeon.com/amdgpu-install/6.0/ubuntu/jammy/amdgpu-install_6.0.60000-1_all.deb
+RUN apt install -y ./amdgpu-install_6.0.60000-1_all.deb
+RUN amdgpu-install --usecase=rocm -y && rm *.deb
+
+#Install MIGraphX from package manager
+RUN apt install -y migraphx
+
+#Pieces for Onnxruntime for ROCm and MIGraphX Execution Provider Support
+RUN wget https://compute-artifactory.amd.com/artifactory/list/compute-pytorch-rocm/compute-rocm-rel-6.0/95/onnxrt-inference/onnxruntime_rocm-1.17.0-cp310-cp310-linux_x86_64.whl
+RUN pip3 install *.whl && rm -rf *.whl
+
+#Pieces for Pytoprch
+RUN wget https://compute-artifactory.amd.com/artifactory/list/compute-pytorch-rocm/compute-rocm-rel-6.0/95/torch-2.1.1+rocm6.0-cp310-cp310-linux_x86_64.whl
+RUN pip3 install *.whl && rm -rf *.whl
+
+RUN wget https://compute-artifactory.amd.com/artifactory/list/compute-pytorch-rocm/compute-rocm-rel-6.0/95/torchvision-0.16.1+rocm6.0-cp310-cp310-linux_x86_64.whl
+RUN pip3 install *.whl && rm -rf *.whl
+
+
+#Adjust final path for ability to use rocm components
+ENV PATH=$PATH:/opt/rocm/bin/
+
+

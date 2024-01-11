@@ -31,7 +31,7 @@
 
 #include <migraphx/op/common.hpp>
 
-struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_actv1>
+struct test_gru_reverse_last_layout : verify_program<test_gru_reverse_last_layout>
 {
     migraphx::program create_program() const
     {
@@ -44,13 +44,13 @@ struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_
 
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape in_shape{migraphx::shape::float_type, {seq_len, batch_size, input_size}};
+        migraphx::shape in_shape{migraphx::shape::float_type, {batch_size, seq_len, input_size}};
         migraphx::shape w_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, input_size}};
         migraphx::shape r_shape{migraphx::shape::float_type,
                                 {num_dirct, 3 * hidden_size, hidden_size}};
         migraphx::shape b_shape{migraphx::shape::float_type, {num_dirct, 6 * hidden_size}};
-        migraphx::shape ih_shape{migraphx::shape::float_type, {num_dirct, batch_size, hidden_size}};
+        migraphx::shape ih_shape{migraphx::shape::float_type, {batch_size, num_dirct, hidden_size}};
 
         auto seq  = mm->add_parameter("seq", in_shape);
         auto w    = mm->add_parameter("w", w_shape);
@@ -59,14 +59,18 @@ struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_
         auto ih   = mm->add_parameter("ih", ih_shape);
         auto und  = mm->add_instruction(migraphx::make_op("undefined"));
 
-        mm->add_instruction(
+        std::vector<int64_t> perm{1, 0, 2};
+        seq = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), seq);
+        ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
+
+        auto output = mm->add_instruction(
             migraphx::make_op(
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("sigmoid"), migraphx::make_op("sigmoid")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
             w,
@@ -74,6 +78,8 @@ struct test_gru_forward_default_actv1 : verify_program<test_gru_forward_default_
             bias,
             und,
             ih);
+        auto lho = mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), output);
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
 
         return p;
     }

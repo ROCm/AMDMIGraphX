@@ -567,8 +567,6 @@ def disabled_tests_onnx_1_8_0(backend_test):
 
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
-    # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gru_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     # MaxPool dialtion is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly

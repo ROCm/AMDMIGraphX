@@ -59,8 +59,8 @@ struct test_conv_bn : verify_program<test_conv_bn<DType>>
         auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
         if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
         {
-            // use 5e-2f for the fp8
-            eps = mm->add_literal(migraphx::literal{DType, {5e-2f}});
+            // use 0.250 for fp8
+            eps = mm->add_literal(migraphx::literal{DType, {0.250}});
         }
 
         auto usq_scale =

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -181,7 +181,7 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
     }
 }
 
-static void remove_contiguous_noops(const std::string& op_name, module& m)
+static void remove_contiguous_nops(const std::string& op_name, module& m)
 {
     for(auto ins : iterator_for(m))
     {
@@ -202,7 +202,7 @@ void eliminate_contiguous::apply(module& m) const
         return (ins->inputs().front()->outputs().size() == 1);
     });
     remove_contiguous(op_name, m, [](auto) { return true; });
-    remove_contiguous_noops(op_name, m);
+    remove_contiguous_nops(op_name, m);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

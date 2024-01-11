@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,6 +73,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 
@@ -299,6 +300,8 @@ struct mlir_program
                 result = mlirF32TypeGet(ctx.get());
             else if(as.type_enum() == shape::half_type)
                 result = mlirF16TypeGet(ctx.get());
+            else if(as.type_enum() == shape::fp8e4m3fnuz_type)
+                result = mlirFloat8E4M3FNUZTypeGet(ctx.get());
             else if(as.type_enum() == shape::double_type)
                 result = mlirF64TypeGet(ctx.get());
             else if(as.is_integral())
@@ -792,7 +795,9 @@ struct mlir_program
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};
-        for(auto i : range(mlirRockTuningGetNumParams(params.get())))
+        const auto limit =
+            value_of(MIGRAPHX_MLIR_TUNE_LIMIT{}, std::numeric_limits<std::size_t>::max());
+        for(auto i : range(std::min<std::size_t>(limit, mlirRockTuningGetNumParams(params.get()))))
         {
             mlir_tuning_param param{mlirRockTuningParamCreate()};
             if(not mlirRockTuningParamGet(params.get(), i, param.get()))
@@ -936,6 +941,7 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         const auto& name  = names[i];
         const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
+        assert(param->get_shape().standard());
         if(input.standard())
             continue;
         auto new_param = m.add_parameter(name + ".0", input);
@@ -1000,11 +1006,21 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+<<<<<<< HEAD
     static std::mutex mutex;
     if(enabled(MIGRAPHX_TRACE_MLIR{}))
     {
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
         const std::lock_guard<std::mutex> lock(mutex);
+=======
+
+    const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
+    static std::mutex mutex;
+    if(trace)
+    {
+        const std::lock_guard<std::mutex> lock(mutex);
+        auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+>>>>>>> e751814191161dc4d627b5efe949f0b82995020e
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return mp.get_tuning_config(exhaustive);

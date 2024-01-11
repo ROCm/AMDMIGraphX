@@ -31,6 +31,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <array>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

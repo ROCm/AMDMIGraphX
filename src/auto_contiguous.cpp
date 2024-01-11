@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(contains({"layout", "contiguous", "@return", "@param", "@outline"}, ins->name()))
+        if(contains({"layout", "contiguous", "@return", "@outline"}, ins->name()))
             continue;
         auto outputs = ins->outputs();
         // for last instruction that is NOT a return
@@ -76,7 +76,7 @@ void auto_contiguous::apply(module& m) const
             continue;
         if(s.type() == shape::tuple_type)
             continue;
-        if(s.standard() and ins->name() == "@literal")
+        if(s.standard() and contains({"@literal", "@param"}, ins->name()))
             continue;
         if(s.scalar() and not contains(ins->name(), "broadcast"))
             continue;

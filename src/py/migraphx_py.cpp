@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
-
+#include <migraphx/float8.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -142,6 +142,18 @@ struct npy_format_descriptor<half>
         return "e";
     }
     static constexpr auto name() { return _("half"); }
+};
+
+template <>
+struct npy_format_descriptor<migraphx::fp8::fp8e4m3fnuz>
+{
+    static std::string format()
+    {
+        // following: https://docs.python.org/3/library/struct.html#format-characters
+        // TODO: need to figure out correct encoding
+        return "z";
+    }
+    static constexpr auto name() { return _("fp8e4m3fnuz"); }
 };
 
 } // namespace detail
@@ -568,7 +580,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("prog"),
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
-          py::arg("ins_names")   = std::vector<std::string>{"dot", "convolution"});
+          py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

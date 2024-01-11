@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -180,8 +180,7 @@ module {
     if(s.empty())
         return;
     CHECK(encode(s) == encode(mlir_output));
-    // FIXME: enable result verification once reference kernels support NHWC
-    // EXPECT(verify_mlir(m));
+    EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(conv_add_relu)

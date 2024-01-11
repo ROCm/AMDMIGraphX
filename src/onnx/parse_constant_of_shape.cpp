@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
         {
             migraphx::shape s;
             // input is empty, output is a scalar
-            auto type                = l_val.get_shape().type();
+            auto type = l_val.get_shape().type();
             migraphx::argument input = args[0]->eval();
             if(not input.empty())
             {

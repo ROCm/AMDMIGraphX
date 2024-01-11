@@ -212,17 +212,48 @@ struct resize
         }
     }
 
-    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    argument compute(const migraphx::shape&, std::vector<argument> args) const
     {
-        shape output_shape;
         auto in_lens = args[0].get_shape().lens();
         std::vector<size_t> out_lens(in_lens.size());
 
         // Scales are either given, or calculated from output shape
         std::vector<float> vec_scale(in_lens.size(), 1.0f);
 
-        if(dyn_out.computed_shape.dynamic() and args.size() > 1)
+        if(args.size() == 1)
         {
+            // single input argument; sizes or scales is constant.
+            // In practice, the input is never a dynamic shape.
+            if(not sizes.empty())
+            {
+                out_lens = sizes;
+                // compute scales
+                std::transform(out_lens.begin(),
+                               out_lens.end(),
+                               in_lens.begin(),
+                               vec_scale.begin(),
+                               [](size_t out_len, size_t in_len) {
+                                   return (in_len == 0 ? 1.f
+                                                       : static_cast<float>(out_len) / in_len);
+                               });
+            }
+            else
+            {
+                vec_scale = this->scales;
+                // compute output sizes
+                std::transform(in_lens.begin(),
+                               in_lens.end(),
+                               scales.begin(),
+                               out_lens.begin(),
+                               []( size_t in_len, auto scale_i) {
+                                   return static_cast<size_t>(scale_i * in_len);
+                               });
+            }
+        }
+        else
+        {
+            // 2 inputs; 2nd input is either sizes or scales.
+            // First input may be dynamic.
             args[1].visit([&](auto input) {
                 using type = typename decltype(input)::value_type;
                 if constexpr(std::is_integral<type>{})
@@ -237,7 +268,9 @@ struct resize
                         input.end(),
                         in_lens.begin(),
                         vec_scale.begin(),
-                        [](auto sz, size_t in_len) { return static_cast<double>(sz) / in_len; });
+                        [](auto sz, size_t in_len) { 
+                            return static_cast<double>(sz) / in_len; 
+                            });
                     vec_scale[0] = 1.0f;
                 }
                 else
@@ -260,42 +293,8 @@ struct resize
                 }
             });
         }
-        if(dyn_out.computed_shape.dynamic())
-        {
-            // at this time, case of single, dynamic input is not allowed.
-            output_shape = {args[0].get_shape().type(), out_lens};
-        }
-        else
-        {
-            output_shape = dyn_out.computed_shape;
-            if(not sizes.empty())
-            {
-                out_lens = sizes;
-                // compute scales
-                std::transform(out_lens.begin(),
-                               out_lens.end(),
-                               in_lens.begin(),
-                               vec_scale.begin(),
-                               [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.f
-                                                       : static_cast<float>(out_len) / in_len);
-                               });
-            }
-            else
-            {
-                vec_scale = this->scales;
-                // compute output sizes
-                const auto& inputs = output_shape.lens();
-                std::transform(inputs.begin(),
-                               inputs.end(),
-                               scales.begin(),
-                               out_lens.begin(),
-                               [](auto scale_i, size_t in_len) {
-                                   return static_cast<size_t>(scale_i * in_len);
-                               });
-            }
-        }
 
+        shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
         // TODO: there could be ways to optimize this function map--is it worth it?
         auto nearest_op = get_nearest_op(nearest_mode);

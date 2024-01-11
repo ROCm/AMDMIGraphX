@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -219,10 +219,7 @@ auto is_mlir_conv(mlir_mode mode)
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
         auto input_arg_t = ins->inputs().front()->get_shape().type();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
-        if(group != 1)
-            return false;
+        value v          = ins->get_operator().to_value();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
         if(ins->get_shape().lens().size() != 4)
             return false;

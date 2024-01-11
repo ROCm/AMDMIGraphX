@@ -76,6 +76,10 @@ Verify each instruction
 
 Reduce program and verify
 
+.. option:: --ref-use-double
+
+Convert floating point values to double for the ref target
+
 roctx
 -----
 

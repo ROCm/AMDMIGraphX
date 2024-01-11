@@ -21,46 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
 
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/eliminate_data_type.hpp>
+#include <set>
+#include <string>
+#include <migraphx/config.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
+struct module;
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+/**
+ * Convert floating point values to double precision.
+ */
+struct MIGRAPHX_EXPORT fp_to_double
 {
-    return {normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
-}
+    std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
+                                                shape::type_t::float_type};
+    std::string name() const { return "fp_to_double"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

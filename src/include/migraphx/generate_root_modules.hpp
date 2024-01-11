@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,38 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_PARTITIONER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_PARTITIONER_HPP
 
-#include <unordered_map>
-#include <string>
-
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/target_assignments.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct target_assignments
-{
-    using iterator   = std::unordered_map<instruction_ref, std::size_t>::const_iterator;
-    using value_type = std::pair<instruction_ref, std::size_t>;
-
-    auto size() const { return assignments.size(); }
-    auto& at(instruction_ref ins) const { return assignments.at(ins); }
-
-    auto insert(iterator it, const std::pair<instruction_ref, std::size_t>& assignment)
-    {
-        return assignments.insert(it, assignment);
-    }
-    auto find(instruction_ref ins) const { return assignments.find(ins); }
-
-    auto begin() const { return assignments.begin(); }
-    auto end() const { return assignments.end(); }
-
-    private:
-    std::unordered_map<instruction_ref, std::size_t> assignments;
-};
+/*
+given target_assignments, generates root modules for each individual targets inside main module.
+*/
+void generate_root_modules(migraphx::program& p, const migraphx::target_assignments& tass);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_ASSIGNMENT_HPP
+
+#endif

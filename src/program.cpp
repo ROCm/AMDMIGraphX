@@ -173,47 +173,52 @@ instruction_ref program::validate() const
     return mm->validate();
 }
 
+/*
+Assigns each instruction inside program to a target.
+It does it by first finding subgraphs supported on a given target based on assignment options.
+It is possible that instructions have multiple target assignments and part of multiple subgraphs.
+Current logic is simple and assigns entire subgraph containing supported instruction to a particular
+target on first seen basis and doesn't find the "best" target assignment.
+Assumes that all relevant (compute and reshaper) instructions will have target_assignment after
+this.
+*/
 target_assignments program::get_target_assignments(const std::vector<target>& targets,
                                                    assignment_options options)
 {
-    const auto m = options.metric;
+    const auto metric = options.metric;
 
-    target_assignments p;
+    target_assignments tass;
 
-    const auto* mod = get_main_module();
-    std::vector<std::pair<target, supported_segments>> target_subgraphs;
+    const auto* mm = get_main_module();
+    std::vector<std::pair<std::size_t, supported_segments>> target_subgraphs;
     target_subgraphs.reserve(targets.size());
-    std::transform(targets.begin(),
-                   targets.end(),
-                   std::back_inserter(target_subgraphs),
-                   [&](const auto& t) { return std::make_pair(t, t.find_supported(mod, m)); });
+    auto tr = range(targets.size());
+    std::transform(tr.begin(), tr.end(), std::back_inserter(target_subgraphs), [&](auto tid) {
+        return std::make_pair(tid, targets[tid].find_supported(mm, metric));
+    });
 
-    for(const auto ins : iterator_for(*mod))
+    for(const auto ins : iterator_for(*mm))
     {
-        if(contains(p, ins))
-        {
+        if(contains(tass, ins))
             continue;
-        }
 
-        for(const auto& [target, subgraph] : target_subgraphs)
+        for(const auto& [tid, subgraph] : target_subgraphs)
         {
             // can't pass a structured binding into lambda in C++17 so create a variable for it
-            const auto& t = target;
+            const auto& t = tid;
             for(const auto& segment : subgraph)
             {
                 const auto& instructions = segment.instructions;
-                if(not contains(instructions, ins))
-                {
-                    continue;
-                }
-                std::transform(instructions.begin(),
-                               instructions.end(),
-                               std::inserter(p, p.end()),
-                               [&](auto instr) { return std::make_pair(instr, t.name()); });
+                if(contains(instructions, ins))
+                    std::transform(instructions.begin(),
+                                   instructions.end(),
+                                   std::inserter(tass, tass.end()),
+                                   [&](auto instr) { return std::make_pair(instr, t); });
             }
         }
     }
-    return p;
+
+    return tass;
 }
 
 bool program::is_compiled() const { return not this->impl->contexts.empty(); }
@@ -1025,7 +1030,7 @@ void program::print_cpp(std::ostream& os) const
     os << "migraphx::program p;\n";
     for(auto& mod : vec_modules)
     {
-        std::string var_name = "m" + mod->name();
+        std::string var_name = mod->name();
         os << "migraphx::module_ref " << var_name << " = ";
         if(mod->name() == "main")
             os << "p.get_main_module();";

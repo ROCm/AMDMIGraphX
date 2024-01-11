@@ -74,6 +74,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    generate_root_modules.cpp
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp

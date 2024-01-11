@@ -56,7 +56,7 @@ TEST_CASE(is_supported)
     for(const auto ins : iterator_for(*mod))
     {
         const auto& target = assignments.at(ins);
-        EXPECT(target == "fpga");
+        EXPECT(target == 0);
     }
 }
 

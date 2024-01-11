@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_OPTIONS_HPP
 
-#include <string>
-#include <migraphx/config.hpp>
-#include <unordered_set>
+#include "precision.hpp"
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Replace instructions which take all literals with a literal of the computation.
- */
-struct MIGRAPHX_EXPORT propagate_constant
+struct verify_options
 {
-    std::unordered_set<std::string> skip_ops = {};
-    std::string name() const { return "propagate_constant"; }
-    void apply(module& m) const;
+    /// Quantization precision
+    precision quantize = precision::fp32;
+
+    /**
+     * Converts floating point values to double on the ref target.
+     */
+    bool ref_use_double = false;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
 
 #endif

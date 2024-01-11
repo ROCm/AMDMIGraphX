@@ -21,29 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-
-#include <string>
-#include <migraphx/config.hpp>
-#include <unordered_set>
+#include <migraphx/fp_to_double.hpp>
+#include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Replace instructions which take all literals with a literal of the computation.
- */
-struct MIGRAPHX_EXPORT propagate_constant
+void fp_to_double::apply(module_pass_manager& mpm) const
 {
-    std::unordered_set<std::string> skip_ops = {};
-    std::string name() const { return "propagate_constant"; }
-    void apply(module& m) const;
-};
+    mpm.run_pass(eliminate_data_type{convert_fp_types, shape::type_t::double_type});
+    mpm.run_pass(eliminate_convert{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

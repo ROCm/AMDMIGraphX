@@ -21,12 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
+#define MIGRAPHX_GUARD_RTGLIB_FP_TO_DOUBLE_HPP
 
+#include <set>
 #include <string>
 #include <migraphx/config.hpp>
-#include <unordered_set>
+#include <migraphx/shape.hpp>
+#include <migraphx/pass_manager.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,13 +36,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Replace instructions which take all literals with a literal of the computation.
+ * Convert floating point values to double precision.
  */
-struct MIGRAPHX_EXPORT propagate_constant
+struct MIGRAPHX_EXPORT fp_to_double
 {
-    std::unordered_set<std::string> skip_ops = {};
-    std::string name() const { return "propagate_constant"; }
-    void apply(module& m) const;
+    std::set<shape::type_t> convert_fp_types = {shape::type_t::half_type,
+                                                shape::type_t::float_type};
+    std::string name() const { return "fp_to_double"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

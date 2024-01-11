@@ -21,29 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
 
-#include <string>
-#include <migraphx/config.hpp>
-#include <unordered_set>
+#include <migraphx/pass.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-
-/**
- * Replace instructions which take all literals with a literal of the computation.
- */
-struct MIGRAPHX_EXPORT propagate_constant
+/// Dummy pass for default return
+struct id_pass
 {
-    std::unordered_set<std::string> skip_ops = {};
-    std::string name() const { return "propagate_constant"; }
-    void apply(module& m) const;
+    std::string name() const { return "id"; }
+    void apply(const module&) const {}
 };
+
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -33,6 +33,17 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv_func_names)
+{
+    // need 6 activation functions for bidirectional directions
+    if(dirct == op::rnn_direction::bidirectional)
+    {
+        actv_func_names.push_back(actv_func_names.at(0));
+        actv_func_names.push_back(actv_func_names.at(1));
+        actv_func_names.push_back(actv_func_names.at(2));
+    }
+}
+
 void lstm_transpose_inputs(onnx_parser::node_info& info, std::vector<instruction_ref>& args)
 {
     std::vector<int64_t> perm{1, 0, 2};
@@ -113,13 +124,7 @@ struct parse_lstm : op_parser<parse_lstm>
 
         // set default activation functions
         std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            // repeat the activation functions
-            vec_names.push_back(vec_names.at(0));
-            vec_names.push_back(vec_names.at(1));
-            vec_names.push_back(vec_names.at(2));
-        }
+        lstm_actv_functions(dirct, vec_names);
 
         if(contains(info.attributes, "activations"))
         {

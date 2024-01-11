@@ -298,7 +298,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     {
         this->parse_node(p.first);
     }
-    auto last_ins = std::prev(mm->end());
+    auto last_ins = (mm->size() > 0) ? std::prev(mm->end()) : mm->end();
     if(last_ins != mm->end())
     {
         // Needs to add a ret instruction at the end of

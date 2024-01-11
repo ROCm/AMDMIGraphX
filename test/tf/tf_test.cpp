@@ -63,7 +63,7 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
                               migraphx::eliminate_identity{}});
 
     // remove the last return instruction
-    auto last_ins = std::prev(mm->end());
+    auto last_ins = (mm->size() > 0) ? std::prev(mm->end()) : mm->end();
     if(last_ins != mm->end())
     {
         if(last_ins->name() == "@return")

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -941,6 +941,7 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         const auto& name  = names[i];
         const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
+        assert(param->get_shape().standard());
         if(input.standard())
             continue;
         auto new_param = m.add_parameter(name + ".0", input);

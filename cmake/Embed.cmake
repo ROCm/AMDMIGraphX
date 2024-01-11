@@ -73,7 +73,17 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     set(RESOURCE_ID 100)
-    foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
+
+    list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
+    list(LENGTH PARSE_FILES FILES_LEN)
+    if(NOT ${SYMBOLS_LEN} EQUAL ${FILES_LEN})
+        message(FATAL_ERROR "Symbols and objects dont match: ${SYMBOLS_LEN} != ${FILES_LEN}")
+    endif()
+    math(EXPR LEN "${SYMBOLS_LEN} - 1")
+
+    foreach(idx RANGE ${LEN})
+        list(GET PARSE_SYMBOLS ${idx} SYMBOL)
+        list(GET PARSE_FILES ${idx} FILE)
         file(RELATIVE_PATH BASE_NAME "${BASE_DIRECTORY}" ${FILE})
         if(EMBED_USE STREQUAL "RC")
             string(TOUPPER "${SYMBOL}" SYMBOL)

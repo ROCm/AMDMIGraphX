@@ -39,7 +39,6 @@ TEST_CASE(resize_test_1)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
@@ -81,7 +80,6 @@ TEST_CASE(resize_test_2)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
@@ -121,7 +119,6 @@ TEST_CASE(resize_test_3)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
@@ -160,7 +157,6 @@ TEST_CASE(resize_test_4)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
@@ -190,6 +186,45 @@ TEST_CASE(resize_test_4)
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
 }
 
+TEST_CASE(resize_test_5)
+{
+    // nearest_mode= "ceil" coordinate_transformation_mode= "tf_half_pixel_for_nn"
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    mm->add_instruction(
+        migraphx::make_op(
+            "resize",
+            {{"nearest_mode", "ceil"}, {"coordinate_transformation_mode", "tf_half_pixel_for_nn"}}),
+        a0,
+        a1);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        4.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,  5.5f,  5.5f,
+        4.5f,  4.5f,  4.5f,  5.5f,  5.5f,  5.5f,  5.5f,  5.5f,
+        7.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f,
+        7.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f,
+        7.5f,  7.5f,  7.5f,  8.5f,  8.5f,  8.5f,  8.5f,  8.5f
+        };
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
 TEST_CASE(resize_upsample_test_2)
 {
     // batch size 2, 1 color channel, resize 3x5 by 1.6x
@@ -201,7 +236,6 @@ TEST_CASE(resize_upsample_test_2)
     std::iota(data.begin(), data.end(), 0.1);
     // should upscale to 2x1x4x8
     migraphx::shape s{migraphx::shape::float_type, {2, 1, 3, 5}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     //   scale input
     migraphx::shape scale_input{migraphx::shape::float_type, {4}};
@@ -281,7 +315,6 @@ TEST_CASE(resize_upsample_test_4_1_input)
     std::iota(data.begin(), data.end(), 0.1);
     // should upscale to 2x1x4x8
     migraphx::shape s{migraphx::shape::float_type, {2, 1, 3, 5}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
 
     mm->add_instruction(migraphx::make_op("resize",
@@ -423,7 +456,6 @@ TEST_CASE(resize_fail_test_6)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {3}};
     std::vector<int> size_values = {1, 5, 8};
@@ -449,7 +481,6 @@ TEST_CASE(resize_fail_test_7)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape size_input{migraphx::shape::int32_type, {4, 1}};
     std::vector<int> size_values = {1, 1, 5, 8};
@@ -475,7 +506,6 @@ TEST_CASE(resize_fail_test_8)
     std::vector<float> data(3 * 3);
     std::iota(data.begin(), data.end(), 0.5);
     migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    // to do: non-literal
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape::dynamic_dimension dd{4, 4};
     migraphx::shape size_input{migraphx::shape::int32_type, {dd}};

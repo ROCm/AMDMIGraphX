@@ -80,19 +80,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
-struct id_pass
-{
-    std::string name() const { return "id"; }
-    void apple(const module&) const {}
-};
-
-pass enable_pass(bool enabled, pass p)
-{
-    if(enabled)
-        return p;
-    return id_pass{};
-}
-
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
@@ -156,7 +143,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
-        enable_pass(options.fast_math, rewrite_gelu{}),
+        rewrite_gelu{options.fast_math},
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},

@@ -640,8 +640,18 @@ struct mlir_program
         return "mlir_" + gen::generate_name_from_ops(m);
     }
 
+    static void validate(const module& m)
+    {
+        if (m.begin() == m.end())
+            MIGRAPHX_THROW("Empty module");
+        auto last = std::prev(m.end());
+        if(last->name() != "@return")
+            MIGRAPHX_THROW("Missing @return as last instruction.");
+    }
+
     void parse(const module& m)
     {
+        validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;

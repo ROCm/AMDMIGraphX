@@ -3672,28 +3672,25 @@ TEST_CASE(conv_concat)
     migraphx::shape ws{migraphx::shape::float_type, {2, 8, 3, 3}};
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", xs);
-        auto w   = m1.add_literal(
-            migraphx::generate_literal(ws, 1));
-        auto y = m1.add_parameter("y", xs);
-        auto v = m1.add_literal(
-            migraphx::generate_literal(ws, 2));
-        auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w);
-        auto conv2 = m1.add_instruction(migraphx::make_op("convolution"), y, v);
-        auto concat   = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, conv2);
+        auto x      = m1.add_parameter("x", xs);
+        auto w      = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto y      = m1.add_parameter("y", xs);
+        auto v      = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1  = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        auto conv2  = m1.add_instruction(migraphx::make_op("convolution"), y, v);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, conv2);
         m1.add_instruction(migraphx::make_op("exp"), concat);
     };
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", xs);
-        auto w   = m2.add_literal(
-            migraphx::generate_literal(ws, 1));
-        auto y = m2.add_parameter("y", xs);
-        auto v = m2.add_literal(
-            migraphx::generate_literal(ws, 2));
+        auto x       = m2.add_parameter("x", xs);
+        auto w       = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto y       = m2.add_parameter("y", xs);
+        auto v       = m2.add_literal(migraphx::generate_literal(ws, 2));
         auto xconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
         auto wconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w, v);
-        auto conv = m2.add_instruction(migraphx::make_op("convolution", {{"group", 2}}), xconcat, wconcat);
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"group", 2}}), xconcat, wconcat);
         m2.add_instruction(migraphx::make_op("exp"), conv);
     }
     run_pass(m1);

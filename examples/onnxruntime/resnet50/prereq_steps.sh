@@ -23,7 +23,10 @@
 #####################################################################################
 
 #Install most recent stable version of pytorch
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.4.2
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6
+
+#Install preqs for this
+pip3 install onnx
 
 # Download ImageNet labels
 curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt

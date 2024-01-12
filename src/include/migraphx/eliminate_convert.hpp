@@ -21,12 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_PROPAGATE_CONSTANT_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONVERTS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONVERTS_HPP
 
 #include <string>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,12 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Replace instructions which take all literals with a literal of the computation.
+ * Remove nested converts and nop converts.
  */
-struct MIGRAPHX_EXPORT propagate_constant
+struct MIGRAPHX_EXPORT eliminate_convert
 {
-    std::unordered_set<std::string> skip_ops = {};
-    std::string name() const { return "propagate_constant"; }
+    std::string name() const { return "eliminate_convert"; }
     void apply(module& m) const;
 };
 

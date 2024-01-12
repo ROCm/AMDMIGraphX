@@ -33,10 +33,12 @@ struct test_conv_concat : verify_program<test_conv_concat>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
-        auto w     = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 1));
-        auto y     = mm->add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
-        auto v     = mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 2));
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto w   = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 1));
+        auto y = mm->add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto v = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 2));
         auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), x, w);
         auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), y, v);
         auto sum   = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, conv2);
@@ -44,4 +46,3 @@ struct test_conv_concat : verify_program<test_conv_concat>
         return p;
     }
 };
-

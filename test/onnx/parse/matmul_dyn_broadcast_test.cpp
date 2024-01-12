@@ -28,7 +28,7 @@ TEST_CASE(matmul_dyn_broadcast_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto p1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
+    auto p0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {7}});
     auto p1  = mm->add_parameter(
         "2", migraphx::shape{migraphx::shape::float_type, {{5, 5}, {7, 7}, {4, 8, {6}}}});
     auto usp0         = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), p0);

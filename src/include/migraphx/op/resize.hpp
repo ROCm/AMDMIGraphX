@@ -259,25 +259,21 @@ struct resize
                 if constexpr(std::is_integral<type>{})
                 {
                     // Copy the output size from args[1].
-                    std::transform(input.begin(), input.end(), out_lens.begin(), [](auto size_i) {
-                        return size_i;
-                    });
+                    std::copy(input.begin(), input.end(), out_lens.begin());
                     // Deduce the scales for each axis
                     std::transform(
                         input.begin(),
                         input.end(),
                         in_lens.begin(),
                         vec_scale.begin(),
-                        [](auto sz, size_t in_len) { return static_cast<double>(sz) / in_len; });
+                        [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
                     vec_scale[0] = 1.0f;
                 }
                 else
                 {
                     // read the scale from args[1]
                     //
-                    std::transform(input.begin(), input.end(), vec_scale.begin(), [](auto scale_i) {
-                        return scale_i;
-                    });
+                    std::copy(input.begin(), input.end(), vec_scale.begin());
                     // compute the output dimensions from the given scales.  This computation
                     // always rounds down, unlike the internal computation in Nearest mode
                     // which has several options as given in nearest_mode.

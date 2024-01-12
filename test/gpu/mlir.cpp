@@ -76,9 +76,8 @@ migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
     auto params = mmlir.get_parameter_names();
     for(const auto& name : params)
     {
-        auto param = mmlir.get_parameter(name);
-        map_ins[param] =
-            m.add_parameter(name, param->get_shape().as_standard());
+        auto param     = mmlir.get_parameter(name);
+        map_ins[param] = m.add_parameter(name, param->get_shape().as_standard());
     }
     auto y = m.add_instructions(&mmlir, map_ins);
     m.add_return(y);
@@ -100,7 +99,8 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
     migraphx::gpu::context ctx;
-    migraphx::gpu::insert_mlir(*mm, mm->end(), compile_mlir(ctx, create_mlir_submodule(mmlir), inputs, {}), inputs);
+    migraphx::gpu::insert_mlir(
+        *mm, mm->end(), compile_mlir(ctx, create_mlir_submodule(mmlir), inputs, {}), inputs);
     return p;
 }
 

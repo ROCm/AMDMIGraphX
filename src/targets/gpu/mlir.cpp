@@ -642,7 +642,7 @@ struct mlir_program
 
     static void validate(const module& m)
     {
-        if (m.begin() == m.end())
+        if(m.begin() == m.end())
             MIGRAPHX_THROW("Empty module");
         auto last = std::prev(m.end());
         if(last->name() != "@return")

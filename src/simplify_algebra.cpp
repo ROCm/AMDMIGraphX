@@ -729,8 +729,8 @@ struct find_concat_conv
 {
     auto matcher() const
     {
-        return match::name("concat")(match::all_of[match::inputs()](
-            match::used_once(), match::name("convolution")));
+        return match::name("concat")(
+            match::all_of[match::inputs()](match::used_once(), match::name("convolution")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -743,25 +743,27 @@ struct find_concat_conv
             return;
         auto conv = ins->inputs().front()->get_operator();
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto conv_ins) {
-            return conv_ins->get_operator() != conv;
-        }))
+               return conv_ins->get_operator() != conv;
+           }))
             return;
         std::vector<instruction_ref> inputs;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [](auto conv_ins) {
-            return conv_ins->inputs()[0];
-        });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [](auto conv_ins) { return conv_ins->inputs()[0]; });
         if(std::any_of(inputs.begin(), inputs.end(), [&](auto input) {
-            return input->get_shape() != inputs.front()->get_shape();
-        }))
+               return input->get_shape() != inputs.front()->get_shape();
+           }))
             return;
 
         std::vector<instruction_ref> weights;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(weights), [](auto conv_ins) {
-            return conv_ins->inputs()[1];
-        });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(weights),
+                       [](auto conv_ins) { return conv_ins->inputs()[1]; });
         if(std::any_of(weights.begin(), weights.end(), [&](auto w) {
-            return w->get_shape() != weights.front()->get_shape();
-        }))
+               return w->get_shape() != weights.front()->get_shape();
+           }))
             return;
 
         auto x = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), inputs);

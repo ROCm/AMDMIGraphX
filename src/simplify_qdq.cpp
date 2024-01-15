@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,12 +55,12 @@ std::unordered_set<std::string> get_quantizable_op_names()
 struct match_find_quantizable_ops
 {
     static bool
-    is_valid_scale(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    is_valid_qparam(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
     {
-        return scale->get_shape().scalar() or scale->get_shape().elements() == lens.at(axis);
+        return scale->get_shape().elements() == 1 or scale->get_shape().elements() == lens.at(axis);
     }
 
-    static bool is_valid_zero_point(instruction_ref zp)
+    static bool is_symmetric_zero_point(instruction_ref zp)
     {
         if(not zp->can_eval())
             return false;
@@ -74,7 +74,7 @@ struct match_find_quantizable_ops
     }
 
     static auto
-    scale_broadcast_op(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    qparam_broadcast_op(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
     {
         if(scale->get_shape().scalar())
         {
@@ -139,21 +139,15 @@ struct match_find_quantizable_ops
            not contains(supported_types, dq2->inputs().front()->get_shape().type()))
             return;
 
-        // Only symmetric quantization supported (ie. non-zero zero_points not allowed)
-        if(not(is_valid_zero_point(zp1) and is_valid_zero_point(zp2)))
-            return;
-
-        // Only support scalar and 1D scales
-        if(scale1->get_shape().lens().size() != 1 or scale2->get_shape().lens().size() != 1)
-            return;
-
         // Propagate q1 and q2 through any broadcasts and transposes before qop
         auto qop_args  = qop->inputs();
         qop_args.at(0) = propagate_quantized_ins(m, dq1, qop_args[0]);
         qop_args.at(1) = propagate_quantized_ins(m, dq2, qop_args[1]);
+        auto arg1_lens = qop_args[0]->get_shape().lens();
+        auto arg2_lens = qop_args[1]->get_shape().lens();
         instruction_ref dq;
         instruction_ref out_scale;
-        instruction_ref zero_point;
+        instruction_ref out_zp;
         if(qop->name() == "convolution")
         {
             auto conv_val = qop->get_operator().to_value();
@@ -161,38 +155,109 @@ struct match_find_quantizable_ops
                 qop, migraphx::make_op("quant_convolution", conv_val), qop_args);
             auto out_lens = dq->get_shape().lens();
 
-            // Input scale should always be scalar and weight scale can be scalar or 1D of the
-            // same lens as the output channel dim (dim 1 in the output)
-            if(not(is_valid_scale(scale1, out_lens, 1) and is_valid_scale(scale2, out_lens, 1)))
+            // Ensure input and weight quantization paramaters are of a proper form
+            // Input is of shape [n, c, x1, ..., xn]. Only scalar quantization allowed
+            // Weight is of shape [k, c, y1, ... , yn]. Valid quantization axis is k
+
+            if(not(scale1->get_shape().elements() == 1 and zp1->get_shape().elements() == 1 and
+                   is_valid_qparam(scale2, arg2_lens, 0) and is_valid_qparam(zp2, arg2_lens, 0)))
                 return;
 
-            auto s1_bcast =
-                m.insert_instruction(qop, scale_broadcast_op(scale1, out_lens, 1), scale1);
-            auto s2_bcast =
-                m.insert_instruction(qop, scale_broadcast_op(scale2, out_lens, 1), scale2);
+            // This implementation supports affine quantization for both input and weight
+            // In practice, weight is quantized symmetrically
 
-            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
+            auto s1_bcast = m.insert_instruction(
+                qop, qparam_broadcast_op(scale1, scale2->get_shape().lens(), 0), scale1);
+
+            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, scale2);
+            out_scale =
+                m.insert_instruction(qop, qparam_broadcast_op(out_scale, out_lens, 1), out_scale);
+
+            // Compute the zero-point terms; initialize as 0 and add relevant terms
+            auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
+            out_zp        = m.insert_instruction(
+                qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
+
+            auto inp_zp_bc = m.insert_instruction(qop, qparam_broadcast_op(zp1, arg1_lens, 1), zp1);
+            auto w_zp_bc   = m.insert_instruction(qop, qparam_broadcast_op(zp2, arg2_lens, 0), zp2);
+
+            if(not is_symmetric_zero_point(zp1))
+            {
+                auto out_zp_1 = m.insert_instruction(
+                    qop, migraphx::make_op("quant_convolution", conv_val), inp_zp_bc, qop_args[1]);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_1);
+            }
+
+            if(not is_symmetric_zero_point(zp2))
+            {
+                auto out_zp_2 = m.insert_instruction(
+                    qop, migraphx::make_op("quant_convolution", conv_val), qop_args[0], w_zp_bc);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_2);
+            }
+
+            if(not is_symmetric_zero_point(zp1) and not is_symmetric_zero_point(zp2))
+            {
+                auto out_zp_3 = m.insert_instruction(
+                    qop, migraphx::make_op("quant_convolution", conv_val), inp_zp_bc, w_zp_bc);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("sub"), out_zp, out_zp_3);
+            }
         }
         else if(qop->name() == "dot")
         {
             dq            = m.insert_instruction(qop, migraphx::make_op("quant_dot"), qop_args);
             auto out_lens = dq->get_shape().lens();
 
-            // For (..., M, N) x (..., N, K) dot, only support cases where quantization axis is M
-            // for input1 and K for input 2
-            if(not(is_valid_scale(scale1, out_lens, out_lens.size() - 2) and
-                   is_valid_scale(scale2, out_lens, out_lens.size() - 1)))
+            // For (..., M, N) x (..., N, K) dot, valid quantization axes are M for input1 and K for
+            // input 2
+            if(not(is_valid_qparam(scale1, out_lens, out_lens.size() - 2) and
+                   is_valid_qparam(zp1, out_lens, out_lens.size() - 2) and
+                   is_valid_qparam(scale2, out_lens, out_lens.size() - 1) and
+                   is_valid_qparam(zp2, out_lens, out_lens.size() - 1)))
                 return;
 
+            // This implementation supports both arguments being per-axis affine quantized
+            // In practice, inputs are per-tensor affine and weights are per-axis symmetric
+
             auto s1_bcast = m.insert_instruction(
-                qop, scale_broadcast_op(scale1, out_lens, out_lens.size() - 2), scale1);
+                qop, qparam_broadcast_op(scale1, out_lens, out_lens.size() - 2), scale1);
             auto s2_bcast = m.insert_instruction(
-                qop, scale_broadcast_op(scale2, out_lens, out_lens.size() - 1), scale2);
+                qop, qparam_broadcast_op(scale2, out_lens, out_lens.size() - 1), scale2);
 
             out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
+
+            // Compute the zero-point terms; initialize as 0 and add relevant terms
+            auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});
+            out_zp        = m.insert_instruction(
+                qop, make_op("multibroadcast", {{"out_lens", dq->get_shape().lens()}}), zero_lit);
+
+            auto zp1_bc = m.insert_instruction(
+                qop, qparam_broadcast_op(zp1, arg1_lens, arg1_lens.size() - 2), zp1);
+            auto zp2_bc = m.insert_instruction(
+                qop, qparam_broadcast_op(zp2, arg2_lens, arg2_lens.size() - 1), zp2);
+
+            if(not is_symmetric_zero_point(zp1))
+            {
+                auto out_zp_1 =
+                    m.insert_instruction(qop, migraphx::make_op("quant_dot"), zp1_bc, qop_args[1]);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_1);
+            }
+
+            if(not is_symmetric_zero_point(zp2))
+            {
+                auto out_zp_2 =
+                    m.insert_instruction(qop, migraphx::make_op("quant_dot"), qop_args[0], zp2_bc);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("add"), out_zp, out_zp_2);
+            }
+
+            if(not is_symmetric_zero_point(zp1) and not is_symmetric_zero_point(zp2))
+            {
+                auto out_zp_3 =
+                    m.insert_instruction(qop, migraphx::make_op("quant_dot"), zp1_bc, zp2_bc);
+                out_zp = m.insert_instruction(qop, migraphx::make_op("sub"), out_zp, out_zp_3);
+            }
         }
 
-        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, out_scale);
+        dq = m.insert_instruction(qop, make_op("dequantizelinear"), dq, out_scale, out_zp);
         m.replace_instruction(qop, dq);
     }
 };

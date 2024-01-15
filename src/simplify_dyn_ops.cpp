@@ -31,6 +31,34 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
+ * Convert a Resize op.  to Nearest implemenation using Gather op.
+ * From:
+ * To:
+ */
+struct find_resize
+{
+    auto matcher() const
+    {
+        // return match::broadcast(match::nargs(2),
+        //                         match::arg(0)(match::static_shape()),
+        //                         match::arg(1)(match::static_shape()));
+        std::cout << "r444444444444444 hjkl 768\n";
+        return match::name("resize");
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins          = mr.result;
+        // auto out_lens     = ins->get_shape().lens();
+        auto resize_op = ins->get_operator();
+
+        std::cout << "sdukiasdklufhjklfhjklfhjklhjklhjkl hjkl hjklhjkl33333333333333\n";
+        // this doesn't really do anything
+        m.replace_instruction(ins, resize_op, ins->inputs().at(0), ins->inputs().at(1));
+    }
+};
+
+/**
  * Convert 2 input static shape broadcast/multibroadcast into 1 input version.
  * Some compiler passes (ex. simplify_algebra) only support the 1 input versions
  * of the broadcasting operators.
@@ -321,6 +349,7 @@ struct find_const_alloc_fill
 void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
+                        find_resize{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},

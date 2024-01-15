@@ -34,6 +34,32 @@ void run_pass(migraphx::module& m)
     migraphx::run_passes(m, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 }
 
+TEST_CASE(resize)
+{
+    migraphx::module m0;
+    {
+        std::vector<float> ds = {1.f, 1.f, 0.601, 0.601};
+        migraphx::shape ss{migraphx::shape::float_type, {4}};
+
+        auto li = m0.add_literal(migraphx::literal{ss, ds});
+        m0.add_instruction(migraphx::make_op("undefined"));
+
+        migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}}};
+        auto inx = m0.add_parameter("X", sx);
+
+        auto r =
+            m0.add_instruction(migraphx::make_op("resize",
+                                                {{"mode", "nearest"},
+                                                {"nearest_mode", "floor"},
+                                                {"coordinate_transformation_mode", "asymmetric"}}),
+                                inx,
+                                li);
+
+        m0.add_return({r});
+    }
+    run_pass(m0);
+}
+
 TEST_CASE(static_broadcast)
 {
     migraphx::module m0;

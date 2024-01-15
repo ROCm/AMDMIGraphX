@@ -28,6 +28,7 @@
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/rewrite_rnn.hpp>
+#include <migraphx/rewrite_rmsnorm.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/insert_pad.hpp>
@@ -40,6 +41,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_RMSNORM_FP16_REWRITE)
+
 std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
@@ -51,6 +54,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
+            enable_pass(enabled(MIGRAPHX_ENABLE_RMSNORM_FP16_REWRITE{}), rewrite_rmsnorm{}),
             auto_contiguous{},
             dead_code_elimination{},
             lowering{},

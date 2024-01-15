@@ -38,6 +38,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_rmsnorm.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -60,6 +61,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace cpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_RMSNORM_FP16_REWRITE)
+
 std::string target::name() const { return "cpu"; }
 
 // cppcheck-suppress constParameterReference
@@ -80,6 +83,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
+            enable_pass(enabled(MIGRAPHX_ENABLE_RMSNORM_FP16_REWRITE{}), rewrite_rmsnorm{}),
             eliminate_common_subexpression{},
             dead_code_elimination{},
             simplify_algebra{},

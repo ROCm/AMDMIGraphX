@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ARG PREFIX=/usr/local
 
@@ -22,7 +22,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake \
     curl \
     doxygen \
-    g++-7 \
+    g++ \
     gdb \
     git \
     lcov \
@@ -76,9 +76,6 @@ ENV LANG=C.UTF-8
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
-
-# Temporarily install a new cmake until switching to ubuntu 22.04
-RUN pip3 install cmake==3.22.1
 
 # Location where onnx unit tests models are cached
 ENV ONNX_HOME=/.onnx

@@ -84,7 +84,7 @@ def parse_input_args():
         "--verbose",
         action="store_true",
         required=False,
-        default=1,
+        default=False,
         help='Show verbose output',
     )
     
@@ -225,7 +225,7 @@ def main():
 
     if flags.QPS:
         print("resnet50, QPS = {} ".format(
-            format((3600 / flags.batch) * (sum(latency) / len(latency)) , '.2f')))
+            format( ( ( (flags.batch) / (sum(latency) / len(latency))) / 3600) , '.2f')))
     else:    
         print("resnet50, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -821,10 +821,9 @@ TEST_CASE(dot_half_1arg)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"dot"}, {}, &param_index}});
-    migraphx::run_passes(
-        p,
-        {migraphx::quantize_8bits_pass{migraphx::shape::int8_type, quant_params},
-         migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::quantize_8bits_pass{migraphx::shape::int8_type, quant_params},
+                          migraphx::dead_code_elimination{}});
     EXPECT(p == create_int8_quantized_prog());
 
     optimize_prog_int8(p);
@@ -879,9 +878,8 @@ TEST_CASE(conv_float)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
-    migraphx::run_passes(p,
-                         {migraphx::quantize_8bits_pass{
-                             migraphx::shape::type_t::int8_type, quant_params}});
+    migraphx::run_passes(
+        p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -906,9 +904,8 @@ TEST_CASE(conv_float_throw)
     auto p = create_program();
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     test::throws([&] {
-        migraphx::run_passes(p,
-                             {migraphx::quantize_8bits_pass{
-                                 migraphx::shape::type_t::int8_type, quant_params}});
+        migraphx::run_passes(
+            p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     });
 }
 
@@ -959,9 +956,8 @@ TEST_CASE(conv_half)
     const std::vector<std::pair<float, float>>& quant_params{{0.1f, 0.0f}, {0.1f, 0.0f}};
     std::size_t param_index = 0;
     migraphx::run_passes(p, {migraphx::capture_arguments_pass{{"convolution"}, {}, &param_index}});
-    migraphx::run_passes(p,
-                         {migraphx::quantize_8bits_pass{
-                             migraphx::shape::type_t::int8_type, quant_params}});
+    migraphx::run_passes(
+        p, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p);
     auto qp = create_int8_quantized_prog();
 
@@ -1240,9 +1236,8 @@ TEST_CASE(int8_subgraph)
     std::size_t param_index = 0;
     migraphx::run_passes(
         p1, {migraphx::capture_arguments_pass{{"convolution", "dot"}, {}, &param_index}});
-    migraphx::run_passes(p1,
-                         {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type,
-                                                        quant_params}});
+    migraphx::run_passes(
+        p1, {migraphx::quantize_8bits_pass{migraphx::shape::type_t::int8_type, quant_params}});
     optimize_prog_int8(p1);
 
     auto p2 = create_int8_program();

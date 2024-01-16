@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -383,7 +383,7 @@ inline auto create_upsample_linear_prog()
 }
 
 // the ScatterElements op has 3 reduction modes, which map to separate reference ops
-inline migraphx::program create_scatter_program(const std::string& scatter_mode, int axis)
+inline void scatter_test_base(const std::string& reduction, int axis, const std::string& onnx_file)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -392,9 +392,12 @@ inline migraphx::program create_scatter_program(const std::string& scatter_mode,
         mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {2, 3, 4, 5}});
     auto l2 =
         mm->add_parameter("update", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 5}});
-    auto r = mm->add_instruction(migraphx::make_op(scatter_mode, {{"axis", axis}}), l0, l1, l2);
+    auto r = mm->add_instruction(
+        migraphx::make_op("scatter_" + reduction, {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
-    return p;
+    auto prog = migraphx::parse_onnx(onnx_file);
+
+    EXPECT(p == prog);
 }
 
 #endif

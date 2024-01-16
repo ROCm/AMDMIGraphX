@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,15 +27,16 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_roialign : verify_program<test_roialign>
+template <migraphx::shape::type_t DType>
+struct test_roialign : verify_program<test_roialign<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape x_s{migraphx::shape::float_type, {5, 4, 10, 10}};
+        migraphx::shape x_s{DType, {5, 4, 10, 10}};
 
-        migraphx::shape roi_s{migraphx::shape::float_type, {5, 4}};
+        migraphx::shape roi_s{DType, {5, 4}};
 
         migraphx::shape ind_s{migraphx::shape::int64_type, {5}};
         std::vector<int64_t> ind_vec = {0, 2, 3, 4, 1};
@@ -44,10 +45,10 @@ struct test_roialign : verify_program<test_roialign>
         auto roi = mm->add_parameter("roi", roi_s);
         auto ind = mm->add_literal(migraphx::literal(ind_s, ind_vec));
         auto r   = mm->add_instruction(migraphx::make_op("roialign",
-                                                       {{"spatial_scale", 1.0},
-                                                        {"output_height", 5},
-                                                        {"output_width", 5},
-                                                        {"sampling_ratio", 2}}),
+                                                         {{"spatial_scale", 1.0},
+                                                          {"output_height", 5},
+                                                          {"output_width", 5},
+                                                          {"sampling_ratio", 2}}),
                                      x,
                                      roi,
                                      ind);
@@ -56,3 +57,7 @@ struct test_roialign : verify_program<test_roialign>
         return p;
     }
 };
+
+template struct test_roialign<migraphx::shape::float_type>;
+template struct test_roialign<migraphx::shape::half_type>;
+template struct test_roialign<migraphx::shape::fp8e4m3fnuz_type>;

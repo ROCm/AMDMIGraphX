@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,26 +29,24 @@
 
 #include <migraphx/instruction.hpp>
 
-struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
+template <migraphx::shape::type_t DType>
+struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 3, 3, 3}});
-        auto l0        = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
-                                    {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto input     = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto weights   = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
+        auto l0        = migraphx::literal{migraphx::shape{DType, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
         auto bias      = mm->add_literal(l0);
         auto conv      = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         auto bcast_add = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             bias);
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_add);
-        auto min_val  = mm->add_literal(0.0f);
-        auto max_val  = mm->add_literal(6.0f);
+        auto min_val  = mm->add_literal(migraphx::literal(DType, {0.0f}));
+        auto max_val  = mm->add_literal(migraphx::literal(DType, {6.0f}));
         min_val       = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", conv->get_shape().lens()}}), min_val);
         max_val = mm->add_instruction(
@@ -57,3 +55,6 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu>
         return p;
     }
 };
+
+template struct test_conv_bias_clipped_relu<migraphx::shape::float_type>;
+template struct test_conv_bias_clipped_relu<migraphx::shape::fp8e4m3fnuz_type>;

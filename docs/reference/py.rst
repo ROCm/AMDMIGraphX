@@ -95,7 +95,7 @@ shape
     :rtype: bool
 
 dynamic_dimension
---------
+-----------------
 
 .. py:class:: dynamic_dimension(min, max, optimals)
 
@@ -326,7 +326,7 @@ op
 parse_onnx
 ----------
 
-.. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false, max_loop_iterations=10)
+.. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false, max_loop_iterations=10, limit_max_iterations=65535)
 
     Load and parse an onnx file.
 
@@ -337,7 +337,8 @@ parse_onnx
     :param list[dynamic_dimension] map_dyn_input_dims: Explicitly specify the dynamic_dimensions of an input.
     :param str skip_unknown_operators: Continue parsing onnx file if an unknown operator is found.
     :param str print_program_on_error: Print program if an error occurs.
-    :param int max_loop_iterations: Maximum iteration number for the loop operator.
+    :param int max_loop_iterations: Maximum iteration number for the loop operator if trip count is not set.
+    :param int limit_max_iterations: Maximum iteration limit for the loop operator.
     :rtype: program
 
 parse_tf

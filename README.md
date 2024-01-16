@@ -4,10 +4,9 @@ AMD MIGraphX is AMD's graph inference engine, which accelerates machine learning
 To use MIGraphX, you can install the binaries or build from source code. Refer to the following sections
 for Ubuntu installation instructions (we'll provide instructions for other Linux distributions in the future).
 
-```note
-You must [install ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html) before
-installing MIGraphX.
-```
+> [!NOTE] 
+> You must [install ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html) before
+> installing MIGraphX.
 
 ## Installing from binaries
 
@@ -67,16 +66,15 @@ The following is a list of prerequisites for building MIGraphX.
 3. Build MIGraphX source code:
 
     ```bash
-    rbuild build -d depend -B build
+    rbuild build -d depend -B build -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
     ```
 
 Once completed, all prerequisites are in the `depend` folder and MIGraphX is in the `build` directory.
 
-```note
-If you get an `rbuild: command not found` error, it's because `rbuild` is installed in `$HOME/.local/bin`,
-which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` to add
-the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 command when installing `rbuild`.
-```
+> [!NOTE]
+> If you get an `rbuild: command not found` error, it's because `rbuild` is installed in `$HOME/.local/bin`,
+> which is not in `PATH`. You can either export PATH as `export PATH=$HOME/.local/bin:$PATH` to add
+> the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 command when installing `rbuild`.
 
 ### Use CMake to build MIGraphX
 
@@ -106,7 +104,7 @@ the folder to `PATH`, or add the option `--prefix /usr/local` in the pip3 comman
 3. Configure CMake. If the prerequisites are installed at the default location `/usr/local`, use:
 
     ```bash
-    CXX=/opt/rocm/llvm/bin/clang++ cmake ..
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
     ```
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
@@ -178,7 +176,7 @@ To use MIGraphX's Python module, you can set `PYTHONPATH` or use the `.deb` pack
 To use MIGraphX's C/C++ API in your CMake project, you must set `CMAKE_PREFIX_PATH` to the
 MIGraphX installation location and run:
 
-```bash
+```cmake
 find_package(migraphx)
 target_link_libraries(myApp migraphx::c)
 ```
@@ -216,7 +214,7 @@ Run the steps below to build documentation locally.
 ```bash
 cd docs
 
-pip3 install -r .sphinx/requirements.txt
+pip3 install -r sphinx/requirements.txt
 
 python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 ```

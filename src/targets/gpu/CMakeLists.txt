@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,20 +22,20 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
-find_package(hip)
+find_package(hip REQUIRED)
 if(NOT GPU_TARGETS)
-    message(FATAL_ERROR "HIP package is broken and has no GPU_TARGETS, please pass -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to cmake to build for your gpu.")
+    set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
+    if(NOT WIN32)
+        set(fatal_msg "${fatal_msg}\nUse -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') to build for your GPU.")
+    endif()
+    message(FATAL_ERROR ${fatal_msg})
 endif()
-find_package(miopen)
+find_package(miopen REQUIRED)
+message(STATUS "MIGraphX is using MIOpen")
 
 # rocblas
-find_package(rocblas REQUIRED PATHS /opt/rocm)
-message(STATUS "Build with rocblas")
-
-if(NOT TARGET MIOpen)
-    message(SEND_ERROR "Cant find miopen")
-endif()
+find_package(rocblas REQUIRED)
+message(STATUS "MIGraphX build with rocBLAS")
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
@@ -49,7 +49,6 @@ endif()
 
 file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
@@ -66,8 +65,10 @@ file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
 add_library(compile_for_gpu INTERFACE)
-target_compile_options(compile_for_gpu INTERFACE -std=c++17 -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
-target_link_libraries(compile_for_gpu INTERFACE hip::device -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
+target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fallow-half-arguments-and-returns)
+target_link_options(compile_for_gpu INTERFACE  -fno-gpu-rdc -Wno-invalid-command-line-argument -Wno-unused-command-line-argument -Wno-option-ignored)
+target_link_libraries(compile_for_gpu INTERFACE hip::device)
 check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_HIP_LAMBDA_HOST_DEVICE)
 
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
@@ -125,7 +126,6 @@ add_library(migraphx_gpu
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
-    gather.cpp
     gemm_impl.cpp
     hip.cpp
     kernel.cpp
@@ -139,13 +139,11 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
-    pad.cpp
     perfdb.cpp
     pooling.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp
-    scatter.cpp
     schedule_model.cpp
     sync_device.cpp
     target.cpp
@@ -167,15 +165,12 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     argmax
     argmin
-    gather
     logsoftmax
     loop
     multinomial
     nonzero
-    pad
     prefix_scan_sum
     reverse
-    scatter
     topk
 )
 register_migraphx_gpu_ops(miopen_
@@ -211,8 +206,10 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
+    find_package(hiprtc REQUIRED)
     message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
+    target_link_libraries(migraphx_gpu PUBLIC hiprtc::hiprtc)
 else()
     message(STATUS "MIGraphX is using HIP Clang")
 
@@ -221,12 +218,15 @@ else()
     target_flags(HIP_COMPILER_FLAGS hip::device)
 
     # Remove cuda arch flags
-    string(REGEX REPLACE --cuda-gpu-arch=[a-z0-9]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
-    string(REGEX REPLACE --offload-arch=[a-z0-9:+-]+ "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--cuda-gpu-arch=[a-z0-9]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    string(REGEX REPLACE "--offload-arch=[a-z0-9:+-]+ ?" "" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
 
     # Skip library paths since hip will incorrectly treat it as a source file
     string(APPEND HIP_COMPILER_FLAGS " ")
 
+    if(WIN32)
+        string(REPLACE "\\" "/" HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
+    endif()
     foreach(_unused RANGE 2)
         string(REGEX REPLACE " /[^ ]+\\.(a|so) " " " HIP_COMPILER_FLAGS "${HIP_COMPILER_FLAGS}")
     endforeach()
@@ -238,17 +238,27 @@ else()
     )
 
     if(DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
-        execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        if(WIN32)
+            execute_process(COMMAND where ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        else()
+            execute_process(COMMAND which ${CMAKE_CXX_COMPILER_LAUNCHER} OUTPUT_VARIABLE MIGRAPHX_HIP_COMPILER_LAUNCHER)
+        endif()
         string(STRIP "${MIGRAPHX_HIP_COMPILER_LAUNCHER}" MIGRAPHX_HIP_COMPILER_LAUNCHER)
         target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()
 endif()
 
 # Check miopen find mode api
+
 include(CheckLibraryExists)
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
+# Beta API for automated GEMM tuning
+check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+# rocblas FP8 API
+check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -271,10 +281,25 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
+if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_TUNING_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+    message(STATUS "MIGraphx is using Beta API of rocBLAS")
+else()
+    message(STATUS "rocBLAS does not have User Tuning Beta API")
+endif()
+
+if(HAS_ROCBLAS_FP8_BETA_API)
+    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_FP8_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+    message(STATUS "MIGraphX is using Beta API of rocBLAS for FP8 computations")
+else()
+    message(STATUS "rocBLAS does not have Fp8 Beta API")
+endif()
+
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 
 add_subdirectory(driver)

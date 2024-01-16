@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,9 +40,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-
-void blas_shape(const shape& s);
 shape transpose_batch(const shape& s, unsigned trans_batch);
+void blas_shape(const shape& s);
 
 template <class Op>
 struct rocblas_gemm
@@ -52,6 +51,7 @@ struct rocblas_gemm
     float beta           = 0;
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
+    int32_t solution_idx = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -60,7 +60,8 @@ struct rocblas_gemm
                          pack(f(self.alpha, "alpha"),
                               f(self.beta, "beta"),
                               f(self.compute_fp32, "compute_fp32"),
-                              f(self.trans_batch, "trans_batch")));
+                              f(self.trans_batch, "trans_batch"),
+                              f(self.solution_idx, "solution_idx")));
     }
 
     std::string name() const
@@ -76,6 +77,8 @@ struct rocblas_gemm
     {
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
+        // When input shapes are A, B, C the GEMM equation is  C  =  α AB+ β C   where α, β are
+        // scalars
         check_shapes{in_shapes, *this}.has(2, 3);
         blas_shape(inputs[0]);
         blas_shape(inputs[1]);
@@ -109,13 +112,14 @@ struct rocblas_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::gemm")
+        if(this->name() == "gpu::gemm" or output_shape.type() == migraphx::shape::float_type)
         {
-            gemm(ctx, output_shape, args, alpha, beta, compute_fp32);
+            gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
         }
         else
         {
-            gemm(ctx, output_shape, args, int32_t(alpha), int32_t(beta), compute_fp32);
+            gemm_compute(
+                ctx, output_shape, args, int32_t(alpha), int32_t(beta), compute_fp32, solution_idx);
         }
         return args.back();
     }
@@ -123,6 +127,33 @@ struct rocblas_gemm
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
+    }
+
+    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
+    {
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+        if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
+        {
+            if(this->name() == "gpu::gemm")
+            {
+                solution_idx = gemm_finalize(
+                    ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
+            }
+            else
+            {
+                solution_idx = gemm_finalize(ctx,
+                                             output_shape,
+                                             input_shapes,
+                                             int32_t(alpha),
+                                             int32_t(beta),
+                                             compute_fp32,
+                                             solution_idx);
+            }
+        }
+#else
+        // suppress compiler warnings
+        (void)ctx, (void)output_shape, (void)input_shapes;
+#endif
     }
 };
 

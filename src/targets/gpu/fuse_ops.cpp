@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -851,9 +851,9 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
+                        find_gemm_pointwise{},
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
-                        find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});

@@ -55,7 +55,7 @@ from resizeimage import resizeimage
 4) Download ONNX model.
 
 ```bash
-wget -nc https://github.com/onnx/models/raw/master/vision/super_resolution/sub_pixel_cnn_2016/model/super-resolution-10.onnx
+wget -nc https://github.com/onnx/models/raw/main/validated/vision/super_resolution/sub_pixel_cnn_2016/model/super-resolution-10.onnx
 ```
 
 5) Preprocess the sample image `cat.jpg`.

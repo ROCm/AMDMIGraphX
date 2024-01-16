@@ -33,7 +33,7 @@ unzip uncased_L-12_H-768_A-12.zip
 5) Get BERT ONNX model (bertsquad-10.onnx):
 
 ```
-wget https://github.com/onnx/models/raw/main/text/machine_comprehension/bert-squad/model/bertsquad-10.onnx
+wget https://github.com/onnx/models/raw/main/validated/text/machine_comprehension/bert-squad/model/bertsquad-10.onnx
 ```
 
 6) Run the inference, it will compile and run the model on three questions and small data provided in `inputs.json`:

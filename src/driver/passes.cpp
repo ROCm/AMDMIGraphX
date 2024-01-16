@@ -43,6 +43,7 @@
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_llama2_norm.hpp>
+#include <migraphx/rewrite_sdunet_matmul.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -82,6 +83,7 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         propagate_constant{},
         rewrite_gelu{},
         rewrite_llama2_norm{},
+        rewrite_sdunet_matmul{},
         rewrite_pooling{},
         rewrite_quantization{},
         rewrite_rnn{},

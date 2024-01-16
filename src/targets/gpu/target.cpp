@@ -46,6 +46,7 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_llama2_norm.hpp>
+#include <migraphx/rewrite_sdunet_matmul.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
@@ -147,6 +148,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         enable_pass(enabled(MIGRAPHX_ENABLE_LLAMA2_NORM_WORKAROUND{}), rewrite_llama2_norm{}),
+        dead_code_elimination{},
+        rewrite_sdunet_matmul{},
         dead_code_elimination{},
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),

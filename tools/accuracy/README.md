@@ -1,13 +1,18 @@
 # AMD MIGraphX Accuracy checker
+
 ## Instructions
+
 First ensure requirements and MIGraphX's python library are installed. Refer to MIGraphX instructions at the root directory to install the python library.
 Use the command below to install remaining dependencies:
-```
+
+```bash
 pip install -r requirements.txt
 ```
+
 The accuracy checker will compare outputs from MIGraphX and onnx runtime. Therefore, an onnx file is required argument.
 Example usage is below:
-```
+
+```bash
 python accuracy_checker.py --onnx [path to onnx_file]
 ```
 

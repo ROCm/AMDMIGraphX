@@ -1,10 +1,10 @@
 # Exporting Frozen Graphs in Tensorflow 1
 
 ## Description
-This example demonstrates how to export a frozen graph protobuf in Tensorflow 1.X that can be used as input to MIGraphX. Specifically, this is an example of exporting a frozen protobuf of a tensorflow BERT model. 
+
+This example demonstrates how to export a frozen graph protobuf in Tensorflow 1.X that can be used as input to MIGraphX. Specifically, this is an example of exporting a frozen protobuf of a tensorflow BERT model.
 
 ## How to Use this Example
-
 
 In order to support bert from tensorflow's official [repository](https://github.com/google-research/bert), a serving_input_fn for the estimator must be implemented in [run_classifier.py](https://github.com/google-research/bert/blob/master/run_classifier.py). In this script, insert the following function after importing all libraries and setting up flags:
 
@@ -39,6 +39,7 @@ probabilities = tf.nn.softmax(logits, axis=-1, name="output")
 ```
 
 Next, we need to export the saved model after training:
+
 ```
 def main(_):
 # ...
@@ -64,6 +65,7 @@ def main(_):
 ```
 
 Run bert with the suggested arguments:
+
 ```
 export BERT_BASE_DIR=/path/to/bert/uncased_L-12_H-768_A-12
 export GLUE_DIR=/path/to/glue
@@ -84,6 +86,7 @@ python run_classifier.py \
 ```
 
 When running, search for the following lines in the output:
+
 ```
 INFO:tensorflow:Restoring parameters from /tmp/model.ckpt-1603
 INFO:tensorflow:SavedModel written to: saved_models/temp-1564086017/saved_model.pb
@@ -92,10 +95,13 @@ INFO:tensorflow:SavedModel written to: saved_models/temp-1564086017/saved_model.
 Note the ID followed by "temp-" (in this case, 1564086017). A directory should exist under saved_models/ that is named with the ID.
 
 We also need to record the name of the output layer in bert. This can be done by inspecting the saved model.
+
 ```
 saved_model_cli show --dir saved_models/1564086017 --tag_set serve --signature_def serving_default
 ```
+
 The output should look like this:
+
 ```
 The given SavedModel SignatureDef contains the following input(s):
   inputs['input_ids'] tensor_info:
@@ -122,9 +128,10 @@ The given SavedModel SignatureDef contains the following output(s):
 Method name is: tensorflow/serving/predict
 
 ```
+
 Here the output name is given as "loss/output:0", but we will strip the ":0" from the end, as we are concerned with the node only.
 
-We will use tensorflow's freeze graph utility script and the information gathered above to create the frozen protobuf file. 
+We will use tensorflow's freeze graph utility script and the information gathered above to create the frozen protobuf file.
 
 ```
 CKPT_NUM=1603

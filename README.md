@@ -50,7 +50,7 @@ The following is a list of prerequisites for building MIGraphX.
 * [MessagePack](https://msgpack.org/index.html) for model serialization to binary format
 * [SQLite3](https://www.sqlite.org/index.html) to create database of kernels' tuning information or run queries on existing database
 
-### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild).
+### Use the ROCm build tool [rbuild](https://github.com/RadeonOpenCompute/rbuild)
 
 1. Install `rocm-cmake`, `pip3`, `rocblas`, and `miopen-hip`:
 
@@ -213,7 +213,7 @@ Documentation is built using [Doxygen](http://www.stack.nl/~dimitri/doxygen/down
 
 Run the steps below to build documentation locally.
 
-```
+```bash
 cd docs
 
 pip3 install -r .sphinx/requirements.txt

@@ -1,15 +1,17 @@
 # MIGraphX Driver
 
 ## Description
-The MIGraphX driver is a tool that allows you to utilize many of the core functions of MIGraphX without having to write your own program. 
+
+The MIGraphX driver is a tool that allows you to utilize many of the core functions of MIGraphX without having to write your own program.
 
 ## How to Use this Example
 
-The MIGraphX driver is installed with MIGraphX and can be found in `/opt/rocm/bin/migraphx-driver`, or in `AMDMIGraphX/build/bin/migraphx-driver` after building the source code. 
+The MIGraphX driver is installed with MIGraphX and can be found in `/opt/rocm/bin/migraphx-driver`, or in `AMDMIGraphX/build/bin/migraphx-driver` after building the source code.
 
 See below for a comprehensive list of commands and option arguments, as well as some usage examples.
 
 ### Commands
+
 | Command | Description                                                                |
 | ------- | -------------------------------------------------------------------------- |
 | op      | When followed by the option --list or -l, prints all operators of MIGraphX |
@@ -21,6 +23,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | perf    | Compiles and runs input graph then prints performance report               |
 
 ### Options
+
 | Option                                   | Description                                               |
 | ---------------------------------------- | --------------------------------------------------------- |
 | --help \| -h                             | Show help                                                 |
@@ -64,11 +67,13 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | --list \| -l                             | List all the operators of MIGraphX                        |
 
 ## Usage Examples
+
 The examples below supply a simple MNIST ConvNet as the input graph. Models of higher complexity will have considerably larger outputs in most cases.
 
-##### Example: op
+### Example: op
+
 ```
-$ /opt/rocm/bin/migraphx-driver op --list
+/opt/rocm/bin/migraphx-driver op --list
 ```
 
 <details>
@@ -280,8 +285,9 @@ unsqueeze
 <br/><br/>
 
 ##### Example: params
+
 ```
-$ /opt/rocm/bin/migraphx-driver params simple_graph.pb 
+/opt/rocm/bin/migraphx-driver params simple_graph.pb 
 ```
 
 <details>
@@ -296,8 +302,9 @@ x: float_type, {1, 28, 28}, {784, 28, 1}
 <br/><br/>
 
 ##### Example: run (onnx file input)
+
 ```
-$ /opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx
+/opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx
 ```
 
 <details>
@@ -356,8 +363,9 @@ x:0 = @param:x:0 -> float_type, {1, 28, 28}, {784, 28, 1}
 <br/><br/>
 
 ##### Example: read
+
 ```
-$ /opt/rocm/bin/migraphx-driver read simple_graph.pb 
+/opt/rocm/bin/migraphx-driver read simple_graph.pb 
 ```
 
 <details>
@@ -391,8 +399,9 @@ x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
 <br/><br/>
 
 ##### Example: compile (on GPU, quantized for fp16)
+
 ```
-$ /opt/rocm/bin/migraphx-driver compile --gpu --fp16 simple_graph.pb
+/opt/rocm/bin/migraphx-driver compile --gpu --fp16 simple_graph.pb
 ```
 
 <details>
@@ -431,8 +440,9 @@ output = @param:output -> float_type, {1, 10}, {10, 1}
 <br/><br/>
 
 ##### Example: verify
+
 ```
-$ /opt/rocm/bin/migraphx-driver verify simple_graph.pb
+/opt/rocm/bin/migraphx-driver verify simple_graph.pb
 ```
 
 <details>
@@ -530,8 +540,9 @@ output = @param:output -> float_type, {1, 10}, {10, 1}
 <br/><br/>
 
 ##### Example: perf
+
 ```
-$ /opt/rocm/bin/migraphx-driver perf simple_graph.pb
+/opt/rocm/bin/migraphx-driver perf simple_graph.pb
 ```
 
 <details>

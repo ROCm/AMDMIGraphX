@@ -66,7 +66,7 @@ Full documentation for MIGraphX is available at
 * Added TensorFlow supported ops in driver similar to exist onnx operator list
 * Added a MIGRAPHX_TRACE_MATCHES_FOR env variable to filter the matcher trace
 * Improved debugging by printing max,min,mean and stddev values for TRACE_EVAL = 2
-* You can now use the ` fast_math` flag instead of `ENV` for GELU
+* You can now use the `fast_math` flag instead of `ENV` for GELU
 * Print message from driver if offload copy is set for compiled program
 
 ### Optimizations

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -124,7 +124,7 @@ void nary_broadcast_vec_impl(
                     buffer[i] = binput.data()[i];
                 }
                 __syncthreads();
-                auto* bp = as_pointer(buffer);
+                const auto* bp = as_pointer(buffer);
                 // Process the data
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {
@@ -219,7 +219,7 @@ void nary_double_broadcast_vec_impl(
                     buffer[i + bdim_vec_len] = binput2.data()[i];
                 }
                 __syncthreads();
-                auto* bp = as_pointer(buffer);
+                const auto* bp = as_pointer(buffer);
                 // Process the data
                 for(size_t i = idx.global; i < nelements; i += nglobal)
                 {

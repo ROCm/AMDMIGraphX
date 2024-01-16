@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/functional.hpp>
-#include <migraphx/par_for.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
 #include <unordered_set>
 
@@ -35,10 +35,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
-bool skip_propogate(instruction_ref ins)
+bool skip_propagate(instruction_ref ins)
 {
     if(ins->name() == "contiguous")
-        return skip_propogate(ins->inputs().front());
+        return skip_propagate(ins->inputs().front());
     auto&& s = ins->get_shape();
     if(s.broadcasted() and not s.scalar())
         return true;
@@ -47,7 +47,11 @@ bool skip_propogate(instruction_ref ins)
     return false;
 }
 
-bool is_const_ins(instruction_ref ins) { return ins->can_eval() and not skip_propogate(ins); }
+bool is_const_ins(instruction_ref ins, std::unordered_set<std::string> skip_ops)
+{
+    return ins->can_eval() and not skip_propagate(ins) and
+           skip_ops.find(ins->name()) == skip_ops.end();
+}
 
 void propagate_constant::apply(module& m) const
 {
@@ -57,7 +61,7 @@ void propagate_constant::apply(module& m) const
     // Find instructions that can be evaluated to a literal
     for(auto i : iterator_for(m))
     {
-        const bool is_const = is_const_ins(i);
+        const bool is_const = is_const_ins(i, skip_ops);
         if(is_const and i != last)
             continue;
 
@@ -71,7 +75,7 @@ void propagate_constant::apply(module& m) const
                          i->inputs().end(),
                          std::inserter(const_instrs, const_instrs.begin()),
                          [&](const instruction_ref ins) {
-                             return is_const_ins(ins) and ins->name() != "@literal";
+                             return is_const_ins(ins, skip_ops) and ins->name() != "@literal";
                          });
         }
     }
@@ -79,7 +83,7 @@ void propagate_constant::apply(module& m) const
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     std::vector<argument> literals(const_instrs_vec.size());
-    par_for(const_instrs_vec.size(), 1, [&](const auto i) {
+    simple_par_for(const_instrs_vec.size(), 1, [&](const auto i) {
         literals[i] = const_instrs_vec[i]->eval();
     });
 

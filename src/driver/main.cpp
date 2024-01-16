@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,16 +23,20 @@
  */
 
 #include "verify.hpp"
+#include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
+#include "passes.hpp"
 #include "perf.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
+#endif
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -57,6 +61,13 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+inline std::string get_version()
+{
+    return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+           std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+           "." MIGRAPHX_VERSION_TWEAK;
+}
+
 struct loader
 {
     std::string model;
@@ -74,6 +85,7 @@ struct loader
     std::vector<std::string> param_dims;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
+    std::vector<std::string> passes;
 
     void parse(argument_parser& ap)
     {
@@ -82,6 +94,7 @@ struct loader
            {"--model"},
            ap.help("Load model"),
            ap.type("resnet50|inceptionv3|alexnet"),
+           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -120,6 +133,7 @@ struct loader
            ap.append(),
            ap.nargs(2));
         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+        ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -280,10 +294,12 @@ struct loader
                 options.format = "json";
                 p              = migraphx::load(file, options);
             }
+#ifdef MIGRAPHX_ENABLE_PYTHON
             else if(file_type == "py")
             {
                 p = migraphx::load_py(file);
             }
+#endif
             else if(file_type == "migraphx")
             {
                 p = migraphx::load(file);
@@ -325,6 +341,8 @@ struct loader
                                      migraphx::dead_code_elimination{},
                                  });
         }
+        if(not passes.empty())
+            migraphx::run_passes(p, get_passes(passes));
         return p;
     }
 
@@ -428,6 +446,7 @@ struct compiler
     compiler_target ct;
     compile_options co;
     bool to_fp16 = false;
+    bool to_fp8  = false;
     bool to_int8 = false;
 
     std::vector<std::string> fill0;
@@ -451,6 +470,7 @@ struct compiler
            ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+        ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -474,13 +494,15 @@ struct compiler
             {
                 if(is_offload_copy_set(p) and not co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled with offload_copy set, Try "
-                                 "passing "
-                                 "`--enable-offload-copy` if program run fails.\n";
+                    std::cout
+                        << "[WARNING]: MIGraphX program was likely compiled with offload_copy "
+                           "set, Try "
+                           "passing "
+                           "`--enable-offload-copy` if program run fails.\n";
                 }
                 else if(co.offload_copy)
                 {
-                    std::cout << "MIGraphX program was likely compiled without "
+                    std::cout << "[WARNING]: MIGraphX program was likely compiled without "
                                  "offload_copy set, Try "
                                  "removing "
                                  "`--enable-offload-copy` flag if passed to driver, if program run "
@@ -498,6 +520,10 @@ struct compiler
         if(to_int8)
         {
             quantize_int8(p, t, {host_params(p)});
+        }
+        if(to_fp8)
+        {
+            quantize_fp8(p, t, {host_params(p)});
         }
         p.compile(t, co);
         l.save(p);
@@ -533,18 +559,27 @@ struct params : command<params>
 struct verify : command<verify>
 {
     compiler c;
-    double tolerance     = 80;
+    std::optional<double> rms_tol;
+    std::optional<double> atol;
+    std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    verify_options vo;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
-        ap(tolerance, {"--tolerance"}, ap.help("Tolerance for errors"));
+        ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+        ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+        ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
         ap(per_instruction,
            {"-i", "--per-instruction"},
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(vo.ref_use_double,
+           {"--ref-use-double"},
+           ap.help("Convert floating point values to double on ref"),
+           ap.set_value(true));
     }
 
     void run()
@@ -556,35 +591,32 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-        auto quantize = precision::fp32;
         if(c.to_fp16)
-            quantize = precision::fp16;
+        {
+            vo.quantize = precision::fp16;
+        }
         if(c.to_int8)
-            quantize = precision::int8;
+        {
+            vo.quantize = precision::int8;
+        }
+
+        auto tols = get_tolerances(p, vo, rms_tol, atol, rtol);
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, tolerance);
+            verify_instructions(p, t, c.co, vo, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, tolerance);
+            verify_reduced_program(p, t, c.co, vo, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, tolerance);
+            verify_program(c.l.file, p, t, c.co, vo, m, tols);
         }
-    }
-};
-
-struct version : command<version>
-{
-    void parse(const argument_parser&) {}
-    void run() const
-    {
-        std::cout << "MIGraphX Version: " << MIGRAPHX_VERSION_MAJOR << "." << MIGRAPHX_VERSION_MINOR
-                  << "." << MIGRAPHX_VERSION_PATCH << "."
-                  << MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK) << std::endl;
     }
 };
 
@@ -740,16 +772,14 @@ struct main_command
     }
     void parse(argument_parser& ap)
     {
-        std::string version_str = "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) +
-                                  "." + std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                                  std::to_string(MIGRAPHX_VERSION_PATCH) + "." +
-                                  MIGRAPHX_STRINGIZE(MIGRAPHX_VERSION_TWEAK);
+        std::string version_str = get_version();
         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
         ap(nullptr,
            {"-v", "--version"},
            ap.help("Show MIGraphX version"),
            ap.show_help(version_str));
+        ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
 
         // Trim command off of exe name
         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
@@ -769,7 +799,7 @@ struct main_command
         {
             std::cout << "'" << color::fg_yellow << wrong_commands.front() << color::reset
                       << "' is not a valid command." << std::endl;
-            std::cout << get_command_help("Available commands:") << std::endl;
+            std::cout << get_command_help("Available commands:");
         }
         else
         {
@@ -792,7 +822,6 @@ using namespace migraphx::driver; // NOLINT
 int main(int argc, const char* argv[])
 {
     std::vector<std::string> args(argv + 1, argv + argc);
-
     // no argument, print the help infomration by default
     if(args.empty())
     {
@@ -801,9 +830,28 @@ int main(int argc, const char* argv[])
 
     auto&& m = get_commands();
     auto cmd = args.front();
+
+    if(cmd == "--ort-sha")
+    {
+        std::cout << MIGRAPHX_ORT_SHA1 << std::endl;
+        return 0;
+    }
+    if(cmd == "-v" or cmd == "--version")
+    {
+        std::cout << get_version() << std::endl;
+        return 0;
+    }
+
     if(m.count(cmd) > 0)
     {
-        m.at(cmd)(argv[0], {args.begin() + 1, args.end()});
+        std::string driver_invocation =
+            std::string(argv[0]) + " " + migraphx::to_string_range(args, " ");
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
+
+        m.at(cmd)(argv[0],
+                  {args.begin() + 1, args.end()}); // run driver command found in commands map
+
+        std::cout << "[ " << get_version() << " ] Complete: " << driver_invocation << std::endl;
     }
     else
     {

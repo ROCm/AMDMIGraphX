@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,15 +34,14 @@ namespace gpu {
 std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsigned long seed = 0)
 {
     std::vector<argument> args;
-    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](auto& s) {
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](const auto& s) {
         return to_gpu(generate_argument(s, seed++));
     });
     return args;
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-std::pair<double, double>
-time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
 
     // TODO: Use std::ref
@@ -51,21 +50,19 @@ time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
-    auto run  = [&] {
-        op.compute(ctx, output, args);
-        ctx.finish();
-    };
-    gctx.enable_perf_measurement();
+    auto start = context::create_event_for_timing();
+    auto stop  = context::create_event_for_timing();
+    auto run   = [&] { op.compute(ctx, output, args); };
     run();
-    double host_time   = 0.0;
-    double device_time = 0.0;
+    gctx.get_stream().record(start.get());
     for(auto i : range(n))
     {
         (void)i;
-        host_time += time<milliseconds>(run);
-        device_time += gctx.get_elapsed_ms();
+        run();
     }
-    return std::make_pair(host_time / n, device_time / n);
+    gctx.get_stream().record(stop.get());
+    gctx.finish();
+    return context::get_elapsed_ms(start.get(), stop.get()) / n;
 }
 
 } // namespace gpu

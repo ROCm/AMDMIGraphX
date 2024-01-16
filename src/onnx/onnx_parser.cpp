@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,7 +34,9 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
+#include <onnx.pb.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -244,7 +246,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
-        this->path = parent_path;
+        this->path = parent_path.string();
 
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
@@ -357,10 +359,9 @@ parse_inputs(const onnx_parser& parser,
             }
 
             shape s;
-            std::vector<std::size_t> dims;
             if(parser.map_input_dims.count(name) > 0)
             {
-                dims = parser.map_input_dims.at(name);
+                std::vector<std::size_t> dims = parser.map_input_dims.at(name);
                 s    = parser.parse_type(input.type(), dims);
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
@@ -370,7 +371,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type(), dims);
+                s = parser.parse_type(input.type());
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -409,7 +410,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num = static_cast<std::size_t>(node.output().size());
+        std::size_t output_num = node.output().size();
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -485,6 +486,8 @@ literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const
     case onnx::AttributeProto::TENSORS:
     case onnx::AttributeProto::SPARSE_TENSOR:
     case onnx::AttributeProto::SPARSE_TENSORS:
+    case onnx::AttributeProto::TYPE_PROTOS:
+    case onnx::AttributeProto::TYPE_PROTO:
     case onnx::AttributeProto::GRAPHS: return {};
     }
     MIGRAPHX_THROW("PARSE_VALUE: Invalid attribute type " + std::to_string(attr.type()));
@@ -546,6 +549,18 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     case onnx::TensorProto::DOUBLE:
         return create_literal(shape::double_type, dims, t.double_data());
     case onnx::TensorProto::FLOAT: return create_literal(shape::float_type, dims, t.float_data());
+    case onnx::TensorProto::FLOAT8E4M3FNUZ: {
+        std::vector<int32_t> data_int32(t.int32_data().begin(), t.int32_data().end());
+        std::vector<migraphx::fp8::fp8e4m3fnuz> data_fp8;
+        std::transform(data_int32.begin(),
+                       data_int32.end(),
+                       std::back_inserter(data_fp8),
+                       [](float raw_val) { return migraphx::fp8::fp8e4m3fnuz{raw_val}; });
+        return create_literal(shape::fp8e4m3fnuz_type, dims, data_fp8);
+    }
+    case onnx::TensorProto::FLOAT8E5M2FNUZ:
+    case onnx::TensorProto::FLOAT8E5M2:
+    case onnx::TensorProto::FLOAT8E4M3FN:
     case onnx::TensorProto::UNDEFINED:
     case onnx::TensorProto::STRING:
     case onnx::TensorProto::COMPLEX64:
@@ -553,14 +568,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     }
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
-shape onnx_parser::parse_type(const onnx::TypeProto& t,
-                              const std::vector<std::size_t>& input_dims) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
-    if(not input_dims.empty())
-    {
-        return {shape_type, input_dims};
-    }
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
@@ -590,6 +600,15 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 
+shape onnx_parser::parse_type(const onnx::TypeProto& t,
+                              const std::vector<std::size_t>& input_dims) const
+{
+    shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    if(input_dims.empty())
+        return {shape_type};
+    return {shape_type, input_dims};
+}
+
 shape::type_t get_type(int dtype)
 {
     switch(dtype)
@@ -606,6 +625,17 @@ shape::type_t get_type(int dtype)
     case 11: return shape::double_type;
     case 12: return shape::uint32_type;
     case 13: return shape::uint64_type;
+    case 18: {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+        return shape::fp8e4m3fnuz_type;
+    }
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 19:
+    case 20:
     default: {
         MIGRAPHX_THROW("Prototensor data type " + std::to_string(dtype) + " not supported");
     }

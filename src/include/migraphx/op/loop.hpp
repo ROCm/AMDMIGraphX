@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,9 +59,9 @@ struct loop
             MIGRAPHX_THROW("LOOP: operator should have one submodule.");
         }
 
-        const auto& mod     = mods.front();
-        auto mod_out_shapes = mod->get_output_shapes();
-        auto dep_param_num  = inputs.size() - 2;
+        const_module_ref mod = mods.front();
+        auto mod_out_shapes  = mod->get_output_shapes();
+        auto dep_param_num   = inputs.size() - 2;
 
         // first item of the mod output shapes is condition used in loop,
         // which is not needed to compute output shape

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <migraphx/type_name.hpp>
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -381,22 +382,24 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
     const int trace         = value_of(MIGRAPHX_TRACE_MATCHES{});
     const bool validate     = enabled(MIGRAPHX_VALIDATE_MATCHES{});
     const auto trace_filter = string_value_of(MIGRAPHX_TRACE_MATCHES_FOR{});
-    const bool trace_for    = not trace_filter.empty() and
-                           (contains(std::string{location.file_name()}, trace_filter) or
-                            contains(std::string{location.function_name()}, trace_filter));
-    bool match = false;
+    bool match              = false;
     each_args(
         [&](auto&& m) {
+            const auto& matcher_name = get_type_name(m);
+            const bool trace_for     = not trace_filter.empty() and
+                                   (contains(std::string{location.file_name()}, trace_filter) or
+                                    contains(std::string{location.function_name()}, trace_filter) or
+                                    contains(matcher_name, trace_filter));
             if(match)
                 return;
-            if(trace > 1 or trace_for)
-                std::cout << "Match: " << get_type_name(m) << std::endl;
+            if(trace > 1 and trace_for)
+                std::cout << "Match: " << matcher_name << std::endl;
             auto r = match_instruction(get_module(mod), ins, m.matcher());
             if(r.result == get_module(mod).end())
                 return;
             if(trace > 0 or trace_for)
             {
-                std::cout << "Matched by " << get_type_name(m) << std::endl;
+                std::cout << "Matched by " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
@@ -407,7 +410,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 auto invalid = get_module(mod).validate();
                 if(invalid != get_module(mod).end())
                 {
-                    std::cout << "Invalid program from match: " << get_type_name(m) << std::endl;
+                    std::cout << "Invalid program from match: " << matcher_name << std::endl;
                     std::cout << "Invalid instructions: " << std::endl;
                     get_module(mod).debug_print(invalid->inputs());
                     get_module(mod).debug_print(invalid);
@@ -588,6 +591,19 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
+MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
+{
+    if(ins->name() != "@literal")
+        return false;
+    bool all_same = false;
+    ins->get_literal().visit([&](auto s) {
+        all_same = std::all_of(s.begin() + 1, s.end(), [&](const auto& scale) {
+            return float_equal(scale, s.front());
+        });
+    });
+    return all_same;
+}
+
 MIGRAPHX_BASIC_MATCHER(output, const matcher_context&, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
@@ -621,6 +637,8 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
 template <class... Ms>
 auto skip(Ms... ms)
 {
+    static_assert(((not std::is_convertible<Ms, std::string>{}) and ...),
+                  "Use a matcher not a string for skip.");
     auto m = any_of(ms...);
     return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref start) {
         return fix<optional<instruction_ref>>(
@@ -839,8 +857,8 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
-template <class T>
-inline auto has_value(T x, float tolerance = 1e-6)
+template <class F>
+inline auto literal_value_checker(F f)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")
@@ -848,14 +866,47 @@ inline auto has_value(T x, float tolerance = 1e-6)
         auto l = ins->get_literal();
         if(l.empty())
             return false;
+        return f(l);
+    }));
+}
+
+/**
+ * Uses integer multiples of the corresponding floating point epsilon and
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y)).
+ * atol_mult controls the absolute tolerance.
+ * rtol_mult controls the relative tolerance.
+ * Uses no tolerance for integral types.
+ */
+template <class T>
+inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
+{
+    return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
         l.visit([&](auto v) {
-            if(std::all_of(
-                   v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
-                b = true;
+            // cast to the literal's data type before comparing
+            using type = typename decltype(v)::value_type;
+            if constexpr(std::is_integral<type>{})
+            {
+                if(std::all_of(
+                       v.begin(), v.end(), [&](auto val) { return val == static_cast<type>(x); }))
+                {
+                    b = true;
+                }
+            }
+            else
+            {
+                auto eps = std::numeric_limits<type>::epsilon();
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return std::fabs(val - static_cast<type>(x)) <
+                              eps * (atol_mult + rtol_mult * std::fabs(val));
+                   }))
+                {
+                    b = true;
+                }
+            }
         });
         return b;
-    }));
+    });
 }
 
 inline auto has_attribute(const std::string& name)

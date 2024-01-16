@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,15 +37,18 @@ struct parse_roialign : op_parser<parse_roialign>
     std::vector<op_desc> operators() const { return {{"RoiAlign"}}; }
 
     instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
+                          const onnx_parser& parser,
                           onnx_parser::node_info info,
                           const std::vector<instruction_ref>& args) const
     {
-        std::string coord_trans_mode = "half_pixel";
-        if(contains(info.attributes, "coordinate_transformation_mode"))
+        std::string coord_trans_mode =
+            parser.opset_version >= 16 ? "half_pixel" : "output_half_pixel";
+
+        if(const auto* a = "coordinate_transformation_mode"; contains(info.attributes, a))
         {
-            coord_trans_mode = info.attributes.at("coordinate_transformation_mode").s();
+            coord_trans_mode = info.attributes.at(a).s();
         }
+
         if(not contains({"half_pixel", "output_half_pixel"}, coord_trans_mode))
         {
             MIGRAPHX_THROW("coordinate_transformation_mode \"" + coord_trans_mode +

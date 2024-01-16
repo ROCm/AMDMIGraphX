@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 #include <iostream>
 #include <vector>
 #include <migraphx/gpu/fuse_mlir.hpp>
-#include <migraphx/operators.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/quantization.hpp>
 #include <migraphx/generate.hpp>
@@ -40,7 +40,6 @@
 TEST_CASE(gpu_target_copy)
 {
     migraphx::target gpu_t = migraphx::make_target("gpu");
-    migraphx::target ref_t = migraphx::make_target("ref");
     migraphx::shape s{migraphx::shape::int8_type, {2, 3, 4, 5}};
 
     auto ref_arg_orig  = migraphx::generate_argument(s, 0x123456L);
@@ -52,7 +51,7 @@ TEST_CASE(gpu_target_copy)
     std::vector<int8_t> val_final;
     ref_arg_final.visit([&](auto v) { val_final.assign(v.begin(), v.end()); });
 
-    EXPECT(migraphx::verify::verify_range(val_orig, val_final));
+    EXPECT(migraphx::verify::verify_rms_range(val_orig, val_final));
 }
 
 TEST_CASE(int8_quantization)
@@ -90,7 +89,7 @@ TEST_CASE(int8_quantization)
         migraphx::shape sc{migraphx::shape::float_type, {5, 8}};
         auto pa = mm->add_parameter("a", sa);
         auto pb = mm->add_parameter("b", sb);
-        mm->add_instruction(migraphx::op::dot{}, pa, pb);
+        mm->add_instruction(migraphx::make_op("dot"), pa, pb);
 
         return p;
     };
@@ -118,9 +117,12 @@ TEST_CASE(int8_quantization)
         // the regular pipeline uses the rewrite_quantization in the much
         // earlier stage.
         if(migraphx::gpu::mlir_enabled())
-            EXPECT(migraphx::verify::verify_range(ref_result, gpu_result, 1e5));
+            EXPECT(migraphx::verify::verify_range_with_tolerance(
+                gpu_result,
+                migraphx::verify::expected{ref_result},
+                migraphx::verify::tolerance{0.01}));
         else
-            EXPECT(migraphx::verify::verify_range(ref_result, gpu_result));
+            EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
     }
 }
 

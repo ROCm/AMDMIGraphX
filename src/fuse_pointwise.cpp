@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,12 +23,16 @@
  */
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/common_dims.hpp>
 #include <iterator>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
@@ -41,7 +45,7 @@ static literal get_scalar(instruction_ref ins)
     if(ins->name() == "contiguous")
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 && not(s.scalar()))
+    if(s.elements() != 1 and not(s.scalar()))
         return {};
     if(not ins->can_eval())
         return {};
@@ -189,9 +193,57 @@ static bool find_pointwise_modules(module& m)
     }
     return changed;
 }
+namespace {
+struct find_pointwise_reshape_pointwise
+{
+    auto matcher() const
+    {
+        auto reshape =
+            match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
+        auto skip_contiguous = [](auto... ms) {
+            return match::arg(0)(match::skip(match::name("contiguous")(match::used_once()))(ms...));
+        };
+        auto pointwise         = match::name("pointwise")(match::used_once());
+        auto reshape_pointwise = reshape(skip_contiguous(pointwise.bind("x"))).bind("reshape");
+        return match::name("pointwise")(match::any_of[match::inputs()](reshape_pointwise));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins         = r.result;
+        auto x_ins       = r.instructions["x"];
+        auto reshape_ins = r.instructions["reshape"];
+
+        auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
+        if(cd.dims.empty())
+            return;
+
+        auto reshape_input = [&](const auto& ins_to_insert) {
+            return [&](auto input) {
+                return m.insert_instruction(
+                    ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), input);
+            };
+        };
+        auto x_inputs = x_ins->inputs();
+        std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
+        auto new_x_ins =
+            m.insert_instruction(x_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
+
+        auto inputs = ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == reshape_ins)
+                return new_x_ins;
+            return reshape_input(ins)(input);
+        });
+        auto pw = m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
+        m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
+    }
+};
+} // namespace
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
+    mpm.run_pass(eliminate_identity{});
     create_pointwise_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
@@ -200,6 +252,8 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     }
     for(int i = 0; i < 8; i++)
     {
+        match::find_matches(mpm.get_module(), find_pointwise_reshape_pointwise{});
+        mpm.run_pass(simplify_reshapes{1});
         if(not find_pointwise_modules(mpm.get_module()))
             break;
         mpm.run_pass(dead_code_elimination{});

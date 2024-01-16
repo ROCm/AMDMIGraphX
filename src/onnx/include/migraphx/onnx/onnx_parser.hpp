@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,10 +97,11 @@ struct onnx_parser
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
-    bool use_dyn_output         = false;
-    bool skip_unknown_operators = false;
-    int64_t max_loop_iterations = 10;
-    int64_t opset_version       = 13;
+    bool use_dyn_output          = false;
+    bool skip_unknown_operators  = false;
+    int64_t max_loop_iterations  = 10;
+    int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
+    int64_t opset_version        = 13;
 
     std::unordered_map<std::string, op_func> ops;
 
@@ -117,6 +118,7 @@ struct onnx_parser
     parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
+    shape parse_type(const onnx::TypeProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
 };
 

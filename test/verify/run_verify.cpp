@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,8 +44,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DUMP_TEST)
 
 // An improved async, that doesn't block
 template <class Function>
-std::future<typename std::result_of<Function()>::type> detach_async(Function&& f,
-                                                                    bool parallel = true)
+std::future<std::invoke_result_t<Function>> detach_async(Function&& f, bool parallel = true)
 {
     if(parallel)
     {
@@ -137,15 +136,18 @@ void run_verify::validate(const migraphx::target& t,
         ti.validate(p, m);
 }
 
-std::vector<migraphx::argument> run_verify::run_ref(migraphx::program p,
-                                                    migraphx::parameter_map inputs,
-                                                    const migraphx::compile_options& c_opts) const
+std::pair<migraphx::program, std::vector<migraphx::argument>>
+run_verify::run_ref(migraphx::program p,
+                    migraphx::parameter_map inputs,
+                    const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
-    compile_check(p, t, c_opts);
-    return p.eval(std::move(inputs));
+    auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
+    compile_check(p, t, c_opts, (trace_target == "ref"));
+    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
 }
+
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_target(const migraphx::target& t,
                        migraphx::program p,
@@ -226,7 +228,7 @@ void run_verify::verify(const std::string& name,
             }
         }
 
-        auto gold_f = detach_async([=] { return run_ref(p, m, c_opts); });
+        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);
@@ -235,8 +237,8 @@ void run_verify::verify(const std::string& name,
                 tname, detach_async([=] { return run_target(t, p, m, c_opts); }, ti.parallel));
         }
 
-        assert(gold_f.valid());
-        auto gold = gold_f.get();
+        assert(ref_f.valid());
+        auto ref_results = ref_f.get();
 
         for(auto&& pp : results)
         {
@@ -245,19 +247,20 @@ void run_verify::verify(const std::string& name,
             auto x      = pp.second.get();
             auto cp     = x.first;
             auto result = x.second;
-
+            auto gold   = ref_results.second;
             bool passed = true;
             passed &= (gold.size() == result.size());
             std::size_t num = gold.size();
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
-                passed &= migraphx::verify_args(tname, gold[i], result[i]);
+                passed &= migraphx::verify_args_with_tolerance(
+                    tname, result[i], migraphx::verify::expected{gold[i]});
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
             {
                 std::cout << p << std::endl;
-                std::cout << "ref:\n" << p << std::endl;
+                std::cout << "ref:\n" << ref_results.first << std::endl;
                 std::cout << tname << ":\n" << cp << std::endl;
                 std::cout << std::endl;
             }

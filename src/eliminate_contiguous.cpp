@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS)
 
 static bool try_compute_shape(instruction_ref ins,
                               const std::vector<shape>& inputs,
@@ -78,14 +80,26 @@ static bool try_compute_shape(instruction_ref ins,
                 return (arg == ins) ? new_shape : arg->get_shape();
             });
 
-            if(not try_compute_shape(output, input_shapes, mods))
+            if(not try_compute_shape(output, input_shapes, output->module_inputs()))
             {
                 return false;
             }
         }
     }
+    catch(const std::exception& e)
+    {
+        if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
+        {
+            std::cout << "Exception: " << e.what() << std::endl;
+        }
+        return false;
+    }
     catch(...)
     {
+        if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
+        {
+            std::cout << "Unknown exception" << std::endl;
+        }
         return false;
     }
 
@@ -127,6 +141,11 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         {
             if(arg->name() != op_name)
                 continue;
+            if(enabled(MIGRAPHX_TRACE_ELIMINATE_CONTIGUOUS{}))
+            {
+                std::cout << "eliminate_contiguous: ";
+                m.debug_print(ins);
+            }
             auto prev = arg->inputs().front();
             replace(new_args, arg, prev);
             if(try_compute_shape(ins, new_args, mod_args))

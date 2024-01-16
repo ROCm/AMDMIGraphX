@@ -45,9 +45,13 @@ jobs:
             [1]: https://github.com/peter-evans/create-pull-request
           labels: |
             onnxruntime
-            dependancies
+            dependencies
             automated 
-          assignees: TedThemistokleous
-          reviewers: TedThemistokleous causten
+            skip bot checks
+          assignees: | 
+            TedThemistokleous
+          reviewers: |
+            TedThemistokleous
+            causten
           draft: false
           base: develop

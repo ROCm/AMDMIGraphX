@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,8 @@ namespace op {
  * 2. use_rank (default) vs use_len:
  *  `use_rank` sets the max value/index of the attribute as the rank of lens.
  *  `use_lens` sets the max value/index as the corresponding value in lens at the axes index.
+ *      Uses the dynamic_dimension.max value for dynamic shapes. Returns the original vector
+ *      (no normalization) if any of dynamic_dimension[axes] are not fixed.
  * 3. `clip_min` vs. `not_clip_min` (default):
  *  Clip values less than the minimum to the minimum or not.
  * 4. `include_min` vs. `exclude_min` (default):

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -285,7 +285,7 @@ bool value::contains(const std::string& pkey) const
 }
 std::size_t value::size() const
 {
-    auto* a = if_array_impl(x);
+    const auto* a = if_array_impl(x);
     if(a == nullptr)
         return 0;
     return a->size();

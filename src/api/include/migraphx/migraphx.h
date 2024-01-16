@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <migraphx/api/export.h>
 
@@ -43,7 +44,8 @@
     m(int32_type, int32_t) \
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
-    m(uint64_type, uint64_t)
+    m(uint64_type, uint64_t) \
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -209,7 +211,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimensions_assign_to(
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimensions_create(migraphx_dynamic_dimensions_t* dynamic_dimensions,
-                                   const_migraphx_dynamic_dimension_t* ptr,
+                                   const const_migraphx_dynamic_dimension_t* ptr,
                                    size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status
@@ -377,7 +379,7 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_instructions_assign_to(
     migraphx_instructions_t output, const_migraphx_instructions_t input);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_instructions_create(
-    migraphx_instructions_t* instructions, const_migraphx_instruction_t* ptr, size_t size);
+    migraphx_instructions_t* instructions, const const_migraphx_instruction_t* ptr, size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_modules_destroy(migraphx_modules_t modules);
 
@@ -511,6 +513,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_dyn_dim_valu
     migraphx_onnx_options_t onnx_options, const_migraphx_dynamic_dimension_t dd);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterations(
+    migraphx_onnx_options_t onnx_options, int64_t value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
 
 MIGRAPHX_C_EXPORT migraphx_status

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -79,7 +79,8 @@ def dynamic_dimension(h):
 def dynamic_dimensions(h):
     h.constructor(
         'create',
-        api.params(ptr='const_migraphx_dynamic_dimension_t*', size='size_t'),
+        api.params(ptr='const const_migraphx_dynamic_dimension_t*',
+                   size='size_t'),
         fname='migraphx::to_obj_vector<const_migraphx_dynamic_dimension_t>')
     h.method('size', returns='size_t')
     h.method('get',
@@ -215,7 +216,7 @@ def instruction(h):
 def instructions(h):
     h.constructor(
         'create',
-        api.params(ptr='const_migraphx_instruction_t*', size='size_t'),
+        api.params(ptr='const const_migraphx_instruction_t*', size='size_t'),
         fname='migraphx::to_obj_vector<const_migraphx_instruction_t>')
 
 
@@ -347,6 +348,11 @@ def onnx_options(h):
         'set_default_loop_iterations',
         api.params(value='int64_t'),
         invoke='migraphx::set_default_loop_iterations($@)',
+    )
+    h.method(
+        'set_limit_loop_iterations',
+        api.params(value='int64_t'),
+        invoke='migraphx::set_limit_loop_iterations($@)',
     )
 
 

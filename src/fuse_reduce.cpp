@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,7 @@ struct fused_reduce
     {
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
-        auto* sm = mods.front();
+        const auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
         auto names = sm->get_parameter_names();
@@ -108,8 +108,8 @@ static void insert_params(module_ref sm,
     {
         if(contains(map_ins, input))
             continue;
-        auto s         = shape{input->get_shape().type(), input->get_shape().lens()};
-        map_ins[input] = sm->add_parameter("x" + std::to_string(n++), s);
+        map_ins[input] =
+            sm->add_parameter("x" + std::to_string(n++), input->get_shape().as_standard());
     }
 }
 
@@ -143,7 +143,7 @@ insert_module_in_submodule(module_ref sm,
 }
 
 static std::vector<instruction_ref>
-find_inputs(module_ref sm,
+find_inputs(const_module_ref sm,
             const module& parent,
             const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {

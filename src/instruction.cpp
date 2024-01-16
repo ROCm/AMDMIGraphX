@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -389,7 +389,7 @@ void instruction::print(std::ostream& os,
     if(not ins->module_inputs().empty())
     {
         std::string delim = ", [";
-        for(auto&& mod_arg : ins->module_inputs())
+        for(const const_module_ref& mod_arg : ins->module_inputs())
         {
             os << delim << mod_arg->name();
             delim = ", ";

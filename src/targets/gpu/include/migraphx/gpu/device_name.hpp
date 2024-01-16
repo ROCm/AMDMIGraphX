@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,11 +33,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT std::string get_arch_name(const hipDeviceProp_t& props);
-
 MIGRAPHX_GPU_EXPORT std::string get_device_name();
 
 MIGRAPHX_GPU_EXPORT int get_device_id();
+
+MIGRAPHX_GPU_EXPORT bool gfx_has_fp8_intrinsics();
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

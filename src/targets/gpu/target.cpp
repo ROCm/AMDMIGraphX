@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/inline_module.hpp>
@@ -48,6 +49,7 @@
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
@@ -62,7 +64,6 @@
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
-#include <migraphx/gpu/pack_int8_args.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
@@ -79,41 +80,57 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
-struct id_pass
-{
-    std::string name() const { return "id"; }
-    void apple(const module&) const {}
-};
-
-pass enable_pass(bool enabled, pass p)
-{
-    if(enabled)
-        return p;
-    return id_pass{};
-}
-
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
     unsupported_types.erase(shape::type_t::float_type);
+    unsupported_types.erase(shape::type_t::fp8e4m3fnuz_type);
     unsupported_types.erase(shape::type_t::half_type);
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
     unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
+    // whiltelist supported Ops for the FP8
+    std::set<std::string> unsupported_fp8_ops = {};
+    if(not gpu::rocblas_fp8_available())
+    {
+        unsupported_fp8_ops.insert("dot");
+        unsupported_fp8_ops.insert("quant_dot");
+    }
+    // MIOpen doesn't have support for fp8 pooling yet.
+    unsupported_fp8_ops.insert("pooling");
+    if(not gpu::gfx_has_fp8_intrinsics())
+    {
+        unsupported_fp8_ops.insert("convolution");
+        unsupported_fp8_ops.insert("quant_convolution");
+    }
+    // add all device kernels
+    unsupported_fp8_ops.insert("logsoftmax");
+    unsupported_fp8_ops.insert("nonzero");
+    unsupported_fp8_ops.insert("prefix_scan_sum");
+    unsupported_fp8_ops.insert("scatter_none");
+    unsupported_fp8_ops.insert("topk");
+    unsupported_fp8_ops.insert("rnn_var_sl_shift_output");
+    unsupported_fp8_ops.insert("multinomial");
+    unsupported_fp8_ops.insert("argmax");
+    unsupported_fp8_ops.insert("argmin");
     // clang-format off
     return
     {
         split_single_dyn_dim{},
+        dead_code_elimination{},
+        simplify_dyn_ops{},
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_dot"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
@@ -126,17 +143,21 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         inline_module{},
         rewrite_pooling{},
         dead_code_elimination{},
-        enable_pass(options.fast_math, rewrite_gelu{}),
+        rewrite_gelu{options.fast_math},
         optimize_module{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
         auto_contiguous{},
+        eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
+        dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
+        dead_code_elimination{},
+        fuse_concat{},
         dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
@@ -151,7 +172,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         compile_miopen{&gctx},
         dead_code_elimination{},
-        pack_int8_args{},
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

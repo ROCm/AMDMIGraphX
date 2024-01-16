@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 char* getCmdOption(char** begin, char** end, const std::string& option)
 {
     char** itr = std::find(begin, end, option);
-    if(itr != end && ++itr != end)
+    if(itr != end and ++itr != end)
     {
         return *itr;
     }

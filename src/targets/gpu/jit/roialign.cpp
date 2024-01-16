@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,7 +81,7 @@ struct roialign_compiler : compiler<roialign_compiler>
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
-        float rois_offset = (ctm == "output_half_pixel") ? -0.5f : 0.0f;
+        float rois_offset = (ctm == "half_pixel") ? -0.5f : 0.0f;
         options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
 
         // spatial_scale

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
 
     compiler_replace
-    compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
+    compile(const context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
@@ -52,14 +52,14 @@ struct mlir_compiler : compiler<mlir_compiler>
                 }};
     }
 
-    optional<tuning_config>
-    get_tuning_config(context&, instruction_ref ins, const operation&, bool exhaustive) const
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation&,
+                                              bool exhaustive) const
     {
-        if(not exhaustive)
-            return nullopt;
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
-        return get_tuning_config_mlir(*smod, shapes);
+        return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
     }
 };
 

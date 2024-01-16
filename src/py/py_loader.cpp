@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,9 +35,9 @@ static std::vector<fs::path> find_available_python_versions()
     auto path = dynamic_loader::path(&load_py).parent_path();
     for(const auto& entry : fs::directory_iterator{path})
     {
-        if(not entry.is_regular_file())
-            continue;
         auto p = entry.path();
+        if(not fs::is_regular_file(p))
+            continue;
         if(not contains(p.stem().string(), "migraphx_py_"))
             continue;
         result.push_back(p);
@@ -64,7 +64,7 @@ static dynamic_loader py_lib()
     return lib;
 }
 
-program load_py(const std::string& filename)
+MIGRAPHX_PY_EXPORT program load_py(const std::string& filename)
 {
     static auto f = py_lib().get_function<program(const std::string&)>("migraphx_load_py");
     return f(filename);

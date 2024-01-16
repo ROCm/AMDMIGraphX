@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,8 +37,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct src_file
 {
     fs::path path;
-    std::pair<const char*, const char*> content;
-    std::size_t len() const { return content.second - content.first; }
+    std::string_view content;
+
+    src_file() = default;
+    src_file(fs::path file_path, std::string_view file_content)
+        : path{std::move(file_path)}, content{file_content}
+    {
+    }
+
+    explicit src_file(const std::pair<std::string_view, std::string_view>& pair)
+        : path{pair.first}, content{pair.second}
+    {
+    }
 };
 
 struct MIGRAPHX_EXPORT src_compiler

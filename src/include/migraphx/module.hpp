@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_EXPORT
 const operation& get_operation(instruction_ref ins);
 
 struct module_impl;
@@ -174,6 +175,8 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref get_parameter(std::string name) const;
 
+    void rename_parameter(instruction_ref ins, const std::string& name);
+
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     bool has_instruction(instruction_ref ins) const;
@@ -222,14 +225,27 @@ struct MIGRAPHX_EXPORT module
     void annotate(std::ostream& os, std::function<void(instruction_ref)> a) const;
 
     std::vector<module_ref> get_sub_modules(bool shallow = false) const;
+    /* sorts the module in topological order aka reverse-post order (RPO) DFS order
+       it takes last instruction or @return as the root and walks back the graph and moves inputs
+       of the each instruction such that it appears before the instruction itself.
+    */
     module& sort();
+    /* Any instruction "X" can have module arguments and those modules inside them can use any other
+     * instruction "Y" from predecessor modules of the instruction "X". Such instruction "Y" inside
+     * module args are not listed as input instructions to "X". But those instructions "Y" must be
+     * evaluted before the instruction "X" can. Therefore such "Y" instructions are considered
+     * implicit dependency to "X".
+     */
     ins_dep_map calc_implicit_deps() const;
 
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
+    friend struct program;
+
     private:
+    void set_name(const std::string& name);
     void assign(const module& m);
     void calc_implicit_deps(const module& smod,
                             const module& pmod,

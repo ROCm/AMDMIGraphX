@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,6 @@ TEST_CASE(host_same_buffer_copy)
     migraphx::parameter_map pp;
     std::vector<float> a_vec(ss.elements(), -1);
     std::vector<float> b_vec(ss.elements(), 2);
-    std::vector<float> c_vec(ss.elements(), 0);
     pp["a"] = migraphx::argument(ss, a_vec.data());
     pp["b"] = migraphx::argument(ss, b_vec.data());
     std::vector<float> gpu_result;
@@ -64,7 +63,8 @@ TEST_CASE(host_same_buffer_copy)
     auto result = p.eval(pp).back();
     std::vector<float> results_vector(ss.elements(), -1);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(migraphx::verify::verify_range(c_vec, results_vector));
+    std::vector<float> gold_vec(ss.elements(), 0);
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold_vec));
 }
 
 TEST_CASE(arguments_lifetime)

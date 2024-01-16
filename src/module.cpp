@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -133,6 +133,8 @@ module& module::operator=(module m)
 }
 
 std::string module::name() const { return impl->name; }
+
+void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
@@ -554,6 +556,17 @@ instruction_ref module::get_parameter(std::string name) const
         return this->end();
 }
 
+void module::rename_parameter(instruction_ref ins, const std::string& name)
+{
+    assert(ins->name() == "@param");
+    auto op      = any_cast<builtin::param>(ins->get_operator());
+    op.parameter = name;
+    auto outputs = ins->outputs();
+    *ins         = instruction{op, ins->get_shape(), {}};
+    for(auto output : outputs)
+        ins->add_output(output);
+}
+
 std::unordered_map<std::string, shape> module::get_parameter_shapes() const
 {
     std::unordered_map<std::string, shape> result;
@@ -669,6 +682,15 @@ void module::finalize(std::vector<context>& contexts)
             smod->finalize(contexts);
         }
     }
+#ifndef BUILD_DEV
+    if(std::any_of(this->begin(), this->end(), [](const auto i) {
+           return i.get_shape().type() == migraphx::shape::fp8e4m3fnuz_type;
+       }))
+    {
+        std::cout << "[Warning] : MIGraphX has BETA support for FP8. Using FP8 may result in "
+                     "incorrect final outputs\n";
+    }
+#endif
 
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
@@ -784,18 +806,6 @@ void module::print_graph(std::ostream& os, bool brief) const
     os << "}" << std::endl;
 }
 
-static std::string to_c_id(const std::string& name, char rep = '_')
-{
-    std::string id = transform_string(name, [&](auto c) {
-        if(with_char(::isalnum)(c) or c == '_')
-            return c;
-        return rep;
-    });
-    while(contains(id, "__"))
-        replace_string_inplace(id, "__", "_");
-    return id;
-}
-
 static std::string cpp_var_name(const std::string& name)
 {
     std::string prefix = "x_";
@@ -873,12 +883,11 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                bool use_abs = false;
-                ins->get_literal().visit([&](auto v) {
-                    use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                });
+                const bool use_abs = false;
                 // Disable abs for now
-                use_abs = false;
+                // ins->get_literal().visit([&](auto v) {
+                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                // });
                 if(use_abs)
                     os << "migraphx.abs_literal(";
                 os << "migraphx.generate_argument(";
@@ -1011,9 +1020,17 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
 
 module& module::sort()
 {
+    auto implicit_deps = calc_implicit_deps();
     fix([&](auto self, auto ins) {
         this->move_instruction(ins, this->begin());
-        for(auto child : ins->inputs())
+        auto ins_inputs = ins->inputs();
+        if(implicit_deps.find(ins) != implicit_deps.end())
+        {
+            auto ins_implict_inputs = implicit_deps.at(ins);
+            ins_inputs.insert(
+                ins_inputs.end(), ins_implict_inputs.begin(), ins_implict_inputs.end());
+        }
+        for(auto child : ins_inputs)
         {
             if(not contains(this->impl->instructions, child))
             {
@@ -1045,12 +1062,9 @@ void module::calc_implicit_deps(const module& smod,
         }
 
         const auto& mod_args = ii->module_inputs();
-        if(not mod_args.empty())
+        for(const auto* ssmod : mod_args)
         {
-            for(const auto* ssmod : mod_args)
-            {
-                calc_implicit_deps(*ssmod, pmod, ins, deps);
-            }
+            calc_implicit_deps(*ssmod, pmod, ins, deps);
         }
     }
 }

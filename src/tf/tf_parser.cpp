@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -338,7 +338,7 @@ void tf_parser::parse_node(const std::string& name)
             std::string input_name = input;
             // if input has trailing `:0` index then remove it
             auto multi_out_idx = input.find(':');
-            if(multi_out_idx != std::string::npos && input.substr(multi_out_idx + 1) == "0")
+            if(multi_out_idx != std::string::npos and input.substr(multi_out_idx + 1) == "0")
             {
                 input_name = input.substr(0, multi_out_idx);
             }

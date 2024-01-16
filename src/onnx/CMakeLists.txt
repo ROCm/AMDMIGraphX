@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,11 @@ find_package(Protobuf REQUIRED)
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
 add_library(onnx-proto STATIC ${PROTO_SRCS})
 target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
-target_compile_options(onnx-proto PRIVATE -w)
+if(MSVC)
+    target_compile_options(onnx-proto PRIVATE /w)
+else()
+    target_compile_options(onnx-proto PRIVATE -w)
+endif()
 target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
@@ -37,7 +41,10 @@ set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 migraphx_generate_export_header(migraphx_onnx)
 rocm_set_soversion(migraphx_onnx ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_onnx)
-target_link_libraries(migraphx_onnx PRIVATE onnx-proto "-Wl,--exclude-libs,ALL")
+target_link_libraries(migraphx_onnx PRIVATE onnx-proto)
+if(NOT WIN32)
+    target_link_libraries(migraphx_onnx PRIVATE "-Wl,--exclude-libs,ALL")
+endif()
 target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
 rocm_install_targets(

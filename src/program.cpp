@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,13 +40,14 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+
 #include <iostream>
+#include <queue>
 #include <sstream>
 #include <algorithm>
 #include <set>
 #include <unordered_map>
 #include <utility>
-
 #include <unordered_set>
 #include <map>
 #include <cassert>
@@ -222,7 +223,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     // Gather all the target roots
     std::unordered_multimap<std::size_t, module_ref> roots;
     auto mods = this->get_modules();
-    for(auto* mod : mods)
+    for(const auto* mod : mods)
     {
         for(const auto& ins : *mod)
         {
@@ -346,7 +347,7 @@ void program::finalize()
 template <class T>
 std::string classify(T x)
 {
-    switch(std::fpclassify(x))
+    switch(std::fpclassify(static_cast<double>(x)))
     {
     case FP_INFINITE: return "inf";
     case FP_NAN: return "nan";
@@ -506,10 +507,8 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        if(not ins->get_shape().any_of_dynamic())
-        {
-            assert(results.at(ins).get_shape() == ins->get_shape());
-        }
+        assert(ins->get_shape().any_of_dynamic() or
+               results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -547,7 +546,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ins_out[x] = ss.str();
         });
         ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
-            auto& ctx = contexts[ins->get_target_id()];
+            const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
             std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};
@@ -623,7 +622,7 @@ std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 6;
+const int program_file_version = 7;
 
 value program::to_value() const
 {
@@ -727,7 +726,7 @@ static void mod_from_val(module_ref mod,
                                std::back_inserter(module_inputs),
                                [&](const value& i) { return map_mods.at(i.to<std::string>()); });
 
-                for(auto& smod : module_inputs)
+                for(const auto& smod : module_inputs)
                 {
                     mod_from_val(smod, v, instructions, map_mods);
                 }
@@ -935,7 +934,7 @@ void program::perf_report(std::ostream& os,
     os << std::endl;
 
     os << "Batch size: " << batch << std::endl;
-    os << "Rate: " << rate * batch << "/sec" << std::endl;
+    os << "Rate: " << rate * batch << " inferences/sec" << std::endl;
     os << "Total time: " << total_time << "ms" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
     os << "Overhead time: " << overhead_time << "ms"
@@ -1063,6 +1062,13 @@ module* program::create_module(const std::string& name)
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+module* program::create_module(const std::string& name, module m)
+{
+    assert(not contains(impl->modules, name));
+    m.set_name(name);
+    auto r = impl->modules.emplace(name, std::move(m));
+    return &(r.first->second);
+}
 
 module* program::get_module(const std::string& name) { return &impl->modules.at(name); }
 
@@ -1185,17 +1191,25 @@ void program::remove_unused_modules()
     std::vector<module*> unused;
     generic_get_unused_modules(
         impl->modules, generic_get_modules(this->get_main_module()), std::back_inserter(unused));
-    for(auto* m : unused)
+    for(const auto* m : unused)
         this->remove_module(m->name());
 }
 
 program& program::sort()
 {
-    for(auto& pp : this->impl->modules)
+    std::queue<migraphx::module_ref> mqueue;
+    mqueue.push(get_main_module());
+    while(not mqueue.empty())
     {
-        pp.second.sort();
+        module_ref current_mod = mqueue.front();
+        current_mod->sort();
+        mqueue.pop();
+        auto child_mods = current_mod->get_sub_modules(true);
+        for(auto& sub_mod : child_mods)
+        {
+            mqueue.push(sub_mod);
+        }
     }
-
     return *this;
 }
 

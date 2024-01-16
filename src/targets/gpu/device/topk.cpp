@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,12 +72,12 @@ struct hip_heap_vector
             index_int l    = 2 * index + 1;
             index_int r    = 2 * index + 2;
 
-            if(l < n && compare(data[data_index(l)], data[data_index(index)]))
+            if(l < n and compare(data[data_index(l)], data[data_index(index)]))
             {
                 index = l;
             }
 
-            if(r < n && compare(data[data_index(r)], data[data_index(index)]))
+            if(r < n and compare(data[data_index(r)], data[data_index(index)]))
             {
                 index = r;
                 if(compare(data[data_index(l)], data[data_index(r)]))

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,17 @@
 #if defined(CPPCHECK)
 #define MIGRAPHX_HAS_FILESYSTEM 1
 #define MIGRAPHX_HAS_FILESYSTEM_TS 1
+#elif defined(_WIN32)
+#if _MSC_VER >= 1920
+#define MIGRAPHX_HAS_FILESYSTEM 1
+#define MIGRAPHX_HAS_FILESYSTEM_TS 0
+#elif _MSC_VER >= 1900
+#define MIGRAPHX_HAS_FILESYSTEM 0
+#define MIGRAPHX_HAS_FILESYSTEM_TS 1
+#else
+#define MIGRAPHX_HAS_FILESYSTEM 0
+#define MIGRAPHX_HAS_FILESYSTEM_TS 0
+#endif
 #elif defined(__has_include)
 #if __has_include(<filesystem>) && __cplusplus >= 201703L
 #define MIGRAPHX_HAS_FILESYSTEM 1

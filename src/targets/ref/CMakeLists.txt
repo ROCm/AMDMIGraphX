@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,17 +25,13 @@
 add_library(migraphx_ref
     target.cpp
     lowering.cpp
-    gemm.cpp
 )
 set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})
 
-find_path(BLAZE_INCLUDE blaze/Blaze.h)
-
 rocm_clang_tidy_check(migraphx_ref)
+target_link_libraries(migraphx_ref PRIVATE Threads::Threads)
 target_link_libraries(migraphx_ref PUBLIC migraphx)
-target_include_directories(migraphx_ref PRIVATE ${BLAZE_INCLUDE})
-target_compile_definitions(migraphx_ref PRIVATE -DBLAZE_USE_CPP_THREADS)
 
 migraphx_generate_export_header(migraphx_ref)
 

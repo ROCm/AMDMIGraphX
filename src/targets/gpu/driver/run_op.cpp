@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,8 +43,8 @@ struct run_op : action<run_op>
         auto op = make_op(name);
         if(v.contains("fields"))
             op.from_value(v.at("fields"));
-        auto [host_time, device_time] = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << host_time << "ms" << std::endl;
+        auto t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
+        std::cout << op << ": " << t << "ms" << std::endl;
     }
 };
 

@@ -97,6 +97,9 @@ RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cma
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
 
+# Temporarily install a new cmake until switching to ubuntu 22.04
+RUN pip3 install cmake==3.22.1
+
 COPY ./test/onnx/.onnxrt-commit /
 
 ARG ONNXRUNTIME_REPO=https://github.com/Microsoft/onnxruntime

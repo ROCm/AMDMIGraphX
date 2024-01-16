@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -224,8 +224,8 @@ def main():
         print(latency)
 
     if flags.QPS:
-        print("resnet50, QPS = {} ".format(
-            format( ( ( (flags.batch) / (sum(latency) / len(latency))) / 3600) , '.2f')))
+        print("resnet50, Rate = {} QPS ".format(
+            format( ( ( (flags.batch) / (sum(latency) / len(latency))) ) , '.2f')))
     else:    
         print("resnet50, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))

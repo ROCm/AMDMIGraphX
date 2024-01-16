@@ -15,9 +15,6 @@ struct MIGRAPHX_EXPORT rewrite_reduce
     void apply(module& m) const;
 };
 
-
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif
-

@@ -40,15 +40,14 @@ TEST_CASE(softmax)
 {
     migraphx::shape s{migraphx::shape::float_type, {10, 1000}};
     migraphx::module m;
-    auto x = m.add_parameter("x", s);
+    auto x       = m.add_parameter("x", s);
     auto softmax = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
     m.add_return({softmax});
     run_pass(m);
     EXPECT(none_of(migraphx::iterator_for(m), [](auto ins) { return ins->name() == "softmax"; }));
 
-    auto reduces = find_all(migraphx::iterator_for(m), [&](auto ins) {
-        return migraphx::contains(ins->name(), "reduce");
-    });
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
     EXPECT(all_of(reduces, [](auto ins) {
         auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
         return axes.size() == 1 and axes[0] == 1;

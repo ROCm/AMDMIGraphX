@@ -38,6 +38,7 @@ resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
 # Download ImageNet labels
 #!curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
 
+
 def parse_input_args():
     parser = argparse.ArgumentParser()
 
@@ -56,28 +57,25 @@ def parse_input_args():
         help='Target DIR for images to infer. Default is ./images'
     )
 
-    parser.add_argument(
-        "--batch",
-        required=False,
-        default=1,
-        help='Batch size of images per inference',
-        type=int
-    )
+    parser.add_argument("--batch",
+                        required=False,
+                        default=1,
+                        help='Batch size of images per inference',
+                        type=int)
 
-    parser.add_argument(
-        "--top",
-        required=False,
-        default=1,
-        help='Show top K of inference results',
-        type=int
-    )
+    parser.add_argument("--top",
+                        required=False,
+                        default=1,
+                        help='Show top K of inference results',
+                        type=int)
 
     parser.add_argument(
         "--QPS",
         action="store_true",
         required=False,
         default=False,
-        help='Show inference result in Queries-Per-Second QPS instead of inference duration (milliseconds)',
+        help=
+        'Show inference result in Queries-Per-Second QPS instead of inference duration (milliseconds)',
     )
 
     parser.add_argument(
@@ -87,25 +85,23 @@ def parse_input_args():
         default=False,
         help='Show verbose output',
     )
-    
+
     return parser.parse_args()
 
+
 def get_image_list_in_dir(dir):
-    proc = subprocess.run("ls",
-                          shell=True,
-                          stdout=subprocess.PIPE,
-                          cwd=dir)
+    proc = subprocess.run("ls", shell=True, stdout=subprocess.PIPE, cwd=dir)
     fileList = proc.stdout.decode().split('\n')
-    fileList
     return fileList
+
 
 def softmax(x):
     """Compute softmax values for each sets of scores in x."""
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
+
 def run_sample(session, categories, latency, inputs, topk, batch_size):
-    
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
     io_binding.bind_output('output')
@@ -122,6 +118,7 @@ def run_sample(session, categories, latency, inputs, topk, batch_size):
 
         for catid in top5_catid:
             print(categories[catid], output[catid])
+
 
 def main():
     flags = parse_input_args()
@@ -142,8 +139,13 @@ def main():
     # Export the model to ONNX
     image_height = 224
     image_width = 224
-    x = torch.randn(flags.batch, 3, image_height, image_width, requires_grad=True)
-    torch_out = resnet50(x)
+    image_chan = 3
+    x = torch.randn(flags.batch,
+                    image_chan,
+                    image_height,
+                    image_width,
+                    requires_grad=True)
+    resnet50(x)
     torch.onnx.export(
         resnet50,  # model being run
         x,  # model input (or a tuple for multiple inputs)
@@ -170,11 +172,12 @@ def main():
         session_ops.log_severity_level = 0
 
     session_fp32 = onnxruntime.InferenceSession(
-        "resnet50.onnx", providers=['MIGraphXExecutionProvider'], sess_options=session_ops)
+        "resnet50.onnx",
+        providers=['MIGraphXExecutionProvider'],
+        sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")
-
 
     # Preproccess and batch images
     latency = []
@@ -187,14 +190,11 @@ def main():
     if flags.verbose:
         print(fileList)    
 
-
     #Setup input data feed
-    input_batch = torch.empty(flags.batch, 3,224,224)
+    input_batch = torch.empty(flags.batch, image_chan, image_height, image_width)
 
     batch_size = 0
     for img in fileList:
-        filename = img  # change to your filename
-
         if img == '':
             break
 
@@ -204,12 +204,12 @@ def main():
         input_image = Image.open(str(flags.image_dir + "/" + img))
         preprocess = T.Compose([
             T.Resize(256),
-            T.CenterCrop(224),
+            T.CenterCrop(image_height),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         input_tensor = preprocess(input_image)
-        input_batch[batch_size] = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
+        input_batch[batch_size] = input_tensor.unsqueeze(0)
 
         batch_size = batch_size + 1
         if batch_size >= flags.batch:
@@ -217,7 +217,8 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    output = run_sample(session_fp32, categories, latency, input_batch, flags.top, batch_size)
+    run_sample(session_fp32, categories, latency, input_batch, 
+               flags.top, batch_size)
 
     if flags.verbose:
         print("Running Complete")
@@ -225,7 +226,7 @@ def main():
 
     if flags.QPS:
         print("resnet50, Rate = {} QPS ".format(
-            format( ( ( (flags.batch) / (sum(latency) / len(latency))) ) , '.2f')))
+            format((((flags.batch) / (sum(latency) / len(latency)))) , '.2f')))
     else:    
         print("resnet50, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))

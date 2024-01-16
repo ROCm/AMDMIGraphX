@@ -823,8 +823,9 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_concat{},
                             find_transpose_slice{},
                             find_broadcast_transpose{},
-                            find_slice_transpose{},
-                            find_transpose_contiguous_reshaper_unary{});
+                            find_slice_transpose{}//,
+                            //find_transpose_contiguous_reshaper_unary{});
+        );
         dead_code_elimination{}.apply(m);
     }
 }

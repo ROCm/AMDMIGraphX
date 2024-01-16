@@ -183,8 +183,7 @@ std::string make_transformer_args(std::vector<std::string> transformers)
 void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m,
-               {rewrite_quantization{}, optimize_module{}});
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
     m.sort();
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
@@ -272,7 +271,7 @@ static bool use_lazy_inner(instruction_ref ins)
 
 void preload_params(module& m)
 {
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "@param")
             continue;

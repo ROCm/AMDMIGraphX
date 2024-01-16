@@ -184,14 +184,15 @@ def main():
 
     if flags.verbose:
         print("Read from dir " + flags.image_dir)
-        
+ 
     fileList = get_image_list_in_dir(flags.image_dir)
-    
+
     if flags.verbose:
-        print(fileList)    
+        print(fileList)
 
     #Setup input data feed
-    input_batch = torch.empty(flags.batch, image_chan, image_height, image_width)
+    input_batch = torch.empty(flags.batch, image_chan, image_height, 
+                              image_width)
 
     batch_size = 0
     for img in fileList:
@@ -217,8 +218,8 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    run_sample(session_fp32, categories, latency, input_batch, 
-               flags.top, batch_size)
+    run_sample(session_fp32, categories, latency, input_batch, flags.top,
+               batch_size)
 
     if flags.verbose:
         print("Running Complete")
@@ -226,8 +227,8 @@ def main():
 
     if flags.QPS:
         print("resnet50, Rate = {} QPS ".format(
-            format((((flags.batch) / (sum(latency) / len(latency)))) , '.2f')))
-    else:    
+            format((((flags.batch) / (sum(latency) / len(latency)))), '.2f')))
+    else:
         print("resnet50, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))
 

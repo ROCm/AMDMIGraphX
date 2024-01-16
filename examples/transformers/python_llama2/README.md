@@ -40,6 +40,7 @@ Get models with optimum
 ```bash
 optimum-cli export onnx --model meta-llama/Llama-2-7b-chat-hf models/llama-2-7b-chat-hf --task text-generation --framework pt --library transformers --no-post-process
 ```
+
 *Note: `models/llama-2-7b-chat-hf` will be used in the scripts.*
 
 Run the text-generation script with the following example prompt:
@@ -49,7 +50,6 @@ python txtgen.py --prompt "Where is Szeged?" --log-process
 ```
 
 *Note: The first run will compile the models and cache them to make subsequent runs faster.*
-
 
 ## Gradio application
 

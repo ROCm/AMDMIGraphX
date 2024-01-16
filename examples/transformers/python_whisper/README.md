@@ -60,7 +60,6 @@ python asr.py --audio audio/sample1.flac --log-process
 
 Or without any audio input to run the [Hugging Face dummy dataset](https://huggingface.co/datasets/hf-internal-testing/librispeech_asr_dummy) samples.
 
-
 ## Gradio application
 
 Note: requires `Console application` to work

@@ -285,7 +285,7 @@ unsqueeze
 </details>
 <br/><br/>
 
-##### Example: params
+### Example: params
 
 ```
 /opt/rocm/bin/migraphx-driver params simple_graph.pb 

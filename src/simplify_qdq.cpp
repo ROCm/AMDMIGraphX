@@ -166,12 +166,12 @@ struct match_find_quantizable_ops
             // This implementation supports affine quantization for both input and weight
             // In practice, weight is quantized symmetrically
 
-            auto s1_bcast = m.insert_instruction(
-                qop, qparam_broadcast_op(scale1, scale2->get_shape().lens(), 0), scale1);
+            auto s1_bcast =
+                m.insert_instruction(qop, qparam_broadcast_op(scale1, out_lens, 1), scale1);
+            auto s2_bcast =
+                m.insert_instruction(qop, qparam_broadcast_op(scale2, out_lens, 1), scale2);
 
-            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, scale2);
-            out_scale =
-                m.insert_instruction(qop, qparam_broadcast_op(out_scale, out_lens, 1), out_scale);
+            out_scale = m.insert_instruction(qop, migraphx::make_op("mul"), s1_bcast, s2_bcast);
 
             // Compute the zero-point terms; initialize as 0 and add relevant terms
             auto zero_lit = m.add_literal(literal{shape{dq->get_shape().type()}, {0}});

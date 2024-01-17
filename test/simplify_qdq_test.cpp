@@ -1316,7 +1316,7 @@ TEST_CASE(conv_asymmetric_correctness)
         auto scale_i = m1->add_literal(0.5f);
         auto scale_w = m1->add_literal(0.1f);
         auto zp_i    = m1->add_literal(std::int8_t{25});
-        auto zp_w    = m1->add_literal(std::int8_t{0});
+        auto zp_w    = m1->add_literal(std::int8_t{-5});
 
         auto d1 = add_quantize_op(*m1, "dequantizelinear", weights, scale_w, zp_w);
         auto q1 = add_quantize_op(*m1, "quantizelinear", input, scale_i, zp_i);
@@ -1339,7 +1339,7 @@ TEST_CASE(conv_asymmetric_correctness)
         auto input   = m2->add_parameter("input", si);
         auto weights = m2->add_parameter("weights", sw);
         auto scale   = m2->add_literal(0.1f);
-        auto zp_w    = m2->add_literal(std::int8_t{0});
+        auto zp_w    = m2->add_literal(std::int8_t{-5});
 
         auto d1 = add_quantize_op(*m2, "dequantizelinear", weights, scale, zp_w);
         auto c1 = m2->add_instruction(migraphx::make_op("convolution",

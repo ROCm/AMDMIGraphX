@@ -21,46 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONVERTS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_ELIMINATE_CONVERTS_HPP
 
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/eliminate_data_type.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
+struct module;
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+/**
+ * Remove nested converts and nop converts.
+ */
+struct MIGRAPHX_EXPORT eliminate_convert
 {
-    return {normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
-}
+    std::string name() const { return "eliminate_convert"; }
+    void apply(module& m) const;
+};
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

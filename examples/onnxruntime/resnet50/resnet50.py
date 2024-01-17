@@ -54,8 +54,7 @@ def parse_input_args():
         "--image_dir",
         required=False,
         default="./images",
-        help='Target DIR for images to infer. Default is ./images'
-    )
+        help='Target DIR for images to infer. Default is ./images')
 
     parser.add_argument("--batch",
                         required=False,
@@ -184,14 +183,14 @@ def main():
 
     if flags.verbose:
         print("Read from dir " + flags.image_dir)
- 
+
     fileList = get_image_list_in_dir(flags.image_dir)
 
     if flags.verbose:
         print(fileList)
 
     #Setup input data feed
-    input_batch = torch.empty(flags.batch, image_chan, image_height, 
+    input_batch = torch.empty(flags.batch, image_chan, image_height,
                               image_width)
 
     batch_size = 0
@@ -235,4 +234,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

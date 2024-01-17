@@ -33,10 +33,12 @@ import os
 import subprocess
 
 #Use most upto date weights
-inception_v3 = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT, progress=True)
+inception_v3 = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT,
+                                   progress=True)
 
 # Download ImageNet labels
 #!curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
+
 
 def parse_input_args():
     parser = argparse.ArgumentParser()
@@ -53,31 +55,27 @@ def parse_input_args():
         "--image_dir",
         required=False,
         default="../dataset/images",
-        help='Target DIR for images to infer. Default is ../dataset/images'
-    )
+        help='Target DIR for images to infer. Default is ../dataset/images')
 
-    parser.add_argument(
-        "--batch",
-        required=False,
-        default=1,
-        help='Batch size of images per inference',
-        type=int
-    )
+    parser.add_argument("--batch",
+                        required=False,
+                        default=1,
+                        help='Batch size of images per inference',
+                        type=int)
 
-    parser.add_argument(
-        "--top",
-        required=False,
-        default=1,
-        help='Show top K of inference results',
-        type=int
-    )
+    parser.add_argument("--top",
+                        required=False,
+                        default=1,
+                        help='Show top K of inference results',
+                        type=int)
 
     parser.add_argument(
         "--QPS",
         action="store_true",
         required=False,
         default=False,
-        help='Show inference result in Queries-Per-Second QPS instead of inference duration (milliseconds)',
+        help=
+        'Show inference result in Queries-Per-Second QPS instead of inference duration (milliseconds)',
     )
 
     parser.add_argument(
@@ -87,25 +85,25 @@ def parse_input_args():
         default=False,
         help='Show verbose output',
     )
-    
+
     return parser.parse_args()
 
+
 def get_image_list_in_dir(dir):
-    proc = subprocess.run("ls",
-                          shell=True,
-                          stdout=subprocess.PIPE,
-                          cwd=dir)
+    proc = subprocess.run("ls", shell=True, stdout=subprocess.PIPE, cwd=dir)
     fileList = proc.stdout.decode().split('\n')
     fileList
     return fileList
+
 
 def softmax(x):
     """Compute softmax values for each sets of scores in x."""
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
+
 def run_sample(session, categories, latency, inputs, topk, batch_size):
-    
+
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
     io_binding.bind_output('output')
@@ -122,6 +120,7 @@ def run_sample(session, categories, latency, inputs, topk, batch_size):
 
         for catid in top5_catid:
             print(categories[catid], output[catid])
+
 
 def main():
     flags = parse_input_args()
@@ -142,7 +141,11 @@ def main():
     # Export the model to ONNX
     image_height = 299
     image_width = 299
-    x = torch.randn(flags.batch, 3, image_height, image_width, requires_grad=True)
+    x = torch.randn(flags.batch,
+                    3,
+                    image_height,
+                    image_width,
+                    requires_grad=True)
     #torch_out = inception_v3(x)
     torch.onnx.export(
         inception_v3,  # model being run
@@ -170,26 +173,26 @@ def main():
         session_ops.log_severity_level = 0
 
     session_fp32 = onnxruntime.InferenceSession(
-        "inception_v3.onnx", providers=['MIGraphXExecutionProvider'], sess_options=session_ops)
+        "inception_v3.onnx",
+        providers=['MIGraphXExecutionProvider'],
+        sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")
-
 
     # Preproccess and batch images
     latency = []
 
     if flags.verbose:
         print("Read from dir " + flags.image_dir)
-        
-    fileList = get_image_list_in_dir(flags.image_dir)
-    
-    if flags.verbose:
-        print(fileList)    
 
+    fileList = get_image_list_in_dir(flags.image_dir)
+
+    if flags.verbose:
+        print(fileList)
 
     #Setup input data feed
-    input_batch = torch.empty(flags.batch, 3,image_width,image_height)
+    input_batch = torch.empty(flags.batch, 3, image_width, image_height)
 
     batch_size = 0
     for img in fileList:
@@ -209,7 +212,8 @@ def main():
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         input_tensor = preprocess(input_image)
-        input_batch[batch_size] = input_tensor.unsqueeze(0)  # create a mini-batch as expected by the model
+        input_batch[batch_size] = input_tensor.unsqueeze(
+            0)  # create a mini-batch as expected by the model
 
         batch_size = batch_size + 1
         if batch_size >= flags.batch:
@@ -217,7 +221,8 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    output = run_sample(session_fp32, categories, latency, input_batch, flags.top, batch_size)
+    output = run_sample(session_fp32, categories, latency, input_batch,
+                        flags.top, batch_size)
 
     if flags.verbose:
         print("Running Complete")
@@ -225,12 +230,11 @@ def main():
 
     if flags.QPS:
         print("inception_v3, Rate = {} QPS".format(
-            format( ( ((flags.batch)) / (sum(latency) / len(latency))) , '.2f')))
-    else:    
+            format((((flags.batch)) / (sum(latency) / len(latency))), '.2f')))
+    else:
         print("inception_v3, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))
 
 
 if __name__ == "__main__":
     main()
-

@@ -34,7 +34,7 @@ import subprocess
 
 #Use most upto date weights
 inception_v3 = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT,
-                                   progress=True)
+                                   progress=True).eval()
 
 # Download ImageNet labels
 #!curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
@@ -157,7 +157,8 @@ def main():
         do_constant_folding=
         True,  # whether to execute constant folding for optimization
         input_names=['input'],  # the model's input names
-        output_names=['output'])  # the model's output names
+        output_names=['output'],  # the model's output names
+        verbose=flags.verbose)
 
     # Quantize the model
     if flags.fp16:
@@ -196,8 +197,6 @@ def main():
 
     batch_size = 0
     for img in fileList:
-        filename = img  # change to your filename
-
         if img == '':
             break
 
@@ -205,12 +204,7 @@ def main():
             print("Preprocess: " + img)
 
         input_image = Image.open(str(flags.image_dir + "/" + img))
-        preprocess = T.Compose([
-            T.Resize(342),
-            T.CenterCrop(299),
-            T.ToTensor(),
-            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        preprocess = models.Inception_V3_Weights.IMAGENET1K_V1.transforms()
         input_tensor = preprocess(input_image)
         input_batch[batch_size] = input_tensor.unsqueeze(
             0)  # create a mini-batch as expected by the model
@@ -232,7 +226,7 @@ def main():
         print("inception_v3, Rate = {} QPS".format(
             format((((flags.batch)) / (sum(latency) / len(latency))), '.2f')))
     else:
-        print("inception_v3, time = {} ms".format(
+        print("inception_v3, Total time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))
 
 

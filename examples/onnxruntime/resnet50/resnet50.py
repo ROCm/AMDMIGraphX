@@ -52,8 +52,8 @@ def parse_input_args():
     parser.add_argument(
         "--image_dir",
         required=False,
-        default="./images",
-        help='Target DIR for images to infer. Default is ./images'
+        default="../dataset/images",
+        help='Target DIR for images to infer. Default is ../dataset/images'
     )
 
     parser.add_argument(
@@ -133,7 +133,7 @@ def main():
         print("Reading in Imagenet classes")
 
     # Read the categories
-    with open("imagenet_classes.txt", "r") as f:
+    with open("../dataset/imagenet_classes.txt", "r") as f:
         categories = [s.strip() for s in f.readlines()]
 
     if flags.verbose:

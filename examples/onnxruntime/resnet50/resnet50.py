@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -91,7 +91,6 @@ def parse_input_args():
 def get_image_list_in_dir(dir):
     proc = subprocess.run("ls", shell=True, stdout=subprocess.PIPE, cwd=dir)
     fileList = proc.stdout.decode().split('\n')
-    fileList
     return fileList
 
 
@@ -102,7 +101,6 @@ def softmax(x):
 
 
 def run_sample(session, categories, latency, inputs, topk, batch_size):
-
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
     io_binding.bind_output('output')
@@ -140,12 +138,13 @@ def main():
     # Export the model to ONNX
     image_height = 224
     image_width = 224
+    image_chan = 3
     x = torch.randn(flags.batch,
-                    3,
+                    image_chan,
                     image_height,
                     image_width,
                     requires_grad=True)
-    torch_out = resnet50(x)
+    resnet50(x)
     torch.onnx.export(
         resnet50,  # model being run
         x,  # model input (or a tuple for multiple inputs)
@@ -191,12 +190,11 @@ def main():
         print(fileList)
 
     #Setup input data feed
-    input_batch = torch.empty(flags.batch, 3, 224, 224)
-
+    input_batch = torch.empty(flags.batch, image_chan, image_height,
+                              image_width)
+    
     batch_size = 0
     for img in fileList:
-        filename = img  # change to your filename
-
         if img == '':
             break
 
@@ -206,13 +204,12 @@ def main():
         input_image = Image.open(str(flags.image_dir + "/" + img))
         preprocess = T.Compose([
             T.Resize(256),
-            T.CenterCrop(224),
+            T.CenterCrop(image_height),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         input_tensor = preprocess(input_image)
-        input_batch[batch_size] = input_tensor.unsqueeze(
-            0)  # create a mini-batch as expected by the model
+        input_batch[batch_size] = input_tensor.unsqueeze(0)
 
         batch_size = batch_size + 1
         if batch_size >= flags.batch:
@@ -220,17 +217,17 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    output = run_sample(session_fp32, categories, latency, input_batch,
-                        flags.top, batch_size)
+    run_sample(session_fp32, categories, latency, input_batch, flags.top,
+               batch_size)
 
     if flags.verbose:
         print("Running Complete")
         print(latency)
 
     if flags.QPS:
-        print("resnet50, QPS = {} ".format(
-            format((((flags.batch) / (sum(latency) / len(latency))) / 3600),
-                   '.2f')))
+        print("resnet50, Rate = {} QPS ".format(
+            format((((flags.batch) / (sum(latency) / len(latency)))), '.2f')))
+
     else:
         print("resnet50, time = {} ms".format(
             format(sum(latency) * 1000 / len(latency), '.2f')))

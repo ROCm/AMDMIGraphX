@@ -22,45 +22,24 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/eliminate_data_type.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
-
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+/// Dummy pass for default return
+struct id_pass
 {
-    return {normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
+    std::string name() const { return "id"; }
+    void apply(const module&) const {}
+};
+
+pass enable_pass(bool enabled, pass p)
+{
+    if(enabled)
+        return p;
+    return id_pass{};
 }
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

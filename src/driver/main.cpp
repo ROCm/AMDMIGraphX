@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 
 #include "verify.hpp"
+#include "verify_options.hpp"
 #include "argument_parser.hpp"
 #include "command.hpp"
 #include "precision.hpp"
@@ -341,7 +342,7 @@ struct loader
                                  });
         }
         if(not passes.empty())
-            migraphx::run_passes(*p.get_main_module(), get_passes(passes));
+            migraphx::run_passes(p, get_passes(passes));
         return p;
     }
 
@@ -563,6 +564,7 @@ struct verify : command<verify>
     std::optional<double> rtol;
     bool per_instruction = false;
     bool reduce          = false;
+    verify_options vo;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
@@ -574,6 +576,10 @@ struct verify : command<verify>
            ap.help("Verify each instruction"),
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+        ap(vo.ref_use_double,
+           {"--ref-use-double"},
+           ap.help("Convert floating point values to double on ref"),
+           ap.set_value(true));
     }
 
     void run()
@@ -585,32 +591,31 @@ struct verify : command<verify>
         auto t = c.ct.get_target();
         auto m = c.parameters.generate(p, t, true, c.l.batch);
 
-        auto quantize = precision::fp32;
         if(c.to_fp16)
         {
-            quantize = precision::fp16;
+            vo.quantize = precision::fp16;
         }
         if(c.to_int8)
         {
-            quantize = precision::int8;
+            vo.quantize = precision::int8;
         }
 
-        auto tols = get_tolerances(p, quantize, rms_tol, atol, rtol);
+        auto tols = get_tolerances(p, vo, rms_tol, atol, rtol);
         std::cout << "rms_tol: " << tols.rms_tol << std::endl;
         std::cout << "atol: " << tols.atol << std::endl;
         std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
-            verify_instructions(p, t, c.co, quantize, tols);
+            verify_instructions(p, t, c.co, vo, tols);
         }
         else if(reduce)
         {
-            verify_reduced_program(p, t, c.co, quantize, m, tols);
+            verify_reduced_program(p, t, c.co, vo, m, tols);
         }
         else
         {
-            verify_program(c.l.file, p, t, c.co, quantize, m, tols);
+            verify_program(c.l.file, p, t, c.co, vo, m, tols);
         }
     }
 };

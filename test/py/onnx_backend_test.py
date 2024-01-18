@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -131,7 +131,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_hardmax_example_cpu')
     backend_test.exclude(r'test_hardmax_negative_axis_cpu')
     backend_test.exclude(r'test_hardmax_one_hot_cpu')
-    backend_test.exclude(r'test_matmulinteger_cpu')
     backend_test.exclude(r'test_maxpool_2d_uint8_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
@@ -568,9 +567,6 @@ def disabled_tests_onnx_1_8_0(backend_test):
 
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
-    # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gru_batchwise_cpu')
-    backend_test.exclude(r'test_simple_rnn_batchwise_cpu')
     # from OnnxBackendPyTorchConvertedModelTest
     # MaxPool dialtion is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
@@ -624,9 +620,6 @@ def disabled_tests_onnx_1_10_0(backend_test):
 
 
 def disabled_tests_onnx_1_11_0(backend_test):
-    # crash
-    backend_test.exclude(r'test_scatter_elements_with_duplicate_indices_cpu')
-
     # fails
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_roialign_aligned_false_cpu')
@@ -821,8 +814,6 @@ def disabled_tests_onnx_1_13_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_axes_2_3_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_axes_3_2_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_larger_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_max_cpu')
-    backend_test.exclude(r'test_scatter_elements_with_reduction_min_cpu')
 
 
 def disabled_tests_onnx_1_14_0(backend_test):

@@ -21,34 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
-template <migraphx::shape::type_t DType>
-struct test_scatter0 : verify_program<test_scatter0<DType>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+struct MIGRAPHX_EXPORT fuse_concat
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sd{DType, {3, 3}};
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-        migraphx::shape su{DType, {2, 3}};
-
-        auto pd = mm->add_parameter("data", sd);
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
-        mm->add_return({r});
-
-        return p;
-    }
+    std::string name() const { return "fuse_concat"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-template struct test_scatter0<migraphx::shape::float_type>;
-template struct test_scatter0<migraphx::shape::half_type>;
-template struct test_scatter0<migraphx::shape::fp8e4m3fnuz_type>;
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_CONCAT_HPP

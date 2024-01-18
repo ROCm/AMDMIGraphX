@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/scatter.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/scatter.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <onnx_test.hpp>
+#include <onnx_test_utils.hpp>
 
-shape hip_scatter::compute_shape(std::vector<shape> inputs) const
-{
-    inputs.pop_back();
-    return op.normalize_compute_shape(inputs);
-}
-
-argument hip_scatter::compute(context& ctx, const shape&, const std::vector<argument>& args) const
-{
-    return device::scatter(ctx.get_stream().get(), args.back(), args[0], args[1], args[2], op.axis);
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(scatter_min_test) { scatter_test_base("min", -2, "scatter_min_test.onnx"); }

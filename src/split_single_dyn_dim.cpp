@@ -63,9 +63,9 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     {
         const auto& dds   = param.second.dyn_dims();
         int num_non_fixed = 0;
-        for(auto dds_it = dds.begin(); dds_it != dds.end(); ++dds_it)
+        for(auto dd : dds)
         {
-            if(not dds_it->is_fixed())
+            if(not dd.is_fixed())
             {
                 num_non_fixed += 1;
                 // catch more than one non-fixed dynamic_dimension
@@ -73,7 +73,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
                 {
                     return std::nullopt;
                 }
-                ret.push_back(dynamic_dimensions_check{param.first, *dds_it});
+                ret.push_back(dynamic_dimensions_check{param.first, dd});
             }
         }
     }

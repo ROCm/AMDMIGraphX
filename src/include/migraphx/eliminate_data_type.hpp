@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,8 +40,9 @@ struct module;
  */
 struct MIGRAPHX_EXPORT eliminate_data_type
 {
-    std::set<shape::type_t> types;
+    std::set<shape::type_t> unsupported_types;
     shape::type_t target_type;
+    std::set<std::string> unsupported_ops = {"all"};
     std::string name() const { return "eliminate_data_type"; }
     void apply(module& m) const;
 };

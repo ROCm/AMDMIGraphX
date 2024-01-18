@@ -1,6 +1,6 @@
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the 'Software'), to deal
@@ -28,6 +28,7 @@ from PIL import Image
 import migraphx as mgx
 import numpy as np
 import os
+import sys
 import torch
 import time
 from functools import wraps
@@ -91,7 +92,7 @@ def get_args():
         "-o",
         "--output",
         type=str,
-        default=None,
+        default="output.png",
         help="Output name",
     )
     return parser.parse_args()
@@ -177,7 +178,7 @@ class StableDiffusionMGX():
             mgx.save(model, f"{file}.mxr", format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
-            os.exit(1)
+            sys.exit(1)
         return model
 
     @measure

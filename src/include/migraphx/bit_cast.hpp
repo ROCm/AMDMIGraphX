@@ -1,5 +1,5 @@
 /* ************************************************************************
- * Copyright (C) 2016-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,13 @@
  * ************************************************************************ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
 #define MIGRAPHX_GUARD_RTGLIB_BITCAST_HPP
+#include <type_traits>
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif
+
+#include <migraphx/requires.hpp>
 #include <migraphx/config.hpp>
 
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
@@ -32,7 +35,10 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-template <typename To, typename From>
+template <typename To,
+          typename From,
+          MIGRAPHX_REQUIRES(std::is_trivially_copyable<To>{} and
+                            std::is_trivially_copyable<From>{})>
 inline constexpr To bit_cast(From fr) noexcept
 {
     static_assert(sizeof(To) == sizeof(From));

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -134,10 +134,14 @@ def check_correctness(gold_outputs,
             if not np.allclose(gold_outputs[i], outputs[i], rtol, atol):
                 ret = False
                 if verbose:
-                    print('\nOutput {} is incorrect ...'.format(i))
-                    print('Expected value: \n{}'.format(gold_outputs[i]))
-                    print('......')
-                    print('Actual value: \n{}\n'.format(outputs[i]))
+                    with np.printoptions(threshold=np.inf):
+                        print('\nOutput {} is incorrect ...'.format(i))
+                        print('Expected value: \n{}'.format(gold_outputs[i]))
+                        print('\n......\n')
+                        print('Actual value: \n{}\n'.format(outputs[i]))
+                        diff = gold_outputs[i] - outputs[i]
+                        max_diff = np.max(np.abs(diff))
+                        print(f'Max Difference: {max_diff}')
                 else:
                     print('Outputs do not match')
                     break

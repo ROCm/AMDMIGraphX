@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -246,7 +246,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
                                                            module& m,
                                                            instruction_ref ins,
                                                            std::vector<instruction_ref> inputs,
-                                                           operation& actv_func) const
+                                                           const operation& actv_func) const
 {
     assert(inputs.size() == 6);
     auto seq      = inputs.at(0);
@@ -273,7 +273,7 @@ std::vector<instruction_ref> rewrite_rnn::vanilla_rnn_cell(bool is_forward,
     instruction_ref bb{};
     if(bias != m.end())
     {
-        long hs    = static_cast<long>(r->get_shape().lens()[2]);
+        long hs    = r->get_shape().lens()[2];
         auto sbias = m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), bias);
         auto wb    = m.insert_instruction(
             ins, make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {hs}}}), sbias);

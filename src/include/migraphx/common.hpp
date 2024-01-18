@@ -111,6 +111,14 @@ instruction_ref insert_common_op(module& m,
 MIGRAPHX_EXPORT
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
+/**
+ * Calculates the broadcasted strides from dot_broadcast or multibroadcast.
+ */
+MIGRAPHX_EXPORT
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<std::size_t>& bcast_lens,
+                       const std::size_t& offset);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP

@@ -50,6 +50,8 @@ struct dot_broadcast
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
+        check_shapes{{inputs.at(0)}, *this, true}.min_ndims(2);
+        check_shapes{{inputs.at(1)}, *this, true}.min_ndims(2);
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())
@@ -72,7 +74,8 @@ struct dot_broadcast
             std::vector<std::size_t> l1_broadcasted_lens(s1.lens().begin(), l1_it);
             auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
             output_lens.insert(output_lens.end(), l0_it, s0.lens().end());
-            return {s0.type(), output_lens};
+            auto offset = output_lens.size() - s0.ndim();
+            return make_bcast_shape(s0, output_lens, offset);
         }
     }
 
@@ -80,6 +83,8 @@ struct dot_broadcast
     {
         return args[0].reshape(dyn_out.computed_shape);
     }
+
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 } // namespace op

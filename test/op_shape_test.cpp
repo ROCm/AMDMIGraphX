@@ -852,7 +852,7 @@ TEST_CASE(dot_broadcast_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 356, 254}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 481, 356}},
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 481, 356}, {0, 0, 356, 1}},
                  migraphx::make_op("dot_broadcast"),
                  s0,
                  s1);
@@ -1768,29 +1768,42 @@ TEST_CASE(multibroadcast_2in_static_dyn2)
                  a_shape);
 }
 
-TEST_CASE(multibroadcast_2in_static_dyn_error0)
+TEST_CASE(multibroadcast_2in_static_dyn_within0)
 {
-    // doesn't match on first dimension
+    // dynamic_dimension.within_range for first dimension
     migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
     std::vector<migraphx::shape::dynamic_dimension> b{{1, 3}, {6, 6}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
-    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
-    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {6, 6}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {6, 6}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
 }
 
-TEST_CASE(multibroadcast_2in_static_dyn_error1)
+TEST_CASE(multibroadcast_2in_static_dyn_within1)
 {
-    // doesn't match on first dimension
+    // dynamic_dimension.within_range for first dimension
     migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
-    std::vector<migraphx::shape::dynamic_dimension> b{{1, 4}, {6, 6}};
+    auto max_val = std::numeric_limits<std::size_t>::max();
+    std::vector<migraphx::shape::dynamic_dimension> b{{0, max_val}, {6, 6}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
-    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
-    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {6, 6}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {6, 6}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
 }
 
-TEST_CASE(multibroadcast_2in_static_dyn_error2)
+TEST_CASE(multibroadcast_2in_static_dyn_within_error)
 {
-    // doesn't match on first dimension
+    // not dynamic_dimension.within_range for first dimension
     migraphx::shape a_shape{migraphx::shape::float_type, {3, 6}};
     std::vector<migraphx::shape::dynamic_dimension> b{{1, 2}, {6, 6}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
@@ -1830,26 +1843,38 @@ TEST_CASE(multibroadcast_2in_dyn_dyn1)
                  a_shape);
 }
 
-TEST_CASE(multibroadcast_2in_dyn_dyn_error0)
+TEST_CASE(multibroadcast_2in_dyn_dyn_within0)
 {
-    // max doesn't match on second dimension of a
+    // dynamic_dimension.within_range on second dimension of a
     std::vector<migraphx::shape::dynamic_dimension> a{{1, 4}, {2, 4, {2}}, {2, 4}};
     migraphx::shape a_shape{migraphx::shape::float_type, a};
     std::vector<migraphx::shape::dynamic_dimension> b{{2, 5, {2}}, {2, 4}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
-    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
-    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 4}, {2, 4}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 4}, {2, 4}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
 }
 
-TEST_CASE(multibroadcast_2in_dyn_dyn_error1)
+TEST_CASE(multibroadcast_2in_dyn_dyn_within1)
 {
-    // opt doesn't match on second dimension of a
+    // dynamic_dimension.within_range on second dimension of a, different opt dim
     std::vector<migraphx::shape::dynamic_dimension> a{{1, 4}, {2, 4, {2}}, {2, 4}};
     migraphx::shape a_shape{migraphx::shape::float_type, a};
     std::vector<migraphx::shape::dynamic_dimension> b{{2, 4, {3}}, {2, 4}};
     migraphx::shape b_shape{migraphx::shape::float_type, b};
-    throws_shape(migraphx::make_op("multibroadcast"), a_shape, b_shape);
-    throws_shape(migraphx::make_op("multibroadcast"), b_shape, a_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 4}, {2, 4}}},
+                 migraphx::make_op("multibroadcast"),
+                 a_shape,
+                 b_shape);
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 4}, {2, 4}}},
+                 migraphx::make_op("multibroadcast"),
+                 b_shape,
+                 a_shape);
 }
 
 TEST_CASE(multibroadcast_2in_static_static0)

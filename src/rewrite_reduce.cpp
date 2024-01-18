@@ -26,7 +26,7 @@ struct find_softmax
         auto sum  = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {axis}}}), exp);
         auto sumb = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), sum);
-        m.replace_instruction(ins, make_op("div"), input, sumb);
+        m.replace_instruction(ins, make_op("div"), exp, sumb);
     }
 };
 

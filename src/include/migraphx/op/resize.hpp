@@ -56,7 +56,7 @@ struct resize
     // Selects one of several integer rounding rules for use with Nearest mode.
     //
     // Returns a lambda that returns size_t.
-    auto& get_nearest_op(const std::string& near_mode) const
+    static auto& get_nearest_op(const std::string& near_mode)
     {
         using nearest_op = std::function<std::size_t(std::size_t, double)>;
         static std::unordered_map<std::string, nearest_op> const nearest_ops = {
@@ -93,7 +93,7 @@ struct resize
     // values.  They apply to all modes.
     //
     // Returns a lambda that returns double.
-    const auto& get_original_idx_op(const std::string& s_mode) const
+    static auto& get_original_idx_op(const std::string& s_mode)
     {
         using original_idx_op =
             std::function<double(std::size_t, std::size_t, std::size_t, double)>;
@@ -124,7 +124,7 @@ struct resize
         return idx_ops.at(s_mode);
     }
 
-    std::vector<float> scales;
+     std::vector<float> scales;
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode;

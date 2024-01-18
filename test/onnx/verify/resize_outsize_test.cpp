@@ -41,6 +41,8 @@ TEST_CASE(resize_outsize_test)
 
     migraphx::parameter_map pp;
     pp["X"] = migraphx::argument(sx, dx.data());
+    // Input Y is defined as type int64 in the Onnx file and will therefore be
+    // interpreted as output shape (not scales) even though the input array is type float.
     pp["Y"] = migraphx::argument(sx, dy.data());
 
     auto result = p.eval(pp).back();

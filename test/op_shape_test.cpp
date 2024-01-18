@@ -2938,21 +2938,30 @@ TEST_CASE(reshape_dyn_2in_2)
     expect_shape(output, migraphx::make_op("reshape"), input, output);
 }
 
-TEST_CASE(reshape_multiple_non_fixed_error)
+TEST_CASE(reshape_dyn_1in_multiple_non_fixed0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 20}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {1, 1}, {10, 20}, {24, 24}}};
     std::vector<int64_t> new_shape = {0, 1, 0, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_fixed_ele_not_matching_error)
+TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 8}, {24, 24}, {10, 20}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 8}, {1, 1}, {10, 20}, {24, 24}}};
+    std::vector<int64_t> new_shape = {-1, 1, 0, 24};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_dyn_fixed_ele_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 10}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 1, 5, 24};
     throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_non_fixed_not_matching_error)
+TEST_CASE(reshape_dyn_non_fixed_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {2, 1, 1, 24};

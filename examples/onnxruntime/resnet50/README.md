@@ -10,13 +10,13 @@ This example demonstrates how to perform an MIGraphX Python API resnet50 inferen
 - [Example output](#example-Output)
 
 ## Basic Setup
-Before running inference we must first install MIGraphX via the Docker method as it also downloads onnxruntime into the dockerfile created. 
+Before running inference we must first install MIGraphX using any method then download Onnxruntime into the root system directory  
 
 Starting from project root:
 ```
 $ cd AMDMIGraphX
 $ docker build -t migraphx .
-$ docker --device='/dev/kfd' --device='/dev/dri' <your docker settings and mounts> --group-add video -it migraphx
+$ docker run --device='/dev/kfd' --device='/dev/dri' <your docker settings and mounts> --group-add video -it migraphx
 ```
 
 The dockerfile will install the latest supported version of ROCm with all the dependencies needed for MIGraphX

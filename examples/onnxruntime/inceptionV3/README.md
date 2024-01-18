@@ -2,7 +2,7 @@
 
 ## Description
 
-This example demonstrates how to perform an MIGraphX Python API invepctionv3 inference through onnxruntime. The model used here is from Torchvision's pretrained invepctionv3 model
+This example demonstrates how to perform an MIGraphX Python API inceptionv3 inference through onnxruntime. The model used here is from Torchvision's pretrained invepctionv3 model
 
 ## Content
 - [Basic Setup](#Basic-Setup)
@@ -10,13 +10,13 @@ This example demonstrates how to perform an MIGraphX Python API invepctionv3 inf
 - [Example output](#example-Output)
 
 ## Basic Setup
-Before running inference we must first install MIGraphX via the Docker method as it also downloads onnxruntime into the dockerfile created. 
+Before running inference we must first install MIGraphX using any method then download Onnxruntime into the root system directory  
 
 Starting from project root:
 ```
 $ cd AMDMIGraphX
 $ docker build -t migraphx .
-$ docker --device='/dev/kfd' --device='/dev/dri' <your docker settings and mounts> --group-add video -it migraphx
+$ docker run --device='/dev/kfd' --device='/dev/dri' <your docker settings and mounts> --group-add video -it migraphx
 ```
 
 The dockerfile will install the latest supported version of ROCm with all the dependencies needed for MIGraphX
@@ -55,7 +55,7 @@ To run this example then do the following
 
 ```
 $ 
-$ cd examples/onnxruntime/invepctionv3
+$ cd examples/onnxruntime/inveptionv3
 $ ./prereq_steps.sh
 $ pip list | grep onnxruntime
 $ python invepctionv3.py
@@ -69,10 +69,10 @@ For guitars we show three different variants of the same item in a class with di
 
 For the tools (scope.jpg and screwdrivers.jpg) these are both in-class images
 
-For the bird.jpg image, the imagenet_classes.txt generated doesn't contain that of a cockatiel and thus the model attempts to find the closet 
+For the bird.jpg image, the imagenet_classes.txt generated doesn't contain that of a cockatiel and thus the model attempts to find the closest 
 match to the animal found in the image
 
-using bird.jpg. Image of an oscilliscope which is in the imagenet class labels
+using bird.jpg. Image of an bird which is in the imagenet class labels defaults to african grey
 
 African grey 0.3860151
 inception_v3, Total time = 801.04 ms

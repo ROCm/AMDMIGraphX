@@ -83,3 +83,29 @@ TEST_CASE(quantizelinear_2)
     std::vector<float> gold{0, 255, 64, 0, 2, 2, 0, 255, 255, 0, 255, 64, 0, 2, 2, 0, 255, 255};
     EXPECT(results_vector == gold);
 }
+
+TEST_CASE(quantizelinear_3)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2}};
+    migraphx::shape zs{migraphx::shape::fp8e4m3fnuz_type, {2, 2, 2}};
+    std::vector<float> xv = {0.5, 0.75, -0.4375, 0.6875, -0.9375, -0.9375, 0.625, -0.5625};
+    std::vector<float> sv = {0.25, 0.75, 0.5625, 0.4375, 0.8125, -0.6875, 0.875, -0.0625};
+    std::vector<float> zv{0.6875, 0.75, -0.75, 0.5, -0.0625, 0.0625, -0.375, 0.25};
+    auto create_program = [&]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_literal(xs, xv);
+        auto s   = mm->add_literal(xs, sv);
+        auto z   = mm->add_literal(zs, zv);
+        mm->add_instruction(migraphx::make_op("quantizelinear"), x, s, z);
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    p1.compile(migraphx::make_target("ref"));
+    auto result = p1.eval({}).back();
+    std::vector<float> results_vector(8);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{2.75, 1.75, -1.75, 2.5, -1, 1, 0.625, 9};
+    EXPECT(results_vector == gold);
+}

@@ -188,7 +188,8 @@ auto get_hash(const T& x)
 
 void run_verify::verify(const std::string& name,
                         const migraphx::program& p,
-                        const migraphx::compile_options& c_opts) const
+                        const migraphx::compile_options& c_opts,
+                        size_t tolerance) const
 {
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
@@ -254,7 +255,7 @@ void run_verify::verify(const std::string& name,
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
                 passed &= migraphx::verify_args_with_tolerance(
-                    tname, result[i], migraphx::verify::expected{gold[i]});
+                    tname, result[i], migraphx::verify::expected{gold[i]}, tolerance);
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
@@ -276,7 +277,17 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
+        if(tolerances.find(p.name) != tolerances.end())
+        {
+            test::add_test_case(p.name, [=] {
+                verify(p.name, p.get_program(), p.compile_options, tolerances.at(p.name));
+            });
+        }
+        else
+        {
+            test::add_test_case(p.name,
+                                [=] { verify(p.name, p.get_program(), p.compile_options); });
+        }
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
@@ -297,4 +308,9 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
 {
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
+}
+
+void run_verify::change_tolerance_for(const std::string& test_name, std::size_t tolerance)
+{
+    tolerances[test_name] = tolerance;
 }

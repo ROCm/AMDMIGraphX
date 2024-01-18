@@ -77,7 +77,7 @@ struct quantizelinear
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             visit_all(x, y_scale)([&](auto input, auto scales) {
                 using quant_type = typename decltype(output)::value_type;
-                auto min_value   = std::numeric_limits<quant_type>::min();
+                auto min_value   = std::numeric_limits<quant_type>::lowest();
                 auto max_value   = std::numeric_limits<quant_type>::max();
                 par_for(output_shape.elements(), [&](auto i) {
                     double quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +

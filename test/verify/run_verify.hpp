@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <functional>
 #include <map>
+#include <unordered_map>
 
 struct target_info
 {
@@ -54,16 +55,19 @@ struct run_verify
                   const migraphx::parameter_map& m) const;
     void verify(const std::string& name,
                 const migraphx::program& p,
-                const migraphx::compile_options& c_opts) const;
+                const migraphx::compile_options& c_opts,
+                size_t tolerance = 80) const;
     void run(int argc, const char* argv[]) const;
 
     target_info get_target_info(const std::string& name) const;
     void disable_parallel_for(const std::string& name);
     void add_validation_for(const std::string& name, target_info::validation_function v);
     void disable_test_for(const std::string& name, const std::vector<std::string>& tests);
+    void change_tolerance_for(const std::string& test_name, size_t tolerance);
 
     private:
     std::map<std::string, target_info> info{};
+    std::unordered_map<std::string, size_t> tolerances;
 };
 
 #endif

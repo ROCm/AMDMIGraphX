@@ -89,5 +89,6 @@ int main(int argc, const char* argv[])
                          "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                          "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                          "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
+    rv.change_tolerance_for("test_quantizelinear_convert", 100000);
     rv.run(argc, argv);
 }

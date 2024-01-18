@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/shape.hpp>
@@ -183,7 +184,10 @@ void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& 
 {
     module m = pm;
     run_passes(m,
-               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
+               {rewrite_quantization{},
+                eliminate_convert{},
+                eliminate_common_subexpression{},
+                dead_code_elimination{}});
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");

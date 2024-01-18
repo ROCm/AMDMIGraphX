@@ -192,7 +192,7 @@ def main():
     #Setup input data feed
     input_batch = torch.empty(flags.batch, image_chan, image_height,
                               image_width)
-    
+
     batch_size = 0
     for img in fileList:
         if img == '':
@@ -217,8 +217,9 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    run_sample(session_fp32, categories, latency, input_batch, flags.top,
-               batch_size)
+    for i in range(100):
+        run_sample(session_fp32, categories, latency, input_batch, flags.top,
+                   batch_size)
 
     if flags.verbose:
         print("Running Complete")

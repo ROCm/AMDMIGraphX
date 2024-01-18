@@ -196,7 +196,7 @@ def main():
     input_batch = torch.empty(flags.batch, 3, image_width, image_height)
 
     batch_size = 0
-    for img in fileList:
+    for img in fileList[:flags.batch]:
         if img == '':
             break
 
@@ -209,14 +209,11 @@ def main():
         input_batch[batch_size] = input_tensor.unsqueeze(
             0)  # create a mini-batch as expected by the model
 
-        batch_size = batch_size + 1
-        if batch_size >= flags.batch:
-            break
-
     if flags.verbose:
         print("Running samples")
-    output = run_sample(session_fp32, categories, latency, input_batch,
-                        flags.top, batch_size)
+    for i in range(100):
+        run_sample(session_fp32, categories, latency, input_batch, flags.top,
+                   batch_size)
 
     if flags.verbose:
         print("Running Complete")

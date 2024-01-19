@@ -24,7 +24,7 @@
 # Inference with ONNX Runtime
 import onnxruntime
 import time
-from torchvision import models, transforms as T
+from torchvision import models
 import torch
 from PIL import Image
 import numpy as np

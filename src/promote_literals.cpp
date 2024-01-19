@@ -45,6 +45,10 @@ void promote_literals::apply(module_pass_manager& mpm) const
             for(auto out_ins : ins->outputs())
             {
                 out_ins->replace_argument(out_ins, ins, new_lit);
+                // safeguarding for loop iterator
+                auto out_vec = ins->outputs();
+                if(out_vec.size() == 0)
+                    break;
             }
         }
     }

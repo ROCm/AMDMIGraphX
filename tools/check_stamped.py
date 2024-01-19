@@ -48,7 +48,7 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   "examples/onnxruntime/dataset/imagenet_classes.txt")
+                   "imagenet_classes.txt")
 
 unsupportedFiles = []
 unstampedFiles = []

@@ -2,7 +2,7 @@
 
 ## Description
 
-This example demonstrates how to perform an MIGraphX Python API inceptionv3 inference through onnxruntime. The model used here is from Torchvision's pretrained invepctionv3 model
+This example demonstrates how to perform an MIGraphX Python API inceptionv3 inference through onnxruntime. The model used here is from Torchvision's pretrained inceptionv3 model
 
 ## Content
 - [Basic Setup](#Basic-Setup)

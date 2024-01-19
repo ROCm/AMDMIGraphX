@@ -26,6 +26,7 @@
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/gpu/time_op.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
@@ -484,16 +485,9 @@ struct gemm_impl
         rocblas_int best_sol = 0;
         for(auto sol : solution_indices)
         {
-            // Warmup: the first call to an op. may not be representative since there is
-            // more time taken initializing caches, etc. so we won't time it.
-            run(ctx, input_args, sol);
-            double host_time = time<milliseconds>([&] {
-                for([[maybe_unused]] int hc : range(hot_calls))
-                    run(ctx, input_args, sol);
-                ctx.finish();
+            auto host_time = benchmark(ctx, input_shapes, 100, [&](const auto& args) {
+                run(ctx, args, sol);
             });
-
-            host_time /= hot_calls;
 
             // dev/evaluation only: track time for first solution.
             if(first_time < 0)

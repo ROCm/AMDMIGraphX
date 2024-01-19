@@ -32,8 +32,13 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+using benchmark_function = std::function<void(const std::vector<argument>&)>;
+
 MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+
+MIGRAPHX_GPU_EXPORT
+double benchmark(context& gctx, const std::vector<shape>& inputs, int n, benchmark_function run);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

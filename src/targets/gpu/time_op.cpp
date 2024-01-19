@@ -40,29 +40,44 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
     return args;
 }
 
-using milliseconds = std::chrono::duration<double, std::milli>;
-double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+std::vector<std::vector<argument>> generate_all_arguments(const std::vector<shape>& shapes, int n)
 {
+    std::vector<std::vector<argument>> result;
+    transform(range(n), std::back_inserter(result), [&](auto i) {
+        return generate_arguments(shapes, i);
+    });
+    return result;
+}
 
-    // TODO: Use std::ref
-    migraphx::context ctx = ictx;
-    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
-    auto output           = op.compute_shape(inputs);
-    op.finalize(ctx, output, inputs);
-    auto args = generate_arguments(inputs);
+using milliseconds = std::chrono::duration<double, std::milli>;
+template<class F>
+double benchmark(context& gctx, const std::vector<shape>& inputs, int n, F run)
+{
+    auto args = generate_all_arguments(inputs, std::min(37, n));
     auto start = context::create_event_for_timing();
     auto stop  = context::create_event_for_timing();
-    auto run   = [&] { op.compute(ctx, output, args); };
-    run();
+    run(args[0]);
     gctx.get_stream().record(start.get());
     for(auto i : range(n))
     {
-        (void)i;
-        run();
+        run(args[i%args.size()]);
     }
     gctx.get_stream().record(stop.get());
     gctx.finish();
     return context::get_elapsed_ms(start.get(), stop.get()) / n;
+}
+
+template double benchmark<benchmark_function>(context& gctx, const std::vector<shape>& inputs, int n, benchmark_function run);
+
+double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+{
+    migraphx::context ctx = ictx;
+    auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
+    auto output           = op.compute_shape(inputs);
+    op.finalize(ctx, output, inputs);
+    return benchmark(gctx, inputs, n, [&](const auto& args) {
+        op.compute(ctx, output, args);
+    });
 }
 
 } // namespace gpu

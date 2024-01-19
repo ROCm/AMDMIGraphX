@@ -205,7 +205,7 @@ struct compile_plan
                                return std::numeric_limits<double>::max();
                            }
                            auto t = time_op(
-                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 100);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

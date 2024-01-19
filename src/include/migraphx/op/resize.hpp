@@ -267,7 +267,6 @@ struct resize
                         in_lens.begin(),
                         vec_scale.begin(),
                         [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
-                    vec_scale[0] = 1.0f;
                 }
                 else
                 {

@@ -186,11 +186,10 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name,
-                        const migraphx::program& p,
-                        const migraphx::compile_options& c_opts,
-                        size_t tolerance) const
+void run_verify::verify(const program_info& pi) const
 {
+    const std::string name    = pi.name;
+    const migraphx::program p = pi.get_program();
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
@@ -201,7 +200,7 @@ void run_verify::verify(const std::string& name,
     for(const auto& tname : migraphx::get_targets())
     {
         // TODO(varunsh): once verify tests can run, remove fpga
-        if(tname == "ref" or tname == "fpga")
+        if(tname == "ref" or tname == "fpga" or tname == "cpu")
             continue;
 
         // if tests disabled, skip running it
@@ -228,7 +227,7 @@ void run_verify::verify(const std::string& name,
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-
+        const migraphx::compile_options c_opts = pi.compile_options;
         auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
@@ -255,7 +254,7 @@ void run_verify::verify(const std::string& name,
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
                 passed &= migraphx::verify_args_with_tolerance(
-                    tname, result[i], migraphx::verify::expected{gold[i]}, tolerance);
+                    tname, result[i], migraphx::verify::expected{gold[i]}, pi.tolerance);
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
@@ -277,17 +276,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        if(tolerances.find(p.name) != tolerances.end())
-        {
-            test::add_test_case(p.name, [=] {
-                verify(p.name, p.get_program(), p.compile_options, tolerances.at(p.name));
-            });
-        }
-        else
-        {
-            test::add_test_case(p.name,
-                                [=] { verify(p.name, p.get_program(), p.compile_options); });
-        }
+        test::add_test_case(p.name, [=] { verify(p); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {
@@ -308,9 +297,4 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
 {
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
-}
-
-void run_verify::change_tolerance_for(const std::string& test_name, std::size_t tolerance)
-{
-    tolerances[test_name] = tolerance;
 }

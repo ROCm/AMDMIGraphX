@@ -65,4 +65,6 @@ struct test_quantizelinear_convert : verify_program<test_quantizelinear_convert>
         mm->add_return({rf});
         return p;
     };
+
+    std::size_t get_tolerance() const { return 10000; }
 };

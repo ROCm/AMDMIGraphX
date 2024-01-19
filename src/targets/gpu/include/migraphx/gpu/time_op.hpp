@@ -38,7 +38,8 @@ MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
 
 MIGRAPHX_GPU_EXPORT
-double benchmark(context& gctx, const std::vector<shape>& inputs, int n, const benchmark_function& run);
+double
+benchmark(context& gctx, const std::vector<shape>& inputs, int n, const benchmark_function& run);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

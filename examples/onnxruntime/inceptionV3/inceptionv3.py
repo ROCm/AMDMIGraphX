@@ -33,8 +33,8 @@ import os
 import subprocess
 
 #Use most upto date weights
-resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT,
-                           progress=True).eval()
+inception_v3 = models.inception_v3(weights=models.Inception_V3_Weights.DEFAULT,
+                                   progress=True).eval()
 
 # Download ImageNet labels
 #!curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
@@ -98,6 +98,7 @@ def parse_input_args():
 def get_image_list_in_dir(dir):
     proc = subprocess.run("ls", shell=True, stdout=subprocess.PIPE, cwd=dir)
     fileList = proc.stdout.decode().split('\n')
+    fileList
     return fileList
 
 
@@ -114,6 +115,7 @@ def run_sample(session,
                topk,
                batch_size,
                verbose=False):
+
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
     io_binding.bind_output('output')
@@ -129,6 +131,7 @@ def run_sample(session,
         top5_catid = np.argsort(-output)[:topk]
 
         if verbose:
+            print("Prediction Outputs:")
             for catid in top5_catid:
                 print(categories[catid], output[catid])
 
@@ -160,7 +163,7 @@ def preprocess_images(image_dir, image_width, image_height, batch_size,
             print("Preprocess: " + img)
 
         input_image = Image.open(str(image_dir + "/" + img))
-        preprocess = models.ResNet50_Weights.IMAGENET1K_V1.transforms()
+        preprocess = models.Inception_V3_Weights.IMAGENET1K_V1.transforms()
         try:
             input_tensor = preprocess(input_image)
         except RuntimeError:
@@ -204,26 +207,26 @@ def main():
         print("Getting Exported Model from Torch")
 
     # Export the model to ONNX
-    image_height = 224
-    image_width = 224
-    image_chan = 3
+    image_height = 299
+    image_width = 299
     x = torch.randn(flags.batch,
-                    image_chan,
+                    3,
                     image_height,
                     image_width,
                     requires_grad=True)
-    resnet50(x)
+    inception_v3(x)
     torch.onnx.export(
-        resnet50,  # model being run
+        inception_v3,  # model being run
         x,  # model input (or a tuple for multiple inputs)
-        "resnet50.onnx",  # where to save the model (can be a file or file-like object)
+        "inception_v3.onnx",  # where to save the model (can be a file or file-like object)
         export_params=
         True,  # store the trained parameter weights inside the model file
-        opset_version=12,  # the ONNX version to export the model to
+        opset_version=14,  # the ONNX version to export the model to
         do_constant_folding=
         True,  # whether to execute constant folding for optimization
         input_names=['input'],  # the model's input names
-        output_names=['output'])  # the model's output names
+        output_names=['output'],  # the model's output names
+        verbose=flags.verbose)
 
     # Quantize the model
     if flags.fp16:
@@ -239,7 +242,7 @@ def main():
         session_ops.log_severity_level = 0
 
     session_fp32 = onnxruntime.InferenceSession(
-        "resnet50.onnx",
+        "inception_v3.onnx",
         providers=['MIGraphXExecutionProvider'],
         sess_options=session_ops)
 
@@ -250,9 +253,10 @@ def main():
     input_batch = preprocess_images(flags.image_dir, image_height, image_width,
                                     flags.batch, flags.verbose)
 
-    latency = []
     if flags.verbose:
         print("Running samples")
+
+    latency = []
     for i in range(flags.run):
         run_sample(session_fp32, categories, latency, input_batch, flags.top,
                    flags.batch)
@@ -262,12 +266,11 @@ def main():
         print(latency)
 
     if flags.QPS:
-        print("resnet50, Rate = {} QPS ".format(
-            format((((flags.batch) / (sum(latency[1:]) / len(latency[1:])))),
+        print("inception_v3, Rate = {} QPS".format(
+            format((((flags.batch)) / (sum(latency[1:]) / len(latency[1:]))),
                    '.2f')))
-
     else:
-        print("resnet50, Averaage Execution time = {} ms".format(
+        print("inception_v3, Average execution time = {} ms".format(
             format(sum(latency[1:]) * 1000 / len(latency[1:]), '.2f')))
 
 

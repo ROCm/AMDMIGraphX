@@ -63,12 +63,7 @@ bool mlir_enabled()
 
 const std::vector<std::string>& get_default_options()
 {
-    static std::vector<std::string> default_options
-    {
-        "dot", 
-        "convolution", 
-        "fused"
-    };
+    static std::vector<std::string> default_options{"dot", "convolution", "fused"};
     return default_options;
 }
 

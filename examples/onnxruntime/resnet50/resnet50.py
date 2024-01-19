@@ -24,7 +24,7 @@
 # Inference with ONNX Runtime
 import onnxruntime
 import time
-from torchvision import models, transforms as T
+from torchvision import models
 import torch
 from PIL import Image
 import numpy as np
@@ -33,7 +33,8 @@ import os
 import subprocess
 
 #Use most upto date weights
-resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT,
+                           progress=True).eval()
 
 # Download ImageNet labels
 #!curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
@@ -60,6 +61,12 @@ def parse_input_args():
                         required=False,
                         default=1,
                         help='Batch size of images per inference',
+                        type=int)
+
+    parser.add_argument("--run",
+                        required=False,
+                        default=100,
+                        help='Number of runs for each batched inference.',
                         type=int)
 
     parser.add_argument("--top",
@@ -100,7 +107,13 @@ def softmax(x):
     return e_x / e_x.sum()
 
 
-def run_sample(session, categories, latency, inputs, topk, batch_size):
+def run_sample(session,
+               categories,
+               latency,
+               inputs,
+               topk,
+               batch_size,
+               verbose=False):
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
     io_binding.bind_output('output')
@@ -115,8 +128,63 @@ def run_sample(session, categories, latency, inputs, topk, batch_size):
         output = softmax(output)  # this is optional
         top5_catid = np.argsort(-output)[:topk]
 
-        for catid in top5_catid:
-            print(categories[catid], output[catid])
+        if verbose:
+            for catid in top5_catid:
+                print(categories[catid], output[catid])
+
+
+#Filter Images based on image preprocessing
+def preprocess_images(image_dir, image_width, image_height, batch_size,
+                      verbose):
+    if verbose:
+        print("Read from dir " + image_dir)
+
+    fileList = get_image_list_in_dir(image_dir)
+
+    if verbose:
+        print(fileList)
+
+    #Setup input data feed
+    input_batch = torch.empty(batch_size, 3, image_width, image_height)
+
+    bad_image = 0  # Bad images skipped in data set from image list
+    bad_img_list = []  # Keep track of bad images we can't preprocess
+    img_count = 0  # Number of preprocced images
+    i = 0
+    while i in range(len(fileList)):
+        img = fileList[img_count + bad_image]
+        if img == '':
+            break
+
+        if verbose:
+            print("Preprocess: " + img)
+
+        input_image = Image.open(str(image_dir + "/" + img))
+        preprocess = models.ResNet50_Weights.IMAGENET1K_V1.transforms()
+        try:
+            input_tensor = preprocess(input_image)
+        except RuntimeError:
+            if verbose:
+                print("Skipping " + img)
+            bad_image = bad_image + 1
+            bad_img_list.append(img)
+            continue
+
+        input_batch[img_count] = input_tensor.unsqueeze(
+            0)  # create a mini-batch as expected by the model
+
+        img_count = img_count + 1
+        if img_count >= batch_size:
+            break
+
+    if img_count < batch_size:
+        print("Warning Batch size " + str(batch_size) + "Requested but only " +
+              str(img_count) + "Images from dataset")
+        print(bad_image + "Images caused RunTimeErrors during preprocessing")
+        if verbose:
+            print("List of bad Images:\n" + str(bad_img_list))
+
+    return input_batch
 
 
 def main():
@@ -179,47 +247,15 @@ def main():
         print("Preprocessing Batched Images")
 
     # Preproccess and batch images
+    input_batch = preprocess_images(flags.image_dir, image_height, image_width,
+                                    flags.batch, flags.verbose)
+
     latency = []
-
-    if flags.verbose:
-        print("Read from dir " + flags.image_dir)
-
-    fileList = get_image_list_in_dir(flags.image_dir)
-
-    if flags.verbose:
-        print(fileList)
-
-    #Setup input data feed
-    input_batch = torch.empty(flags.batch, image_chan, image_height,
-                              image_width)
-
-    batch_size = 0
-    for img in fileList:
-        if img == '':
-            break
-
-        if flags.verbose:
-            print("Preprocess: " + img)
-
-        input_image = Image.open(str(flags.image_dir + "/" + img))
-        preprocess = T.Compose([
-            T.Resize(256),
-            T.CenterCrop(image_height),
-            T.ToTensor(),
-            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-        input_tensor = preprocess(input_image)
-        input_batch[batch_size] = input_tensor.unsqueeze(0)
-
-        batch_size = batch_size + 1
-        if batch_size >= flags.batch:
-            break
-
     if flags.verbose:
         print("Running samples")
-    for i in range(100):
+    for i in range(flags.run):
         run_sample(session_fp32, categories, latency, input_batch, flags.top,
-                   batch_size)
+                   flags.batch)
 
     if flags.verbose:
         print("Running Complete")

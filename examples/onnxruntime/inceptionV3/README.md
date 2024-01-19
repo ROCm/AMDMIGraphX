@@ -41,7 +41,7 @@ $ ii  migraphx-dev                  2.7.0                             amd64     
 
 This directory contains everything needed to perform an inference once MIGraphX has been installed in the docker container
 Once you've build and installed MIGraphX as a deb package, go to the examples folder, run the pre-req script to build and install
-onnxruntime and then install the approrpaite version of pytorch from project root.
+onnxruntime and then install the appropriate version of pytorch from project root.
 
 An example command build Onnxruntime is found in ./prereq_steps.sh in MIGraphX Root to build onnxruntime. Pre-build Onnxruntime Wheel file builds are also valid.
 Ensure the wheel used is using the same python version you're using on the host system.

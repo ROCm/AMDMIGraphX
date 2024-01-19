@@ -48,7 +48,7 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   'imagenet_classes.txt')
+                   'imagenet_classes.txt', '')
 
 unsupportedFiles = []
 unstampedFiles = []
@@ -141,7 +141,8 @@ def main() -> None:
         elif check_filename(file, unsupported_file_types):
             unsupportedFiles.append(file)
         else:
-            unknownFiles.append(file)
+            if file != '':
+                unknownFiles.append(file)
 
     # Do a bunch of checks based on our file lists
     if len(unstampedFiles) > 0:

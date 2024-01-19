@@ -63,6 +63,12 @@ def parse_input_args():
                         help='Batch size of images per inference',
                         type=int)
 
+    parser.add_argument("--run",
+                        required=False,
+                        default=100,
+                        help='Number of runs for each batched inference.',
+                        type=int)
+
     parser.add_argument("--top",
                         required=False,
                         default=1,
@@ -102,7 +108,7 @@ def softmax(x):
     return e_x / e_x.sum()
 
 
-def run_sample(session, categories, latency, inputs, topk, batch_size):
+def run_sample(session, categories, latency, inputs, topk, batch_size, verbose=False):
 
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
@@ -118,8 +124,9 @@ def run_sample(session, categories, latency, inputs, topk, batch_size):
         output = softmax(output)  # this is optional
         top5_catid = np.argsort(-output)[:topk]
 
-        for catid in top5_catid:
-            print(categories[catid], output[catid])
+        if verbose:
+            for catid in top5_catid:
+                print(categories[catid], output[catid])
 
 
 def main():
@@ -146,7 +153,7 @@ def main():
                     image_height,
                     image_width,
                     requires_grad=True)
-    #torch_out = inception_v3(x)
+    inception_v3(x)
     torch.onnx.export(
         inception_v3,  # model being run
         x,  # model input (or a tuple for multiple inputs)
@@ -211,9 +218,9 @@ def main():
 
     if flags.verbose:
         print("Running samples")
-    for i in range(100):
+    for i in range(flags.run):
         run_sample(session_fp32, categories, latency, input_batch, flags.top,
-                   batch_size)
+                   flags.batch)
 
     if flags.verbose:
         print("Running Complete")

@@ -50,24 +50,27 @@ std::vector<std::vector<argument>> generate_all_arguments(const std::vector<shap
 }
 
 using milliseconds = std::chrono::duration<double, std::milli>;
-template<class F>
+template <class F>
 double benchmark(context& gctx, const std::vector<shape>& inputs, int n, F run)
 {
-    auto args = generate_all_arguments(inputs, std::min(37, n));
+    auto args  = generate_all_arguments(inputs, std::min(37, n));
     auto start = context::create_event_for_timing();
     auto stop  = context::create_event_for_timing();
     run(args[0]);
     gctx.get_stream().record(start.get());
     for(auto i : range(n))
     {
-        run(args[i%args.size()]);
+        run(args[i % args.size()]);
     }
     gctx.get_stream().record(stop.get());
     gctx.finish();
     return context::get_elapsed_ms(start.get(), stop.get()) / n;
 }
 
-template double benchmark<benchmark_function>(context& gctx, const std::vector<shape>& inputs, int n, benchmark_function run);
+template double benchmark<benchmark_function>(context& gctx,
+                                              const std::vector<shape>& inputs,
+                                              int n,
+                                              benchmark_function run);
 
 double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
@@ -75,9 +78,7 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
-    return benchmark(gctx, inputs, n, [&](const auto& args) {
-        op.compute(ctx, output, args);
-    });
+    return benchmark(gctx, inputs, n, [&](const auto& args) { op.compute(ctx, output, args); });
 }
 
 } // namespace gpu

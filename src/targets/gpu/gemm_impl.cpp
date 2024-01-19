@@ -485,9 +485,8 @@ struct gemm_impl
         rocblas_int best_sol = 0;
         for(auto sol : solution_indices)
         {
-            auto host_time = benchmark(ctx, input_shapes, 100, [&](const auto& args) {
-                run(ctx, args, sol);
-            });
+            auto host_time =
+                benchmark(ctx, input_shapes, 100, [&](const auto& args) { run(ctx, args, sol); });
 
             // dev/evaluation only: track time for first solution.
             if(first_time < 0)

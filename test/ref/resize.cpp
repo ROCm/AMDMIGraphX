@@ -24,8 +24,12 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/simplify_dyn_ops.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
@@ -337,6 +341,53 @@ TEST_CASE(resize_upsample_test_4_1_input)
         15.1f,  15.1f,  16.1f,  17.1f,  17.1f,  18.1f,  19.1f,  19.1f,  
         20.1f,  20.1f,  21.1f,  22.1f,  22.1f,  23.1f,  24.1f,  24.1f,  
         25.1f,  25.1f,  26.1f,  27.1f,  27.1f,  28.1f,  29.1f,  29.1f};
+    // clang-format on
+    result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(res_data, golden));
+}
+
+TEST_CASE(resize_optimize_test)
+{
+    // matcher/optimized code should produce the same result as Resize op.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    std::vector<float> data(3 * 3);
+    std::iota(data.begin(), data.end(), 0.5);
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+    std::vector<int> size_values = {1, 1, 5, 8};
+    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+
+    // a0 = input data
+    // a1 = sizes of output
+    // non-matching sizes/scales attributes are ignored for 2 input arguments
+    mm->add_instruction(migraphx::make_op("resize",
+                                          {{"sizes", {1}},
+                                           {"scales", {1}},
+                                           {"nearest_mode", "floor"},
+                                           {"coordinate_transformation_mode", "half_pixel"}}),
+                        a0,
+                        a1);
+    auto p2 = p;
+    migraphx::run_passes(p,
+                         {migraphx::split_single_dyn_dim{},
+                          migraphx::simplify_dyn_ops{},
+                          migraphx::dead_code_elimination{}});
+    EXPECT(p != p2);
+    auto result = p.eval({}).back();
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> res_data(1 * 1 * 5 * 8);
+    // clang-format off
+    std::vector<float> golden = {
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        0.5f, 0.5f, 0.5f, 0.5f, 1.5f, 1.5f, 1.5f, 2.5f, 
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f,
+        3.5f, 3.5f, 3.5f, 3.5f, 4.5f, 4.5f, 4.5f, 5.5f, 
+        6.5f, 6.5f, 6.5f, 6.5f, 7.5f, 7.5f, 7.5f, 8.5f
+        };
     // clang-format on
     result.visit([&](auto output) { res_data.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(res_data, golden));

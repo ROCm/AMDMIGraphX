@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,6 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/op/resize.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -37,17 +36,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  * Convert a Resize op. with Nearest mode to an implementation using Gather op.
  * From:  resize[scales={...}/sizes={...},](static, constant)
- * To:  
+ * To:
  * @0 = @literal{ ... } computed_indices
- * ... 
+ * ...
  * @2 = reshape[dims={45}](X) 1-dimensional
- * @3 = gather[axis=0](@2,@0) 
- * 
+ * @3 = gather[axis=0](@2,@0)
+ *
  * At the time of writing, this conversion is required for GPU targets because there
  * is not direct a GPU implementation of the Resize operation.
  * This matcher depends on a split_single_dyn_dim pass being run before it, which
  * will convert any dynamic-batch input to static inputs and make this conversion possible.
- * 
+ *
  *   At time of writing, Resize allows either 1 or 2 inputs
  * but the 1-input case is never created by Onnx parsing.
  */
@@ -55,58 +54,54 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct find_resize_static
 {
- 
+
     auto matcher() const
     {
         std::cout << "calling resize matcher...........................\n";
 
         // Will this work with either dynamic or static input 0?
-        return match::name("resize")(match::nargs(2), 
-                match::arg(0)(match::static_shape()),
-                match::arg(1)(match::is_constant()));  
+        return match::name("resize")(match::nargs(2),
+                                     match::arg(0)(match::static_shape()),
+                                     match::arg(1)(match::is_constant()));
 
         // How to add the other case:  only 1 input arg
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins          = mr.result;
+        auto ins       = mr.result;
         auto inputs    = ins->inputs();
-        auto resize_op  = any_cast<op::resize>(ins->get_operator());
+        auto resize_op = any_cast<op::resize>(ins->get_operator());
 
-        auto in_lens =inputs.at(0)->get_shape().lens();
+        auto in_lens = inputs.at(0)->get_shape().lens();
         std::vector<size_t> sizes_vec(inputs.at(0)->get_shape().ndim());
         std::vector<float> scales_vec(inputs.at(0)->get_shape().ndim());
         //  populate both scales and sizes for the benefit of the algorithm.
         inputs.at(1)->eval().visit([&](auto input) {
             using type = typename decltype(input)::value_type;
-            if constexpr(std::is_integral<type>{})        
+            if constexpr(std::is_integral<type>{})
             {
                 // read output sizes and use them to compute scales
                 std::cout << "sizes visitor      6543456\n";
-                sizes_vec.assign(input.begin(), input.end()); 
+                sizes_vec.assign(input.begin(), input.end());
                 std::transform(
                     input.begin(),
                     input.end(),
                     in_lens.begin(),
                     scales_vec.begin(),
-                    [](auto sz, size_t in_len) { 
-                        return static_cast<float>(sz) / in_len; 
-                    });
+                    [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
             }
-            else 
+            else
             {
                 // read scales and use them to compute output sizes
-                scales_vec.assign(input.begin(), input.end()); 
+                scales_vec.assign(input.begin(), input.end());
                 std::cout << "scales visitor      23423\n";
                 std::transform(
                     input.begin(),
                     input.end(),
                     in_lens.begin(),
                     sizes_vec.begin(),
-                    [](auto sz, size_t in_len) { 
-                        return static_cast<size_t>(sz * in_len); 
-                    });
+                    [](auto sz, size_t in_len) { return static_cast<size_t>(sz * in_len); });
             }
         });
 
@@ -118,8 +113,8 @@ struct find_resize_static
         std::vector<int> ind(out_s.elements());
 
         // map out_idx to in_idx
-        auto nearest_op              = op::resize::get_nearest_op(resize_op.nearest_mode);
-        auto idx_op                  = op::resize::get_original_idx_op(resize_op.coordinate_transformation_mode);
+        auto nearest_op = op::resize::get_nearest_op(resize_op.nearest_mode);
+        auto idx_op     = op::resize::get_original_idx_op(resize_op.coordinate_transformation_mode);
 
         shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
             std::vector<size_t> in_idx(out_idx_v.size());
@@ -134,20 +129,14 @@ struct find_resize_static
 
         // reshape input to one-dimension
         std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
-        auto reshape_op = make_op("reshape", {{"dims", rsp_lens}});
-        auto rsp = m.insert_instruction(ins, reshape_op, ins->inputs().at(0));
+        auto reshape_op               = make_op("reshape", {{"dims", rsp_lens}});
+        auto rsp                      = m.insert_instruction(ins, reshape_op, ins->inputs().at(0));
 
         // Add our computed indices as a literal.
         // ins_ind is a multi dimensional index that will restore original rank
-std::cout << "\n\n ####################################        the literal is ";
-for(auto aa : ind) std::cout << aa << "  ";        
-std::cout << "\n";
         shape ind_s{shape::int32_type, sizes_vec};
         auto ins_ind = m.add_literal(literal(ind_s, ind));
-        auto result = m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
-// std::cout << "\n\n   ------               after applying change:  \n";
-// m.debug_print();
-
+        auto result  = m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 };
 

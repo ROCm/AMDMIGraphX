@@ -124,7 +124,7 @@ struct resize
         return idx_ops.at(s_mode);
     }
 
-     std::vector<float> scales;
+    std::vector<float> scales;
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode;

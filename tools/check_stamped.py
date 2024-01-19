@@ -47,7 +47,8 @@ unsupported_file_types = [
     ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
 ]
 
-specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "imagenet_classes.txt")
+specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
+                   "examples/onnxruntime/dataset/imagenet_classes.txt")
 
 unsupportedFiles = []
 unstampedFiles = []

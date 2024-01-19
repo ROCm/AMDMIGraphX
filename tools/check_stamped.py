@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ unsupported_file_types = [
 ]
 
 specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
-                   "imagenet_classes.txt")
+                   'imagenet_classes.txt')
 
 unsupportedFiles = []
 unstampedFiles = []
@@ -130,8 +130,11 @@ def main() -> None:
 
     for file in fileList:
         if check_filename(file, supported_file_types):
-            if needStampCheck(file):
+            if needStampCheck(file) and not check_filename(
+                    file, unsupported_file_types):
                 unstampedFiles.append(file)
+            else:
+                unsupportedFiles.append(file)
 
         elif check_filename(file, unsupported_file_types):
             unsupportedFiles.append(file)

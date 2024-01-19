@@ -90,7 +90,7 @@ interface('pass',
 %>
 
 /// Used in the targets to enable/disable compiler passes
-pass enable_pass(bool enabled, pass p);
+MIGRAPHX_EXPORT pass enable_pass(bool enabled, pass p);
 
 #endif
 

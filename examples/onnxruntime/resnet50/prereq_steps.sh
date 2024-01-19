@@ -21,11 +21,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
-nlohmann/json@v3.8.0
-ROCmSoftwarePlatform/half@rocm-5.6.0
-pybind/pybind11@d159a563383d10c821ba7b2a71905d1207db6de4 --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
-sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCmSoftwarePlatform/composable_kernel@70eefcf4f263aa5c25f3c9ff0db8f6f199ef0fb9 -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCmSoftwarePlatform/rocMLIR@bf2911e5245d6452d194ee5dc41c9c2b2869e5c0 -DBUILD_FAT_LIBROCKCOMPILER=On
+
+#Install most recent stable version of pytorch
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6
+
+#Install preqs for this
+pip3 install onnx
+
+# Download ImageNet labels
+curl -o imagenet_classes.txt https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt
+
+../../../tools/build_and_test_onnxrt.sh
+
+pip3 install /onnxruntime/build/Release/Linux/dist/*.whl

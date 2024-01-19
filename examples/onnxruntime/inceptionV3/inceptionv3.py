@@ -267,10 +267,11 @@ def main():
 
     if flags.QPS:
         print("inception_v3, Rate = {} QPS".format(
-            format((((flags.batch)) / (sum(latency) / len(latency))), '.2f')))
+            format((((flags.batch)) / (sum(latency[1:]) / len(latency[1:]))),
+                   '.2f')))
     else:
-        print("inception_v3, Total time = {} ms".format(
-            format(sum(latency) * 1000 / len(latency), '.2f')))
+        print("inception_v3, Average execution time = {} ms".format(
+            format(sum(latency[1:]) * 1000 / len(latency[1:]), '.2f')))
 
 
 if __name__ == "__main__":

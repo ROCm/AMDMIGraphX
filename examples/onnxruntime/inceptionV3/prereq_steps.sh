@@ -23,8 +23,7 @@
 #####################################################################################
 
 #Install most recent stable version of pytorch
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6
-
+pip3 install torch torchvision torchaudio --index-url https://repo.radeon.com/rocm/manylinux/rocm-rel-6.0/
 #Install preqs for this
 pip3 install onnx
 

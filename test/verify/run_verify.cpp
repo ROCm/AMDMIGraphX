@@ -200,7 +200,7 @@ void run_verify::verify(const program_info& pi) const
     for(const auto& tname : migraphx::get_targets())
     {
         // TODO(varunsh): once verify tests can run, remove fpga
-        if(tname == "ref" or tname == "fpga" or tname == "cpu")
+        if(tname == "ref" or tname == "fpga")
             continue;
 
         // if tests disabled, skip running it

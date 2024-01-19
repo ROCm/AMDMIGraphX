@@ -59,10 +59,10 @@ struct dot
 
             // check outer dimensions are within range
             // put within range dynamic_dimensions into the out_dyn_dims
-            bool outers_within_range = std::equal(s0.dyn_dims().rbegin() + 2,
-                                                  s0.dyn_dims().rend(),
-                                                  s1.dyn_dims().rbegin() + 2,
-                                                  s1.dyn_dims().rend(),
+            bool outers_within_range = std::equal(s0.dyn_dims().begin(),
+                                                  s0.dyn_dims().end() - 2,
+                                                  s1.dyn_dims().begin(),
+                                                  s1.dyn_dims().end() - 2,
                                                   [&](auto x, auto y) {
                                                       if(x.within_range(y))
                                                       {
@@ -74,10 +74,7 @@ struct dot
                                                           out_dyn_dims.push_back(y);
                                                           return true;
                                                       }
-                                                      else
-                                                      {
-                                                          return false;
-                                                      }
+                                                      return false;
                                                   });
 
             if(not outers_within_range)

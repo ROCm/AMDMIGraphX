@@ -58,6 +58,13 @@ MIGRAPHX_EXPORT
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
 
+/**
+ * Broadcasting for two vectors of dynamic_dimensions.
+ * Compares `dynamic_dimension` objects from the trailing (right-most) dimension and working
+ * leftwards. Rules for broadcasting: If the same `dynamic_dimension`, return either. If one of the
+ * `dynamic_dimension`s is 1, return the other one. If one `dynamic_dimension` can fit within the
+ * range of the other, return the `dynamic_dimension` with the smaller range. Else, throw error
+ */
 MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension>
 compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,

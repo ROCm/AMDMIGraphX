@@ -230,11 +230,11 @@ shape make_bcast_shape(const shape& input_shape,
                        const std::size_t& offset)
 {
     std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-    for(std::ptrdiff_t i = input_shape.ndim() - 1; i >= 0; i--)
+    for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
     {
-        if(bcast_lens[i + offset] == input_shape.lens()[i])
+        if(bcast_lens.at(i + offset) == input_shape.lens()[i])
         {
-            bcast_strides[i + offset] = input_shape.strides()[i];
+            bcast_strides.at(i + offset) = input_shape.strides()[i];
         }
     }
     return shape{input_shape.type(), bcast_lens, bcast_strides};

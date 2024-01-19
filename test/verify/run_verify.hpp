@@ -24,12 +24,11 @@
 #ifndef MIGRAPHX_GUARD_TEST_RUN_VERIFY_HPP
 #define MIGRAPHX_GUARD_TEST_RUN_VERIFY_HPP
 
-#include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <functional>
 #include <map>
-#include <unordered_map>
 
+struct program_info;
 struct target_info
 {
     using validation_function =

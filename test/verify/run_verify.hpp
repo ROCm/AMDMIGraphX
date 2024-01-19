@@ -54,7 +54,7 @@ struct run_verify
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
                   const migraphx::parameter_map& m) const;
-    void verify(const program_info& p) const;
+    void verify(const program_info& pi) const;
     void run(int argc, const char* argv[]) const;
 
     target_info get_target_info(const std::string& name) const;

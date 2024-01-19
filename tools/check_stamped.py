@@ -66,6 +66,8 @@ def hasKeySequence(inputfile: str, key_message: str) -> bool:
 def needStampCheck(filename: str) -> bool:
     # open save old contents and append things here
     if debug: print("Open", filename, end=' ')
+    #Empty name isn't a filename
+    if filename == '' or filename == "": return False
 
     try:
         file = open(filename, 'r')

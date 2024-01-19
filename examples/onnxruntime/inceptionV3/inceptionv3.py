@@ -131,6 +131,7 @@ def run_sample(session,
         top5_catid = np.argsort(-output)[:topk]
 
         if verbose:
+            print("Prediction Outputs:")
             for catid in top5_catid:
                 print(categories[catid], output[catid])
 

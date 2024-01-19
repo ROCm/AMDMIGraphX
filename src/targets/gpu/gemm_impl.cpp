@@ -425,9 +425,6 @@ struct gemm_impl
      */
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
-        // tuning meta parameters
-        const int hot_calls = 40;
-
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
                        input_shapes.end(),

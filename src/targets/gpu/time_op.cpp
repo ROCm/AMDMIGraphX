@@ -67,10 +67,12 @@ double benchmark(context& gctx, const std::vector<shape>& inputs, int n, F run)
     return context::get_elapsed_ms(start.get(), stop.get()) / n;
 }
 
-template double benchmark<benchmark_function>(context& gctx,
-                                              const std::vector<shape>& inputs,
-                                              int n,
-                                              benchmark_function run);
+double benchmark(context& gctx, const std::vector<shape>& inputs, int n, const benchmark_function& run)
+{
+    return benchmark(gctx, inputs, n, [&](auto&&... xs) {
+        run(static_cast<decltype(xs)>(xs)...);
+    });
+}
 
 double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {

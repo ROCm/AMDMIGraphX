@@ -1,7 +1,6 @@
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/ranges.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {

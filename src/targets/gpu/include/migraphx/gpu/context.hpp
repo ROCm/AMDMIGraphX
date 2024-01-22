@@ -319,10 +319,7 @@ struct context
         return result;
     }
 
-    problem_cache& get_problem_cache()
-    {
-        return pc;
-    }
+    problem_cache& get_problem_cache() { return pc; }
 
     private:
     // TODO: Make this a vector to support multiple devices

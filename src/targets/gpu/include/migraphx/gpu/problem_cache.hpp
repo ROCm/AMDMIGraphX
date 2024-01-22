@@ -17,9 +17,7 @@ struct problem_cache
     std::unordered_map<value, value> cache;
 };
 
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
-

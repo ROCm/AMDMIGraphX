@@ -574,19 +574,19 @@ void gemm_compute(context& ctx,
     gemm_item.run(ctx, args, solution_idx);
 }
 
-static value gemm_problem(const shape& output_shape,
-                              std::vector<shape> input_shapes)
+static value gemm_problem(const shape& output_shape, std::vector<shape> input_shapes)
 {
     input_shapes.push_back(output_shape);
     return to_value(input_shapes);
 }
 
-
 static void gemm_save_solution(context& ctx,
-                              const shape& output_shape,
-                              const std::vector<shape>& input_shapes, int32_t solution_idx)
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               int32_t solution_idx)
 {
-    ctx.get_problem_cache().insert("rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
+    ctx.get_problem_cache().insert(
+        "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
 }
 
 int32_t gemm_default_solution(context& ctx,
@@ -605,14 +605,14 @@ int32_t gemm_default_solution(context& ctx,
  * Decides if the tune() or validate() method is appropriate and calls it.
  * Return value is the chosen solution index, or 0 to let picker choose it.
  */
-template<class T>
+template <class T>
 int32_t gemm_finalize_impl(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<shape>& input_shapes,
-                      T alpha,
-                      T beta,
-                      bool compute_fp32,
-                      int32_t solution_idx)
+                           const shape& output_shape,
+                           const std::vector<shape>& input_shapes,
+                           T alpha,
+                           T beta,
+                           bool compute_fp32,
+                           int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
@@ -647,7 +647,8 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-    return gemm_finalize_impl(ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
 
 int32_t gemm_finalize(context& ctx,
@@ -658,7 +659,8 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-    return gemm_finalize_impl(ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
 
 } // namespace gpu

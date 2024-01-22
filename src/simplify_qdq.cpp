@@ -55,9 +55,9 @@ std::unordered_set<std::string> get_quantizable_op_names()
 struct match_find_quantizable_ops
 {
     static bool
-    is_valid_qparam(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    is_valid_qparam(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        return scale->get_shape().elements() == 1 or scale->get_shape().elements() == lens.at(axis);
+        return qparam->get_shape().elements() == 1 or qparam->get_shape().elements() == lens.at(axis);
     }
 
     static bool is_symmetric_zero_point(instruction_ref zp)
@@ -74,9 +74,9 @@ struct match_find_quantizable_ops
     }
 
     static auto
-    qparam_broadcast_op(instruction_ref scale, std::vector<std::size_t> lens, std::size_t axis)
+    qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        if(scale->get_shape().scalar())
+        if(qparam->get_shape().scalar())
         {
             return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
         }

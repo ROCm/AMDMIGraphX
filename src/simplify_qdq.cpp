@@ -57,7 +57,8 @@ struct match_find_quantizable_ops
     static bool
     is_valid_qparam(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
     {
-        return qparam->get_shape().elements() == 1 or qparam->get_shape().elements() == lens.at(axis);
+        return qparam->get_shape().elements() == 1 or
+               qparam->get_shape().elements() == lens.at(axis);
     }
 
     static bool is_symmetric_zero_point(instruction_ref zp)

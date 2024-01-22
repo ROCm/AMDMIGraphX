@@ -83,6 +83,10 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx);
 
+int32_t gemm_default_solution(context& ctx,
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

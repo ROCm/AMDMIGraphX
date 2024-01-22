@@ -332,7 +332,7 @@ inline const ValueType& any_cast(const pass& x)
 #endif
 
 /// Used in the targets to enable/disable compiler passes
-pass enable_pass(bool enabled, pass p);
+MIGRAPHX_EXPORT pass enable_pass(bool enabled, pass p);
 
 #endif
 

@@ -32,6 +32,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/problem_cache.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -318,6 +319,11 @@ struct context
         return result;
     }
 
+    problem_cache& get_problem_cache()
+    {
+        return pc;
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -330,6 +336,7 @@ struct context
     // for stream syncronization
     shared<hip_event_ptr> begin_event  = nullptr;
     shared<hip_event_ptr> finish_event = nullptr;
+    problem_cache pc{};
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

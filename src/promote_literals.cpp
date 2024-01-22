@@ -41,9 +41,9 @@ void promote_literals::apply(module_pass_manager& mpm) const
     {
         if(ins->name() == "@literal")
         {
-            auto new_lit    = root_module->add_literal(ins->get_literal());
-            auto ins_output = ins->outputs();
-            for(auto out_ins : ins_output)
+            auto new_lit     = root_module->add_literal(ins->get_literal());
+            auto ins_outputs = ins->outputs();
+            for(auto out_ins : ins_outputs)
             {
                 out_ins->replace_argument(out_ins, ins, new_lit);
             }

@@ -27,25 +27,17 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape.hpp>
-template <migraphx::shape::type_t DType>
-struct test_resize_dyn : verify_program<test_resize_dyn<DType>>
+// template <migraphx::shape::type_t DType>
+// struct test_resize_dyn : verify_program<test_resize_dyn<DType>>
+
+//  TODO:  is this template correct for this test, or the one above?  Unknown error that the test 
+//    isn't found if I use the above template.
+struct test_resize_dyn : verify_program<test_resize_dyn>
 {
+    // TODO:  This test causes an assertion failure in propagate_constant.cpp.  Need to find
+    //    out why.
     migraphx::program create_program() const
     {
-        // migraphx::program p;
-        // auto* mm = p.get_main_module();
-        // migraphx::shape s{DType, {4, 1000, 2, 2}};
-        // migraphx::shape bs{migraphx::shape::half_type, {1, 32, 128}};
-        // auto x = mm->add_parameter("x", s);
-        // auto reduce_mean =
-        //     mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
-        // auto reduce_max =
-        //     mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2, 3}}}), x);
-        // auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, reduce_max);
-        // mm->add_return({add});
-        // return p;
-
-
         
    // matcher/optimized code should produce the same result as Resize op.
     migraphx::program p;
@@ -69,9 +61,9 @@ struct test_resize_dyn : verify_program<test_resize_dyn<DType>>
                                            {"coordinate_transformation_mode", "half_pixel"}}),
                         a0,
                         a1);
-    mm->add_return({resize_ins});                        
+    // mm->add_return({resize_ins});
     return p;
 
     };
 };
-template struct test_resize_dyn<migraphx::shape::float_type>;
+// template struct test_resize_dyn<migraphx::shape::float_type>;

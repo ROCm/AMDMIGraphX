@@ -57,7 +57,7 @@ struct find_resize_static
 
     auto matcher() const
     {
-        std::cout << "calling resize matcher...........................\n";
+//        std::cout << "calling resize matcher...........................\n";
 
         // Will this work with either dynamic or static input 0?
         return match::name("resize")(match::nargs(2),

@@ -233,41 +233,39 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     return (x == y) or diff_shapes_equal_vals;
 }
 
-template<class Iterator>
+template <class Iterator>
 bool precedes(Iterator x, Iterator y, Iterator last)
 {
     auto r = range(std::next(x), last);
-    return any_of(iterator_for(r), [&](auto it)
-    {
-        return it == y;
-    });
+    return any_of(iterator_for(r), [&](auto it) { return it == y; });
 }
 
 struct match_qlinear_reused
 {
     auto matcher() const
     {
-        return match::name("quantizelinear")(match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
+        return match::name("quantizelinear")(
+            match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
+        auto ins   = r.result;
         auto x_ins = r.instructions["x"];
         assert(ins != x_ins);
 
         auto dq_inputs = ins->inputs();
-        dq_inputs[0] = ins;
-        auto outputs = x_ins->outputs();
-        if (outputs.size() != 2)
+        dq_inputs[0]   = ins;
+        auto outputs   = x_ins->outputs();
+        if(outputs.size() != 2)
             return;
-        for(auto output:outputs)
+        for(auto output : outputs)
         {
-            if (output->name() == "quantizelinear")
+            if(output->name() == "quantizelinear")
                 continue;
-            if (not output->get_operator().attributes().contains("pointwise"))
+            if(not output->get_operator().attributes().contains("pointwise"))
                 continue;
-            if (not precedes(ins, output, m.end()))
+            if(not precedes(ins, output, m.end()))
                 continue;
             auto dq = m.insert_instruction(std::next(ins), make_op("dequantizelinear"), dq_inputs);
             instruction::replace_argument(output, x_ins, dq);

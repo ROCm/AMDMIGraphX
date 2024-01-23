@@ -63,7 +63,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     {
         const auto& dds   = param.second.dyn_dims();
         int num_non_fixed = 0;
-        for(auto dd : dds)
+        for(const auto& dd : dds)
         {
             if(not dd.is_fixed())
             {

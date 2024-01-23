@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -824,6 +824,7 @@ TEST_CASE(match_bind_modules2)
     EXPECT(bool{r.result == pass});
 }
 
+// Note that mm.add_literal(1) makes a scalar int32 literal with value 1
 TEST_CASE(match_has_value1)
 {
     migraphx::module mm;
@@ -899,6 +900,52 @@ TEST_CASE(match_has_value6)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::name("sum")(match::args(match::has_value(2), match::has_value(1)));
     auto r = find_match(mm, m);
+    EXPECT(bool{r.result == mm.end()});
+}
+
+TEST_CASE(match_has_value_eps1)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto m = match::has_value(7.f, 1, 0);
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == l0});
+}
+
+TEST_CASE(match_has_value_eps2)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto m = match::has_value(3.f, 10, 10);
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == l1});
+}
+
+TEST_CASE(match_has_value_eps3)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto eps = std::numeric_limits<float>::epsilon();
+    auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
+    auto r   = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }
 

@@ -298,6 +298,7 @@ compute(const migraphx::shape&, std::vector<argument> args) const
         });
     }
 
+
     shape output_shape = {args[0].get_shape().type(), out_lens};
     argument result{output_shape};
     // TODO: there could be ways to optimize this function map--is it worth it?

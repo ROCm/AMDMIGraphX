@@ -219,7 +219,6 @@ struct resize
                 *(dyn_dims.end() - 1) = shape::dynamic_dimension{0, max_val};
             if(dyn_dims.size() > 1)
                 *(dyn_dims.end() - 2) = shape::dynamic_dimension{0, max_val};
-        }
 
         return {inputs.front().type(), dyn_dims};
     }

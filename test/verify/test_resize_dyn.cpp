@@ -43,10 +43,8 @@ struct test_resize_dyn : verify_program<test_resize_dyn>
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> data(3 * 3);
-    std::iota(data.begin(), data.end(), 0.5);
-    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
-    auto a0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {1, 1}, {3, 3}, {3, 3}}};
+    auto a0 = mm->add_parameter("a0", s);
     migraphx::shape size_input{migraphx::shape::int32_type, {4}};
     std::vector<int> size_values = {1, 1, 5, 8};
     auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
@@ -54,14 +52,10 @@ struct test_resize_dyn : verify_program<test_resize_dyn>
     // a0 = input data
     // a1 = sizes of output
     // non-matching sizes/scales attributes are ignored for 2 input arguments
-    auto resize_ins = mm->add_instruction(migraphx::make_op("resize",
-                                          {{"sizes", {1}},
-                                           {"scales", {1}},
-                                           {"nearest_mode", "floor"},
-                                           {"coordinate_transformation_mode", "half_pixel"}}),
+    auto resize_ins = mm->add_instruction(migraphx::make_op("resize", {}),
                         a0,
                         a1);
-    // mm->add_return({resize_ins});
+    mm->add_return({resize_ins});
     return p;
 
     };

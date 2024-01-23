@@ -204,8 +204,14 @@ struct resize
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
-            // The output shape is dynamic, with an unlimited size range.
-            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            // The output shape is dynamic, with a size range limited only by user input.
+
+            // TODO:  the upper limits of output dimensions restrict the scales that user
+            // can input at runtime.  By entering very large scaling values a user could
+            // cause an out-of-memory or overflow exception.  The limits given here are a 
+            // sanity check and a placeholder for more sophisticated checking in future.
+            // std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::size_t max_val = 0x4000;
             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});
             return {inputs.front().type(), dyn_dims};

@@ -50,8 +50,6 @@ inline namespace MIGRAPHX_INLINE_NS {
  *   At time of writing, Resize allows either 1 or 2 inputs
  * but the 1-input case is never created by Onnx parsing.
  */
-#pragma("GCC diagnostic pop")
-
 struct find_resize_static
 {
 
@@ -78,7 +76,6 @@ struct find_resize_static
             if constexpr(std::is_integral<type>{})
             {
                 // read output sizes and use them to compute scales
-                std::cout << "sizes visitor      6543456\n";
                 sizes_vec.assign(input.begin(), input.end());
                 std::transform(
                     input.begin(),
@@ -91,7 +88,6 @@ struct find_resize_static
             {
                 // read scales and use them to compute output sizes
                 scales_vec.assign(input.begin(), input.end());
-                std::cout << "scales visitor      23423\n";
                 std::transform(
                     input.begin(),
                     input.end(),
@@ -100,8 +96,6 @@ struct find_resize_static
                     [](auto sz, size_t in_len) { return static_cast<size_t>(sz * in_len); });
             }
         });
-
-        std::cout << "resize match!  ....................................\n";
 
         auto in_s = inputs.at(0)->get_shape();
         shape out_s{in_s.type(), sizes_vec};
@@ -132,7 +126,7 @@ struct find_resize_static
         // ins_ind is a multi dimensional index that will restore original rank
         shape ind_s{shape::int32_type, sizes_vec};
         auto ins_ind = m.add_literal(literal(ind_s, ind));
-        auto result  = m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
     }
 };
 

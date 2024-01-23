@@ -30,7 +30,7 @@
 // template <migraphx::shape::type_t DType>
 // struct test_resize_dyn : verify_program<test_resize_dyn<DType>>
 
-//  TODO:  is this template correct for this test, or the one above?  Unknown error that the test 
+//  TODO:  is this template correct for this test, or the one above?  Unknown error that the test
 //    isn't found if I use the above template.
 struct test_resize_dyn : verify_program<test_resize_dyn>
 {
@@ -38,26 +38,23 @@ struct test_resize_dyn : verify_program<test_resize_dyn>
     //    out why.
     migraphx::program create_program() const
     {
-        
-   // matcher/optimized code should produce the same result as Resize op.
-    migraphx::program p;
-    auto* mm = p.get_main_module();
 
-    migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {1, 1}, {3, 3}, {3, 3}}};
-    auto a0 = mm->add_parameter("a0", s);
-    migraphx::shape size_input{migraphx::shape::int32_type, {4}};
-    std::vector<int> size_values = {1, 1, 5, 8};
-    auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
+        // matcher/optimized code should produce the same result as Resize op.
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    // a0 = input data
-    // a1 = sizes of output
-    // non-matching sizes/scales attributes are ignored for 2 input arguments
-    auto resize_ins = mm->add_instruction(migraphx::make_op("resize", {}),
-                        a0,
-                        a1);
-    mm->add_return({resize_ins});
-    return p;
+        migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {1, 1}, {3, 3}, {3, 3}}};
+        auto a0 = mm->add_parameter("a0", s);
+        migraphx::shape size_input{migraphx::shape::int32_type, {4}};
+        std::vector<int> size_values = {1, 1, 5, 8};
+        auto a1                      = mm->add_literal(migraphx::literal{size_input, size_values});
 
+        // a0 = input data
+        // a1 = sizes of output
+        // non-matching sizes/scales attributes are ignored for 2 input arguments
+        auto resize_ins = mm->add_instruction(migraphx::make_op("resize", {}), a0, a1);
+        mm->add_return({resize_ins});
+        return p;
     };
 };
 // template struct test_resize_dyn<migraphx::shape::float_type>;

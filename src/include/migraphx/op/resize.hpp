@@ -208,7 +208,7 @@ struct resize
 
             // TODO:  the upper limits of output dimensions restrict the scales that user
             // can input at runtime.  By entering very large scaling values a user could
-            // cause an out-of-memory or overflow exception.  The limits given here are a 
+            // cause an out-of-memory or overflow exception.  The limits given here are a
             // sanity check and a placeholder for more sophisticated checking in future.
             // std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::size_t max_val = 0x4000;

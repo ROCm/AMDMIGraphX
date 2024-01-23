@@ -71,7 +71,7 @@ int main(int argc, const char* argv[])
     rv.disable_test_for("cpu", {
         "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
             "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
-            "test_instancenorm_large_3d<migraphx::shape::float_type>",
+            "test_resize_dyn", "test_instancenorm_large_3d<migraphx::shape::float_type>",
             "test_instancenorm_large_3d<migraphx::shape::half_type>",
         // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)

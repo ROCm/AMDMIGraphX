@@ -52,7 +52,12 @@ struct test_resize_dyn : verify_program<test_resize_dyn>
         // a0 = input data
         // a1 = sizes of output
         // non-matching sizes/scales attributes are ignored for 2 input arguments
-        auto resize_ins = mm->add_instruction(migraphx::make_op("resize", {}), a0, a1);
+        auto resize_ins = mm->add_instruction(
+            migraphx::make_op(
+                "resize",
+                {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "half_pixel"}}),
+            a0,
+            a1);
         mm->add_return({resize_ins});
         return p;
     };

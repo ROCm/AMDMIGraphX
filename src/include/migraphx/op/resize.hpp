@@ -127,7 +127,7 @@ struct resize
     std::vector<float> scales;
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
-    std::string nearest_mode;
+    std::string nearest_mode{"floor"};
 
     // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
     // Only "nearest" currently supported.
@@ -204,7 +204,8 @@ struct resize
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
-            // The output shape is dynamic, with a size range limited only by user input.
+            // The output shape is dynamic.  Only the last 2 dimensions are allowed to have
+            // very large size.
 
             // TODO:  the upper limits of output dimensions restrict the scales that user
             // can input at runtime.  By entering very large scaling values a user could
@@ -213,107 +214,112 @@ struct resize
             // std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::size_t max_val = 0x4000;
             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
-                                                           shape::dynamic_dimension{0, max_val});
-            return {inputs.front().type(), dyn_dims};
+                                                           shape::dynamic_dimension{0, 64});
+            if(dyn_dims.size() > 0)
+                *(dyn_dims.end() - 1) = shape::dynamic_dimension{0, max_val};
+            if(dyn_dims.size() > 1)
+                *(dyn_dims.end() - 2) = shape::dynamic_dimension{0, max_val};
         }
+
+        return {inputs.front().type(), dyn_dims};
     }
+}
 
-    argument compute(const migraphx::shape&, std::vector<argument> args) const
+argument
+compute(const migraphx::shape&, std::vector<argument> args) const
+{
+    auto in_lens = args[0].get_shape().lens();
+    std::vector<size_t> out_lens(in_lens.size());
+
+    // Scales are either given, or calculated from output shape
+    std::vector<float> vec_scale(in_lens.size(), 1.0f);
+
+    if(args.size() == 1)
     {
-        auto in_lens = args[0].get_shape().lens();
-        std::vector<size_t> out_lens(in_lens.size());
-
-        // Scales are either given, or calculated from output shape
-        std::vector<float> vec_scale(in_lens.size(), 1.0f);
-
-        if(args.size() == 1)
+        // single input argument; sizes or scales is constant.
+        // In practice, the input is never a dynamic shape.
+        if(not sizes.empty())
         {
-            // single input argument; sizes or scales is constant.
-            // In practice, the input is never a dynamic shape.
-            if(not sizes.empty())
-            {
-                out_lens = sizes;
-                // compute scales
-                std::transform(out_lens.begin(),
-                               out_lens.end(),
-                               in_lens.begin(),
-                               vec_scale.begin(),
-                               [](size_t out_len, size_t in_len) {
-                                   return (in_len == 0 ? 1.f
-                                                       : static_cast<float>(out_len) / in_len);
-                               });
-            }
-            else
-            {
-                vec_scale = this->scales;
-                // compute output sizes
-                std::transform(in_lens.begin(),
-                               in_lens.end(),
-                               scales.begin(),
-                               out_lens.begin(),
-                               [](size_t in_len, auto scale_i) {
-                                   return static_cast<size_t>(scale_i * in_len);
-                               });
-            }
+            out_lens = sizes;
+            // compute scales
+            std::transform(out_lens.begin(),
+                           out_lens.end(),
+                           in_lens.begin(),
+                           vec_scale.begin(),
+                           [](size_t out_len, size_t in_len) {
+                               return (in_len == 0 ? 1.f : static_cast<float>(out_len) / in_len);
+                           });
         }
         else
         {
-            // 2 inputs; 2nd input is either sizes or scales.
-            // First input may be dynamic.
-            args[1].visit([&](auto input) {
-                using type = typename decltype(input)::value_type;
-                if constexpr(std::is_integral<type>{})
-                {
-                    // Copy the output size from args[1].
-                    std::copy(input.begin(), input.end(), out_lens.begin());
-                    // Deduce the scales for each axis
-                    std::transform(
-                        input.begin(),
-                        input.end(),
-                        in_lens.begin(),
-                        vec_scale.begin(),
-                        [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
-                }
-                else
-                {
-                    // read the scale from args[1]
-                    //
-                    std::copy(input.begin(), input.end(), vec_scale.begin());
-                    // compute the output dimensions from the given scales.  This computation
-                    // always rounds down, unlike the internal computation in Nearest mode
-                    // which has several options as given in nearest_mode.
-                    std::transform(input.begin(),
-                                   input.end(),
-                                   in_lens.begin(),
-                                   out_lens.begin(),
-                                   [](auto scale_i, size_t in_len) {
-                                       return static_cast<size_t>(scale_i * in_len);
-                                   });
-                }
-            });
+            vec_scale = this->scales;
+            // compute output sizes
+            std::transform(
+                in_lens.begin(),
+                in_lens.end(),
+                scales.begin(),
+                out_lens.begin(),
+                [](size_t in_len, auto scale_i) { return static_cast<size_t>(scale_i * in_len); });
         }
-
-        shape output_shape = {args[0].get_shape().type(), out_lens};
-        argument result{output_shape};
-        // TODO: there could be ways to optimize this function map--is it worth it?
-        auto nearest_op = get_nearest_op(nearest_mode);
-        auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
-
-        // Populate each element in output by selecting "nearest" item in input.
-        visit_all(result, args[0])([&](auto output, auto data) {
-            migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
-            shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                std::vector<size_t> in_idx(out_idx_v.size());
-                for(auto ii = 0; ii < out_idx_v.size(); ++ii)
-                {
-                    auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
-                    in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
-                }
-                output[out_idx] = data(in_idx.begin(), in_idx.end());
-            });
-        });
-        return result;
     }
+    else
+    {
+        // 2 inputs; 2nd input is either sizes or scales.
+        // First input may be dynamic.
+        args[1].visit([&](auto input) {
+            using type = typename decltype(input)::value_type;
+            if constexpr(std::is_integral<type>{})
+            {
+                // Copy the output size from args[1].
+                std::copy(input.begin(), input.end(), out_lens.begin());
+                // Deduce the scales for each axis
+                std::transform(
+                    input.begin(),
+                    input.end(),
+                    in_lens.begin(),
+                    vec_scale.begin(),
+                    [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+            }
+            else
+            {
+                // read the scale from args[1]
+                //
+                std::copy(input.begin(), input.end(), vec_scale.begin());
+                // compute the output dimensions from the given scales.  This computation
+                // always rounds down, unlike the internal computation in Nearest mode
+                // which has several options as given in nearest_mode.
+                std::transform(input.begin(),
+                               input.end(),
+                               in_lens.begin(),
+                               out_lens.begin(),
+                               [](auto scale_i, size_t in_len) {
+                                   return static_cast<size_t>(scale_i * in_len);
+                               });
+            }
+        });
+    }
+
+    shape output_shape = {args[0].get_shape().type(), out_lens};
+    argument result{output_shape};
+    // TODO: there could be ways to optimize this function map--is it worth it?
+    auto nearest_op = get_nearest_op(nearest_mode);
+    auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
+
+    // Populate each element in output by selecting "nearest" item in input.
+    visit_all(result, args[0])([&](auto output, auto data) {
+        migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
+        shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
+            std::vector<size_t> in_idx(out_idx_v.size());
+            for(auto ii = 0; ii < out_idx_v.size(); ++ii)
+            {
+                auto idx_val = idx_op(in_lens[ii], out_lens[ii], out_idx_v[ii], vec_scale[ii]);
+                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+            }
+            output[out_idx] = data(in_idx.begin(), in_idx.end());
+        });
+    });
+    return result;
+}
 };
 
 } // namespace op

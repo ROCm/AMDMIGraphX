@@ -593,8 +593,6 @@ int32_t gemm_default_solution(context& ctx,
                               const shape& output_shape,
                               const std::vector<shape>& input_shapes)
 {
-    std::vector<shape> gemm_shapes{input_shapes[0], input_shapes[1], output_shape};
-    auto problem = to_value(gemm_shapes);
     auto sol     = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
     if(sol.has_value())
         return sol->to<int32_t>();

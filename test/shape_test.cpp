@@ -160,6 +160,26 @@ TEST_CASE(test_shape_dynamic_compares)
     EXPECT(ss0.str() != ss3.str());
 }
 
+TEST_CASE(dynamic_shape_element_space)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 10}, {3, 20, {3}}}};
+    EXPECT(s.element_space() == 200);
+}
+
+TEST_CASE(dynamic_shape_element_space_overflow_error0)
+{
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape s{migraphx::shape::float_type, {{0, max_val}, {0, max_val}}};
+    EXPECT(test::throws([&] { s.element_space(); }));
+}
+
+TEST_CASE(dynamic_shape_element_space_overflow_error1)
+{
+    std::size_t large_val = std::numeric_limits<std::size_t>::max() / 10;
+    migraphx::shape s{migraphx::shape::float_type, {{0, large_val}, {0, large_val}}};
+    EXPECT(test::throws([&] { s.element_space(); }));
+}
+
 TEST_CASE(dynamic_dimension_size_t_compares)
 {
     using migraphx::shape;

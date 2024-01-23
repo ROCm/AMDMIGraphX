@@ -623,6 +623,7 @@ int32_t gemm_finalize_impl(context& ctx,
     {
         auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.tune(ctx, input_shapes);
+        gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
     }
     else
     {
@@ -631,7 +632,6 @@ int32_t gemm_finalize_impl(context& ctx,
         auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
-    gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
 #else
     (void)ctx, (void)output_shape, (void)input_shapes;
     (void)alpha, (void)beta, (void)compute_fp32;

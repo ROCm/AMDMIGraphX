@@ -31,8 +31,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdocumentation-unknown-command"
 /**
  * Convert a Resize op. with Nearest mode to an implementation using Gather op.
  * From:  resize[scales={...}/sizes={...},](static, constant)
@@ -55,7 +53,6 @@ struct find_resize_static
 
     auto matcher() const
     {
-        // Will this work with either dynamic or static input 0?
         return match::name("resize")(match::nargs(2),
                                      match::arg(0)(match::static_shape()),
                                      match::arg(1)(match::is_constant()));

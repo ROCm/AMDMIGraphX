@@ -61,7 +61,6 @@ struct fused_concat
         for(module_ref mod : range(mods.begin(), mods.end() - 1))
         {
             concat_inputs.push_back(*input_iter);
-            std::cout << "addign size: " << mod->get_parameter_names().size() << std::endl;
             input_iter += mod->get_parameter_names().size();
         }
         module_ref post_mod          = mods.back();

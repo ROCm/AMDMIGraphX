@@ -15,5 +15,5 @@ jobs:
     steps:
       - uses: actions/add-to-project@v0.4.0
         with:
-          project-url: https://github.com/orgs/ROCm/projects/3
+          project-url: https://github.com/orgs/ROCmSoftwarePlatform/projects/26
           github-token: ${{ secrets.TEST_PR_WORKFLOW }}

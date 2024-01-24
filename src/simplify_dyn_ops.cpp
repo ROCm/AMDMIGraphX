@@ -331,13 +331,13 @@ struct find_static_broadcast_for_dot
     auto matcher() const
     {
         return match::name("broadcast_for_dot")(match::arg(0)(match::static_shape()),
-                                            match::arg(1)(match::static_shape()));
+                                                match::arg(1)(match::static_shape()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto broadcast_for_dot_ins = mr.result;
-        auto inputs            = broadcast_for_dot_ins->inputs();
+        auto inputs                = broadcast_for_dot_ins->inputs();
         auto s0                = inputs.at(0)->get_shape();
         auto s1                = inputs.at(1)->get_shape();
         auto l0_it             = s0.lens().begin() + s0.ndim() - 2;

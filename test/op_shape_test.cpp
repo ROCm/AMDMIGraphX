@@ -877,9 +877,7 @@ TEST_CASE(dot_dyn_mismatcher_outer)
 
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {1, 4}, {5, 5}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {{3, 8}, {5, 5}, {6, 8, {8}}}};
-    throws_shape( migraphx::make_op("dot"),
-                 s_m1,
-                 s_m2);
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
 TEST_CASE(dot_broadcast_static)

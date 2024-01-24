@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,10 @@ void reduce_dim1(std::vector<shape>& shapes)
 
 std::size_t reduce_dim_all(std::vector<shape>& shapes, std::size_t n)
 {
-    while(reduce_dim(shapes, n) and n < shapes.size()) {}
+    while(reduce_dim(shapes, n) and n < shapes.size())
+    {
+        (void)n;
+    }
     return n + 1;
 }
 void reduce_dim_all(std::vector<shape>& shapes)

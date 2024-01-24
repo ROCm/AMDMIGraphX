@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,17 +27,17 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_mul_dot_a : verify_program<test_mul_dot_a>
+template <migraphx::shape::type_t DType>
+struct test_mul_dot_a : verify_program<test_mul_dot_a<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
-        migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+        migraphx::shape as{DType, {2, 256, 32}};
+        migraphx::shape bs{DType, {2, 32, 128}};
         auto a = mm->add_parameter("input", as);
-        auto lit =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {1, 1, 32}}));
+        auto lit  = mm->add_literal(migraphx::generate_literal({DType, {1, 1, 32}}));
         auto litb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", as.lens()}}), lit);
         auto mul = mm->add_instruction(migraphx::make_op("mul"), a, litb);
@@ -47,3 +47,7 @@ struct test_mul_dot_a : verify_program<test_mul_dot_a>
         return p;
     }
 };
+
+template struct test_mul_dot_a<migraphx::shape::float_type>;
+template struct test_mul_dot_a<migraphx::shape::half_type>;
+template struct test_mul_dot_a<migraphx::shape::fp8e4m3fnuz_type>;

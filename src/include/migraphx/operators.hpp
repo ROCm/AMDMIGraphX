@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,9 +113,11 @@
 #include <migraphx/op/roialign.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
+#include <migraphx/op/scatter_none.hpp>
 #include <migraphx/op/scatter_add.hpp>
 #include <migraphx/op/scatter_mul.hpp>
-#include <migraphx/op/scatter_none.hpp>
+#include <migraphx/op/scatter_min.hpp>
+#include <migraphx/op/scatter_max.hpp>
 #include <migraphx/op/scatternd_add.hpp>
 #include <migraphx/op/scatternd_none.hpp>
 #include <migraphx/op/scatternd_mul.hpp>
@@ -139,6 +141,7 @@
 #include <migraphx/op/unary.hpp>
 #include <migraphx/op/unary_not.hpp>
 #include <migraphx/op/undefined.hpp>
+#include <migraphx/op/unique.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/op/unsqueeze.hpp>
 #include <migraphx/op/where.hpp>

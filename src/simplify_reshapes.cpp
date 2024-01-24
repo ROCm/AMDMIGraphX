@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -173,23 +173,6 @@ struct find_transpose
     }
 };
 
-struct find_nested_convert
-{
-    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
-        auto input = x->inputs().front();
-
-        if(ins->get_shape() != input->get_shape())
-            return;
-
-        m.replace_instruction(ins, input);
-    }
-};
-
 struct find_nested_slice
 {
     auto matcher() const { return match::name("slice")(match::arg(0)(match::name("slice"))); }
@@ -322,7 +305,7 @@ struct find_concat_transpose
         }
 
         // axis could be a negative value
-        int64_t n_dim = static_cast<int64_t>(s.lens().size());
+        int64_t n_dim = s.lens().size();
         op.axis       = tune_axis(n_dim, op.axis, op.name());
 
         auto ipermutation = invert_permutation(permutation);
@@ -836,7 +819,6 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
-                            find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},

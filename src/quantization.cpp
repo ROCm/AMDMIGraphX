@@ -40,6 +40,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/normalize_ops.hpp>
 #include <set>
 
 namespace migraphx {
@@ -55,7 +56,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_8BITS_QUANTIZATION_PARAMS)
 void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
-               {optimize_module{{"quantizelinear", "dequantizelinear"}},
+               {normalize_ops{},
+                optimize_module{{"quantizelinear", "dequantizelinear"}},
                 quantize_fp16_pass{ins_names},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}});
 }
@@ -68,7 +70,7 @@ void quantize_8bits(program& prog,
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
-    run_passes(prog, {optimize_module{}});
+    run_passes(prog, {normalize_ops{}, optimize_module{}});
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();

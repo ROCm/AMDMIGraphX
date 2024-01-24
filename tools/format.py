@@ -84,7 +84,7 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
                           ext=('.c', '.cpp', '.hpp', '.h', '.cl', '.hip',
                                '.in')))
     run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
-        files)
+        files, cwd=get_top())
 
 
 def yapf_format(against, apply=False):
@@ -94,7 +94,7 @@ def yapf_format(against, apply=False):
     diff_flag = "--in-place" if apply else "--diff"
     files = ' '.join(get_files_changed(against))
     if files:
-        run(f"yapf {diff_flag} -p {files}")
+        run(f"yapf {diff_flag} -p {files}", cwd=get_top())
     else:
         print("No modified python files to format")
 

@@ -33,13 +33,13 @@ def run(cmd, **kwargs):
         print(cmd)
     else:
         print(shlex.join(cmd))
-    subprocess.run(cmd, shell=True, check=True, **kwargs)
+    subprocess.run(cmd, shell=isinstance(cmd, str), check=True, **kwargs)
 
 
 def eval(cmd, **kwargs):
     return subprocess.run(cmd,
                           capture_output=True,
-                          shell=True,
+                          shell=isinstance(cmd, str),
                           check=True,
                           **kwargs).stdout.decode('utf-8').strip()
 

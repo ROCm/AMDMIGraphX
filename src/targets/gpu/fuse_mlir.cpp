@@ -70,10 +70,10 @@ const std::vector<std::string>& get_default_options()
 static bool is_requested(std::string_view option, bool fallback = false)
 {
     auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
-    if(string_value.empty() and get_default_options().empty())
-        return fallback;
+    if(string_value.empty())
+        return contains(get_default_options(), option);
+    
     auto options = split_string(string_value, ',');
-    options.insert(options.begin(), get_default_options().begin(), get_default_options().end());
     return contains(options, option);
 }
 

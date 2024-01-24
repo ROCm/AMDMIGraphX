@@ -63,6 +63,7 @@ struct fused_concat
             concat_inputs.push_back(*input_iter);
             input_iter += mod->get_parameter_names().size();
         }
+        assert(input_iter == inputs.end());
         module_ref post_mod          = mods.back();
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();

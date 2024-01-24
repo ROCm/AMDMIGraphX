@@ -3067,6 +3067,43 @@ def gru_r_4arg_layout_test():
 
 
 @onnx_test()
+def hardmax_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax',
+                                 inputs=['x'],
+                                 outputs=['y'])
+
+    return ([node], [x], [y])
+
+@onnx_test()
+def hardmax_axis_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def hardmax_axis_neg_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=-3)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def hardsigmoid_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 3, 4, 5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 3, 4, 5])

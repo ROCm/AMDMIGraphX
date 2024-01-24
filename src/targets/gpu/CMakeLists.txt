@@ -97,7 +97,7 @@ endforeach()
 
 target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
-target_link_libraries(kernel_file_check compile_for_gpu)
+target_link_libraries(kernel_file_check compile_for_gpu composable_kernel::jit_library)
 
 rocm_clang_tidy_check(kernel_file_check)
 

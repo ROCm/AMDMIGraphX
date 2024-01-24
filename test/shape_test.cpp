@@ -166,18 +166,26 @@ TEST_CASE(dynamic_shape_element_space)
     EXPECT(s.element_space() == 200);
 }
 
-TEST_CASE(dynamic_shape_element_space_overflow_error0)
+TEST_CASE(dynamic_shape_element_space_overflow0)
 {
     std::size_t max_val = std::numeric_limits<std::size_t>::max();
     migraphx::shape s{migraphx::shape::float_type, {{0, max_val}, {0, max_val}}};
-    EXPECT(test::throws([&] { s.element_space(); }));
+    EXPECT(s.element_space() == max_val);
 }
 
-TEST_CASE(dynamic_shape_element_space_overflow_error1)
+TEST_CASE(dynamic_shape_element_space_overflow1)
+{
+    std::size_t max_val   = std::numeric_limits<std::size_t>::max();
+    std::size_t large_val = max_val / 10;
+    migraphx::shape s{migraphx::shape::float_type, {{0, large_val}, {0, large_val}}};
+    EXPECT(s.element_space() == max_val);
+}
+
+TEST_CASE(dynamic_shape_element_space_zero)
 {
     std::size_t large_val = std::numeric_limits<std::size_t>::max() / 10;
-    migraphx::shape s{migraphx::shape::float_type, {{0, large_val}, {0, large_val}}};
-    EXPECT(test::throws([&] { s.element_space(); }));
+    migraphx::shape s{migraphx::shape::float_type, {{0, large_val}, {0, large_val}, {0, 0}}};
+    EXPECT(s.element_space() == 0);
 }
 
 TEST_CASE(dynamic_dimension_size_t_compares)

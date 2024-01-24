@@ -27,6 +27,7 @@ CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
 EXCLUDE_FILES = ['requirements.in']
 
+
 def run(cmd, **kwargs):
     if isinstance(cmd, str):
         print(cmd)
@@ -42,9 +43,11 @@ def eval(cmd, **kwargs):
                           check=True,
                           **kwargs).stdout.decode('utf-8').strip()
 
+
 def is_excluded(f):
     base = os.path.basename(f)
     return f in EXCLUDE_FILES
+
 
 def get_top():
     return eval("git rev-parse --show-toplevel")
@@ -58,10 +61,12 @@ def get_merge_base(branch):
     head = get_head()
     return eval(f"git merge-base {branch} {head}")
 
+
 def get_files_changed(against, ext=('.py')):
     files = eval(f"git diff-index --cached --name-only {against}",
                  cwd=get_top()).splitlines()
     return (f for f in files if f.endswith(ext) and not is_excluded(f))
+
 
 def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
     base = get_merge_base(against)
@@ -74,8 +79,12 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
         print(f"{git_clang_format} not installed. Skipping format.")
         return
     diff_flag = [] if apply else ["--diff"]
-    files = list(get_files_changed(base, ext=('.c','.cpp','.hpp','.h','.cl','.hip','.in')))
-    run([git_clang_format, '--binary', clang_format] + diff_flag + [base] + files)
+    files = list(
+        get_files_changed(base,
+                          ext=('.c', '.cpp', '.hpp', '.h', '.cl', '.hip',
+                               '.in')))
+    run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
+        files)
 
 
 def yapf_format(against, apply=False):

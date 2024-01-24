@@ -84,7 +84,8 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
                           ext=('.c', '.cpp', '.hpp', '.h', '.cl', '.hip',
                                '.in')))
     run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
-        files, cwd=get_top())
+        files,
+        cwd=get_top())
 
 
 def yapf_format(against, apply=False):

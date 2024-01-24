@@ -67,12 +67,11 @@ const std::vector<std::string>& get_default_options()
     return default_options;
 }
 
-static bool is_requested(std::string_view option, bool fallback = false)
+static bool is_requested(std::string_view option)
 {
     auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
     if(string_value.empty())
         return contains(get_default_options(), option);
-    
     auto options = split_string(string_value, ',');
     return contains(options, option);
 }

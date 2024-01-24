@@ -20,14 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include "verify_program.hpp"
+#ifndef MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
 
-std::vector<program_info>& get_programs_vector()
+#include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+struct problem_cache
 {
-    static std::vector<program_info> result; // NOLINT
-    return result;
-}
+    bool has(const std::string& name, const value& problem) const;
+    void insert(const std::string& name, const value& problem, const value& solution);
+    void mark(const std::string& name, const value& problem);
+    optional<value> get(const std::string& name, const value& problem) const;
+    std::unordered_map<value, value> cache;
+};
 
-void register_program_info(const program_info& pi) { get_programs_vector().push_back(pi); }
-const std::vector<program_info>& get_programs() { return get_programs_vector(); }
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP

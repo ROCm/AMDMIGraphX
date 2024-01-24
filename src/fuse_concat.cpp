@@ -50,10 +50,10 @@ struct fused_concat
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.same_ndims();
-        // original concat can have multiple inputs. Let's say it has `n` input args. 
-        // Each of those `n` input args are converted into pointwise modules that take atleast 1 input parameter. 
-        // Fused concat will have `n+1` module arguments. 
-        // `n+1`th module is the post pointwise module which can take 0 or more input arguments.  
+        // original concat can have multiple inputs. Let's say it has `n` input args.
+        // Each of those `n` input args are converted into pointwise modules that take atleast 1
+        // input parameter. Fused concat will have `n+1` module arguments. `n+1`th module is the
+        // post pointwise module which can take 0 or more input arguments.
         if((inputs.size() + 1) < mods.size())
             MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules inputs parameters");
         auto input_iter = inputs.begin();

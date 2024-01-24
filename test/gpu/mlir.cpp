@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,6 +69,21 @@ std::string encode(const std::string& s)
     return migraphx::trim(ss.str());
 }
 
+migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
+{
+    migraphx::module m;
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+    auto params = mmlir.get_parameter_names();
+    for(const auto& name : params)
+    {
+        auto param     = mmlir.get_parameter(name);
+        map_ins[param] = m.add_parameter(name, param->get_shape().as_standard());
+    }
+    auto y = m.add_instructions(&mmlir, map_ins);
+    m.add_return(y);
+    return m;
+}
+
 migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
 {
     migraphx::program p;
@@ -84,7 +99,8 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
     migraphx::gpu::context ctx;
-    migraphx::gpu::insert_mlir(*mm, mm->end(), compile_mlir(ctx, mmlir, inputs, {}), inputs);
+    migraphx::gpu::insert_mlir(
+        *mm, mm->end(), compile_mlir(ctx, create_mlir_submodule(mmlir), inputs, {}), inputs);
     return p;
 }
 

@@ -75,8 +75,8 @@ struct parse_matmul : op_parser<parse_matmul>
             if(not std::equal(
                    s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
             {
-                auto broadcasted_a0 = info.add_instruction(make_op("dot_broadcast"), a0, a1);
-                auto broadcasted_a1 = info.add_instruction(make_op("dot_broadcast"), a1, a0);
+                auto broadcasted_a0 = info.add_instruction(make_op("broadcast_for_dot"), a0, a1);
+                auto broadcasted_a1 = info.add_instruction(make_op("broadcast_for_dot"), a1, a0);
                 dot_res =
                     info.add_instruction(make_op(opd.op_name), broadcasted_a0, broadcasted_a1);
             }

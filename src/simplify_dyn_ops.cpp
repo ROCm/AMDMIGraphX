@@ -320,24 +320,24 @@ struct find_const_alloc_fill
 };
 
 /**
- * Simplify dot_broadcast instructions with two static shaped arguments
+ * Simplify broadcast_for_dot instructions with two static shaped arguments
  * From:
- * dot_broadcast(static_shape_arg, static_shape_arg)
+ * broadcast_for_dot(static_shape_arg, static_shape_arg)
  * To:
- * multibroadcast(static_shape_arg); output_lens = static_dot_broadcasted_shape
+ * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_doted_shape
  */
-struct find_static_dot_broadcast
+struct find_static_broadcast_for_dot
 {
     auto matcher() const
     {
-        return match::name("dot_broadcast")(match::arg(0)(match::static_shape()),
+        return match::name("broadcast_for_dot")(match::arg(0)(match::static_shape()),
                                             match::arg(1)(match::static_shape()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto dot_broadcast_ins = mr.result;
-        auto inputs            = dot_broadcast_ins->inputs();
+        auto broadcast_for_dot_ins = mr.result;
+        auto inputs            = broadcast_for_dot_ins->inputs();
         auto s0                = inputs.at(0)->get_shape();
         auto s1                = inputs.at(1)->get_shape();
         auto l0_it             = s0.lens().begin() + s0.ndim() - 2;
@@ -346,7 +346,7 @@ struct find_static_dot_broadcast
         std::vector<std::size_t> l1_broadcasted_lens(s1.lens().begin(), l1_it);
         auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
         output_lens.insert(output_lens.end(), l0_it, s0.lens().end());
-        m.replace_instruction(dot_broadcast_ins,
+        m.replace_instruction(broadcast_for_dot_ins,
                               make_op("multibroadcast", {{"out_lens", output_lens}}),
                               inputs.at(0));
     }
@@ -362,7 +362,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_3in_slice{},
                         find_const_4in_slice{},
                         find_const_alloc_fill{},
-                        find_static_dot_broadcast{});
+                        find_static_broadcast_for_dot{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

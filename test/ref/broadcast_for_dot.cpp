@@ -30,7 +30,7 @@
 
 #include "test.hpp"
 
-TEST_CASE(dot_broadcast_static)
+TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -42,8 +42,8 @@ TEST_CASE(dot_broadcast_static)
     migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4, 2}};
     auto l0            = mm->add_literal(migraphx::literal{s0, data0});
     auto l1            = mm->add_literal(migraphx::literal{s1, data1});
-    auto dot_broadcast = mm->add_instruction(migraphx::make_op("dot_broadcast"), l0, l1);
-    mm->add_return({dot_broadcast});
+    auto broadcast_for_dot = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), l0, l1);
+    mm->add_return({broadcast_for_dot});
     p.compile(migraphx::make_target("ref"));
 
     auto result = p.eval({}).back();
@@ -55,7 +55,7 @@ TEST_CASE(dot_broadcast_static)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(dot_broadcast_dyn)
+TEST_CASE(broadcast_for_dot_dyn)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -63,8 +63,8 @@ TEST_CASE(dot_broadcast_dyn)
     migraphx::shape s1{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {4, 4}, {4, 6}}};
     auto p0            = mm->add_parameter("0", s0);
     auto p1            = mm->add_parameter("1", s1);
-    auto dot_broadcast = mm->add_instruction(migraphx::make_op("dot_broadcast"), p0, p1);
-    mm->add_return({dot_broadcast});
+    auto broadcast_for_dot = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), p0, p1);
+    mm->add_return({broadcast_for_dot});
     p.compile(migraphx::make_target("ref"));
 
     std::vector<int> data0(8);

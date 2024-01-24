@@ -69,7 +69,7 @@ struct dot
                                                           out_dyn_dims.push_back(x);
                                                           return true;
                                                       }
-                                                      else if(y.within_range(x))
+                                                      if(y.within_range(x))
                                                       {
                                                           out_dyn_dims.push_back(y);
                                                           return true;

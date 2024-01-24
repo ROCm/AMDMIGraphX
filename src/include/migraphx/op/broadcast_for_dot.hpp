@@ -40,12 +40,12 @@ namespace op {
  * Example:
  * a = shape[{1, 4}, 3, 248, 248]
  * b = shape[248, 365]
- * dot_broadcast(a, b) => shape[{1, 4}, 3, 248, 248] (no change)
- * dot_broadcast(b, a) => shape[{1, 4}, 3, 248, 365]
+ * broadcast_for_dot(a, b) => shape[{1, 4}, 3, 248, 248] (no change)
+ * broadcast_for_dot(b, a) => shape[{1, 4}, 3, 248, 365]
  */
-struct dot_broadcast
+struct broadcast_for_dot
 {
-    std::string name() const { return "dot_broadcast"; }
+    std::string name() const { return "broadcast_for_dot"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

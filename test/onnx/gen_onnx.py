@@ -3071,9 +3071,7 @@ def hardmax_default_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 3, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 3, 4])
 
-    node = onnx.helper.make_node('Hardmax',
-                                 inputs=['x'],
-                                 outputs=['y'])
+    node = onnx.helper.make_node('Hardmax', inputs=['x'], outputs=['y'])
 
     return ([node], [x], [y])
 

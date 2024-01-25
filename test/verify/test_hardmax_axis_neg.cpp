@@ -45,7 +45,7 @@ struct test_hardmax_axis_neg : verify_program<test_hardmax_axis_neg>
             migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
         auto updates = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1025}}}),
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 1, 1025}}}),
             mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
         mm->add_instruction(
             migraphx::make_op("scatter_none", {{"axis", -2}}), zero_data, indices, updates);

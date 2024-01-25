@@ -136,6 +136,7 @@ register_migraphx_ops(
     atanh
     atan
     broadcast
+    broadcast_for_dot
     capture
     ceil
     clip
@@ -150,7 +151,6 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
-    dot_broadcast
     elu
     equal
     erf

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_OBJCOPY objcopy REQUIRED)
 endif()
 
-function(wrap_string)
+function(embed_wrap_string)
     set(options)
     set(oneValueArgs VARIABLE AT_COLUMN)
     set(multiValueArgs)
@@ -73,12 +73,22 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     set(RESOURCE_ID 100)
-    foreach(SYMBOL FILE IN ZIP_LISTS PARSE_SYMBOLS PARSE_FILES)
-        cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY ${BASE_DIRECTORY} OUTPUT_VARIABLE BASE_NAME)
+
+    list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
+    list(LENGTH PARSE_FILES FILES_LEN)
+    if(NOT ${SYMBOLS_LEN} EQUAL ${FILES_LEN})
+        message(FATAL_ERROR "Symbols and objects dont match: ${SYMBOLS_LEN} != ${FILES_LEN}")
+    endif()
+    math(EXPR LEN "${SYMBOLS_LEN} - 1")
+
+    foreach(idx RANGE ${LEN})
+        list(GET PARSE_SYMBOLS ${idx} SYMBOL)
+        list(GET PARSE_FILES ${idx} FILE)
+        file(RELATIVE_PATH BASE_NAME "${BASE_DIRECTORY}" ${FILE})
         if(EMBED_USE STREQUAL "RC")
             string(TOUPPER "${SYMBOL}" SYMBOL)
             string(APPEND FILE_IDS "#define IDR_${SYMBOL} ${RESOURCE_ID}\n")
-            cmake_path(NATIVE_PATH FILE NORMALIZE NATIVE_FILE)
+            file(TO_NATIVE_PATH "${FILE}" NATIVE_FILE)
             string(REPLACE "\\" "\\\\" NATIVE_FILE "${NATIVE_FILE}")
             string(APPEND RC_FILE_MAPPING "IDR_${SYMBOL} TEXTFILE \"${NATIVE_FILE}\"\n")
             string(APPEND INIT_KERNELS "\n        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},")
@@ -152,7 +162,7 @@ endfunction()
 
 function(embed_file FILE BASE_DIRECTORY)
     message(STATUS "    ${FILE}")
-    cmake_path(RELATIVE_PATH FILE BASE_DIRECTORY "${BASE_DIRECTORY}" OUTPUT_VARIABLE REL_FILE)
+    file(RELATIVE_PATH REL_FILE "${BASE_DIRECTORY}" ${FILE})
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_FILE_DIR}")
@@ -167,11 +177,12 @@ function(embed_file FILE BASE_DIRECTORY)
             VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "CArrays")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
         # reads source file contents as hex string
         file(READ ${FILE} HEX_STRING HEX)
         # wraps the hex string into multiple lines
-        wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
+        embed_wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
         # adds '0x' prefix and comma suffix before and after every byte respectively
         string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
         # removes trailing comma

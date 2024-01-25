@@ -20,36 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
+#define MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP
 
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
+#include <migraphx/optional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-void promote_literals::apply(module_pass_manager& mpm) const
+namespace gpu {
+struct problem_cache
 {
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
+    bool has(const std::string& name, const value& problem) const;
+    void insert(const std::string& name, const value& problem, const value& solution);
+    void mark(const std::string& name, const value& problem);
+    optional<value> get(const std::string& name, const value& problem) const;
+    std::unordered_map<value, value> cache;
+};
 
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit     = root_module->add_literal(ins->get_literal());
-            auto ins_outputs = ins->outputs();
-            for(auto out_ins : ins_outputs)
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
-}
-
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_PROBLEM_CACHE_HPP

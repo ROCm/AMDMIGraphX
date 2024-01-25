@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,77 +31,121 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-template <typename T>
-static std::optional<T> parse_attribute(const std::string& attribute_name,
-                                        const onnx_parser& parser,
-                                        onnx_parser::node_info& info)
+template <typename Derived>
+struct reduce_parser : op_parser<Derived>
 {
-    if(not contains(info.attributes, attribute_name))
+    instruction_ref parse_reduce_oper(const std::string& op_name,
+                                      const onnx_parser& parser,
+                                      onnx_parser::node_info info,
+                                      std::vector<instruction_ref> args) const
     {
-        return std::nullopt;
-    }
+        auto constant_axes = parse_constant_axes(args, info);
 
-    return parser.parse_value(info.attributes.at(attribute_name)).at<T>();
-}
+        int noop_with_empty_axes =
+            parse_attribute<int>("noop_with_empty_axes", parser, info).value_or(0);
 
-instruction_ref parse_reduce_oper(const std::string& op_name,
-                                  const onnx_parser& parser,
-                                  onnx_parser::node_info info,
-                                  std::vector<instruction_ref> args)
-{
-    // default to reduce over all dimensions
-    std::vector<int64_t> axes;
-    bool runtime_axes = false;
-    if(args.size() == 2)
-    {
-        runtime_axes = not args[1]->can_eval();
-        if(runtime_axes)
+        int keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
+
+        std::vector<int64_t> all_axes(args.front()->get_shape().ndim());
+        std::iota(all_axes.begin(), all_axes.end(), 0);
+
+        if(constant_axes.has_value())
         {
-            // The reference implementation supports variable axes, but the backends do not
-            MIGRAPHX_THROW("Cannot handle variable axes");
-        }
-        args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
-    }
-    else if(contains(info.attributes, "axes"))
-    {
-        auto&& attr_axes = info.attributes["axes"].ints();
-        axes.assign(attr_axes.begin(), attr_axes.end());
-    }
+            if(noop_with_empty_axes != 0 and constant_axes->empty())
+            {
+                return args[0];
+            }
 
-    int noop_with_empty_axes =
-        parse_attribute<int>("noop_with_empty_axes", parser, info).value_or(0);
+            if(noop_with_empty_axes == 0 and constant_axes->empty())
+            {
+                constant_axes = all_axes;
+            }
 
-    if(axes.empty() and not runtime_axes)
-    {
-        if(noop_with_empty_axes != 0)
-        {
-            return args[0];
+            auto reduce =
+                info.add_instruction(make_op(op_name, {{"axes", *constant_axes}}), args[0]);
+            if(keep_dims == 0)
+            {
+                return info.add_instruction(make_op("squeeze", {{"axes", *constant_axes}}), reduce);
+            }
+            return reduce;
         }
 
-        axes.resize(args.front()->get_shape().ndim());
-        std::iota(axes.begin(), axes.end(), 0);
-    }
-
-    int keep_dims = parse_attribute<int>("keepdims", parser, info).value_or(1);
-
-    auto reduce_op =
-        make_op(op_name, {{"axes", axes}, {"noop_with_empty_axes", noop_with_empty_axes}});
-    auto return_instruction = runtime_axes ? info.add_instruction(reduce_op, args)
-                                           : info.add_instruction(reduce_op, args[0]);
-    if(keep_dims == 0)
-    {
-        if(runtime_axes)
+        if(keep_dims == 0)
         {
             MIGRAPHX_THROW("Keepdims not supported with runtime provided axes");
         }
-        return_instruction =
-            info.add_instruction(make_op("squeeze", {{"axes", axes}}), return_instruction);
+        // Empty axes attribute indicates to the operator to look for axes in the inputs
+        auto reduce_op = make_op(op_name, {{"axes", {}}});
+
+        if(noop_with_empty_axes != 0)
+        {
+            return info.add_instruction(reduce_op, args);
+        }
+
+        if(args[1]->get_shape().dynamic())
+        {
+            auto reduce_input_axes = info.add_instruction(reduce_op, args);
+            auto all_axes_lit      = info.add_literal(
+                literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
+            auto reduce_all_axes = info.add_instruction(reduce_op, args[0], all_axes_lit);
+            auto zero      = info.add_literal(literal{shape{shape::type_t::int64_type}, {0u}});
+            auto axes_size = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[1]);
+            auto is_axes_empty = info.add_instruction(make_op("equal"), axes_size, zero);
+            auto is_axes_empty_bc =
+                info.add_instruction(make_op("multibroadcast"), is_axes_empty, reduce_all_axes);
+
+            return info.add_instruction(
+                make_op("where"), is_axes_empty_bc, reduce_all_axes, reduce_input_axes);
+        }
+        else if(args[1]->get_shape().elements() == 0)
+        {
+            auto all_axes_lit = info.add_literal(
+                literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
+            return info.add_instruction(reduce_op, args[0], all_axes_lit);
+        }
+        else
+        {
+            return info.add_instruction(reduce_op, args);
+        }
     }
 
-    return return_instruction;
-}
+    private:
+    template <typename T>
+    std::optional<T> parse_attribute(const std::string& attribute_name,
+                                     const onnx_parser& parser,
+                                     onnx_parser::node_info& info) const
+    {
+        if(not contains(info.attributes, attribute_name))
+        {
+            return std::nullopt;
+        }
 
-struct parse_reduce_op : op_parser<parse_reduce_op>
+        return parser.parse_value(info.attributes.at(attribute_name)).at<T>();
+    }
+
+    std::optional<std::vector<int64_t>> parse_constant_axes(std::vector<instruction_ref>& args,
+                                                            onnx_parser::node_info& info) const
+    {
+        std::vector<int64_t> axes;
+        if(args.size() == 2)
+        {
+            if(not args[1]->can_eval())
+            {
+                return std::nullopt;
+            }
+            args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
+        }
+        else if(contains(info.attributes, "axes"))
+        {
+            auto&& attr_axes = info.attributes["axes"].ints();
+            axes.assign(attr_axes.begin(), attr_axes.end());
+        }
+
+        return axes;
+    }
+};
+
+struct parse_reduce_op : reduce_parser<parse_reduce_op>
 {
     std::vector<op_desc> operators() const
     {
@@ -121,7 +165,7 @@ struct parse_reduce_op : op_parser<parse_reduce_op>
     }
 };
 
-struct parse_reduce_l1 : op_parser<parse_reduce_l1>
+struct parse_reduce_l1 : reduce_parser<parse_reduce_l1>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL1"}}; }
 
@@ -135,7 +179,7 @@ struct parse_reduce_l1 : op_parser<parse_reduce_l1>
     }
 };
 
-struct parse_reduce_l2 : op_parser<parse_reduce_l2>
+struct parse_reduce_l2 : reduce_parser<parse_reduce_l2>
 {
     std::vector<op_desc> operators() const { return {{"ReduceL2"}}; }
 
@@ -150,7 +194,7 @@ struct parse_reduce_l2 : op_parser<parse_reduce_l2>
     }
 };
 
-struct parse_reduce_log_sum : op_parser<parse_reduce_log_sum>
+struct parse_reduce_log_sum : reduce_parser<parse_reduce_log_sum>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSum"}}; }
 
@@ -164,7 +208,7 @@ struct parse_reduce_log_sum : op_parser<parse_reduce_log_sum>
     }
 };
 
-struct parse_reduce_log_sum_exp : op_parser<parse_reduce_log_sum_exp>
+struct parse_reduce_log_sum_exp : reduce_parser<parse_reduce_log_sum_exp>
 {
     std::vector<op_desc> operators() const { return {{"ReduceLogSumExp"}}; }
 
@@ -179,7 +223,7 @@ struct parse_reduce_log_sum_exp : op_parser<parse_reduce_log_sum_exp>
     }
 };
 
-struct parse_reduce_sum_square : op_parser<parse_reduce_sum_square>
+struct parse_reduce_sum_square : reduce_parser<parse_reduce_sum_square>
 {
     std::vector<op_desc> operators() const { return {{"ReduceSumSquare"}}; }
 

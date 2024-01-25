@@ -32,14 +32,11 @@ struct dnnl_reduction : dnnl_op<dnnl_reduction, dnnl::reduction>
 {
     std::string algo;
     std::vector<std::int64_t> axes{};
-    bool noop_with_empty_axes = true;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack_join(self.reflect_base(self, f),
-                         pack(f(self.algo, "algo"),
-                              f(self.axes, "axes"),
-                              f(self.noop_with_empty_axes, "noop_with_empty_axes")));
+                         pack(f(self.algo, "algo"), f(self.axes, "axes")));
     }
 
     std::string name() const { return "dnnl::reduction"; }

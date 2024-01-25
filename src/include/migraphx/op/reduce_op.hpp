@@ -80,12 +80,11 @@ template <class Derived>
 struct reduce_op : op_name<Derived>
 {
     std::vector<std::int64_t> axes{};
-    bool noop_with_empty_axes = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"), f(self.noop_with_empty_axes, "noop_with_empty_axes"));
+        return pack(f(self.axes, "axes"));
     }
 
     value attributes() const
@@ -238,11 +237,6 @@ struct reduce_op : op_name<Derived>
 
         if(reduce_axes.empty())
         {
-            if(noop_with_empty_axes)
-            {
-                return data_arg;
-            }
-
             reduce_axes.resize(data_arg.get_shape().ndim());
             std::iota(reduce_axes.begin(), reduce_axes.end(), 0);
         }

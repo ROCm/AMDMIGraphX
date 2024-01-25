@@ -50,8 +50,12 @@ struct fused_concat
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
         check_shapes{inputs, *this}.same_ndims();
-        if((inputs.size() + 1) == mods.size())
-            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules");
+        // original concat can have multiple inputs. Let's say it has `n` input args.
+        // Each of those `n` input args are converted into pointwise modules that take atleast 1
+        // input parameter. Fused concat will have `n+1` module arguments. `n+1`th module is the
+        // post pointwise module which can take 0 or more input arguments.
+        if((inputs.size() + 1) < mods.size())
+            MIGRAPHX_THROW("FUSED_CONCAT: Missing fused modules inputs parameters");
         auto input_iter = inputs.begin();
         std::vector<shape> concat_inputs;
         for(module_ref mod : range(mods.begin(), mods.end() - 1))
@@ -60,6 +64,9 @@ struct fused_concat
             input_iter += mod->get_parameter_names().size();
         }
         module_ref post_mod          = mods.back();
+        // post_mod has one input argument that is result of concat and will get generated from
+        // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
+        assert(input_iter + post_mod->get_parameter_names().size() - 1 == inputs.end());
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
         auto mismatch_it =

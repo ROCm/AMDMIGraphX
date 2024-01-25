@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -188,7 +188,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
             v["preamble"] = generate_pointwise(*pm, "post_ck_gemm_function") +
                             "\nMIGRAPHX_LIFT_CLASS(post_ck_gemm, post_ck_gemm_function);";
             v["post"]   = "ck_function_adaptor<post_ck_gemm>";
-            v["kernel"] = "ck_gemm_" + generate_name_from_ops(*pm) + "_kernel";
+            v["kernel"] = to_c_id("ck_gemm_" + generate_name_from_ops(*pm) + "_kernel");
         }
         return v;
     }

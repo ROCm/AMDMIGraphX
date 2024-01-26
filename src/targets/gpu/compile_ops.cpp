@@ -189,9 +189,12 @@ struct compile_plan
             MIGRAPHX_THROW("No valid tuned compilation.");
         return *results[i];
     }
+
     void replace(module& m) const
     {
         const auto& cr = benchmark();
+        auto code_object_shape = cr.replace.code_object.compute_shape(to_shapes(cr.ins->inputs()));
+        assert(cr.ins->get_shape() == code_object_shape);
         cr.replace.replace(m, cr.ins);
     }
 };

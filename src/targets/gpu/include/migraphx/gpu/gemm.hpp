@@ -135,7 +135,7 @@ struct rocblas_gemm
         if(solution_idx == 0)
         {
             auto sol = gemm_default_solution(ctx, output_shape, input_shapes);
-            if (sol.has_value())
+            if(sol.has_value())
             {
                 solution_idx = *sol;
                 return;

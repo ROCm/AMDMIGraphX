@@ -267,24 +267,18 @@ struct gemm_impl
         else
 #endif
         {
-            auto algo = (solution_idx == 0) ? rocblas_gemm_algo_standard : rocblas_gemm_algo_solution_index;
+            auto algo =
+                (solution_idx == 0) ? rocblas_gemm_algo_standard : rocblas_gemm_algo_solution_index;
             if(strided_batched)
             {
                 auto common_args = create_strided_batched_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_strided_batched_ex,
-                               common_args,
-                               algo,
-                               solution_idx,
-                               gemm_flags);
+                rocblas_invoke(
+                    &rocblas_gemm_strided_batched_ex, common_args, algo, solution_idx, gemm_flags);
             }
             else
             {
                 auto common_args = create_gemm_ex_args_common(ctx, input_args);
-                rocblas_invoke(&rocblas_gemm_ex,
-                               common_args,
-                               algo,
-                               solution_idx,
-                               gemm_flags);
+                rocblas_invoke(&rocblas_gemm_ex, common_args, algo, solution_idx, gemm_flags);
             }
         }
     }
@@ -483,7 +477,7 @@ struct gemm_impl
         // Initialize to default solution index
         rocblas_int best_sol = 0;
         std::sort(solution_indices.begin(), solution_indices.end());
-        if (not contains(solution_indices, 0))
+        if(not contains(solution_indices, 0))
             solution_indices.insert(solution_indices.begin(), 0);
         for(auto sol : solution_indices)
         {
@@ -515,7 +509,7 @@ struct gemm_impl
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms, " << percentage << "%" << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
-        if (percentage < 5)
+        if(percentage < 5)
             return 0;
         return best_sol;
     }
@@ -599,8 +593,8 @@ static void gemm_save_solution(context& ctx,
 }
 
 optional<int32_t> gemm_default_solution(context& ctx,
-                              const shape& output_shape,
-                              const std::vector<shape>& input_shapes)
+                                        const shape& output_shape,
+                                        const std::vector<shape>& input_shapes)
 {
     auto sol = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
     if(sol.has_value())

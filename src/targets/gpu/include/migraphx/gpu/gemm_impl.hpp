@@ -83,7 +83,7 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx);
 
-int32_t gemm_default_solution(context& ctx,
+optional<int32_t> gemm_default_solution(context& ctx,
                               const shape& output_shape,
                               const std::vector<shape>& input_shapes);
 

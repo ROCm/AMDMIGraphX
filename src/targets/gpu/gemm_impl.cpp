@@ -267,12 +267,13 @@ struct gemm_impl
         else
 #endif
         {
+            auto algo = (solution_idx == 0) ? rocblas_gemm_algo_standard : rocblas_gemm_algo_solution_index;
             if(strided_batched)
             {
                 auto common_args = create_strided_batched_args_common(ctx, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                common_args,
-                               rocblas_gemm_algo_solution_index,
+                               algo,
                                solution_idx,
                                gemm_flags);
             }
@@ -281,7 +282,7 @@ struct gemm_impl
                 auto common_args = create_gemm_ex_args_common(ctx, input_args);
                 rocblas_invoke(&rocblas_gemm_ex,
                                common_args,
-                               rocblas_gemm_algo_solution_index,
+                               algo,
                                solution_idx,
                                gemm_flags);
             }
@@ -425,7 +426,7 @@ struct gemm_impl
     int tune(context& ctx, const std::vector<shape>& input_shapes) const
     {
         // tuning meta parameters
-        const int hot_calls = 40;
+        const int hot_calls = 100;
 
         std::vector<argument> input_args;
         std::transform(input_shapes.begin(),
@@ -477,11 +478,13 @@ struct gemm_impl
                            solution_indices.data(),
                            &list_size);
         }
-
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
         // Initialize to default solution index
         rocblas_int best_sol = 0;
+        std::sort(solution_indices.begin(), solution_indices.end());
+        if (not contains(solution_indices, 0))
+            solution_indices.insert(solution_indices.begin(), 0);
         for(auto sol : solution_indices)
         {
             // Warmup: the first call to an op. may not be representative since there is
@@ -505,9 +508,15 @@ struct gemm_impl
                 best_sol  = sol;
                 best_time = host_time;
             }
+            // std::this_thread::sleep_for(std::chrono::milliseconds{50});
         }
+        // first_time / best_sol - 1.0
+        auto percentage = 100 * (first_time - best_time) / best_time;
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
-                  << first_time << "ms" << std::endl;
+                  << first_time << "ms, " << percentage << "%" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        if (percentage < 5)
+            return 0;
         return best_sol;
     }
 #endif
@@ -589,14 +598,14 @@ static void gemm_save_solution(context& ctx,
         "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
 }
 
-int32_t gemm_default_solution(context& ctx,
+optional<int32_t> gemm_default_solution(context& ctx,
                               const shape& output_shape,
                               const std::vector<shape>& input_shapes)
 {
     auto sol = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
     if(sol.has_value())
         return sol->to<int32_t>();
-    return 0;
+    return nullopt;
 }
 
 /**

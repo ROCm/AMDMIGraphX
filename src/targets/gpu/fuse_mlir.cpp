@@ -73,7 +73,7 @@ static bool is_requested(std::string_view option)
     if(string_value.empty())
         return contains(get_default_options(), option);
     auto options = split_string(string_value, ',');
-    if (contains(options, "none"))
+    if(contains(options, "none"))
         return false;
     return contains(options, option);
 }

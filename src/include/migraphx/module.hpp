@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -186,6 +186,8 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref get_parameter(std::string name) const;
 
+    void rename_parameter(instruction_ref ins, const std::string& name);
+
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     bool has_instruction(instruction_ref ins) const;
@@ -251,7 +253,10 @@ struct MIGRAPHX_EXPORT module
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
 
+    friend struct program;
+
     private:
+    void set_name(const std::string& name);
     void assign(const module& m);
     void calc_implicit_deps(const module& smod,
                             const module& pmod,

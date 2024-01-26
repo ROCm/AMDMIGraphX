@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <string>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,7 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT optimize_module
 {
+    std::unordered_set<std::string> propagate_constant_skip_ops = {};
     std::string name() const { return "optimize_module"; }
     void apply(module_pass_manager& mpm) const;
 };

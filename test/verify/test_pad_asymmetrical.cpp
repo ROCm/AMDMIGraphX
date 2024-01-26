@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,24 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_scatter1 : verify_program<test_scatter1>
+struct test_pad_asymmetrical : verify_program<test_pad_asymmetrical>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-
-        migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {-2, 0, 2, 0, -1, 1};
-        migraphx::shape su{migraphx::shape::float_type, {2, 3}};
-
-        auto pd = mm->add_parameter("data", sd);
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -2}}), pd, li, pu);
-        mm->add_return({r});
-
+        migraphx::shape s{migraphx::shape::int32_type, {1, 16, 1, 1}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 1, 1}}}), x);
         return p;
     }
 };

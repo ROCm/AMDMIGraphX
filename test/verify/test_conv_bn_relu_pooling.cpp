@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,8 +57,8 @@ struct test_conv_bn_relu_pooling : verify_program<test_conv_bn_relu_pooling<DTyp
         auto eps = mm->add_literal(migraphx::literal{DType, {1e-5f}});
         if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
         {
-            // use 5e-2f for the fp8
-            eps = mm->add_literal(migraphx::literal{DType, {5e-2f}});
+            // use 0.250 for fp8
+            eps = mm->add_literal(migraphx::literal{DType, {0.250}});
         }
         auto usq_scale =
             mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);

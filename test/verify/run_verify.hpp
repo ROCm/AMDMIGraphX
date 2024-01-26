@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <functional>
 #include <map>
 
+struct program_info;
 struct target_info
 {
     using validation_function =
@@ -52,9 +53,7 @@ struct run_verify
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
                   const migraphx::parameter_map& m) const;
-    void verify(const std::string& name,
-                const migraphx::program& p,
-                const migraphx::compile_options& c_opts) const;
+    void verify(const program_info& pi) const;
     void run(int argc, const char* argv[]) const;
 
     target_info get_target_info(const std::string& name) const;

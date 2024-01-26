@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -298,28 +298,27 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     {
         this->parse_node(p.first);
     }
-    auto last_ins = std::prev(mm->end());
-    if(last_ins != mm->end())
-    {
-        // Needs to add a ret instruction at the end of
-        // the program
-        if(output_node_names.empty())
-        {
-            output_node_names = find_outputs();
-        }
+    if(mm->size() == 0)
+        return;
 
-        std::vector<instruction_ref> output_ins;
-        std::transform(output_node_names.begin(),
-                       output_node_names.end(),
-                       std::back_inserter(output_ins),
-                       [&](auto output_name) {
-                           if(not contains(instructions, output_name))
-                               MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
-                                              " not found in graph!");
-                           return this->to_nchw(instructions[output_name]);
-                       });
-        mm->add_return(output_ins);
+    // Needs to add a ret instruction at the end of
+    // the program
+    if(output_node_names.empty())
+    {
+        output_node_names = find_outputs();
     }
+
+    std::vector<instruction_ref> output_ins;
+    std::transform(output_node_names.begin(),
+                   output_node_names.end(),
+                   std::back_inserter(output_ins),
+                   [&](auto output_name) {
+                       if(not contains(instructions, output_name))
+                           MIGRAPHX_THROW("PARSE_TF: output name " + output_name +
+                                          " not found in graph!");
+                       return this->to_nchw(instructions[output_name]);
+                   });
+    mm->add_return(output_ins);
 }
 
 void tf_parser::parse_node(const std::string& name)

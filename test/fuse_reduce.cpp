@@ -333,11 +333,12 @@ TEST_CASE(reduce_reshape_pointwise)
     migraphx::shape s2{migraphx::shape::float_type, {8, 8, 1, 1}};
     migraphx::program p1;
     {
-        auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s1);
-        auto y     = mm->add_parameter("y", s2);
-        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
-        auto rsumr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 8, 1, 1}}}), rsum);
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s2);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto rsumr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 8, 1, 1}}}), rsum);
         auto add = add_pointwise(p1, "main:pointwise0", {rsumr, y}, single_pointwise("add"));
         mm->add_return({add});
     }
@@ -347,14 +348,14 @@ TEST_CASE(reduce_reshape_pointwise)
         auto* mm = p2.get_main_module();
         auto x   = mm->add_parameter("x", s1);
         auto y   = mm->add_parameter("y", s2);
-        auto xr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 8, 2, 2}}}), x);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8, 8, 2, 2}}}), x);
         auto add = add_reduce(
             p2,
             "main:reduce_sum0:main:pointwise0",
             {xr, y},
             {2, 3},
             [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                auto rsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                                 inputs[0]);
                 return add_pointwise(
                     p2, rm, "main:pointwise0", {rsum, inputs[1]}, single_pointwise("add"));

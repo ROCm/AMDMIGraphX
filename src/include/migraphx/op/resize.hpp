@@ -204,21 +204,16 @@ struct resize
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
-            // The output shape is dynamic.  Only the last 2 dimensions are allowed to have
-            // very large size.
+            // The output shape is dynamic.  The output dimensions aren't known until runtime.
 
-            // TODO:  the upper limits of output dimensions restrict the scales that user
-            // can input at runtime.  By entering very large scaling values a user could
-            // cause an out-of-memory or overflow exception.  The limits given here are a
-            // sanity check and a placeholder for more sophisticated checking in future.
-            // std::size_t max_val = std::numeric_limits<std::size_t>::max();
-            std::size_t max_val = 0x4000;
-            std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
-                                                           shape::dynamic_dimension{0, 64});
-            if(dyn_dims.size() > 0)
-                *(dyn_dims.end() - 1) = shape::dynamic_dimension{0, max_val};
-            if(dyn_dims.size() > 1)
-                *(dyn_dims.end() - 2) = shape::dynamic_dimension{0, max_val};
+            // Note:  a shape with {0, max_val} ranges can't really be allocated.  For the reference
+            // target, this doesn't matter because the real output shape is determined in the compute()
+            // method.  For any other target, there must be a compiler pass that replaces this operation
+            // with a fixed-size output at runtime. 
+             std::size_t max_val = std::numeric_limits<std::size_t>::max();
+             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
+                                                           shape::dynamic_dimension{0, max_val});
+            return {inputs.front().type(), dyn_dims};
 
         return {inputs.front().type(), dyn_dims};
     }

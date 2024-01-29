@@ -201,9 +201,9 @@ struct reduce_op : op_name<Derived>
             static_cast<const Derived&>(*this).output(batch_shape)(val);
     }
 
-    argument compute(const shape& computed_shape,
-                     const std::vector<int64_t>& reduce_axes,
-                     argument& data_arg) const
+    argument reduce(const shape& computed_shape,
+                    const std::vector<int64_t>& reduce_axes,
+                    argument& data_arg) const
     {
         std::vector<std::size_t> batch_lens(computed_shape.ndim(), 1);
         auto arg_lens = data_arg.get_shape().lens();
@@ -226,24 +226,18 @@ struct reduce_op : op_name<Derived>
         auto&& data_arg = args[0];
         if(not axes.empty())
         {
-            return compute(dyn_out.computed_shape, axes, data_arg);
+            return reduce(dyn_out.computed_shape, axes, data_arg);
+        }
+        
+        if(axes.empty() and args[1].empty()) {
+            return args[0];
         }
 
         std::vector<int64_t> reduce_axes;
-        if(args.size() == 2)
-        {
-            args[1].visit([&](auto&& s) { reduce_axes.assign(s.begin(), s.end()); });
-        }
-
-        if(reduce_axes.empty())
-        {
-            reduce_axes.resize(data_arg.get_shape().ndim());
-            std::iota(reduce_axes.begin(), reduce_axes.end(), 0);
-        }
-
+        args[1].visit([&](auto&& s) { reduce_axes.assign(s.begin(), s.end()); });
         const auto result_shape = collapse_reduced_axes(data_arg.get_shape(), reduce_axes);
 
-        return compute(result_shape, reduce_axes, data_arg);
+        return reduce(result_shape, reduce_axes, data_arg);
     }
 
     auto init() const { return zero(); }

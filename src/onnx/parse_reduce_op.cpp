@@ -49,6 +49,7 @@ struct reduce_parser : op_parser<Derived>
         std::vector<int64_t> all_axes(args.front()->get_shape().ndim());
         std::iota(all_axes.begin(), all_axes.end(), 0);
 
+        // Handle axes attribute, constant input axes, and missing both attribute and input cases
         if(constant_axes.has_value())
         {
             if(noop_with_empty_axes != 0 and constant_axes->empty())
@@ -70,6 +71,7 @@ struct reduce_parser : op_parser<Derived>
             return reduce;
         }
 
+        // Handle variable input axes
         if(keep_dims == 0)
         {
             MIGRAPHX_THROW("Keepdims not supported with runtime provided axes");
@@ -120,7 +122,7 @@ struct reduce_parser : op_parser<Derived>
             return std::nullopt;
         }
 
-        return parser.parse_value(info.attributes.at(attribute_name)).at<T>();
+        return parser.parse_value(info.attributes[attribute_name]).at<T>();
     }
 
     std::optional<std::vector<int64_t>> parse_constant_axes(std::vector<instruction_ref>& args,

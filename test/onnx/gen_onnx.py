@@ -7211,32 +7211,54 @@ def recip_test():
     return ([node], [x], [y])
 
 
-def reduceop_variable_axes_test(op_name):
+def reduceop_test(op_name, axes, keepdims=1, noop_with_empty_axes=0):
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=keepdims,
+                                 noop_with_empty_axes=noop_with_empty_axes)
+
+    return ([node], [x], [y])
+
+
+
+
+def reduceop_variable_axes_test(op_name, axes_len=1, keepdims=1, noop_with_empty_axes=0):
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [axes_len])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
 
     node = onnx.helper.make_node(op_name,
                                  inputs=['x', 'axes'],
                                  outputs=['y'],
-                                 keepdims=1)
+                                 keepdims=keepdims,
+                                 noop_with_empty_axes=noop_with_empty_axes)
 
     return ([node], [x, axes], [y])
 
 
 @onnx_test()
 def reducel1_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
-    axes = [-2]
+    return reduceop_test('ReduceL1', [-2])
 
-    node = onnx.helper.make_node('ReduceL1',
-                                 inputs=['x'],
-                                 outputs=['y'],
-                                 axes=axes,
-                                 keepdims=0)
 
-    return ([node], [x], [y])
+@onnx_test()
+def reducel1_keepdims_clear_test():
+    return reduceop_test('ReduceL1', [-2], keepdims=0)
+
+
+@onnx_test()
+def reducel1_empty_axes_test():
+    return reduceop_test('ReduceL1', [])
+
+
+@onnx_test()
+def reducel1_noop_test():
+    return reduceop_test('ReduceL1', [], noop_with_empty_axes=1)
 
 
 @onnx_test
@@ -7270,6 +7292,20 @@ def reducel1_dyn_noaxes_test():
 @onnx_test()
 def reducel1_variable_axes_test():
     return reduceop_variable_axes_test('ReduceL1')
+
+
+@onnx_test()
+def reducel1_variable_axes_noop_set_test():
+    return reduceop_variable_axes_test('ReduceL1', noop_with_empty_axes=1)
+
+@onnx_test()
+def reducel1_variable_axes_keepdims_clear_test():
+    return reduceop_variable_axes_test('ReduceL1', keepdims=0)
+
+
+@onnx_test()
+def reducel1_variable_dynamic_axes_test():
+    return reduceop_variable_axes_test('ReduceL1', None)
 
 
 @onnx_test()

@@ -21,17 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
 #include <onnx_test.hpp>
 
-TEST_CASE(reducel1_test)
+TEST_CASE(reducel1_variable_axes_keepdims_clear_test)
 {
-    migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    auto abs_x = mm->add_instruction(migraphx::make_op("abs"), x);
-    mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_x);
-
-    auto prog = optimize_onnx("reducel1_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("reducel1_variable_axes_keepdims_clear_test.onnx"); }));
 }

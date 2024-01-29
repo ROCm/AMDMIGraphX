@@ -120,7 +120,21 @@ struct mlir_op
                 mod_ins_shapes[ins] =
                     adjusted_mod_param_shapes[any_cast<builtin::param>(ins->get_operator())
                                                   .parameter];
-                assert(ins->get_shape().type() == mod_ins_shapes[ins].type());
+                if(ins->get_shape().type() != mod_ins_shapes[ins].type())
+                {
+                    MIGRAPHX_THROW(
+                        "MLIR_OP: adjusted mod parameter doesn't have the same type lens as "
+                        "original input. Type changed from : " +
+                        ins->get_shape().type_string() + " to " +
+                        mod_ins_shapes[ins].type_string());
+                }
+                if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
+                {
+                    MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
+                                   "original input. Lens changed from " +
+                                   to_string_range(ins->get_shape().lens()) + " to " +
+                                   to_string_range(mod_ins_shapes[ins].lens()));
+                }
             }
             else if(ins->name() == "@literal")
             {

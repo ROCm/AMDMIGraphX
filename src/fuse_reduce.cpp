@@ -385,6 +385,12 @@ struct reduce_reshape : rewrite_reshapes_base
         return mpm.get_module().insert_instruction(
             ins, ins->get_operator(), inputs, ins->module_inputs());
     }
+
+    static std::vector<std::size_t> base_dims(instruction_ref ins)
+    {
+        auto input = std::max_element(ins->inputs().begin(), ins->inputs().end(), by(std::less<>{}, [](auto i) { return i->get_shape().elements(); }));
+        return (*input)->get_shape().lens();;
+    }
 };
 
 } // namespace

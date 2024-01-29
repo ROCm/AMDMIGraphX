@@ -28,6 +28,11 @@ struct rewrite_reshapes_base
     {
         return true;
     }
+
+    static std::vector<std::size_t> base_dims(instruction_ref ins)
+    {
+        return ins->get_shape().lens();
+    }
 };
 
 template <class T>
@@ -57,12 +62,13 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto reshape_ins = r.instructions["reshape"];
 
-            if(not same_dims(ins))
-                return;
-            if(not same_dims(x_ins))
+            auto dims1 = T::base_dims(ins);
+            auto dims2 = T::base_dims(x_ins);
+
+            if(dims1 != dims2)
                 return;
 
-            auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
+            auto cd = common_dims::compute(T::base_dims(ins), T::base_dims(x_ins));
             if(cd.dims.empty())
                 return;
 
@@ -73,8 +79,9 @@ struct rewrite_reshapes
 
             auto reshape_input = [&](const auto& ins_to_insert) {
                 return [&](auto input) {
+                    auto dims = cd.get_dimensions_for(ins->get_shape().lens());
                     return mpm.get_module().insert_instruction(
-                        ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), input);
+                        ins_to_insert, make_op("reshape", {{"dims", dims}}), input);
                 };
             };
             auto x_inputs = x_ins->inputs();

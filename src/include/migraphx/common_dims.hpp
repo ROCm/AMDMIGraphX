@@ -39,6 +39,8 @@ struct MIGRAPHX_EXPORT common_dims
 {
     static common_dims compute(const std::vector<std::size_t>& dims1,
                                const std::vector<std::size_t>& dims2);
+    std::vector<std::size_t> get_dimensions_for(const std::vector<std::size_t>& idims) const;
+    const std::vector<std::vector<std::size_t>>* get_axes_map(std::size_t n) const;
     std::vector<std::size_t> dims;
     std::vector<std::vector<std::size_t>> axes_map1;
     std::vector<std::vector<std::size_t>> axes_map2;

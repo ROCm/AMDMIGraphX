@@ -152,5 +152,41 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
     return cd;
 }
 
+const std::vector<std::vector<std::size_t>>* common_dims::get_axes_map(std::size_t n) const
+{
+    if(axes_map1.size() == n)
+        return &axes_map1;
+    if(axes_map2.size() == n)
+        return &axes_map2;
+    return nullptr;
+}
+
+std::vector<std::size_t> common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
+{
+    if(elements(dims) == elements(idims))
+        return dims;
+    auto* axes_map = get_axes_map(idims.size());
+    if(axes_map == nullptr)
+        return {};
+    auto xdims = dims;
+    for(auto i:range(axes_map->size()))
+    {
+        auto dim = idims[i];
+        const auto& axes = (*axes_map)[i];
+        if(axes.size() == 1)
+        {
+            xdims[axes.front()] = dim;
+        }
+        else if (dim == 1)
+        {
+            for(auto axis:axes)
+                xdims[axis] = 1;
+        }
+    }
+    if(elements(xdims) == elements(idims))
+        return xdims;
+    return {};
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

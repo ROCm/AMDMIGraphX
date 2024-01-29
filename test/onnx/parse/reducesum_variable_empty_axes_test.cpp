@@ -23,25 +23,24 @@
  */
 #include <onnx_test.hpp>
 
-TEST_CASE(reducel1_variable_empty_axes_test)
+TEST_CASE(reducesum_variable_empty_axes_test)
 {
     using namespace migraphx;
     program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", shape{shape::float_type, {3, 4, 5, 6}});
-    auto abs_x = mm->add_instruction(make_op("abs"), x);
-    auto axes  = mm->add_parameter("axes", shape{shape::int64_type, {0}});
+    auto* mm  = p.get_main_module();
+    auto x    = mm->add_parameter("x", shape{shape::float_type, {3, 4, 5, 6}});
+    auto axes = mm->add_parameter("axes", shape{shape::int64_type, {0}});
 
     std::vector<int64_t> all_axes(x->get_shape().ndim());
     std::iota(all_axes.begin(), all_axes.end(), 0);
     auto all_axes_lit =
         mm->add_literal(literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
     auto reduce_all_axes =
-        mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), abs_x, all_axes_lit);
+        mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), x, all_axes_lit);
     mm->add_return({reduce_all_axes});
 
     onnx_options options;
     options.map_input_dims["axes"] = axes->get_shape().lens();
-    auto prog                      = parse_onnx("reducel1_variable_axes_test.onnx", options);
+    auto prog                      = parse_onnx("reducesum_variable_axes_test.onnx", options);
     EXPECT(p == prog);
 }

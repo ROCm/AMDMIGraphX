@@ -7211,22 +7211,6 @@ def recip_test():
     return ([node], [x], [y])
 
 
-def reduceop_test(op_name, axes, keepdims=1, noop_with_empty_axes=0):
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
-
-    node = onnx.helper.make_node('ReduceL1',
-                                 inputs=['x'],
-                                 outputs=['y'],
-                                 axes=axes,
-                                 keepdims=keepdims,
-                                 noop_with_empty_axes=noop_with_empty_axes)
-
-    return ([node], [x], [y])
-
-
-
-
 def reduceop_variable_axes_test(op_name, axes_len=1, keepdims=1, noop_with_empty_axes=0):
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [axes_len])
@@ -7243,22 +7227,17 @@ def reduceop_variable_axes_test(op_name, axes_len=1, keepdims=1, noop_with_empty
 
 @onnx_test()
 def reducel1_test():
-    return reduceop_test('ReduceL1', [-2])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
+    axes = [-2]
 
+    node = onnx.helper.make_node('ReduceL1',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axes=axes,
+                                 keepdims=0)
 
-@onnx_test()
-def reducel1_keepdims_clear_test():
-    return reduceop_test('ReduceL1', [-2], keepdims=0)
-
-
-@onnx_test()
-def reducel1_empty_axes_test():
-    return reduceop_test('ReduceL1', [])
-
-
-@onnx_test()
-def reducel1_noop_test():
-    return reduceop_test('ReduceL1', [], noop_with_empty_axes=1)
+    return ([node], [x], [y])
 
 
 @onnx_test
@@ -7290,25 +7269,6 @@ def reducel1_dyn_noaxes_test():
 
 
 @onnx_test()
-def reducel1_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceL1')
-
-
-@onnx_test()
-def reducel1_variable_axes_noop_set_test():
-    return reduceop_variable_axes_test('ReduceL1', noop_with_empty_axes=1)
-
-@onnx_test()
-def reducel1_variable_axes_keepdims_clear_test():
-    return reduceop_variable_axes_test('ReduceL1', keepdims=0)
-
-
-@onnx_test()
-def reducel1_variable_dynamic_axes_test():
-    return reduceop_variable_axes_test('ReduceL1', None)
-
-
-@onnx_test()
 def reducel2_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 5])
@@ -7321,11 +7281,6 @@ def reducel2_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
-
-
-@onnx_test()
-def reducel2_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceL2')
 
 
 @onnx_test()
@@ -7344,11 +7299,6 @@ def reduce_log_sum_test():
 
 
 @onnx_test()
-def reduce_log_sum_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceLogSum')
-
-
-@onnx_test()
 def reduce_log_sum_exp_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [4, 5, 6])
@@ -7361,11 +7311,6 @@ def reduce_log_sum_exp_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
-
-
-@onnx_test()
-def reduce_log_sum_exp_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceLogSumExp')
 
 
 @onnx_test()
@@ -7400,11 +7345,6 @@ def reducemax_dyn_test():
 
 
 @onnx_test()
-def reducemax_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceMax')
-
-
-@onnx_test()
 def reducemean_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4])
@@ -7435,11 +7375,6 @@ def reducemean_keepdims_test():
 
 
 @onnx_test()
-def reducemean_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceMean')
-
-
-@onnx_test()
 def reducemin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 1, 5, 1])
@@ -7452,11 +7387,6 @@ def reducemin_test():
                                  keepdims=1)
 
     return ([node], [x], [y])
-
-
-@onnx_test()
-def reducemin_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceMin')
 
 
 @onnx_test()
@@ -7475,20 +7405,14 @@ def reduceprod_test():
 
 
 @onnx_test()
-def reduceprod_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceProd')
-
-
-@onnx_test()
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
-    axes = [2]
 
     node = onnx.helper.make_node('ReduceSum',
                                  inputs=['x'],
                                  outputs=['y'],
-                                 axes=axes,
+                                 axes=[2],
                                  keepdims=0)
 
     return ([node], [x], [y])
@@ -7568,6 +7492,34 @@ def reducesum_variable_axes_test():
 
 
 @onnx_test()
+def reducesum_variable_axes_noop_test():
+    return reduceop_variable_axes_test('ReduceSum', noop_with_empty_axes=1)
+
+
+@onnx_test()
+def reducesum_variable_axes_keepdims_clear_test():
+    return reduceop_variable_axes_test('ReduceSum', keepdims=0)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_test():
+    return reduceop_variable_axes_test('ReduceSum', None)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x, axes], [y])
+
+
+@onnx_test()
 def reducesum_square_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 6])
@@ -7580,11 +7532,6 @@ def reducesum_square_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
-
-
-@onnx_test()
-def reducesum_square_variable_axes_test():
-    return reduceop_variable_axes_test('ReduceSumSquare')
 
 
 @onnx_test()

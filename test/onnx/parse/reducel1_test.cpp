@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,11 +27,12 @@
 TEST_CASE(reducel1_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    auto abs_x = mm->add_instruction(migraphx::make_op("abs"), x);
-    mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_x);
-
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto abs_l0 = mm->add_instruction(migraphx::make_op("abs"), l0);
+    auto sum_l0 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_l0);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {-2}}}), sum_l0);
     auto prog = optimize_onnx("reducel1_test.onnx");
+
     EXPECT(p == prog);
 }

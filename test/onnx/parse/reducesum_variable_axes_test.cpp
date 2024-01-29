@@ -23,7 +23,7 @@
  */
 #include <onnx_test.hpp>
 
-TEST_CASE(reducel1_variable_axes_noop_set_test)
+TEST_CASE(reducesum_variable_axes_test)
 {
     using namespace migraphx;
 
@@ -31,9 +31,8 @@ TEST_CASE(reducel1_variable_axes_noop_set_test)
     auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("x", shape{shape::float_type, {3, 4, 5, 6}});
     auto axes  = mm->add_parameter("axes", shape{shape::int64_type, {1}});
-    auto abs_x = mm->add_instruction(make_op("abs"), x);
-    mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), abs_x, axes);
+    mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), x, axes);
 
-    auto prog = optimize_onnx("reducel1_variable_axes_noop_set_test.onnx");
+    auto prog = optimize_onnx("reducesum_variable_axes_test.onnx");
     EXPECT(p == prog);
 }

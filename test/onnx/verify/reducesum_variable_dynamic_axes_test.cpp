@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,17 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(reducel1_keepdims_clear_test)
+TEST_CASE(bla)
 {
-    migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
-    auto abs_x = mm->add_instruction(migraphx::make_op("abs"), x);
-    auto reduce_sum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {-2}}}), abs_x);
-    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {-2}}}), reduce_sum);
+    using namespace migraphx;
+    onnx_options options;
+    const std::vector<shape::dynamic_dimension> axes_dims{{0, 3}};
+    options.map_dyn_input_dims["axes"] = axes_dims;
+    program p = parse_onnx("reducesum_variable_dynamic_axes_verify_test.onnx", options);
+    p.compile(make_target("ref"));
 
-    auto prog = optimize_onnx("reducel1_keepdims_clear_test.onnx");
-    EXPECT(p == prog);
+    parameter_map pm;
+    shape x_shape{shape::float_type, {2, 2, 2}};
+    std::vector<float> x(x_shape.elements());
+    std::iota(x.begin(), x.end(), 0);
+    pm["x"] = argument(x_shape, x.data());
+
+    std::vector<int64_t> axes{1};
+    pm["axes"] = argument(shape{shape::int64_type, {1}}, axes.data());
+
+    auto result = p.eval(pm);
 }

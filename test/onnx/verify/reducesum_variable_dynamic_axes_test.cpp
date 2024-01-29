@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(bla)
+TEST_CASE(reducesum_variable_dynamic_axes_test)
 {
     using namespace migraphx;
     onnx_options options;

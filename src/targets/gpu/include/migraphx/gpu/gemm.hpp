@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -132,6 +132,8 @@ struct rocblas_gemm
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
+        if(solution_idx == 0)
+            solution_idx = gemm_default_solution(ctx, output_shape, input_shapes);
         if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
         {
             if(this->name() == "gpu::gemm")

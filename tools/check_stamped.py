@@ -2,7 +2,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,8 @@ unsupported_file_types = [
     ".weight", ".ini", ".json", ".docker", ".git", ".rules", ".yml"
 ]
 
-specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile", "")
+specificIgnores = ("digits.txt", "Dockerfile", "Jenkinsfile",
+                   'imagenet_classes.txt', '')
 
 unsupportedFiles = []
 unstampedFiles = []
@@ -65,6 +66,8 @@ def hasKeySequence(inputfile: str, key_message: str) -> bool:
 def needStampCheck(filename: str) -> bool:
     # open save old contents and append things here
     if debug: print("Open", filename, end=' ')
+    #Empty name isn't a filename
+    if filename == '' or filename == "": return False
 
     try:
         file = open(filename, 'r')
@@ -129,13 +132,17 @@ def main() -> None:
 
     for file in fileList:
         if check_filename(file, supported_file_types):
-            if needStampCheck(file):
+            if needStampCheck(file) and not check_filename(
+                    file, unsupported_file_types):
                 unstampedFiles.append(file)
+            else:
+                unsupportedFiles.append(file)
 
         elif check_filename(file, unsupported_file_types):
             unsupportedFiles.append(file)
         else:
-            unknownFiles.append(file)
+            if file != '':
+                unknownFiles.append(file)
 
     # Do a bunch of checks based on our file lists
     if len(unstampedFiles) > 0:

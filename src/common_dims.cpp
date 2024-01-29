@@ -161,7 +161,8 @@ const std::vector<std::vector<std::size_t>>* common_dims::get_axes_map(std::size
     return nullptr;
 }
 
-std::vector<std::size_t> common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
+std::vector<std::size_t>
+common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
 {
     if(elements(dims) == elements(idims))
         return dims;
@@ -169,17 +170,17 @@ std::vector<std::size_t> common_dims::get_dimensions_for(const std::vector<std::
     if(axes_map == nullptr)
         return {};
     auto xdims = dims;
-    for(auto i:range(axes_map->size()))
+    for(auto i : range(axes_map->size()))
     {
-        auto dim = idims[i];
+        auto dim         = idims[i];
         const auto& axes = (*axes_map)[i];
         if(axes.size() == 1)
         {
             xdims[axes.front()] = dim;
         }
-        else if (dim == 1)
+        else if(dim == 1)
         {
-            for(auto axis:axes)
+            for(auto axis : axes)
                 xdims[axis] = 1;
         }
     }

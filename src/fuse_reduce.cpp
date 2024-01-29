@@ -388,8 +388,12 @@ struct reduce_reshape : rewrite_reshapes_base
 
     static std::vector<std::size_t> base_dims(instruction_ref ins)
     {
-        auto input = std::max_element(ins->inputs().begin(), ins->inputs().end(), by(std::less<>{}, [](auto i) { return i->get_shape().elements(); }));
-        return (*input)->get_shape().lens();;
+        auto input =
+            std::max_element(ins->inputs().begin(),
+                             ins->inputs().end(),
+                             by(std::less<>{}, [](auto i) { return i->get_shape().elements(); }));
+        return (*input)->get_shape().lens();
+        ;
     }
 };
 

@@ -17,7 +17,7 @@ This workflow adds pull requests and issues to a specific GitHub project board w
     The workflow has a single job named `add-to-project`. The following step is executed in this job:
      - The `add-to-project` job uses the `actions/add-to-project@v0.4.0` action to add pull requests and issues to a specific project board. The `with` parameters are `project-url` and `github-token`, which specify the URL of the project board and the GitHub token used to authenticate the action.
 
-    For more details, please refer to the [add-to-project.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/add-to-project.yaml) file in the repository.
+    For more details, please refer to the [add-to-project.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/add-to-project.yaml) file in the repository.
 
 ---
 ## `benchmark.yaml`
@@ -41,7 +41,7 @@ This workflow runs the `MiGraphX performance benchmarks` and generates reports b
 
      - `result_repo`: the repository where the benchmark results will be pushed for comparison.
 
-    For more details, please refer to the [benchmark.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/benchmark.yaml) file in the repository.
+    For more details, please refer to the [benchmark.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/benchmark.yaml) file in the repository.
 
 ---
 
@@ -80,7 +80,7 @@ Overall, this workflow automates the process of building and testing the AMDMIGr
 
      - `linux-fpga`: this job builds and tests AMDMIGraphX on a Linux operating system with support for FPGA acceleration. It includes additional steps to verify FPGA functionality and performance.
 
-    For more details, please refer to the [ci.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/ci.yaml) file in the repository.
+    For more details, please refer to the [ci.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/ci.yaml) file in the repository.
 
 ---
 ## `clean-closed-pr-caches.yaml`
@@ -100,7 +100,7 @@ This workflow has purpose to clean up any cached data related to the pull reques
 
      - `Cleanup`: step performs the actual cache cleanup using a series of commands.
 
-    For more details, please refer to the [clean-closed-pr-caches.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/clean-closed-pr-caches.yaml) file in the repository.
+    For more details, please refer to the [clean-closed-pr-caches.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/clean-closed-pr-caches.yaml) file in the repository.
 
 ---
 
@@ -111,7 +111,7 @@ This workflow generates a report of the MiGraphX benchmark results between two d
 </p>
 
 - ## Trigger
-     - The workflow is triggered manually through the "Run workflow" button in the Actions tab of the repository and it will run reusable workflow [history.yml](https://github.com/ROCmSoftwarePlatform/migraphx-benchmark/blob/main/.github/workflows/history.yml)
+     - The workflow is triggered manually through the "Run workflow" button in the Actions tab of the repository and it will run reusable workflow [history.yml](https://github.com/ROCm/migraphx-benchmark/blob/main/.github/workflows/history.yml)
 
 - ## Input Parameters
     The workflow requires the following inputs:
@@ -126,7 +126,7 @@ This workflow generates a report of the MiGraphX benchmark results between two d
 
      - `organization`: Organization based on which location of files will be different.
 
-    For more details, please refer to the [history.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/history.yaml) file in the repository.
+    For more details, please refer to the [history.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/history.yaml) file in the repository.
 
 ---
 ## `performance.yaml`
@@ -136,7 +136,7 @@ This workflow runs performance tests on the MIGraphX repository and generates a 
 </p>
 
 - ## Trigger
-    The workflow will run reusable workflow [perf-test.yml](https://github.com/ROCmSoftwarePlatform/migraphx-benchmark/blob/main/.github/workflows/perf-test.yml) by the following events:
+    The workflow will run reusable workflow [perf-test.yml](https://github.com/ROCm/migraphx-benchmark/blob/main/.github/workflows/perf-test.yml) by the following events:
 
      - Pull requests opened, synchronized or closed on the `develop` branch.
 
@@ -161,7 +161,7 @@ This workflow runs performance tests on the MIGraphX repository and generates a 
 
      - `flags`: Command line arguments to be passed to the performance test script. Default is `-r`.
 
-    For more details, please refer to the [performance.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/performance.yaml) file in the repository.
+    For more details, please refer to the [performance.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/performance.yaml) file in the repository.
 
 ---
 ## `rocm-image-release.yaml`
@@ -171,7 +171,7 @@ This workflow builds a Docker image for a specified ROCm release version and pus
 </p>
 
 - ## Trigger
-     - The workflow is triggered manually through the "Run workflow" button in the Actions tab of the repository and it will run reusable workflow [rocm-release.yml](https://github.com/ROCmSoftwarePlatform/migraphx-benchmark/blob/main/.github/workflows/rocm-release.yml)
+     - The workflow is triggered manually through the "Run workflow" button in the Actions tab of the repository and it will run reusable workflow [rocm-release.yml](https://github.com/ROCm/migraphx-benchmark/blob/main/.github/workflows/rocm-release.yml)
 
 - ## Input Parameters
     The workflow requires the following inputs:
@@ -190,7 +190,7 @@ This workflow builds a Docker image for a specified ROCm release version and pus
 
      - `overwrite`: Specify whether to overwrite the Docker image if it already exists.
 
-    For more details, please refer to the [rocm-image-release.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/rocm-image-release.yaml) file in the repository.
+    For more details, please refer to the [rocm-image-release.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/rocm-image-release.yaml) file in the repository.
 
 ---
 
@@ -219,6 +219,6 @@ This workflow updates a file with the latest commit hash then creates a pull req
 
      - `Make changes to pull request`: step uses the `peter-evans/create-pull-request` action to create a pull request.
 
-    For more details, please refer to the [sync-onnxrt-main.yaml](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/blob/develop/.github/workflows/sync-onnxrt-main.yaml) file in the repository.
+    For more details, please refer to the [sync-onnxrt-main.yaml](https://github.com/ROCm/AMDMIGraphX/blob/develop/.github/workflows/sync-onnxrt-main.yaml) file in the repository.
 
 ---

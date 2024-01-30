@@ -912,11 +912,11 @@ TEST_CASE(match_has_value7)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 1e-3, 0);
+    auto m1 = match::has_value(0.0f, 0, 1);
     auto r1 = find_match(mm, m1);
     EXPECT(bool{r1.result == mm.end()});
     // increase tolerance
-    auto m2 = match::has_value(0.0f, 10, 0);
+    auto m2 = match::has_value(0.0f);
     auto r2 = find_match(mm, m2);
     EXPECT(bool{r2.result == zero});
 }
@@ -930,11 +930,11 @@ TEST_CASE(match_has_value8)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 1e-3, 0);
+    auto m1 = match::has_value(0.0f, 0, 1);
     auto r1 = find_match(mm, m1);
     EXPECT(bool{r1.result == mm.end()});
     // increase tolerance
-    auto m2 = match::has_value(0.0f, 1, 0);
+    auto m2 = match::has_value(0.0f);
     auto r2 = find_match(mm, m2);
     EXPECT(bool{r2.result == zero});
 }

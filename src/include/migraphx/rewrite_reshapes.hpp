@@ -49,15 +49,15 @@ struct rewrite_reshapes
             auto reshape =
                 match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
             auto skip_contiguous = [](auto... ms) {
-                return match::arg(0)(
-                    match::skip(match::name("contiguous", "multibroadcast")(match::used_once()))(ms...));
+                return match::arg(0)(match::skip(
+                    match::name("contiguous", "multibroadcast")(match::used_once()))(ms...));
             };
             auto pointwise         = match::name(op1)(match::used_once());
             auto reshape_pointwise = reshape(skip_contiguous(pointwise.bind("x"))).bind("reshape");
             return match::name(op2)(match::any_of[match::inputs()](reshape_pointwise));
         }
 
-        template<class F>
+        template <class F>
         static instruction_ref find_input_if(instruction_ref start, instruction_ref last, F f)
         {
             while(start != last)
@@ -66,7 +66,7 @@ struct rewrite_reshapes
                     return start;
                 if(start->inputs().size() != 1)
                     return last;
-                start = start->inputs().front(); 
+                start = start->inputs().front();
             }
             return last;
         }
@@ -79,7 +79,6 @@ struct rewrite_reshapes
             if(input->name() == "contiguous")
                 return match_input(input, x_ins);
             return x_ins == input;
-
         }
 
         void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -88,7 +87,8 @@ struct rewrite_reshapes
             auto x_ins       = r.instructions["x"];
             auto reshape_ins = r.instructions["reshape"];
 
-            auto broadcast_ins = find_input_if(reshape_ins, x_ins, [&](auto i) { return i->name() == "multibroadcast"; });
+            auto broadcast_ins = find_input_if(
+                reshape_ins, x_ins, [&](auto i) { return i->name() == "multibroadcast"; });
             const bool has_broadcast = broadcast_ins != x_ins;
             if(has_broadcast and not match_input(broadcast_ins, x_ins))
                 return;
@@ -121,7 +121,8 @@ struct rewrite_reshapes
             auto new_x_ins = insert(mpm, x_ins, x_inputs, cd.axes_map1);
             if(has_broadcast)
             {
-                new_x_ins = mpm.get_module().insert_instruction(x_ins, make_op("multibroadcast", {{"out_lens", cd.dims}}), new_x_ins);
+                new_x_ins = mpm.get_module().insert_instruction(
+                    x_ins, make_op("multibroadcast", {{"out_lens", cd.dims}}), new_x_ins);
             }
 
             auto inputs = ins->inputs();

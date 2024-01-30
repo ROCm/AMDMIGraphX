@@ -130,8 +130,8 @@ static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
 
 static auto
 insert_module_in_submodule(module_ref sm,
-                            const std::vector<instruction_ref>& inputs,
-                            module_ref m,
+                           const std::vector<instruction_ref>& inputs,
+                           module_ref m,
                            std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                            module::inserter insert = nullptr)
 {
@@ -150,11 +150,14 @@ insert_module_in_submodule(module_ref sm,
                            std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                            module::inserter insert = nullptr)
 {
-    return insert_module_in_submodule(sm, ins->inputs(), ins->module_inputs().front(), map_ins, insert);
+    return insert_module_in_submodule(
+        sm, ins->inputs(), ins->module_inputs().front(), map_ins, insert);
 }
 
-static auto insert_module_in_submodule(module_ref sm, const std::vector<instruction_ref>& inputs,
-                            module_ref m, module::inserter insert)
+static auto insert_module_in_submodule(module_ref sm,
+                                       const std::vector<instruction_ref>& inputs,
+                                       module_ref m,
+                                       module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     return insert_module_in_submodule(sm, inputs, m, map_ins, insert);
@@ -392,8 +395,7 @@ struct reduce_reshape : rewrite_reshapes_base
                 assert(sop.name() == "pointwise");
                 return sop;
             }));
-        return mpm.get_module().insert_instruction(
-            ins, fused_reduce{axes}, inputs, {sm});
+        return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 
     static std::vector<std::size_t> base_dims(instruction_ref ins)

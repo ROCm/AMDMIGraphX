@@ -903,6 +903,42 @@ TEST_CASE(match_has_value6)
     EXPECT(bool{r.result == mm.end()});
 }
 
+TEST_CASE(match_has_value7)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {0.00239754}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 1e-3, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f, 10, 0);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
+TEST_CASE(match_has_value8)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {9.07183e-05}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 1e-3, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f, 1, 0);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
 TEST_CASE(match_has_value_eps1)
 {
     migraphx::module mm;

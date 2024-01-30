@@ -878,7 +878,7 @@ inline auto literal_value_checker(F f)
  * Uses no tolerance for integral types.
  */
 template <class T>
-inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
+inline auto has_value(T x, float atol_mult = 10, float rtol_mult = 10)
 {
     return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
@@ -895,9 +895,9 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
             }
             else
             {
-                auto eps = std::numeric_limits<type>::epsilon();
+                float eps = std::numeric_limits<type>::epsilon();
                 if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return std::fabs(val - static_cast<type>(x)) <
+                       return std::fabs(static_cast<float>(val) - static_cast<float>(x)) <
                               eps * (atol_mult + rtol_mult * std::fabs(val));
                    }))
                 {

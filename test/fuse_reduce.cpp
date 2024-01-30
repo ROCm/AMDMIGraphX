@@ -353,7 +353,7 @@ TEST_CASE(reduce_reshape_pointwise)
         auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), x);
         auto add = add_reduce(
             p2,
-            "main:reduce_sum0:main:pointwise0",
+            "main:reduce_sum0_reshape:main:pointwise0",
             {xr, y},
             {2, 3},
             [&](auto* rm, const auto& inputs, const auto& axes) {

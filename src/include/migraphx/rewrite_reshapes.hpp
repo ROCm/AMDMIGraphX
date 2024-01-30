@@ -118,7 +118,7 @@ struct rewrite_reshapes
             auto x_inputs = x_ins->inputs();
             std::transform(
                 x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
-            auto new_x_ins = insert(mpm, x_ins, x_inputs, cd.axes_map1);
+            auto new_x_ins = insert(mpm, x_ins, x_inputs, cd.axes_map2);
             if(has_broadcast)
             {
                 new_x_ins = mpm.get_module().insert_instruction(
@@ -131,7 +131,7 @@ struct rewrite_reshapes
                     return new_x_ins;
                 return reshape_input(ins)(input);
             });
-            auto pw = insert(mpm, ins, inputs, cd.axes_map2);
+            auto pw = insert(mpm, ins, inputs, cd.axes_map1);
             mpm.get_module().replace_instruction(
                 ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
         }

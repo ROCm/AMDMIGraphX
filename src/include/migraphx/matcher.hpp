@@ -878,7 +878,7 @@ inline auto literal_value_checker(F f)
  * Uses no tolerance for integral types.
  */
 template <class T>
-inline auto has_value(T x, size_t atol_mult = 10, size_t rtol_mult = 10)
+inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
 {
     return literal_value_checker([=](migraphx::literal l) {
         bool b = false;

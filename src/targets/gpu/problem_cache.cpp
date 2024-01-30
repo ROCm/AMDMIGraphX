@@ -20,36 +20,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-void promote_literals::apply(module_pass_manager& mpm) const
+static value create_key(const std::string& name, const value& problem)
 {
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
-
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit     = root_module->add_literal(ins->get_literal());
-            auto ins_outputs = ins->outputs();
-            for(auto out_ins : ins_outputs)
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
+    return {{"name", name}, {"problem", problem}};
 }
 
+bool problem_cache::has(const std::string& name, const value& problem) const
+{
+    return contains(cache, create_key(name, problem));
+}
+
+void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
+{
+    assert(not solution.is_null());
+    cache[create_key(name, problem)] = solution;
+}
+
+void problem_cache::mark(const std::string& name, const value& problem)
+{
+    cache.insert(std::make_pair(create_key(name, problem), value{}));
+}
+
+optional<value> problem_cache::get(const std::string& name, const value& problem) const
+{
+    auto it = cache.find(create_key(name, problem));
+    if(it == cache.end())
+        return nullopt;
+    return it->second;
+}
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

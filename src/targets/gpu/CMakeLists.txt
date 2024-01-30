@@ -141,6 +141,7 @@ add_library(migraphx_gpu
     prefuse_ops.cpp
     perfdb.cpp
     pooling.cpp
+    problem_cache.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp

@@ -54,9 +54,56 @@ struct find_softmax
     }
 };
 
+struct find_reduce_mean
+{
+    auto matcher() const { return match::name("reduce_mean"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto reduce_mean = r.result;
+        auto op          = reduce_mean->get_operator().to_value();
+        auto axes        = op["axes"].to_vector<std::int64_t>();
+        auto input       = reduce_mean->inputs().front();
+
+        bool is_integral = false;
+        double max_n     = 0;
+        input->get_shape().visit_type([&](auto t) {
+            is_integral = t.is_integral();
+            max_n       = t.max();
+        });
+
+        // avoid integer division
+        if(is_integral)
+            return;
+
+        auto dims = input->get_shape().lens();
+        double n  = std::accumulate(
+            axes.begin(), axes.end(), 1, [&](const auto& prod_value, const auto& axis) {
+                auto norm_axis = axis < 0 ? dims.size() + axis : axis;
+                return prod_value * dims.at(norm_axis);
+            });
+
+        // avoid overflow
+        if(n >= max_n)
+            return;
+
+        auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
+        auto n_bcast   = m.insert_instruction(
+            reduce_mean, make_op("multibroadcast", {{"out_lens", dims}}), n_literal);
+        auto new_input = m.insert_instruction(reduce_mean, make_op("div"), {input, n_bcast});
+
+        auto reduce_sum =
+            m.insert_instruction(reduce_mean, make_op("reduce_sum", {{"axes", axes}}), new_input);
+        m.replace_instruction(reduce_mean, reduce_sum);
+    }
+};
+
 } // namespace
 
-void rewrite_reduce::apply(module& m) const { match::find_matches(m, find_softmax{}); }
+void rewrite_reduce::apply(module& m) const
+{
+    match::find_matches(m, find_softmax{}, find_reduce_mean{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

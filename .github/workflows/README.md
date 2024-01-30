@@ -213,7 +213,7 @@ This workflow updates a file with the latest commit hash then creates a pull req
 
      - `echo_sha1`: step prints the SHA1 commit hash set in step `extract_sha1`.
 
-     - `actions/checkout@v3`: step checks out the codebase from the repository.
+     - `actions/checkout@v4.1.1`: step checks out the codebase from the repository.
 
      - `update_file`: step updates a file in the repository with the SHA1 commit hash fetched in step `extract_sha1`.
 

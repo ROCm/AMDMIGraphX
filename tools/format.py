@@ -46,7 +46,7 @@ def eval(cmd, **kwargs):
 
 def is_excluded(f):
     base = os.path.basename(f)
-    return f in EXCLUDE_FILES
+    return base in EXCLUDE_FILES
 
 
 def get_top():

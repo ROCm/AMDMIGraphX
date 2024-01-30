@@ -189,6 +189,7 @@ struct compile_plan
             MIGRAPHX_THROW("No valid tuned compilation.");
         return *results[i];
     }
+
     void replace(module& m) const
     {
         const auto& cr = benchmark();

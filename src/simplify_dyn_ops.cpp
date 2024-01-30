@@ -26,6 +26,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -318,6 +319,145 @@ struct find_const_alloc_fill
     }
 };
 
+/**
+ * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
+ * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
+ * This version ignores dynamic_dimension opt values.
+ * Intended to be run after the other simplify_dyn_ops passes.
+ */
+struct simplify_select_module_output_shape
+{
+    auto matcher() const { return match::name("select_module"); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto sm_ins           = mr.result;
+        auto sm_module_inputs = sm_ins->module_inputs();
+        std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
+        std::transform(sm_module_inputs.begin(),
+                       sm_module_inputs.end(),
+                       all_output_shapes.begin(),
+                       [](auto submod) { return submod->get_output_shapes(); });
+        auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
+        auto shapes_types = get_shapes_types(all_output_shapes.front());
+        // check that all of the submodules have the same number of outputs and all respective
+        // outputs have the same rank and type
+        bool check = std::all_of(
+            all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
+                bool same_types = get_shapes_types(out_shapes) == shapes_types;
+                bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
+                return same_types and same_ndim;
+            });
+        if(not check)
+        {
+            return;
+        }
+        auto num_out_shapes = shapes_ndim.size();
+        std::vector<shape> dyn_shapes{num_out_shapes};
+        auto num_submod = sm_module_inputs.size();
+        // compare respective output shapes from each submodule to get a range for the output shape
+        for(int i : range(num_out_shapes))
+        {
+            std::vector<shape> shapes_at_index{num_submod};
+            std::transform(all_output_shapes.begin(),
+                           all_output_shapes.end(),
+                           shapes_at_index.begin(),
+                           [&](auto output_shapes) { return output_shapes.at(i); });
+            dyn_shapes.at(i) = dyn_shape_from_shapes(shapes_at_index);
+        }
+        auto tuple_shape = shape{dyn_shapes};
+        m.replace_instruction(
+            sm_ins,
+            make_op("select_module", {{"output_dyn_shapes", to_value(tuple_shape)}}),
+            sm_ins->inputs(),
+            sm_module_inputs);
+    }
+
+    std::vector<std::size_t> get_shapes_ndim(std::vector<shape> shapes) const
+    {
+        std::vector<std::size_t> ret{shapes.size()};
+        std::transform(
+            shapes.cbegin(), shapes.cend(), ret.begin(), [](auto s) { return s.ndim(); });
+        return ret;
+    }
+
+    std::vector<shape::type_t> get_shapes_types(std::vector<shape> shapes) const
+    {
+        std::vector<shape::type_t> ret{shapes.size()};
+        std::transform(
+            shapes.cbegin(), shapes.cend(), ret.begin(), [](auto s) { return s.type(); });
+        return ret;
+    }
+
+    /**
+     * Equivalent to creating a 2D matrix of shape lengths and do a reduce_min over each axis.
+     * The shapes can be dynamic or static.
+     * Assuming all shapes have the same ndim.
+     */
+    shape dyn_shape_from_shapes(std::vector<shape> shapes) const
+    {
+        // making 2D matrices of min_lens and max_lens
+        std::vector<std::size_t> all_min_lens;
+        std::vector<std::size_t> all_max_lens;
+        for(int i : range(shapes.size()))
+        {
+            auto s        = shapes.at(i);
+            auto min_lens = s.min_lens();
+            auto max_lens = s.max_lens();
+            for(auto l : min_lens)
+            {
+                all_min_lens.push_back(l);
+            }
+            for(auto l : max_lens)
+            {
+                all_max_lens.push_back(l);
+            }
+        }
+        assert(all_min_lens.size() == shapes.size() * shapes.front().ndim());
+        assert(all_max_lens.size() == shapes.size() * shapes.front().ndim());
+        auto num_rows = shapes.size();
+        auto num_cols = shapes.front().ndim();
+        shape tensor_shape{shapes.front().type(), {num_rows, num_cols}};
+        auto min_lens_matrix = make_view(tensor_shape, all_min_lens.data());
+        auto max_lens_matrix = make_view(tensor_shape, all_max_lens.data());
+
+        std::vector<std::size_t> mins;
+        std::vector<std::size_t> maxes;
+        // rearranging data into column vectors to reduce over
+        // i = row, j = column
+        for(int j : range(num_cols))
+        {
+            std::vector<std::size_t> reduce_min_vals{num_rows};
+            std::vector<std::size_t> reduce_max_vals{num_rows};
+            for(int i : range(num_rows))
+            {
+                reduce_min_vals.at(i) = min_lens_matrix(i, j);
+                reduce_max_vals.at(i) = min_lens_matrix(i, j);
+            }
+            std::size_t max_int = std::numeric_limits<std::size_t>::max();
+            std::size_t min_val =
+                std::reduce(reduce_min_vals.begin(),
+                            reduce_min_vals.end(),
+                            max_int,
+                            [](std::size_t x, std::size_t y) { return x < y ? x : y; });
+            std::size_t max_val =
+                std::reduce(reduce_max_vals.begin(),
+                            reduce_max_vals.end(),
+                            0,
+                            [](std::size_t x, std::size_t y) { return x > y ? x : y; });
+            mins.push_back(min_val);
+            maxes.push_back(max_val);
+        }
+        // fixed output shape case
+        if(mins == maxes)
+        {
+            return shape{shapes.front().type(), mins};
+        }
+        // dynamic output shape case
+        return shape{shapes.front().type(), mins, maxes, {}};
+    }
+};
+
 void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
@@ -328,6 +468,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_3in_slice{},
                         find_const_4in_slice{},
                         find_const_alloc_fill{});
+    match::find_matches(m, simplify_select_module_output_shape{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

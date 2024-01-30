@@ -327,7 +327,7 @@ TEST_CASE(reduce_reduce_broadcast)
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(reduce_reshape_pointwise)
+TEST_CASE(reduce_reshape_pointwise1)
 {
     migraphx::shape s1{migraphx::shape::float_type, {64, 4}};
     migraphx::shape s2{migraphx::shape::float_type, {8, 8, 2, 2}};
@@ -367,6 +367,113 @@ TEST_CASE(reduce_reshape_pointwise)
         mm->add_return({add});
     }
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(reduce_reshape_pointwise2)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 32, 40960}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 320, 64, 64}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s2);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+        auto rsumr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), rsumb);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsumr, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto yr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto add = add_reduce(
+            p2,
+            "main:reduce_sum0_reshape:main:pointwise0",
+            {xr, yr},
+            {2, 3, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {rsumb, inputs[1]}, single_pointwise("add"));
+            });
+        auto addr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add);
+        mm->add_return({addr});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(reduce_reshape_reduce)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {2, 32, 4096}};
+    migraphx::shape s1r{migraphx::shape::float_type, {2, 32, 1}};
+    migraphx::shape s2{migraphx::shape::float_type, {4, 16, 64, 64}};
+    migraphx::shape s2r{migraphx::shape::float_type, {4, 16, 1, 1}};
+    migraphx::shape s3{migraphx::shape::float_type, {2, 2, 16, 64, 64}};
+    migraphx::shape s3r{migraphx::shape::float_type, {2, 2, 16, 1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x1    = mm->add_parameter("x1", s1);
+        auto x2    = mm->add_parameter("x2", s1r);
+        auto y    = mm->add_parameter("y", s2);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x1);
+        auto rsum1_add = add_pointwise(p1, "main:pointwise0", {rsum1, x2}, single_pointwise("add"));
+
+        auto rsum1_addb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum1_add);
+        auto rsum1_sub = add_pointwise(p1, "main:pointwise1", {rsum1_addb, x1}, single_pointwise("sub"));
+        auto rsum1_subr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), rsum1_sub);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), rsum1_subr);
+        auto rsum2b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum2);
+        auto rsum2_add = add_pointwise(p1, "main:pointwise2", {rsum2b, y}, single_pointwise("add"));
+        mm->add_return({rsum2_add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x1    = mm->add_parameter("x1", s1);
+        auto x2    = mm->add_parameter("x2", s1r);
+        auto y    = mm->add_parameter("y", s2);
+        auto x1r  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x1);
+        auto x2r  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3r.lens()}}), x2);
+        auto freduce = add_reduce(
+            p2,
+            "main:pointwise1:main:reduce_sum1_reshape_reshape:main:reduce_sum0:main:pointwise0_reshape",
+            {x1r, x2r},
+            {3, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                auto add = add_pointwise(p2, rm, "main:pointwise0", {rsum1, inputs[1]}, single_pointwise("add"));
+                auto addb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), add);
+                auto sub = add_pointwise(
+                    p2, rm, "main:pointwise1", {addb, inputs[0]}, single_pointwise("sub"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                sub);
+            });
+        auto freducer = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2r.lens()}}), freduce);
+        // TODO: Fuse the last add as well
+        auto freducerb = mm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), freducer);
+        auto add = add_pointwise(p2, "main:pointwise2", {freducerb, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

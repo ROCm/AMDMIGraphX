@@ -7,6 +7,8 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/common_dims.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -110,7 +112,7 @@ struct rewrite_reshapes
 
             auto reshape_input = [&](const auto& ins_to_insert) {
                 return [&](auto input) {
-                    auto dims = cd.get_dimensions_for(ins->get_shape().lens());
+                    auto dims = cd.get_dimensions_for(input->get_shape().lens());
                     return mpm.get_module().insert_instruction(
                         ins_to_insert, make_op("reshape", {{"dims", dims}}), input);
                 };
@@ -170,6 +172,8 @@ struct rewrite_reshapes
                                 find_op_reshape_op{T::name(), T::name()});
         }
         mpm.run_pass(simplify_reshapes{1});
+        mpm.run_pass(eliminate_common_subexpression{});
+        mpm.run_pass(dead_code_elimination{});
     }
 };
 

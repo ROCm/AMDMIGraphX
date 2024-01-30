@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <cstdint>
+#include <numeric>
 #include <vector>
 
 namespace migraphx {
@@ -45,6 +46,12 @@ struct MIGRAPHX_EXPORT common_dims
     std::vector<std::vector<std::size_t>> axes_map1;
     std::vector<std::vector<std::size_t>> axes_map2;
 };
+
+template <class Range>
+auto elements(const Range& r)
+{
+    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

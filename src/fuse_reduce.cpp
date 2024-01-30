@@ -101,11 +101,11 @@ get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref s
 }
 
 static void insert_params(module_ref sm,
-                          instruction_ref ins,
+                          const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     auto n = sm->get_parameter_shapes().size();
-    for(auto input : ins->inputs())
+    for(auto input : inputs)
     {
         if(contains(map_ins, input))
             continue;
@@ -118,7 +118,7 @@ static auto insert_ins_in_submodule(module_ref sm,
                                     instruction_ref ins,
                                     std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
-    insert_params(sm, ins, map_ins);
+    insert_params(sm, ins->inputs(), map_ins);
     return sm->add_instructions({ins}, map_ins);
 }
 
@@ -130,13 +130,13 @@ static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
 
 static auto
 insert_module_in_submodule(module_ref sm,
-                           instruction_ref ins,
+                            const std::vector<instruction_ref>& inputs,
+                            module_ref m,
                            std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                            module::inserter insert = nullptr)
 {
-    insert_params(sm, ins, map_ins);
-    auto* m        = ins->module_inputs().front();
-    auto param_map = get_ins_param_map(ins->inputs(), m);
+    insert_params(sm, inputs, map_ins);
+    auto param_map = get_ins_param_map(inputs, m);
     for(auto&& [input, param] : param_map)
     {
         map_ins[param] = map_ins.at(input);
@@ -144,10 +144,20 @@ insert_module_in_submodule(module_ref sm,
     return sm->add_instructions(m, map_ins, std::move(insert));
 }
 
-static auto insert_module_in_submodule(module_ref sm, instruction_ref ins, module::inserter insert)
+static auto
+insert_module_in_submodule(module_ref sm,
+                           instruction_ref ins,
+                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                           module::inserter insert = nullptr)
+{
+    return insert_module_in_submodule(sm, ins->inputs(), ins->module_inputs().front(), map_ins, insert);
+}
+
+static auto insert_module_in_submodule(module_ref sm, const std::vector<instruction_ref>& inputs,
+                            module_ref m, module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    return insert_module_in_submodule(sm, ins, map_ins, insert);
+    return insert_module_in_submodule(sm, inputs, m, map_ins, insert);
 }
 
 static std::vector<instruction_ref>
@@ -374,7 +384,7 @@ struct reduce_reshape : rewrite_reshapes_base
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         insert_module_in_submodule(
-            sm, ins, transform_op([&](const operation& sop) {
+            sm, inputs, oldm, transform_op([&](const operation& sop) {
                 if(contains(sop.name(), "reduce"))
                     return make_op(sop.name(), {{"axes", axes}});
                 if(sop.name() == "multibroadcast")
@@ -383,7 +393,7 @@ struct reduce_reshape : rewrite_reshapes_base
                 return sop;
             }));
         return mpm.get_module().insert_instruction(
-            ins, ins->get_operator(), inputs, ins->module_inputs());
+            ins, fused_reduce{axes}, inputs, {sm});
     }
 
     static std::vector<std::size_t> base_dims(instruction_ref ins)

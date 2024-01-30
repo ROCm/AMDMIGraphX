@@ -43,12 +43,6 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
     return it;
 }
 
-template <class Range>
-static auto elements(const Range& r)
-{
-    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
-}
-
 struct common_dim_state
 {
     common_dim_state(const std::vector<std::size_t>& pdims,

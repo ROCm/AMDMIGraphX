@@ -1213,13 +1213,13 @@ struct find_unit_ops
     auto matcher() const
     {
         auto mul_1 = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(1.0f, 1, 0), match::any().bind("x")));
+            match::either_arg(0, 1)(match::has_value(1.0f), match::any().bind("x")));
         auto div_1 =
-            match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f, 1, 0)));
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
         auto add_0 = match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 1e-3, 0), match::any().bind("x")));
-        auto sub_0 = match::name("sub")(
-            match::args(match::any().bind("x"), match::has_value(0.0f, 1e-3, 0)));
+            match::either_arg(0, 1)(match::has_value(0.0f, 0), match::any().bind("x")));
+        auto sub_0 =
+            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 0)));
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 
@@ -1237,11 +1237,11 @@ struct find_neg_unit_ops
     auto matcher() const
     {
         auto mul_neg_1 = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(-1.0f, 1, 0), match::any().bind("x")));
+            match::either_arg(0, 1)(match::has_value(-1.0f), match::any().bind("x")));
         auto div_neg_1 =
-            match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f, 1, 0)));
-        auto sub_0 = match::name("sub")(
-            match::args(match::has_value(0.0f, 1e-3, 0), match::any().bind("x")));
+            match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
+        auto sub_0 =
+            match::name("sub")(match::args(match::has_value(0.0f, 0), match::any().bind("x")));
         return match::any_of(mul_neg_1, div_neg_1, sub_0);
     }
 
@@ -1260,9 +1260,9 @@ struct find_zero_ops
     auto matcher() const
     {
         auto mul_zero = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 1e-3, 0).bind("x"), match::any()));
-        auto div_zero = match::name("div")(
-            match::args(match::has_value(0.0f, 1e-3, 0).bind("x"), match::any()));
+            match::either_arg(0, 1)(match::has_value(0.0f, 0).bind("x"), match::any()));
+        auto div_zero =
+            match::name("div")(match::args(match::has_value(0.0f, 0).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 

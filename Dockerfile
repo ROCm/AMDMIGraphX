@@ -77,6 +77,9 @@ ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+# Temporarily install a new cmake until switching to ubuntu 22.04
+RUN pip3 install cmake==3.22.1
+
 # Location where onnx unit tests models are cached
 ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
@@ -96,9 +99,6 @@ RUN pip3 install -r /doc-requirements.txt
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
-
-# Temporarily install a new cmake until switching to ubuntu 22.04
-RUN pip3 install cmake==3.22.1
 
 COPY ./test/onnx/.onnxrt-commit /
 

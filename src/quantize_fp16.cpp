@@ -65,41 +65,34 @@ static void quantize_module(module& m, const std::vector<std::string>& ins_names
         // Insert quantized ins
         auto converted_ins = m.insert_instruction(ins, ins->get_operator(), inputs, mod_inputs);
 
-        // We can't add a convert to topk, since it is a tuple, and get_tuple_elem will be used to
-        // access it. But skipping convert will fail the compilation, they need to be added here.
-        if(ins->name() == "topk")
+        // tuple can't be directly converted, get_tuple_elem needs conversion
+        if(ins->get_shape().type() == shape::tuple_type)
         {
-            auto tuple_outputs = ins->outputs();
+            auto outputs = ins->outputs();
             std::transform(
-                tuple_outputs.begin(),
-                tuple_outputs.end(),
-                tuple_outputs.begin(),
-                [&](const auto get_tuple_elem_ins) {
-                    // Add get_tuple_elem that use the converted half-topk
-                    auto gte_ins_half = m.insert_instruction(
-                        ins, get_tuple_elem_ins->get_operator(), converted_ins);
-                    // Convert back to original get_tuple_elem type after quantizing,
-                    // not topk's tuple type
+                outputs.begin(), outputs.end(), outputs.begin(), [&](const auto gte_ins) {
+                    auto gte_ins_half =
+                        m.insert_instruction(ins, gte_ins->get_operator(), converted_ins);
+                    // Convert back to output type after quantizing
                     auto gte_converted = m.insert_instruction(
                         ins,
-                        make_op("convert",
-                                {{"target_type", get_tuple_elem_ins->get_shape().type()}}),
+                        make_op("convert", {{"target_type", gte_ins->get_shape().type()}}),
                         gte_ins_half);
-                    // Replace original get_tuple_elem instruction
-                    return m.replace_instruction(get_tuple_elem_ins, gte_converted);
+                    // Replace output instruction
+                    return m.replace_instruction(gte_ins, gte_converted);
                 });
-            // Everything already replaced, return here
-            continue;
         }
-
-        // Convert back to original type after quantizing
-        if(mod_inputs.empty())
+        else
         {
-            converted_ins = m.insert_instruction(
-                ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
+            // Convert back to original type after quantizing
+            if(mod_inputs.empty())
+            {
+                converted_ins = m.insert_instruction(
+                    ins, make_op("convert", {{"target_type", s.type()}}), converted_ins);
+            }
+            // Replace original instruction
+            m.replace_instruction(ins, converted_ins);
         }
-        // Replace original instruction
-        m.replace_instruction(ins, converted_ins);
     }
 }
 

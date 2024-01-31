@@ -27,6 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+#include <migraphx/instruction.hpp>
+
 template <migraphx::shape::type_t DType>
 struct test_conv_add : verify_program<test_conv_add<DType>>
 {
@@ -46,5 +48,27 @@ struct test_conv_add : verify_program<test_conv_add<DType>>
     }
 };
 
+template <migraphx::shape::type_t DType>
+struct test_conv_add_5x5 : verify_program<test_conv_add_5x5<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input     = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 5, 5}});
+        auto weights   = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 5, 5}});
+        auto l0        = migraphx::literal{migraphx::shape{DType, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias      = mm->add_literal(l0);
+        auto conv      = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto bcast_add = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            bias);
+        mm->add_instruction(migraphx::make_op("add"), conv, bcast_add);        
+        return p;
+    }
+};
+
+
 template struct test_conv_add<migraphx::shape::float_type>;
 template struct test_conv_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_conv_add_5x5<migraphx::shape::float_type>;

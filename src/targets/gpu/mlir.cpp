@@ -936,12 +936,23 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
+    // std::cout << "num_inputs " << inputs.size() << "num_names " << names.size() << std::endl;
+    // for(auto input : inputs)
+    // {
+    //     std::cout << input << std::endl;
+    // }
+    // for(auto name : names)
+    // {
+    //     std::cout << name << std::endl;
+    // }
     for(auto i : range(names.size()))
     {
         const auto& name  = names[i];
         const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
         assert(param->get_shape().standard());
+        // std::cout << "name: " << name << " param: " << param->get_shape() << " input: " << input << std::endl;
+        assert(param->get_shape().lens() == input.lens());
         if(input.standard())
             continue;
         auto new_param = m.add_parameter(name + ".0", input);

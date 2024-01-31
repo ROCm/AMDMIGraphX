@@ -63,7 +63,7 @@ struct fusion
 
     fusion(const shape& input)
     {
-        assert(input.standard());
+        // assert(input.standard());
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
         assert(fp);

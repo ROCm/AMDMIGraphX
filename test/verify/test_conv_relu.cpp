@@ -49,9 +49,9 @@ struct test_conv_relu2 : verify_program<test_conv_relu2>
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 3, 3}});
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 10, 10}});
         auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 4, 1, 1}});
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 4, 5, 5}});
         auto conv = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         auto relu = mm->add_instruction(migraphx::make_op("relu"), conv);
         mm->add_instruction(migraphx::make_op("convolution"), relu, weights);

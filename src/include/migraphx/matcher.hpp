@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
+#include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -896,10 +897,20 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
             else
             {
                 auto eps = std::numeric_limits<type>::epsilon();
-                if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return std::fabs(val - static_cast<type>(x)) <
-                              eps * (atol_mult + rtol_mult * std::fabs(val));
-                   }))
+                if(atol_mult == 0 and rtol_mult == 0)
+                {
+                    // do exact match using float_equal if atol and rtol both are set to zero
+                    if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                           return migraphx::float_equal(std::fabs(val), static_cast<type>(x));
+                       }))
+                    {
+                        b = true;
+                    }
+                }
+                else if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                            return std::fabs(val - static_cast<type>(x)) <
+                                   eps * (atol_mult + rtol_mult * std::fabs(x));
+                        }))
                 {
                     b = true;
                 }

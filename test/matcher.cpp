@@ -912,7 +912,7 @@ TEST_CASE(match_has_value7)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 1);
+    auto m1 = match::has_value(0.0f, 0, 0);
     auto r1 = find_match(mm, m1);
     EXPECT(bool{r1.result == mm.end()});
     // increase tolerance
@@ -930,7 +930,7 @@ TEST_CASE(match_has_value8)
     auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
     auto sum1 = mm.add_instruction(sum_op{}, one, zero);
     mm.add_instruction(pass_op{}, sum1);
-    auto m1 = match::has_value(0.0f, 0, 1);
+    auto m1 = match::has_value(0.0f, 0, 0);
     auto r1 = find_match(mm, m1);
     EXPECT(bool{r1.result == mm.end()});
     // increase tolerance

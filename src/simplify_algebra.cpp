@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1220,9 +1220,9 @@ struct find_unit_ops
         auto div_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
         auto add_0 = match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 1e-12), match::any().bind("x")));
+            match::either_arg(0, 1)(match::has_value(0.0f, 1, 0), match::any().bind("x")));
         auto sub_0 =
-            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f)));
+            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 1, 0)));
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 

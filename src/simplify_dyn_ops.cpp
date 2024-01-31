@@ -338,10 +338,10 @@ struct simplify_select_module_output_shape
                        sm_module_inputs.end(),
                        all_output_shapes.begin(),
                        [](auto submod) { return submod->get_output_shapes(); });
-        auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
-        auto shapes_types = get_shapes_types(all_output_shapes.front());
         // check that all of the submodules have the same number of outputs and all respective
         // outputs have the same rank and type
+        auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
+        auto shapes_types = get_shapes_types(all_output_shapes.front());
         bool check = std::all_of(
             all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
                 bool same_types = get_shapes_types(out_shapes) == shapes_types;
@@ -353,12 +353,12 @@ struct simplify_select_module_output_shape
             return;
         }
         auto num_out_shapes = shapes_ndim.size();
-        std::vector<shape> dyn_shapes{num_out_shapes};
+        std::vector<shape> dyn_shapes(num_out_shapes);
         auto num_submod = sm_module_inputs.size();
         // compare respective output shapes from each submodule to get a range for the output shape
         for(int i : range(num_out_shapes))
         {
-            std::vector<shape> shapes_at_index{num_submod};
+            std::vector<shape> shapes_at_index(num_submod);
             std::transform(all_output_shapes.begin(),
                            all_output_shapes.end(),
                            shapes_at_index.begin(),
@@ -375,7 +375,7 @@ struct simplify_select_module_output_shape
 
     std::vector<std::size_t> get_shapes_ndim(std::vector<shape> shapes) const
     {
-        std::vector<std::size_t> ret{shapes.size()};
+        std::vector<std::size_t> ret(shapes.size());
         std::transform(
             shapes.cbegin(), shapes.cend(), ret.begin(), [](auto s) { return s.ndim(); });
         return ret;
@@ -383,13 +383,14 @@ struct simplify_select_module_output_shape
 
     std::vector<shape::type_t> get_shapes_types(std::vector<shape> shapes) const
     {
-        std::vector<shape::type_t> ret{shapes.size()};
+        std::vector<shape::type_t> ret(shapes.size());
         std::transform(
             shapes.cbegin(), shapes.cend(), ret.begin(), [](auto s) { return s.type(); });
         return ret;
     }
 
     /**
+     * Calculating an appropriate shape that encompasses all of the given vector of shapes.
      * Equivalent to creating a 2D matrix of shape lengths and do a reduce_min over each axis.
      * The shapes can be dynamic or static.
      * Assuming all shapes have the same ndim.
@@ -397,7 +398,8 @@ struct simplify_select_module_output_shape
     shape dyn_shape_from_shapes(std::vector<shape> shape_vec) const
     {
         // making 2D matrices of min_lens and max_lens
-        // specifically using uint64_t because we're going to put the values into a tensor_view later
+        // specifically using uint64_t because we're going to put the values into a tensor_view
+        // later
         std::vector<uint64_t> all_min_lens;
         std::vector<uint64_t> all_max_lens;
         for(int i : range(shape_vec.size()))
@@ -405,14 +407,8 @@ struct simplify_select_module_output_shape
             auto s        = shape_vec.at(i);
             auto min_lens = s.min_lens();
             auto max_lens = s.max_lens();
-            for(auto l : min_lens)
-            {
-                all_min_lens.push_back(l);
-            }
-            for(auto l : max_lens)
-            {
-                all_max_lens.push_back(l);
-            }
+            std::copy(min_lens.begin(), min_lens.end(), std::back_inserter(all_min_lens));
+            std::copy(max_lens.begin(), max_lens.end(), std::back_inserter(all_max_lens));
         }
         assert(all_min_lens.size() == shape_vec.size() * shape_vec.front().ndim());
         assert(all_max_lens.size() == shape_vec.size() * shape_vec.front().ndim());
@@ -422,31 +418,30 @@ struct simplify_select_module_output_shape
         auto min_lens_matrix = make_view(tensor_shape, all_min_lens.data());
         auto max_lens_matrix = make_view(tensor_shape, all_max_lens.data());
 
-        std::vector<uint64_t> mins{num_cols};
-        std::vector<uint64_t> maxes{num_cols};
+        std::vector<uint64_t> mins(num_cols);
+        std::vector<uint64_t> maxes(num_cols);
         // rearranging data into column vectors to reduce over
         // i = row, j = column
         for(int j : range(num_cols))
         {
-            std::vector<uint64_t> reduce_min_vals{num_rows};
-            std::vector<uint64_t> reduce_max_vals{num_rows};
+            std::vector<uint64_t> reduce_min_vals(num_rows);
+            std::vector<uint64_t> reduce_max_vals(num_rows);
             for(int i : range(num_rows))
             {
                 reduce_min_vals.at(i) = min_lens_matrix(i, j);
-                reduce_max_vals.at(i) = min_lens_matrix(i, j);
+                reduce_max_vals.at(i) = max_lens_matrix(i, j);
             }
             uint64_t max_int = std::numeric_limits<uint64_t>::max();
             uint64_t min_val =
-                std::reduce(reduce_min_vals.begin(),
-                            reduce_min_vals.end(),
-                            max_int,
-                            [](uint64_t x, uint64_t y) { return x < y ? x : y; });
-            uint64_t max_val =
-                std::reduce(reduce_max_vals.begin(),
-                            reduce_max_vals.end(),
-                            0,
-                            [](uint64_t x, uint64_t y) { return x > y ? x : y; });
-            mins.at(j) = min_val;
+                std::accumulate(reduce_min_vals.begin(),
+                                reduce_min_vals.end(),
+                                max_int,
+                                [](uint64_t x, uint64_t y) { return x < y ? x : y; });
+            uint64_t max_val = std::accumulate(
+                reduce_max_vals.begin(), reduce_max_vals.end(), 0, [](uint64_t x, uint64_t y) {
+                    return x > y ? x : y;
+                });
+            mins.at(j)  = min_val;
             maxes.at(j) = max_val;
         }
         // fixed output shape case

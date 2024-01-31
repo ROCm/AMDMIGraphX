@@ -394,14 +394,15 @@ struct simplify_select_module_output_shape
      * The shapes can be dynamic or static.
      * Assuming all shapes have the same ndim.
      */
-    shape dyn_shape_from_shapes(std::vector<shape> shapes) const
+    shape dyn_shape_from_shapes(std::vector<shape> shape_vec) const
     {
         // making 2D matrices of min_lens and max_lens
-        std::vector<std::size_t> all_min_lens;
-        std::vector<std::size_t> all_max_lens;
-        for(int i : range(shapes.size()))
+        // specifically using uint64_t because we're going to put the values into a tensor_view later
+        std::vector<uint64_t> all_min_lens;
+        std::vector<uint64_t> all_max_lens;
+        for(int i : range(shape_vec.size()))
         {
-            auto s        = shapes.at(i);
+            auto s        = shape_vec.at(i);
             auto min_lens = s.min_lens();
             auto max_lens = s.max_lens();
             for(auto l : min_lens)
@@ -413,48 +414,48 @@ struct simplify_select_module_output_shape
                 all_max_lens.push_back(l);
             }
         }
-        assert(all_min_lens.size() == shapes.size() * shapes.front().ndim());
-        assert(all_max_lens.size() == shapes.size() * shapes.front().ndim());
-        auto num_rows = shapes.size();
-        auto num_cols = shapes.front().ndim();
-        shape tensor_shape{shapes.front().type(), {num_rows, num_cols}};
+        assert(all_min_lens.size() == shape_vec.size() * shape_vec.front().ndim());
+        assert(all_max_lens.size() == shape_vec.size() * shape_vec.front().ndim());
+        auto num_rows = shape_vec.size();
+        auto num_cols = shape_vec.front().ndim();
+        shape tensor_shape{shape::uint64_type, {num_rows, num_cols}};
         auto min_lens_matrix = make_view(tensor_shape, all_min_lens.data());
         auto max_lens_matrix = make_view(tensor_shape, all_max_lens.data());
 
-        std::vector<std::size_t> mins;
-        std::vector<std::size_t> maxes;
+        std::vector<uint64_t> mins{num_cols};
+        std::vector<uint64_t> maxes{num_cols};
         // rearranging data into column vectors to reduce over
         // i = row, j = column
         for(int j : range(num_cols))
         {
-            std::vector<std::size_t> reduce_min_vals{num_rows};
-            std::vector<std::size_t> reduce_max_vals{num_rows};
+            std::vector<uint64_t> reduce_min_vals{num_rows};
+            std::vector<uint64_t> reduce_max_vals{num_rows};
             for(int i : range(num_rows))
             {
                 reduce_min_vals.at(i) = min_lens_matrix(i, j);
                 reduce_max_vals.at(i) = min_lens_matrix(i, j);
             }
-            std::size_t max_int = std::numeric_limits<std::size_t>::max();
-            std::size_t min_val =
+            uint64_t max_int = std::numeric_limits<uint64_t>::max();
+            uint64_t min_val =
                 std::reduce(reduce_min_vals.begin(),
                             reduce_min_vals.end(),
                             max_int,
-                            [](std::size_t x, std::size_t y) { return x < y ? x : y; });
-            std::size_t max_val =
+                            [](uint64_t x, uint64_t y) { return x < y ? x : y; });
+            uint64_t max_val =
                 std::reduce(reduce_max_vals.begin(),
                             reduce_max_vals.end(),
                             0,
-                            [](std::size_t x, std::size_t y) { return x > y ? x : y; });
-            mins.push_back(min_val);
-            maxes.push_back(max_val);
+                            [](uint64_t x, uint64_t y) { return x > y ? x : y; });
+            mins.at(j) = min_val;
+            maxes.at(j) = max_val;
         }
         // fixed output shape case
         if(mins == maxes)
         {
-            return shape{shapes.front().type(), mins};
+            return shape{shape_vec.front().type(), mins};
         }
         // dynamic output shape case
-        return shape{shapes.front().type(), mins, maxes, {}};
+        return shape{shape_vec.front().type(), mins, maxes, {}};
     }
 };
 

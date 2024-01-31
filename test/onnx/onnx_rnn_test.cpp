@@ -200,6 +200,35 @@ TEST_CASE(rnn_test_one_direction)
         EXPECT(p == prog);
     }
 
+    // forward, default activation functions
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto seq = mm->add_parameter("seq", seq_shape);
+        auto w   = mm->add_parameter("w", w_shape);
+        auto r   = mm->add_parameter("r", r_shape);
+        auto und = mm->add_instruction(migraphx::make_op("undefined"));
+
+        auto out_hs = mm->add_instruction(
+            migraphx::make_op(
+                "rnn",
+                {{"hidden_size", hs},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und);
+        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto prog = optimize_onnx("rnn_f_default_af_test.onnx");
+
+        EXPECT(p == prog);
+    }
+
     // reverse
     {
         migraphx::program p;
@@ -458,6 +487,11 @@ TEST_CASE(rnn_test_one_direction_layout)
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(rnn_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("rnn_bi_1af_test.onnx"); }));
 }
 
 TEST_CASE(gru_test)
@@ -1230,6 +1264,11 @@ TEST_CASE(gru_test_actv_funcs)
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(gru_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gru_f_1af_test.onnx"); }));
 }
 
 TEST_CASE(lstm_forward)
@@ -2653,6 +2692,11 @@ TEST_CASE(lstm_bi_actv_funcs)
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(lstm_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("lstm_f_1af_test.onnx"); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

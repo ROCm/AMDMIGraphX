@@ -97,7 +97,9 @@ struct convolution
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
-            MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers " + std::to_string(x_shape.lens().at(1)) + " and " + std::to_string(w_shape.lens().at(1) * group));
+            MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers " +
+                           std::to_string(x_shape.lens().at(1)) + " and " +
+                           std::to_string(w_shape.lens().at(1) * group));
 
         if(x_shape.dynamic() or w_shape.dynamic())
         {

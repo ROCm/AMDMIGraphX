@@ -429,7 +429,10 @@ struct find_mlir_fused_ops
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op and not contains(input->name(), "contiguous"); });
+                     [&](auto input) {
+                         return input != gemm_based_op and
+                                not contains(input->name(), "contiguous");
+                     });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});

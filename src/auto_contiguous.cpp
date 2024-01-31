@@ -81,7 +81,8 @@ void auto_contiguous::apply(module& m) const
         {
             if(s.standard())
                 continue;
-            if(s.packed() and contains({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}}, find_permutation(s)))
+            if(s.packed() and contains({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}},
+                                       find_permutation(s)))
                 continue;
         }
         // if(s.standard() and contains({"@literal", "@param"}, ins->name()))

@@ -38,10 +38,10 @@ struct parse_hardmax : op_parser<parse_hardmax>
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+                          std::vector<instruction_ref> args) const
     {
-        auto input_lens = args[0]->get_shape().lens();
-        auto input_type = args[0]->get_shape().type();
+        auto input      = args[0];
+        auto input_lens = input->get_shape().lens();
 
         // default axis value is -1 for opset 13
         int64_t axis = -1;
@@ -49,7 +49,7 @@ struct parse_hardmax : op_parser<parse_hardmax>
         // axis value is 1 for previous opset versions
         if(parser.opset_version < 13)
         {
-            MIGRAPHX_THROW("HARDMAX: Opset version below 13 not supported.");
+            axis = 1;
         }
 
         if(contains(info.attributes, "axis"))
@@ -57,16 +57,38 @@ struct parse_hardmax : op_parser<parse_hardmax>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        auto indices = info.add_instruction(make_op("argmax", {{"axis", axis}}), args);
+        if(parser.opset_version < 13)
+        {
+            // input is coerced into a 2D matrix of size NxD
+            axis     = axis < 0 ? axis + input_lens.size() : axis;
+            size_t n = 1;
+            for(int i = 0; i < axis; i++)
+            {
+                n *= input_lens[i];
+            }
+            size_t d = input->get_shape().elements() / n;
 
-        auto data = info.add_instruction(
-            make_op("multibroadcast", {{"out_lens", input_lens}}),
+            input = info.add_instruction(make_op("reshape", {{"dims", {n, d}}}), input);
+            axis  = 1;
+        }
+
+        auto input_type = input->get_shape().type();
+        auto indices    = info.add_instruction(make_op("argmax", {{"axis", axis}}), input);
+        auto data       = info.add_instruction(
+            make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
         auto updates = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", indices->get_shape().lens()}}),
             info.add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
-        return info.add_instruction(
-            make_op("scatter_none", {{"axis", axis}}), data, indices, updates);
+        auto output =
+            info.add_instruction(make_op("scatter_none", {{"axis", axis}}), data, indices, updates);
+
+        if(parser.opset_version < 13)
+        {
+            output = info.add_instruction(make_op("reshape", {{"dims", input_lens}}), output);
+        }
+
+        return output;
     }
 };
 

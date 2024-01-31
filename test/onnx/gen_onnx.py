@@ -3075,6 +3075,7 @@ def hardmax_default_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test()
 def hardmax_axis_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [1, 2, 3, 4])

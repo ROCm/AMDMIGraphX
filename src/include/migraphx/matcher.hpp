@@ -886,34 +886,21 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
             using type = typename decltype(v)::value_type;
-            if constexpr(std::is_integral<type>{})
+            auto tolerance = atol_mult + rtol_mult * std::fabs(x);
+            if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
             {
-                if(std::all_of(
-                       v.begin(), v.end(), [&](auto val) { return val == static_cast<type>(x); }))
-                {
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return migraphx::float_equal(val, static_cast<type>(x));
+                   }))
                     b = true;
-                }
             }
             else
             {
                 auto eps = std::numeric_limits<type>::epsilon();
-                auto tolerance = atol_mult + rtol_mult * std::fabs(x);
-                if(migraphx::float_equal(tolerance, 0.0))
-                {
-                    // do exact match using float_equal if tolerance is zero
-                    if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                           return migraphx::float_equal(val, static_cast<type>(x));
-                       }))
-                    {
-                        b = true;
-                    }
-                }
-                else if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                            return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
-                        }))
-                {
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
+                   }))
                     b = true;
-                }
             }
         });
         return b;

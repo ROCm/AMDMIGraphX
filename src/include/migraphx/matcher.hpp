@@ -873,7 +873,7 @@ inline auto literal_value_checker(F f)
 
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y)).
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(x)).
  * atol_mult controls the absolute tolerance.
  * rtol_mult controls the relative tolerance.
  * Uses no tolerance for integral types.
@@ -897,19 +897,19 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
             else
             {
                 auto eps = std::numeric_limits<type>::epsilon();
-                if(atol_mult == 0 and rtol_mult == 0)
+                auto tolerance = atol_mult + rtol_mult * std::fabs(x);
+                if(migraphx::float_equal(tolerance, 0.0))
                 {
-                    // do exact match using float_equal if atol and rtol both are set to zero
+                    // do exact match using float_equal if tolerance is zero
                     if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                           return migraphx::float_equal(std::fabs(val), static_cast<type>(x));
+                           return migraphx::float_equal(val, static_cast<type>(x));
                        }))
                     {
                         b = true;
                     }
                 }
                 else if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                            return std::fabs(val - static_cast<type>(x)) <
-                                   eps * (atol_mult + rtol_mult * std::fabs(x));
+                            return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
                         }))
                 {
                     b = true;

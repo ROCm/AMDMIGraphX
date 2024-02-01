@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,11 +44,12 @@ struct quant_dot
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();
-        std::set<migraphx::shape::type_t> suppported_types = {shape::int8_type,
-                                                              shape::fp8e4m3fnuz_type};
+        std::set<migraphx::shape::type_t> suppported_types = {
+            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
         if(not contains(suppported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_DOT: only support data type int8_t and fp8e4m3fnuz_type");
+            MIGRAPHX_THROW(
+                "QUANT_DOT: only support data type int8_t, uint8_t and fp8e4m3fnuz_type");
         }
 
         if(not std::all_of(

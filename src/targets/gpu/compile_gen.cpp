@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,8 +27,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -182,8 +181,7 @@ std::string make_transformer_args(std::vector<std::string> transformers)
 void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m,
-               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
@@ -341,7 +339,7 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous"}, ins.name()))
+        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {
@@ -356,9 +354,11 @@ static std::vector<std::string> get_op_names(const module& m)
     return result;
 }
 
-std::string generate_name_from_ops(const module& m)
+std::string generate_name_from_ops(const module& m, const std::string& postname)
 {
     auto op_names = get_op_names(m);
+    if(not postname.empty())
+        op_names.push_back(postname);
     return join_strings(op_names, "_");
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,9 +63,10 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
                               migraphx::eliminate_identity{}});
 
     // remove the last return instruction
-    auto last_ins = std::prev(mm->end());
-    if(last_ins != mm->end())
+
+    if(mm->size() > 0)
     {
+        auto last_ins = std::prev(mm->end());
         if(last_ins->name() == "@return")
         {
             mm->remove_instruction(last_ins);

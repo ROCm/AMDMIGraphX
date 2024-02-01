@@ -22,7 +22,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     cmake \
     curl \
     doxygen \
-    g++-7 \
+    g++ \
     gdb \
     git \
     lcov \
@@ -50,6 +50,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hipcub  \
     hipblas  \
     hipify-clang \
+    hiprand-dev \
     half \
     libssl-dev \
     zlib1g-dev && \

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -186,10 +186,10 @@ auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const std::string& name,
-                        const migraphx::program& p,
-                        const migraphx::compile_options& c_opts) const
+void run_verify::verify(const program_info& pi) const
 {
+    const std::string name    = pi.name;
+    const migraphx::program p = pi.get_program();
     using result_future =
         std::future<std::pair<migraphx::program, std::vector<migraphx::argument>>>;
     auto_print::set_terminate_handler(name);
@@ -227,7 +227,7 @@ void run_verify::verify(const std::string& name,
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-
+        const migraphx::compile_options c_opts = pi.compile_options;
         auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
@@ -254,7 +254,7 @@ void run_verify::verify(const std::string& name,
             for(std::size_t i = 0; ((i < num) and passed); ++i)
             {
                 passed &= migraphx::verify_args_with_tolerance(
-                    tname, result[i], migraphx::verify::expected{gold[i]});
+                    tname, result[i], migraphx::verify::expected{gold[i]}, pi.tolerance);
             }
 
             if(not passed or migraphx::enabled(MIGRAPHX_TRACE_TEST{}))
@@ -276,7 +276,7 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p.name, p.get_program(), p.compile_options); });
+        test::add_test_case(p.name, [=] { verify(p); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

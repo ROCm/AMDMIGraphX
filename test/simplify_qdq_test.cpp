@@ -34,7 +34,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
-#include <migraphx/pass_manager.hpp>
 
 bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }

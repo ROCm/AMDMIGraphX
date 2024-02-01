@@ -4504,7 +4504,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // 2 activation function (tanh) specified
+    // 2 activation functions (tanh) specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -4519,8 +4519,8 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")}),
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
                  {"linear_before_reset", 1}}),

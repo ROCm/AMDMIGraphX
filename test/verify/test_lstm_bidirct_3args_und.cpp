@@ -61,8 +61,7 @@ struct test_lstm_bidirct_3args_und : verify_program<test_lstm_bidirct_3args_und>
                   migraphx::to_value(
                       std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                        migraphx::make_op("tanh"),
-                                                       migraphx::make_op("tanh"),
-                                                       migraphx::make_op("sigmoid")})},
+                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,

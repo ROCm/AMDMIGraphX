@@ -4504,7 +4504,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // 1 activation function (tanh) specified
+    // 2 activation function (tanh) specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -4519,6 +4519,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")}),
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -6701,9 +6702,7 @@ TEST_CASE(lstm_reverse_actv)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid")})},
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
                  {"input_forget", 0}}),
@@ -6724,7 +6723,7 @@ TEST_CASE(lstm_reverse_actv)
         EXPECT(migraphx::verify::verify_rms_range(output_data, output_data_gold));
     }
 
-    // reverse, 3 args, non-default actv functions
+    // reverse, 3 args, 2 actv functions
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -6737,10 +6736,8 @@ TEST_CASE(lstm_reverse_actv)
                 "lstm",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{
+                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip},
                  {"input_forget", 0}}),

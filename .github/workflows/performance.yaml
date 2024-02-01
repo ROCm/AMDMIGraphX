@@ -12,7 +12,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '6.0.1'
+        default: '6.0.2'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
@@ -50,7 +50,7 @@ jobs:
   release:
     uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@main
     with:
-      rocm_release: ${{ github.event.inputs.rocm_release || '6.0.1' }}
+      rocm_release: ${{ github.event.inputs.rocm_release || '6.0.2' }}
       result_number: ${{ github.event.inputs.result_number || '10' }}
       flags: ${{ github.event.inputs.flags || '-r' }}
       performance_reports_repo: ${{ github.event.inputs.performance_reports_repo || 'ROCm/migraphx-reports' }}

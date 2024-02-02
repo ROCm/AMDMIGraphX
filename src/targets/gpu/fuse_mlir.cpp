@@ -97,7 +97,6 @@ struct mlir_op
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)

@@ -40,50 +40,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// template <class Predicate>
-// std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
-// {
-//     std::vector<instruction_ref> result;
-//     fix([&](auto self, auto ins) {
-//         if(pred(ins))
-//         {
-//             result.push_back(ins);
-//             return;
-//         }
-//         for(auto input : ins->inputs())
-//             self(input);
-//     })(std::prev(m.end()));
-//     return result;
-// }
-
-// std::unordered_set<instruction_ref> preserve_output_layout(module& m)
-// {
-//     std::unordered_set<instruction_ref> result;
-//     std::vector<instruction_ref> outputs =
-//         find_lasts(m, [](auto ins) { return ins->get_shape().lens().size() == 4; });
-//     for(auto output : outputs)
-//     {
-//         auto permutation = find_permutation(output->get_shape());
-
-//         auto layout_ins = m.insert_instruction(
-//             std::next(output), make_op("layout", {{"permutation", permutation}}), output);
-
-//         auto output1 = m.insert_instruction(
-//             layout_ins, make_op("allocate", {{"shape", to_value(layout_ins->get_shape())}}));
-//         std::vector<instruction_ref> refs = layout_ins->inputs();
-//         refs.push_back(output1);
-
-//         auto layout = m.replace_instruction(
-//             layout_ins,
-//             make_op("gpu::precompile_op", {{"op", to_value(layout_ins->get_operator())}}),
-//             refs,
-//             layout_ins->module_inputs());
-
-//         result.insert(layout);
-//     }
-//     return result;
-// }
-
 void remove_layout(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -102,8 +58,6 @@ void remove_layout(module& m)
         {
             continue;
         }
-        // if(contains(output_layouts, ins))
-        //     continue;
 
         m.replace_instruction(ins, ins->inputs().front());
     }
@@ -111,8 +65,6 @@ void remove_layout(module& m)
 
 void eliminate_layout::apply(module_pass_manager& mpm) const
 {
-    // std::unordered_set<instruction_ref> output_layouts =
-    // preserve_output_layout(mpm.get_module());
     remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
 }

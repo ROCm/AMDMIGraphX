@@ -1,7 +1,12 @@
+.. meta::
+   :description: MIGraphX provides an optimized execution engine for deep learning neural networks
+   :keywords: MIGraphX, ROCm, library, API, tool
+
+.. _driver-options:
+
 MIGraphX Driver
 ===============
 
-The MIGraphX driver is a tool that allows you to utilize many of the core functions of MIGraphX without having to write your own program. It can read, compile, run, and test the performance of a model with randomized data.
 
 read
 ----

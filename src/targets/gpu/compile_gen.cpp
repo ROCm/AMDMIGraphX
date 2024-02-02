@@ -343,7 +343,7 @@ std::string generate_reduce(module m, const std::string& name)
         }
         else if(ins->name() == "identity")
         {
-            auto x = names.at(ins->inputs().front());
+            const auto& x = names.at(ins->inputs().front());
             return "r.inner(op::id{})(" + x + ")";
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());

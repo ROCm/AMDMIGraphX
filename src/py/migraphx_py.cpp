@@ -29,6 +29,7 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
+#include <migraphx/autocast_fp8.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/ref/target.hpp>
@@ -581,6 +582,15 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("t"),
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
+    m.def(
+        "autocast_fp8_pass",
+        [](migraphx::module& input_module) {
+            migraphx::autocast_fp8_pass pass;
+            pass.apply(input_module);
+        },
+        "Create and apply autocast_fp8_pass to a module",
+        py::arg("m")
+    );
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

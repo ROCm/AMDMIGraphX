@@ -104,25 +104,56 @@ struct mlir_op
             MIGRAPHX_THROW("should have at least two inputs.");
 
         auto type = mod->get_output_shapes().front().type();
-        std::unordered_map<instruction_ref, shape> ins_shapes;
+        auto mod_params = mod->get_parameter_names();
+        std::sort(mod_params.begin(), mod_params.end());
+        std::unordered_map<instruction_ref, shape> mod_ins_shapes;
+        std::unordered_map<std::string, shape> adjusted_mod_param_shapes;
+        std::transform(inputs.begin(),
+                       inputs.end(),
+                       mod_params.begin(),
+                       std::inserter(adjusted_mod_param_shapes, adjusted_mod_param_shapes.end()),
+                       [](auto ps, auto name) { return std::make_pair(name, ps); });
         for(auto ins : iterator_for(*mod))
         {
-            if(ins->name() == "@literal" or ins->name() == "@param")
+            if(ins->name() == "@param")
             {
-                ins_shapes[ins] = ins->get_shape();
-                continue;
+                mod_ins_shapes[ins] =
+                    adjusted_mod_param_shapes[any_cast<builtin::param>(ins->get_operator())
+                                                  .parameter];
+                if(ins->get_shape().type() != mod_ins_shapes[ins].type())
+                {
+                    MIGRAPHX_THROW(
+                        "MLIR_OP: adjusted mod parameter doesn't have the same type lens as "
+                        "original input. Type changed from : " +
+                        ins->get_shape().type_string() + " to " +
+                        mod_ins_shapes[ins].type_string());
+                }
+                if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
+                {
+                    MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
+                                   "original input. Lens changed from " +
+                                   to_string_range(ins->get_shape().lens()) + " to " +
+                                   to_string_range(mod_ins_shapes[ins].lens()));
+                }
             }
-            if(ins->name() == "@return")
+            else if(ins->name() == "@literal")
             {
-                return ins_shapes[ins->inputs().at(0)].with_type(type);
+                mod_ins_shapes[ins] = ins->get_shape();
             }
-            std::vector<shape> input_shapes;
-            input_shapes.resize(ins->inputs().size());
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           input_shapes.begin(),
-                           [&](auto in) { return ins_shapes[in]; });
-            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+            else if(ins->name() == "@return")
+            {
+                return mod_ins_shapes[ins->inputs().at(0)].with_type(type);
+            }
+            else
+            {
+                std::vector<shape> input_shapes;
+                input_shapes.resize(ins->inputs().size());
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               input_shapes.begin(),
+                               [&](auto in) { return mod_ins_shapes[in]; });
+                mod_ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+            }
         }
         MIGRAPHX_THROW("No return found in the submodule");
     }
@@ -170,8 +201,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input =
-            mm->add_parameter("y" + std::to_string(input_cnt++), upper_input->get_shape());
+        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
+                                                       upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -276,8 +307,9 @@ fold_pointwise_mod(instruction_ref pm_ins,
                    [&](auto name, auto input) {
                        if(ins_map.count(input))
                            return std::make_pair(pm->get_parameter(name), ins_map.at(input));
-                       return std::make_pair(pm->get_parameter(name),
-                                             parent_mod->add_parameter(name, input->get_shape()));
+                       return std::make_pair(
+                           pm->get_parameter(name),
+                           parent_mod->add_parameter(name, input->get_shape().as_standard()));
                    });
     return parent_mod->insert_instructions(parent_mod->end(), pm, param_map);
 }
@@ -468,7 +500,8 @@ struct find_mlir_standalone_attention_op
             make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
         auto [old_upper_v, upper_v_op_stream] =
             get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
-        instruction_ref new_upper_v = mm->add_parameter("z", old_upper_v->get_shape());
+        instruction_ref new_upper_v =
+            mm->add_parameter("z", old_upper_v->get_shape().as_standard());
         for(const auto& op : reverse(upper_v_op_stream))
         {
             new_upper_v = mm->add_instruction(op, {new_upper_v});

@@ -15,11 +15,11 @@ on:
       history_repo:
         description: Repository for history results between dates
         required: true
-        default: 'ROCmSoftwarePlatform/migraphx-reports'
+        default: 'ROCm/migraphx-reports'
       benchmark_utils_repo:
         description: Repository where benchmark utils are stored
         required: true
-        default: "ROCmSoftwarePlatform/migraphx-benchmark-utils"
+        default: "ROCm/migraphx-benchmark-utils"
       organization:
         description: Organization based on which location of files will be different
         required: true
@@ -27,12 +27,12 @@ on:
 
 jobs:
   release:
-    uses: ROCmSoftwarePlatform/migraphx-benchmark/.github/workflows/history.yml@main
+    uses: ROCm/migraphx-benchmark/.github/workflows/history.yml@main
     with:
       start_date: ${{ github.event.inputs.start_date || 'yyyy-mm-dd' }}
       end_date: ${{ github.event.inputs.end_date || 'yyyy-mm-dd' }}
-      history_repo: ${{ github.event.inputs.history_repo || 'ROCmSoftwarePlatform/migraphx-reports' }}
-      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCmSoftwarePlatform/migraphx-benchmark-utils' }}
+      history_repo: ${{ github.event.inputs.history_repo || 'ROCm/migraphx-reports' }}
+      benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || 'ROCm/migraphx-benchmark-utils' }}
       organization: ${{ github.event.inputs.organization || 'AMD' }}
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

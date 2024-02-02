@@ -50,5 +50,28 @@ struct test_conv_add_relu : verify_program<test_conv_add_relu<DType>>
     }
 };
 
+struct test_conv_add_relu_conv : verify_program<test_conv_add_relu_conv>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4, 4, 3, 3}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 4, 1, 1}});
+        auto bias_literal = migraphx::literal{migraphx::shape{migraphx::shape::float_type, {4}},
+                                              {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto bias         = mm->add_literal(bias_literal);
+        auto conv         = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
+        auto bcast_bias   = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            bias);
+        auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv, bcast_bias);
+        auto relu     = mm->add_instruction(migraphx::make_op("relu"), bias_add);
+        mm->add_instruction(migraphx::make_op("convolution"), relu, weights);
+        return p;
+    }
+};
 template struct test_conv_add_relu<migraphx::shape::float_type>;
 template struct test_conv_add_relu<migraphx::shape::fp8e4m3fnuz_type>;

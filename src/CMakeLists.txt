@@ -52,6 +52,7 @@ add_library(migraphx
     eliminate_convert.cpp
     eliminate_data_type.cpp
     eliminate_identity.cpp
+    eliminate_layout.cpp
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +22,11 @@
  * THE SOFTWARE.
  */
 #include <migraphx/auto_contiguous.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/iterator_for.hpp>
 
 namespace migraphx {
@@ -58,17 +60,38 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "layout")
+        if(contains({"layout", "contiguous", "@return", "@outline"}, ins->name()))
             continue;
+        auto outputs = ins->outputs();
         // for last instruction that is NOT a return
-        if(ins->outputs().empty() and ins != last)
+        if(outputs.empty() and ins != last)
             continue;
+        if(not outputs.empty())
+            // if contiguous was already inserted, skip
+            if(std::all_of(outputs.begin(), outputs.end(), [](auto output) {
+                   return output->name() == "contiguous";
+               }))
+                continue;
         shape s = ins->get_shape();
-        if(not s.dynamic() and not s.standard() and s.elements() != 0)
+        if(s.dynamic())
+            continue;
+        if(s.type() == shape::tuple_type)
+            continue;
+        if(contains({"@literal", "@param"}, ins->name()))
         {
-            auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
-            m.replace_instruction(ins, c);
+            if(s.standard())
+                continue;
+            if(s.packed() and contains({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}},
+                                       find_permutation(s)))
+                continue;
         }
+        // if(s.standard() and contains({"@literal", "@param"}, ins->name()))
+        //     continue;
+        if(s.scalar() and not contains(ins->name(), "broadcast"))
+            continue;
+
+        auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
+        m.replace_instruction(ins, c);
     }
 }
 

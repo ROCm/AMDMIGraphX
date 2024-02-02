@@ -97,7 +97,6 @@ struct mlir_op
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
         module_ref mod = mods[0];
-        check_shapes{inputs, *this}.packed_or_broadcasted();
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         if(inputs.size() < 2)
@@ -412,6 +411,7 @@ struct find_mlir_fused_ops
     {
         auto ins           = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
+        // auto x_ins         = gemm_based_op->inputs().front();
         auto x_ins         = r.instructions["x"]; // input after contiguous
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
@@ -426,7 +426,10 @@ struct find_mlir_fused_ops
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op; });
+                     [&](auto input) {
+                         return input != gemm_based_op and
+                                not contains(input->name(), "contiguous");
+                     });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});

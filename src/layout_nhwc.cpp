@@ -90,7 +90,7 @@ void transform_convolutions(module& m)
 void layout_nhwc::apply(module_pass_manager& mpm) const
 {
     module& m = mpm.get_module();
-    // preserve_output_layout(m);
+    preserve_output_layout(m);
     transform_convolutions(m);
     mpm.run_pass(dead_code_elimination{});
 }

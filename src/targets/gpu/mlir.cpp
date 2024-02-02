@@ -640,8 +640,18 @@ struct mlir_program
         return "mlir_" + gen::generate_name_from_ops(m);
     }
 
+    static void validate(const module& m)
+    {
+        if(m.begin() == m.end())
+            MIGRAPHX_THROW("Empty module");
+        auto last = std::prev(m.end());
+        if(last->name() != "@return")
+            MIGRAPHX_THROW("Missing @return as last instruction.");
+    }
+
     void parse(const module& m)
     {
+        validate(m);
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
@@ -936,23 +946,12 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
     std::sort(names.begin(), names.end());
-    // std::cout << "num_inputs " << inputs.size() << "num_names " << names.size() << std::endl;
-    // for(auto input : inputs)
-    // {
-    //     std::cout << input << std::endl;
-    // }
-    // for(auto name : names)
-    // {
-    //     std::cout << name << std::endl;
-    // }
     for(auto i : range(names.size()))
     {
         const auto& name  = names[i];
         const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
         assert(param->get_shape().standard());
-        // std::cout << "name: " << name << " param: " << param->get_shape() << " input: " << input
-        // << std::endl;
         assert(param->get_shape().lens() == input.lens());
         if(input.standard())
             continue;

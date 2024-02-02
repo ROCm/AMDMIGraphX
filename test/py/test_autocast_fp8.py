@@ -23,6 +23,7 @@
 #####################################################################################
 import migraphx
 
+
 def test_autocast_fp8_1():
     p1 = migraphx.program()
     m1 = p1.get_main_module()
@@ -38,14 +39,23 @@ def test_autocast_fp8_1():
     y_fp32 = m2.add_parameter("y", shape=migraphx.shape(type='float_type'))
     x_fp32 = m2.add_parameter("x", shape=migraphx.shape(type='float_type'))
 
-    y_fp8 = m2.add_instruction(migraphx.op("convert", target_type=migraphx.shape.type_t.fp8e4m3fnuz_type), [y_fp32])
-    x_fp8 = m2.add_instruction(migraphx.op("convert", target_type=migraphx.shape.type_t.fp8e4m3fnuz_type), [x_fp32])
+    y_fp8 = m2.add_instruction(
+        migraphx.op("convert",
+                    target_type=migraphx.shape.type_t.fp8e4m3fnuz_type),
+        [y_fp32])
+    x_fp8 = m2.add_instruction(
+        migraphx.op("convert",
+                    target_type=migraphx.shape.type_t.fp8e4m3fnuz_type),
+        [x_fp32])
 
     sum_fp8 = m2.add_instruction(migraphx.op("add"), [x_fp8, y_fp8])
-    sum_fp32 = m2.add_instruction(migraphx.op("convert", target_type=migraphx.shape.type_t.float_type), [sum_fp8])
+    sum_fp32 = m2.add_instruction(
+        migraphx.op("convert", target_type=migraphx.shape.type_t.float_type),
+        [sum_fp8])
 
     m2.add_return([sum_fp32])
     assert p1 == p2
+
 
 def test_autocast_fp8_2():
     p1 = migraphx.program()
@@ -53,11 +63,13 @@ def test_autocast_fp8_2():
     x = m1.add_parameter("x", shape=migraphx.shape(type='float_type'))
     y = m1.add_parameter("y", shape=migraphx.shape(type='float_type'))
     sum = m1.add_instruction(migraphx.op("add"), [x, y])
+    m1.add_return([sum])
 
     m1 = migraphx.autocast_fp8_pass(m1)
 
     p2 = p1
     assert p1 == p2
+
 
 if __name__ == "__main__":
     test_autocast_fp8_1()

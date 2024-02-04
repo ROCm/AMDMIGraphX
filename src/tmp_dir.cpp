@@ -81,9 +81,9 @@ tmp_dir::tmp_dir(const std::string& prefix)
     fs::create_directories(this->path);
 }
 
-void tmp_dir::execute(const std::string& exe, const std::string& args) const
+void tmp_dir::execute(const std::string& exe, const std::vector<std::string>& args) const
 {
-    process{exe}.cwd(this->path).exec(args);
+    process{exe, args}.cwd(this->path).exec();
 }
 
 tmp_dir::~tmp_dir()

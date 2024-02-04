@@ -26,6 +26,7 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
+#include <deque>
 #include <cassert>
 
 namespace migraphx {
@@ -35,9 +36,9 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {
     assert(not srcs.empty());
     tmp_dir td{"compile"};
-    auto params = flags;
+    std::deque<std::string> params{flags.begin(), flags.end()};
 
-    params += " -I.";
+    params.emplace_back("-I.");
 
     auto out = output;
 
@@ -49,21 +50,22 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         write_buffer(full_path, src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
-            params += " " + src.path.filename().string();
+            params.emplace_back(src.path.filename().string());
             if(out.empty())
                 out = src.path.stem().string() + out_ext;
         }
     }
 
-    params += " -o " + out;
+    params.emplace_back("-o " + out);
 
     if(not launcher.empty())
     {
-        td.execute(launcher, compiler + " " + params);
+        params.emplace_front(compiler);
+        td.execute(launcher, {params.begin(), params.end()});
     }
     else
     {
-        td.execute(compiler, params);
+        td.execute(compiler, {params.begin(), params.end()});
     }
 
     auto out_path = td.path / out;

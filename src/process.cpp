@@ -24,6 +24,9 @@
 #include <migraphx/process.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/tmp_dir.hpp>
+#include <algorithm>
+#include <numeric>
 #include <functional>
 #include <iostream>
 #include <optional>
@@ -190,7 +193,7 @@ class pipe
 
 // clang-format off
 template <typename F>
-int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, F f)
 // clang-format on
 {
@@ -205,14 +208,14 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 
     // Build lpCommandLine parameter.
     TCHAR cmdline[CMDLINE_LENGTH];
-    std::strncpy(cmdline, cmd.c_str(), CMDLINE_LENGTH);
+    std::strncpy(cmdline, cmd.string().c_str(), CMDLINE_LENGTH);
 
-    if(!args.empty())
+    if(not args.empty())
         std::strncat(std::strncat(cmdline, " ", CMDLINE_LENGTH), args.c_str(), CMDLINE_LENGTH);
 
     // Build lpEnvironment parameter.
     std::vector<TCHAR> environment{};
-    if(!envs.empty())
+    if(not envs.empty())
     {
         std::istringstream iss{envs};
         std::string str;
@@ -241,7 +244,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 
         ZeroMemory(&process_info, sizeof(process_info));
 
-        if(CreateProcess(cmd.c_str(),
+        if(CreateProcess(cmd.string().c_str(),
                          cmdline,
                          nullptr,
                          nullptr,
@@ -288,7 +291,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 }
 
 // clang-format off
-int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, HANDLE std_out)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
@@ -308,7 +311,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                     });
 }
 
-int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
+int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, cwd, args, envs,
@@ -324,12 +327,8 @@ struct process_impl
 {
     std::string args{};
     std::string envs{};
-    std::string command{};
+    fs::path command{};
     fs::path cwd{};
-
-#ifdef _WIN32
-    HANDLE std_out = INVALID_HANDLE_VALUE;
-#endif
 
     std::string get_command() const
     {
@@ -338,7 +337,7 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         if(not envs.empty())
             result += envs + " ";
-        result += command;
+        result += command.string();
         if(not args.empty())
             result += " " + args;
         return result;
@@ -354,9 +353,18 @@ struct process_impl
     }
 };
 
-process::process(const std::string& cmd) : impl(std::make_unique<process_impl>())
+process::process(const fs::path& cmd, const std::vector<std::string>& args)
+    : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;
+    if(not args.empty())
+    {
+        impl->args =
+            std::accumulate(++args.begin(),
+                            args.end(),
+                            args.front(),
+                            [](const std::string& a, const std::string& b) { return a + ' ' + b; });
+    }
 }
 
 process::process(process&&) noexcept = default;
@@ -375,35 +383,70 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-#ifdef _WIN32
-process& process::redirect_std_out(void* rout)
+process& process::env(const std::vector<std::string>& v)
 {
-    impl->std_out = rout != nullptr ? rout : INVALID_HANDLE_VALUE;
+    if(not v.empty())
+    {
+        impl->envs = std::accumulate(
+            ++v.begin(), v.end(), v.front(), [](const std::string& a, const std::string& b) {
+                return a + ' ' + b;
+            });
+    }
     return *this;
 }
-#endif
 
-void process::exec(std::string_view args, std::string_view envs)
+void process::read(std::string& buffer) const
 {
-    impl->args = args;
-    impl->envs = envs;
+#ifdef _WIN32
+    constexpr auto filename = "stdout";
+    auto tmp = tmp_dir{};
+    HANDLE handle = CreateFile((tmp.path / filename).string().c_str(),
+                               GENERIC_READ | GENERIC_WRITE,
+                               0,
+                               nullptr,
+                               CREATE_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL,
+                               nullptr);
+    impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
+                     handle == nullptr or handle == INVALID_HANDLE_VALUE ?
+                                     GetStdHandle(STD_OUTPUT_HANDLE) : handle);
+    CloseHandle(handle);
+    handle = CreateFile((tmp.path / filename).string().c_str(),
+                        GENERIC_READ | GENERIC_WRITE,
+                        0,
+                        nullptr,
+                        OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL,
+                        nullptr);
+    if(handle == nullptr or handle == INVALID_HANDLE_VALUE)
+        MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename).string());
+    auto size = GetFileSize(handle, nullptr);
+    std::string result(size, '\0');
+    if (ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
+        MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
+    buffer = result;
+    CloseHandle(handle);
+#else
+    std::stringstream ss;
+    impl->check_exec(impl->get_command(), redirect_to(ss));
+    buffer = ss.str();
+#endif
+}
+
+void process::exec()
+{
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), redirect_to(std::cout));
 #else
     // clang-format off
     impl->check_exec(impl->command, impl->cwd.string(), impl->args, impl->envs,
-                     impl->std_out != INVALID_HANDLE_VALUE ?
-                                impl->std_out : GetStdHandle(STD_OUTPUT_HANDLE));
+                     GetStdHandle(STD_OUTPUT_HANDLE));
     // clang-format on
 #endif
 }
 
-void process::write(std::function<void(process::writer)> pipe_in,
-                    std::string_view args,
-                    std::string_view envs)
+void process::write(std::function<void(process::writer)> pipe_in)
 {
-    impl->args = args;
-    impl->envs = envs;
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), std::move(pipe_in));
 #else

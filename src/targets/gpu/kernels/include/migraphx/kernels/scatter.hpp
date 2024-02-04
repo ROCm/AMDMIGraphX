@@ -21,34 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
+#define MIGRAPHX_GUARD_KERNELS_SCATTER_ELEMENTS_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_scatter0 : verify_program<test_scatter0<DType>>
+namespace migraphx {
+
+template <uint64_t Axis, class T, class U, class V, class F>
+__device__ void scatter(const T& indices_t, const U& updates_t, const V& output_t, F f)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape sd{DType, {3, 3}};
-        migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
-        std::vector<int> vi = {1, 0, 2, 0, 2, 1};
-        migraphx::shape su{DType, {2, 3}};
+    auto gpu_index     = make_index();
+    auto indices_shape = indices_t.get_shape();
+    auto axis_dim_size = output_t.get_shape().lens[Axis];
 
-        auto pd = mm->add_parameter("data", sd);
-        auto li = mm->add_literal(migraphx::literal{si, vi});
-        auto pu = mm->add_parameter("update", su);
-        auto r = mm->add_instruction(migraphx::make_op("scatter_none", {{"axis", -1}}), pd, li, pu);
-        mm->add_return({r});
+    gpu_index.global_stride(indices_shape.elements(), [&](auto i) {
+        auto out_idx  = indices_shape.multi(i);
+        auto index    = indices_t[i];
+        index         = index < 0 ? index + axis_dim_size : index;
+        out_idx[Axis] = index;
 
-        return p;
-    }
-};
+        f(output_t[out_idx], updates_t[i]);
+    });
+}
 
-template struct test_scatter0<migraphx::shape::float_type>;
-template struct test_scatter0<migraphx::shape::half_type>;
-template struct test_scatter0<migraphx::shape::fp8e4m3fnuz_type>;
+} // namespace migraphx
+#endif

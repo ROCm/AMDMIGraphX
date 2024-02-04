@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
+#include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -857,8 +858,8 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
-template <class T>
-inline auto has_value(T x, float tolerance = 1e-6)
+template <class F>
+inline auto literal_value_checker(F f)
 {
     return skip_broadcasts_converts(make_basic_pred_matcher([=](instruction_ref ins) {
         if(ins->name() != "@literal")
@@ -866,14 +867,44 @@ inline auto has_value(T x, float tolerance = 1e-6)
         auto l = ins->get_literal();
         if(l.empty())
             return false;
+        return f(l);
+    }));
+}
+
+/**
+ * Uses integer multiples of the corresponding floating point epsilon and
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(x)).
+ * atol_mult controls the absolute tolerance.
+ * rtol_mult controls the relative tolerance.
+ * Uses no tolerance for integral types.
+ */
+template <class T>
+inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 10)
+{
+    return literal_value_checker([=](migraphx::literal l) {
         bool b = false;
         l.visit([&](auto v) {
-            if(std::all_of(
-                   v.begin(), v.end(), [&](auto val) { return std::fabs(val - x) < tolerance; }))
-                b = true;
+            // cast to the literal's data type before comparing
+            using type = typename decltype(v)::value_type;
+            auto tolerance = atol_mult + rtol_mult * std::fabs(x);
+            if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
+            {
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return migraphx::float_equal(val, static_cast<type>(x));
+                   }))
+                    b = true;
+            }
+            else
+            {
+                auto eps = std::numeric_limits<type>::epsilon();
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
+                   }))
+                    b = true;
+            }
         });
         return b;
-    }));
+    });
 }
 
 inline auto has_attribute(const std::string& name)

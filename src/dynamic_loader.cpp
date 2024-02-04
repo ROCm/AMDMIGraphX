@@ -182,19 +182,20 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 {
 }
 
-std::shared_ptr<void> dynamic_loader::get_symbol(const std::string& name) const
+std::shared_ptr<void> dynamic_loader::get_symbol(const std::string_view name) const
 {
 #ifndef _WIN32
     // flush any previous error messages
     check_load_error(true);
-    void* symbol = dlsym(impl->handle.get(), name.c_str());
+    void* symbol = dlsym(impl->handle.get(), name.data());
     if(symbol == nullptr)
         check_load_error();
     return {impl, symbol};
 #else
-    FARPROC addr = GetProcAddress(impl->handle, name.c_str());
+    FARPROC addr = GetProcAddress(impl->handle, name.data());
     if(addr == nullptr)
-        MIGRAPHX_THROW("Symbol not found: " + name + " (" + std::to_string(GetLastError()) + ")");
+        MIGRAPHX_THROW("Symbol not found: " + std::string{name} + " (" +
+                       std::to_string(GetLastError()) + ")");
     return {impl, reinterpret_cast<void*>(addr)};
 #endif
 }

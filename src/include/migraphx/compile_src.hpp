@@ -65,7 +65,7 @@ struct MIGRAPHX_EXPORT src_compiler
 #else
     std::string compiler                      = "c++";
 #endif
-    std::string flags                         = "";
+    std::vector<std::string> flags            = {};
     std::string output                        = "";
     std::string launcher                      = "";
     std::string out_ext                       = ".o";

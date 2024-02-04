@@ -35,7 +35,7 @@
 #endif
 
 // NOLINTNEXTLINE
-const std::string add_42_src = EXPORT_SYMBOL R"migraphx(
+const std::string_view add_42_src = R"migraphx(
 extern "C" int add(int x)
 {
     return x+42;
@@ -43,40 +43,41 @@ extern "C" int add(int x)
 )migraphx";
 
 // NOLINTNEXTLINE
-const std::string preamble = R"migraphx(
+const std::string_view preamble = R"migraphx(
 #include <cmath>
 )migraphx";
 
 template <class F>
 std::function<F>
-compile_function(const std::string& src, const std::string& flags, const std::string& fname)
+compile_function(std::string_view src, std::string_view symbol_name)
 {
     migraphx::src_compiler compiler;
-    compiler.flags = flags + "-std=c++14 -shared";
+    compiler.flags.emplace_back("-std=c++14");
+    compiler.flags.emplace_back("-shared");
 #ifdef _WIN32
     compiler.output = "simple.dll";
 #else
-    compiler.flags += " -fPIC";
+    compiler.flags.emplace_back("-fPIC");
     compiler.output = "libsimple.so";
 #endif
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
-    return migraphx::dynamic_loader{image}.get_function<F>(fname);
+    return migraphx::dynamic_loader{image}.get_function<F>(symbol_name);
 }
 
 template <class F>
-std::function<F> compile_module(const migraphx::module& m, const std::string& flags = "")
+std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });
     g.create_function(g.generate_module(m).set_attributes({EXPORT_SYMBOL "extern \"C\""}));
 
-    return compile_function<F>(preamble + g.str(), flags, m.name());
+    return compile_function<F>(preamble.data() + g.str(), m.name());
 }
 
 TEST_CASE(simple_run)
 {
-    auto f = compile_function<int(int)>(add_42_src, "", "add");
+    auto f = compile_function<int(int)>(add_42_src, "add");
     EXPECT(f(8) == 50);
     EXPECT(f(10) == 52);
 }

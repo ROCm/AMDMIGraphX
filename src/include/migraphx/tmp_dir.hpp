@@ -36,7 +36,7 @@ struct MIGRAPHX_EXPORT tmp_dir
     tmp_dir(const std::string& prefix = "");
     tmp_dir(tmp_dir&&) = default;
 
-    void execute(const std::string& exe, const std::string& args) const;
+    void execute(const std::string& exe, const std::vector<std::string>& args) const;
 
     tmp_dir(tmp_dir const&) = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;

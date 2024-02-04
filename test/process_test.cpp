@@ -32,6 +32,7 @@
 #include <vector>
 #include <thread>
 
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/process.hpp>
@@ -39,17 +40,12 @@
 
 #ifndef _WIN32
 #include <cstring>
-#endif
-#include "test.hpp"
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#else
 #include <io.h>
 #include <fcntl.h>
-#undef getpid
-#define getpid _getpid
 #endif
+
+#include "test.hpp"
 
 static migraphx::fs::path executable;
 static std::string string_data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
@@ -80,27 +76,17 @@ std::vector<char> read_stdin()
     return result;
 }
 
-std::string get_temp_file(std::string_view test_id)
-{
-    auto pid = getpid();
-    auto tid = std::this_thread::get_id();
-    auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
-    std::stringstream ss;
-    ss << std::hex << "migx-test-" << pid << '-' << tid << '-' << clk << '-' << test_id << ".txt";
-    return ss.str();
-}
-
 TEST_CASE(string_stdin)
 {
-    auto out = migraphx::fs::temp_directory_path() / get_temp_file("string");
+    auto tmp = migraphx::tmp_dir{};
+    auto out = (tmp.path / "output.txt").string();
 
-    migraphx::process{executable}.write(
-        [&](auto writer) { writer(string_data.c_str(), string_data.size()); },
-        "--stdin " + out.string());
+    migraphx::process{executable, {"--stdin", out}}.write(
+        [&](auto writer) { writer(string_data.c_str(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
-    std::string result{migraphx::read_string(out.string())};
+    std::string result{migraphx::read_string(out)};
     EXPECT(result == string_data);
 
     EXPECT(migraphx::fs::remove(out));
@@ -114,11 +100,11 @@ TEST_CASE(binary_stdin)
     std::vector<char> binary_data(4096);
     std::generate(binary_data.begin(), binary_data.end(), std::ref(rbe));
 
-    auto out = migraphx::fs::temp_directory_path() / get_temp_file("binary");
+    auto tmp = migraphx::tmp_dir{};
+    auto out = (tmp.path / "output.bin").string();
 
-    migraphx::process{executable}.write(
-        [&](auto writer) { writer(binary_data.data(), binary_data.size()); },
-        "--stdin " + out.string());
+    migraphx::process{executable, {"--stdin", out}}.write(
+        [&](auto writer) { writer(binary_data.data(), binary_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
@@ -130,56 +116,20 @@ TEST_CASE(binary_stdin)
 
 TEST_CASE(read_stdout)
 {
-    migraphx::process child{executable};
-#ifdef WIN32
-    auto out      = migraphx::fs::temp_directory_path() / get_temp_file("stdout");
-    HANDLE handle = CreateFile(out.string().c_str(),
-                               GENERIC_READ | GENERIC_WRITE,
-                               0,
-                               nullptr,
-                               CREATE_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL,
-                               nullptr);
-    EXPECT(handle != INVALID_HANDLE_VALUE);
-    child.redirect_std_out(handle);
-#else
-    std::stringstream ss;
-    std::streambuf* old{std::cout.rdbuf(ss.rdbuf())};
-#endif
-    child.exec("--stdout");
-#ifdef WIN32
-    CloseHandle(handle);
-    handle = CreateFile(out.string().c_str(),
-                        GENERIC_READ | GENERIC_WRITE,
-                        0,
-                        nullptr,
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        nullptr);
-    EXPECT(handle != INVALID_HANDLE_VALUE);
-    auto size = GetFileSize(handle, nullptr);
-    std::string buffer(size, '\0');
-    DWORD read;
-    EXPECT(ReadFile(handle, buffer.data(), size, &read, nullptr) == TRUE);
-    CloseHandle(handle);
-    EXPECT(migraphx::fs::remove(out));
-#else
-    std::string buffer = ss.str();
-    std::cout.rdbuf(old);
-#endif
+    std::string buffer;
+    migraphx::process{executable, {"--stdout"}}.read(buffer);
     EXPECT(buffer == string_data);
 }
 
 TEST_CASE(current_working_dir)
 {
-    std::string filename{get_temp_file("cwd")};
-    migraphx::fs::path tmp{migraphx::fs::temp_directory_path()};
+    constexpr auto filename = "output.txt";
+    auto tmp                = migraphx::tmp_dir{};
 
-    auto out = tmp / filename;
+    auto out = tmp.path / filename;
 
-    migraphx::process{executable}.cwd(tmp).write(
-        [&](auto writer) { writer(string_data.c_str(), string_data.size()); },
-        "--stdin " + filename);
+    migraphx::process{executable, {"--stdin", filename}}.cwd(tmp.path).write(
+        [&](auto writer) { writer(string_data.c_str(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
@@ -191,43 +141,10 @@ TEST_CASE(current_working_dir)
 
 TEST_CASE(environment_variable)
 {
-    migraphx::process child{executable};
-#ifdef WIN32
-    auto out      = migraphx::fs::temp_directory_path() / get_temp_file("stdout");
-    HANDLE handle = CreateFile(out.string().c_str(),
-                               GENERIC_WRITE,
-                               0,
-                               nullptr,
-                               CREATE_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL,
-                               nullptr);
-    EXPECT(handle != INVALID_HANDLE_VALUE);
-    child.redirect_std_out(handle);
-#else
-    std::stringstream ss;
-    std::streambuf* old{std::cout.rdbuf(ss.rdbuf())};
-#endif
-    child.exec("--stdout", "MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE=1");
-#ifdef WIN32
-    CloseHandle(handle);
-    handle = CreateFile(out.string().c_str(),
-                        GENERIC_READ,
-                        0,
-                        nullptr,
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        nullptr);
-    EXPECT(handle != INVALID_HANDLE_VALUE);
-    auto size = GetFileSize(handle, nullptr);
-    std::string buffer(size, '\0');
-    DWORD read;
-    EXPECT(ReadFile(handle, buffer.data(), size, &read, nullptr) == TRUE);
-    CloseHandle(handle);
-    EXPECT(migraphx::fs::remove(out));
-#else
-    std::string buffer = ss.str();
-    std::cout.rdbuf(old);
-#endif
+    std::string buffer;
+    migraphx::process{executable, {"--stdout"}}
+        .env({"MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE=1"})
+        .read(buffer);
     std::string reversed(string_data);
     std::reverse(reversed.begin(), reversed.end());
     EXPECT(buffer == reversed);

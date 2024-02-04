@@ -61,11 +61,10 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
                              {migraphx::simplify_reshapes{},
                               migraphx::dead_code_elimination{},
                               migraphx::eliminate_identity{}});
-
-    // remove the last return instruction
-    auto last_ins = std::prev(mm->end());
-    if(last_ins != mm->end())
+    if(mm->size() > 0)
     {
+        // remove the last return instruction
+        auto last_ins = std::prev(mm->end());
         if(last_ins->name() == "@return")
         {
             mm->remove_instruction(last_ins);

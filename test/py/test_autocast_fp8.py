@@ -32,7 +32,7 @@ def test_autocast_fp8_1():
     sum_op = m1.add_instruction(migraphx.op("add"), [x, y])
     m1.add_return([sum_op])
 
-    m1 = migraphx.autocast_fp8_pass(m1)
+    m1 = migraphx.autocast_fp8(p1)
 
     p2 = migraphx.program()
     m2 = p2.get_main_module()
@@ -65,7 +65,7 @@ def test_autocast_fp8_2():
     sum = m1.add_instruction(migraphx.op("add"), [x, y])
     m1.add_return([sum])
 
-    m1 = migraphx.autocast_fp8_pass(m1)
+    m1 = migraphx.autocast_fp8(p1)
 
     p2 = p1
     assert p1 == p2

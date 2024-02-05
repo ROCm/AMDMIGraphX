@@ -583,9 +583,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("calibration") = std::vector<migraphx::parameter_map>{},
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
     m.def(
-        "autocast_fp8_pass",
-        [](migraphx::module& input_module) {
+        "autocast_fp8",
+        [](migraphx::program& p) {
             migraphx::autocast_fp8_pass pass;
+            migraphx::module& input_module = *p.get_main_module();
             pass.apply(input_module);
         },
         "Create and apply autocast_fp8_pass to a module",

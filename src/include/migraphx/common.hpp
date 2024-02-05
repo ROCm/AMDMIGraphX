@@ -119,7 +119,7 @@ MIGRAPHX_EXPORT
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
 /**
- * Calculates the broadcasted strides from dot_broadcast or multibroadcast.
+ * Calculates the broadcasted strides from broadcast_for_dot or multibroadcast.
  */
 MIGRAPHX_EXPORT
 shape make_bcast_shape(const shape& input_shape,

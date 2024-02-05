@@ -32,8 +32,8 @@ TEST_CASE(matmul_dyn_broadcast_test)
     auto p1  = mm->add_parameter(
         "2", migraphx::shape{migraphx::shape::float_type, {{5, 5}, {7, 7}, {4, 8, {6}}}});
     auto usp0         = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), p0);
-    auto broadcast_p0 = mm->add_instruction(migraphx::make_op("dot_broadcast"), usp0, p1);
-    auto broadcast_p1 = mm->add_instruction(migraphx::make_op("dot_broadcast"), p1, usp0);
+    auto broadcast_p0 = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), usp0, p1);
+    auto broadcast_p1 = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), p1, usp0);
     auto dot_ins      = mm->add_instruction(migraphx::make_op("dot"), broadcast_p0, broadcast_p1);
     auto ret          = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), dot_ins);
     mm->add_return({ret});

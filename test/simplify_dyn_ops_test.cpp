@@ -557,7 +557,7 @@ TEST_CASE(const_alloc_fill)
     EXPECT(m0 == m1);
 }
 
-TEST_CASE(static_dot_broadcast)
+TEST_CASE(static_broadcast_for_dot)
 {
     migraphx::module m0;
     {
@@ -566,9 +566,9 @@ TEST_CASE(static_dot_broadcast)
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {8, 10}}};
         std::vector<float> lit_vec(80, 2.f);
         auto literal_ins = m0.add_literal(migraphx::literal{lit_s, lit_vec});
-        auto dot_broadcast_ins =
-            m0.add_instruction(migraphx::make_op("dot_broadcast"), literal_ins, input);
-        auto dot_ins = m0.add_instruction(migraphx::make_op("dot"), input, dot_broadcast_ins);
+        auto broadcast_for_dot_ins =
+            m0.add_instruction(migraphx::make_op("broadcast_for_dot"), literal_ins, input);
+        auto dot_ins = m0.add_instruction(migraphx::make_op("dot"), input, broadcast_for_dot_ins);
         m0.add_return({dot_ins});
     }
     run_pass(m0);

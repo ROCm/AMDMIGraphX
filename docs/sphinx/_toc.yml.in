@@ -4,10 +4,23 @@ root: index
 subtrees:
   - numbered: False
     entries:
-    - file: py_user_guide
-    - file: cpp_user_guide
-    - file: driver
-    - file: contributor_guide
-  - caption: About
+    - file: what-is-migraphx
+    - file: migraphx-driver
+      entries:
+        - file: driver-options
+    - file: contributing-to-migraphx
+      entries:
+        - file: dev/data
+        - file: dev/operators
+        - file: dev/program
+        - file: dev/targets
+        - file: dev/quantization
+        - file: dev/pass
+        - file: dev/matchers
+        - file: dev/tools
+        - file: dev/env_vars
+  - caption: API Reference
     entries:
-    - file: license
+    - file: cpp-api-reference
+    - file: python-api-reference
+  

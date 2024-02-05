@@ -1,3 +1,5 @@
+.. _python-api-reference:
+
 .. py:module:: migraphx
 
 Python Reference

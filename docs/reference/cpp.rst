@@ -1,3 +1,4 @@
+.. _cpp-api-reference:
 
 C++ Reference
 =============

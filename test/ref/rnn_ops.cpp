@@ -321,8 +321,7 @@ TEST_CASE(rnn_forward)
                 "rnn",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -635,8 +634,7 @@ TEST_CASE(rnn_forward_layout)
                 "rnn",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -2742,7 +2740,7 @@ TEST_CASE(gru_forward_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // both activation functions - sigmoid
+    // 1 activation function (sigmoid) specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -2757,8 +2755,8 @@ TEST_CASE(gru_forward_actv_funcs)
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("sigmoid"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
                  {"linear_before_reset", 1}}),
@@ -2783,7 +2781,7 @@ TEST_CASE(gru_forward_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // both activation functions - tanh
+    // 1 activation function (tanh) specified
     {
         migraphx::program p;
         auto* mm       = p.get_main_module();
@@ -2798,8 +2796,7 @@ TEST_CASE(gru_forward_actv_funcs)
                 "gru",
                 {{"hidden_size", hidden_size},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip},
                  {"linear_before_reset", 1}}),
@@ -4464,7 +4461,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // all activation functions -sigmoid
+    // 1 activation function (sigmoid) specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -4480,10 +4477,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid")})},
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
                  {"linear_before_reset", 0}}),
@@ -4510,7 +4504,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // all activation functions -tanh
+    // 2 activation functions (tanh) specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -4526,8 +4520,6 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh"),
-                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -4557,7 +4549,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // 4 non-default activation functions specified
+    // 3 activation functions specified
     {
         migraphx::program p;
         auto* mm       = p.get_main_module();
@@ -4574,7 +4566,6 @@ TEST_CASE(gru_bidirectional_actv_funcs)
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("sigmoid"),
-                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -4598,7 +4589,7 @@ TEST_CASE(gru_bidirectional_actv_funcs)
         EXPECT(migraphx::verify::verify_rms_range(hs_data, hs_data_gold));
     }
 
-    // 4 default activation functions specified
+    // 4 activation functions all specified
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -6912,6 +6903,9 @@ TEST_CASE(lstm_bidirectional)
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -6965,6 +6959,9 @@ TEST_CASE(lstm_bidirectional)
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh"),
+                                                                        migraphx::make_op("tanh"),
+                                                                        migraphx::make_op("sigmoid"),
+                                                                        migraphx::make_op("tanh"),
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                    {"clip", clip},
@@ -7008,6 +7005,9 @@ TEST_CASE(lstm_bidirectional)
                    {"actv_func",
                     migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                         migraphx::make_op("tanh"),
+                                                                        migraphx::make_op("tanh"),
+                                                                        migraphx::make_op("sigmoid"),
+                                                                        migraphx::make_op("tanh"),
                                                                         migraphx::make_op("tanh")})},
                    {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                    {"clip", clip},
@@ -7045,6 +7045,9 @@ TEST_CASE(lstm_bidirectional)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
@@ -7092,6 +7095,9 @@ TEST_CASE(lstm_bidirectional)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
@@ -7211,6 +7217,9 @@ TEST_CASE(lstm_bidirectional_layout)
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -7267,17 +7276,20 @@ TEST_CASE(lstm_bidirectional_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs   = mm->add_instruction(
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
-                   {"actv_func",
-                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                        migraphx::make_op("tanh"),
-                                                                        migraphx::make_op("tanh")})},
-                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                   {"clip", clip},
-                   {"input_forget", 0}}),
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip},
+                 {"input_forget", 0}}),
             seq,
             w,
             r,
@@ -7318,17 +7330,20 @@ TEST_CASE(lstm_bidirectional_layout)
         ih  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ih);
         ic  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), ic);
 
-        auto hs   = mm->add_instruction(
+        auto hs = mm->add_instruction(
             migraphx::make_op(
                 "lstm",
                 {{"hidden_size", hidden_size},
-                   {"actv_func",
-                    migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                                        migraphx::make_op("tanh"),
-                                                                        migraphx::make_op("tanh")})},
-                   {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
-                   {"clip", clip},
-                   {"input_forget", 0}}),
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
+                 {"clip", clip},
+                 {"input_forget", 0}}),
             seq,
             w,
             r,
@@ -7368,6 +7383,9 @@ TEST_CASE(lstm_bidirectional_layout)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
@@ -7422,6 +7440,9 @@ TEST_CASE(lstm_bidirectional_layout)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
@@ -7542,6 +7563,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -7625,6 +7649,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
@@ -7789,6 +7816,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
@@ -7885,6 +7915,9 @@ TEST_CASE(lstm_bidirectional_var_seq_lens_layout)
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},

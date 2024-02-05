@@ -28,7 +28,7 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import re
+import re, sys, os
 
 from rocm_docs import ROCmDocs
 

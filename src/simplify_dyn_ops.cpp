@@ -338,9 +338,9 @@ struct find_static_broadcast_for_dot
     {
         auto broadcast_for_dot_ins = mr.result;
         auto inputs                = broadcast_for_dot_ins->inputs();
-        auto s0                = inputs.at(0)->get_shape();
-        auto s1                = inputs.at(1)->get_shape();
-        auto l0_it             = s0.lens().begin() + s0.ndim() - 2;
+        auto s0                    = inputs.at(0)->get_shape();
+        auto s1                    = inputs.at(1)->get_shape();
+        auto l0_it                 = s0.lens().begin() + s0.ndim() - 2;
         std::vector<std::size_t> l0_broadcasted_lens(s0.lens().begin(), l0_it);
         auto l1_it = s1.lens().begin() + s1.ndim() - 2;
         std::vector<std::size_t> l1_broadcasted_lens(s1.lens().begin(), l1_it);

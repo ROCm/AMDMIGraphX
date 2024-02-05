@@ -28,7 +28,7 @@
 # list see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import re, sys, os
+import re
 
 from rocm_docs import ROCmDocs
 
@@ -61,7 +61,7 @@ docs_core.setup()
 
 external_projects_current_project = "amdmigraphx"
 
-extensions = [ `sphinx_toolbox.collapse`]
+extensions = [`sphinx_toolbox.collapse`]
 
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)

@@ -224,4 +224,66 @@ TEST_CASE(multiple_outputs)
     EXPECT(p0 == p1);
 }
 
+// code coverage, does nothing
+TEST_CASE(empty_param_shapes)
+{
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {1, 4}};
+        auto input0 = mm0->add_literal(migraphx::literal{s, {0, 1, 2, 3}});
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6}});
+        auto broadcast_lit =
+            mm0->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
+        auto add0_ins = mm0->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
+        mm0->add_return({add0_ins});
+    }
+    migraphx::program p1 = p0;
+    run_pass(p0);
+    EXPECT(p0 == p1);
+};
+
+//code coverage, does nothing
+TEST_CASE(multiple_non_fixed_dd_in_a_param)
+{
+    migraphx::program p0;
+    {
+        auto* mm0 = p0.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 20}}};
+        auto input0 = mm0->add_parameter("data", s);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6}});
+        auto broadcast_lit =
+            mm0->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
+        auto add0_ins = mm0->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
+        mm0->add_return({add0_ins});
+    }
+    migraphx::program p1 = p0;
+    run_pass(p0);
+    EXPECT(p0 == p1);
+}
+
+//code coverage, does nothing
+TEST_CASE(different_non_fixed_dd)
+{
+    migraphx::program p0;
+    {
+        auto* mm1 = p0.get_main_module();
+        migraphx::shape s0{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+        migraphx::shape s1{migraphx::shape::float_type, {{3, 6}, {1, 1}, {4, 4}}};
+        auto input0 = mm1->add_parameter("data0", s0);
+        auto input1 = mm1->add_parameter("data1", s1);
+        auto broadcast_in0 =
+            mm1->add_instruction(migraphx::make_op("multibroadcast"), input0, input1);
+        auto broadcast_in1 =
+            mm1->add_instruction(migraphx::make_op("multibroadcast"), input1, input0);
+        auto add0_ins = mm1->add_instruction(migraphx::make_op("add"), broadcast_in0, broadcast_in1);
+        mm1->add_return({add0_ins});
+    }
+    migraphx::program p1 = p0;
+    run_pass(p0);
+    EXPECT(p0 == p1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

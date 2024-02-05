@@ -40,8 +40,10 @@ struct dynamic_dimensions_check
 };
 
 /**
- * Returns value if the parameters contain one non-fixed dynamic_dimension that is the same between
+ * Returns value if the parameters contain non-fixed dynamic_dimensions that are the same between
  * all of the dynamic shape parameters.
+ * In other words, each parameter can have one non-fixed dynamic_dimension `x` where `x` is the same
+ * between all of the parameters with a non-fixed dynamic_dimension.
  * Returns the parameters and the dynamic dimension in a vector of dynamic_dimensions_check objects.
  */
 optional<std::vector<dynamic_dimensions_check>>

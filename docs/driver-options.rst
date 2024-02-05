@@ -7,6 +7,7 @@
 MIGraphX Driver
 ===============
 
+This document lists the MIGraphX driver commands along with the eligible options.
 
 read
 ----
@@ -90,16 +91,16 @@ roctx
 
 .. program:: migraphx-driver roctx
 
-Provides marker information for each operation, allowing MIGraphX to be used with `rocprof <https://rocmdocs.amd.com/en/latest/ROCm_Tools/ROCm-Tools.html>`_ for performance analysis.
-This allows user to get GPU-level kernel timing information.
-An example command line combined with rocprof for tracing purposes is given below:
+`roctx` provides marker information for each operation which allows MIGraphX to be used with :ref:`rocprof <rocprofiler-docs::rocprofv1>` for performance analysis.
+This allows you to get GPU-level kernel timing information.
+Here is how you can use `roctx` combined with :ref:`rocprof <rocprofiler-docs::rocprofv1>` for tracing:
 
 .. code-block:: bash
 
     /opt/rocm/bin/rocprof --hip-trace --roctx-trace --flush-rate 1ms --timestamp on -d <OUTPUT_PATH> --obj-tracking on /opt/rocm/bin/migraphx-driver roctx <ONNX_FILE> <MIGRAPHX_OPTIONS>
 
-After `rocprof` is run, the output directory will contain trace information for HIP, HCC and ROCTX in seperate `.txt` files.
-To understand the interactions between API calls, it is recommended to utilize `roctx.py` helper script as desribed in :ref:`dev/tools:rocTX` section. 
+Running :ref:`rocprof <rocprofiler-docs::rocprofv1>` generates trace information for HIP, HCC and ROCTX in seperate `.txt` files.
+To understand the interactions between API calls, it is recommended to utilize `roctx.py` helper script as described in the :ref:`tools` section. 
 
 .. include:: ./driver/read.rst
 .. include:: ./driver/compile.rst

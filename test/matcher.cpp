@@ -903,6 +903,64 @@ TEST_CASE(match_has_value6)
     EXPECT(bool{r.result == mm.end()});
 }
 
+TEST_CASE(match_has_value7)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {0.00239754}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 0, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
+TEST_CASE(match_has_value8)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {9.07183e-05}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 0, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
+TEST_CASE(match_has_value9)
+{
+    migraphx::module mm;
+    auto s      = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto n_five = mm.add_literal(migraphx::literal{s, {-5.0}});
+    mm.add_instruction(pass_op{}, n_five);
+    auto m1 = match::has_value(5.0f);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(-5.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == n_five});
+    // do exact match
+    auto m3 = match::has_value(-5.0f, 0, 0);
+    auto r3 = find_match(mm, m3);
+    EXPECT(bool{r3.result == n_five});
+    // do exact match
+    auto m4 = match::has_value(5.0f, 0, 0);
+    auto r4 = find_match(mm, m4);
+    EXPECT(bool{r4.result == mm.end()});
+}
 TEST_CASE(match_has_value_eps1)
 {
     migraphx::module mm;

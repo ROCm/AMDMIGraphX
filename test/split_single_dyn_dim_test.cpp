@@ -244,7 +244,7 @@ TEST_CASE(empty_param_shapes)
     EXPECT(p0 == p1);
 };
 
-//code coverage, does nothing
+// code coverage, does nothing
 TEST_CASE(multiple_non_fixed_dd_in_a_param)
 {
     migraphx::program p0;
@@ -264,7 +264,7 @@ TEST_CASE(multiple_non_fixed_dd_in_a_param)
     EXPECT(p0 == p1);
 }
 
-//code coverage, does nothing
+// code coverage, does nothing
 TEST_CASE(different_non_fixed_dd)
 {
     migraphx::program p0;
@@ -278,7 +278,8 @@ TEST_CASE(different_non_fixed_dd)
             mm1->add_instruction(migraphx::make_op("multibroadcast"), input0, input1);
         auto broadcast_in1 =
             mm1->add_instruction(migraphx::make_op("multibroadcast"), input1, input0);
-        auto add0_ins = mm1->add_instruction(migraphx::make_op("add"), broadcast_in0, broadcast_in1);
+        auto add0_ins =
+            mm1->add_instruction(migraphx::make_op("add"), broadcast_in0, broadcast_in1);
         mm1->add_return({add0_ins});
     }
     migraphx::program p1 = p0;

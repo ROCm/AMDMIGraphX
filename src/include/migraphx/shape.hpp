@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -287,6 +287,8 @@ struct MIGRAPHX_EXPORT shape
 
     shape normalize_standard() const;
 
+    shape as_standard() const;
+
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
 
@@ -400,6 +402,7 @@ struct MIGRAPHX_EXPORT shape
      * Returns the number of elements in the data buffer.
      * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
      * is packed.
+     * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
 

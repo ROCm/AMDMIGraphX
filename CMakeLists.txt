@@ -111,9 +111,10 @@ set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
 find_package(ParallelSTL)
-if(ParallelSTL_FOUND)
-    set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
-endif()
+# TODO: resolve parallism issue
+# if(ParallelSTL_FOUND)
+# set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+# endif()
 option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND PACKAGE_DEPENDS libtbb2)

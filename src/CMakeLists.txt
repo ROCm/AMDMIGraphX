@@ -49,11 +49,13 @@ add_library(migraphx
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
     eliminate_contiguous.cpp
+    eliminate_convert.cpp
     eliminate_data_type.cpp
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
     fuse_reduce.cpp
@@ -74,6 +76,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    pass.cpp
     pass_manager.cpp
     permutation.cpp
     preallocate_param.cpp
@@ -217,9 +220,11 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scatter_none
     scatter_add
     scatter_mul
-    scatter_none
+    scatter_min
+    scatter_max
     scatternd_add
     scatternd_mul
     scatternd_none

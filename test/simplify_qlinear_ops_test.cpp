@@ -105,7 +105,22 @@ migraphx::instruction_ref init_zero_point(migraphx::module& m, migraphx::instruc
         migraphx::make_op("multibroadcast", {{"out_lens", q_ins->get_shape().lens()}}), zp);
 }
 
-TEST_CASE(quantizelinear_ins)
+TEST_CASE(quantizelinear_ins_no_zp)
+{
+    migraphx::shape s{migraphx::shape::float_type, {100, 100}};
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s);
+        auto scale = m1.add_literal(0.5f);
+        auto q_ins = add_quantize_op(m1, "quantizelinear", x, scale);
+        m1.add_return({q_ins});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(quantizelinear_ins_with_zp)
 {
     migraphx::shape s{migraphx::shape::float_type, {100, 100}};
     migraphx::module m1;
@@ -158,7 +173,22 @@ TEST_CASE(quantizelinear_ins_multi_zp_use)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dequantizelinear_ins)
+TEST_CASE(dequantizelinear_ins_no_zp)
+{
+    migraphx::shape s{migraphx::shape::int32_type, {100, 100}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto scale  = m1.add_literal(0.5f);
+        auto dq_ins = add_quantize_op(m1, "dequantizelinear", x, scale);
+        m1.add_return({dq_ins});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dequantizelinear_ins_with_zp)
 {
     migraphx::shape s{migraphx::shape::int32_type, {100, 100}};
     migraphx::module m1;

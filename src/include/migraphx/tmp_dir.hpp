@@ -27,6 +27,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <vector>
+#include <string>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,10 +36,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
-    tmp_dir(const std::string& prefix = "");
+    tmp_dir(const std::string_view prefix = "");
     tmp_dir(tmp_dir&&) = default;
 
-    void execute(const std::string& exe, const std::vector<std::string>& args) const;
+    void execute(const fs::path& exe, const std::vector<std::string>& args = {}) const;
+    void execute(const fs::path& launcher,
+                 const fs::path& exe,
+                 const std::vector<std::string>&args = {}) const;
 
     tmp_dir(tmp_dir const&) = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;

@@ -328,6 +328,7 @@ struct process_impl
     std::string envs{};
     fs::path command{};
     fs::path cwd{};
+    fs::path launcher{};
 
     std::string get_command() const
     {
@@ -336,6 +337,8 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         if(not envs.empty())
             result += envs + " ";
+        if(not launcher.empty())
+            result += launcher.string() + " ";
         result += command.string();
         if(not args.empty())
             result += " " + args;
@@ -376,15 +379,18 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-process& process::env(const std::vector<std::string>& v)
+process& process::env(const std::vector<std::string>& envs)
 {
-    if(not v.empty())
+    if(not envs.empty())
     {
-        impl->envs = std::accumulate(
-            ++v.begin(), v.end(), v.front(), [](const std::string& a, const std::string& b) {
-                return a + ' ' + b;
-            });
+        impl->envs = join_strings(envs, " ");
     }
+    return *this;
+}
+
+process& process::launcher(const fs::path& launcher)
+{
+    impl->launcher = launcher;
     return *this;
 }
 

@@ -270,7 +270,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     {
         value v;
         v["srcs"]   = to_value(hsrcs);
-        v["params"] = to_value(join_strings(params, " "));
+        v["params"] = to_value(params);
         v["arch"]   = to_value(arch);
 
         tmp_dir td{};

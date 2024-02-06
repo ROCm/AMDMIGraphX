@@ -41,6 +41,8 @@ struct onnx_options
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
+    /// Explicitly specify a symbolic named parameter dimension
+    std::unordered_map<std::string, shape::dynamic_dimension> map_dim_params = {};
     /// Explicitly specify dynamic dims of an input (if both map_input_dims and map_dyn_input_dims
     /// set parser throws)
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims = {};

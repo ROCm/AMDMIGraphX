@@ -76,10 +76,11 @@ inline std::string join_strings(Strings strings, std::string_view delim)
     if(strings.empty())
         return "";
 
-    return std::accumulate(std::next(strings.begin()), strings.end(), strings.front(),
-                           [&](const std::string& x, const std::string& y) {
-                                return x + delim.data() + y;
-                           });
+    return std::accumulate(
+        std::next(strings.begin()),
+        strings.end(),
+        strings.front(),
+        [&](const std::string& x, const std::string& y) { return x + delim.data() + y; });
 }
 
 inline std::vector<std::string> split_string(const std::string& s, char delim)

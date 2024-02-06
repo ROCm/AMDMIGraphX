@@ -285,9 +285,10 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
 #else // MIGRAPHX_USE_HIPRTC
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>, // NOLINT
-                                                           const std::vector<std::string>&, // NOLINT
-                                                           const std::string&)
+std::vector<std::vector<char>>
+compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>,    // NOLINT
+                            const std::vector<std::string>&, // NOLINT
+                            const std::string&)
 {
     MIGRAPHX_THROW("Not using hiprtc");
 }
@@ -312,7 +313,10 @@ src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
     for(auto& flag : compiler.flags)
-        if(flag == "-c") flag = "-S";
+    {
+        if(flag == "-c")
+            flag = "-S";
+    }
     return compiler;
 }
 
@@ -333,10 +337,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
 
-    if(std::find_if(params.begin(), params.end(),
-                    [](const auto& s) {
-                         return s.find("-std=");
-                    }) == params.end())
+    if(std::find_if(params.begin(), params.end(), [](const auto& s) { return s.find("-std="); }) ==
+       params.end())
     {
         compiler.flags.emplace_back("--std=c++17");
     }
@@ -378,7 +380,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 {
     src_compiler compiler;
     compiler.compiler = MIGRAPHX_HIP_COMPILER;
-    compiler.flags = flags;
+    compiler.flags    = flags;
     compiler.flags.emplace_back("-x hip");
     compiler.flags.emplace_back("-c");
     compiler.flags.emplace_back("--offload-arch=gfx900");

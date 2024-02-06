@@ -22,6 +22,6 @@ subtrees:
             - file: dev/env_vars
   - caption: API Reference
     entries:
-      - file: cpp-api-reference
-      - file: python-api-reference
+    - file: cpp-api-reference
+    - file: python-api-reference
   

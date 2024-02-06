@@ -49,7 +49,7 @@ struct eliminate_zero_point
         return match::name(get_qlinear_ops_names())(
             match::arg(0)(match::any().bind("x")),
             match::arg(1)(match::any().bind("scale")),
-            match::arg(2)(match::used_once(), match::has_value(0.0f, 0, 0).bind("zp")));
+            match::arg(2)(match::has_value(0.0f, 0, 0).bind("zp")));
     }
 
     void apply(module& m, const match::matcher_result& r) const

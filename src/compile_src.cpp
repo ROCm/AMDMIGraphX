@@ -29,7 +29,6 @@
 #include <vector>
 #include <cassert>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 

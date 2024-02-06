@@ -1,10 +1,10 @@
-# sigmoid GELU approximation
+# fp16 sigmoid GELU approximation
 {
     settings: {
         iterations: 1000
-        lens: [10, 384]
-        strides: [384, 1]
-        type: "float"
+        lens: [10, 384, 3072]
+#        strides: [384, 1]
+        type: "half_type"
     },
     compile_op: {
         name: "pointwise"

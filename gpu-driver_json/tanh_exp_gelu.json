@@ -1,0 +1,22 @@
+{
+  "compile_op": {
+    "inputs": [
+      {},
+      {},
+      {},
+      {},
+      {}
+    ],
+    "lambda": "[](auto one, auto fit_const, auto sqrt2rpi, auto x)\n{\n    auto x_b = x * sqrt2rpi;\n    auto u = x_b * fit_const * x * x + x_b;\n    auto emu = exp(-u - u);\n    auto cdf = one / (one + emu);\n    return x * cdf;\n}",
+    "name": "pointwise"
+  },
+  "settings": {
+    "iterations": 1000,
+    "lens": [
+      10,
+      384,
+      3072
+    ],
+    "type": "float"
+  }
+}

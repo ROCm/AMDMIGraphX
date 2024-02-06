@@ -1,0 +1,24 @@
+# tanh_exp GELU approximation
+{
+    settings: {
+        iterations: 1000
+        lens: [10, 384, 3072]
+#        strides: [384, 1]
+        type: "float"
+    },
+    compile_op: {
+        name: "pointwise"
+        lambda: 
+        '''
+        [](auto one, auto fit_const, auto sqrt2rpi, auto x)
+        {
+            auto x_b = x * sqrt2rpi;
+            auto u = x_b * fit_const * x * x + x_b;
+            auto emu = exp(-u - u);
+            auto cdf = one / (one + emu);
+            return x * cdf;
+        }
+        '''
+        inputs: [{}, {}, {}, {}, {}]
+    }
+}

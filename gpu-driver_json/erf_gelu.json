@@ -7,18 +7,15 @@
       {},
       {}
     ],
-    "lambda": "[](auto one, auto half, auto sqrt2, auto x) { return ( x * half * (one + erf(x / sqrt2)) );}",
+    "lambda": "[](auto one, auto r2, auto sqrt2, auto x) { return ( x * r2 * (one + erf(x / sqrt2)) );}",
     "name": "pointwise"
   },
   "settings": {
     "iterations": 1000,
     "lens": [
-      1,
-      64 
-    ],
-    "strides": [
-      64,
-      1
+      10,
+      384,
+      3072
     ],
     "type": "float"
   }

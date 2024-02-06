@@ -15,12 +15,9 @@
   "settings": {
     "iterations": 1000,
     "lens": [
-      1,
-      64
-    ],
-    "strides": [
-      64,
-      1
+      10,
+      384,
+      3072
     ],
     "type": "float"
   }

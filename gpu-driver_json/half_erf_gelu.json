@@ -1,0 +1,22 @@
+{
+  "compile_op": {
+    "inputs": [
+      {},
+      {},
+      {},
+      {},
+      {}
+    ],
+    "lambda": "[](auto one, auto r2, auto sqrt2, auto x) { return ( x * r2 * (one + convert<half>(erf(x / sqrt2))) );}",
+    "name": "pointwise"
+  },
+  "settings": {
+    "iterations": 1000,
+    "lens": [
+      10,
+      384,
+      3072
+    ],
+    "type": "half_type"
+  }
+}

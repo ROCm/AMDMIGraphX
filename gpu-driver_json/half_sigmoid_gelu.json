@@ -12,13 +12,10 @@
   "settings": {
     "iterations": 1000,
     "lens": [
-      1,
-      64
+      10,
+      384,
+      3072
     ],
-    "strides": [
-      64,
-      1
-    ],
-    "type": "float"
+    "type": "half_type"
   }
 }

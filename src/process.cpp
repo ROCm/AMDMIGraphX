@@ -211,7 +211,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
 
     if(cmdline.size() > CMDLINE_LENGTH)
         MIGRAPHX_THROW("Command line too long, required maximum " +
-                       std::to_string(CMDLINE_LENGTH) + " characters.")
+                       std::to_string(CMDLINE_LENGTH) + " characters.");
 
     if(cmdline.size() < CMDLINE_LENGTH)
         cmdline.resize(CMDLINE_LENGTH, '\0');

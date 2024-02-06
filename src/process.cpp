@@ -205,12 +205,16 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
     // See CreateProcess() WIN32 documentation for details.
     constexpr std::size_t CMDLINE_LENGTH = 32767;
 
-    // Build lpCommandLine parameter.
-    TCHAR cmdline[CMDLINE_LENGTH];
-    std::strncpy(cmdline, cmd.string().c_str(), CMDLINE_LENGTH);
-
+    std::string cmdline = cmd.string();
     if(not args.empty())
-        std::strncat(std::strncat(cmdline, " ", CMDLINE_LENGTH), args.c_str(), CMDLINE_LENGTH);
+        cmdline += " " + args;
+
+    if(cmdline.size() > CMDLINE_LENGTH)
+        MIGRAPHX_THROW("Command line too long, required maximum " +
+                       std::to_string(CMDLINE_LENGTH) + " characters.")
+
+    if(cmdline.size() < CMDLINE_LENGTH)
+        cmdline.resize(CMDLINE_LENGTH, '\0');
 
     // Build lpEnvironment parameter.
     std::vector<TCHAR> environment{};
@@ -244,7 +248,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
         ZeroMemory(&process_info, sizeof(process_info));
 
         if(CreateProcess(cmd.string().c_str(),
-                         cmdline,
+                         cmdline.data(),
                          nullptr,
                          nullptr,
                          TRUE,

@@ -40,8 +40,8 @@ struct MIGRAPHX_EXPORT process
     using writer = std::function<void(const char*, std::size_t)>;
     process(const fs::path& cmd, const std::vector<std::string>& args = {});
 
-    process(const std::string& cmd, std::vector<std::string> args = {})
-        : process(fs::path{cmd}, std::move(args))
+    process(const std::string& cmd, const std::vector<std::string>& args = {})
+        : process(fs::path{cmd}, args)
     {
     }
 
@@ -55,7 +55,7 @@ struct MIGRAPHX_EXPORT process
 
     process& cwd(const fs::path& p);
     process& env(const std::vector<std::string>& envs);
-    process& launcher(const fs::path& p);
+    process& launcher(const fs::path& launcher);
 
     void exec();
     void write(std::function<void(process::writer)> pipe_in);

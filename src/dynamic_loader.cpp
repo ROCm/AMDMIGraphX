@@ -182,7 +182,7 @@ dynamic_loader::dynamic_loader(const std::vector<char>& buffer)
 {
 }
 
-std::shared_ptr<void> dynamic_loader::get_symbol(const std::string_view name) const
+std::shared_ptr<void> dynamic_loader::get_symbol(std::string_view name) const
 {
 #ifndef _WIN32
     // flush any previous error messages

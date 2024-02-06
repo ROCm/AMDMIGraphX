@@ -1,0 +1,20 @@
+# tanh_pow GELU approximation
+{
+    settings: {
+        iterations: 1000
+        lens: [10, 384]
+        strides: [384, 1]
+        type: "float"
+    },
+    compile_op: {
+        name: "pointwise"
+        lambda: 
+        '''
+        [](auto one, auto three, auto half, auto fit_const, auto sqrt2rpi, auto x)
+        {
+            return half * x * (one + tanh(sqrt2rpi * (x + fit_const * pow(x, three))));
+        }
+        '''
+        inputs: [{}, {}, {}, {}, {}, {}, {}]
+    }
+}

@@ -1,0 +1,24 @@
+{
+  "compile_op": {
+    "inputs": [
+      {},
+      {},
+      {},
+      {}
+    ],
+    "lambda": "[](auto one, auto fit_const, auto x)\n{\n    return x / (one + exp(-fit_const * x));\n}",
+    "name": "pointwise"
+  },
+  "settings": {
+    "iterations": 1000,
+    "lens": [
+      1,
+      64
+    ],
+    "strides": [
+      64,
+      1
+    ],
+    "type": "float"
+  }
+}

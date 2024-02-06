@@ -1,0 +1,20 @@
+# sigmoid GELU approximation
+{
+    settings: {
+        iterations: 1000
+        lens: [10, 384]
+        strides: [384, 1]
+        type: "float"
+    },
+    compile_op: {
+        name: "pointwise"
+        lambda: 
+        '''
+        [](auto one, auto fit_const, auto x)
+        {
+            return x / (one + exp(-fit_const * x));
+        }
+        '''
+        inputs: [{}, {}, {}, {}]
+    }
+}

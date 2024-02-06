@@ -1,0 +1,14 @@
+# erf GELU
+{
+    settings: {
+        iterations: 1000,
+        lens: [10, 384],
+        strides: [384, 1],
+        type: "float"
+    },
+    compile_op: {
+        name: "pointwise",
+        lambda: "[](auto one, auto half, auto sqrt2, auto x) { return ( x * half * (one + erf(x / sqrt2)) );}",
+        inputs: [{}, {}, {}, {}, {}]
+    }
+}

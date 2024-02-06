@@ -26,5 +26,6 @@ file(GLOB REF CONFIGURE_DEPENDS *.cpp)
 
 rocm_add_test_executable(test_ref ${REF})
 target_include_directories(test_ref PUBLIC ../include)
+target_link_libraries(test_ref migraphx migraphx_ref)
 rocm_clang_tidy_check(test_ref)
 

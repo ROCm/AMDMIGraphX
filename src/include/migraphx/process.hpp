@@ -41,7 +41,9 @@ struct MIGRAPHX_EXPORT process
     process(const fs::path& cmd, const std::vector<std::string>& args = {});
 
     process(const std::string& cmd, std::vector<std::string> args = {})
-        : process(fs::path{cmd}, std::move(args)) {}
+        : process(fs::path{cmd}, std::move(args))
+    {
+    }
 
     // move constructor
     process(process&&) noexcept;

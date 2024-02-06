@@ -398,6 +398,7 @@ process& process::env(const std::vector<std::string>& v)
 void process::read(std::string& buffer) const
 {
 #ifdef _WIN32
+    // clang-format off
     constexpr auto filename = "stdout";
     auto tmp = tmp_dir{};
     HANDLE handle = CreateFile((tmp.path / filename).string().c_str(),
@@ -422,10 +423,11 @@ void process::read(std::string& buffer) const
         MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename).string());
     auto size = GetFileSize(handle, nullptr);
     std::string result(size, '\0');
-    if (ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
+    if(ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
         MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
     buffer = result;
     CloseHandle(handle);
+    // clang-format on
 #else
     std::stringstream ss;
     impl->check_exec(impl->get_command(), redirect_to(ss));

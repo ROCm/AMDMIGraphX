@@ -2,7 +2,7 @@
    :description: MIGraphX provides an optimized execution engine for deep learning neural networks
    :keywords: MIGraphX, ROCm, library, API
 
-.. _migraphx-docs-home:
+.. _index:
 
 ===========================
 AMD MIGraphX documentation

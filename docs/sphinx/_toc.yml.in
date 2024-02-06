@@ -2,14 +2,13 @@
 # These comments will also be removed.
 root: index
 subtrees:
-  - numbered: False
-    entries:
+  - entries:
     - file: what-is-migraphx
     - file: migraphx-driver
-      entries:
+      - entries:
         - file: driver-options
     - file: contributing-to-migraphx
-      entries:
+      - entries:
         - file: dev/data
         - file: dev/operators
         - file: dev/program
@@ -20,7 +19,7 @@ subtrees:
         - file: dev/tools
         - file: dev/env_vars
   - caption: API Reference
-    entries:
-    - file: cpp-api-reference
-    - file: python-api-reference
+      entries:
+        - file: cpp-api-reference
+        - file: python-api-reference
   

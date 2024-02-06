@@ -1,8 +1,8 @@
-.. _python-api-reference:
-
 .. py:module:: migraphx
 
-Python Reference
+.. _python-api-reference:
+
+Python API Reference
 ================
 
 shape
@@ -186,6 +186,7 @@ target
 
     :rtype: target
 
+.. _migraphx-module:
 
 module
 ------

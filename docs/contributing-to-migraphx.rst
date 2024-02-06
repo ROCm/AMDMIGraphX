@@ -42,12 +42,12 @@ Here is a ``add_two_literals()`` function::
     auto result = p.eval({}).back();
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
 
-In the above function, a simple :cpp:any:`migraphx::program <migraphx::internal::program>` object is created along with a pointer to the main module of it.
+In the above function, a simple :cpp:any:`program <migraphx::internal::program>` object is created along with a pointer to the main module of it.
 The program is a collection of ``modules`` which starts execution from the main module, so instructions are added to the modules rather than the program object directly.
 The :cpp:any:`add_literal <migraphx::internal::module::add_literal>` function is used to add an instruction that stores the literal number ``1`` while returning an :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>`.
 The returned :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>` can be used in another instruction as an input.
 The same :cpp:any:`add_literal <migraphx::internal::module::add_literal>` function is used to add the literal ``2`` to the program.
-After the literals are created, the instruction is created to add the numbers. This is done by using the :cpp:any:`add_instruction <migraphx::internal::module::add_instruction>` function with the ``"add"`` :cpp:any:`operation <migraphx::internal::operation>` created by :cpp:any:`make_op <migraphx::internal::program::make_op>` and the previously created literals passed as the arguments for the instruction.
+After the literals are created, the instruction is created to add the numbers. This is done by using the :ref:`add_instruction <migraphx-module>` function with the ``"add"`` :cpp:any:`operation <migraphx::internal::operation>` created by :cpp:any:`make_op <migraphx::internal::program::make_op>` and the previously created literals passed as the arguments for the instruction.
 You can run this :cpp:any:`program <migraphx::internal::program>` by compiling it for the reference target (CPU) and then running it with :cpp:any:`eval <migraphx::internal::program::eval>`. This prints the result on the console.
 
 To compile the program for the GPU, move the file to ``test/gpu/`` directory and include the given target::
@@ -143,12 +143,12 @@ For usage, refer to the ``parse_onnx()`` function below::
 Sample programs
 -----------------
 
-You can find all the MIGraphX examples in the `Examples <https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx>` directory.
+You can find all the MIGraphX examples in the `Examples <https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/develop/examples/migraphx>`_ directory.
 
 Build MIGraphX source code
 ****************************
 
-To build a sample program `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`, use:
+To build a sample program `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_, use:
 
     make -j$(nproc) test_ref_dev_examples
 
@@ -158,4 +158,4 @@ To verify the build, use:
 
     make -j$(nproc) check
 
-For detailed instructions on building MIGraphX from source, refer to the `README <https://github.com/ROCm/AMDMIGraphX#readme>` file.
+For detailed instructions on building MIGraphX from source, refer to the `README <https://github.com/ROCm/AMDMIGraphX#readme>`_ file.

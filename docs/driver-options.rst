@@ -4,8 +4,8 @@
 
 .. _driver-options:
 
-MIGraphX Driver 
-================
+Driver options
+===============
 
 This document lists the MIGraphX driver commands along with the eligible options.
 

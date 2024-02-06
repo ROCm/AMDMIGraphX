@@ -31,13 +31,14 @@
 #include <migraphx/simplify_qlinear_ops.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static auto get_qlinear_ops_names()
+auto get_qlinear_ops_names()
 {
-    static std::unordered_set<std::string> qdq_names = {"quantizelinear, dequantizelinear"};
+    static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
     return qdq_names;
 }
 
@@ -45,10 +46,10 @@ struct eliminate_zero_point
 {
     auto matcher() const
     {
-        return match::name(get_qlinear_ops_names())(match::nargs(3)(
-            match::arg(0).bind("x"),
-            match::arg(1).bind("scale"),
-            match::arg(2)(match::used_once(), match::has_value(0.0f, 0, 0).bind("zp"))));
+        return match::name(get_qlinear_ops_names())(
+            match::arg(0)(match::any().bind("x")),
+            match::arg(1)(match::any().bind("scale")),
+            match::arg(2)(match::used_once(), match::has_value(0.0f, 0, 0).bind("zp")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -56,10 +57,14 @@ struct eliminate_zero_point
         auto ins   = r.result;
         auto x     = r.instructions["x"];
         auto scale = r.instructions["scale"];
-        auto zp    = r.instructions["zp"];
-        m.replace_instruction(ins, make_op(ins->get_operator().name()), {x, scale});
-        // deadcode-elimination skips removing parameters therefore remove instruction manually
-        m.remove_instruction(zp);
+
+        auto op = ins->get_operator().to_value();
+        if(ins->get_operator().name() == "quantizelinear")
+        {
+            op["output_shape"] = to_value(ins->get_shape());
+        }
+        auto qdq_ins = m.insert_instruction(ins, migraphx::make_op(ins->name(), op), {x, scale});
+        m.replace_instruction(ins, qdq_ins);
     }
 };
 

@@ -71,16 +71,15 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
 }
 
 template <class Strings>
-inline std::string join_strings(Strings strings, const std::string& delim)
+inline std::string join_strings(Strings strings, std::string_view delim)
 {
-    auto it = strings.begin();
-    if(it == strings.end())
+    if(strings.empty())
         return "";
 
-    auto nit = std::next(it);
-    return std::accumulate(nit, strings.end(), *it, [&](std::string x, std::string y) {
-        return std::move(x) + delim + std::move(y);
-    });
+    return std::accumulate(std::next(strings.begin()), strings.end(), strings.front(),
+                           [&](const std::string& x, const std::string& y) {
+                                return x + delim.data() + y;
+                           });
 }
 
 inline std::vector<std::string> split_string(const std::string& s, char delim)

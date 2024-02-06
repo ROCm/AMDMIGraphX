@@ -159,12 +159,12 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         }
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
-            options.params += " -DMIGRAPHX_CK_CHECK=1";
+            options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
 
         // scale
         assert(v.contains("scale"));
         auto scale = v.at("scale").to<float>();
-        options.params += " -DSCALE=" + std::to_string(scale);
+        options.emplace_param("-DSCALE=" + std::to_string(scale));
 
         auto src = interpolate_string(ck_gemm_softmax_gemm_kernel,
                                       {{"solution", template_str},

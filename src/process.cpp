@@ -21,15 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/process.hpp>
-#include <migraphx/errors.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <algorithm>
 #include <numeric>
 #include <functional>
 #include <iostream>
-#include <optional>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -37,8 +37,7 @@
 #include <Windows.h>
 #include <cstring>
 #include <sstream>
-#else
-#include <unistd.h>
+#include <optional>
 #endif
 
 namespace migraphx {
@@ -358,13 +357,7 @@ process::process(const fs::path& cmd, const std::vector<std::string>& args)
 {
     impl->command = cmd;
     if(not args.empty())
-    {
-        impl->args =
-            std::accumulate(++args.begin(),
-                            args.end(),
-                            args.front(),
-                            [](const std::string& a, const std::string& b) { return a + ' ' + b; });
-    }
+        impl->args = join_strings(args, " ");
 }
 
 process::process(process&&) noexcept = default;

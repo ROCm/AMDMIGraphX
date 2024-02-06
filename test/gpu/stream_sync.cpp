@@ -83,7 +83,7 @@ hip_stream_ptr get_stream()
 TEST_CASE(test_stream_sync_compare_kernel)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("check_stuff.cpp", compare_numbers)}, "", migraphx::gpu::get_device_name());
+        {make_src_file("check_stuff.cpp", compare_numbers)}, {}, migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::gpu::kernel k1{binaries.front(), "compare"};
@@ -104,7 +104,7 @@ TEST_CASE(test_stream_sync_compare_kernel)
 TEST_CASE(test_stream_sync)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("check_stuff.cpp", compare_numbers)}, "", migraphx::gpu::get_device_name());
+        {make_src_file("check_stuff.cpp", compare_numbers)}, {}, migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::gpu::kernel k1{binaries.front(), "compare"};

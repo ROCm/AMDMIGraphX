@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

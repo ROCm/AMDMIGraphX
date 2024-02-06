@@ -163,7 +163,7 @@ migraphx::src_file make_src_file(const std::string& name, const std::string& con
 TEST_CASE(simple_compile_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", write_2s)}, "", migraphx::gpu::get_device_name());
+        {make_src_file("main.cpp", write_2s)}, {}, migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::argument input{{migraphx::shape::int8_type, {5}}};
@@ -181,7 +181,7 @@ auto check_target(const std::string& arch)
 {
     auto define  = "__" + arch + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
-    return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, "", arch);
+    return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", content)}, {}, arch);
 }
 
 TEST_CASE(compile_target)
@@ -194,29 +194,29 @@ TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
         migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, "", migraphx::gpu::get_device_name());
+            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
-    auto compile = [](const std::string& params) {
+    auto compile = [](const std::vector<std::string>& params) {
         return migraphx::gpu::compile_hip_src(
             {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
     };
 
-    EXPECT(not compile("").empty());
-    EXPECT(not compile("-Wunused-parameter -Wno-error").empty());
-    EXPECT(not compile("-Wno-unused-parameter -Werror").empty());
+    EXPECT(not compile({}).empty());
+    EXPECT(not compile({"-Wunused-parameter", "-Wno-error"}).empty());
+    EXPECT(not compile({"-Wno-unused-parameter", "-Werror"}).empty());
 #ifdef MIGRAPHX_USE_HIPRTC
     if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {
-        EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
-        EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+        EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
+        EXPECT(test::throws([&] { compile({"-Wunused-parameter -Werror"}); }));
     }
 #else
-    EXPECT(test::throws([&] { compile("-Werror=unused-parameter"); }));
-    EXPECT(test::throws([&] { compile("-Wunused-parameter -Werror"); }));
+    EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
+    EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
 #endif
 }
 
@@ -232,7 +232,7 @@ TEST_CASE(has_flags)
 TEST_CASE(code_object_hip)
 {
     auto binaries = migraphx::gpu::compile_hip_src(
-        {make_src_file("main.cpp", add_2s_binary)}, "", migraphx::gpu::get_device_name());
+        {make_src_file("main.cpp", add_2s_binary)}, {}, migraphx::gpu::get_device_name());
     EXPECT(binaries.size() == 1);
 
     migraphx::shape input{migraphx::shape::int8_type, {5}};
@@ -439,7 +439,7 @@ TEST_CASE(assert_type_min_max)
             options.local  = 1024;
             options.inputs = {input};
             options.output = input;
-            options.params = "-Wno-float-equal";
+            options.emplace_param("-Wno-float-equal");
 
             auto co = migraphx::gpu::compile_hip_code_object(src, options);
         });

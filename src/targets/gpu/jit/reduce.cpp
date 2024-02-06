@@ -176,7 +176,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                                        {"algo", algo},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})}});
-        options.params += "-Wno-float-equal";
+        options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }
 
@@ -273,7 +273,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
              {"lambda", v.at("lambda").to<std::string>()},
              {"transformers", make_transformer_args(vec)},
              {"preamble", v.get("preamble", std::string{})}});
-        options.params += "-Wno-float-equal";
+        options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }
 

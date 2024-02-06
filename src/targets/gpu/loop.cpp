@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -83,8 +83,7 @@ struct gpu_loop
             auto loc               = name.find(out_prefix);
             if(loc != std::string::npos)
             {
-                int index = std::stoi(name.substr(loc + out_prefix.size()));
-                return index;
+                return std::stoi(name.substr(loc + out_prefix.size()));
             }
 
             return -1;

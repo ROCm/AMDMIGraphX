@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,10 +34,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Rewrite gelu standard formula as the sigmoid approximation formula
+ * Rewrite GELU blocks as different approximations.
  */
 struct MIGRAPHX_EXPORT rewrite_gelu
 {
+    bool fast_math = true;
     std::string name() const { return "rewrite_gelu"; }
     void apply(module& m) const;
 };

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,16 +41,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
 struct precompile_op
 {
-    operation op                = op::identity{};
-    std::size_t additional_args = 1;
-    bool ignore_modules         = false;
+    operation op                      = op::identity{};
+    std::size_t additional_args       = 1;
+    bool ignore_modules               = false;
+    std::optional<shape> output_shape = nullopt;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.op, "op"),
                     f(self.additional_args, "additional_args"),
-                    f(self.ignore_modules, "ignore_modules"));
+                    f(self.ignore_modules, "ignore_modules"),
+                    f(self.output_shape, "output_shape"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }
@@ -59,6 +61,8 @@ struct precompile_op
     {
         // Pop off additional args
         inputs.resize(inputs.size() - additional_args);
+        if(output_shape.has_value())
+            return output_shape.value();
         if(ignore_modules)
             return op.compute_shape(inputs);
         return op.compute_shape(inputs, mods);
@@ -76,35 +80,6 @@ struct compiled_result
 {
     compiler_replace replace;
     instruction_ref ins;
-};
-
-struct problem_cache
-{
-    bool has(const std::string& name, const value& problem) const
-    {
-        return contains(cache, create_key(name, problem));
-    }
-    void insert(const std::string& name, const value& problem, const value& solution)
-    {
-        assert(not solution.is_null());
-        cache[create_key(name, problem)] = solution;
-    }
-    void mark(const std::string& name, const value& problem)
-    {
-        cache.insert(std::make_pair(create_key(name, problem), value{}));
-    }
-    optional<value> get(const std::string& name, const value& problem) const
-    {
-        auto it = cache.find(create_key(name, problem));
-        if(it == cache.end())
-            return nullopt;
-        return it->second;
-    }
-    static value create_key(const std::string& name, const value& problem)
-    {
-        return {{"name", name}, {"problem", problem}};
-    }
-    std::unordered_map<value, value> cache;
 };
 
 struct compile_plan
@@ -126,6 +101,11 @@ struct compile_plan
             {
                 results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
             }
+            catch(const std::exception& e)
+            {
+                std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                results[i] = nullopt;
+            }
             catch(...)
             {
                 results[i] = nullopt;
@@ -134,12 +114,12 @@ struct compile_plan
     }
 
     template <class Vector>
-    void add_compiles(Vector& compiles, problem_cache& pc)
+    void add_compiles(Vector& compiles)
     {
         if(config.has_value())
         {
             const auto& problem = config->problem;
-            if(auto sol = pc.get(preop.name(), problem))
+            if(auto sol = ctx->get_problem_cache().get(preop.name(), problem))
             {
                 auto solution = sol.value();
                 // No solution yet until benchmarked so skip for now
@@ -150,7 +130,7 @@ struct compile_plan
             }
             else
             {
-                pc.mark(preop.name(), problem);
+                ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
@@ -166,7 +146,7 @@ struct compile_plan
             insert_compiles(compiles, value{}, 0);
         }
     }
-    const compiled_result& benchmark(problem_cache& pc) const
+    const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(results.empty())
@@ -208,14 +188,15 @@ struct compile_plan
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         if(trace_level > 0)
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
-        pc.insert(preop.name(), config->problem, config->solutions.at(i));
+        ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation.");
         return *results[i];
     }
-    void replace(module& m, problem_cache& pc) const
+
+    void replace(module& m) const
     {
-        const auto& cr = benchmark(pc);
+        const auto& cr = benchmark();
         cr.replace.replace(m, cr.ins);
     }
 };
@@ -233,7 +214,6 @@ void par_compile(std::size_t n, F f)
 
 struct compile_manager
 {
-    problem_cache pc;
     std::vector<compile_plan> cps;
     bool exhaustive = false;
 
@@ -253,7 +233,7 @@ struct compile_manager
         std::vector<std::function<void()>> compiles;
         for(auto& cp : cps)
         {
-            cp.add_compiles(compiles, pc);
+            cp.add_compiles(compiles);
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
@@ -262,7 +242,7 @@ struct compile_manager
         {
             if(cp.results.empty())
                 continue;
-            cp.replace(m, pc);
+            cp.replace(m);
         }
 
         // Remove compile_plan already executed

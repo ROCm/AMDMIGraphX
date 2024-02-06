@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -195,8 +195,8 @@ struct gemm_impl
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
 
         arg_type    = get_type(input_shapes[0].type());
-        output_type = arg_type;
-        if(output_type == rocblas_datatype_i8_r)
+        output_type = get_type(input_shapes[2].type());
+        if(output_type == rocblas_datatype_i8_r or output_type == rocblas_datatype_u8_r)
         {
             output_type = rocblas_datatype_i32_r;
         }
@@ -574,17 +574,43 @@ void gemm_compute(context& ctx,
     gemm_item.run(ctx, args, solution_idx);
 }
 
+static value gemm_problem(const shape& output_shape, std::vector<shape> input_shapes)
+{
+    input_shapes.push_back(output_shape);
+    return to_value(input_shapes);
+}
+
+static void gemm_save_solution(context& ctx,
+                               const shape& output_shape,
+                               const std::vector<shape>& input_shapes,
+                               int32_t solution_idx)
+{
+    ctx.get_problem_cache().insert(
+        "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
+}
+
+int32_t gemm_default_solution(context& ctx,
+                              const shape& output_shape,
+                              const std::vector<shape>& input_shapes)
+{
+    auto sol = ctx.get_problem_cache().get("rocblas", gemm_problem(output_shape, input_shapes));
+    if(sol.has_value())
+        return sol->to<int32_t>();
+    return 0;
+}
+
 /**
  * Decides if the tune() or validate() method is appropriate and calls it.
  * Return value is the chosen solution index, or 0 to let picker choose it.
  */
-int32_t gemm_finalize(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<shape>& input_shapes,
-                      float alpha,
-                      float beta,
-                      bool compute_fp32,
-                      int32_t solution_idx)
+template <class T>
+int32_t gemm_finalize_impl(context& ctx,
+                           const shape& output_shape,
+                           const std::vector<shape>& input_shapes,
+                           T alpha,
+                           T beta,
+                           bool compute_fp32,
+                           int32_t solution_idx)
 {
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 
@@ -593,14 +619,15 @@ int32_t gemm_finalize(context& ctx,
 
     if(solution_idx == 0)
     {
-        auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
+        auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.tune(ctx, input_shapes);
+        gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
     }
     else
     {
         // If a tuned solution index is already given, don't tune again but validate
         // in case the data was tuned with a different rocBLAS version
-        auto gemm_item = gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
+        auto gemm_item = gemm_impl<T>(output_shape, input_shapes, alpha, beta, compute_fp32);
         solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
     }
 #else
@@ -610,10 +637,18 @@ int32_t gemm_finalize(context& ctx,
     return solution_idx;
 }
 
-/**
- * Decides if the tune() or validate() method is appropriate and calls it.
- * Return value is the chosen solution index, or 0 to let picker choose it.
- */
+int32_t gemm_finalize(context& ctx,
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes,
+                      float alpha,
+                      float beta,
+                      bool compute_fp32,
+                      int32_t solution_idx)
+{
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
+}
+
 int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,
                       const std::vector<shape>& input_shapes,
@@ -622,24 +657,8 @@ int32_t gemm_finalize(context& ctx,
                       bool compute_fp32,
                       int32_t solution_idx)
 {
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
-    if(solution_idx == 0)
-    {
-        auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx   = gemm_item.tune(ctx, input_shapes);
-    }
-    else
-    {
-        // If a tuned solution index is already given, don't tune again but validate
-        // in case the data was tuned with a different rocBLAS version
-        auto gemm_item = gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
-        solution_idx   = gemm_item.validate(ctx, input_shapes, solution_idx);
-    }
-#else
-    (void)ctx, (void)output_shape, (void)input_shapes;
-    (void)alpha, (void)beta, (void)compute_fp32;
-#endif
-    return solution_idx;
+    return gemm_finalize_impl(
+        ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
 
 } // namespace gpu

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,7 @@ if(NOT WIN32)
 endif()
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 project(migraphx LANGUAGES C CXX)
 include(CTest)
@@ -109,6 +110,17 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 # Disable fpga backend by default
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
+set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
+find_package(ParallelSTL)
+# TODO: resolve parallism issue
+# if(ParallelSTL_FOUND)
+# set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+# endif()
+option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
+if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
+    list(APPEND PACKAGE_DEPENDS libtbb2)
+endif()
+
 if(WIN32)
     add_compile_definitions("$<$<COMPILE_LANGUAGE:C,CXX>:_CRT_SECURE_NO_WARNINGS;_USE_MATH_DEFINES>")
 endif()
@@ -120,7 +132,6 @@ else()
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-std=c++17>)
 endif()
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(EnableCompilerWarnings)
 include(ROCMClangTidy)
 if(CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+.*")
@@ -262,10 +273,14 @@ rocm_enable_cppcheck(
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
+        migraphx-RedundantLocalVariable:*src/api/api.cpp
+        migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
     INCONCLUSIVE
     RULE_FILE
-        ${CMAKE_CURRENT_SOURCE_DIR}/cppcheck.rules
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
+    ADDONS
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/migraphx.py
     SOURCES
         examples/
         src/
@@ -279,12 +294,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
     DEFINE
         MIGRAPHX_MLIR=1
+        MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        BUILD_DEV=
         __device__=
         __host__=
         __global__=
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
+        DOXYGEN
+        HAS_HALF_V1
+        TYPE_ERASED_DECLARATION
+        NDEBUG
 )
 
 include(ROCMCreatePackage)
@@ -314,5 +335,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half
+    DEPENDS miopen-hip rocblas hip-rocclr hip-base half ${PACKAGE_DEPENDS}
 )

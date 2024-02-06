@@ -92,6 +92,7 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     simplify_qdq.cpp
+    simplify_qlinear_ops.cpp
     sqlite.cpp
     rewrite_gelu.cpp
     rewrite_pooling.cpp

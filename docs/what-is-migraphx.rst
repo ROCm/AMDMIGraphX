@@ -8,5 +8,4 @@
 What is MIGraphX?
 =====================
 
-AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. The optimized execution engine is useful for deep learning neural networks. This document explains some basic operations in the MIGraphX framework.
-
+AMD MIGraphX is AMD's graph inference engine that accelerates machine learning model inference. The optimized execution engine is useful for deep learning neural networks.

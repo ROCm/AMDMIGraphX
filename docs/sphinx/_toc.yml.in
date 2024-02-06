@@ -2,24 +2,24 @@
 # These comments will also be removed.
 root: index
 subtrees:
-  entries:
-    - file: what-is-migraphx
-    - file: migraphx-driver
-      subtrees:
-        entries:
-          - file: driver-options
-    - file: contributing-to-migraphx
-      subtrees:
-        entries:
-          - file: dev/data
-          - file: dev/operators
-          - file: dev/program
-          - file: dev/targets
-          - file: dev/quantization
-          - file: dev/pass
-          - file: dev/matchers
-          - file: dev/tools
-          - file: dev/env_vars
+  - entries:
+      - file: what-is-migraphx
+      - file: migraphx-driver
+        subtrees:
+          - entries:
+            - file: driver-options
+      - file: contributing-to-migraphx
+        subtrees:
+          - entries:
+            - file: dev/data
+            - file: dev/operators
+            - file: dev/program
+            - file: dev/targets
+            - file: dev/quantization
+            - file: dev/pass
+            - file: dev/matchers
+            - file: dev/tools
+            - file: dev/env_vars
   - caption: API Reference
     entries:
       - file: cpp-api-reference

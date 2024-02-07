@@ -56,7 +56,7 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        std::string target_name =  MIGRAPHX_LIB_PREFIX "migraphx_" + name + MIGRAPHX_LIB_POSTFIX;
+        std::string target_name = MIGRAPHX_LIB_PREFIX "migraphx_" + name + MIGRAPHX_LIB_POSTFIX;
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

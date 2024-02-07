@@ -23,5 +23,5 @@ subtrees:
             
   - caption: API Reference
     entries:
-    - file: cpp-api-reference
-    
+    - file: reference/cpp
+    - file: reference/py

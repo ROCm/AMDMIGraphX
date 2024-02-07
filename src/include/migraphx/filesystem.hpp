@@ -64,6 +64,7 @@
 #error "No filesystem include available"
 #endif
 
+// NOLINTBEGIN
 #ifdef _WIN32
 #define MIGRAPHX_EXE_POSTFIX ".exe"
 #define MIGRAPHX_LIB_PREFIX ""
@@ -73,6 +74,7 @@
 #define MIGRAPHX_LIB_PREFIX "lib"
 #define MIGRAPHX_LIB_POSTFIX ".so"
 #endif
+// NOLINTEND
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

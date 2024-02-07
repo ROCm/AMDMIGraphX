@@ -143,7 +143,7 @@ Option: op
 
    $ /opt/rocm/bin/migraphx-driver op --list
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    @literal
    @param
@@ -350,8 +350,6 @@ Option: params
 
    $ /opt/rocm/bin/migraphx-driver params simple_graph.pb 
 
-mmmmmmmmmmmmmmmm
-
 .. collapse:: View Output
 
       Reading: simple_graph.pb
@@ -362,7 +360,7 @@ Option: run (onnx file input)
 
    $ /opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    Compiling ... 
    Reading: simple_graph.onnx
@@ -416,7 +414,7 @@ Option: read
 
    $ /opt/rocm/bin/migraphx-driver read simple_graph.pb 
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    Reading: simple_graph.pb
    @0 = @literal{0.0136018, -0.0839988, 0.0375392, 0.0613085, -0.125795, 0.176185, 0.0761055, 0.0093384, -0.110057, -0.170587} -> float_type, {10}, {1}
@@ -445,7 +443,7 @@ Option: compile (on GPU, quantized for fp16)
 
    $ /opt/rocm/bin/migraphx-driver compile --gpu --fp16 simple_graph.pb
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    Compiling ... 
    Reading: simple_graph.pb
@@ -479,7 +477,7 @@ Option: verify
 
    $ /opt/rocm/bin/migraphx-driver verify simple_graph.pb
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    Reading: simple_graph.pb
    @0 = @literal{0.0136018, -0.0839988, 0.0375392, 0.0613085, -0.125795, 0.176185, 0.0761055, 0.0093384, -0.110057, -0.170587} -> float_type, {10}, {1}
@@ -572,7 +570,7 @@ Option: perf
 
    $ /opt/rocm/bin/migraphx-driver perf simple_graph.pb
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
    Compiling ... 
    Reading: simple_graph.pb

@@ -350,10 +350,10 @@ Option: params
 
    $ /opt/rocm/bin/migraphx-driver params simple_graph.pb 
 
-.. collapse:: [View Output]
+.. collapse:: View Output
 
-   Reading: simple_graph.pb
-   x: float_type, {1, 28, 28}, {784, 28, 1}
+      Reading: simple_graph.pb
+      x: float_type, {1, 28, 28}, {784, 28, 1}
 
 Option: run (onnx file input)
 *******************************

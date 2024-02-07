@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,8 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(reducesum_variable_dynamic_axes_test)
+std::vector<float> reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
+                                                             std::vector<int64_t> axes_data)
 {
     using namespace migraphx;
     onnx_options options;
@@ -42,7 +43,26 @@ TEST_CASE(reducesum_variable_dynamic_axes_test)
     pm["x"] = argument(x_shape, x.data());
 
     std::vector<int64_t> axes{1};
-    pm["axes"] = argument(shape{shape::int64_type, {1}}, axes.data());
+    pm["axes"] = argument(axes_shape, axes_data.data());
 
-    auto result = p.eval(pm);
+    auto result = p.eval(pm).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    return result_vector;
+}
+
+TEST_CASE(reducesum_variable_dynamic_axes_test)
+{
+    auto result = reducesum_variable_dynamic_axes_test_base({migraphx::shape::int64_type, {1}},
+                                                            std::vector<int64_t>{1});
+    std::vector<float> gold{2, 4, 10, 12};
+    EXPECT(result == gold);
+}
+
+TEST_CASE(reducesum_variable_dynamic_axes_empty_test)
+{
+    auto result = reducesum_variable_dynamic_axes_test_base({migraphx::shape::int64_type, {0}},
+                                                            std::vector<int64_t>{});
+    std::vector<float> gold{28};
+    EXPECT(result == gold);
 }

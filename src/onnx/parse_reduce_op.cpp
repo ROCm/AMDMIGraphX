@@ -90,14 +90,12 @@ struct reduce_parser : op_parser<Derived>
             auto all_axes_lit      = info.add_literal(
                 literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
             auto reduce_all_axes = info.add_instruction(reduce_op, args[0], all_axes_lit);
-            auto zero      = info.add_literal(literal{shape{shape::type_t::int64_type}, {0u}});
+            auto zero = info.add_literal(literal{shape{shape::type_t::int64_type, {1}, {0}}, {0u}});
             auto axes_size = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[1]);
-            auto is_axes_empty = info.add_instruction(make_op("equal"), axes_size, zero);
-            auto is_axes_empty_bc =
-                info.add_instruction(make_op("multibroadcast"), is_axes_empty, reduce_all_axes);
+            auto is_axes_empty = info.add_instruction(make_op("equal"), zero, axes_size);
 
             return info.add_instruction(
-                make_op("where"), is_axes_empty_bc, reduce_all_axes, reduce_input_axes);
+                make_op("where"), is_axes_empty, reduce_all_axes, reduce_input_axes);
         }
         else if(args[1]->get_shape().elements() == 0)
         {

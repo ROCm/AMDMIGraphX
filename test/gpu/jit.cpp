@@ -212,7 +212,7 @@ TEST_CASE(compile_warnings)
     if(not migraphx::enabled(migraphx::gpu::MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {
         EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));
-        EXPECT(test::throws([&] { compile({"-Wunused-parameter -Werror"}); }));
+        EXPECT(test::throws([&] { compile({"-Wunused-parameter", "-Werror"}); }));
     }
 #else
     EXPECT(test::throws([&] { compile({"-Werror=unused-parameter"}); }));

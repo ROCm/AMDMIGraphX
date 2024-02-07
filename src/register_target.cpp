@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,11 +56,7 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-#ifdef _WIN32
-        std::string target_name = "migraphx_" + name + ".dll";
-#else
-        std::string target_name = "libmigraphx_" + name + ".so";
-#endif
+        std::string target_name = MIGRAPHX_LIB_PREFIX "migraphx_" + name + MIGRAPHX_LIB_POSTFIX;
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

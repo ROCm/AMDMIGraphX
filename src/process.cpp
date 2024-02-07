@@ -21,15 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/process.hpp>
-#include <migraphx/errors.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/process.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
 #include <algorithm>
 #include <numeric>
 #include <functional>
 #include <iostream>
-#include <optional>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -37,8 +37,7 @@
 #include <Windows.h>
 #include <cstring>
 #include <sstream>
-#else
-#include <unistd.h>
+#include <optional>
 #endif
 
 namespace migraphx {
@@ -193,7 +192,7 @@ class pipe
 
 // clang-format off
 template <typename F>
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, F f)
 // clang-format on
 {
@@ -207,11 +206,18 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
     constexpr std::size_t CMDLINE_LENGTH = 32767;
 
     // Build lpCommandLine parameter.
-    TCHAR cmdline[CMDLINE_LENGTH];
-    std::strncpy(cmdline, cmd.string().c_str(), CMDLINE_LENGTH);
-
+    std::string cmdline = cmd;
     if(not args.empty())
-        std::strncat(std::strncat(cmdline, " ", CMDLINE_LENGTH), args.c_str(), CMDLINE_LENGTH);
+        cmdline += " " + args;
+
+    // clang-format off
+    if(cmdline.size() > CMDLINE_LENGTH)
+        MIGRAPHX_THROW("Command line too long, required maximum " +
+                       std::to_string(CMDLINE_LENGTH) + " characters.");
+    // clang-format on
+
+    if(cmdline.size() < CMDLINE_LENGTH)
+        cmdline.resize(CMDLINE_LENGTH, '\0');
 
     // Build lpEnvironment parameter.
     std::vector<TCHAR> environment{};
@@ -244,8 +250,8 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
 
         ZeroMemory(&process_info, sizeof(process_info));
 
-        if(CreateProcess(cmd.string().c_str(),
-                         cmdline,
+        if(CreateProcess(cmd.c_str(),
+                         cmdline.data(),
                          nullptr,
                          nullptr,
                          TRUE,
@@ -291,7 +297,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
 }
 
 // clang-format off
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, HANDLE std_out)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
@@ -311,7 +317,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
                     });
 }
 
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, cwd, args, envs,
@@ -327,8 +333,9 @@ struct process_impl
 {
     std::string args{};
     std::string envs{};
-    fs::path command{};
+    std::string command{};
     fs::path cwd{};
+    fs::path launcher{};
 
     std::string get_command() const
     {
@@ -337,7 +344,9 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         if(not envs.empty())
             result += envs + " ";
-        result += command.string();
+        if(not launcher.empty())
+            result += launcher.string() + " ";
+        result += command;
         if(not args.empty())
             result += " " + args;
         return result;
@@ -353,18 +362,12 @@ struct process_impl
     }
 };
 
-process::process(const fs::path& cmd, const std::vector<std::string>& args)
+process::process(const std::string& cmd, const std::vector<std::string>& args)
     : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;
     if(not args.empty())
-    {
-        impl->args =
-            std::accumulate(++args.begin(),
-                            args.end(),
-                            args.front(),
-                            [](const std::string& a, const std::string& b) { return a + ' ' + b; });
-    }
+        impl->args = join_strings(args, " ");
 }
 
 process::process(process&&) noexcept = default;
@@ -383,21 +386,25 @@ process& process::cwd(const fs::path& p)
     return *this;
 }
 
-process& process::env(const std::vector<std::string>& v)
+process& process::env(const std::vector<std::string>& envs)
 {
-    if(not v.empty())
+    if(not envs.empty())
     {
-        impl->envs = std::accumulate(
-            ++v.begin(), v.end(), v.front(), [](const std::string& a, const std::string& b) {
-                return a + ' ' + b;
-            });
+        impl->envs = join_strings(envs, " ");
     }
+    return *this;
+}
+
+process& process::launcher(const fs::path& launcher)
+{
+    impl->launcher = launcher;
     return *this;
 }
 
 void process::read(std::string& buffer) const
 {
 #ifdef _WIN32
+    // clang-format off
     constexpr auto filename = "stdout";
     auto tmp = tmp_dir{};
     HANDLE handle = CreateFile((tmp.path / filename).string().c_str(),
@@ -422,10 +429,11 @@ void process::read(std::string& buffer) const
         MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename).string());
     auto size = GetFileSize(handle, nullptr);
     std::string result(size, '\0');
-    if (ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
+    if(ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
         MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
     buffer = result;
     CloseHandle(handle);
+    // clang-format on
 #else
     std::stringstream ss;
     impl->check_exec(impl->get_command(), redirect_to(ss));

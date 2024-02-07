@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,17 +48,15 @@ const std::string_view preamble = R"migraphx(
 )migraphx";
 
 template <class F>
-std::function<F>
-compile_function(std::string_view src, std::string_view symbol_name)
+std::function<F> compile_function(std::string_view src, std::string_view symbol_name)
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
     compiler.flags.emplace_back("-shared");
-#ifdef _WIN32
-    compiler.output = "simple.dll";
-#else
+    compiler.output = MIGRAPHX_LIB_PREFIX "simple" MIGRAPHX_LIB_POSTFIX;
+
+#ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
-    compiler.output = "libsimple.so";
 #endif
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});

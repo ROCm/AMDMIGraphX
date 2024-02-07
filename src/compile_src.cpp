@@ -26,7 +26,7 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
-#include <deque>
+#include <vector>
 #include <cassert>
 
 namespace migraphx {
@@ -36,7 +36,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {
     assert(not srcs.empty());
     tmp_dir td{"compile"};
-    std::deque<std::string> params{flags.begin(), flags.end()};
+    std::vector<std::string> params{flags};
 
     params.emplace_back("-I.");
 
@@ -58,15 +58,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 
     params.emplace_back("-o " + out);
 
-    if(not launcher.empty())
-    {
-        params.emplace_front(compiler);
-        td.execute(launcher, {params.begin(), params.end()});
-    }
-    else
-    {
-        td.execute(compiler, {params.begin(), params.end()});
-    }
+    td.execute(compiler, params, launcher);
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))

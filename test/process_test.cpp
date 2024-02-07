@@ -47,15 +47,17 @@
 
 #include "test.hpp"
 
-static migraphx::fs::path executable;
-static std::string string_data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
-                                 "sed do eiusmod tempor incididunt ut labore et dolore magna "
-                                 "aliqua. Ut enim ad minim veniam, quis nostrud exercitation "
-                                 "ullamco laboris nisi ut aliquip ex ea commodo consequat. "
-                                 "Duis aute irure dolor in reprehenderit in voluptate velit "
-                                 "esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
-                                 "occaecat cupidatat non proident, sunt in culpa qui officia "
-                                 "deserunt mollit anim id est laborum.";
+static migraphx::fs::path executable; // NOLINT
+
+constexpr std::string_view string_data =
+    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
+    "sed do eiusmod tempor incididunt ut labore et dolore magna "
+    "aliqua. Ut enim ad minim veniam, quis nostrud exercitation "
+    "ullamco laboris nisi ut aliquip ex ea commodo consequat. "
+    "Duis aute irure dolor in reprehenderit in voluptate velit "
+    "esse cillum dolore eu fugiat nulla pariatur. Excepteur sint "
+    "occaecat cupidatat non proident, sunt in culpa qui officia "
+    "deserunt mollit anim id est laborum.";
 
 std::vector<char> read_stdin()
 {
@@ -82,7 +84,7 @@ TEST_CASE(string_stdin)
     auto out = (tmp.path / "output.txt").string();
 
     migraphx::process{executable, {"--stdin", out}}.write(
-        [&](auto writer) { writer(string_data.c_str(), string_data.size()); });
+        [&](auto writer) { writer(string_data.data(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 
@@ -129,7 +131,7 @@ TEST_CASE(current_working_dir)
     auto out = tmp.path / filename;
 
     migraphx::process{executable, {"--stdin", filename}}.cwd(tmp.path).write(
-        [&](auto writer) { writer(string_data.c_str(), string_data.size()); });
+        [&](auto writer) { writer(string_data.data(), string_data.size()); });
 
     EXPECT(migraphx::fs::is_regular_file(out));
 

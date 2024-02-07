@@ -25,13 +25,11 @@
 
 TEST_CASE(reducesum_variable_axes_test)
 {
-    using namespace migraphx;
-
-    program p;
+    migraphx::program p;
     auto* mm  = p.get_main_module();
-    auto x    = mm->add_parameter("x", shape{shape::float_type, {3, 4, 5, 6}});
-    auto axes = mm->add_parameter("axes", shape{shape::int64_type, {1}});
-    mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), x, axes);
+    auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    auto axes = mm->add_parameter("axes", migraphx::shape{migraphx::shape::int64_type, {1}});
+    mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {}}}), x, axes);
 
     auto prog = optimize_onnx("reducesum_variable_axes_test.onnx");
     EXPECT(p == prog);

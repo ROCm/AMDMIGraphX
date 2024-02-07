@@ -7254,7 +7254,10 @@ def recip_test():
     return ([node], [x], [y])
 
 
-def reduceop_variable_axes_test(op_name, axes_len=1, keepdims=1, noop_with_empty_axes=0):
+def reduceop_variable_axes_test(op_name,
+                                axes_len=1,
+                                keepdims=1,
+                                noop_with_empty_axes=0):
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [axes_len])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])

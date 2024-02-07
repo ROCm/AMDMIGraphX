@@ -25,30 +25,30 @@
 
 TEST_CASE(reducesum_variable_dynamic_axes_test)
 {
-    using namespace migraphx;
-
-    program p;
+    migraphx::program p;
     auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", shape{shape::float_type, {3, 4, 5, 6}});
-    const std::vector<shape::dynamic_dimension> axes_dims{{0, 3}};
-    auto axes = mm->add_parameter("axes", shape{shape::int64_type, axes_dims});
+    auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
+    const std::vector<migraphx::shape::dynamic_dimension> axes_dims{{0, 3}};
+    auto axes = mm->add_parameter("axes", migraphx::shape{migraphx::shape::int64_type, axes_dims});
 
-    auto reduce_input_axes = mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), x, axes);
+    auto reduce_input_axes =
+        mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {}}}), x, axes);
     std::vector<int64_t> all_axes(x->get_shape().ndim());
     std::iota(all_axes.begin(), all_axes.end(), 0);
-    auto all_axes_lit =
-        mm->add_literal(literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
+    auto all_axes_lit = mm->add_literal(migraphx::literal{
+        migraphx::shape{migraphx::shape::type_t::int64_type, {all_axes.size()}}, all_axes});
     auto reduce_all_axes =
-        mm->add_instruction(make_op("reduce_sum", {{"axes", {}}}), x, all_axes_lit);
+        mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {}}}), x, all_axes_lit);
 
-    auto zero_lit      = mm->add_literal(literal{shape{shape::int64_type}, {0u}});
-    auto axes_size     = mm->add_instruction(make_op("dimensions_of", {{"end", 1}}), axes);
-    auto is_axes_empty = mm->add_instruction(make_op("equal"), axes_size, zero_lit);
-    auto where =
-        mm->add_instruction(make_op("where"), is_axes_empty, reduce_all_axes, reduce_input_axes);
+    auto zero_lit =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {0u}});
+    auto axes_size = mm->add_instruction(migraphx::make_op("dimensions_of", {{"end", 1}}), axes);
+    auto is_axes_empty = mm->add_instruction(migraphx::make_op("equal"), axes_size, zero_lit);
+    auto where         = mm->add_instruction(
+        migraphx::make_op("where"), is_axes_empty, reduce_all_axes, reduce_input_axes);
     mm->add_return({where});
 
-    onnx_options options;
+    migraphx::onnx_options options;
     options.map_dyn_input_dims["axes"] = axes->get_shape().dyn_dims();
     auto prog = parse_onnx("reducesum_variable_dynamic_axes_test.onnx", options);
     EXPECT(p == prog);

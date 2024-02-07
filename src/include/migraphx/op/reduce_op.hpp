@@ -224,15 +224,12 @@ struct reduce_op : op_name<Derived>
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto&& data_arg = args[0];
+        // cppcheck-suppress knownConditionTrueFalse
         if(not axes.empty())
-        {
             return reduce(dyn_out.computed_shape, axes, data_arg);
-        }
 
-        if(axes.empty() and args[1].empty())
-        {
+        if(args[1].empty())
             return args[0];
-        }
 
         std::vector<int64_t> reduce_axes;
         args[1].visit([&](auto&& s) { reduce_axes.assign(s.begin(), s.end()); });

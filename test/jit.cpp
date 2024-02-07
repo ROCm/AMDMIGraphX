@@ -48,11 +48,7 @@ std::function<F> compile_function(std::string_view src, std::string_view symbol_
     compiler.flags.emplace_back("-std=c++14");
     compiler.flags.emplace_back("-fPIC");
     compiler.flags.emplace_back("-shared");
-#ifdef _WIN32
-    compiler.output = "simple.dll";
-#else
-    compiler.output = "libsimple.so";
-#endif
+    compiler.output = MIGRAPHX_LIB_PREFIX "simple" MIGRAPHX_LIB_POSTFIX;
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
     return migraphx::dynamic_loader{image}.get_function<F>(symbol_name);

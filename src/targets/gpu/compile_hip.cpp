@@ -252,10 +252,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
             std::cout << std::string(src.content) << std::endl;
         }
     }
-    auto fname = fs::path{"migraphx-hiprtc-driver"};
-#ifdef _WIN32
-    fname.replace_extension(".exe");
-#endif
+
+    auto fname  = fs::path{"migraphx-hiprtc-driver" MIGRAPHX_EXE_POSTFIX};
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path() / fname;
 

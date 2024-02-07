@@ -41,7 +41,7 @@ struct MIGRAPHX_EXPORT tmp_dir
 
     void execute(const fs::path& exe,
                  const std::vector<std::string>& args = {},
-                 const fs::path& launcher = {}) const;
+                 const fs::path& launcher             = {}) const;
 
     tmp_dir(tmp_dir const&) = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;

@@ -1550,8 +1550,7 @@ struct find_split_transpose
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
-    for(int i = 0; i < 8; i++)
-    {
+    m.repeat_while_changes(8, [&] {
         match::find_matches(m,
                             find_inner_broadcast{},
                             find_dot_broadcast{},
@@ -1578,7 +1577,7 @@ void simplify_algebra::apply(module& m) const
                             find_split_reshape{},
                             find_split_transpose{});
         dead_code_elimination{}.apply(m);
-    }
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

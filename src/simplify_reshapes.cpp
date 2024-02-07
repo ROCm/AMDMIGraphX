@@ -808,8 +808,7 @@ struct find_transpose_slice
 
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < depth; i++)
-    {
+    m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
@@ -826,7 +825,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{});
         dead_code_elimination{}.apply(m);
-    }
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

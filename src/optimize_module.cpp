@@ -29,27 +29,26 @@
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/propagate_constant.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 void optimize_module::apply(module_pass_manager& mpm) const
 {
-    for(int i = 0; i < 2; i++)
-    {
+    mpm.get_module().repeat_while_changes(2, [&] {
         // loop to further optimize after initial transformations
-        for(int j = 0; j < 2; j++)
-        {
+        mpm.get_module().repeat_while_changes(2, [&] {
             mpm.run_pass(simplify_reshapes{});
             mpm.run_pass(eliminate_convert{});
             mpm.run_pass(dead_code_elimination{});
             mpm.run_pass(simplify_algebra{});
-        }
+        });
         mpm.run_pass(eliminate_common_subexpression{});
         mpm.run_pass(dead_code_elimination{});
         mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
         mpm.run_pass(dead_code_elimination{});
-    }
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

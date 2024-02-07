@@ -41,11 +41,105 @@
 #include <set>
 #include <utility>
 #include <unordered_set>
+#include <bitset>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
+
+template<std::size_t N>
+struct bit_signal
+{
+    std::bitset<N> slots;
+    std::bitset<N> allocated;
+
+    struct slot
+    {
+        bit_signal* handler = nullptr;
+        std::size_t i = N;
+
+        slot() = default;
+
+        slot(bit_signal* h, std::size_t x)
+        : handler(h), i(x)
+        {}
+
+        slot(slot&& rhs)
+        : handler(rhs.handler), i(rhs.i)
+        {
+            rhs.handler = nullptr;
+            rhs.i = N;
+        }
+
+        slot(const slot& rhs)
+        : handler(rhs.handler), i(rhs.handler.allocate())
+        {}
+
+        slot& operator=(slot rhs)
+        {
+            std::swap(handler, rhs.handler);
+            std::swap(i, rhs.i);
+            return * this;
+        }
+
+        ~slot() noexcept
+        {
+            if (i < N and handler != nullptr)
+                handler->deallocate(i);
+        }
+        
+        bool triggered() const
+        {
+            return handler->triggered(i);
+        }
+
+        operator bool() const
+        {
+            return triggered();
+        }
+    };
+
+    slot subscribe()
+    {
+        return {this, allocate()};
+    }
+
+    std::size_t allocate()
+    {
+        for(auto i:range(N))
+        {
+            if(not allocated[i])
+            {
+                slots[i] = false;
+                allocated[i] = true;
+                return i;
+            }
+        }
+        MIGRAPHX_THROW("Too many signals allocated");
+    }
+
+    void deallocate(std::size_t i)
+    {
+        allocated[i] = false;
+    }
+
+    void notify()
+    {
+        slots.set();
+    }
+
+    bool triggered(std::size_t i) const
+    {
+        return slots[i];
+    }
+
+    void clear()
+    {
+        slots.reset();
+        allocated.reset();
+    }
+};
 
 struct module_impl
 {
@@ -55,6 +149,7 @@ struct module_impl
     std::string name;
     uint32_t nparams = 0;
     bool bypass      = false;
+    bit_signal<64> changed{};
 
     bool contains(instruction_ref ins) const
     {
@@ -66,6 +161,7 @@ struct module_impl
     template <class... Ts>
     instruction_ref emplace(instruction_ref pos, Ts&&... xs)
     {
+        changed.notify();
         // cppcheck-suppress redundantInitialization
         auto r = instructions.emplace(pos, std::forward<Ts>(xs)...);
         instruction_set.insert(std::addressof(*r));
@@ -73,11 +169,13 @@ struct module_impl
     }
     instruction_ref insert(instruction_ref pos, const instruction& ins)
     {
+        changed.notify();
         return emplace(pos, ins);
     }
 
     void clear()
     {
+        changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams = 0;
@@ -101,12 +199,14 @@ struct module_impl
 
     instruction_ref erase(instruction_ref pos)
     {
+        changed.notify();
         instruction_set.erase(std::addressof(*pos));
         return instructions.erase(pos);
     }
 
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
+        changed.notify();
         std::for_each(start, last, [&](auto& ins) { instruction_set.erase(std::addressof(ins)); });
         return instructions.erase(start, last);
     }
@@ -199,12 +299,13 @@ void module::assign(const module& m)
     }
 }
 
-template <class Range>
+template <class Range, class Inserter>
 static std::vector<instruction_ref>
-insert_generic_instructions(module& m,
-                            instruction_ref ins,
-                            Range&& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+insert_generic_instructions_impl(module& m,
+                                 instruction_ref ins,
+                                 Range&& instructions,
+                                 std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                                 Inserter insert)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
@@ -246,13 +347,35 @@ insert_generic_instructions(module& m,
                 break;
             }
 
-            copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            // copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
+            copy_ins = insert(m, ins, sins->get_operator(), copy_inputs, mod_args);
         }
         map_ins[sins] = copy_ins;
     }
     if(mod_outputs.empty() and instructions.begin() != instructions.end())
         mod_outputs = {map_ins.at(last)};
     return mod_outputs;
+}
+
+template <class Range>
+static std::vector<instruction_ref>
+insert_generic_instructions(module& m,
+                            instruction_ref ins,
+                            Range&& instructions,
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            module::inserter insert)
+{
+    if(insert == nullptr)
+        return insert_generic_instructions_impl(m,
+                                                ins,
+                                                static_cast<Range&&>(instructions),
+                                                std::move(map_ins),
+                                                [](module& mm, auto&&... xs) {
+                                                    return mm.insert_instruction(
+                                                        std::forward<decltype(xs)>(xs)...);
+                                                });
+    return insert_generic_instructions_impl(
+        m, ins, static_cast<Range&&>(instructions), std::move(map_ins), insert);
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
@@ -298,6 +421,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
 
@@ -312,6 +436,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
                                             std::vector<instruction_ref> args,
                                             std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
     auto out_shape = compute_shape(op, args, module_args);
@@ -322,6 +447,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
 
 instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref rep)
 {
+    impl->changed.notify();
     assert(has_instruction(ins));
     assert(has_instruction(rep));
     assert(ins != rep);
@@ -381,6 +507,7 @@ instruction_ref module::remove_instructions(instruction_ref first, instruction_r
 
 instruction_ref module::move_instruction(instruction_ref src, instruction_ref dst)
 {
+    impl->changed.notify();
     assert(has_instruction(src));
     assert(has_instruction(dst) or is_end(dst, this->end()));
     impl->instructions.splice(dst, impl->instructions, src);
@@ -401,50 +528,61 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), instructions, std::move(map_ins));
+    return this->insert_instructions(
+        this->end(), instructions, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(const_module_ref m,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), m, std::move(map_ins));
+    return this->insert_instructions(this->end(), m, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(instruction_ref start,
                          instruction_ref last,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         module::inserter insert)
 {
-    return this->insert_instructions(this->end(), start, last, std::move(map_ins));
+    return this->insert_instructions(
+        this->end(), start, last, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
+    return insert_generic_instructions(
+        *this, ins, instructions, std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const_module_ref m,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            module::inserter insert)
 {
-    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
+    return insert_generic_instructions(
+        *this, ins, iterator_for(*m), std::move(map_ins), std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             instruction_ref start,
                             instruction_ref last,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            module::inserter insert)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));
+    return insert_generic_instructions(
+        *this, ins, iterator_for(r), std::move(map_ins), std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
@@ -486,6 +624,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
+    impl->changed.notify();
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -558,6 +697,7 @@ instruction_ref module::get_parameter(std::string name) const
 
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
+    impl->changed.notify();
     assert(ins->name() == "@param");
     auto op      = any_cast<builtin::param>(ins->get_operator());
     op.parameter = name;
@@ -1087,6 +1227,25 @@ ins_dep_map module::calc_implicit_deps() const
     }
 
     return mod_implicit_deps;
+}
+
+void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
+{
+    if (n == 0)
+        return;
+    if(n == 1)
+    {
+        f();
+        return;
+    }
+    auto has_changed = impl->changed.subscribe();
+    for(auto i:range(n))
+    {
+        f();
+        if(not has_changed)
+            break;
+        (void)i;
+    }
 }
 
 bool operator==(const module& x, const module& y) { return to_string(x) == to_string(y); }

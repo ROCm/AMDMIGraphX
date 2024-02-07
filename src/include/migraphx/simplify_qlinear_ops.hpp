@@ -34,8 +34,7 @@ struct module;
 
 /**
 Eliminates zero point if it's zero
-Eliminates scale if it is one
- */
+*/
 struct MIGRAPHX_EXPORT simplify_qlinear_ops
 {
     std::string name() const { return "simplify_qlinear_ops"; }

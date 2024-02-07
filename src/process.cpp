@@ -192,7 +192,7 @@ class pipe
 
 // clang-format off
 template <typename F>
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, F f)
 // clang-format on
 {
@@ -205,13 +205,16 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
     // See CreateProcess() WIN32 documentation for details.
     constexpr std::size_t CMDLINE_LENGTH = 32767;
 
-    std::string cmdline = cmd.string();
+    // Build lpCommandLine parameter.
+    std::string cmdline = cmd;
     if(not args.empty())
         cmdline += " " + args;
 
+    // clang-format off
     if(cmdline.size() > CMDLINE_LENGTH)
         MIGRAPHX_THROW("Command line too long, required maximum " +
                        std::to_string(CMDLINE_LENGTH) + " characters.");
+    // clang-format on
 
     if(cmdline.size() < CMDLINE_LENGTH)
         cmdline.resize(CMDLINE_LENGTH, '\0');
@@ -247,7 +250,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
 
         ZeroMemory(&process_info, sizeof(process_info));
 
-        if(CreateProcess(cmd.string().c_str(),
+        if(CreateProcess(cmd.c_str(),
                          cmdline.data(),
                          nullptr,
                          nullptr,
@@ -294,7 +297,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
 }
 
 // clang-format off
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, HANDLE std_out)
 {
     TCHAR buffer[MIGRAPHX_PROCESS_BUFSIZE];
@@ -314,7 +317,7 @@ int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
                     });
 }
 
-int exec(const fs::path& cmd, const std::string& cwd, const std::string& args,
+int exec(const std::string& cmd, const std::string& cwd, const std::string& args,
          const std::string& envs, std::function<void(process::writer)> std_in)
 {
     return exec(cmd, cwd, args, envs,
@@ -330,7 +333,7 @@ struct process_impl
 {
     std::string args{};
     std::string envs{};
-    fs::path command{};
+    std::string command{};
     fs::path cwd{};
     fs::path launcher{};
 
@@ -343,7 +346,7 @@ struct process_impl
             result += envs + " ";
         if(not launcher.empty())
             result += launcher.string() + " ";
-        result += command.string();
+        result += command;
         if(not args.empty())
             result += " " + args;
         return result;
@@ -359,7 +362,7 @@ struct process_impl
     }
 };
 
-process::process(const fs::path& cmd, const std::vector<std::string>& args)
+process::process(const std::string& cmd, const std::vector<std::string>& args)
     : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;

@@ -81,15 +81,11 @@ tmp_dir::tmp_dir(std::string_view prefix)
     fs::create_directories(this->path);
 }
 
-void tmp_dir::execute(const fs::path& exe, const std::vector<std::string>& args) const
+void tmp_dir::execute(const fs::path& exe,
+                      const std::vector<std::string>& args,
+                      const fs::path& launcher) const
 {
-    process{exe, args}.cwd(this->path).exec();
-}
 
-void tmp_dir::execute(const fs::path& launcher,
-                      const fs::path& exe,
-                      const std::vector<std::string>& args) const
-{
     process{exe, args}.launcher(launcher).cwd(this->path).exec();
 }
 

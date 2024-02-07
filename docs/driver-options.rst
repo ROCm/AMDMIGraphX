@@ -86,14 +86,16 @@ Reduces program and verifies
 
 Converts floating point values to double for the ref target
 
+.. _roctx:
+
 roctx
 -----
 
 .. program:: migraphx-driver roctx
 
-`roctx` provides marker information for each operation which allows MIGraphX to be used with :doc:`rocprof <rocprofiler-docs:rocprofv1>` for performance analysis.
+`roctx` provides marker information for each operation which allows MIGraphX to be used with :doc:`rocprof <rocprofiler:rocprofv1>` for performance analysis.
 This allows you to get GPU-level kernel timing information.
-Here is how you can use `roctx` combined with :doc:`rocprof <rocprofiler-docs:rocprofv1>` for tracing:
+Here is how you can use `roctx` combined with :doc:`rocprof <rocprofiler:rocprofv1>` for tracing:
 
 .. code-block:: bash
 

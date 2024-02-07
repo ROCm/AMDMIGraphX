@@ -19,10 +19,9 @@ subtrees:
             - file: dev/pass
             - file: dev/matchers
             - file: dev/tools
-            - file: dev/env_vars
-
+            
   - caption: API Reference
     entries:
-    - file: driver-options
+    - file: dev/env_vars
 
   

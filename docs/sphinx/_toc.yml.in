@@ -20,6 +20,9 @@ subtrees:
             - file: dev/matchers
             - file: dev/tools
             - file: dev/env_vars
+
   - caption: API Reference
-    
+    entries:
+    - file: driver-options
+
   

@@ -48,7 +48,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
 
-template<std::size_t N>
+template <std::size_t N>
 struct bit_signal
 {
     std::bitset<N> slots;
@@ -57,61 +57,47 @@ struct bit_signal
     struct slot
     {
         bit_signal* handler = nullptr;
-        std::size_t i = N;
+        std::size_t i       = N;
 
         slot() = default;
 
-        slot(bit_signal* h, std::size_t x)
-        : handler(h), i(x)
-        {}
+        slot(bit_signal* h, std::size_t x) : handler(h), i(x) {}
 
-        slot(slot&& rhs)
-        : handler(rhs.handler), i(rhs.i)
+        slot(slot&& rhs) : handler(rhs.handler), i(rhs.i)
         {
             rhs.handler = nullptr;
-            rhs.i = N;
+            rhs.i       = N;
         }
 
-        slot(const slot& rhs)
-        : handler(rhs.handler), i(rhs.handler.allocate())
-        {}
+        slot(const slot& rhs) : handler(rhs.handler), i(rhs.handler.allocate()) {}
 
         slot& operator=(slot rhs)
         {
             std::swap(handler, rhs.handler);
             std::swap(i, rhs.i);
-            return * this;
+            return *this;
         }
 
         ~slot() noexcept
         {
-            if (i < N and handler != nullptr)
+            if(i < N and handler != nullptr)
                 handler->deallocate(i);
         }
-        
-        bool triggered() const
-        {
-            return handler->triggered(i);
-        }
 
-        operator bool() const
-        {
-            return triggered();
-        }
+        bool triggered() const { return handler->triggered(i); }
+
+        operator bool() const { return triggered(); }
     };
 
-    slot subscribe()
-    {
-        return {this, allocate()};
-    }
+    slot subscribe() { return {this, allocate()}; }
 
     std::size_t allocate()
     {
-        for(auto i:range(N))
+        for(auto i : range(N))
         {
             if(not allocated[i])
             {
-                slots[i] = false;
+                slots[i]     = false;
                 allocated[i] = true;
                 return i;
             }
@@ -119,20 +105,11 @@ struct bit_signal
         MIGRAPHX_THROW("Too many signals allocated");
     }
 
-    void deallocate(std::size_t i)
-    {
-        allocated[i] = false;
-    }
+    void deallocate(std::size_t i) { allocated[i] = false; }
 
-    void notify()
-    {
-        slots.set();
-    }
+    void notify() { slots.set(); }
 
-    bool triggered(std::size_t i) const
-    {
-        return slots[i];
-    }
+    bool triggered(std::size_t i) const { return slots[i]; }
 
     void clear()
     {
@@ -1231,7 +1208,7 @@ ins_dep_map module::calc_implicit_deps() const
 
 void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
 {
-    if (n == 0)
+    if(n == 0)
         return;
     if(n == 1)
     {
@@ -1239,7 +1216,7 @@ void module::repeat_while_changes(std::size_t n, const std::function<void()>& f)
         return;
     }
     auto has_changed = impl->changed.subscribe();
-    for(auto i:range(n))
+    for(auto i : range(n))
     {
         f();
         if(not has_changed)

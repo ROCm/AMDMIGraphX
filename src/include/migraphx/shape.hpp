@@ -1,5 +1,4 @@
 /*
-#include "migraphx/kernels/types.hpp"
  * The MIT License (MIT)
  *
  * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.

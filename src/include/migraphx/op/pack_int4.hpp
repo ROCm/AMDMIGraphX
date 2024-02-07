@@ -81,7 +81,6 @@ struct pack_int4
     {
         argument result{output_shape};
         auto in_shape = args.front().get_shape();
-        // use visit_all
         visit_all(result, args[0])([&](auto output, auto input) {
             par_for(output_shape.elements(), [&](auto i) {
                 auto data_idx          = output_shape.multi(i);

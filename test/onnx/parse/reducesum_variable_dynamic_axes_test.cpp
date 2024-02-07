@@ -44,10 +44,8 @@ TEST_CASE(reducesum_variable_dynamic_axes_test)
     auto zero_lit      = mm->add_literal(literal{shape{shape::int64_type}, {0u}});
     auto axes_size     = mm->add_instruction(make_op("dimensions_of", {{"end", 1}}), axes);
     auto is_axes_empty = mm->add_instruction(make_op("equal"), axes_size, zero_lit);
-    auto is_axes_empty_bc =
-        mm->add_instruction(make_op("multibroadcast"), is_axes_empty, reduce_all_axes);
     auto where =
-        mm->add_instruction(make_op("where"), is_axes_empty_bc, reduce_all_axes, reduce_input_axes);
+        mm->add_instruction(make_op("where"), is_axes_empty, reduce_all_axes, reduce_input_axes);
     mm->add_return({where});
 
     onnx_options options;

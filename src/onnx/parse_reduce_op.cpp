@@ -53,36 +53,29 @@ struct reduce_parser : op_parser<Derived>
         if(constant_axes.has_value())
         {
             if(noop_with_empty_axes != 0 and constant_axes->empty())
-            {
                 return args[0];
-            }
 
             if(noop_with_empty_axes == 0 and constant_axes->empty())
-            {
                 constant_axes = all_axes;
-            }
 
             auto reduce =
                 info.add_instruction(make_op(op_name, {{"axes", *constant_axes}}), args[0]);
+
             if(keep_dims == 0)
-            {
                 return info.add_instruction(make_op("squeeze", {{"axes", *constant_axes}}), reduce);
-            }
+
             return reduce;
         }
 
         // Handle variable input axes
         if(keep_dims == 0)
-        {
             MIGRAPHX_THROW("Keepdims not supported with runtime provided axes");
-        }
+
         // Empty axes attribute indicates to the operator to look for axes in the inputs
         auto reduce_op = make_op(op_name, {{"axes", {}}});
 
         if(noop_with_empty_axes != 0)
-        {
             return info.add_instruction(reduce_op, args);
-        }
 
         if(args[1]->get_shape().dynamic())
         {
@@ -90,9 +83,9 @@ struct reduce_parser : op_parser<Derived>
             auto all_axes_lit      = info.add_literal(
                 literal{shape{shape::type_t::int64_type, {all_axes.size()}}, all_axes});
             auto reduce_all_axes = info.add_instruction(reduce_op, args[0], all_axes_lit);
-            auto zero = info.add_literal(literal{shape{shape::type_t::int64_type, {1}, {0}}, {0u}});
+            auto zero      = info.add_literal(literal{shape{shape::type_t::int64_type}, {0u}});
             auto axes_size = info.add_instruction(make_op("dimensions_of", {{"end", 1}}), args[1]);
-            auto is_axes_empty = info.add_instruction(make_op("equal"), zero, axes_size);
+            auto is_axes_empty = info.add_instruction(make_op("equal"), axes_size, zero);
 
             return info.add_instruction(
                 make_op("where"), is_axes_empty, reduce_all_axes, reduce_input_axes);
@@ -116,9 +109,7 @@ struct reduce_parser : op_parser<Derived>
                                      onnx_parser::node_info& info) const
     {
         if(not contains(info.attributes, attribute_name))
-        {
             return std::nullopt;
-        }
 
         return parser.parse_value(info.attributes[attribute_name]).at<T>();
     }
@@ -130,9 +121,7 @@ struct reduce_parser : op_parser<Derived>
         if(args.size() == 2)
         {
             if(not args[1]->can_eval())
-            {
                 return std::nullopt;
-            }
             args[1]->eval().visit([&](auto s) { axes.assign(s.begin(), s.end()); });
         }
         else if(contains(info.attributes, "axes"))

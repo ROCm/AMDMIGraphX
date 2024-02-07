@@ -29,21 +29,20 @@
 std::vector<float> reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
                                                              std::vector<int64_t> axes_data)
 {
-    using namespace migraphx;
-    onnx_options options;
-    const std::vector<shape::dynamic_dimension> axes_dims{{0, 3}};
+    migraphx::onnx_options options;
+    const std::vector<migraphx::shape::dynamic_dimension> axes_dims{{0, 3}};
     options.map_dyn_input_dims["axes"] = axes_dims;
-    program p = parse_onnx("reducesum_variable_dynamic_axes_verify_test.onnx", options);
-    p.compile(make_target("ref"));
+    migraphx::program p = parse_onnx("reducesum_variable_dynamic_axes_verify_test.onnx", options);
+    p.compile(migraphx::make_target("ref"));
 
-    parameter_map pm;
-    shape x_shape{shape::float_type, {2, 2, 2}};
+    migraphx::parameter_map pm;
+    migraphx::shape x_shape{migraphx::shape::float_type, {2, 2, 2}};
     std::vector<float> x(x_shape.elements());
     std::iota(x.begin(), x.end(), 0);
-    pm["x"] = argument(x_shape, x.data());
+    pm["x"] = migraphx::argument(x_shape, x.data());
 
     std::vector<int64_t> axes{1};
-    pm["axes"] = argument(axes_shape, axes_data.data());
+    pm["axes"] = migraphx::argument(axes_shape, axes_data.data());
 
     auto result = p.eval(pm).back();
     std::vector<float> result_vector;

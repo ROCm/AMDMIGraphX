@@ -228,8 +228,9 @@ struct reduce_op : op_name<Derived>
         {
             return reduce(dyn_out.computed_shape, axes, data_arg);
         }
-        
-        if(axes.empty() and args[1].empty()) {
+
+        if(axes.empty() and args[1].empty())
+        {
             return args[0];
         }
 

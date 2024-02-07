@@ -19,9 +19,9 @@ subtrees:
             - file: dev/pass
             - file: dev/matchers
             - file: dev/tools
+            - file: dev/env_vars
             
   - caption: API Reference
     entries:
-    - file: dev/env_vars
-
-  
+    - file: cpp-api-reference
+    

@@ -50,7 +50,7 @@ Compiles and runs input graph then prints performance report.
 
 .. option::  --iterations, -n [unsigned int]
 
-Number of iterations to run for perf report (Default: 100)
+Sets number of iterations to run for perf report (Default: 100)
 
 verify
 ------
@@ -64,42 +64,42 @@ Runs reference and CPU or GPU implementations and checks outputs for consistency
 
 .. option::  --rms-tol [double]
 
-Tolerance for RMS error (Default: 0.001)
+Sets tolerance for RMS error (Default: 0.001)
 
 .. option::  --atol [double]
 
-Tolerance for elementwise absolute difference (Default: 0.001)
+Sets tolerance for elementwise absolute difference (Default: 0.001)
 
 .. option::  --rtol [double]
 
-Tolerance for elementwise relative difference (Default: 0.001)
+Sets tolerance for elementwise relative difference (Default: 0.001)
 
 .. option::  -i, --per-instruction
 
-Verify each instruction
+Verifies each instruction
 
 .. option::  -r, --reduce
 
-Reduce program and verify
+Reduces program and verifies
 
 .. option:: --ref-use-double
 
-Convert floating point values to double for the ref target
+Converts floating point values to double for the ref target
 
 roctx
 -----
 
 .. program:: migraphx-driver roctx
 
-`roctx` provides marker information for each operation which allows MIGraphX to be used with :ref:`rocprof <rocprofiler-docs::rocprofv1>` for performance analysis.
+`roctx` provides marker information for each operation which allows MIGraphX to be used with :doc:`rocprof <rocprofiler-docs:rocprofv1>` for performance analysis.
 This allows you to get GPU-level kernel timing information.
-Here is how you can use `roctx` combined with :ref:`rocprof <rocprofiler-docs::rocprofv1>` for tracing:
+Here is how you can use `roctx` combined with :doc:`rocprof <rocprofiler-docs:rocprofv1>` for tracing:
 
 .. code-block:: bash
 
     /opt/rocm/bin/rocprof --hip-trace --roctx-trace --flush-rate 1ms --timestamp on -d <OUTPUT_PATH> --obj-tracking on /opt/rocm/bin/migraphx-driver roctx <ONNX_FILE> <MIGRAPHX_OPTIONS>
 
-Running :ref:`rocprof <rocprofiler-docs::rocprofv1>` generates trace information for HIP, HCC and ROCTX in seperate `.txt` files.
+Running :doc:`rocprof <rocprofiler-docs:rocprofv1>` generates trace information for HIP, HCC and ROCTX in seperate `.txt` files.
 To understand the interactions between API calls, it is recommended to utilize `roctx.py` helper script as described in the :ref:`tools` section. 
 
 .. include:: ./driver/read.rst

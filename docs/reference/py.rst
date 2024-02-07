@@ -2,7 +2,7 @@
 
 .. _python-api-reference:
 
-Python API Reference
+Python API reference
 ================
 
 shape
@@ -10,7 +10,7 @@ shape
 
 .. py:class:: shape(type, lens, strides=None, dyn_dims)
 
-    Describes the shape of a tensor. This includes size, layout, and data type. Can be a dynamic shape by using dyn_dims.
+    Describes the shape of a tensor. This includes size, layout, and data type. Use dyn_dims for a dynamic shape.
 
 .. py:method:: type()
 
@@ -261,7 +261,7 @@ program
 
     Compiles the program for the target and optimizes it.
 
-    :param target t: This is the target to compile the program for.
+    :param target t: Compilation target for the program.
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
     :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
     :param exhaustive_tune: Flag to enable exhaustive search to find the fastest version of generated kernels for selected backend.
@@ -274,7 +274,7 @@ program
 
 .. py:method:: create_module(name)
     
-    Create and add a module of provided name into the program.
+    Create and add a module with the provided name into the program.
 
     :param str name : name of the new module.
     :rtype module
@@ -283,7 +283,7 @@ program
 
     Run the program.
 
-    :param params: This is a map of the input parameters which will be used when running the program.
+    :param params: Map of the input parameters to be used when running the program.
     :type params: dict[str, argument]
 
     :return: The result of the last instruction.
@@ -307,7 +307,7 @@ program
     Quantize the program to use int8.
 
     :param program prog: Program to quantize.
-    :param target t: Target that will be used to run the calibration data.
+    :param target t: Target to be used to run the calibration data.
     :param calibration: Calibration data used to decide the parameters to the int8 optimization.
     :type calibration: list[dict[str, argument]]
     :param ins_names: List of instructions to quantize.
@@ -349,7 +349,7 @@ parse_tf
 
 .. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1, map_input_dims=dict(), output_names=[])
 
-    Load and parse an tensorflow protobuf file file.
+    Load and parse a tensorflow protobuf file.
 
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.

@@ -44,6 +44,12 @@ void cse_range(module& m, Range&& r)
         if(ins->outputs().empty())
             continue;
 
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+            return input->outputs().size() <= 1 or std::none_of(input->outputs().begin(), input->outputs().end(), [&](auto output) {
+                return output != ins and output->name() == ins->name();
+            });
+        }))
+            continue;
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
         for(const auto& pp : found_instructions)
@@ -60,7 +66,6 @@ void cse_range(module& m, Range&& r)
                          eq->outputs().end(),
                          std::back_inserter(outputs),
                          [&](auto x) { return m.has_instruction(x); });
-
             std::sort(outputs.begin(), outputs.end(), [&](auto x, auto y) {
                 return std::distance(eq, x) < std::distance(eq, y);
             });

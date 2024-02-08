@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/shape.hpp"
 #include <test.hpp>
 #include <migraphx/simplify_qlinear_ops.hpp>
 #include <migraphx/program.hpp>
@@ -71,11 +72,12 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
     return m.add_instruction(migraphx::make_op(name), x, scale_mb, shift_mb);
 }
 
-migraphx::instruction_ref add_quantize_op(migraphx::module& m,
-                                          const std::string& name,
-                                          migraphx::instruction_ref x,
-                                          migraphx::instruction_ref scale,
-                                          migraphx::shape output_shape = migraphx::shape{})
+migraphx::instruction_ref
+add_quantize_op(migraphx::module& m,
+                const std::string& name,
+                migraphx::instruction_ref x,
+                migraphx::instruction_ref scale,
+                migraphx::shape::type_t out_type = migraphx::shape::int8_type)
 {
     auto lens     = x->get_shape().lens();
     auto scale_mb = broadcast_scale(m, scale, lens);
@@ -83,7 +85,7 @@ migraphx::instruction_ref add_quantize_op(migraphx::module& m,
     auto op_val   = op.to_value();
     if(name == "quantizelinear")
     {
-        op_val["output_shape"] = to_value(output_shape);
+        op_val["out_type"] = to_value(out_type);
     }
     return m.add_instruction(migraphx::make_op(name, op_val), x, scale_mb);
 }
@@ -135,8 +137,7 @@ TEST_CASE(quantizelinear_ins_with_zp)
     {
         auto x     = m2.add_parameter("x", s);
         auto scale = m2.add_literal(0.5f);
-        auto q_ins = add_quantize_op(
-            m2, "quantizelinear", x, scale, migraphx::shape{migraphx::shape::int8_type, s.lens()});
+        auto q_ins = add_quantize_op(m2, "quantizelinear", x, scale, migraphx::shape::int8_type);
         m2.add_return({q_ins});
     }
     run_pass(m1);
@@ -163,8 +164,7 @@ TEST_CASE(quantizelinear_ins_multi_zp_use)
         auto y     = m2.add_parameter("y", migraphx::shape{migraphx::shape::int8_type, s.lens()});
         auto scale = m2.add_literal(0.5f);
         auto zero_point = m2.add_literal(std::int8_t{0});
-        auto q_ins      = add_quantize_op(
-            m2, "quantizelinear", x, scale, migraphx::shape{migraphx::shape::int8_type, s.lens()});
+        auto q_ins   = add_quantize_op(m2, "quantizelinear", x, scale, migraphx::shape::int8_type);
         auto add_ins = migraphx::add_common_op(m2, migraphx::make_op("add"), {zero_point, y});
         auto sub_ins = m2.add_instruction(migraphx::make_op("sub"), {add_ins, q_ins});
         m2.add_return({sub_ins});
@@ -262,16 +262,8 @@ TEST_CASE(dot)
         auto t2    = m2.add_parameter("t2", sh2);
         auto scale = m2.add_literal(0.5f);
 
-        auto q1 = add_quantize_op(m2,
-                                  "quantizelinear",
-                                  t1,
-                                  scale,
-                                  migraphx::shape{migraphx::shape::int8_type, sh1.lens()});
-        auto q2 = add_quantize_op(m2,
-                                  "quantizelinear",
-                                  t2,
-                                  scale,
-                                  migraphx::shape{migraphx::shape::int8_type, sh2.lens()});
+        auto q1 = add_quantize_op(m2, "quantizelinear", t1, scale, migraphx::shape::int8_type);
+        auto q2 = add_quantize_op(m2, "quantizelinear", t2, scale, migraphx::shape::int8_type);
 
         auto dot       = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
         auto out_scale = add_scale_mul(m2, scale, scale, dot->get_shape().lens());
@@ -320,11 +312,7 @@ TEST_CASE(dot_asymmetric_first_arg)
         auto zp1   = m2.add_literal(std::int8_t{1});
 
         auto q1  = add_quantize_op(m2, "quantizelinear", t1, scale, zp1);
-        auto q2  = add_quantize_op(m2,
-                                  "quantizelinear",
-                                  t2,
-                                  scale,
-                                  migraphx::shape{migraphx::shape::int8_type, sh2.lens()});
+        auto q2  = add_quantize_op(m2, "quantizelinear", t2, scale, migraphx::shape::int8_type);
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
 
         auto out_scale = add_scale_mul(m2, scale, scale, dot->get_shape().lens());

@@ -21,7 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/make_op.hpp"
+#include <migraphx/algorithm.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <ostream>
@@ -459,9 +460,12 @@ struct mlir_program
     {
         std::vector<MlirNamedAttribute> attributes;
         attributes.reserve(v.size());
-        std::transform(v.begin(), v.end(), std::back_inserter(attributes), [&](const value& x) {
-            return name_attribute(x.get_key(), x.without_key());
-        });
+        migraphx::transform_if(
+            v.begin(),
+            v.end(),
+            std::back_inserter(attributes),
+            [&](const value& x) { return not x.is_null(); },
+            [&](const value& x) { return name_attribute(x.get_key(), x.without_key()); });
         return attributes;
     }
 

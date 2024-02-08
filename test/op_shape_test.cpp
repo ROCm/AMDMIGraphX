@@ -2531,10 +2531,7 @@ TEST_CASE(qlinear_output_shape)
     migraphx::shape input{migraphx::shape::half_type, {2, 4}};
     migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
     expect_shape(
-        result,
-        migraphx::make_op("quantizelinear", {{"output_shape", migraphx::to_value(result)}}),
-        input,
-        scales);
+        result, migraphx::make_op("quantizelinear", {{"out_type", result.type()}}), input, scales);
 }
 
 TEST_CASE(qlinear_mismatch_type)

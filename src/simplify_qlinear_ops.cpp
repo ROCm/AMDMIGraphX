@@ -61,7 +61,7 @@ struct eliminate_zero_point
         auto op = ins->get_operator().to_value();
         if(ins->get_operator().name() == "quantizelinear")
         {
-            op["output_shape"] = to_value(ins->get_shape());
+            op["out_type"] = to_value(ins->get_shape().type());
         }
         auto qdq_ins = m.insert_instruction(ins, migraphx::make_op(ins->name(), op), {x, scale});
         m.replace_instruction(ins, qdq_ins);

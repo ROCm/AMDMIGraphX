@@ -954,10 +954,16 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 
 std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
 {
+    module mm;
+    const_module_ref mr = &m;
     if(not inputs.empty())
-        adjust_param_shapes(m, inputs);
+    {
+        mm = m;
+        mr = &mm;
+        adjust_param_shapes(mm, inputs);
+    }
     mlir_program mp;
-    mp.parse(m);
+    mp.parse(*mr);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }

@@ -68,7 +68,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
-        os << dump_mlir(smod, shapes);
+        os << dump_mlir(*smod, shapes);
     }
 };
 

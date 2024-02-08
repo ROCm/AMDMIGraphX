@@ -38,7 +38,8 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
 MIGRAPHX_GPU_EXPORT std::string
-dump_mlir(const module& m, const std::vector<shape>& inputs) MIGRAPHX_GPU_EXPORT code_object_op
+dump_mlir(const module& m, const std::vector<shape>& inputs);
+MIGRAPHX_GPU_EXPORT code_object_op
     compile_mlir(const context& migraphx_ctx,
                  module m,
                  const std::vector<instruction_ref>& inputs,

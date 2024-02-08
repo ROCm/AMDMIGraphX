@@ -79,7 +79,7 @@ struct compiler_replace
             m.replace_instruction(ins, code_object, ins->inputs());
     }
 
-    void trace(std::ostream& os, instruction_ref ins)
+    void trace(std::ostream& os, instruction_ref ins) const
     {
         if(trace_fn)
             trace_fn(os, ins);

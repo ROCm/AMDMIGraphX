@@ -21,35 +21,37 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
+#include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/ranges.hpp>
+#include <test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-void promote_literals::apply(module_pass_manager& mpm) const
+void run_pass(migraphx::module& m)
 {
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
-
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit     = root_module->add_literal(ins->get_literal());
-            auto ins_outputs = ins->outputs();
-            for(auto out_ins : ins_outputs)
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
+    migraphx::run_passes(m, {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
 }
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+TEST_CASE(softmax)
+{
+    migraphx::shape s{migraphx::shape::float_type, {10, 1000}};
+    migraphx::module m;
+    auto x       = m.add_parameter("x", s);
+    auto softmax = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), x);
+    m.add_return({softmax});
+    run_pass(m);
+    EXPECT(none_of(migraphx::iterator_for(m), [](auto ins) { return ins->name() == "softmax"; }));
+
+    auto reduces = find_all(migraphx::iterator_for(m),
+                            [&](auto ins) { return migraphx::contains(ins->name(), "reduce"); });
+    EXPECT(all_of(reduces, [](auto ins) {
+        auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
+        return axes.size() == 1 and axes[0] == 1;
+    }));
+}
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

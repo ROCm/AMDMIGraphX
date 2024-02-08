@@ -95,7 +95,7 @@ struct parse_rnn : op_parser<parse_rnn>
             dirct = op::rnn_direction::reverse;
         }
 
-        std::vector<std::string> vec_names{"tanh"};
+        std::vector<std::string> vec_names = {"tanh", "tanh"};
         if(contains(info.attributes, "activations"))
         {
             auto names = info.attributes.at("activations").strings();
@@ -106,24 +106,26 @@ struct parse_rnn : op_parser<parse_rnn>
             });
         }
 
+        if(vec_names.size() == 2 and dirct != op::rnn_direction::bidirectional)
+        {
+            // default activations are {"tanh", "tanh"}
+            // in this case, take the first default activation.
+            vec_names.resize(1);
+        }
+
+        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 2 : 1;
+        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        {
+            MIGRAPHX_THROW("RNN: Invalid activation functions number, should be: " +
+                           to_string(num_actv_functions));
+        }
+
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_activation_functions().count(name) == 0);
         });
         if(name_it != vec_names.end())
         {
             MIGRAPHX_THROW("RNN: activation function " + std::string(*name_it) + " not supported");
-        }
-
-        // bidirectional case should have two activation functions.
-        // one is for forward, and the other is for reverse.
-        // if only one actv function is provided, we use it in both
-        // forward and reverse direction
-        if(dirct == op::rnn_direction::bidirectional)
-        {
-            if(vec_names.size() == 1)
-            {
-                vec_names.push_back(vec_names.at(0));
-            }
         }
 
         std::vector<operation> vec_actv_funcs(vec_names.size());

@@ -20,36 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
+#define MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
 
-#include <migraphx/promote_literals.hpp>
-#include <migraphx/iterator_for.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void promote_literals::apply(module_pass_manager& mpm) const
-{
-    module& m              = mpm.get_module();
-    module_ref root_module = mpm.get_root_module();
-    if(m == *root_module)
-        return;
+struct module;
 
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-        {
-            auto new_lit     = root_module->add_literal(ins->get_literal());
-            auto ins_outputs = ins->outputs();
-            for(auto out_ins : ins_outputs)
-            {
-                out_ins->replace_argument(out_ins, ins, new_lit);
-            }
-        }
-    }
-}
+struct MIGRAPHX_EXPORT rewrite_reduce
+{
+    std::string name() const { return "rewrite_reduce"; }
+    void apply(module& m) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif

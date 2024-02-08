@@ -154,7 +154,7 @@ class StableDiffusionMGX():
 
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
-            time_id = torch.randn((2,6))
+            time_id = torch.randn((2, 6))
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
                                         latents, t, scale, time_id)
@@ -197,17 +197,14 @@ class StableDiffusionMGX():
     @measure
     def get_embeddings(self, input):
         clip_out = np.array(
-            self.clip.run(
-                {"input_ids":
-                 input.input_ids.astype(np.int32)})[0]).astype(np.float32)
+            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
+                           })[0]).astype(np.float32)
         clip2_out = np.array(
-            self.clip.run(
-                {"input_ids":
-                 input.input_ids.astype(np.int32)})[0]).astype(np.float32)
+            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
+                           })[0]).astype(np.float32)
         clip2_txt_embed = np.array(
-            self.clip.run(
-                {"input_ids":
-                 input.input_ids.astype(np.int32)})[1]).astype(np.float32)
+            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
+                           })[1]).astype(np.float32)
         return (np.concatenate(clip_out, clip2_out, axis=0), clip2_txt_embed)
 
     @staticmethod
@@ -229,24 +226,22 @@ class StableDiffusionMGX():
         timestep = np.atleast_1d(t.numpy().astype(
             np.int64))  # convert 0D -> 1D
 
-        hidden_states = np.concatenate(text_embeddings[0],uncond_embeddings[0],axis=0)
-        text_embeds = np.concatenate(text_embeddings[1],uncond_embeddings[1])
+        hidden_states = np.concatenate(text_embeddings[0],
+                                       uncond_embeddings[0],
+                                       axis=0)
+        text_embeds = np.concatenate(text_embeddings[1], uncond_embeddings[1])
 
-
-        unet_out = np.split(np.array(
-            self.unetxl.run({
-                "sample": sample,
-                "encoder_hidden_states": hidden_states,
-                "timestep": timestep,
-                "text_embeds": text_embeds,
-                "time_ids": time_id
-            }
-
-            )
-        ), 2)
+        unet_out = np.split(
+            np.array(
+                self.unetxl.run({
+                    "sample": sample,
+                    "encoder_hidden_states": hidden_states,
+                    "timestep": timestep,
+                    "text_embeds": text_embeds,
+                    "time_ids": time_id
+                })), 2)
         noise_pred_text = unet_out[0]
         noise_pred_uncond = unet_out[1]
-
 
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -

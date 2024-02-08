@@ -36,14 +36,13 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-auto get_qlinear_ops_names()
-{
-    static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
-    return qdq_names;
-}
-
 struct eliminate_zero_point
 {
+    auto get_qlinear_ops_names() const
+    {
+        static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
+        return qdq_names;
+    }
     auto matcher() const
     {
         return match::name(get_qlinear_ops_names())(

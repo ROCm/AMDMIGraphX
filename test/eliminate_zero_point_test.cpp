@@ -24,7 +24,7 @@
 
 #include "migraphx/shape.hpp"
 #include <test.hpp>
-#include <migraphx/simplify_qlinear_ops.hpp>
+#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
@@ -38,7 +38,7 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
-void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_qlinear_ops{}}); }
+void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_algebra{}}); }
 
 migraphx::instruction_ref broadcast_scale(migraphx::module& m,
                                           migraphx::instruction_ref scale,

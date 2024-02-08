@@ -48,7 +48,6 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
-#include <migraphx/simplify_qlinear_ops.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 
 #include <migraphx/ranges.hpp>
@@ -87,7 +86,6 @@ std::unordered_map<std::string, pass> create_passes_lookup()
         simplify_algebra{},
         simplify_dyn_ops{},
         simplify_qdq{},
-        simplify_qlinear_ops{},
         simplify_reshapes{},
     };
     // clang-format on

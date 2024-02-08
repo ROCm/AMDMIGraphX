@@ -21,8 +21,7 @@ Commands
 The table below summarizes the MIGraphX driver commands.
 
 .. list-table:: commands
-   .. header-rows:: 1
-
+   
    *  - Command
       - Description
    *  - op
@@ -47,7 +46,6 @@ The table below summarizes the various options to be used with the :ref:`MIGraph
 To learn which options can be used with which commands, see the :ref:`MIGraphX driver options <driver-options>`.
 
 .. list-table:: commands
-   .. header-rows:: 1
 
    *  - Option
       - Description

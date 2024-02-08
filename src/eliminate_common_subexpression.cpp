@@ -45,10 +45,12 @@ void cse_range(module& m, Range&& r)
             continue;
 
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
-            return input->outputs().size() <= 1 or std::none_of(input->outputs().begin(), input->outputs().end(), [&](auto output) {
-                return output != ins and output->name() == ins->name();
-            });
-        }))
+               return input->outputs().size() <= 1 or
+                      std::none_of(
+                          input->outputs().begin(), input->outputs().end(), [&](auto output) {
+                              return output != ins and output->name() == ins->name();
+                          });
+           }))
             continue;
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));

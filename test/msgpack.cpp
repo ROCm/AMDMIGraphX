@@ -209,10 +209,21 @@ TEST_CASE(test_msgpack_large_binary1)
     }));
 }
 
+#ifndef _WIN32
 TEST_CASE(test_msgpack_binary2)
 {
-    const std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
-    migraphx::value::binary bin{n};
+    // In this test, the MSFT standard library vector
+    // implementation fails comparison between vectors
+    // larger than or equal to 2G.
+    // The vectors are generated and stored correctly.
+    // The manual comparison proofs for both vectors
+    // are identical. Yet the '==' operator is failing.
+    // The line 62 of this file doesn't work properly for
+    // vectors larger than 2G due to upper limit of datatype.
+    // Also, in Linux CI large buffer tests are disabled,
+    // therefore, this test is also disabled on Windows.
+    constexpr std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
+    migraphx::value::binary bin(n);
     std::size_t i = 0;
     std::generate(bin.begin(), bin.end(), [&] {
         i++;
@@ -220,5 +231,6 @@ TEST_CASE(test_msgpack_binary2)
     });
     EXPECT(migraphx::to_msgpack(bin) == msgpack_buffer(bin));
 }
-#endif
+#endif //_WIN32
+#endif // MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

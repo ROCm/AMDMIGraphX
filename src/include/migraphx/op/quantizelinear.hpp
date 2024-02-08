@@ -72,17 +72,17 @@ struct quantizelinear
         return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
     }
 
-    argument compute(const shape& out_shape, std::vector<argument> args) const
+    argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         auto x       = args.at(0);
         auto y_scale = args.at(1);
-        std::vector<int8_t> zeros(out_shape.bytes(), 0);
-        argument y_zero_point{out_shape, zeros.data()};
+        std::vector<int8_t> zeros(output_shape.bytes(), 0);
+        argument y_zero_point{output_shape, zeros.data()};
         if(args.size() == 3)
         {
             y_zero_point = args.at(2);
         }
-        argument result{out_shape};
+        argument result{output_shape};
         auto rounding_mode = fegetround();
         fesetround(FE_TONEAREST);
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
@@ -90,7 +90,7 @@ struct quantizelinear
                 using quant_type = typename decltype(output)::value_type;
                 auto min_value   = std::numeric_limits<quant_type>::lowest();
                 auto max_value   = std::numeric_limits<quant_type>::max();
-                par_for(out_shape.elements(), [&](auto i) {
+                par_for(output_shape.elements(), [&](auto i) {
                     double quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
                                        static_cast<double>(zero_pts[i]);
                     output[i] = std::max(static_cast<double>(min_value),

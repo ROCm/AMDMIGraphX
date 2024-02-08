@@ -48,17 +48,13 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_object{op} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f)
-        : code_object{op},
-          replace_fn(make_replace(f))
+    compiler_replace(const operation& op, F f) : code_object{op}, replace_fn(make_replace(f))
     {
     }
 
     template <class F, class Trace>
     compiler_replace(const operation& op, F f, Trace t)
-        : code_object{op},
-          replace_fn(make_replace(f)),
-          trace_fn(t)
+        : code_object{op}, replace_fn(make_replace(f)), trace_fn(t)
     {
     }
 
@@ -67,12 +63,12 @@ struct compiler_replace
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
 
-    template<class F>
+    template <class F>
     static auto make_replace(F f)
     {
         return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_object);
-          };
+            f(m, ins, cr.code_object);
+        };
     }
 
     void replace(module& m, instruction_ref ins) const

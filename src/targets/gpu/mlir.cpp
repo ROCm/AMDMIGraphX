@@ -962,10 +962,7 @@ std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-std::string dump_mlir(const module& m)
-{
-    return dump_mlir(m, {});
-}
+std::string dump_mlir(const module& m) { return dump_mlir(m, {}); }
 
 code_object_op compile_mlir(const context& migraphx_ctx,
                             module m,

@@ -114,10 +114,10 @@ class StableDiffusionMGX():
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
             "vae", {"latent_sample": [1, 4, 128, 128]})
-        self.clip = StableDiffusionMGX.load_mgx_model(
-            "clip", {"input_ids": [1, 77]})
-        self.clip2 = StableDiffusionMGX.load_mgx_model(
-            "clip2", {"input_ids": [1, 77]})
+        self.clip = StableDiffusionMGX.load_mgx_model("clip",
+                                                      {"input_ids": [1, 77]})
+        self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
+                                                       {"input_ids": [1, 77]})
         self.unetxl = StableDiffusionMGX.load_mgx_model(
             "unetxl", {
                 "sample": [2, 4, 128, 128],
@@ -197,10 +197,9 @@ class StableDiffusionMGX():
     @measure
     def get_embeddings(self, input):
         clip_hidden = np.array(
-            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
-                           })[0])
-        clip2_out = self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
-                           })
+            self.clip.run({"input_ids": input.input_ids.astype(np.int32)})[0])
+        clip2_out = self.clip2.run(
+            {"input_ids": input.input_ids.astype(np.int32)})
         clip2_hidden = np.array(clip2_out[1])
         clip2_embed = np.array(clip2_out[0])
         # clip2_out = np.array(
@@ -209,7 +208,8 @@ class StableDiffusionMGX():
         # clip2_txt_embed = np.array(
         #     self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
         #                    })[0]).astype(np.float32)
-        return (np.concatenate((clip_hidden, clip2_hidden), axis=2), clip2_embed)
+        return (np.concatenate((clip_hidden, clip2_hidden),
+                               axis=2), clip2_embed)
 
     @staticmethod
     def convert_to_rgb_image(image):
@@ -227,13 +227,14 @@ class StableDiffusionMGX():
                      scale, time_id):
         sample = self.scheduler.scale_model_input(latents,
                                                   t).numpy().astype(np.float32)
-        sample = np.concatenate((sample,sample))
+        sample = np.concatenate((sample, sample))
         timestep = np.atleast_1d(t.numpy().astype(
             np.float32))  # convert 0D -> 1D
 
-        hidden_states = np.concatenate((text_embeddings[0],
-                                       uncond_embeddings[0])).astype(np.float16)
-        text_embeds = np.concatenate((text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
+        hidden_states = np.concatenate(
+            (text_embeddings[0], uncond_embeddings[0])).astype(np.float16)
+        text_embeds = np.concatenate(
+            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
 
         unet_out = np.split(
             np.array(

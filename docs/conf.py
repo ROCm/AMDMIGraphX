@@ -62,7 +62,7 @@ docs_core.setup()
 external_projects_current_project = "amdmigraphx"
 
 extensions = [ 
-    'sphinx_toolbox.collapse', 
+    'pyquickhelper.sphinxext.sphinx_collapse_extension, 
 ]
 
 for sphinx_var in ROCmDocs.SPHINX_VARS:

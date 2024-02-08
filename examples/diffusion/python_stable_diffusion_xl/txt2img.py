@@ -41,7 +41,7 @@ def measure(fn):
         start_time = time.perf_counter_ns()
         result = fn(*args, **kwargs)
         end_time = time.perf_counter_ns()
-        print(f"Elapsed time: {(end_time - start_time) * 1e-6:.4f} ms\n")
+        print(f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n")
         return result
 
     return measure_ms
@@ -127,6 +127,7 @@ class StableDiffusionMGX():
                 "timestep": [1],
             })
 
+    @measure
     def run(self, prompt, negative_prompt, steps, seed, scale):
         # need to set this for each run
         self.scheduler.set_timesteps(steps)
@@ -134,14 +135,17 @@ class StableDiffusionMGX():
         print("Tokenizing prompt...")
         text_input = self.tokenize(prompt)
 
-        print("Creating text embeddings for prompt...")
-        text_embeddings = self.get_embeddings(text_input)
-
         print("Tokenizing negative prompt...")
         uncond_input = self.tokenize(negative_prompt)
 
+        start_time = time.perf_counter_ns()
+        print("Creating text embeddings for prompt...")
+        text_embeddings = self.get_embeddings(text_input)
+
         print("Creating text embeddings for negative prompt...")
         uncond_embeddings = self.get_embeddings(uncond_input)
+        end_time = time.perf_counter_ns()
+        clip_time = end_time - start_time
 
         print(
             f"Creating random input data ({1}x{4}x{128}x{128}) (latents) with seed={seed}..."
@@ -152,19 +156,28 @@ class StableDiffusionMGX():
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
 
+        start_time = time.perf_counter_ns()
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
             time_id = np.array(torch.randn((2, 6))).astype(np.float16)
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
                                         latents, t, scale, time_id)
+        end_time = time.perf_counter_ns()
+        unet_time = end_time - start_time
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
 
         print("Decode denoised result...")
+        start_time = time.perf_counter_ns()
         image = self.decode(latents)
+        end_time = time.perf_counter_ns()
+        vae_time = end_time - start_time
 
+        print(f"Elapsed time clip: {(clip_time) * 1e-6:.4f} ms\n")
+        print(f"Elapsed time unet: {(unet_time) * 1e-6:.4f} ms\n")
+        print(f"Elapsed time vae: {(vae_time) * 1e-6:.4f} ms\n")
         return image
 
     @staticmethod
@@ -262,11 +275,39 @@ class StableDiffusionMGX():
             self.vae.run({"latent_sample":
                           latents.numpy().astype(np.float32)})[0])
 
+    def warmup(self, num_runs):
+        input_ids = np.array(torch.ones((1, 77))).astype(np.int32)
+        sample = np.array(torch.randn((2, 4, 128, 128))).astype(np.float32)
+        hidden_states = np.array(torch.randn((2, 77, 2048))).astype(np.float16)
+        timestep = np.array(torch.randn((1))).astype(np.float32)
+        text_embeds = np.array(torch.randn((2, 1280))).astype(np.float16)
+        time_id = np.array(torch.randn((2, 6))).astype(np.float16)
+        latent_sample = np.array(torch.randn((1, 4, 128, 128))).astype(np.float32)
+        for _ in range(num_runs):
+            self.clip.run({
+                    "input_ids": input_ids
+            })
+            self.clip2.run({
+                    "input_ids": input_ids
+            })
+            self.unetxl.run({
+                    "sample": sample,
+                    "encoder_hidden_states": hidden_states,
+                    "timestep": timestep,
+                    "text_embeds": text_embeds,
+                    "time_ids": time_id
+            })
+            self.vae.run({
+                    "latent_sample": latent_sample
+            })
+
 
 if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX()
+    print("Warming up...")
+    sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
 

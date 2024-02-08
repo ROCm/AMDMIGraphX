@@ -61,7 +61,7 @@ def get_args():
         "-t",
         "--steps",
         type=int,
-        default=20,
+        default=30,
         help="Number of steps",
     )
 
@@ -84,7 +84,7 @@ def get_args():
     parser.add_argument(
         "--scale",
         type=float,
-        default=7.0,
+        default=5.0,
         help="Guidance scale",
     )
 
@@ -114,9 +114,9 @@ class StableDiffusionMGX():
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
             "vae", {"latent_sample": [1, 4, 128, 128]})
-        self.text_encoder = StableDiffusionMGX.load_mgx_model(
+        self.clip = StableDiffusionMGX.load_mgx_model(
             "clip", {"input_ids": [1, 77]})
-        self.text_encoder2 = StableDiffusionMGX.load_mgx_model(
+        self.clip2 = StableDiffusionMGX.load_mgx_model(
             "clip2", {"input_ids": [1, 77]})
         self.unetxl = StableDiffusionMGX.load_mgx_model(
             "unetxl", {
@@ -154,7 +154,7 @@ class StableDiffusionMGX():
 
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
-            time_id = torch.randn((2, 6))
+            time_id = np.array(torch.randn((2, 6))).astype(np.float16)
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
                                         latents, t, scale, time_id)
@@ -196,16 +196,20 @@ class StableDiffusionMGX():
 
     @measure
     def get_embeddings(self, input):
-        clip_out = np.array(
+        clip_hidden = np.array(
             self.clip.run({"input_ids": input.input_ids.astype(np.int32)
-                           })[0]).astype(np.float32)
-        clip2_out = np.array(
-            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
-                           })[0]).astype(np.float32)
-        clip2_txt_embed = np.array(
-            self.clip.run({"input_ids": input.input_ids.astype(np.int32)
-                           })[1]).astype(np.float32)
-        return (np.concatenate(clip_out, clip2_out, axis=0), clip2_txt_embed)
+                           })[0])
+        clip2_out = self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
+                           })
+        clip2_hidden = np.array(clip2_out[1])
+        clip2_embed = np.array(clip2_out[0])
+        # clip2_out = np.array(
+        #     self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
+        #                    })[1]).astype(np.float32)
+        # clip2_txt_embed = np.array(
+        #     self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
+        #                    })[0]).astype(np.float32)
+        return (np.concatenate((clip_hidden, clip2_hidden), axis=2), clip2_embed)
 
     @staticmethod
     def convert_to_rgb_image(image):
@@ -223,13 +227,13 @@ class StableDiffusionMGX():
                      scale, time_id):
         sample = self.scheduler.scale_model_input(latents,
                                                   t).numpy().astype(np.float32)
+        sample = np.concatenate((sample,sample))
         timestep = np.atleast_1d(t.numpy().astype(
-            np.int64))  # convert 0D -> 1D
+            np.float32))  # convert 0D -> 1D
 
-        hidden_states = np.concatenate(text_embeddings[0],
-                                       uncond_embeddings[0],
-                                       axis=0)
-        text_embeds = np.concatenate(text_embeddings[1], uncond_embeddings[1])
+        hidden_states = np.concatenate((text_embeddings[0],
+                                       uncond_embeddings[0])).astype(np.float16)
+        text_embeds = np.concatenate((text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
 
         unet_out = np.split(
             np.array(
@@ -239,7 +243,7 @@ class StableDiffusionMGX():
                     "timestep": timestep,
                     "text_embeds": text_embeds,
                     "time_ids": time_id
-                })), 2)
+                })[0]), 2)
         noise_pred_text = unet_out[0]
         noise_pred_uncond = unet_out[1]
 

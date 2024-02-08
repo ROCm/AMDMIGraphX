@@ -76,6 +76,12 @@ struct compiled_result
 {
     compiler_replace replace;
     instruction_ref ins;
+
+    friend std::ostream& operator<<(std::ostream& os, const compiled_result& cr)
+    {
+        cr.replace.trace(os, cr.ins);
+        return os;
+    }
 };
 
 struct compile_plan
@@ -175,6 +181,8 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
+                           if(trace_level > 2)
+                                std::cout << cr << std::endl;
                            auto t = time_op(
                                *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
                            if(trace_level > 1)

@@ -50,15 +50,30 @@ struct compiler_replace
     template <class F>
     compiler_replace(const operation& op, F f)
         : code_object{op},
-          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_object);
-          })
+          replace_fn(make_replace(f))
+    {
+    }
+
+    template <class F, class Trace>
+    compiler_replace(const operation& op, F f, Trace t)
+        : code_object{op},
+          replace_fn(make_replace(f)),
+          trace_fn(t)
     {
     }
 
     operation code_object = {};
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
+    std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
+
+    template<class F>
+    static auto make_replace(F f)
+    {
+        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+              f(m, ins, cr.code_object);
+          };
+    }
 
     void replace(module& m, instruction_ref ins) const
     {
@@ -66,6 +81,12 @@ struct compiler_replace
             replace_fn(*this, m, ins);
         else
             m.replace_instruction(ins, code_object, ins->inputs());
+    }
+
+    void trace(std::ostream& os, instruction_ref ins)
+    {
+        if(trace_fn)
+            trace_fn(os, ins);
     }
 };
 

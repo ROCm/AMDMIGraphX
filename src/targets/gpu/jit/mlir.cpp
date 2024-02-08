@@ -49,7 +49,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
                     m.replace_instruction(ins, mlir);
-                }};
+                }, &trace};
     }
 
     optional<tuning_config> get_tuning_config(const context& ctx,
@@ -60,6 +60,13 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
+    }
+
+    static void trace(std::ostream& os, instruction_ref ins)
+    {
+        auto shapes = to_shapes(ins->inputs());
+        auto* smod  = ins->module_inputs().front();
+        os << dump_mlir(smod, shapes);
     }
 };
 

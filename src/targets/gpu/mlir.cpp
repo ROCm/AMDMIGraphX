@@ -934,14 +934,6 @@ struct mlir_program
     std::string sym_name;
 };
 
-std::string dump_mlir(const module& m)
-{
-    mlir_program mp;
-    mp.parse(m);
-    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    return mlir_print(&mlirOperationPrint, mod_op);
-}
-
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
@@ -958,6 +950,21 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         m.replace_instruction(param, new_param);
         m.remove_instruction(param);
     }
+}
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    if(not inputs.empty())
+        adjust_param_shapes(m, inputs);
+    mlir_program mp;
+    mp.parse(m);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    return mlir_print(&mlirOperationPrint, mod_op);
+}
+
+std::string dump_mlir(const module& m)
+{
+    return dump_mlir(m, {});
 }
 
 code_object_op compile_mlir(const context& migraphx_ctx,
@@ -1030,11 +1037,18 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 
 #else
 
-std::string dump_mlir(const module&) { return {}; }
-
 template <class T>
 void use(T&)
 {
+}
+
+std::string dump_mlir(const module&) { return {}; }
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    use(m);
+    use(inputs);
+    return {};
 }
 
 // Disabling clang-tidy warning on non-real useage.

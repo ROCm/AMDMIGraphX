@@ -41,7 +41,9 @@ def measure(fn):
         start_time = time.perf_counter_ns()
         result = fn(*args, **kwargs)
         end_time = time.perf_counter_ns()
-        print(f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n")
+        print(
+            f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n"
+        )
         return result
 
     return measure_ms
@@ -282,24 +284,19 @@ class StableDiffusionMGX():
         timestep = np.array(torch.randn((1))).astype(np.float32)
         text_embeds = np.array(torch.randn((2, 1280))).astype(np.float16)
         time_id = np.array(torch.randn((2, 6))).astype(np.float16)
-        latent_sample = np.array(torch.randn((1, 4, 128, 128))).astype(np.float32)
+        latent_sample = np.array(torch.randn(
+            (1, 4, 128, 128))).astype(np.float32)
         for _ in range(num_runs):
-            self.clip.run({
-                    "input_ids": input_ids
-            })
-            self.clip2.run({
-                    "input_ids": input_ids
-            })
+            self.clip.run({"input_ids": input_ids})
+            self.clip2.run({"input_ids": input_ids})
             self.unetxl.run({
-                    "sample": sample,
-                    "encoder_hidden_states": hidden_states,
-                    "timestep": timestep,
-                    "text_embeds": text_embeds,
-                    "time_ids": time_id
+                "sample": sample,
+                "encoder_hidden_states": hidden_states,
+                "timestep": timestep,
+                "text_embeds": text_embeds,
+                "time_ids": time_id
             })
-            self.vae.run({
-                    "latent_sample": latent_sample
-            })
+            self.vae.run({"latent_sample": latent_sample})
 
 
 if __name__ == "__main__":

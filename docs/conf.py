@@ -61,7 +61,7 @@ docs_core.setup()
 
 external_projects_current_project = "amdmigraphx"
 
-extensions = ['sphinx-collapse']
+extensions = ['sphinx_collapse']
 
 for sphinx_var in ROCmDocs.SPHINX_VARS:
     globals()[sphinx_var] = getattr(docs_core, sphinx_var)

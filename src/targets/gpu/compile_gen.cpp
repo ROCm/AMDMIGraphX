@@ -289,9 +289,10 @@ std::string generate_reduce(module m, const std::string& name)
     m.sort();
     cpp_generator g;
     auto param_shapes = m.get_parameter_shapes();
-    auto max_shape = std::max_element(param_shapes.begin(), param_shapes.end(), by(std::less<>{}, [](const auto& p) {
-        return p.second.elements();
-    }));
+    auto max_shape =
+        std::max_element(param_shapes.begin(),
+                         param_shapes.end(),
+                         by(std::less<>{}, [](const auto& p) { return p.second.elements(); }));
     auto ilens    = max_shape->second.lens();
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {

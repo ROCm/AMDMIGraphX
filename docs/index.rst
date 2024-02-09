@@ -8,7 +8,7 @@
 AMD MIGraphX documentation
 ===========================
 
-Welcome to the rocRAND docs home page! To learn more, see :ref:`what-is-migraphx`
+Welcome to the MIGraphX docs home page! To learn more, see :ref:`what-is-migraphx`.
 
 Our documentation is structured as follows:
 
@@ -35,9 +35,8 @@ We welcome collaboration! If you'd like to contribute to our documentation, you 
 Licensing information for all ROCm components is listed on our `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
 
 
-Indices and tables
+Index and search
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`

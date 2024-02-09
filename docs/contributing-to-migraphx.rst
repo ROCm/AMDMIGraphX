@@ -43,11 +43,11 @@ Here is a ``add_two_literals()`` function::
     std::cout << "add_two_literals: 1 + 2 = " << result << "\n";
 
 In the above function, a simple :cpp:any:`program <migraphx::internal::program>` object is created along with a pointer to the main module of it.
-The program is a collection of `modules` which starts execution from the main module, so instructions are added to the modules rather than the program object directly.
-The :ref:`add_literal <migraphx-module>` function is used to add an instruction that stores the literal number `1` while returning an :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>`.
+The program is a collection of modules which starts execution from the main module, so instructions are added to the modules rather than the program object directly.
+The :ref:`add_literal <migraphx-module>` function is used to add an instruction that stores the literal number ``1`` while returning an :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>`.
 The returned :cpp:any:`instruction_ref <migraphx::internal::instruction_ref>` can be used in another instruction as an input.
-The same :cpp:any:`add_literal <migraphx-module>` function is used to add the literal ``2`` to the program.
-After the literals are created, the instruction is created to add the numbers. This is done by using the :ref:`add_instruction <migraphx-module>` function with the `add` :cpp:any:`operation <migraphx::internal::operation>` created by `make_op` and the previously created literals passed as the arguments for the instruction.
+The same :ref:`add_literal <migraphx-module>` function is used to add the literal ``2`` to the program.
+After the literals are created, the instruction is created to add the numbers. This is done by using the :ref:`add_instruction <migraphx-module>` function with the ``add`` :cpp:any:`operation <migraphx::internal::operation>` created by ``make_op`` and the previously created literals passed as the arguments for the instruction.
 You can run this :cpp:any:`program <migraphx::internal::program>` by compiling it for the reference target (CPU) and then running it with :cpp:any:`eval <migraphx::internal::program::eval>`. This prints the result on the console.
 
 To compile the program for the GPU, move the file to ``test/gpu/`` directory and include the given target::
@@ -134,7 +134,7 @@ To locate the buffers on the CPU even when compiling for GPU, set the option ``o
 Importing From ONNX
 **********************
 
-To make it convenient to use neural networks directly from other frameworks, MIGraphX ONNX parser allows you to build a :cpp:any:`program <migraphx::internal::program>` directly from an onnx file.
+To make it convenient to use neural networks directly from other frameworks, MIGraphX ONNX parser allows you to build a :cpp:any:`program <migraphx::internal::program>` directly from an ONNX file.
 For usage, refer to the ``parse_onnx()`` function below::
 
     program p = migraphx::parse_onnx("model.onnx");

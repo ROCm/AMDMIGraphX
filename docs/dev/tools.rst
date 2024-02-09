@@ -5,8 +5,8 @@ Tools
 
 roctx.py
 --------
-You can use the :ref:`roctx` command with `rocprof` binary to get marker timing information for each MIGraphX operator.  
-To process timing information, use :ref:`roctx.py <tools>` helper script.
+You can use the :ref:`roctx` command with :doc:`rocprof <rocprofiler:rocprofv1>` binary to get marker timing information for each MIGraphX operator.  
+To process timing information, use ``roctx.py`` helper script.
 
 ::
 
@@ -14,16 +14,16 @@ To process timing information, use :ref:`roctx.py <tools>` helper script.
     [--study-name study-name] [--repeat repeat] [--parse]
     [--run run] [--debug]
 
-The :ref:`roctx.py <tools>` helper script provides two main functionalities: `run` and `parse`.
+The ``roctx.py`` helper script provides two main functionalities: ``run`` and ``parse``.
 
 .. option::  --run
 
-Runs `migraphx-driver roctx` command with the given `migraphx-driver` knobs followed by the parsing of the result which provides GPU kernel timing information.
+Runs ``migraphx-driver roctx`` command with the given ``migraphx-driver`` knobs followed by the parsing of the result which provides GPU kernel timing information.
 You can pass the MIGraphX knobs via a string to `--run` knob. See the :ref:`_roctx-examples` for usage.
 
 .. option::  --parse
 
-Parses JSON file in the given `--json-path` and provides GPU kernel timing information.
+Parses JSON file in the given ``--json-path`` and provides GPU kernel timing information.
 
 .. option::  --out
 
@@ -57,7 +57,7 @@ Hotspot kerel timing information:
 
 .. image:: ../data/roctx2.jpg
 
-The output provides `SUM`, `MIN`, `MAX` and `COUNT` information for each kernel executed for a given model. It also
+The output provides ``SUM``, ``MIN``, ``MAX`` and ``COUNT`` information for each kernel executed for a given model. It also
 provides the average total time. The following three files are provided for reference:
 
 -   OUTPUT CSV FILE: Provides a summary of the run which includes utilized MIGraphX knobs and related kernel timing information.

@@ -13,7 +13,7 @@ Prints: Initializers (if used), ONNX node operators, added MIGraphX instructions
 .. envvar:: MIGRAPHX_DISABLE_FP16_INSTANCENORM_CONVERT
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
-Disables the conversion from fp16 to fp32 for the `InstanceNormalization` ONNX operator that MIGX does as a workaround for accuracy issues with `reduce_mean/variance`.
+Disables the conversion from fp16 to fp32 for the ``InstanceNormalization`` ONNX operator that MIGX does as a workaround for accuracy issues with `reduce_mean/variance`.
 See ``parse_instancenorm.cpp`` for more details.
 
 

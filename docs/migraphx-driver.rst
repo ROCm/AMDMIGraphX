@@ -11,7 +11,7 @@ MIGraphX driver
 The MIGraphX driver is a command-line tool that allows you to utilize many of the MIGraphX core functions without having to write a program.
 It can read, compile, run, and test the performance of a model with randomized data.
 
-It is installed by default when you install MIGraphX. You can find it in `/opt/rocm/bin/migraphx-driver` or in `AMDMIGraphX/build/bin/migraphx-driver` after building the source code.
+It is installed by default when you install MIGraphX. You can find it in ``/opt/rocm/bin/migraphx-driver`` or in ``AMDMIGraphX/build/bin/migraphx-driver`` after building the source code.
 
 .. _driver commands:
 
@@ -25,7 +25,7 @@ The table below summarizes the MIGraphX driver commands.
    *  - Command
       - Description
    *  - op
-      - Prints all operators of MIGraphX when followed by the option `--list` or `-l`
+      - Prints all operators of MIGraphX when followed by the option ``--list`` or ``-l``
    *  - params
       - Prints the input and output parameter shapes
    *  - run
@@ -54,7 +54,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --model <resnet50|inceptionv3|alexnet>
       - Loads one of the three default models.
    *  - --onnx
-      - Loads the file as an onnx graph.
+      - Loads the file as an ONNX graph.
    *  - --tf
       - Loads the file as a tensorflow graph.
    *  - --migraphx
@@ -114,7 +114,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --int8
       - Quantizes for int8
    *  - --fp8
-      - Quantize for `Float8E4M3FNUZ` type
+      - Quantize for ``Float8E4M3FNUZ`` type
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol
@@ -353,7 +353,7 @@ Option: params
       Reading: simple_graph.pb
       x: float_type, {1, 28, 28}, {784, 28, 1}
 
-Option: run (onnx file input)
+Option: run (ONNX file input)
 *******************************
 
    $ /opt/rocm/bin/migraphx-driver run --onnx simple_graph.onnx

@@ -1,5 +1,5 @@
-C++ API reference
-===================
+C++ User Guide
+==============
 
 .. toctree::
    :maxdepth: 2

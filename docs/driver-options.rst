@@ -89,7 +89,7 @@ Converts floating point values to double for the ref target
 .. _roctx:
 
 roctx
------
+------
 
 .. program:: migraphx-driver roctx
 
@@ -101,7 +101,7 @@ Here is how you can use ``roctx`` combined with :doc:`rocprof <rocprofiler:rocpr
 
     /opt/rocm/bin/rocprof --hip-trace --roctx-trace --flush-rate 1ms --timestamp on -d <OUTPUT_PATH> --obj-tracking on /opt/rocm/bin/migraphx-driver roctx <ONNX_FILE> <MIGRAPHX_OPTIONS>
 
-Running :doc:`rocprof <rocprofiler:rocprofv1>` generates trace information for HIP, HCC and ROCTX in seperate ``.txt`` files.
+Running :doc:`rocprof <rocprofiler:rocprofv1>` generates trace information for HIP, HCC and ROCTX in separate ``.txt`` files.
 To understand the interactions between API calls, utilize the :ref:`roctx.py <tools>` helper script.
 
 .. include:: ./driver/read.rst

@@ -390,7 +390,7 @@ struct simplify_select_module_output_shape
 
     /**
      * Calculating an appropriate shape that encompasses all of the given vector of shapes.
-     * Equivalent to creating a 2D matrix of shape lengths and do a reduce_min over each axis.
+     * Equivalent to creating a 2D matrix of shape lengths and do a reduce over each axis.
      * The shapes can be dynamic or static.
      * Assuming all shapes have the same ndim.
      */

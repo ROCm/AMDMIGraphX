@@ -36,7 +36,8 @@ static bool is_lower_precision(shape::type_t in_type, shape::type_t out_type)
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
-    return contains(ins->name(), "reduce") && ins->get_operator().attributes().get("pointwise", false);
+    return contains(ins->name(), "reduce") &&
+           ins->get_operator().attributes().get("pointwise", false);
 }
 static bool is_non_scalar_const(instruction_ref ins)
 {
@@ -49,10 +50,11 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
         return ins->inputs().front();
     if(ins->inputs().size() > 1)
     {
-        auto non_scalar = std::find_if(ins->inputs().begin(), ins->inputs().end(), &is_non_scalar_const);
+        auto non_scalar =
+            std::find_if(ins->inputs().begin(), ins->inputs().end(), &is_non_scalar_const);
         if(std::any_of(non_scalar, ins->inputs().end(), &is_non_scalar_const))
             return nullopt;
-        if (non_scalar == ins->inputs().end())
+        if(non_scalar == ins->inputs().end())
             return nullopt;
         return *non_scalar;
     }
@@ -64,7 +66,7 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
     std::unordered_set<instruction_ref> result;
     // Promote inputs
     fix([&](auto self, instruction_ref ins) {
-        for(auto input:ins->inputs())
+        for(auto input : ins->inputs())
         {
             if(not is_pointwise_or_reduce(input))
                 continue;
@@ -77,7 +79,7 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
     })(start);
     // Promote outputs
     fix([&](auto self, instruction_ref ins) {
-        for(auto output:ins->outputs())
+        for(auto output : ins->outputs())
         {
             if(not is_pointwise_or_reduce(output))
                 continue;
@@ -93,7 +95,8 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
     return result;
 }
 
-static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_upgrade(module& m, shape::type_t t)
+static std::unordered_map<instruction_ref, shape::type_t>
+find_instruction_to_upgrade(module& m, shape::type_t t)
 {
     std::unordered_map<instruction_ref, shape::type_t> result;
     for(auto ins : iterator_for(m))
@@ -101,7 +104,7 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
         if(ins->name() != "convert")
             continue;
         auto output_type = ins->get_shape().type();
-        auto input_type = ins->inputs().front()->get_shape().type();
+        auto input_type  = ins->inputs().front()->get_shape().type();
         if(output_type == shape::type_t::bool_type)
             continue;
         if(not is_lower_precision(input_type, output_type))

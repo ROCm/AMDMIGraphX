@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_PACK_INT4_HPP
 #define MIGRAPHX_GUARD_OPERATORS_PACK_INT4_HPP
 
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -62,9 +63,9 @@ struct pack_int4
         // remove standard requirement later.
         check_shapes{inputs, *this}.same_dims().has(1).standard();
         auto in_shape = inputs.front();
-        if(in_shape.type() != migraphx::shape::int8_type)
+        if(in_shape.type() != migraphx::shape::uint8_type)
         {
-            MIGRAPHX_THROW("PACK_INT4: Only Int8 type is supported for packing");
+            MIGRAPHX_THROW("PACK_INT4: Only Unsigned Int8 type is supported for packing");
         }
         auto strides  = in_shape.strides();
         auto lens     = in_shape.lens();
@@ -74,25 +75,30 @@ struct pack_int4
             MIGRAPHX_THROW("PACK_INT4: Can not pack axis that has odd lengths");
         }
         new_lens[axis] /= 2;
-        return {migraphx::shape::int8_type, new_lens};
+        return {migraphx::shape::uint8_type, new_lens};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
         auto in_shape = args.front().get_shape();
-        visit_all(result, args[0])([&](auto output, auto input) {
-            par_for(output_shape.elements(), [&](auto i) {
-                auto data_idx          = output_shape.multi(i);
-                auto in_data_multi_idx = data_idx;
-                in_data_multi_idx[axis] *= 2;
-                // mask first 4 bits, keep it little endian.
-                output[i] = 0x0F & static_cast<int8_t>(input[in_shape.index(in_data_multi_idx)]);
-                in_data_multi_idx[axis] += 1;
-                // static_cast to avoid ambiguous call during visit_all
-                output[i] = (static_cast<int8_t>(input[in_shape.index(in_data_multi_idx)]) << 4) |
-                            static_cast<int8_t>(output[i]);
-            });
+        args[0].visit([&](auto input) {
+            using type = typename decltype(input)::value_type;
+            if constexpr(std::is_same<type, uint8_t>{})
+            {
+                auto output = result.get<uint8_t>();
+                par_for(output_shape.elements(), [&](auto i) {
+                    auto data_idx          = output_shape.multi(i);
+                    auto in_data_multi_idx = data_idx;
+                    in_data_multi_idx[axis] *= 2;
+                    auto input_val = input[in_data_multi_idx];
+                    // mask first 4 bits, keep it little endian.
+                    output[i] = 0x0F & input_val;
+                    in_data_multi_idx[axis] += 1;
+                    input_val = input[in_data_multi_idx];
+                    output[i] = (input_val << 4) | (output[i]);
+                });
+            }
         });
         return result;
     }

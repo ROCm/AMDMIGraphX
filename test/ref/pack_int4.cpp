@@ -34,13 +34,13 @@ TEST_CASE(pack_int4)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::int8_type, {2, 2}};
+    migraphx::shape s{migraphx::shape::uint8_type, {2, 2}};
     auto l0 = mm->add_literal(migraphx::literal{s, {0x0A, 0x0B, 0x0C, 0x0D}});
     mm->add_instruction(migraphx::make_op("pack_int4"), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<int8_t> results_vector(2);
+    std::vector<uint8_t> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<int8_t> gold{static_cast<signed char>(0xBA), static_cast<signed char>(0xDC)};
+    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA), static_cast<uint8_t>(0xDC)};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

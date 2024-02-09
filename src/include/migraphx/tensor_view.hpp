@@ -119,6 +119,18 @@ struct tensor_view
         return m_data[m_shape.index(i)];
     }
 
+    template <class Range>
+    auto operator[](const Range& r) -> decltype((*this)(r.begin(), r.end()))
+    {
+        return (*this)(r.begin(), r.end());
+    }
+
+    template <class Range>
+    auto operator[](const Range& r) const -> decltype((*this)(r.begin(), r.end()))
+    {
+        return (*this)(r.begin(), r.end());
+    }
+
     T& front()
     {
         assert(not this->empty());

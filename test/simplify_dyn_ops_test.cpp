@@ -571,6 +571,7 @@ TEST_CASE(const_alloc_fill)
     EXPECT(m0 == m1);
 }
 
+// Test case with static output shape in the submodules (look at `sm_shape`)
 TEST_CASE(select_module_update0)
 {
     migraphx::program p0;
@@ -656,6 +657,7 @@ TEST_CASE(select_module_update0)
     EXPECT(p0 == p1);
 }
 
+// Test case with dynamic output shape in the submodules (look at `sm_shape`)
 TEST_CASE(select_module_update1)
 {
     migraphx::program p0;
@@ -700,6 +702,7 @@ TEST_CASE(select_module_update1)
     migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 
     // difference is `output_dyn_shapes` attribute in `select_module`
+    // note that multibroadcast is not simplify-able for this case
     migraphx::program p1;
     {
         auto* mm1 = p1.get_main_module();
@@ -759,6 +762,7 @@ TEST_CASE(select_module_update2)
                 sm_input);
             submod->add_return({slice_data});
             return submod;
+            // output shape is static shape with lens={1, 4}
         };
         auto* dim1 = create_submodule(1, "dim_1");
         auto* dim2 = create_submodule(2, "dim_2");
@@ -768,7 +772,10 @@ TEST_CASE(select_module_update2)
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm0->add_parameter("data", s);
         std::vector<migraphx::shape> sub_shapes = {};
-        sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {1, 4}});
+        auto max_int                            = std::numeric_limits<std::size_t>::max();
+        sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {{0, max_int}, {4, 4}}});
+        // {0, max_int} dimension for `output_dyn_shapes` attribute will be simplified to
+        // a fixed shape of {1, 4}
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
@@ -781,8 +788,6 @@ TEST_CASE(select_module_update2)
     }
     migraphx::run_passes(p0, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 
-    // difference is `output_dyn_shapes` attribute in `select_module`
-    // multibroadcast also simplified
     migraphx::program p1;
     {
         auto* mm1 = p1.get_main_module();
@@ -797,6 +802,7 @@ TEST_CASE(select_module_update2)
                 sm_input);
             submod->add_return({slice_data});
             return submod;
+            // output shape is static shape with lens={1, 4}
         };
         auto* dim1 = create_submodule(1, "dim_1");
         auto* dim2 = create_submodule(2, "dim_2");
@@ -806,6 +812,7 @@ TEST_CASE(select_module_update2)
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm1->add_parameter("data", s);
         std::vector<migraphx::shape> sub_shapes = {};
+        // note single static shape output
         sub_shapes.push_back(migraphx::shape{migraphx::shape::float_type, {1, 4}});
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm1->add_instruction(

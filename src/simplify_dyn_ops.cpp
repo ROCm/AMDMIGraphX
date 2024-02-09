@@ -342,13 +342,18 @@ struct simplify_select_module_output_shape
         // outputs have the same rank and type
         auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
         auto shapes_types = get_shapes_types(all_output_shapes.front());
-        bool check = std::all_of(
-            all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
-                bool same_types = get_shapes_types(out_shapes) == shapes_types;
-                bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
-                return same_types and same_ndim;
-            });
-        if(not check)
+        if
+        (
+            std::any_of(
+                all_output_shapes.begin() + 1,
+                all_output_shapes.end(),
+                [&](auto out_shapes){
+                    bool same_types = get_shapes_types(out_shapes) == shapes_types;
+                    bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
+                    return not same_types or not same_ndim;
+                }
+            )
+        )
         {
             return;
         }
@@ -373,7 +378,7 @@ struct simplify_select_module_output_shape
             sm_module_inputs);
     }
 
-    std::vector<std::size_t> get_shapes_ndim(std::vector<shape> shapes) const
+    std::vector<std::size_t> get_shapes_ndim(const std::vector<shape>& shapes) const
     {
         std::vector<std::size_t> ret(shapes.size());
         std::transform(
@@ -381,7 +386,7 @@ struct simplify_select_module_output_shape
         return ret;
     }
 
-    std::vector<shape::type_t> get_shapes_types(std::vector<shape> shapes) const
+    std::vector<shape::type_t> get_shapes_types(const std::vector<shape>& shapes) const
     {
         std::vector<shape::type_t> ret(shapes.size());
         std::transform(
@@ -402,9 +407,8 @@ struct simplify_select_module_output_shape
         // later
         std::vector<uint64_t> all_min_lens;
         std::vector<uint64_t> all_max_lens;
-        for(int i : range(shape_vec.size()))
+        for(auto s : shape_vec)
         {
-            auto s        = shape_vec.at(i);
             auto min_lens = s.min_lens();
             auto max_lens = s.max_lens();
             std::copy(min_lens.begin(), min_lens.end(), std::back_inserter(all_min_lens));

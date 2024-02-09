@@ -342,18 +342,12 @@ struct simplify_select_module_output_shape
         // outputs have the same rank and type
         auto shapes_ndim  = get_shapes_ndim(all_output_shapes.front());
         auto shapes_types = get_shapes_types(all_output_shapes.front());
-        if
-        (
-            std::any_of(
-                all_output_shapes.begin() + 1,
-                all_output_shapes.end(),
-                [&](auto out_shapes){
-                    bool same_types = get_shapes_types(out_shapes) == shapes_types;
-                    bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
-                    return not same_types or not same_ndim;
-                }
-            )
-        )
+        if(std::any_of(
+               all_output_shapes.begin() + 1, all_output_shapes.end(), [&](auto out_shapes) {
+                   bool same_types = get_shapes_types(out_shapes) == shapes_types;
+                   bool same_ndim  = get_shapes_ndim(out_shapes) == shapes_ndim;
+                   return not same_types or not same_ndim;
+               }))
         {
             return;
         }

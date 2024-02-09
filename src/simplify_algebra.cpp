@@ -1547,6 +1547,42 @@ struct find_split_transpose
     }
 };
 
+// finds reshape -> softmax and checks if the softmax can be performed before the reshape
+// this allows the reshape to be further simplified with succeeding operations
+struct find_reshape_softmax
+{
+    auto matcher() const
+    {
+        return match::name("softmax")(match::arg(0)(match::name("reshape").bind("reshape")))
+            .bind("softmax");
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto rsp  = r.instructions["reshape"];
+        auto smax = r.instructions["softmax"];
+
+        auto input = rsp->inputs().front();
+        auto axis  = from_value<size_t>(smax->get_operator().to_value()["axis"]);
+
+        auto inp_shape = input->get_shape();
+        auto rsp_shape = rsp->get_shape();
+        auto it        = std::find(
+            inp_shape.strides().begin(), inp_shape.strides().end(), rsp_shape.strides().at(axis));
+
+        // both strides and lens have to match to find the original axis
+        auto inp_idx = it - inp_shape.strides().begin();
+        if(it == inp_shape.strides().end() or
+           inp_shape.lens().at(inp_idx) != rsp_shape.lens().at(axis))
+            return;
+
+        auto new_smax = m.insert_instruction(
+            rsp, make_op(smax->get_operator().name(), {{"axis", inp_idx}}), input);
+
+        m.replace_instruction(smax, rsp->get_operator(), new_smax);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -1576,7 +1612,8 @@ void simplify_algebra::apply(module& m) const
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
-                            find_split_transpose{});
+                            find_split_transpose{},
+                            find_reshape_softmax{});
         dead_code_elimination{}.apply(m);
     }
 }

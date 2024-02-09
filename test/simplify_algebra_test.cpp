@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -3659,6 +3659,49 @@ TEST_CASE(dot_mul_b_non_const)
             migraphx::make_op("multibroadcast", {{"out_lens", dot->get_shape().lens()}}), lit);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), dot, litb);
         m1.add_return({mul});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_softmax)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {20, 50, 50}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 10, 50, 50}};
+    migraphx::module m1;
+    {
+        auto a    = m1.add_literal(migraphx::generate_literal(s1));
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), a);
+        auto smax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), rsp);
+        auto rsp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), smax);
+        m1.add_return({rsp2});
+    };
+    migraphx::module m2;
+    {
+        auto a    = m2.add_literal(migraphx::generate_literal(s1));
+        auto smax = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), a);
+        auto rsp  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), smax);
+        auto rsp2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), rsp);
+        m2.add_return({rsp2});
+    };
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_softmax_bad_axis)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {20, 50, 50}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 10, 50, 50}};
+    migraphx::module m1;
+    {
+        auto a    = m1.add_literal(migraphx::generate_literal(s1));
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), a);
+        auto smax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rsp);
+        auto rsp2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", s1.lens()}}), smax);
+        m1.add_return({rsp2});
     };
     migraphx::module m2 = m1;
     run_pass(m1);

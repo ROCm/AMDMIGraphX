@@ -1,7 +1,7 @@
 .. _cpp-api-reference:
 
 C++ API reference
-=============
+====================
 
 shape
 -----

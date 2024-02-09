@@ -123,7 +123,17 @@ struct shape_impl
         if(not m_dyn_dims.empty())
         {
             auto maxes = max_lens();
-            return std::accumulate(maxes.begin(), maxes.end(), std::size_t{1}, std::multiplies<>());
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+
+            return std::accumulate(
+                maxes.begin(), maxes.end(), std::size_t{1}, [&](std::size_t x, std::size_t y) {
+                    // overflow check and clip
+                    if(x != 0 and y > max_val / x)
+                    {
+                        return max_val;
+                    }
+                    return x * y;
+                });
         }
 
         assert(m_lens.size() == m_strides.size());

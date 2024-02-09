@@ -122,6 +122,11 @@ struct find_tanh_fast_gelu
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        auto gelu_mode = string_value_of(MIGRAPHX_GELU_MODE{}, "tanh_exp");
+        if(gelu_mode == "tanh_pow")
+        {
+            return;
+        }
         auto ins            = r.result;
         auto x              = r.instructions["x"];
         double sqrt_2_rpi   = sqrt(M_2_PI);

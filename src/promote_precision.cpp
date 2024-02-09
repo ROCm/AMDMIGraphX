@@ -11,7 +11,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 static std::unordered_set<instruction_ref> find_instruction_to_upgrade(module& m, shape::type_t t)
 {
     std::unordered_set<instruction_ref> result;
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "convert")
             continue;
@@ -21,10 +21,7 @@ static std::unordered_set<instruction_ref> find_instruction_to_upgrade(module& m
     return result;
 }
 
-void promote_precision::apply(module_pass_manager& mpm) const
-{
-    
-}
+void promote_precision::apply(module_pass_manager& mpm) const {}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

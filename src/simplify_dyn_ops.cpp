@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -401,7 +401,7 @@ struct simplify_select_module_output_shape
         // later
         std::vector<uint64_t> all_min_lens;
         std::vector<uint64_t> all_max_lens;
-        for(auto s : shape_vec)
+        for(const auto& s : shape_vec)
         {
             auto min_lens = s.min_lens();
             auto max_lens = s.max_lens();

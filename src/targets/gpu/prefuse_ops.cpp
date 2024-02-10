@@ -184,7 +184,7 @@ struct find_gemm_softmax_gemm
         auto gemm1_ins = r.instructions["gemm1"];
 
         float scale = 1.0;
-        if(r.instructions.find("scale") != r.instructions.end())
+        if(contains(r.instructions, "scale"))
         {
             auto scale_lit = r.instructions["scale"];
             scale_lit->eval().visit([&](const auto s) {

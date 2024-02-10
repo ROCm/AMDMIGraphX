@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -170,7 +170,8 @@ struct find_gemm_softmax_gemm
             match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm1")));
         auto mul = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
+        auto softmax =
+            match::name("softmax")(match::arg(0)(match::any_of(mul, gemm1))).bind("softmax");
 
         return match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm2"))(
             match::arg(0)(softmax));
@@ -181,17 +182,20 @@ struct find_gemm_softmax_gemm
         auto ins       = r.result;
         auto gemm2_ins = r.instructions["gemm2"];
         auto gemm1_ins = r.instructions["gemm1"];
-        auto scale_lit = r.instructions["scale"];
 
         float scale = 1.0;
-        scale_lit->eval().visit([&](const auto s) {
-            // CK only supports single-valued scale
-            if(std::all_of(
-                   s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
-                scale = s.front();
-            else
-                return;
-        });
+        if(r.instructions.find("scale") != r.instructions.end())
+        {
+            auto scale_lit = r.instructions["scale"];
+            scale_lit->eval().visit([&](const auto s) {
+                // CK only supports single-valued scale
+                if(std::all_of(
+                       s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+                    scale = s.front();
+                else
+                    return;
+            });
+        }
 
         auto inputs = gemm1_ins->inputs();            // A, B
         inputs.push_back(gemm2_ins->inputs().back()); // B1

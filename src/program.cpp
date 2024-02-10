@@ -820,12 +820,15 @@ std::string perf_group(instruction_ref ins, bool detailed)
     {
         result += "<" + ins->get_shape().type_string();
         std::vector<std::string> sizes;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(sizes), [&](instruction_ref input) {
-            std::string r = to_string_range(input->get_shape().lens(), "x");
-            if(not input->get_shape().standard())
-                r += ":" + to_string_range(input->get_shape().strides(), "x");
-            return r;
-        });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(sizes),
+                       [&](instruction_ref input) {
+                           std::string r = to_string_range(input->get_shape().lens(), "x");
+                           if(not input->get_shape().standard())
+                               r += ":" + to_string_range(input->get_shape().strides(), "x");
+                           return r;
+                       });
         result += "(" + join_strings(sizes, ", ") + ")>";
     }
     return result;
@@ -849,10 +852,8 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os,
-                          std::size_t n,
-                          parameter_map params,
-                          std::size_t batch, bool detailed) const
+void program::perf_report(
+    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself

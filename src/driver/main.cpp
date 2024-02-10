@@ -657,7 +657,10 @@ struct perf : command<perf>
     {
         c.parse(ap);
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
-        ap(detailed, {"--detailed", "-d"}, ap.help("Show a more detailed summary report"), ap.set_value(true));
+        ap(detailed,
+           {"--detailed", "-d"},
+           ap.help("Show a more detailed summary report"),
+           ap.set_value(true));
     }
 
     void run()

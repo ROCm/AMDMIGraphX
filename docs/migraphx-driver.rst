@@ -570,67 +570,69 @@ Option: perf
 
 .. collapse:: View Output
 
-   Compiling ... 
-   Reading: simple_graph.pb
-   @0 = check_context::migraphx::gpu::context -> float_type, {}, {}
-   @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
-   @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
-   @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}
-   x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
-   @4 = reshape[dims={-1, 784}](x) -> float_type, {1, 784}, {784, 1}
-   @5 = gpu::gemm[alpha=1,beta=0](@4,@2,@3) -> float_type, {1, 128}, {128, 1}
-   @6 = hip::hip_copy_literal[id=@literal:1] -> float_type, {128, 10}, {10, 1}
-   @7 = hip::hip_copy_literal[id=@literal:0] -> float_type, {10}, {1}
-   @8 = hip::hip_copy_literal[id=@literal:2] -> float_type, {128}, {1}
-   @9 = broadcast[axis=1,dims={1, 128}](@8) -> float_type, {1, 128}, {0, 1}
-   @10 = load[offset=512,end=1024](@1) -> float_type, {1, 128}, {128, 1}
-   @11 = gpu::add_relu(@5,@9,@10) -> float_type, {1, 128}, {128, 1}
-   @12 = load[offset=0,end=40](@1) -> float_type, {1, 10}, {10, 1}
-   @13 = gpu::gemm[alpha=1,beta=0](@11,@6,@12) -> float_type, {1, 10}, {10, 1}
-   @14 = broadcast[axis=1,dims={1, 10}](@7) -> float_type, {1, 10}, {0, 1}
-   @15 = load[offset=40,end=80](@1) -> float_type, {1, 10}, {10, 1}
-   @16 = gpu::add(@13,@14,@15) -> float_type, {1, 10}, {10, 1}
-   output = @param:output -> float_type, {1, 10}, {10, 1}
-   @17 = gpu::softmax[axis=1](@16,output) -> float_type, {1, 10}, {10, 1}
+      .. code-block:: python
 
-   Allocating params ... 
-   Running performance report ... 
-   @0 = check_context::migraphx::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
-   @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}: 0.000295ms, 1%
-   @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}: 0.00027942ms, 1%
-   @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}: 0.000232ms, 1%
-   x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}: 0.0003206ms, 1%
-   @4 = reshape[dims={-1, 784}](x) -> float_type, {1, 784}, {784, 1}: 0.00033842ms, 1%
-   @5 = gpu::gemm[alpha=1,beta=0](@4,@2,@3) -> float_type, {1, 128}, {128, 1}: 0.212592ms, 52%
-   @6 = hip::hip_copy_literal[id=@literal:1] -> float_type, {128, 10}, {10, 1}: 0.00085822ms, 1%
-   @7 = hip::hip_copy_literal[id=@literal:0] -> float_type, {10}, {1}: 0.000382ms, 1%
-   @8 = hip::hip_copy_literal[id=@literal:2] -> float_type, {128}, {1}: 0.0003486ms, 1%
-   @9 = broadcast[axis=1,dims={1, 128}](@8) -> float_type, {1, 128}, {0, 1}: 0.000299ms, 1%
-   @10 = load[offset=512,end=1024](@1) -> float_type, {1, 128}, {128, 1}: 0.000234ms, 1%
-   @11 = gpu::add_relu(@5,@9,@10) -> float_type, {1, 128}, {128, 1}: 0.0416597ms, 11%
-   @12 = load[offset=0,end=40](@1) -> float_type, {1, 10}, {10, 1}: 0.0007548ms, 1%
-   @13 = gpu::gemm[alpha=1,beta=0](@11,@6,@12) -> float_type, {1, 10}, {10, 1}: 0.0733071ms, 18%
-   @14 = broadcast[axis=1,dims={1, 10}](@7) -> float_type, {1, 10}, {0, 1}: 0.00088142ms, 1%
-   @15 = load[offset=40,end=80](@1) -> float_type, {1, 10}, {10, 1}: 0.000408ms, 1%
-   @16 = gpu::add(@13,@14,@15) -> float_type, {1, 10}, {10, 1}: 0.0410144ms, 10%
-   output = @param:output -> float_type, {1, 10}, {10, 1}: 0.0010222ms, 1%
-   @17 = gpu::softmax[axis=1](@16,output) -> float_type, {1, 10}, {10, 1}: 0.0385636ms, 10%
+         Compiling ... 
+         Reading: simple_graph.pb
+         @0 = check_context::migraphx::gpu::context -> float_type, {}, {}
+         @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}
+         @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}
+         @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}
+         x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}
+         @4 = reshape[dims={-1, 784}](x) -> float_type, {1, 784}, {784, 1}
+         @5 = gpu::gemm[alpha=1,beta=0](@4,@2,@3) -> float_type, {1, 128}, {128, 1}
+         @6 = hip::hip_copy_literal[id=@literal:1] -> float_type, {128, 10}, {10, 1}
+         @7 = hip::hip_copy_literal[id=@literal:0] -> float_type, {10}, {1}
+         @8 = hip::hip_copy_literal[id=@literal:2] -> float_type, {128}, {1}
+         @9 = broadcast[axis=1,dims={1, 128}](@8) -> float_type, {1, 128}, {0, 1}
+         @10 = load[offset=512,end=1024](@1) -> float_type, {1, 128}, {128, 1}
+         @11 = gpu::add_relu(@5,@9,@10) -> float_type, {1, 128}, {128, 1}
+         @12 = load[offset=0,end=40](@1) -> float_type, {1, 10}, {10, 1}
+         @13 = gpu::gemm[alpha=1,beta=0](@11,@6,@12) -> float_type, {1, 10}, {10, 1}
+         @14 = broadcast[axis=1,dims={1, 10}](@7) -> float_type, {1, 10}, {0, 1}
+         @15 = load[offset=40,end=80](@1) -> float_type, {1, 10}, {10, 1}
+         @16 = gpu::add(@13,@14,@15) -> float_type, {1, 10}, {10, 1}
+         output = @param:output -> float_type, {1, 10}, {10, 1}
+         @17 = gpu::softmax[axis=1](@16,output) -> float_type, {1, 10}, {10, 1}
 
-   Summary:
-   gpu::gemm: 0.285899ms, 69%
-   gpu::add_relu: 0.0416597ms, 11%
-   gpu::add: 0.0410144ms, 10%
-   gpu::softmax: 0.0385636ms, 10%
-   hip::hip_copy_literal: 0.00186824ms, 1%
-   load: 0.0016288ms, 1%
-   @param: 0.0013428ms, 1%
-   broadcast: 0.00118042ms, 1%
-   check_context::migraphx::gpu::context: 0.00057782ms, 1%
-   reshape: 0.00033842ms, 1%
-   hip::hip_allocate_memory: 0.000295ms, 1%
+         Allocating params ... 
+         Running performance report ... 
+         @0 = check_context::migraphx::gpu::context -> float_type, {}, {}: 0.00057782ms, 1%
+         @1 = hip::hip_allocate_memory[shape=float_type, {256}, {1},id=scratch] -> float_type, {256}, {1}: 0.000295ms, 1%
+         @2 = hip::hip_copy_literal[id=@literal:3] -> float_type, {784, 128}, {128, 1}: 0.00027942ms, 1%
+         @3 = load[offset=0,end=512](@1) -> float_type, {1, 128}, {128, 1}: 0.000232ms, 1%
+         x = @param:x -> float_type, {1, 28, 28}, {784, 28, 1}: 0.0003206ms, 1%
+         @4 = reshape[dims={-1, 784}](x) -> float_type, {1, 784}, {784, 1}: 0.00033842ms, 1%
+         @5 = gpu::gemm[alpha=1,beta=0](@4,@2,@3) -> float_type, {1, 128}, {128, 1}: 0.212592ms, 52%
+         @6 = hip::hip_copy_literal[id=@literal:1] -> float_type, {128, 10}, {10, 1}: 0.00085822ms, 1%
+         @7 = hip::hip_copy_literal[id=@literal:0] -> float_type, {10}, {1}: 0.000382ms, 1%
+         @8 = hip::hip_copy_literal[id=@literal:2] -> float_type, {128}, {1}: 0.0003486ms, 1%
+         @9 = broadcast[axis=1,dims={1, 128}](@8) -> float_type, {1, 128}, {0, 1}: 0.000299ms, 1%
+         @10 = load[offset=512,end=1024](@1) -> float_type, {1, 128}, {128, 1}: 0.000234ms, 1%
+         @11 = gpu::add_relu(@5,@9,@10) -> float_type, {1, 128}, {128, 1}: 0.0416597ms, 11%
+         @12 = load[offset=0,end=40](@1) -> float_type, {1, 10}, {10, 1}: 0.0007548ms, 1%
+         @13 = gpu::gemm[alpha=1,beta=0](@11,@6,@12) -> float_type, {1, 10}, {10, 1}: 0.0733071ms, 18%
+         @14 = broadcast[axis=1,dims={1, 10}](@7) -> float_type, {1, 10}, {0, 1}: 0.00088142ms, 1%
+         @15 = load[offset=40,end=80](@1) -> float_type, {1, 10}, {10, 1}: 0.000408ms, 1%
+         @16 = gpu::add(@13,@14,@15) -> float_type, {1, 10}, {10, 1}: 0.0410144ms, 10%
+         output = @param:output -> float_type, {1, 10}, {10, 1}: 0.0010222ms, 1%
+         @17 = gpu::softmax[axis=1](@16,output) -> float_type, {1, 10}, {10, 1}: 0.0385636ms, 10%
 
-   Rate: 2866.1/sec
-   Total time: 0.348906ms
-   Total instructions time: 0.414369ms
-   Overhead time: 0.00348144ms, -0.0654627ms
-   Overhead: 1%, -19%
+         Summary:
+         gpu::gemm: 0.285899ms, 69%
+         gpu::add_relu: 0.0416597ms, 11%
+         gpu::add: 0.0410144ms, 10%
+         gpu::softmax: 0.0385636ms, 10%
+         hip::hip_copy_literal: 0.00186824ms, 1%
+         load: 0.0016288ms, 1%
+         @param: 0.0013428ms, 1%
+         broadcast: 0.00118042ms, 1%
+         check_context::migraphx::gpu::context: 0.00057782ms, 1%
+         reshape: 0.00033842ms, 1%
+         hip::hip_allocate_memory: 0.000295ms, 1%
+
+         Rate: 2866.1/sec
+         Total time: 0.348906ms
+         Total instructions time: 0.414369ms
+         Overhead time: 0.00348144ms, -0.0654627ms
+         Overhead: 1%, -19%

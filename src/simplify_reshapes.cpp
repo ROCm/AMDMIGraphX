@@ -806,6 +806,51 @@ struct find_transpose_slice
     }
 };
 
+struct find_reshape_dot_reshape
+{
+    auto matcher() const
+    {
+        return match::name("reshape")(
+            match::arg(0)(match::name("dot")(match::used_once(),
+                                             match::args(match::name("reshape").bind("inp_rsp1"),
+                                                         match::name("reshape").bind("inp_rsp2")))
+                              .bind("dot")));
+    }
+
+    auto is_valid_input(instruction_ref in, instruction_ref out) const
+    {
+        auto in_lens  = in->get_shape().lens();
+        auto out_lens = out->get_shape().lens();
+
+        return (
+            in_lens.size() == out_lens.size() and
+            std::equal(out_lens.begin(), out_lens.end() - 2, in_lens.begin(), in_lens.end() - 2));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto out_rsp  = r.result;
+        auto dot      = r.instructions["dot"];
+        auto inp_rsp1 = r.instructions["inp_rsp1"];
+        auto inp_rsp2 = r.instructions["inp_rsp2"];
+
+        auto out_lens = out_rsp->get_shape().lens();
+        auto dot_lens = dot->get_shape().lens();
+
+        // Gemm axes should not be altered
+        if(not std::equal(out_lens.end() - 2, out_lens.end(), dot_lens.end() - 2, dot_lens.end()))
+            return;
+
+        auto inp1 = inp_rsp1->inputs().front();
+        auto inp2 = inp_rsp2->inputs().front();
+
+        if(not(is_valid_input(inp1, out_rsp) and is_valid_input(inp2, out_rsp)))
+            return;
+
+        m.replace_instruction(dot, dot->get_operator(), inp1, inp2);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -824,7 +869,8 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},
-                            find_transpose_contiguous_reshaper_unary{});
+                            find_transpose_contiguous_reshaper_unary{},
+                            find_reshape_dot_reshape{});
         dead_code_elimination{}.apply(m);
     }
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1694,6 +1694,77 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
         auto squeeze3 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice3);
         m2.add_return({squeeze1, transpose2, squeeze3});
     }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_reshape)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 10, 32, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 10, 16, 32}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_literal(migraphx::generate_literal(as));
+        auto b     = m1.add_parameter("input", bs);
+        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
+        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
+        auto dot_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 32, 32}}}), dot);
+        m1.add_return({dot_rsp});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_literal(migraphx::generate_literal(as));
+        auto b   = m2.add_parameter("input", bs);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, b);
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_reshape_gemm_axis)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 10, 512}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 10, 512}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_literal(migraphx::generate_literal(as));
+        auto b     = m1.add_parameter("input", bs);
+        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
+        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
+        auto dot_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 1024}}}), dot);
+        m1.add_return({dot_rsp});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_reshape_diff_inputs)
+{
+    migraphx::shape as{migraphx::shape::float_type, {4, 5, 32, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {4, 5, 16, 32}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_literal(migraphx::generate_literal(as));
+        auto b     = m1.add_parameter("input", bs);
+        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
+        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
+        auto dot_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 32, 32}}}), dot);
+        m1.add_return({dot_rsp});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 

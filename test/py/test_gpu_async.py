@@ -87,6 +87,7 @@ def test_conv_relu():
     # Alloc a stream
     stream = ctypes.c_void_p()
 
+    print("Run hipStreamCreate")
     err = ctypes.c_long(
         hip.hipStreamCreateWithFlags(ctypes.byref(stream), ctypes.c_uint(0)))
 
@@ -98,16 +99,20 @@ def test_conv_relu():
     for key, value in p.get_parameter_shapes().items():
         params[key] = migraphx.to_gpu(migraphx.generate_argument(value))
 
+    print("Run async")
     result = migraphx.from_gpu(
         p.run_async(params, stream.value, "ihipStream_t")[-1])
 
     # Wait for all commands in stream to complete
+
+    print("Run hipStreamSyncronize")
     err = ctypes.c_long(hip.hipStreamSynchronize(stream))
     if err.value != hipSuccess.value:
         print("FAILED: hipStreamSyncronize")
         return err
 
     # Cleanup Stream
+    print("Run hipStreamDestroy")
     err = ctypes.c_long(hip.hipStreamDestroy(stream))
     if err.value != hipSuccess.value:
         print("FAILED: hipStreamDestroy")

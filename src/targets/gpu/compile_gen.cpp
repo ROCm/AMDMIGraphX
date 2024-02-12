@@ -27,12 +27,13 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/rewrite_quantization.hpp>
+#include <migraphx/optimize_module.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
@@ -182,8 +183,8 @@ std::string make_transformer_args(std::vector<std::string> transformers)
 void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
 {
     module m = pm;
-    run_passes(m,
-               {rewrite_quantization{}, eliminate_common_subexpression{}, dead_code_elimination{}});
+    run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    m.sort();
     cpp_generator g;
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
@@ -268,10 +269,31 @@ static bool use_lazy_inner(instruction_ref ins)
     return contains(output->name(), "reduce") or output->name() == "@return";
 }
 
-std::string generate_reduce(const module& m, const std::string& name)
+void preload_params(module& m)
 {
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "@param")
+            continue;
+        if(ins->outputs().size() <= 1)
+            continue;
+        auto id = m.insert_instruction(std::next(ins), make_op("identity"), ins);
+        m.replace_instruction(ins, id);
+    }
+}
+
+std::string generate_reduce(module m, const std::string& name)
+{
+    preload_params(m);
+    run_passes(m, {optimize_module{}});
+    m.sort();
     cpp_generator g;
-    auto ilens    = m.get_parameter_shapes().begin()->second.lens();
+    auto param_shapes = m.get_parameter_shapes();
+    auto max_shape =
+        std::max_element(param_shapes.begin(),
+                         param_shapes.end(),
+                         by(std::less<>{}, [](const auto& p) { return p.second.elements(); }));
+    auto ilens    = max_shape->second.lens();
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -323,6 +345,11 @@ std::string generate_reduce(const module& m, const std::string& name)
         else if(ins->name() == "multibroadcast")
         {
             return names.at(ins->inputs().front());
+        }
+        else if(ins->name() == "identity")
+        {
+            const auto& x = names.at(ins->inputs().front());
+            return "r.inner(op::id{})(" + x + ")";
         }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });

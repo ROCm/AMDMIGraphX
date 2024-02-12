@@ -98,6 +98,9 @@ endforeach()
 target_compile_definitions(kernel_file_check PRIVATE -DMIGRAPHX_NLOCAL=256)
 target_include_directories(kernel_file_check PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(kernel_file_check compile_for_gpu)
+if(MIGRAPHX_USE_COMPOSABLEKERNEL)
+    target_link_libraries(kernel_file_check composable_kernel::jit_library)
+endif()
 
 rocm_clang_tidy_check(kernel_file_check)
 
@@ -141,6 +144,7 @@ add_library(migraphx_gpu
     prefuse_ops.cpp
     perfdb.cpp
     pooling.cpp
+    problem_cache.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
     rocblas.cpp

@@ -1,14 +1,24 @@
 # fp16 erf GELU
 {
     settings: {
-        iterations: 1000,
-        lens: [10, 384, 3072],
-#        strides: [1179648, 384, 1],
+        iterations: 1000
+        lens: [10, 384, 3072]
+#        strides: [1179648, 384, 1]
         type: "half_type"
     },
     compile_op: {
-        name: "pointwise",
-        lambda: "[](auto one, auto r2, auto sqrt2, auto x) { return ( x * r2 * (one + convert<half>(erf(x / sqrt2))) );}",
-        inputs: [{}, {}, {}, {}, {}]
+        name: "pointwise"
+        lambda: 
+        '''
+        [](auto x)
+        {
+            using x_type = decltype(x);
+            x_type one = 1.;
+            x_type r2 = 2.;
+            x_type rsqrt2 = 3.;
+            return ( x * r2 * (one + convert<half>(erf(x * rsqrt2))) );
+        }
+        '''
+        inputs: [{}, {}]
     }
 }

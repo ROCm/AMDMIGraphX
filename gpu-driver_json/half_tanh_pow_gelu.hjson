@@ -10,11 +10,17 @@
         name: "pointwise"
         lambda: 
         '''
-        [](auto one, auto three, auto r2, auto fit_const, auto sqrt2rpi, auto x)
+        [](auto x)
         {
+            using x_type = decltype(x);
+            x_type one = 1.;
+            x_type fit_const = 2.;
+            x_type three = 3.;
+            x_type sqrt2rpi = 4.;
+            x_type r2 = 0.5;
             return r2 * x * (one + convert<half>(tanh(sqrt2rpi * (x + fit_const * convert<half>(pow(x, three))))));
         }
         '''
-        inputs: [{}, {}, {}, {}, {}, {}, {}]
+        inputs: [{}, {}]
     }
 }

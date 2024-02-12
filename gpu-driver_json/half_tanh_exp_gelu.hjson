@@ -10,8 +10,12 @@
         name: "pointwise"
         lambda: 
         '''
-        [](auto one, auto fit_const, auto sqrt2rpi, auto x)
+        [](auto x)
         {
+            using x_type = decltype(x);
+            x_type one = 1.;
+            x_type fit_const = 2.;
+            x_type sqrt2rpi = 3.;
             auto x_b = x * sqrt2rpi;
             auto u = x_b * fit_const * x * x + x_b;
             auto emu = exp(-u - u);
@@ -19,6 +23,6 @@
             return x * cdf;
         }
         '''
-        inputs: [{}, {}, {}, {}, {}]
+        inputs: [{}, {}]
     }
 }

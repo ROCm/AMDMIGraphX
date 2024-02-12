@@ -1,14 +1,25 @@
 # erf GELU
 {
     settings: {
-        iterations: 1000,
-        lens: [10, 384, 3072],
-#        strides: [384, 1],
+        iterations: 1000
+        lens: [10, 384, 3072]
+#        strides: [384, 1]
         type: "float"
     },
     compile_op: {
-        name: "pointwise",
-        lambda: "[](auto one, auto r2, auto sqrt2, auto x) { return ( x * r2 * (one + erf(x / sqrt2)) );}",
-        inputs: [{}, {}, {}, {}, {}]
+        name: "pointwise"
+        lambda:
+        # note that the value of the constants do not matter for performance
+        '''
+        [](auto x)
+        {
+            using x_type = decltype(x);
+            x_type one = 1.;
+            x_type r2 = 2.;
+            x_type rsqrt2 = 3.;
+            return ( x * r2 * (one + erf(x * rsqrt2)) );
+        }
+        '''
+        inputs: [{}, {}]
     }
 }

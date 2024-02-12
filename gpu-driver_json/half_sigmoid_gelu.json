@@ -2,11 +2,9 @@
   "compile_op": {
     "inputs": [
       {},
-      {},
-      {},
       {}
     ],
-    "lambda": "[](auto one, auto fit_const, auto x)\n{\n    return x / (one + exp(-fit_const * x));\n}",
+    "lambda": "[](auto x)\n{\n    using x_type = decltype(x);\n    x_type one = 1.;\n    x_type fit_const = 2.;\n    return x / (one + exp(-fit_const * x));\n}",
     "name": "pointwise"
   },
   "settings": {

@@ -2,12 +2,9 @@
   "compile_op": {
     "inputs": [
       {},
-      {},
-      {},
-      {},
       {}
     ],
-    "lambda": "[](auto one, auto r2, auto sqrt2, auto x) { return ( x * r2 * (one + convert<half>(erf(x / sqrt2))) );}",
+    "lambda": "[](auto x)\n{\n    using x_type = decltype(x);\n    x_type one = 1.;\n    x_type r2 = 2.;\n    x_type rsqrt2 = 3.;\n    return ( x * r2 * (one + convert<half>(erf(x * rsqrt2))) );\n}",
     "name": "pointwise"
   },
   "settings": {

@@ -10,11 +10,14 @@
         name: "pointwise"
         lambda: 
         '''
-        [](auto one, auto fit_const, auto x)
+        [](auto x)
         {
+            using x_type = decltype(x);
+            x_type one = 1.;
+            x_type fit_const = 2.;
             return x / (one + exp(-fit_const * x));
         }
         '''
-        inputs: [{}, {}, {}, {}]
+        inputs: [{}, {}]
     }
 }

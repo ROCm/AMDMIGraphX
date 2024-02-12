@@ -2,14 +2,9 @@
   "compile_op": {
     "inputs": [
       {},
-      {},
-      {},
-      {},
-      {},
-      {},
       {}
     ],
-    "lambda": "[](auto one, auto three, auto r2, auto fit_const, auto sqrt2rpi, auto x)\n{\n    return r2 * x * (one + convert<half>(tanh(sqrt2rpi * (x + fit_const * convert<half>(pow(x, three))))));\n}",
+    "lambda": "[](auto x)\n{\n    using x_type = decltype(x);\n    x_type one = 1.;\n    x_type fit_const = 2.;\n    x_type three = 3.;\n    x_type sqrt2rpi = 4.;\n    x_type r2 = 0.5;\n    return r2 * x * (one + convert<half>(tanh(sqrt2rpi * (x + fit_const * convert<half>(pow(x, three))))));\n}",
     "name": "pointwise"
   },
   "settings": {

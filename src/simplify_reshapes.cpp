@@ -25,6 +25,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
@@ -284,62 +285,71 @@ struct find_concat_slice
 {
     auto matcher() const
     {
-        return match::name("concat")(
-            match::all_of[match::outputs()](match::name("slice"), match::used_once()));
+        return match::name("concat")(match::any_of[match::outputs()](match::name("slice")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins       = mr.result;
-        auto slice_ins = ins->outputs();
         auto inputs    = ins->inputs();
-        if(slice_ins.size() != inputs.size())
-            return;
+        auto outs      = ins->outputs();
+        std::vector<migraphx::instruction_ref> slice_ins;
+        migraphx::transform_if(
+            outs.begin(),
+            outs.end(),
+            std::back_inserter(slice_ins),
+            [&](const auto& oins) { return oins->name() == "slice"; },
+            [&](const auto& oins) { return oins; });
         int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
-        if(std::any_of(slice_ins.begin(), slice_ins.end(), [&](const auto& sins) {
-               return any_cast<op::slice>(sins->get_operator()).axes.size() != 1;
-           }))
-            return;
-        if(std::any_of(slice_ins.begin(), slice_ins.end(), [&](const auto& sins) {
-               return any_cast<op::slice>(sins->get_operator()).axes.front() != concat_axis;
-           }))
-            return;
-
-        std::sort(slice_ins.begin(), slice_ins.end(), [&](const auto& i, const auto j) {
-            auto i_op = any_cast<op::slice>(i->get_operator());
-            auto j_op = any_cast<op::slice>(i->get_operator());
-            return i_op.starts.front() < j_op.starts.front();
-        });
-
-        auto axis_len        = ins->get_shape().lens()[concat_axis];
-        auto first_slice_ins = slice_ins.front();
-        auto previous_slice_start =
-            any_cast<op::slice>(first_slice_ins->get_operator()).starts.front();
-        auto previous_slice_end = any_cast<op::slice>(first_slice_ins->get_operator()).ends.front();
-        auto total_slice_len    = (previous_slice_end - previous_slice_start);
-        for(const auto sins : range(slice_ins.begin() + 1, slice_ins.end()))
+        // prune slice ops candidates
+        std::vector<migraphx::instruction_ref> slice_candidates;
+        for(const auto& sins : range(slice_ins.begin(), slice_ins.end()))
         {
-            auto slice_op      = any_cast<op::slice>(sins->get_operator());
-            auto current_start = slice_op.starts.front();
-            auto current_end   = slice_op.ends.front();
-            total_slice_len += (current_end - current_start);
-            if(previous_slice_end != current_start)
+            auto sop = any_cast<op::slice>(sins->get_operator());
+            // slice only one axis is allowed, because concat happens only one axis, slice should
+            // have only one output
+            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis or
+               sins->outputs().size() != 1)
             {
-                return;
+                continue;
             }
-            previous_slice_start = current_start;
-            previous_slice_end   = current_end;
+            slice_candidates.push_back(sins);
         }
-        if(total_slice_len != axis_len)
+        if(slice_candidates.empty())
         {
             return;
         }
-        for(auto idx : range(slice_ins.size()))
+        std::vector<size_t> prefix_scan = {0};
+        std::transform(
+            inputs.begin(), inputs.end(), std::back_inserter(prefix_scan), [&](const auto& i) {
+                return prefix_scan.back() + i->get_shape().lens()[concat_axis];
+            });
+        for(const auto& sins : slice_candidates)
         {
-            auto slice_op  = any_cast<op::slice>(slice_ins[idx]->get_operator());
-            auto start_idx = slice_op.starts.front();
-            auto end_idx   = slice_op.ends.front();
-            if((end_idx - start_idx) == inputs[idx]->get_shape().lens()[concat_axis]) {}
+            auto sop         = any_cast<op::slice>(sins->get_operator());
+            size_t slice_len = sop.ends.front() - sop.starts.front();
+            auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {
+                return j == sop.starts.front();
+            });
+            if(fii == prefix_scan.end())
+            {
+                continue;
+            }
+            // slice_len == 0
+            else if(fii == prefix_scan.end() - 1)
+            {
+                assert(slice_len == 0);
+                m.remove_instruction(sins);
+            }
+            else
+            {
+                size_t idx = std::distance(prefix_scan.begin(), fii);
+                if(inputs[idx]->get_shape().lens()[concat_axis] == slice_len)
+                {
+                    assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
+                    m.replace_instruction(sins, inputs[idx]);
+                }
+            }
         }
     }
 };
@@ -881,6 +891,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_reshape_cont{},
                             find_transpose{},
+                            find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},

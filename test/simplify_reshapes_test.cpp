@@ -601,8 +601,8 @@ TEST_CASE(concat_slice_different_axis_2)
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
         auto slice1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), concat);
-        auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
-        m1.add_return({slice1, add});
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, y);
+        m2.add_return({slice1, add});
     }
     EXPECT(m1 == m2);
 }

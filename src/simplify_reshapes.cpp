@@ -334,7 +334,6 @@ struct find_concat_slice
             });
             if(fii == prefix_scan.end())
             {
-                std::cout << "didn't find \n";
                 continue;
             }
             // slice_len == 0
@@ -350,10 +349,6 @@ struct find_concat_slice
                 {
                     assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
                     m.replace_instruction(sins, inputs[idx]);
-                }
-                else
-                {
-                    std::cout << "slice_len not matching\n";
                 }
             }
         }

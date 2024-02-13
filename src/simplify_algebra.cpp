@@ -1264,10 +1264,9 @@ struct eliminate_zero_point
     }
     auto matcher() const
     {
-        return match::name(get_qlinear_ops_names())(
-            match::arg(0)(match::any().bind("x")),
-            match::arg(1)(match::any().bind("scale")),
-            match::arg(2)(match::has_value(0.0f, 0, 0).bind("zp")));
+        return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
+                                                    match::arg(1)(match::any().bind("scale")),
+                                                    match::arg(2)(match::has_value(0.0f, 0, 0)));
     }
 
     void apply(module& m, const match::matcher_result& r) const

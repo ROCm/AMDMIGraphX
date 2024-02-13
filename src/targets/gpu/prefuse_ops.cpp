@@ -188,7 +188,7 @@ struct find_gemm_softmax_gemm
         {
             auto scale_lit = r.instructions["scale"];
             // CK only supports single-valued scale
-            auto is_valid  = false;
+            auto is_valid = false;
             scale_lit->eval().visit([&](const auto s) {
                 if(std::all_of(
                        s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))

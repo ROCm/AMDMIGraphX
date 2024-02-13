@@ -158,6 +158,8 @@ const std::vector<std::vector<std::size_t>>* common_dims::get_axes_map(std::size
 std::vector<std::size_t>
 common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
 {
+    if(dims.size() == idims.size())
+        return idims;
     if(elements(dims) == elements(idims))
         return dims;
     const auto* axes_map = get_axes_map(idims.size());

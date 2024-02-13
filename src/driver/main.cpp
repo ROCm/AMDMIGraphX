@@ -406,9 +406,22 @@ struct program_params
             std::inserter(static_param_shapes, static_param_shapes.end()),
             [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
         for(auto&& s : fill0)
+        {
+            if (static_param_shapes.find(s) == static_param_shapes.end())
+            {
+                std::cerr << "Warning: input not found fill0 (" << s <<")\n";
+                continue;
+            }
             m[s] = fill_argument(static_param_shapes.at(s), 0);
-        for(auto&& s : fill1)
+        }
+        for(auto&& s : fill1) {
+            if (static_param_shapes.find(s) == static_param_shapes.end())
+            {
+                std::cerr << "Warning: input not found fill1 (" << s <<")\n";
+                continue;
+            }
             m[s] = fill_argument(static_param_shapes.at(s), 1);
+        }
         fill_param_map(m, static_param_shapes, t, offload);
         return m;
     }

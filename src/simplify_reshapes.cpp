@@ -806,6 +806,28 @@ struct find_transpose_slice
     }
 };
 
+// replace scalar (multibroadcast->unsqueeze) with just an updated (multibroadcast)
+struct find_scalar_multibroadcast_unsqueeze
+{
+    auto matcher() const
+    {
+        return match::name("unsqueeze")(match::arg(0)(match::name("multibroadcast")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto unsq      = mr.result;         // unsqeeze
+        auto mbr       = unsq->inputs()[0]; // multibroadcast
+        auto mbr_shape = mbr->get_shape();
+        if(mbr_shape.ndim() != 1 and mbr_shape.strides()[0] != 0)
+            return; // ignore except multi-broadcasted scalers
+
+        auto out_lens = unsq->get_shape().lens();
+        m.replace_instruction(
+            unsq, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -824,7 +846,8 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},
-                            find_transpose_contiguous_reshaper_unary{});
+                            find_transpose_contiguous_reshaper_unary{},
+                            find_scalar_multibroadcast_unsqueeze{});
         dead_code_elimination{}.apply(m);
     }
 }

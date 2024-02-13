@@ -748,13 +748,13 @@ TEST_CASE(concat_slice_multiple_slice_use)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x      = m2.add_parameter("x", s);
-        auto y      = m2.add_parameter("y", s);
-        auto z      = m2.add_parameter("z", s);
-        auto add1   = m2.add_instruction(migraphx::make_op("add"), x, z);
-        auto add2   = m2.add_instruction(migraphx::make_op("add"), z, x);
-        auto sub1   = m2.add_instruction(migraphx::make_op("sub"), x, z);
-        auto sub2   = m2.add_instruction(migraphx::make_op("sub"), z, x);
+        auto x    = m2.add_parameter("x", s);
+        auto y    = m2.add_parameter("y", s);
+        auto z    = m2.add_parameter("z", s);
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), x, z);
+        auto add2 = m2.add_instruction(migraphx::make_op("add"), z, x);
+        auto sub1 = m2.add_instruction(migraphx::make_op("sub"), x, z);
+        auto sub2 = m2.add_instruction(migraphx::make_op("sub"), z, x);
         auto add3 = m2.add_instruction(migraphx::make_op("add"), sub1, sub2);
         auto sub3 = m2.add_instruction(migraphx::make_op("sub"), add3, y);
         m2.add_return({add1, add2, sub3});

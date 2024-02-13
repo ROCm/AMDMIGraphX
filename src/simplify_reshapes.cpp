@@ -327,19 +327,21 @@ struct find_concat_slice
         for(const auto& sins : slice_candidates)
         {
             auto sop         = any_cast<op::slice>(sins->get_operator());
-            size_t slice_len = sop.ends.front() - sop.starts.front();
+            size_t slice_start = sop.starts.front();
+            size_t slice_len   = sop.ends.front() - slice_start;
             auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {
-                return j == sop.starts.front();
+                return j == slice_start;
             });
             if(fii == prefix_scan.end())
             {
+                std::cout << "didn't find \n";
                 continue;
             }
             // slice_len == 0
             else if(fii == prefix_scan.end() - 1)
             {
-                assert(slice_len == 0);
-                m.remove_instruction(sins);
+                assert(slice_len == 0 or slice_start >= prefix_scan.back());
+                continue;
             }
             else
             {
@@ -348,6 +350,10 @@ struct find_concat_slice
                 {
                     assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
                     m.replace_instruction(sins, inputs[idx]);
+                }
+                else
+                {
+                    std::cout << "slice_len not matching\n";
                 }
             }
         }

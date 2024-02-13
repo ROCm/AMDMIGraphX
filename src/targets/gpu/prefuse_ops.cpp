@@ -187,14 +187,20 @@ struct find_gemm_softmax_gemm
         if(contains(r.instructions, "scale"))
         {
             auto scale_lit = r.instructions["scale"];
+            // CK only supports single-valued scale
+            auto is_valid  = false;
             scale_lit->eval().visit([&](const auto s) {
-                // CK only supports single-valued scale
                 if(std::all_of(
                        s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
-                    scale = s.front();
+                {
+                    scale    = s.front();
+                    is_valid = true;
+                }
                 else
                     return;
             });
+            if(not is_valid)
+                return;
         }
 
         auto inputs = gemm1_ins->inputs();            // A, B

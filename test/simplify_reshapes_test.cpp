@@ -721,8 +721,7 @@ TEST_CASE(concat_slice_uneven_len)
 
 TEST_CASE(concat_slice_multiple_slice_use)
 {
-    // multiple use for slice1 and slice3 but single use for slice2
-    // slice2 is replaced with original input to concat
+    // multiple use for slice1 and slice3, single use for slice2
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
     migraphx::module m1;
     {
@@ -738,10 +737,10 @@ TEST_CASE(concat_slice_multiple_slice_use)
         auto slice3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {320}}, {"ends", {480}}}),
             concat);
-        auto add1 = m1.add_instruction(migraphx::make_op("add"), slice1, x);
-        auto add2 = m1.add_instruction(migraphx::make_op("add"), slice3, z);
-        auto sub1 = m1.add_instruction(migraphx::make_op("sub"), slice1, x);
-        auto sub2 = m1.add_instruction(migraphx::make_op("sub"), slice3, z);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), slice1, z);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), slice3, x);
+        auto sub1 = m1.add_instruction(migraphx::make_op("sub"), slice1, z);
+        auto sub2 = m1.add_instruction(migraphx::make_op("sub"), slice3, x);
         auto add3 = m1.add_instruction(migraphx::make_op("add"), sub1, sub2);
         auto sub3 = m1.add_instruction(migraphx::make_op("sub"), add3, slice2);
         m1.add_return({add1, add2, sub3});
@@ -752,16 +751,10 @@ TEST_CASE(concat_slice_multiple_slice_use)
         auto x      = m2.add_parameter("x", s);
         auto y      = m2.add_parameter("y", s);
         auto z      = m2.add_parameter("z", s);
-        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
-        auto slice1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {160}}}), concat);
-        auto slice3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {320}}, {"ends", {480}}}),
-            concat);
-        auto add1 = m2.add_instruction(migraphx::make_op("add"), slice1, x);
-        auto add2 = m2.add_instruction(migraphx::make_op("add"), slice3, z);
-        auto sub1 = m2.add_instruction(migraphx::make_op("sub"), slice1, x);
-        auto sub2 = m2.add_instruction(migraphx::make_op("sub"), slice3, z);
+        auto add1   = m2.add_instruction(migraphx::make_op("add"), x, z);
+        auto add2   = m2.add_instruction(migraphx::make_op("add"), z, x);
+        auto sub1   = m2.add_instruction(migraphx::make_op("sub"), x, z);
+        auto sub2   = m2.add_instruction(migraphx::make_op("sub"), z, x);
         auto add3 = m2.add_instruction(migraphx::make_op("add"), sub1, sub2);
         auto sub3 = m2.add_instruction(migraphx::make_op("sub"), add3, y);
         m2.add_return({add1, add2, sub3});

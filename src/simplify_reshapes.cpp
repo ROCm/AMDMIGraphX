@@ -306,10 +306,8 @@ struct find_concat_slice
         for(const auto& sins : range(slice_ins.begin(), slice_ins.end()))
         {
             auto sop = any_cast<op::slice>(sins->get_operator());
-            // slices with only one axis is allowed, because concat happens only one axis, slice
-            // should have only one output
-            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis or
-               sins->outputs().size() != 1)
+            // slices with only one axis is allowed, because concat happens only one axis
+            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis)
             {
                 continue;
             }

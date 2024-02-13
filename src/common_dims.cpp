@@ -160,7 +160,7 @@ common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
 {
     if(elements(dims) == elements(idims))
         return dims;
-    auto* axes_map = get_axes_map(idims.size());
+    const auto* axes_map = get_axes_map(idims.size());
     if(axes_map == nullptr)
         return {};
     auto xdims = dims;

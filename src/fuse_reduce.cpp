@@ -151,7 +151,7 @@ insert_module_in_submodule(module_ref sm,
                            module::inserter insert = nullptr)
 {
     return insert_module_in_submodule(
-        sm, ins->inputs(), ins->module_inputs().front(), map_ins, insert);
+        sm, ins->inputs(), ins->module_inputs().front(), map_ins, std::move(insert));
 }
 
 static auto insert_module_in_submodule(module_ref sm,
@@ -160,7 +160,7 @@ static auto insert_module_in_submodule(module_ref sm,
                                        module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
-    return insert_module_in_submodule(sm, inputs, m, map_ins, insert);
+    return insert_module_in_submodule(sm, inputs, m, map_ins, std::move(insert));
 }
 
 static std::vector<instruction_ref>

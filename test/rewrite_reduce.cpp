@@ -169,4 +169,28 @@ TEST_CASE(reduce_mean_accuracy4)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(reduce_mean_accuracy5)
+{
+    using migraphx::half;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape s{migraphx::shape::half_type, {1, 3, 2, 2}};
+    auto x           = mm->add_parameter("x", s);
+    auto reduce_mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+    mm->add_return({reduce_mean});
+    run_pass(*mm);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<half> data(s.elements());
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::parameter_map params;
+    params["x"] = migraphx::argument(s, data.data());
+    auto result = p.eval(params).back();
+    std::vector<half> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<half> gold{half{1}, half{2}, half{5}, half{6}, half{9}, half{10}};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -280,6 +280,70 @@ struct find_concat_multibroadcasts
     }
 };
 
+struct find_concat_slice
+{
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::all_of[match::outputs()](match::name("slice"), match::used_once()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins       = mr.result;
+        auto slice_ins = ins->outputs();
+        auto inputs    = ins->inputs();
+        if(slice_ins.size() != inputs.size())
+            return;
+        int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
+        if(std::any_of(slice_ins.begin(), slice_ins.end(), [&](const auto& sins) {
+               return any_cast<op::slice>(sins->get_operator()).axes.size() != 1;
+           }))
+            return;
+        if(std::any_of(slice_ins.begin(), slice_ins.end(), [&](const auto& sins) {
+               return any_cast<op::slice>(sins->get_operator()).axes.front() != concat_axis;
+           }))
+            return;
+
+        std::sort(slice_ins.begin(), slice_ins.end(), [&](const auto& i, const auto j) {
+            auto i_op = any_cast<op::slice>(i->get_operator());
+            auto j_op = any_cast<op::slice>(i->get_operator());
+            return i_op.starts.front() < j_op.starts.front();
+        });
+
+        auto axis_len        = ins->get_shape().lens()[concat_axis];
+        auto first_slice_ins = slice_ins.front();
+        auto previous_slice_start =
+            any_cast<op::slice>(first_slice_ins->get_operator()).starts.front();
+        auto previous_slice_end = any_cast<op::slice>(first_slice_ins->get_operator()).ends.front();
+        auto total_slice_len    = (previous_slice_end - previous_slice_start);
+        for(const auto sins : range(slice_ins.begin() + 1, slice_ins.end()))
+        {
+            auto slice_op      = any_cast<op::slice>(sins->get_operator());
+            auto current_start = slice_op.starts.front();
+            auto current_end   = slice_op.ends.front();
+            total_slice_len += (current_end - current_start);
+            if(previous_slice_end != current_start)
+            {
+                return;
+            }
+            previous_slice_start = current_start;
+            previous_slice_end   = current_end;
+        }
+        if(total_slice_len != axis_len)
+        {
+            return;
+        }
+        for(auto idx : range(slice_ins.size()))
+        {
+            auto slice_op  = any_cast<op::slice>(slice_ins[idx]->get_operator());
+            auto start_idx = slice_op.starts.front();
+            auto end_idx   = slice_op.ends.front();
+            if((end_idx - start_idx) == inputs[idx]->get_shape().lens()[concat_axis]) {}
+        }
+    }
+};
+
 struct find_concat_transpose
 {
     auto matcher() const

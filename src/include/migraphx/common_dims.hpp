@@ -40,10 +40,10 @@ struct MIGRAPHX_EXPORT common_dims
 {
     static common_dims compute(const std::vector<std::size_t>& dims1,
                                const std::vector<std::size_t>& dims2);
-    
+
     /// Map the dimensions into the common higher dimensional space. The
     /// dimension doesnt need to have the same number of elements as the
-    /// common dimension. 
+    /// common dimension.
     std::vector<std::size_t> get_dimensions_for(const std::vector<std::size_t>& idims) const;
     /// Get the corresponding axes map based on the rank of tensor
     const std::vector<std::vector<std::size_t>>* get_axes_map(std::size_t n) const;

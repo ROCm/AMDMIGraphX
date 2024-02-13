@@ -301,13 +301,13 @@ struct find_concat_slice
             [&](const auto& oins) { return oins->name() == "slice"; },
             [&](const auto& oins) { return oins; });
         int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
-        // prune slice ops candidates
+        // prune slice candidates
         std::vector<migraphx::instruction_ref> slice_candidates;
         for(const auto& sins : range(slice_ins.begin(), slice_ins.end()))
         {
             auto sop = any_cast<op::slice>(sins->get_operator());
-            // slice only one axis is allowed, because concat happens only one axis, slice should
-            // have only one output
+            // slices with only one axis is allowed, because concat happens only one axis, slice
+            // should have only one output
             if(sop.axes.size() != 1 or sop.axes.front() != concat_axis or
                sins->outputs().size() != 1)
             {

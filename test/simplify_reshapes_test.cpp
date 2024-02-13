@@ -556,7 +556,7 @@ TEST_CASE(nested_squeeze_reshape)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(concat_slice_different_axis)
+TEST_CASE(concat_slice_different_axis_1)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
     migraphx::module m1;
@@ -573,6 +573,37 @@ TEST_CASE(concat_slice_different_axis)
     }
     migraphx::module m2 = m1;
     run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_slice_different_axis_2)
+{
+    // two slices, one with same axis but other with different
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), concat);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {160}}, {"ends", {320}}}),
+            concat);
+        auto add = m1.add_instruction(migraphx::make_op("add"), x, slice2);
+        m1.add_return({slice1, add});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), concat);
+        auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
+        m1.add_return({slice1, add});
+    }
     EXPECT(m1 == m2);
 }
 

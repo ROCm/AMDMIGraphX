@@ -42,6 +42,7 @@
 #include <migraphx/supported_segments.hpp>
 
 #include <iostream>
+#include <fstream>
 #include <queue>
 #include <sstream>
 #include <algorithm>
@@ -538,6 +539,15 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 
     if(trace_level > 0)
     {
+        std::ifstream checkFile("../tracefile.txt");
+        if(!checkFile.good()) {
+            std::ofstream createFile("../tracefile.txt", std::ios::app);
+            if (!createFile) {
+                std::cerr << "Unable to create file";
+            }
+            createFile.close();
+        }
+        std::ofstream outFile("../tracefile.txt", std::ios::app);
         std::unordered_map<instruction_ref, std::string> ins_out;
         // get instruction names
         this->print([&](auto x, auto ins_names) {
@@ -554,6 +564,10 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             double t1   = t.record<milliseconds>();
             ctx.finish();
             double t2 = t.record<milliseconds>();
+            if (outFile.is_open()) {
+                outFile << "Run instruction: " << ins_out.at(ins) << " Time: " << t1
+                        << "ms, " << t2 << "ms" << std::endl;
+            }
             std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
@@ -589,12 +603,12 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             }
             return result;
         });
+        outFile.close();
     }
     else
     {
         ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
     }
-
     if(exec_env.async)
     {
         assert(contexts.size() == 1);

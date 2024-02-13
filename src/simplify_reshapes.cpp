@@ -290,9 +290,9 @@ struct find_concat_slice
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins       = mr.result;
-        auto inputs    = ins->inputs();
-        auto outs      = ins->outputs();
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        auto outs   = ins->outputs();
         std::vector<migraphx::instruction_ref> slice_ins;
         migraphx::transform_if(
             outs.begin(),
@@ -326,7 +326,7 @@ struct find_concat_slice
             });
         for(const auto& sins : slice_candidates)
         {
-            auto sop         = any_cast<op::slice>(sins->get_operator());
+            auto sop           = any_cast<op::slice>(sins->get_operator());
             size_t slice_start = sop.starts.front();
             size_t slice_len   = sop.ends.front() - slice_start;
             auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {

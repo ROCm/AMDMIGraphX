@@ -64,6 +64,7 @@ struct find_reduce_mean
         auto op          = reduce_mean->get_operator().to_value();
         auto axes        = op["axes"].to_vector<std::int64_t>();
         auto input       = reduce_mean->inputs().front();
+        auto output      = reduce_mean->outputs().front();
 
         bool is_integral = false;
         double max_n     = 0;
@@ -72,10 +73,6 @@ struct find_reduce_mean
             max_n       = t.max();
         });
 
-        // avoid integer division
-        if(is_integral)
-            return;
-
         auto dims = input->get_shape().lens();
         double n  = std::accumulate(
             axes.begin(), axes.end(), 1, [&](const auto& prod_value, const auto& axis) {
@@ -83,18 +80,32 @@ struct find_reduce_mean
                 return prod_value * dims.at(norm_axis);
             });
 
-        // avoid overflow
-        if(n >= max_n)
+        // avoid overflow (the larger value will be later handled)
+        if(n >= max_n / 4)
             return;
 
         auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
-        auto n_bcast   = m.insert_instruction(
-            reduce_mean, make_op("multibroadcast", {{"out_lens", dims}}), n_literal);
-        auto new_input = m.insert_instruction(reduce_mean, make_op("div"), {input, n_bcast});
+        if(is_integral)
+        {
+            auto reduce_sum =
+                m.insert_instruction(reduce_mean, make_op("reduce_sum", {{"axes", axes}}), input);
+            auto n_bcast = m.insert_instruction(
+                reduce_mean,
+                make_op("multibroadcast", {{"out_lens", output->get_shape().lens()}}),
+                n_literal);
+            auto div = m.insert_instruction(reduce_mean, make_op("div"), {reduce_sum, n_bcast});
+            m.replace_instruction(reduce_mean, div);
+        }
+        else
+        {
+            auto n_bcast = m.insert_instruction(
+                reduce_mean, make_op("multibroadcast", {{"out_lens", dims}}), n_literal);
+            auto new_input = m.insert_instruction(reduce_mean, make_op("div"), {input, n_bcast});
 
-        auto reduce_sum =
-            m.insert_instruction(reduce_mean, make_op("reduce_sum", {{"axes", axes}}), new_input);
-        m.replace_instruction(reduce_mean, reduce_sum);
+            auto reduce_sum = m.insert_instruction(
+                reduce_mean, make_op("reduce_sum", {{"axes", axes}}), new_input);
+            m.replace_instruction(reduce_mean, reduce_sum);
+        }
     }
 };
 

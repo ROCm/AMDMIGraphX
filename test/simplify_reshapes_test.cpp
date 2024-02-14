@@ -695,7 +695,61 @@ TEST_CASE(concat_slice_inorder_with_empty_slice)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(concat_slice_uneven_len)
+TEST_CASE(concat_slice_uneven_len_1)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto z      = m1.add_parameter("z", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {100}}}), concat);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {100}}, {"ends", {160}}}),
+            concat);
+        auto slice3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {160}}, {"ends", {320}}}),
+            concat);
+        auto slice4 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {320}}, {"ends", {420}}}),
+            concat);
+        auto slice5 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {420}}, {"ends", {480}}}),
+            concat);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), slice1, slice4);
+        auto add2 = m1.add_instruction(migraphx::make_op("add"), slice2, slice5);
+        auto add3 = m1.add_instruction(migraphx::make_op("add"), slice3, z);
+        m1.add_return({add1, add2, add3});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto z      = m2.add_parameter("z", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y, z);
+        auto slice1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {100}}}), concat);
+        auto slice2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {100}}, {"ends", {160}}}),
+            concat);
+        auto slice4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {320}}, {"ends", {420}}}),
+            concat);
+        auto slice5 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {420}}, {"ends", {480}}}),
+            concat);
+        auto add1 = m2.add_instruction(migraphx::make_op("add"), slice1, slice4);
+        auto add2 = m2.add_instruction(migraphx::make_op("add"), slice2, slice5);
+        auto add3 = m2.add_instruction(migraphx::make_op("add"), y, z);
+        m2.add_return({add1, add2, add3});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_slice_uneven_len_2)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 160}};
     migraphx::module m1;

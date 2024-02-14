@@ -41,7 +41,7 @@ inline std::string operator+(std::string_view l, const fs::path& r)
     return std::string{l} + r.string();
 }
 
-inline fs::path operator+(const fs::path& l, std::string_view r)
+inline fs::path append_extension(const fs::path& l, std::string_view r)
 {
     return fs::path{l}.replace_extension(l.extension().string() + r.data());
 }

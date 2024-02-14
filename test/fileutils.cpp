@@ -27,7 +27,12 @@
 
 namespace fs = migraphx::fs;
 
+// NOLINTBEGIN
+// Explicit use of #define to concatenate strings
+// at compilation time instead of at runtime.
 #define MIGRAPHX_TEST "test"
+#define MIGRAPHX_TXT  ".txt"
+#define MIGRAPHX_BZ2  ".bz2"
 
 #ifdef _WIN32
 #define MIGRAPHX_EXE_POSTFIX ".exe"
@@ -42,6 +47,7 @@ namespace fs = migraphx::fs;
 #define MIGRAPHX_STATIC_POSTFIX ".a"
 #define MIGRAPHX_OBJECT_POSTFIX ".o"
 #endif
+// NOLINTEND
 
 TEST_CASE(executable_filename)
 {
@@ -78,9 +84,9 @@ TEST_CASE(append_to_string)
 TEST_CASE(append_file_extension)
 {
     using namespace migraphx::MIGRAPHX_INLINE_NS;
-    fs::path name{MIGRAPHX_TEST ".txt"};
-    auto updated = name + ".bz2";
-    EXPECT(updated == MIGRAPHX_TEST ".txt.bz2");
+    fs::path name{MIGRAPHX_TEST MIGRAPHX_TXT};
+    auto updated = append_extension(name, MIGRAPHX_BZ2);
+    EXPECT(updated == MIGRAPHX_TEST MIGRAPHX_TXT MIGRAPHX_BZ2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

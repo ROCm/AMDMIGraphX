@@ -75,7 +75,7 @@ TEST_CASE(static_library_filename)
 
 TEST_CASE(append_to_string)
 {
-    using namespace migraphx::MIGRAPHX_INLINE_NS;
+    using namespace migraphx::MIGRAPHX_INLINE_NS; // NOLINT
     auto cwd = fs::current_path();
     auto str = MIGRAPHX_TEST ": " + cwd;
     EXPECT(str == std::string{MIGRAPHX_TEST ": "} + cwd.string());
@@ -83,7 +83,7 @@ TEST_CASE(append_to_string)
 
 TEST_CASE(append_file_extension)
 {
-    using namespace migraphx::MIGRAPHX_INLINE_NS;
+    using namespace migraphx::MIGRAPHX_INLINE_NS; // NOLINT
     fs::path name{MIGRAPHX_TEST MIGRAPHX_TXT};
     auto updated = append_extension(name, MIGRAPHX_BZ2);
     EXPECT(updated == MIGRAPHX_TEST MIGRAPHX_TXT MIGRAPHX_BZ2);

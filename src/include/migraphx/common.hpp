@@ -73,7 +73,9 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
  * For the within_range() cases the broadcasting works out to outputting the smaller ranger because
  * for the shape to be broadcastable at runtime (when the dimensions are constant) the dimensions
  * must be the same. The only way for the dimensions to be the same is if the output dimension is
- * within the smaller range. This also handles unknown dynamic_dimensions like {0, max_int}.
+ * the intersection of the ranges. The current code only handles if one range is within the other,
+ * but it can be extended to do the intersection of the ranges.
+ * This case is mainly for handling unknown dynamic_dimensions like {0, max_int}.
  *
  * There is a contrived edge case for ranges that include 1 but are not a fixed {1, 1}.
  * That case is not supported.

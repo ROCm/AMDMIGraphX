@@ -788,10 +788,11 @@ TEST_CASE(multibroadcast_unsqueeze_scalar)
 {
     migraphx::module m1;
     {
-        auto l  = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto mb = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), l);
-        auto t1 = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mb);
-        m1.add_return({t1});
+        auto l   = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb  = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), l);
+        auto t1  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), mb);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), t1, t1);
+        m1.add_return({mul});
     }
     run_pass(m1);
     migraphx::module m2;
@@ -799,7 +800,32 @@ TEST_CASE(multibroadcast_unsqueeze_scalar)
         auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1}}}), l);
-        m2.add_return({mb});
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), mb, mb);
+        m2.add_return({mul});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(multibroadcast_unsqueeze_cont_scalar)
+{
+    migraphx::module m1;
+    {
+        auto l   = m1.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb  = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), l);
+        auto cnt = m1.add_instruction(migraphx::make_op("contiguous"), mb);
+        auto t1  = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), cnt);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), t1, t1);
+        m1.add_return({mul});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1}}}), l);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), mb, mb);
+        m2.add_return({mul});
     }
 
     EXPECT(m1 == m2);

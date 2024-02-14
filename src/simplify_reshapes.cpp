@@ -811,15 +811,18 @@ struct find_scalar_multibroadcast_unsqueeze
 {
     auto matcher() const
     {
-        return match::name("unsqueeze")(match::arg(0)(match::name("multibroadcast")));
+        auto contiguous = match::name("contiguous");
+        auto mbr        = match::name("multibroadcast");
+        return match::name("unsqueeze")(match::arg(0)(match::skip(contiguous)(mbr.bind("mbr"))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto unsq      = mr.result;         // unsqeeze
-        auto mbr       = unsq->inputs()[0]; // multibroadcast
+        auto unsq      = mr.result; // unsqueeze
+        auto mbr       = mr.instructions["mbr"];
         auto mbr_shape = mbr->get_shape();
-        if(mbr_shape.ndim() != 1 and mbr_shape.strides()[0] != 0)
+
+        if(mbr_shape.ndim() != 1)
             return; // ignore except multi-broadcasted scalers
 
         auto out_lens = unsq->get_shape().lens();

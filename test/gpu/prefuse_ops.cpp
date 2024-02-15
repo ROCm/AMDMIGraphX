@@ -39,9 +39,9 @@ struct pre_gemm_softmax_gemm : migraphx::gpu::gemm_softmax_gemm
     std::string name() const { return "gpu::pre_gemm_softmax_gemm"; }
 };
 
-void run_pass(migraphx::program& p)
+void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(p, {migraphx::gpu::prefuse_ops{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::gpu::prefuse_ops{true}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(find_gemm_softmax_gemm)
@@ -49,52 +49,32 @@ TEST_CASE(find_gemm_softmax_gemm)
     migraphx::shape s1{migraphx::shape::float_type, {8, 16, 32}};
     migraphx::shape s2{migraphx::shape::float_type, {8, 32, 16}};
 
-    auto create_program = [=]() {
-        migraphx::program p;
-        auto* mm   = p.get_main_module();
-        auto x     = mm->add_parameter("x", s1);
-        auto y     = mm->add_parameter("y", s2);
-        auto z     = mm->add_parameter("z", s1);
-        auto scale = mm->add_literal(2.0f);
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", s1);
+        auto y     = m1.add_parameter("y", s2);
+        auto z     = m1.add_parameter("z", s1);
+        auto scale = m1.add_literal(2.0f);
 
-        auto dot1     = mm->add_instruction(migraphx::make_op("dot"), x, y);
-        auto scale_mb = mm->add_instruction(
+        auto dot1     = m1.add_instruction(migraphx::make_op("dot"), x, y);
+        auto scale_mb = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", dot1->get_shape().lens()}}), scale);
-        auto mul  = mm->add_instruction(migraphx::make_op("mul"), dot1, scale_mb);
-        auto sm   = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), mul);
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), sm, z);
-        mm->add_return({dot2});
-        return p;
-    };
-
-    auto create_fused_program = [=]() {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s2);
-        auto z   = mm->add_parameter("z", s1);
-
-        auto attn =
-            mm->add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 2}, x, y, z);
-
-        mm->add_return({attn});
-        return p;
-    };
-
-    migraphx::program p1 = create_program();
-    migraphx::program p2;
-    if(migraphx::gpu::mlir_attention_enabled())
-    {
-        p2 = create_fused_program();
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot1, scale_mb);
+        auto sm  = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), mul);
+        m1.add_instruction(migraphx::make_op("dot"), sm, z);
     }
-    else
+    run_pass(m1);
+
+    migraphx::module m2;
     {
-        p2 = p1;
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto z = m2.add_parameter("z", s1);
+
+        m2.add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 2}, x, y, z);
     }
 
-    run_pass(p1);
-
-    EXPECT(p1 == p2);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(find_gemm_softmax_gemm_multi_scale)
@@ -102,53 +82,33 @@ TEST_CASE(find_gemm_softmax_gemm_multi_scale)
     migraphx::shape s1{migraphx::shape::float_type, {8, 16, 32}};
     migraphx::shape s2{migraphx::shape::float_type, {8, 32, 16}};
 
-    auto create_program = [=]() {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s2);
-        auto z   = mm->add_parameter("z", s1);
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s2);
+        auto z = m1.add_parameter("z", s1);
         auto scale =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}, 10));
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {16}}, 10));
 
-        auto dot1     = mm->add_instruction(migraphx::make_op("dot"), x, y);
-        auto scale_mb = mm->add_instruction(
+        auto dot1     = m1.add_instruction(migraphx::make_op("dot"), x, y);
+        auto scale_mb = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", dot1->get_shape().lens()}}), scale);
-        auto mul  = mm->add_instruction(migraphx::make_op("mul"), dot1, scale_mb);
-        auto sm   = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), mul);
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), sm, z);
-        mm->add_return({dot2});
-        return p;
-    };
-
-    auto create_fused_program = [=]() {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s2);
-        auto z   = mm->add_parameter("z", s1);
-
-        auto attn =
-            mm->add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 1}, x, y, z);
-
-        mm->add_return({attn});
-        return p;
-    };
-
-    migraphx::program p1 = create_program();
-    migraphx::program p2;
-    if(migraphx::gpu::mlir_attention_enabled())
-    {
-        p2 = create_fused_program();
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), dot1, scale_mb);
+        auto sm  = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), mul);
+        m1.add_instruction(migraphx::make_op("dot"), sm, z);
     }
-    else
+    run_pass(m1);
+
+    migraphx::module m2;
     {
-        p2 = p1;
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto z = m2.add_parameter("z", s1);
+
+        m2.add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 1}, x, y, z);
     }
 
-    run_pass(p1);
-
-    EXPECT(p1 == p2);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(find_gemm_softmax_gemm_no_scale)
@@ -156,49 +116,28 @@ TEST_CASE(find_gemm_softmax_gemm_no_scale)
     migraphx::shape s1{migraphx::shape::float_type, {8, 16, 32}};
     migraphx::shape s2{migraphx::shape::float_type, {8, 32, 16}};
 
-    auto create_program = [=]() {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s2);
-        auto z   = mm->add_parameter("z", s1);
-
-        auto dot1     = mm->add_instruction(migraphx::make_op("dot"), x, y);
-        auto sm   = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), dot1);
-        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), sm, z);
-        mm->add_return({dot2});
-        return p;
-    };
-
-    auto create_fused_program = [=]() {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto x   = mm->add_parameter("x", s1);
-        auto y   = mm->add_parameter("y", s2);
-        auto z   = mm->add_parameter("z", s1);
-
-        auto attn =
-            mm->add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 1}, x, y, z);
-
-        mm->add_return({attn});
-        return p;
-    };
-
-    migraphx::program p1 = create_program();
-    migraphx::program p2;
-    if(migraphx::gpu::mlir_attention_enabled())
+    migraphx::module m1;
     {
-        p2 = create_fused_program();
+        auto x = m1.add_parameter("x", s1);
+        auto y = m1.add_parameter("y", s2);
+        auto z = m1.add_parameter("z", s1);
+
+        auto dot1 = m1.add_instruction(migraphx::make_op("dot"), x, y);
+        auto sm   = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), dot1);
+        m1.add_instruction(migraphx::make_op("dot"), sm, z);
     }
-    else
+    run_pass(m1);
+
+    migraphx::module m2;
     {
-        p2 = p1;
+        auto x = m2.add_parameter("x", s1);
+        auto y = m2.add_parameter("y", s2);
+        auto z = m2.add_parameter("z", s1);
+
+        m2.add_instruction(pre_gemm_softmax_gemm{migraphx::make_op("dot"), 1}, x, y, z);
     }
 
-    run_pass(p1);
-
-    EXPECT(p1 == p2);
+    EXPECT(m1 == m2);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -162,19 +162,32 @@ auto is_mlir_gemm()
     });
 }
 
+auto is_test_gemm(bool enable_attention)
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "dot")
+            return false;
+        return enable_attention;
+    });
+}
+
 struct find_gemm_softmax_gemm
 {
+    bool enable_attention;
+
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(
-            match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm1")));
-        auto mul = match::name("mul")(
+        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
+            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
+                .bind("gemm1")));
+        auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
         auto softmax =
             match::name("softmax")(match::arg(0)(match::any_of(mul, gemm1))).bind("softmax");
 
-        return match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm2"))(
-            match::arg(0)(softmax));
+        return match::name("dot")(
+            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
+                .bind("gemm2"))(match::arg(0)(softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -212,7 +225,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
-    match::find_matches(mpm, find_gemm_softmax_gemm{});
+    match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 }
 
 } // namespace gpu

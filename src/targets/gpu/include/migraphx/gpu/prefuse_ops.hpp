@@ -36,6 +36,7 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT prefuse_ops
 {
+    bool enable_attention = false;
     std::string name() const { return "gpu::prefuse_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

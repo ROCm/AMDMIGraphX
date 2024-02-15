@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/make_op.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -55,14 +56,30 @@ struct gemm_softmax_gemm
         check_shapes{inputs, *this}.same_ndims();
         if(inputs.size() < 3)
             MIGRAPHX_THROW(name() + ": Expected 3 inputs but got " + to_string(inputs.size()));
-        auto a  = inputs[0];
-        auto b  = inputs[1];
-        auto b1 = inputs[2];
+
+        const bool is_bias_enabled = inputs.size() == 4;
+        auto a                     = inputs[0];
+        auto b                     = inputs[1];
+        auto b1                    = inputs[is_bias_enabled ? 3 : 2];
+
         for(const auto& input : inputs)
         {
             check_gemm_shape(input);
         }
-        return op.compute_shape({op.compute_shape({a, b}), b1});
+        auto gemm0_shape = op.compute_shape({a, b});
+        if(is_bias_enabled)
+        {
+            auto bias_shape = inputs[2];
+            if(bias_shape != gemm0_shape)
+            {
+                std::stringstream err_msg;
+                err_msg << name() << ": has inconsistent bias size"
+                        << ". Expected: " << gemm0_shape << ". Given: " << bias_shape;
+                MIGRAPHX_THROW(err_msg.str());
+            }
+        }
+
+        return op.compute_shape({gemm0_shape, b1});
     }
 
     static bool is_ck_supported_type(shape::type_t t) { return contains({shape::half_type}, t); }

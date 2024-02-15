@@ -27,7 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu>
+template <bool WithBias>
+struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu<WithBias>>
 {
     migraphx::program create_program() const
     {
@@ -41,17 +42,27 @@ struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu>
         auto b1          = mm->add_parameter("3", m1_shape);
         std::vector<float> eights(m2_elements, 0.125);
         auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
-        std::vector<float> zeros(m2_elements, 0);
-        auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
 
         b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
-        auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
-        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), bias);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto scale = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+
+        std::optional<migraphx::instruction_ref> add_bias{std::nullopt};
+        if constexpr(WithBias)
+        {
+            std::vector<float> one_tenth(m2_elements, 0.1);
+            auto bias = mm->add_literal(migraphx::literal{m2_shape, one_tenth});
+            add_bias  = mm->add_instruction(migraphx::make_op("add"), scale, bias);
+        }
+
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}),
+                                           WithBias ? add_bias.value() : scale);
         auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
         mm->add_instruction(migraphx::make_op("relu"), gemm2);
         return p;
     }
     std::string section() const { return "gemm"; }
 };
+
+template struct gemm_softmax_gemm_relu<false>;
+template struct gemm_softmax_gemm_relu<true>;

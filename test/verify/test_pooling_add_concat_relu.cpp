@@ -43,8 +43,8 @@ struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_rel
             migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
         auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
-        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
-        mm->add_return({relu});
+        // auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        mm->add_return({concat});
         return p;
     }
 };

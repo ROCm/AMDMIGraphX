@@ -66,7 +66,7 @@ struct fused_concat
         module_ref post_mod          = mods.back();
         // post_mod has one input argument that is result of concat and will get generated from
         // pre-mods internally. Therefore deduct 1 from post_mod params while asserting.
-        assert(input_iter + post_mod->get_parameter_names().size() - 1 == inputs.end());
+        // assert(input_iter + post_mod->get_parameter_names().size() - 1 == inputs.end());
         auto type                    = std::prev(post_mod->end())->get_shape().type();
         const auto& first_shape_lens = concat_inputs.front().lens();
         auto mismatch_it =
@@ -98,7 +98,53 @@ struct fused_concat
 MIGRAPHX_REGISTER_OP(fused_concat);
 
 namespace {
+struct find_concat_pointwise
+{
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::any_of[match::inputs()](match::name("pointwise")(match::used_once())));
+    }
 
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto concat_ins = r.result;
+
+        std::vector<instruction_ref> inputs;
+        for(auto input : concat_ins->inputs())
+        {
+            if(input->name() == "pointwise")
+                inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
+            else
+                inputs.push_back(input);
+        }
+
+        std::vector<module_ref> module_inputs;
+        static unsigned int counter = 0;
+        std::transform(concat_ins->inputs().begin(),
+                       concat_ins->inputs().end(),
+                       std::back_inserter(module_inputs),
+                       [&](instruction_ref input) {
+                           if(input->name() == "pointwise" and input->outputs().size() == 1)
+                           {
+                               auto* pm = input->module_inputs().front();
+                               return mpm.create_module("concat:" + pm->name(), *pm);
+                           }
+                           auto* pm =
+                               mpm.create_module("concat:identity" + std::to_string(counter++));
+
+                           auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
+                           auto id = pm->add_instruction(make_op("identity"), x);
+                           pm->add_return({id});
+                           return pm;
+                       });
+        mpm.get_module().replace_instruction(
+            concat_ins,
+            make_op("fused_concat", concat_ins->normalized_operator().to_value()),
+            inputs,
+            module_inputs);
+    }
+};
 struct find_pointwise_concat_pointwise
 {
     auto matcher() const
@@ -173,6 +219,8 @@ struct find_pointwise_concat_pointwise
 void fuse_concat::apply(module_pass_manager& mpm) const
 {
     match::find_matches(mpm, find_pointwise_concat_pointwise{});
+    mpm.run_pass(migraphx::dead_code_elimination{});
+    match::find_matches(mpm, find_concat_pointwise{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -66,8 +66,7 @@ struct unpack_int4
         {
             MIGRAPHX_THROW("UNPACK_INT4: Only Unsigned Int8 type is supported for unpacking");
         }
-        auto lens     = in_shape.lens();
-        auto new_lens = lens;
+        auto new_lens = in_shape.lens();
         new_lens[axis] *= 2;
         return {migraphx::shape::uint8_type, new_lens};
     }
@@ -89,7 +88,7 @@ struct unpack_int4
                     // mask first 4 bits, packing is assumed to be little endian
                     output[out_data_multi_idx] = static_cast<uint8_t>(0x0F) & input_val;
                     out_data_multi_idx[axis] += 1;
-                    output[out_data_multi_idx] = input_val >> 4;
+                    output[out_data_multi_idx] = input_val >> 4; // NOLINT
                 });
             }
         });

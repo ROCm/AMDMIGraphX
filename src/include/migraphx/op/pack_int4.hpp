@@ -66,9 +66,8 @@ struct pack_int4
         {
             MIGRAPHX_THROW("PACK_INT4: Only Unsigned Int8 type is supported for packing");
         }
-        auto lens     = in_shape.lens();
-        auto new_lens = lens;
-        if(lens[axis] % 2 != 0)
+        auto new_lens = in_shape.lens();
+        if(new_lens[axis] % 2 != 0)
         {
             MIGRAPHX_THROW("PACK_INT4: Can not pack axis that has odd lengths");
         }

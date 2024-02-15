@@ -2148,14 +2148,14 @@ TEST_CASE(pack_int4)
 TEST_CASE(pack_int4_axis1)
 {
     migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
-    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 8}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
     expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
 }
 
 TEST_CASE(pack_int4_axis2)
 {
     migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
-    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 8}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
     expect_shape(output, migraphx::make_op("pack_int4", {{"axis", -3}}), input);
 }
 
@@ -2168,7 +2168,8 @@ TEST_CASE(pack_int4_invalid_axis)
 TEST_CASE(pack_int4_nonstandard)
 {
     migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
-    throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 8, 16, 4}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
 }
 
 TEST_CASE(pack_int4_invalid_dtype)

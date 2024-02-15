@@ -44,3 +44,57 @@ TEST_CASE(pack_int4)
     std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA), static_cast<uint8_t>(0xDC)};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
+
+TEST_CASE(pack_int4_transposed)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::uint8_type, {2, 2}, {1, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s, {0x0A, 0x0B, 0x0C, 0x0D}});
+    mm->add_instruction(migraphx::make_op("pack_int4"), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<uint8_t> results_vector(2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA), static_cast<uint8_t>(0xDC)};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(pack_int4_broadcasted)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::uint8_type, {4}, {1}};
+    auto l0  = mm->add_literal(migraphx::literal{s, {0x0A, 0x0B, 0x0C, 0x0D}});
+    auto l0b = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 4}}}), l0);
+    mm->add_instruction(migraphx::make_op("pack_int4"), l0b);
+    p.compile(migraphx::make_target("ref"));
+    p.debug_print();
+    auto result = p.eval({}).back();
+    std::vector<uint8_t> results_vector(8);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA),
+                              static_cast<uint8_t>(0xDC),
+                              static_cast<uint8_t>(0xBA),
+                              static_cast<uint8_t>(0xDC),
+                              static_cast<uint8_t>(0xBA),
+                              static_cast<uint8_t>(0xDC),
+                              static_cast<uint8_t>(0xBA),
+                              static_cast<uint8_t>(0xDC)};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(pack_int4_axis_0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::uint8_type, {2, 2}};
+    auto l0 = mm->add_literal(migraphx::literal{s, {0x0A, 0x0B, 0x0C, 0x0D}});
+    mm->add_instruction(migraphx::make_op("pack_int4", {{"axis", 0}}), l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<uint8_t> results_vector(2);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<uint8_t> gold{static_cast<uint8_t>(0xCA), static_cast<uint8_t>(0xDB)};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}

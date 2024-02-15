@@ -14,8 +14,8 @@ syn keyword migx_keyword return
 syn keyword migx_keyword target_id
 syn keyword migx_keyword literal
 syn match migx_ins_number "@\d\+"
-syn match migx_instruction "\s=\s\zs.\+\ze\[" nextgroup=migx_attributes
-syn region migx_attributes start="\[" end="\]" fold contains=migx_keyword
+syn match migx_instruction "\s=\s\zs.\+\ze(" contains=migx_attributes 
+syn region migx_attributes start="\[" end="\]" contains=migx_keyword
 syn match migx_output_type "\s->\s\zs.\{-}\ze," nextgroup=migx_output_dims
 syn match migx_output_dims "\s\zs{.\{-}}\ze,\starget_id"
 syn match migx_exec_time ":\s\zs\d\{-}\.\d\{-}ms\ze"

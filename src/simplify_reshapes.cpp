@@ -806,48 +806,52 @@ struct find_transpose_slice
     }
 };
 
-struct find_reshape_dot_reshape
+struct find_reshape_reshape_dot
 {
     auto matcher() const
     {
-        return match::name("reshape")(
-            match::arg(0)(match::name("dot")(match::used_once(),
-                                             match::args(match::name("reshape").bind("inp_rsp1"),
-                                                         match::name("reshape").bind("inp_rsp2")))
-                              .bind("dot")));
+        return match::name("dot")(match::used_once(),
+                                  match::args(match::name("reshape").bind("inp_rsp1"),
+                                              match::name("reshape").bind("inp_rsp2")));
     }
 
-    auto is_valid_input(instruction_ref in, instruction_ref out) const
+    // Gemm axis should not be altered by the reshape
+    auto is_valid_reshape(instruction_ref in, instruction_ref rsp) const
     {
         auto in_lens  = in->get_shape().lens();
-        auto out_lens = out->get_shape().lens();
+        auto rsp_lens = rsp->get_shape().lens();
+
+        return std::equal(rsp_lens.end() - 2, rsp_lens.end(), in_lens.end() - 2, in_lens.end());
+    }
+
+    // Batch dims should match for both inputs
+    auto is_valid_inputs(instruction_ref in1, instruction_ref in2) const
+    {
+        auto in1_lens = in1->get_shape().lens();
+        auto in2_lens = in2->get_shape().lens();
 
         return (
-            in_lens.size() == out_lens.size() and
-            std::equal(out_lens.begin(), out_lens.end() - 2, in_lens.begin(), in_lens.end() - 2));
+            in1_lens.size() == in2_lens.size() and
+            std::equal(in1_lens.begin(), in1_lens.end() - 2, in2_lens.begin(), in2_lens.end() - 2));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto out_rsp  = r.result;
-        auto dot      = r.instructions["dot"];
+        auto dot      = r.result;
         auto inp_rsp1 = r.instructions["inp_rsp1"];
         auto inp_rsp2 = r.instructions["inp_rsp2"];
 
-        auto out_lens = out_rsp->get_shape().lens();
         auto dot_lens = dot->get_shape().lens();
-
-        // Gemm axes should not be altered
-        if(not std::equal(out_lens.end() - 2, out_lens.end(), dot_lens.end() - 2, dot_lens.end()))
-            return;
 
         auto inp1 = inp_rsp1->inputs().front();
         auto inp2 = inp_rsp2->inputs().front();
 
-        if(not(is_valid_input(inp1, out_rsp) and is_valid_input(inp2, out_rsp)))
+        if(not(is_valid_reshape(inp1, inp_rsp1) and is_valid_reshape(inp2, inp_rsp2) and
+               is_valid_inputs(inp1, inp2)))
             return;
 
-        m.replace_instruction(dot, dot->get_operator(), inp1, inp2);
+        auto new_dot = m.insert_instruction(dot, dot->get_operator(), inp1, inp2);
+        m.replace_instruction(dot, make_op("reshape", {{"dims", dot_lens}}), new_dot);
     }
 };
 
@@ -870,7 +874,7 @@ void simplify_reshapes::apply(module& m) const
                             find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
-                            find_reshape_dot_reshape{});
+                            find_reshape_reshape_dot{});
         dead_code_elimination{}.apply(m);
     }
 }

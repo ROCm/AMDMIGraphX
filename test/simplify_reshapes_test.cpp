@@ -1697,7 +1697,7 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_dot_reshape)
+TEST_CASE(reshape_reshape_dot)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 10, 32, 16}};
     migraphx::shape bs{migraphx::shape::float_type, {2, 10, 16, 32}};
@@ -1726,7 +1726,7 @@ TEST_CASE(reshape_dot_reshape)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_dot_reshape_gemm_axis)
+TEST_CASE(reshape_reshape_dot_gemm_axis)
 {
     migraphx::shape as{migraphx::shape::float_type, {2, 10, 512}};
     migraphx::shape bs{migraphx::shape::float_type, {2, 10, 512}};
@@ -1740,27 +1740,6 @@ TEST_CASE(reshape_dot_reshape_gemm_axis)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
         auto dot_rsp =
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 1024}}}), dot);
-        m1.add_return({dot_rsp});
-    };
-    migraphx::module m2 = m1;
-    run_pass(m1);
-    EXPECT(m1.sort() == m2.sort());
-}
-
-TEST_CASE(reshape_dot_reshape_diff_inputs)
-{
-    migraphx::shape as{migraphx::shape::float_type, {4, 5, 32, 16}};
-    migraphx::shape bs{migraphx::shape::float_type, {4, 5, 16, 32}};
-    migraphx::module m1;
-    {
-        auto a     = m1.add_literal(migraphx::generate_literal(as));
-        auto b     = m1.add_parameter("input", bs);
-        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
-        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
-
-        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
-        auto dot_rsp =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 32, 32}}}), dot);
         m1.add_return({dot_rsp});
     };
     migraphx::module m2 = m1;

@@ -929,6 +929,8 @@ TEST_CASE(broadcast_for_dot_dyn1)
                  s0);
 }
 
+TEST_CASE(broadcast_with_dims0) {}
+
 TEST_CASE(flatten_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};

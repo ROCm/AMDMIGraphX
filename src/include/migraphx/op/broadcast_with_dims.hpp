@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,7 +53,6 @@ struct broadcast_with_dims
         // output tensor rank greater of input_tensor rank or length of dims vector
         auto input_tensor_shape = inputs.at(0);
         auto dims_shape         = inputs.at(1);
-    std:
         size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
         std::size_t max_int = std::numeric_limits<std::size_t>::max();
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,
@@ -62,29 +62,29 @@ struct broadcast_with_dims
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto in_lens = args.at(0).get_shape().lens();
+        auto s0      = args.at(0).get_shape();
+        auto in_lens = s0.lens();
         std::vector<std::size_t> dims_input(output_shape.ndim());
         args.at(1).visit([&](auto a) { dims_input.assign(a.begin(), a.end()); });
         auto out_lens = compute_broadcasted_lens(in_lens, dims_input);
 
         // same code as in multibroadcast
-        if(s0.ndim() > output_lens.size())
+        if(in_lens.size() > out_lens.size())
         {
-            MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
+            MIGRAPHX_THROW("BROADCAST_WITH_DIMS: input dimensions should <= output size");
         }
 
-        auto offset = output_lens.size() - s0.ndim();
-        for(std::ptrdiff_t i = s0.ndim() - 1; i >= 0; i--)
+        auto offset = out_lens.size() - s0.ndim();
+        for(std::ptrdiff_t i = out_lens.size() - 1; i >= 0; --i)
         {
-            if(output_lens[i + offset] != s0.lens()[i] and s0.lens()[i] != 1)
+            if(out_lens[i + offset] != in_lens[i] and in_lens[i] != 1)
             {
-                MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(s0.lens()) +
-                               "} cannot be broadcasted to {" + to_string_range(output_lens) +
-                               "}!");
+                MIGRAPHX_THROW("BROADCAST_WITH_DIMS: input shape {" + to_string_range(s0.lens()) +
+                               "} cannot be broadcasted to {" + to_string_range(out_lens) + "}!");
             }
         }
-
-        return make_bcast_shape(s0, output_lens, offset);
+        auto out_shape = make_bcast_shape(s0, out_lens, offset);
+        return args[0].reshape(out_shape);
     }
 };
 

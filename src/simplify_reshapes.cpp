@@ -806,28 +806,24 @@ struct find_transpose_slice
     }
 };
 
-// replace scalar (multibroadcast->unsqueeze) with just an updated (multibroadcast)
-struct find_scalar_multibroadcast_unsqueeze
+// replace scalar (multibroadcast ->unsqueeze, etc.) with just an updated (multibroadcast)
+struct find_scalar_multibroadcast_modify
 {
     auto matcher() const
     {
         auto contiguous = match::name("contiguous");
-        auto mbr        = match::name("multibroadcast");
-        return match::name("unsqueeze")(match::arg(0)(match::skip(contiguous)(mbr.bind("mbr"))));
+        auto scalar_mbr = match::name("multibroadcast")(match::scalar_shape());
+        auto fold       = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
+        return (fold)(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("mbr"))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto unsq      = mr.result; // unsqueeze
-        auto mbr       = mr.instructions["mbr"];
-        auto mbr_shape = mbr->get_shape();
-
-        if(mbr_shape.ndim() != 1)
-            return; // ignore except multi-broadcasted scalers
-
-        auto out_lens = unsq->get_shape().lens();
+        auto mbr      = mr.instructions["mbr"]; // multibroadcast
+        auto ins      = mr.result;              // (un)squeeze/flatten/reshape/transpose
+        auto out_lens = ins->get_shape().lens();
         m.replace_instruction(
-            unsq, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
     }
 };
 
@@ -850,7 +846,7 @@ void simplify_reshapes::apply(module& m) const
                             find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
-                            find_scalar_multibroadcast_unsqueeze{});
+                            find_scalar_multibroadcast_modify{});
         dead_code_elimination{}.apply(m);
     }
 }

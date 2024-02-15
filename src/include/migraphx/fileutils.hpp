@@ -35,15 +35,11 @@ MIGRAPHX_EXPORT fs::path make_executable_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_shared_object_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
 
 inline std::string operator+(std::string_view l, const fs::path& r)
 {
     return std::string{l} + r.string();
-}
-
-inline fs::path append_extension(const fs::path& l, std::string_view r)
-{
-    return fs::path{l}.replace_extension(l.extension().string() + r.data());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -43,22 +43,27 @@ constexpr std::string_view object_file_postfix{".o"};
 
 fs::path make_executable_filename(std::string_view name)
 {
-    return std::string{name} + executable_postfix.data();
+    return std::string{name}.append(executable_postfix);
 }
 
 fs::path make_shared_object_filename(std::string_view name)
 {
-    return library_prefix.data() + std::string{name} + library_postfix.data();
+    return std::string{library_prefix}.append(name).append(library_postfix);
 }
 
 fs::path make_object_file_filename(std::string_view name)
 {
-    return std::string{name} + object_file_postfix.data();
+    return std::string{name}.append(object_file_postfix);
 }
 
 fs::path make_static_library_filename(std::string_view name)
 {
-    return library_prefix.data() + std::string{name} + static_library_postfix.data();
+    return std::string{library_prefix}.append(name).append(static_library_postfix);
+}
+
+fs::path append_extension(const fs::path& path, std::string_view ext)
+{
+    return fs::path{path}.replace_extension(path.extension().string().append(ext));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -177,11 +177,14 @@ struct parse_pad : op_parser<parse_pad>
                 MIGRAPHX_THROW("PARSE_PAD: input `value` must be constant");
             }
             auto val_arg = val_ins->eval();
-            if(val_arg.get_shape().elements() != 1)
+            if(val_arg.get_shape().elements() > 1)
             {
                 MIGRAPHX_THROW("PARSE_PAD: `value` should contain only one element");
             }
-            value = val_arg.at<float>();
+            if(val_arg.get_shape().elements() == 1)
+            {
+                value = val_arg.at<float>();
+            }
         }
         else if(contains(info.attributes, "value"))
         {

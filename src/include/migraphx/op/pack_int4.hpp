@@ -66,7 +66,6 @@ struct pack_int4
         {
             MIGRAPHX_THROW("PACK_INT4: Only Unsigned Int8 type is supported for packing");
         }
-        auto strides  = in_shape.strides();
         auto lens     = in_shape.lens();
         auto new_lens = lens;
         if(lens[axis] % 2 != 0)

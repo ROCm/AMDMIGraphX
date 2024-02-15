@@ -162,6 +162,9 @@ common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
         return idims;
     if(elements(dims) == elements(idims))
         return dims;
+    // Bail for now since its ambiguous which axes map can be used
+    if(axes_map1.size() == axes_map2.size())
+        return {};
     const auto* axes_map = get_axes_map(idims.size());
     if(axes_map == nullptr)
         return {};

@@ -66,6 +66,17 @@ TEST_CASE(common2)
     verify_common(cd);
 }
 
+TEST_CASE(common_same_dims)
+{
+    auto cd = migraphx::common_dims::compute({{2, 32, 4}}, {64, 2, 2});
+    EXPECT(cd.dims == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({64, 2, 2}) == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({2, 32, 4}) == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({2, 32, 1}).empty());
+    EXPECT(cd.get_dimensions_for({64, 2, 1}).empty());
+
+}
+
 TEST_CASE(common_error1)
 {
     auto cd = migraphx::common_dims::compute({6, 35}, {3, 7, 2, 5});

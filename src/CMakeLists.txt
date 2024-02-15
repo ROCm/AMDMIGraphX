@@ -255,6 +255,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_int4
     unsqueeze
     where
 )

@@ -10,7 +10,9 @@ The input json file describes the gpu kernel and the input data settings.
 Random data is passed into the gpu kernel and the kernel is run a set number of iterations
 and timed for performance.
 
-json file formatting:
+json file formatting
+--------------------
+
 * settings:
     * iterations: the number of iterations to run the kernel
     * lens: the dimensions for the input data shape
@@ -21,7 +23,7 @@ json file formatting:
     * lambda: lambda function
     * inputs: input shapes into the kernel, need 1 more than lambda function input for output buffer
 
-** TODO: many other possible settings**
+*TODO: many other possible settings*
 
 Example gpu-driver hjson testing a pointwise GELU approximation::
 

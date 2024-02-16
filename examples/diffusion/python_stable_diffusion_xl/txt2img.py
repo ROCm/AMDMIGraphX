@@ -112,10 +112,9 @@ class StableDiffusionMGX():
         print("Creating CLIPTokenizer tokenizer...")
         self.tokenizer = CLIPTokenizer.from_pretrained(model_id,
                                                        subfolder="tokenizer")
-        
-        self.tokenizer_2 = CLIPTokenizer.from_pretrained(model_id,
-                                                       use_safetensors=True,
-                                                       subfolder="tokenizer_2")
+
+        self.tokenizer_2 = CLIPTokenizer.from_pretrained(
+            model_id, use_safetensors=True, subfolder="tokenizer_2")
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
@@ -146,7 +145,6 @@ class StableDiffusionMGX():
         uncond_input = self.tokenize(negative_prompt, False)
         uncond_input2 = self.tokenize(negative_prompt, True)
 
-
         start_time = time.perf_counter_ns()
         print("Creating text embeddings for prompt...")
         text_embeddings = self.get_embeddings(text_input, text_input2)
@@ -169,7 +167,8 @@ class StableDiffusionMGX():
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
             time_id = np.array([[1024, 1024, 0, 0, 1024, 1024],
-                                [1024, 1024, 0, 0, 1024, 1024]]).astype(np.float16)
+                                [1024, 1024, 0, 0, 1024,
+                                 1024]]).astype(np.float16)
             # time_id = np.array(torch.ones((2, 6))).astype(np.float16)
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
@@ -214,10 +213,10 @@ class StableDiffusionMGX():
     def tokenize(self, input, is_tokenizer2):
         if is_tokenizer2:
             return self.tokenizer_2([input],
-                              padding="max_length",
-                              max_length=self.tokenizer.model_max_length,
-                              truncation=True,
-                              return_tensors="np")
+                                    padding="max_length",
+                                    max_length=self.tokenizer.model_max_length,
+                                    truncation=True,
+                                    return_tensors="np")
         return self.tokenizer([input],
                               padding="max_length",
                               max_length=self.tokenizer.model_max_length,
@@ -269,7 +268,7 @@ class StableDiffusionMGX():
                     "text_embeds": text_embeds,
                     "time_ids": time_id
                 })[0]), 2)
-                
+
         noise_pred_uncond = unet_out[1]
         noise_pred_text = unet_out[0]
 

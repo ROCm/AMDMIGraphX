@@ -42,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/pass_manager.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -585,12 +586,10 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     m.def(
         "autocast_fp8",
         [](migraphx::program& p) {
-            migraphx::autocast_fp8_pass pass;
-            migraphx::module& input_module = *p.get_main_module();
-            pass.apply(input_module);
+            migraphx::run_passes(*p.get_main_module(), {migraphx::autocast_fp8_pass{}});
         },
-        "Create and apply autocast_fp8_pass to a module",
-        py::arg("m"));
+        "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
+        py::arg("p"));
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

@@ -70,11 +70,11 @@ template <> struct join_strings_compile_time<>
 template <const std::string_view& S1, const std::string_view& S2>
 struct join_strings_compile_time<S1, S2>
 {
-    // NOLINTBEGIN
+    // clang-format off
     static constexpr std::string_view value =
         impl::concat<S1, std::make_index_sequence<S1.size()>,
                      S2, std::make_index_sequence<S2.size()>>::value;
-    // NOLINTEND
+    // clang-format on
 };
 
 template <const std::string_view& S, const std::string_view&... R>

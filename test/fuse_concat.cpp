@@ -160,7 +160,6 @@ TEST_CASE(multiple_use_pointwise_concat_pointwise)
         mm->add_return({mul});
     }
     run_pass(p1);
-    p1.debug_print();
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();

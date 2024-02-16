@@ -61,3 +61,24 @@ struct test_pooling_add_concat : verify_program<test_pooling_add_concat>
 {
     migraphx::program create_program() const { return create_concat_fusion_program(false); }
 };
+
+struct test_add_sub_concat_slice_mul : verify_program<test_add_sub_concat_slice_mul>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+        auto x      = mm->add_parameter("x", s1);
+        auto y      = mm->add_parameter("y", s1);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto sub    = mm->add_instruction(migraphx::make_op("sub"), x, y);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        auto slice  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}}), relu);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), sub, slice);
+        mm->add_return({mul});
+        return p;
+    }
+};

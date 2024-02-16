@@ -578,6 +578,8 @@ MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
     return ins->get_shape().broadcasted();
 }
 
+MIGRAPHX_PRED_MATCHER(scalar_shape, instruction_ref ins) { return ins->get_shape().scalar(); }
+
 MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();

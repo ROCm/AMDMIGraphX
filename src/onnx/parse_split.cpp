@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,13 +68,34 @@ struct parse_split : op_parser<parse_split>
         // no split attribute, input is equally divided
         else
         {
-            if((lens[tuned_axis] % info.num_outputs) != 0)
+            std::size_t num_outputs = info.num_outputs;
+            // the num_outputs attribute seems to be redundant since we already have
+            // node_info::num_outputs, but we can still perform an error check
+            if(contains(info.attributes, "num_outputs"))
             {
-                MIGRAPHX_THROW("PARSE_SPLIT: input cannot be equally divided into " +
-                               std::to_string(info.num_outputs) + " splits!");
+                num_outputs =
+                    parser.parse_value(info.attributes.at("num_outputs")).at<std::size_t>();
+                if(num_outputs != info.num_outputs)
+                {
+                    MIGRAPHX_THROW("PARSE_SPLIT: num_outputs attribute " +
+                                   std::to_string(num_outputs) +
+                                   " doesn't match actual number of outputs " +
+                                   std::to_string(info.num_outputs) + "!");
+                }
             }
-            auto dl = lens[tuned_axis] / info.num_outputs;
-            vec_splits.resize(info.num_outputs, dl);
+
+            if(lens[tuned_axis] % num_outputs == 0)
+            {
+                std::size_t chunk_size = lens[tuned_axis] / num_outputs;
+                vec_splits.resize(num_outputs, chunk_size);
+            }
+            else
+            {
+                std::size_t chunk_size      = lens[tuned_axis] / num_outputs + 1;
+                std::size_t last_chunk_size = lens[tuned_axis] - chunk_size * (num_outputs - 1);
+                vec_splits.resize(num_outputs - 1, chunk_size);
+                vec_splits.push_back(last_chunk_size);
+            }
         }
 
         if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=

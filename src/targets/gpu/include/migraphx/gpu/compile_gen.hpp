@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,9 +74,9 @@ std::string make_transformer_args(Ts... xs)
 
 std::string generate_pointwise(const module& pm, const std::string& name);
 
-std::string generate_reduce(const module& m, const std::string& name);
+std::string generate_reduce(module m, const std::string& name);
 
-std::string generate_name_from_ops(const module& m);
+std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 
 struct reduce_op
 {

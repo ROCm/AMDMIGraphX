@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/par_dfor.hpp>
 #include <migraphx/clamp.hpp>
-#include <migraphx/ref/gemm.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
@@ -283,8 +282,8 @@ struct ref_gemm
     argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
     {
         argument result{dyn_out.computed_shape};
-        migemm(result, args[0], args[1], 1.0f, 0.0f);
-
+        visit_all(result, args[0], args[1])(
+            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
         return result;
     }
 };
@@ -306,24 +305,14 @@ struct ref_quant_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        // first, convert the args[0] and args[1] from int8_t to int32_t
-        argument arg_0{{shape::int32_type, {args.at(0).get_shape().lens()}}};
-        argument arg_1{{shape::int32_type, {args.at(1).get_shape().lens()}}};
-        arg_0.visit([&](auto output) {
-            args.at(0).visit(
-                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
+        result.visit([&](auto cmat) {
+            visit_all(args.at(0), args.at(1))(
+                [&](auto amat, auto bmat) { return gemm(cmat, amat, bmat, 1.0f, 0.0f); });
         });
-
-        arg_1.visit([&](auto output) {
-            args.at(1).visit(
-                [&](auto input) { std::copy(input.begin(), input.end(), output.begin()); });
-        });
-
-        migemm(result, arg_0, arg_1, int32_t{1}, int32_t{0});
-
         return result;
     }
 };
+
 MIGRAPHX_REGISTER_OP(ref_gemm)
 
 template <class Op>

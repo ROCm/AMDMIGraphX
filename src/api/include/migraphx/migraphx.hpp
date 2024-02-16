@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,7 @@ template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
     std::string name;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
     name = typeid(PrivateMigraphTypeNameProbe).name();
     name = name.substr(7);
 #else
@@ -1320,6 +1320,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     void set_default_loop_iterations(int64_t value)
     {
         call(&migraphx_onnx_options_set_default_loop_iterations, this->get_handle_ptr(), value);
+    }
+
+    /// Set max iteration limit for the loop operator
+    void set_limit_loop_iterations(int64_t value)
+    {
+        call(&migraphx_onnx_options_set_limit_loop_iterations, this->get_handle_ptr(), value);
     }
 };
 

@@ -7,9 +7,9 @@ jobs:
   benchmark:
     uses: ROCmSoftwarePlatform/actions/.github/workflows/benchmarks.yml@main
     with:
-      rocm_version: 5.2
+      rocm_version: 5.7
       script_repo: migraphx-benchmark/benchmark-utils
       result_path: /usr/share/migraphx/test-results
-      result_repo: ROCmSoftwarePlatform/comparison-results
+      result_repo: ROCm/comparison-results
     secrets:
       gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}

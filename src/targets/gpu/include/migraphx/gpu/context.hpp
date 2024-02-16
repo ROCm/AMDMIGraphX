@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/problem_cache.hpp>
 #include <unordered_map>
 #include <memory>
 
@@ -299,23 +300,6 @@ struct context
 
     any_ptr get_queue() { return get_stream().get(); }
 
-    void enable_perf_measurement(bool b = true)
-    {
-        if(b)
-        {
-            start_event = create_event_for_timing();
-            stop_event  = create_event_for_timing();
-            get_stream().record(start_event.get());
-            get_stream().record(stop_event.get());
-        }
-        else
-        {
-            start_event = nullptr;
-            stop_event  = nullptr;
-        }
-        measure_perf = b;
-    }
-
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {
         if(measure_perf)
@@ -323,17 +307,19 @@ struct context
         return std::make_pair(nullptr, nullptr);
     }
 
-    float get_elapsed_ms() const
+    static float get_elapsed_ms(hipEvent_t start, hipEvent_t stop)
     {
         float result = 0;
-        if(start_event != nullptr and stop_event != nullptr)
+        if(start != nullptr and stop != nullptr)
         {
-            auto status = hipEventElapsedTime(&result, start_event.get(), stop_event.get());
+            auto status = hipEventElapsedTime(&result, start, stop);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed hipEventElapsedTime: " + hip_error(status));
         }
         return result;
     }
+
+    problem_cache& get_problem_cache() { return pc; }
 
     private:
     // TODO: Make this a vector to support multiple devices
@@ -347,6 +333,7 @@ struct context
     // for stream syncronization
     shared<hip_event_ptr> begin_event  = nullptr;
     shared<hip_event_ptr> finish_event = nullptr;
+    problem_cache pc{};
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

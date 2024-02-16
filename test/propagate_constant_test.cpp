@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,9 +29,10 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+void run_pass(migraphx::module& m, const std::unordered_set<std::string>& skip_ops = {})
 {
-    migraphx::run_passes(m, {migraphx::propagate_constant{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        m, {migraphx::propagate_constant{skip_ops}, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(const_add)
@@ -182,6 +183,27 @@ TEST_CASE(last_const)
         auto l = m2.add_literal(migraphx::literal(s, vec));
         m2.add_instruction(migraphx::make_op("identity"), l);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(skip_ops)
+{
+    const std::vector<float> vec = {1.0f, 2.0f, 1.0f, 2.0f};
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {2, 2}};
+        auto l     = m1.add_literal(migraphx::literal(s, vec));
+        auto scale = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
+                                        m1.add_literal(0.5f));
+        auto zp    = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2}}}),
+                                     m1.add_literal(0));
+        auto q     = m1.add_instruction(migraphx::make_op("quantizelinear"), l, scale, zp);
+        m1.add_instruction(migraphx::make_op("dequantizelinear"), q, scale, zp);
+    }
+
+    migraphx::module m2 = m1;
+
+    run_pass(m1, {"quantizelinear", "dequantizelinear"});
     EXPECT(m1 == m2);
 }
 

@@ -64,7 +64,7 @@ TEST_CASE(mul_literal_round_test)
     auto l1 = mm->add_literal(1 / 0.00787402f);
 
     auto mul   = mm->add_instruction(migraphx::make_op("mul"), l0, l1);
-    auto round = mm->add_instruction(migraphx::make_op("round"), mul);
+    auto round = mm->add_instruction(migraphx::make_op("nearbyint"), mul);
 
     mm->add_return({round});
 
@@ -80,7 +80,7 @@ TEST_CASE(mul_literal_round_test)
     migraphx::target gpu_t = migraphx::make_target("gpu");
     run_prog(p, gpu_t, m, gpu_result);
 
-    EXPECT(migraphx::verify::verify_range(ref_result, gpu_result));
+    EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

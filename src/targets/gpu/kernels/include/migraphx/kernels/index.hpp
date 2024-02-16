@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,14 @@
 #include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/functional.hpp>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-identifier"
+extern "C" __device__ size_t __ockl_get_enqueued_local_size(uint); // NOLINT
+extern "C" __device__ size_t __ockl_get_local_size(uint);          // NOLINT
+#pragma clang diagnostic pop
+#endif
+
 namespace migraphx {
 
 #if defined(MIGRAPHX_NGLOBAL) && defined(MIGRAPHX_NLOCAL)
@@ -45,35 +53,8 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
     // This actualy works even when global is not divisible by local size.
     // This doesnt actually do a multiplicatiosn. Instead it calls a device
     // function to get the global size, which is why it works.
-    return blockDim.x * gridDim.x;  // NOLINT
+    return blockDim.x * gridDim.x; // NOLINT
 #endif
-}
-
-// We cant just use blockDim.x to get the local size since its broken on hip
-// when global is not divisible by local size. In this case, we calulate the
-// size for the last group.
-inline __device__ __attribute__((const)) index_int compute_local_size()
-{
-#ifdef MIGRAPHX_NLOCAL
-    const auto nlocal = MIGRAPHX_NLOCAL;
-#else
-    const auto nlocal = blockDim.x; // NOLINT
-#endif
-#ifdef MIGRAPHX_NGROUP
-    const auto ngroup = MIGRAPHX_NGROUP;
-#else
-    const auto ngroup = gridDim.x;  // NOLINT
-#endif
-    const auto group_id = blockIdx.x; // NOLINT
-    const auto nglobal  = compute_global_size();
-    if(group_id == ngroup - 1)
-    {
-        return 1 + (nglobal - 1) % nlocal;
-    }
-    else
-    {
-        return nlocal; // NOLINT
-    }
 }
 
 #ifdef MIGRAPHX_NGROUP
@@ -82,6 +63,27 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
 #define MIGRAPHX_HAS_CONST_LOCAL 1
 #endif
 #endif
+
+inline __device__ __attribute__((const)) index_int compute_local_size()
+{
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+    return MIGRAPHX_NLOCAL;
+#else
+    // Returns block size. For the non-uniform block it returns the size of the non-uniform block.
+    return __ockl_get_local_size(0); // NOLINT
+#endif
+}
+
+inline __device__ __attribute__((const)) index_int compute_max_local_size()
+{
+#ifdef MIGRAPHX_LOCAL
+    return MIGRAPHX_NLOCAL;
+#else
+    // Returns the block size. When workgrop has non-uniform block, this returns size of the uniform
+    // block.
+    return __ockl_get_enqueued_local_size(0); // NOLINT
+#endif
+}
 
 struct index
 {
@@ -126,8 +128,8 @@ struct index
 #else
     __device__ index_int max_nlocal() const
     {
-        MIGRAPHX_ASSERT(blockDim.x > 0);
-        return blockDim.x;
+        MIGRAPHX_ASSERT(compute_max_local_size() > 0);
+        return compute_max_local_size();
     }
 #endif
 
@@ -249,7 +251,8 @@ struct index
 #endif
 inline __device__ __attribute__((const)) index make_index()
 {
-    return index{blockIdx.x * blockDim.x + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+    return index{
+        blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
 }
 
 } // namespace migraphx

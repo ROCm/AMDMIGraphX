@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@ struct parse_onehot : op_parser<parse_onehot>
                           tf_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        size_t depth = static_cast<size_t>(args[1]->eval().at<int32_t>());
+        size_t depth = args[1]->eval().at<size_t>();
 
         int64_t axis    = -1;
         float on_value  = args[2]->eval().at<float>();

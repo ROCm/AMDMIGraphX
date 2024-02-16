@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -97,6 +97,31 @@ TEST_CASE(interpolate_string_custom3)
     std::string input = "****{{{{a}}}}****";
     auto s            = migraphx::interpolate_string(input, {{"a", "b"}}, "{{{{", "}}}}");
     EXPECT(s == "****b****");
+}
+
+TEST_CASE(slit_string_simple1)
+{
+    std::string input = "one,two,three";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 3);
+    EXPECT(resuts.front() == "one");
+    EXPECT(resuts.back() == "three");
+}
+
+TEST_CASE(slit_string_simple2)
+{
+    std::string input = "one";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 1);
+    EXPECT(resuts.front() == "one");
+}
+
+TEST_CASE(slit_string_simple3)
+{
+    std::string input = "one two three";
+    auto resuts       = migraphx::split_string(input, ',');
+    EXPECT(resuts.size() == 1);
+    EXPECT(resuts.front() == "one two three");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -8,6 +8,12 @@ on:
       - master
       - 'release/**'
 
+env:
+  DOCKER_USER: ${{secrets.DOCKERHUB_USERID}}
+  DOCKER_TOKEN: ${{secrets.DOCKERHUB_TOKEN}}
+  DOCKER_IMAGE_UBUNTU: "rocm/migraphx-ci-ubuntu"
+  DOCKER_IMAGE_SLES: "rocm/migraphx-ci-sles"
+
 
 jobs:
   cancel:
@@ -17,22 +23,102 @@ jobs:
         uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
+
+  check_image:
+    name: Check if image exists in registry
+    runs-on: ubuntu-latest
+    outputs:
+      imageexists:  ${{ steps.check_image.outputs.imageexists }}
+      imagetag:  ${{ steps.image_hash.outputs.imagetag }}
+      imageexists_sles:  ${{ steps.check_image.outputs.imageexists_sles }}
+      imagetag_sles:  ${{ steps.image_hash.outputs.imagetag_sles }}
+
+    steps: 
+      - name: Checkout Code
+        uses: actions/checkout@v4.1.1
+
+      - name: Create Image Tag
+        id: image_hash
+        run: |
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+
+      - name: Check if image is built already
+        id: check_image
+        env:
+          DOCKER_TAG_UBUNTU: ${{ steps.image_hash.outputs.imagetag }}
+          DOCKER_TAG_SLES: ${{ steps.image_hash.outputs.imagetag_sles }}
+        run: |
+          if [[ "$(docker manifest inspect $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU 2> /dev/null)" != "" ]]; then
+            echo "imageexists=true" >> $GITHUB_OUTPUT
+            echo "Image already exists, skip building available"
+          else
+            echo "imageexists=false" >> $GITHUB_OUTPUT
+            echo "Tag does not exist, build and publishing required"
+          fi
+
+          if [[ "$(docker manifest inspect $DOCKER_IMAGE_SLES:$DOCKER_TAG_SLES 2> /dev/null)" != "" ]]; then
+            echo "imageexists_sles=true" >> $GITHUB_OUTPUT
+            echo "SLES Image already exists, skip building available"
+          else
+            echo "imageexists_sles=false" >> $GITHUB_OUTPUT
+            echo "SLES Tag does not exist, build and publishing required"
+          fi
+
+
+  build_image:
+    name: Build image
+    runs-on: ROCM-Ubuntu
+    needs: check_image
+    if: ${{ needs.check_image.outputs.imageexists != 'true' }}
+    steps:
+    - uses: actions/checkout@v4.1.1
+
+    - name: Build and publish 
+      env:            
+        DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
+      run: |
+        # The TOKEN and USERID are github secrets, Action failures at this step
+        # can come from a PR from a fork changing a file which forces a rebuild
+        # Resolve by making an internal PR of the Forked PR
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+
+        docker pull $DOCKER_IMAGE_UBUNTU:latest || true
+        docker build . --file hip-clang.docker --cache-from $DOCKER_IMAGE_UBUNTU:latest --tag $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU --tag $DOCKER_IMAGE_UBUNTU:latest;
+        docker push $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU;
+        docker push $DOCKER_IMAGE_UBUNTU:latest;
+
+  build_SLES_image:
+    name: Build SLES image
+    runs-on: ROCM-Ubuntu
+    needs: check_image
+    if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
+    steps:
+    - uses: actions/checkout@v4.1.1
+    - name: Build and publish SLES
+      env:            
+        DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
+      run: |
+        # The TOKEN and USERID are github secrets, Action failures at this step
+        # can come from a PR from a fork changing a file wichi forces a rebuild
+        # Resolve by making an internal PR of the Forked PR
+        echo $DOCKER_TOKEN | docker login -u $DOCKER_USER --password-stdin
+
+        docker pull $DOCKER_IMAGE_SLES:latest || true
+        docker build . --file ./tools/docker/sles.docker --cache-from $DOCKER_IMAGE_SLES:latest --tag $DOCKER_IMAGE_SLES:$DOCKER_TAG_SLES --tag $DOCKER_IMAGE_SLES:latest;
+        docker push $DOCKER_IMAGE_SLES:$DOCKER_TAG_SLES;
+        docker push $DOCKER_IMAGE_SLES:latest;
+
+
   tidy:
     runs-on: ROCM-Ubuntu
-    steps: 
-    - uses: actions/checkout@v3
+    needs: [ build_image, check_image ]
+    env:
+      DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
+    steps: 
+    - uses: actions/checkout@v4.1.1
 
     - name: Restore cache files for tidy
       uses: actions/cache/restore@v3 
@@ -41,13 +127,9 @@ jobs:
         path: tidy-cache
         key: tidy-cache-${{ github.ref }}
         restore-keys: tidy-cache-
-        
-    - name: Build the Docker image
-      run: |
-        docker build . --file hip-clang.docker --tag migraphx
 
-    - name: Clang tidy
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+    - name: Clang Tidy
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
       run: |
         mkdir build
         cd build
@@ -55,16 +137,17 @@ jobs:
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
-          -DMIGRAPHX_ENABLE_MLIR=On \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
           -DCLANG_TIDY_DEPEND_ON_TARGET=Off \
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) -k onnx-proto tf-proto tidy
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving
+      continue-on-error: true
       if: ${{ steps.tidy_restore.outputs.cache-hit }}
       shell: bash
       env:
@@ -72,7 +155,6 @@ jobs:
       run: |
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for tidy
       uses: actions/cache/save@v3 
@@ -84,34 +166,24 @@ jobs:
 
   cppcheck:
     runs-on: ROCM-Ubuntu
-    steps:
-    - uses: actions/checkout@v3
+    needs: [ build_image, check_image ]
+    env:
+      DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
+    steps:
+    - uses: actions/checkout@v4.1.1
 
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
       uses: actions/cache/restore@v3
       with:
         path: cppcheck-cache
-        key: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-${{ github.ref }}
-        restore-keys: cppcheck-cache-${{ hashFiles('cppcheck.rules', 'CMakeLists.txt') }}-
-
-    - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+        key: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
+        restore-keys: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-
 
     - name: Cppcheck
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
       run: |
         mkdir build
         cd build
@@ -119,11 +191,13 @@ jobs:
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) cppcheck
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear cppcheck cache before saving
+      continue-on-error: true
       if: ${{ steps.cppcheck_restore.outputs.cache-hit }}
       shell: bash
       env:
@@ -131,7 +205,6 @@ jobs:
       run: |
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for cppcheck
       uses: actions/cache/save@v3
@@ -142,29 +215,31 @@ jobs:
 
 
   format:
-    runs-on: ROCM-Ubuntu
+    runs-on: ubuntu-latest
+    needs: [ build_image, check_image ]
+    env:
+      DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
+
+    if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
       with:
         fetch-depth: 0
 
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-
-      # Ignore the failure of a step and avoid terminating the job.
+    - name: Free space
+      uses: jlumbroso/free-disk-space@main
       continue-on-error: true
-
-    - name: Build the Docker image
-      run: docker build . --file hip-clang.docker --tag migraphx
+      with:
+        tool-cache: true
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        swap-storage: true
+        docker-images: true
 
     - name: Check formatting
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_UBUNTU:$DOCKER_TAG_UBUNTU bash < {0}"
       run: |
         set -e
         git config --global --add safe.directory /data
@@ -172,25 +247,15 @@ jobs:
 
   sles:
     runs-on: ROCM-Ubuntu
+    needs: [ build_SLES_image, check_image ]
+    env:
+      DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
+    
+    if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
       with:
         fetch-depth: 0
-
-    # In this step, this action saves a list of existing images,
-    # the cache is created without them in the post run.
-    # It also restores the cache if it exists.
-    - name: Docker layer cache
-      uses: jpribyl/action-docker-layer-caching@v0.1.1
-      with:
-        key: docker-layer-caching-migraphx-sles-${{hashFiles('hip-clang.docker', '**/*requirements.txt', '**/install_prereqs.sh', 'rbuild.ini')}}
-        restore-keys:
-          docker-layer-caching-migraphx-sles-
-      # Ignore the failure of a step and avoid terminating the job.
-      continue-on-error: true
-
-    - name: Build the Docker image
-      run: docker build . --file tools/docker/sles.docker --tag migraphx-sles
 
     - name: Restore cache files for ccache
       uses: actions/cache/restore@v3 
@@ -201,7 +266,7 @@ jobs:
         restore-keys: ccache-sles-
 
     - name: Build migraphx
-      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data migraphx-sles bash < {0}"
+      shell: bash -c "docker run -i -v=$GITHUB_WORKSPACE:/data -w /data $DOCKER_IMAGE_SLES:$DOCKER_TAG_SLES bash < {0}"
       run: |
         set -e
         export CCACHE_COMPRESSLEVEL=10
@@ -212,19 +277,22 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
           -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+          -DCMAKE_CXX_FLAGS="-Werror" \
+          -DGPU_TARGETS=gfx908 \
           ..
         make -j$(nproc) tests driver
 
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -241,6 +309,7 @@ jobs:
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
       with:
         tool-cache: true
         android: true
@@ -250,7 +319,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -271,6 +340,7 @@ jobs:
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
       with:
         tool-cache: true
         android: true
@@ -280,7 +350,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -311,6 +381,7 @@ jobs:
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
       with:
         tool-cache: true
         android: true
@@ -326,7 +397,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -365,6 +436,7 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
@@ -374,12 +446,12 @@ jobs:
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache --pin v1.0.1
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
@@ -393,7 +465,7 @@ jobs:
     - name: Upload code coverage
       if: "matrix.configuration == 'codecov'"
       env:
-        CODECOV_TOKEN: "8545af1c-f90b-4345-92a5-0d075503ca56"
+        CODECOV_TOKEN: "f5d5a10b-3177-4c76-b25f-9b1c2f165e8b"
       run: |
         sudo apt-get install -y lcov
         cd build
@@ -428,6 +500,7 @@ jobs:
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
+      continue-on-error: true
       with:
         tool-cache: true
         android: true
@@ -437,7 +510,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -481,6 +554,7 @@ jobs:
         rbuild build -d cget -s gh -T check \
           -DCMAKE_BUILD_TYPE=${{matrix.configuration}} \
           -DMIGRAPHX_ENABLE_PYTHON=${{matrix.configuration == 'release' && 'On' || 'Off'}} \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_FLAGS_DEBUG="-g1 -Os -fdebug-prefix-map=$PWD=. -fdebug-types-section -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined" \
           -DCMAKE_CXX_FLAGS_CODECOV="-g1 -Og -fdebug-prefix-map=$PWD=. -fdebug-types-section -fprofile-arcs -ftest-coverage -fno-omit-frame-pointer" \
@@ -491,15 +565,14 @@ jobs:
 
     # this is a workaround, with GH actions can not update existing cache
     - name: Clear ccache cache before saving
+      continue-on-error: true
       if: ${{ steps.ccache_restore_fpga.outputs.cache-hit }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        set +x
         gh extension install actions/gh-actions-cache
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
-      continue-on-error: true
 
     - name: Save cache files for ccache
       uses: actions/cache/save@v3 

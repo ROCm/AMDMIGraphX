@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -431,6 +431,9 @@ def template_eval(template, **kwargs):
     return template
 
 
-f = open(sys.argv[1]).read()
-r = template_eval(f)
-sys.stdout.write(r)
+def run(p):
+    return template_eval(open(p).read())
+
+
+if __name__ == '__main__':
+    sys.stdout.write(run(sys.argv[1]))

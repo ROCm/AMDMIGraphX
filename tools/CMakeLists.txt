@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,4 +22,16 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_custom_target(generate bash ${CMAKE_CURRENT_SOURCE_DIR}/generate.sh)
+find_package(Python 3 COMPONENTS Interpreter)
+if(NOT Python_EXECUTABLE)
+    message(WARNING "Python 3 interpreter not found - skipping 'generate' target!")
+    return()
+endif()
+
+find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
+if(NOT CLANG_FORMAT)
+    message(WARNING "clang-format not found - skipping 'generate' target!")
+    return()
+endif()
+
+add_custom_target(generate ${Python_EXECUTABLE} generate.py -f ${CLANG_FORMAT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

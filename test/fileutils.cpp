@@ -72,8 +72,7 @@ struct join_strings_compile_time<S1, S2>
 {
     static constexpr std::string_view value =
         impl::concat<S1, std::make_index_sequence<S1.size()>,
-                     S2, std::make_index_sequence<S2.size()>>::value;
-
+                     S2, std::make_index_sequence<S2.size()>>::value; // NOLINT
 };
 
 template <const std::string_view& S, const std::string_view&... R>

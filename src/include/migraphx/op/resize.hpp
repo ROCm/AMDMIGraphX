@@ -214,8 +214,6 @@ struct resize
             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});
             return {inputs.front().type(), dyn_dims};
-
-            return {inputs.front().type(), dyn_dims};
         }
     }
 

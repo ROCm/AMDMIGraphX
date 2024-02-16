@@ -435,14 +435,19 @@ TEST_CASE(reduce_reshape_reduce)
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum1_add);
         auto rsum1_sub =
             add_pointwise(p1, "main:pointwise1", {rsum1_addb, x1}, single_pointwise("sub"));
-        auto rsum1_subr =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), rsum1_sub);
-        auto rsum2 =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), rsum1_subr);
+        auto rsum2     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), rsum1_sub);
         auto rsum2b = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum2);
-        auto rsum2_add = add_pointwise(p1, "main:pointwise2", {rsum2b, y}, single_pointwise("add"));
-        mm->add_return({rsum2_add});
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum2);
+        auto rsum2_sub =
+            add_pointwise(p1, "main:pointwise2", {rsum2b, x1}, single_pointwise("sub"));
+        auto rsum2_subr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), rsum2_sub);
+        auto rsum3 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2, 3}}}), rsum2_subr);
+        auto rsum3b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum3);
+        auto rsum3_add = add_pointwise(p1, "main:pointwise3", {rsum3b, y}, single_pointwise("add"));
+        mm->add_return({rsum3_add});
     }
     run_pass(p1);
     migraphx::program p2;
@@ -455,8 +460,7 @@ TEST_CASE(reduce_reshape_reduce)
         auto x2r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3r.lens()}}), x2);
         auto freduce = add_reduce(
             p2,
-            "main:pointwise1:main:reduce_sum1_reshape_reshape:main:reduce_sum0:main:pointwise0_"
-            "reshape",
+            "main:pointwise2:main:reduce_sum2_reshape_reshape:main:reduce_sum1:main:reduce_sum0:main:pointwise0:main:pointwise1_reshape",
             {x1r, x2r},
             {3, 4},
             [&](auto* rm, const auto& inputs, const auto& axes) {
@@ -466,16 +470,19 @@ TEST_CASE(reduce_reshape_reduce)
                     p2, rm, "main:pointwise0", {rsum1, inputs[1]}, single_pointwise("add"));
                 auto addb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), add);
-                auto sub = add_pointwise(
+                auto sub1 = add_pointwise(
                     p2, rm, "main:pointwise1", {addb, inputs[0]}, single_pointwise("sub"));
-                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub);
+                auto rsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub1);
+                auto rsum2b = rm->add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum2);
+                auto sub2 = add_pointwise(p2, rm, "main:pointwise2", {rsum2b, inputs[0]}, single_pointwise("sub"));
+                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub2);
             });
         auto freducer =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2r.lens()}}), freduce);
         // TODO: Fuse the last add as well
         auto freducerb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), freducer);
-        auto add = add_pointwise(p2, "main:pointwise2", {freducerb, y}, single_pointwise("add"));
+        auto add = add_pointwise(p2, "main:pointwise3", {freducerb, y}, single_pointwise("add"));
         mm->add_return({add});
     }
     EXPECT(p1.sort() == p2.sort());

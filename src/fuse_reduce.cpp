@@ -384,6 +384,7 @@ struct reduce_reshape : rewrite_reshapes_base
             axes.insert(axes.end(), new_axes.begin(), new_axes.end());
         }
         std::sort(axes.begin(), axes.end());
+        auto dims = base_dims(inputs);
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         insert_module_in_submodule(
@@ -391,21 +392,25 @@ struct reduce_reshape : rewrite_reshapes_base
                 if(contains(sop.name(), "reduce"))
                     return make_op(sop.name(), {{"axes", axes}});
                 if(sop.name() == "multibroadcast")
-                    return make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}});
+                    return make_op("multibroadcast", {{"out_lens", dims}});
                 assert(sop.name() == "pointwise");
                 return sop;
             }));
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 
-    static std::vector<std::size_t> base_dims(instruction_ref ins)
+    static std::vector<std::size_t> base_dims(const std::vector<instruction_ref>& inputs)
     {
         auto input =
-            std::max_element(ins->inputs().begin(),
-                             ins->inputs().end(),
+            std::max_element(inputs.begin(),
+                             inputs.end(),
                              by(std::less<>{}, [](auto i) { return i->get_shape().elements(); }));
         return (*input)->get_shape().lens();
-        ;
+    }
+
+    static std::vector<std::size_t> base_dims(instruction_ref ins)
+    {
+        return base_dims(ins->inputs());
     }
 };
 

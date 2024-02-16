@@ -1990,4 +1990,54 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reshape_reshape_dot)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 10, 32, 16}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 10, 16, 32}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_literal(migraphx::generate_literal(as));
+        auto b     = m1.add_parameter("input", bs);
+        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
+        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
+        auto dot_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 32, 32}}}), dot);
+        m1.add_return({dot_rsp});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_literal(migraphx::generate_literal(as));
+        auto b   = m2.add_parameter("input", bs);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, b);
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_reshape_dot_gemm_axis)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 10, 512}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 10, 512}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_literal(migraphx::generate_literal(as));
+        auto b     = m1.add_parameter("input", bs);
+        auto a_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 32, 16}}}), a);
+        auto b_rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {20, 16, 32}}}), b);
+
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a_rsp, b_rsp);
+        auto dot_rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 10, 1024}}}), dot);
+        m1.add_return({dot_rsp});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

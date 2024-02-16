@@ -173,7 +173,7 @@ auto is_test_gemm(bool enable_attention)
 
 struct find_gemm_softmax_gemm
 {
-    bool enable_attention;
+    bool enable_attention = false;
 
     auto matcher() const
     {

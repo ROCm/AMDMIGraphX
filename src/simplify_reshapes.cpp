@@ -25,6 +25,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
@@ -277,6 +278,78 @@ struct find_concat_multibroadcasts
         auto concat = m.insert_instruction(ins, op, inputs);
         m.replace_instruction(
             ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
+    }
+};
+
+struct find_concat_slice
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::any_of[match::outputs()](match::name("slice")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        auto outs   = ins->outputs();
+        std::vector<migraphx::instruction_ref> slice_ins;
+        migraphx::transform_if(
+            outs.begin(),
+            outs.end(),
+            std::back_inserter(slice_ins),
+            [&](const auto& oins) { return oins->name() == "slice"; },
+            [&](const auto& oins) { return oins; });
+        int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
+        // prune slice candidates
+        std::vector<migraphx::instruction_ref> slice_candidates;
+        for(const auto& sins : range(slice_ins.begin(), slice_ins.end()))
+        {
+            auto sop = any_cast<op::slice>(sins->get_operator());
+            // slices with only one axis is allowed, because concat happens only one axis
+            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis)
+            {
+                continue;
+            }
+            slice_candidates.push_back(sins);
+        }
+        if(slice_candidates.empty())
+        {
+            return;
+        }
+        std::vector<size_t> prefix_scan = {0};
+        std::transform(
+            inputs.begin(), inputs.end(), std::back_inserter(prefix_scan), [&](const auto& i) {
+                return prefix_scan.back() + i->get_shape().lens()[concat_axis];
+            });
+        for(const auto& sins : slice_candidates)
+        {
+            auto sop           = any_cast<op::slice>(sins->get_operator());
+            size_t slice_start = sop.starts.front();
+            size_t slice_len   = sop.ends.front() - slice_start;
+            auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {
+                return j == slice_start;
+            });
+            if(fii == prefix_scan.end())
+            {
+                continue;
+            }
+            // slice_len == 0
+            else if(fii == prefix_scan.end() - 1)
+            {
+                assert(slice_len == 0 or slice_start >= prefix_scan.back());
+                continue;
+            }
+            else
+            {
+                size_t idx = std::distance(prefix_scan.begin(), fii);
+                if(inputs[idx]->get_shape().lens()[concat_axis] == slice_len)
+                {
+                    assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
+                    m.replace_instruction(sins, inputs[idx]);
+                }
+            }
+        }
     }
 };
 
@@ -817,6 +890,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_reshape_cont{},
                             find_transpose{},
+                            find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},

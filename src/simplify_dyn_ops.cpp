@@ -36,10 +36,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  * Convert a Resize op. with Nearest mode to an implementation using Gather op.
  * From:  resize[scales={...}/sizes={...},](static, constant)
  * To:
- * &0 = &literal{ ... } computed_indices
+ * 0 = literal{ ... } computed_indices
  * ...
- * &2 = reshape[dims={45}](X) 1-dimensional
- * &3 = gather[axis=0](&2,&0)
+ * 2 = reshape[dims={45}](X) 1-dimensional
+ * 3 = gather[axis=0](2,0)
  *
  * At the time of writing, this conversion is required for GPU targets because there
  * is not direct a GPU implementation of the Resize operation.

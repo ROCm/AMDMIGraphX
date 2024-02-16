@@ -67,6 +67,11 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
     return add_pointwise(p, p.get_main_module(), name, inputs, f);
 }
 
+inline auto noop_pointwise()
+{
+    return [=](auto*, const auto& inputs) { return inputs; };
+}
+
 inline auto single_pointwise(const std::string& name)
 {
     return [=](auto* pm, const auto& inputs) {

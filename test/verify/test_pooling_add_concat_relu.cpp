@@ -28,23 +28,36 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/pooling.hpp>
 
+migraphx::program create_concat_fusion_program(bool post_pointwise)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
+    auto x       = mm->add_parameter("x", s1);
+    auto y       = mm->add_parameter("y", s1);
+    auto z       = mm->add_parameter("z", s2);
+    auto pooling = mm->add_instruction(
+        migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+    auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
+    auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
+    if(post_pointwise)
+    {
+        auto relu = mm->add_instruction(migraphx::make_op("relu"), concat);
+        mm->add_return({relu});
+    }
+    else
+    {
+        mm->add_return({concat});
+    }
+    return p;
+}
 struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_relu>
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
-        migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
-        auto x       = mm->add_parameter("x", s1);
-        auto y       = mm->add_parameter("y", s1);
-        auto z       = mm->add_parameter("z", s2);
-        auto pooling = mm->add_instruction(
-            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
-        auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
-        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
-        // auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
-        mm->add_return({concat});
-        return p;
-    }
+    migraphx::program create_program() const { return create_concat_fusion_program(true); }
+};
+
+struct test_pooling_add_concat : verify_program<test_pooling_add_concat>
+{
+    migraphx::program create_program() const { return create_concat_fusion_program(false); }
 };

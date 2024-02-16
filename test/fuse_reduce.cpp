@@ -435,7 +435,8 @@ TEST_CASE(reduce_reshape_reduce)
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum1_add);
         auto rsum1_sub =
             add_pointwise(p1, "main:pointwise1", {rsum1_addb, x1}, single_pointwise("sub"));
-        auto rsum2     = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), rsum1_sub);
+        auto rsum2 =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), rsum1_sub);
         auto rsum2b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum2);
         auto rsum2_sub =
@@ -460,7 +461,8 @@ TEST_CASE(reduce_reshape_reduce)
         auto x2r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3r.lens()}}), x2);
         auto freduce = add_reduce(
             p2,
-            "main:pointwise2:main:reduce_sum2_reshape_reshape:main:reduce_sum1:main:reduce_sum0:main:pointwise0:main:pointwise1_reshape",
+            "main:pointwise2:main:reduce_sum2_reshape_reshape:main:reduce_sum1:main:reduce_sum0:"
+            "main:pointwise0:main:pointwise1_reshape",
             {x1r, x2r},
             {3, 4},
             [&](auto* rm, const auto& inputs, const auto& axes) {
@@ -472,9 +474,12 @@ TEST_CASE(reduce_reshape_reduce)
                     migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), add);
                 auto sub1 = add_pointwise(
                     p2, rm, "main:pointwise1", {addb, inputs[0]}, single_pointwise("sub"));
-                auto rsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub1);
-                auto rsum2b = rm->add_instruction( migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum2);
-                auto sub2 = add_pointwise(p2, rm, "main:pointwise2", {rsum2b, inputs[0]}, single_pointwise("sub"));
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub1);
+                auto rsum2b = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum2);
+                auto sub2 = add_pointwise(
+                    p2, rm, "main:pointwise2", {rsum2b, inputs[0]}, single_pointwise("sub"));
                 return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub2);
             });
         auto freducer =

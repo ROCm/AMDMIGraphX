@@ -24,53 +24,90 @@
 
 #include <migraphx/fileutils.hpp>
 #include <test.hpp>
+#include <string_view>
 
 namespace fs = migraphx::fs;
 
-// NOLINTBEGIN
-// Explicit use of #define to concatenate strings
-// at compilation time instead of at runtime.
-#define MIGRAPHX_TEST "test"
-#define MIGRAPHX_TXT ".txt"
-#define MIGRAPHX_BZ2 ".bz2"
+constexpr std::string_view baze_name{"test"};
+constexpr std::string_view txt{".txt"};
+constexpr std::string_view bz2{".bz2"};
+constexpr std::string_view separator{": "};
 
 #ifdef _WIN32
-#define MIGRAPHX_EXE_POSTFIX ".exe"
-#define MIGRAPHX_LIB_PREFIX
-#define MIGRAPHX_DYNAMIC_POSTFIX ".dll"
-#define MIGRAPHX_STATIC_POSTFIX ".lib"
-#define MIGRAPHX_OBJECT_POSTFIX ".obj"
+constexpr std::string_view executable_postfix{".exe"};
+constexpr std::string_view library_prefix{""};
+constexpr std::string_view shared_object_postfix{".dll"};
+constexpr std::string_view static_library_postfix{".lib"};
+constexpr std::string_view object_file_postfix{".obj"};
 #else
-#define MIGRAPHX_EXE_POSTFIX
-#define MIGRAPHX_LIB_PREFIX "lib"
-#define MIGRAPHX_DYNAMIC_POSTFIX ".so"
-#define MIGRAPHX_STATIC_POSTFIX ".a"
-#define MIGRAPHX_OBJECT_POSTFIX ".o"
+constexpr std::string_view executable_postfix{""};
+constexpr std::string_view library_prefix{"lib"};
+constexpr std::string_view shared_object_postfix{".so"};
+constexpr std::string_view static_library_postfix{".a"};
+constexpr std::string_view object_file_postfix{".o"};
 #endif
-// NOLINTEND
+
+// Based on https://stackoverflow.com/a/59448568
+
+namespace impl {
+template <const std::string_view&, typename, const std::string_view&, typename>
+struct concat;
+
+template <const std::string_view& S1, std::size_t... I1,
+          const std::string_view& S2, std::size_t... I2>
+struct concat<S1, std::index_sequence<I1...>, S2, std::index_sequence<I2...>>
+{
+    static constexpr const char value[]{S1[I1]..., S2[I2]..., 0};
+};
+} // namespace impl
+
+template <const std::string_view&...> struct join_strings_compile_time;
+template <> struct join_strings_compile_time<>
+{
+    static constexpr std::string_view value;
+};
+
+template <const std::string_view& S1, const std::string_view& S2>
+struct join_strings_compile_time<S1, S2>
+{
+    static constexpr std::string_view value =
+        impl::concat<S1, std::make_index_sequence<S1.size()>,
+                     S2, std::make_index_sequence<S2.size()>>::value;
+
+};
+
+template <const std::string_view& S, const std::string_view&... R>
+struct join_strings_compile_time<S, R...>
+{
+    static constexpr std::string_view value =
+        join_strings_compile_time<S, join_strings_compile_time<R...>::value>::value;
+};
+
+template <const std::string_view&... Strings>
+static constexpr auto join_strings_v = join_strings_compile_time<Strings...>::value;
 
 TEST_CASE(executable_filename)
 {
-    auto name = migraphx::make_executable_filename(MIGRAPHX_TEST);
-    EXPECT(name == MIGRAPHX_TEST MIGRAPHX_EXE_POSTFIX);
+    auto name = migraphx::make_executable_filename(baze_name);
+    EXPECT(name == join_strings_v<baze_name, executable_postfix>);
 }
 
 TEST_CASE(shared_object_filename)
 {
-    auto name = migraphx::make_shared_object_filename(MIGRAPHX_TEST);
-    EXPECT(name == MIGRAPHX_LIB_PREFIX MIGRAPHX_TEST MIGRAPHX_DYNAMIC_POSTFIX);
+    auto name = migraphx::make_shared_object_filename(baze_name);
+    EXPECT(name == join_strings_v<library_prefix, baze_name, shared_object_postfix>);
 }
 
 TEST_CASE(object_filename)
 {
-    auto name = migraphx::make_object_file_filename(MIGRAPHX_TEST);
-    EXPECT(name == MIGRAPHX_TEST MIGRAPHX_OBJECT_POSTFIX);
+    auto name = migraphx::make_object_file_filename(baze_name);
+    EXPECT(name == join_strings_v<baze_name, object_file_postfix>);
 }
 
 TEST_CASE(static_library_filename)
 {
-    auto name = migraphx::make_static_library_filename(MIGRAPHX_TEST);
-    EXPECT(name == MIGRAPHX_LIB_PREFIX MIGRAPHX_TEST MIGRAPHX_STATIC_POSTFIX);
+    auto name = migraphx::make_static_library_filename(baze_name);
+    EXPECT(name == join_strings_v<library_prefix, baze_name, static_library_postfix>);
 }
 
 TEST_CASE(append_to_string)
@@ -78,15 +115,16 @@ TEST_CASE(append_to_string)
     // 'using namespace' required for '+' operator
     using namespace migraphx::MIGRAPHX_INLINE_NS; // NOLINT
     auto cwd = fs::current_path();
-    auto str = MIGRAPHX_TEST ": " + cwd;
-    EXPECT(str == std::string{MIGRAPHX_TEST ": "} + cwd.string());
+    std::string prefix{join_strings_v<baze_name, separator>};
+    auto str = prefix + cwd;
+    EXPECT(str == prefix + cwd.string());
 }
 
 TEST_CASE(append_file_extension)
 {
-    fs::path name{MIGRAPHX_TEST MIGRAPHX_TXT};
-    auto updated = migraphx::MIGRAPHX_INLINE_NS::append_extension(name, MIGRAPHX_BZ2);
-    EXPECT(updated == MIGRAPHX_TEST MIGRAPHX_TXT MIGRAPHX_BZ2);
+    fs::path name{join_strings_v<baze_name, txt>};
+    auto updated = migraphx::MIGRAPHX_INLINE_NS::append_extension(name, bz2);
+    EXPECT(updated == join_strings_v<baze_name, txt, bz2>);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

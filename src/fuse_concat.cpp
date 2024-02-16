@@ -114,7 +114,7 @@ struct find_concat_pointwise
         std::vector<instruction_ref> inputs;
         for(auto input : concat_ins->inputs())
         {
-            if(input->name() == "pointwise")
+            if(input->name() == "pointwise" and input->outputs().size() == 1)
                 inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
             else
                 inputs.push_back(input);
@@ -168,7 +168,7 @@ struct find_pointwise_concat_pointwise
         std::vector<instruction_ref> inputs;
         for(auto input : concat_ins->inputs())
         {
-            if(input->name() == "pointwise")
+            if(input->name() == "pointwise" and input->outputs().size() == 1)
                 inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
             else
                 inputs.push_back(input);
@@ -184,7 +184,7 @@ struct find_pointwise_concat_pointwise
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
                        [&](instruction_ref input) {
-                           if(input->name() == "pointwise")
+                           if(input->name() == "pointwise" and input->outputs().size() == 1)
                            {
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);

@@ -103,6 +103,7 @@ struct find_concat_pointwise
     auto matcher() const
     {
         return match::name("concat")(
+            match::used_once(),
             match::any_of[match::inputs()](match::name("pointwise")(match::used_once())));
     }
 
@@ -148,6 +149,7 @@ struct find_concat_pointwise
             module_inputs);
     }
 };
+
 struct find_pointwise_concat_pointwise
 {
     auto matcher() const

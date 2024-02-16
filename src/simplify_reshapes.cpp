@@ -807,20 +807,20 @@ struct find_transpose_slice
 };
 
 // replace scalar (multibroadcast ->unsqueeze, etc.) with just an updated (multibroadcast)
-struct find_scalar_multibroadcast_modify
+struct find_scalar_multibroadcast_reshape_or_transpose
 {
     auto matcher() const
     {
         auto contiguous = match::name("contiguous");
         auto scalar_mbr = match::name("multibroadcast")(match::scalar_shape());
-        auto fold       = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
-        return (fold)(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("mbr"))));
+        auto reshapes   = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
+        return reshapes(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("multibroadcast"))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto mbr      = mr.instructions["mbr"]; // multibroadcast
-        auto ins      = mr.result;              // (un)squeeze/flatten/reshape/transpose
+        auto mbr      = mr.instructions["multibroadcast"];
+        auto ins      = mr.result; // (un)squeeze/flatten/reshape/transpose
         auto out_lens = ins->get_shape().lens();
         m.replace_instruction(
             ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
@@ -846,7 +846,7 @@ void simplify_reshapes::apply(module& m) const
                             find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
-                            find_scalar_multibroadcast_modify{});
+                            find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

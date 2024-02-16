@@ -157,7 +157,7 @@ insert_module_in_submodule(module_ref sm,
 static auto insert_module_in_submodule(module_ref sm,
                                        const std::vector<instruction_ref>& inputs,
                                        module_ref m,
-                                       module::inserter insert)
+                                       module::inserter insert = nullptr)
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     return insert_module_in_submodule(sm, inputs, m, map_ins, std::move(insert));

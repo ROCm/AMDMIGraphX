@@ -53,6 +53,8 @@ namespace impl {
 template <const std::string_view&, typename, const std::string_view&, typename>
 struct concat;
 
+// clang-format off
+
 template <const std::string_view& S1, std::size_t... I1,
           const std::string_view& S2, std::size_t... I2>
 struct concat<S1, std::index_sequence<I1...>, S2, std::index_sequence<I2...>>
@@ -70,11 +72,9 @@ template <> struct join_strings_compile_time<>
 template <const std::string_view& S1, const std::string_view& S2>
 struct join_strings_compile_time<S1, S2>
 {
-    // clang-format off
     static constexpr std::string_view value =
         impl::concat<S1, std::make_index_sequence<S1.size()>,
                      S2, std::make_index_sequence<S2.size()>>::value;
-    // clang-format on
 };
 
 template <const std::string_view& S, const std::string_view&... R>
@@ -86,6 +86,8 @@ struct join_strings_compile_time<S, R...>
 
 template <const std::string_view&... Strings>
 static constexpr auto join_strings_v = join_strings_compile_time<Strings...>::value;
+
+// clang-format on
 
 TEST_CASE(executable_filename)
 {

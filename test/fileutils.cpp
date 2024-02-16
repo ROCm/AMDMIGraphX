@@ -64,7 +64,7 @@ struct concat<S1, std::index_sequence<I1...>, S2, std::index_sequence<I2...>>
 template <const std::string_view&...> struct join_strings_compile_time;
 template <> struct join_strings_compile_time<>
 {
-    static constexpr std::string_view value;
+    static constexpr std::string_view value{""};
 };
 
 template <const std::string_view& S1, const std::string_view& S2>

@@ -112,6 +112,10 @@ class StableDiffusionMGX():
         print("Creating CLIPTokenizer tokenizer...")
         self.tokenizer = CLIPTokenizer.from_pretrained(model_id,
                                                        subfolder="tokenizer")
+        
+        self.tokenizer_2 = CLIPTokenizer.from_pretrained(model_id,
+                                                       use_safetensors=True,
+                                                       subfolder="tokenizer_2")
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
@@ -135,17 +139,20 @@ class StableDiffusionMGX():
         self.scheduler.set_timesteps(steps)
 
         print("Tokenizing prompt...")
-        text_input = self.tokenize(prompt)
+        text_input = self.tokenize(prompt, False)
+        text_input2 = self.tokenize(prompt, True)
 
         print("Tokenizing negative prompt...")
-        uncond_input = self.tokenize(negative_prompt)
+        uncond_input = self.tokenize(negative_prompt, False)
+        uncond_input2 = self.tokenize(negative_prompt, True)
+
 
         start_time = time.perf_counter_ns()
         print("Creating text embeddings for prompt...")
-        text_embeddings = self.get_embeddings(text_input)
+        text_embeddings = self.get_embeddings(text_input, text_input2)
 
         print("Creating text embeddings for negative prompt...")
-        uncond_embeddings = self.get_embeddings(uncond_input)
+        uncond_embeddings = self.get_embeddings(uncond_input, uncond_input2)
         end_time = time.perf_counter_ns()
         clip_time = end_time - start_time
 
@@ -161,7 +168,9 @@ class StableDiffusionMGX():
         start_time = time.perf_counter_ns()
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
-            time_id = np.array(torch.randn((2, 6))).astype(np.float16)
+            time_id = np.array([[1024, 1024, 0, 0, 1024, 1024],
+                                [1024, 1024, 0, 0, 1024, 1024]]).astype(np.float16)
+            # time_id = np.array(torch.ones((2, 6))).astype(np.float16)
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
                                         latents, t, scale, time_id)
@@ -202,7 +211,13 @@ class StableDiffusionMGX():
         return model
 
     @measure
-    def tokenize(self, input):
+    def tokenize(self, input, is_tokenizer2):
+        if is_tokenizer2:
+            return self.tokenizer_2([input],
+                              padding="max_length",
+                              max_length=self.tokenizer.model_max_length,
+                              truncation=True,
+                              return_tensors="np")
         return self.tokenizer([input],
                               padding="max_length",
                               max_length=self.tokenizer.model_max_length,
@@ -210,19 +225,13 @@ class StableDiffusionMGX():
                               return_tensors="np")
 
     @measure
-    def get_embeddings(self, input):
+    def get_embeddings(self, input, input2):
         clip_hidden = np.array(
             self.clip.run({"input_ids": input.input_ids.astype(np.int32)})[0])
         clip2_out = self.clip2.run(
-            {"input_ids": input.input_ids.astype(np.int32)})
+            {"input_ids": input2.input_ids.astype(np.int32)})
         clip2_hidden = np.array(clip2_out[1])
         clip2_embed = np.array(clip2_out[0])
-        # clip2_out = np.array(
-        #     self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
-        #                    })[1]).astype(np.float32)
-        # clip2_txt_embed = np.array(
-        #     self.clip2.run({"input_ids": input.input_ids.astype(np.int32)
-        #                    })[0]).astype(np.float32)
         return (np.concatenate((clip_hidden, clip2_hidden),
                                axis=2), clip2_embed)
 
@@ -260,12 +269,14 @@ class StableDiffusionMGX():
                     "text_embeds": text_embeds,
                     "time_ids": time_id
                 })[0]), 2)
-        noise_pred_text = unet_out[0]
+                
         noise_pred_uncond = unet_out[1]
+        noise_pred_text = unet_out[0]
 
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -
                                                   noise_pred_uncond)
+        # print(noise_pred)
 
         # compute the previous noisy sample x_t -> x_t-1
         return self.scheduler.step(torch.from_numpy(noise_pred), t,

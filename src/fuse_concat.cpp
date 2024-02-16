@@ -131,9 +131,7 @@ struct find_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm =
-                               mpm.create_module("concat:identity" + std::to_string(counter++));
-
+                           auto* pm = mpm.create_module("concat:noop" + std::to_string(counter++));
                            auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;

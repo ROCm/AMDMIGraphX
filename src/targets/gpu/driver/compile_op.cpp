@@ -39,7 +39,7 @@ struct compile_op : action<compile_op>
         auto inputs = p.parse_shapes(v.at("inputs"));
         auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
         auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << t << "ms";
+        std::cout << op << " -> " << op.compute_shape(inputs) << ": " << t << "ms" << std::endl;
         std::cout << std::endl;
     }
 };

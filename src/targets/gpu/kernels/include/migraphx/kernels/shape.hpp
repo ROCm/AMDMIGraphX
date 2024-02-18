@@ -110,15 +110,7 @@ struct shape
     /// Convert single index into a multi-index
     constexpr index_array multi(index_int idx) const
     {
-        index_array result;
-        index_int tidx = idx;
-        for(diff_int is = result.size() - 1; is > 0; is--)
-        {
-            result[is] = tidx % lens[is];
-            tidx       = tidx / lens[is];
-        }
-        result[0] = tidx;
-        return result;
+        return lens.multi(idx);
     }
 
     /// Convert multi-index into a single index

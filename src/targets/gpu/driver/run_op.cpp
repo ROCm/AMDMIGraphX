@@ -44,7 +44,7 @@ struct run_op : action<run_op>
         if(v.contains("fields"))
             op.from_value(v.at("fields"));
         auto t = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << ": " << t << "ms" << std::endl;
+        std::cout << op << " -> " << op.compute_shape(inputs) << ": " << t << "ms" << std::endl;
     }
 };
 

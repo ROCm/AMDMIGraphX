@@ -104,6 +104,18 @@ struct min
 };
 } // namespace op
 
+#define MIGRAPHX_OPS_DEFINE_COMMON_TYPE(T) \
+template <class U> \
+struct common_type<T, U> \
+{ \
+    using type = U; \
+}; \
+template <class U> \
+struct common_type<U, T> \
+{ \
+    using type = U; \
+};
+
 struct lowest
 {
     template <class T>
@@ -112,6 +124,7 @@ struct lowest
         return numeric_lowest<vec_type<T>>();
     }
 };
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(lowest)
 
 struct highest
 {
@@ -121,5 +134,7 @@ struct highest
         return numeric_max<vec_type<T>>();
     }
 };
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(highest)
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPS_HPP

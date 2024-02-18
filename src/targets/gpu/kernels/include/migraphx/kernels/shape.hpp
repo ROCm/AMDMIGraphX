@@ -108,10 +108,7 @@ struct shape
     }
 
     /// Convert single index into a multi-index
-    constexpr index_array multi(index_int idx) const
-    {
-        return lens.multi(idx);
-    }
+    constexpr index_array multi(index_int idx) const { return lens.multi(idx); }
 
     /// Convert multi-index into a single index
     constexpr index_int single(index_array idx) const

@@ -212,7 +212,7 @@ struct array
         return true;
     }
 
-    template<class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
     friend constexpr bool operator==(const array& x, const U& y)
     {
         for(index_int i = 0; i < N; i++)
@@ -223,16 +223,22 @@ struct array
         return true;
     }
 
-    template<class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{})>
     friend constexpr bool operator==(const U& x, const array& y)
     {
         return y == x;
     }
 
-    template<class U>
-    friend constexpr bool operator!=(const U& x, const array& y) { return not(x == y); }
-    template<class U>
-    friend constexpr bool operator!=(const array& x, const U& y) { return not(x == y); }
+    template <class U>
+    friend constexpr bool operator!=(const U& x, const array& y)
+    {
+        return not(x == y);
+    }
+    template <class U>
+    friend constexpr bool operator!=(const array& x, const U& y)
+    {
+        return not(x == y);
+    }
     // This uses the product order rather than lexical order
     friend constexpr bool operator<(const array& x, const array& y)
     {
@@ -314,8 +320,7 @@ constexpr auto make_const_array(T x, Ts... xs)
 template <class T, class N, class F>
 constexpr auto generate_array(N n, F f)
 {
-    return sequence_c<n>(
-        [=](auto... is) { return array<T, n>{f(is)...}; });
+    return sequence_c<n>([=](auto... is) { return array<T, n>{f(is)...}; });
 }
 
 template <class T, T... Xs, class F>

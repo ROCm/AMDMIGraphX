@@ -183,9 +183,7 @@ constexpr void each_args(F)
 template <index_int N, class F>
 constexpr void repeat_c(F&& f)
 {
-    sequence_c<N>([&](auto... xs) {
-        each_args(f, xs...);
-    });
+    sequence_c<N>([&](auto... xs) { each_args(f, xs...); });
 }
 
 template <class IntegerConstant, class F>

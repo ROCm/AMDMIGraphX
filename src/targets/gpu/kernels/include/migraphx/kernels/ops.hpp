@@ -105,16 +105,16 @@ struct min
 } // namespace op
 
 #define MIGRAPHX_OPS_DEFINE_COMMON_TYPE(T) \
-template <class U> \
-struct common_type<T, U> \
-{ \
-    using type = U; \
-}; \
-template <class U> \
-struct common_type<U, T> \
-{ \
-    using type = U; \
-};
+    template <class U>                     \
+    struct common_type<T, U>               \
+    {                                      \
+        using type = U;                    \
+    };                                     \
+    template <class U>                     \
+    struct common_type<U, T>               \
+    {                                      \
+        using type = U;                    \
+    };
 
 struct lowest
 {

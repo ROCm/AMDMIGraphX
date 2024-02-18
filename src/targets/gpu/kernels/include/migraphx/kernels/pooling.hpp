@@ -42,11 +42,11 @@ struct average_pool
     }
 };
 
-template<class Window, class Stride, class Padding>
+template <class Window, class Stride, class Padding>
 struct window
 {
-    Window win = {};
-    Stride stride = {};
+    Window win      = {};
+    Stride stride   = {};
     Padding padding = {};
 
     using rank = decltype(Window{}.size());
@@ -61,11 +61,11 @@ struct window
         return return_c([] { return Padding{} == 0; });
     }
 
-    template<class Index, class F>
+    template <class Index, class F>
     constexpr void visit(Index i, F f) const
     {
         auto win_start = generate_array<diff_int>(rank{}, [&](auto j) {
-            diff_int w = win[j];
+            diff_int w   = win[j];
             diff_int dim = i[j];
             MIGRAPHX_ASSERT(w >= 1);
             if(w == 1)
@@ -74,30 +74,27 @@ struct window
             diff_int p = padding[j];
             return (dim * s) - p;
         });
-        repeat(size(), [&](auto j) {
-            f(win_start + win.multi(j));
-        });
+        repeat(size(), [&](auto j) { f(win_start + win.multi(j)); });
     }
 };
 
-template<class Window, class Stride, class Padding>
+template <class Window, class Stride, class Padding>
 constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Padding p)
 {
     return {w, s, p};
 }
 
-
-template<class Op, class Window, class Output, class Input>
+template <class Op, class Window, class Output, class Input>
 __device__ void pooling(Op op, Window w, Output output, Input input)
 {
-    auto idx = make_index();
+    auto idx   = make_index();
     using type = typename Output::type;
     idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto out_idx = output.get_shape().multi(i);
+        auto out_idx        = output.get_shape().multi(i);
         index_int pool_size = w.size();
-        type x = op.init();
+        type x              = op.init();
         w.visit(out_idx, [&](auto j) {
-            if (j < input.get_shape().lens)
+            if(j < input.get_shape().lens)
             {
                 x = op(x, input[j]);
             }
@@ -115,7 +112,5 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
     });
 }
 
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_POOLING_HPP
-

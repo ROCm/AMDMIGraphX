@@ -72,7 +72,7 @@ struct pooling_compiler : compiler<pooling_compiler>
         options.kernel_name    = "pooling_kernel";
         options.virtual_inputs = inputs;
 
-        auto ndim = out_s.ndim();
+        auto ndim      = out_s.ndim();
         auto pool_ndim = ndim - 2;
 
         auto read_value = [&](const std::string& name, std::size_t def) {
@@ -81,7 +81,7 @@ struct pooling_compiler : compiler<pooling_compiler>
                 std::vector<std::size_t> result(2, def);
                 auto x = v.at(name).to_vector<std::size_t>();
                 if(x.size() >= pool_ndim)
-                    result.insert(result.end(), x.begin(), x.begin()+pool_ndim);
+                    result.insert(result.end(), x.begin(), x.begin() + pool_ndim);
                 return result;
             }
             else
@@ -92,13 +92,18 @@ struct pooling_compiler : compiler<pooling_compiler>
         };
 
         auto padding = read_value("padding", 0);
-        auto stride = read_value("stride", 1);
-        auto window = read_value("lengths", 1);
+        auto stride  = read_value("stride", 1);
+        auto window  = read_value("lengths", 1);
 
         const auto& mode_v = v.at("mode");
-        std::string mode = mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
+        std::string mode =
+            mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
 
-        auto src = interpolate_string(pooling_kernel, {{"op", mode+"_pool{}"}, {"window", to_string_range(window)}, {"stride", to_string_range(stride)}, {"padding", to_string_range(padding)}});
+        auto src = interpolate_string(pooling_kernel,
+                                      {{"op", mode + "_pool{}"},
+                                       {"window", to_string_range(window)},
+                                       {"stride", to_string_range(stride)},
+                                       {"padding", to_string_range(padding)}});
 
         return compile_hip_code_object(src, options);
     }

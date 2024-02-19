@@ -224,7 +224,7 @@ struct find_gemm_softmax_gemm
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if (not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});

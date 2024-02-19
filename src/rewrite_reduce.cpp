@@ -59,18 +59,24 @@ struct find_reduce_mean_variance
     auto matcher() const
     {
         auto reduce_mean = match::name("reduce_mean");
-        auto x_minus_mean = match::name("sub")(match::arg(0)(match::any().bind("x")), match::arg(1)(match::skip_broadcasts(reduce_mean.bind("mean"))));
-        auto pow_x_minus_mean = match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)));
-        auto mul_x_minus_mean = match::name("mul")(match::arg(0)(x_minus_mean), match::arg(1)(x_minus_mean));
-        auto sqdiff = match::name("sqdiff")(match::either_arg(0, 1)(match::any().bind("x"), skip_broadcasts(reduce_mean.bind("mean"))));
-        return reduce_mean(match::arg(0)(match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff)));
+        auto x_minus_mean =
+            match::name("sub")(match::arg(0)(match::any().bind("x")),
+                               match::arg(1)(match::skip_broadcasts(reduce_mean.bind("mean"))));
+        auto pow_x_minus_mean =
+            match::name("pow")(match::arg(0)(x_minus_mean), match::arg(1)(match::has_value(2.0f)));
+        auto mul_x_minus_mean =
+            match::name("mul")(match::arg(0)(x_minus_mean), match::arg(1)(x_minus_mean));
+        auto sqdiff = match::name("sqdiff")(match::either_arg(0, 1)(
+            match::any().bind("x"), skip_broadcasts(reduce_mean.bind("mean"))));
+        return reduce_mean(
+            match::arg(0)(match::any_of(pow_x_minus_mean, mul_x_minus_mean, sqdiff)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins  = r.result;
+        auto ins   = r.result;
         auto x_ins = r.instructions["x"];
-        auto mean = r.instructions["mean"];
+        auto mean  = r.instructions["mean"];
 
         if(ins->get_operator() != mean->get_operator())
             return;
@@ -78,8 +84,8 @@ struct find_reduce_mean_variance
         if(mean->inputs().front() != x_ins)
             return;
 
-        auto x2 = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
-        auto mean_x2 = m.insert_instruction(ins, mean->get_operator(), x2);
+        auto x2       = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        auto mean_x2  = m.insert_instruction(ins, mean->get_operator(), x2);
         auto mean_x_2 = m.insert_instruction(ins, make_op("mul"), mean, mean);
         m.replace_instruction(ins, make_op("sub"), mean_x2, mean_x_2);
     }
@@ -87,7 +93,10 @@ struct find_reduce_mean_variance
 
 } // namespace
 
-void rewrite_reduce::apply(module& m) const { match::find_matches(m, find_softmax{}, find_reduce_mean_variance{}); }
+void rewrite_reduce::apply(module& m) const
+{
+    match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

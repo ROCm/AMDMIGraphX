@@ -21,28 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+TEST_CASE(hardmax_default_verify_test)
 {
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p = migraphx::parse_onnx("hardmax_default_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    std::vector<std::size_t> input_lens{1, 2, 3, 4};
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, input_lens};
+    std::vector<float> data = {1.2255,  1.6834,  -2.0305, -0.3221, 0.4701,  0.2583, 0.7545, 2.5758,
+                               -1.6849, 0.0928,  0.9022,  -0.8765, -0.4090, 0.9301, 2.0724, -1.5706,
+                               0.4867,  -0.1493, 0.6957,  -0.2179, 0.7142,  0.7177, 0.0183, 1.3497};
 
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(data_shape, data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0,
+                               0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

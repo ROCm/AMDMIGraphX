@@ -21,28 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+TEST_CASE(hardmax_axis_neg_test)
 {
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<std::size_t> input_lens{1, 2, 3, 4};
+    auto input_type = migraphx::shape::half_type;
+    migraphx::shape data_shape{input_type, input_lens};
+    auto input = mm->add_parameter("x", data_shape);
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto indices = mm->add_instruction(migraphx::make_op("argmax", {{"axis", -3}}), input);
+    auto zero_data =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                            mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {0}}));
+    auto updates = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", indices->get_shape().lens()}}),
+        mm->add_literal(migraphx::literal{migraphx::shape{input_type}, {1}}));
+    mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", -3}}), zero_data, indices, updates);
 
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+    auto prog = optimize_onnx("hardmax_axis_neg_test.onnx");
+    EXPECT(p == prog);
+}

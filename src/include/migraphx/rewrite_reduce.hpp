@@ -20,29 +20,25 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
+#define MIGRAPHX_GUARD_SRC_INCLUDE_MIGRAPHX_REWRITE_REDUCE
 
-#include <migraphx/gpu/config.hpp>
+#include <migraphx/config.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
+struct module;
 
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT prefuse_ops
+struct MIGRAPHX_EXPORT rewrite_reduce
 {
-    bool enable_attention = false;
-    std::string name() const { return "gpu::prefuse_ops"; }
-    void apply(module_pass_manager& mpm) const;
+    std::string name() const { return "rewrite_reduce"; }
+    void apply(module& m) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif // MIGRAPHX_GUARD_GPU_PREFUSE_OPS_HPP
+#endif

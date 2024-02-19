@@ -56,7 +56,7 @@ struct resize
     // Selects one of several integer rounding rules for use with Nearest mode.
     //
     // Returns a lambda that returns size_t.
-    auto& get_nearest_op(const std::string& near_mode) const
+    static auto& get_nearest_op(const std::string& near_mode)
     {
         using nearest_op = std::function<std::size_t(std::size_t, double)>;
         static std::unordered_map<std::string, nearest_op> const nearest_ops = {
@@ -93,7 +93,7 @@ struct resize
     // values.  They apply to all modes.
     //
     // Returns a lambda that returns double.
-    const auto& get_original_idx_op(const std::string& s_mode) const
+    static auto& get_original_idx_op(const std::string& s_mode)
     {
         using original_idx_op =
             std::function<double(std::size_t, std::size_t, std::size_t, double)>;
@@ -169,18 +169,13 @@ struct resize
                     "RESIZE: One and only one of sizes or scales attributes must be given");
             if(not sizes.empty())
             {
-                if(not(sizes.size() == input_s.ndim()))
+                if(sizes.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
-                std::vector<size_t> lens;
-                std::transform(sizes.begin(),
-                               sizes.end(),
-                               std::back_inserter(lens),
-                               [](auto in_len) { return static_cast<size_t>(in_len); });
-                return shape{input_s.type(), lens};
+                return shape{input_s.type(), sizes};
             }
             else
             {
-                if(not(scales.size() == input_s.ndim()))
+                if(scales.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: scales attribute's size must match rank of input X");
                 std::vector<size_t> lens;
                 std::transform(scales.begin(),

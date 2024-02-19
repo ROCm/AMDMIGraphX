@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/op/resize.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -31,68 +32,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
-
-const auto& get_nearest_op(const std::string& mode)
-{
-    using nearest_op = std::function<std::size_t(std::size_t, double)>;
-    static std::unordered_map<std::string, nearest_op> const nearest_ops = {
-        {"round_prefer_floor",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::ceil((val - 0.5)));
-         }},
-        {"round_prefer_ceil",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::round((val)));
-         }},
-        {"floor",
-         [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::floor((val)));
-         }},
-        {"ceil", [=](std::size_t d_in, double val) {
-             val = std::max(0.0, std::min(d_in - 1.0, val));
-             return static_cast<std::size_t>(std::ceil((val)));
-         }}};
-
-    if(not contains(nearest_ops, mode))
-    {
-        MIGRAPHX_THROW("PARSE_RESIZE: nearest_mode " + mode + " not supported!");
-    }
-
-    return nearest_ops.at(mode);
-}
-
-const auto& get_original_idx_op(const std::string& mode)
-{
-    using original_idx_op = std::function<double(std::size_t, std::size_t, std::size_t, double)>;
-    static std::unordered_map<std::string, original_idx_op> const idx_ops = {
-        {"half_pixel",
-         [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-             return (idx + 0.5) / scale - 0.5;
-         }},
-        {"pytorch_half_pixel",
-         [=](std::size_t, std::size_t l_out, std::size_t idx, double scale) {
-             return l_out > 1 ? (idx + 0.5) / scale - 0.5 : 0.0;
-         }},
-        {"align_corners",
-         [=](std::size_t l_in, std::size_t l_out, std::size_t idx, double) {
-             return (l_out == 1) ? 0.0 : (1.0 * idx * (l_in - 1.0) / (l_out - 1.0));
-         }},
-        {"asymmetric",
-         [=](std::size_t, std::size_t, std::size_t idx, double scale) { return idx / scale; }},
-        {"tf_half_pixel_for_nn", [=](std::size_t, std::size_t, std::size_t idx, double scale) {
-             return (idx + 0.5) / scale;
-         }}};
-
-    if(not contains(idx_ops, mode))
-    {
-        MIGRAPHX_THROW("PARSE_RESIZE: coordinate_transformation_mode " + mode + " not supported!");
-    }
-
-    return idx_ops.at(mode);
-}
 
 static std::vector<int>
 calc_neighbor_points(const std::vector<std::vector<std::vector<std::size_t>>>& vvv_ind,
@@ -278,9 +217,9 @@ struct parse_resize : op_parser<parse_resize>
         std::vector<int> ind(out_elements);
 
         // map out_idx to in_idx
-        auto nearest_op              = get_nearest_op(nearest_mode);
+        auto nearest_op              = op::resize::get_nearest_op(nearest_mode);
         std::string coord_trans_mode = get_coord_trans_mode(info.attributes);
-        auto idx_op                  = get_original_idx_op(coord_trans_mode);
+        auto idx_op                  = op::resize::get_original_idx_op(coord_trans_mode);
 
         shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
             std::vector<size_t> in_idx(out_idx_v.size());
@@ -316,7 +255,7 @@ struct parse_resize : op_parser<parse_resize>
         // nearest mode
         std::string nearest_mode = get_nearest_mode(info.attributes);
 
-        auto idx_op = get_original_idx_op(coord_trans_mode);
+        auto idx_op = op::resize::get_original_idx_op(coord_trans_mode);
 
         // check exclude_outside, only support 0
         if(contains(info.attributes, "exclude_outside") and
@@ -415,8 +354,8 @@ struct parse_resize : op_parser<parse_resize>
             std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
             auto rsp = info.add_instruction(make_op("reshape", {{"dims", rsp_lens}}), args[0]);
 
-            auto nearest_floor = get_nearest_op("floor");
-            auto nearest_ceil  = get_nearest_op("ceil");
+            auto nearest_floor = op::resize::get_nearest_op("floor");
+            auto nearest_ceil  = op::resize::get_nearest_op("ceil");
 
             // get the number of dimensions
             std::size_t n_dim = out_lens.size();

@@ -185,8 +185,7 @@ TEST_CASE(rnn_test_one_direction)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -197,6 +196,35 @@ TEST_CASE(rnn_test_one_direction)
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         auto prog = optimize_onnx("onnx_rnn_forward.onnx");
+
+        EXPECT(p == prog);
+    }
+
+    // forward, default activation functions
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto seq = mm->add_parameter("seq", seq_shape);
+        auto w   = mm->add_parameter("w", w_shape);
+        auto r   = mm->add_parameter("r", r_shape);
+        auto und = mm->add_instruction(migraphx::make_op("undefined"));
+
+        auto out_hs = mm->add_instruction(
+            migraphx::make_op(
+                "rnn",
+                {{"hidden_size", hs},
+                 {"actv_func",
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
+                 {"clip", clip}}),
+            seq,
+            w,
+            r,
+            und,
+            und,
+            und);
+        mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
+        auto prog = optimize_onnx("rnn_f_default_af_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -215,11 +243,10 @@ TEST_CASE(rnn_test_one_direction)
             migraphx::make_op(
                 "rnn",
                 {{"hidden_size", hs},
-                 {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
-                 {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
-                 {"clip", clip}}),
+                  {"actv_func",
+                   migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
+                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
+                  {"clip", clip}}),
             seq,
             w,
             r,
@@ -232,7 +259,7 @@ TEST_CASE(rnn_test_one_direction)
         EXPECT(p == prog);
     }
 
-    // 3 argumments
+    // 3 arguments
     {
         migraphx::program p;
         auto* mm    = p.get_main_module();
@@ -245,8 +272,7 @@ TEST_CASE(rnn_test_one_direction)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
@@ -261,7 +287,7 @@ TEST_CASE(rnn_test_one_direction)
         EXPECT(p == prog);
     }
 
-    // 5 argumments
+    // 5 arguments
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -278,8 +304,7 @@ TEST_CASE(rnn_test_one_direction)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -330,8 +355,7 @@ TEST_CASE(rnn_test_one_direction_layout)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -370,8 +394,7 @@ TEST_CASE(rnn_test_one_direction_layout)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
@@ -390,7 +413,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         EXPECT(p == prog);
     }
 
-    // 3 argumments
+    // 3 arguments
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -407,8 +430,7 @@ TEST_CASE(rnn_test_one_direction_layout)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
                  {"clip", clip}}),
             seq,
@@ -427,7 +449,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         EXPECT(p == prog);
     }
 
-    // 5 argumments
+    // 5 arguments
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -447,8 +469,7 @@ TEST_CASE(rnn_test_one_direction_layout)
                 "rnn",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{
-                      migraphx::make_op("tanh"), migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::forward)},
                  {"clip", clip}}),
             seq,
@@ -466,6 +487,11 @@ TEST_CASE(rnn_test_one_direction_layout)
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(rnn_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("rnn_bi_1af_test.onnx"); }));
 }
 
 TEST_CASE(gru_test)
@@ -1240,6 +1266,11 @@ TEST_CASE(gru_test_actv_funcs)
     }
 }
 
+TEST_CASE(gru_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gru_f_1af_test.onnx"); }));
+}
+
 TEST_CASE(lstm_forward)
 {
     std::size_t sl   = 5;  // sequence len
@@ -1773,7 +1804,7 @@ TEST_CASE(lstm_forward_actv_func)
         EXPECT(p == prog);
     }
 
-    // 2 activation function specified
+    // 2 non-default activation function specified
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
@@ -2428,6 +2459,7 @@ TEST_CASE(lstm_bi_actv_funcs)
     migraphx::shape sl_shape{migraphx::shape::int32_type, {bs}};
     migraphx::shape ih_shape{migraphx::shape::float_type, {nd, bs, hs}};
     migraphx::shape pph_shape{migraphx::shape::float_type, {nd, 3 * hs}};
+
     // 0 activation function
     {
         migraphx::program p;
@@ -2465,7 +2497,7 @@ TEST_CASE(lstm_bi_actv_funcs)
         EXPECT(p == prog);
     }
 
-    // 1 activation function
+    // all activation functions - sigmoid
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
@@ -2504,7 +2536,7 @@ TEST_CASE(lstm_bi_actv_funcs)
         EXPECT(p == prog);
     }
 
-    // 2 activation functions
+    // all forward direction functions are tanh, default reverse direction
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
@@ -2520,7 +2552,7 @@ TEST_CASE(lstm_bi_actv_funcs)
                 "lstm",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("tanh"),
                                                                       migraphx::make_op("sigmoid"),
@@ -2543,7 +2575,7 @@ TEST_CASE(lstm_bi_actv_funcs)
         EXPECT(p == prog);
     }
 
-    // 4 activation functions
+    // default forward direction, all reverse direction functions are tanh
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
@@ -2578,12 +2610,12 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi4af.onnx");
+        auto prog = optimize_onnx("onnx_lstm_bi3af.onnx");
 
         EXPECT(p == prog);
     }
 
-    // 5 activation functions
+    // no-default forward direction functions, default reverse direction
     {
         migraphx::program p;
         auto* mm     = p.get_main_module();
@@ -2601,13 +2633,12 @@ TEST_CASE(lstm_bi_actv_funcs)
                 "lstm",
                 {{"hidden_size", hs},
                  {"actv_func",
-                  migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("tanh"),
-                                                       migraphx::make_op("tanh"),
-                                                       migraphx::make_op("tanh"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid")})},
+                  migraphx::to_value(std::vector<migraphx::operation>{migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("sigmoid"),
+                                                                      migraphx::make_op("tanh"),
+                                                                      migraphx::make_op("tanh")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip},
                  {"input_forget", input_forget}}),
@@ -2620,12 +2651,12 @@ TEST_CASE(lstm_bi_actv_funcs)
             ic,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi5af.onnx");
+        auto prog = optimize_onnx("onnx_lstm_bi4af.onnx");
 
         EXPECT(p == prog);
     }
 
-    // 6 activation functions
+    // default forward direction, no-default reverse direction functions
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -2657,10 +2688,15 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi6af.onnx");
+        auto prog = optimize_onnx("onnx_lstm_bi5af.onnx");
 
         EXPECT(p == prog);
     }
+}
+
+TEST_CASE(lstm_invalid_af_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("lstm_f_1af_test.onnx"); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

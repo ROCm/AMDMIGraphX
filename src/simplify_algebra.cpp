@@ -1217,9 +1217,9 @@ struct find_unit_ops
         auto div_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(1.0f)));
         auto add_0 = match::name("add")(
-            match::either_arg(0, 1)(match::has_value(0.0f, 1, 0), match::any().bind("x")));
+            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0), match::any().bind("x")));
         auto sub_0 =
-            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 1, 0)));
+            match::name("sub")(match::args(match::any().bind("x"), match::has_value(0.0f, 0, 0)));
         return match::any_of(mul_1, div_1, add_0, sub_0);
     }
 
@@ -1241,7 +1241,7 @@ struct find_neg_unit_ops
         auto div_neg_1 =
             match::name("div")(match::args(match::any().bind("x"), match::has_value(-1.0f)));
         auto sub_0 =
-            match::name("sub")(match::args(match::has_value(0.0f), match::any().bind("x")));
+            match::name("sub")(match::args(match::has_value(0.0f, 0, 0), match::any().bind("x")));
         return match::any_of(mul_neg_1, div_neg_1, sub_0);
     }
 
@@ -1255,14 +1255,44 @@ struct find_neg_unit_ops
     }
 };
 
+struct eliminate_zero_point
+{
+    auto get_qlinear_ops_names() const
+    {
+        static std::unordered_set<std::string> qdq_names = {"quantizelinear", "dequantizelinear"};
+        return qdq_names;
+    }
+    auto matcher() const
+    {
+        return match::name(get_qlinear_ops_names())(match::arg(0)(match::any().bind("x")),
+                                                    match::arg(1)(match::any().bind("scale")),
+                                                    match::arg(2)(match::has_value(0.0f, 0, 0)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x     = r.instructions["x"];
+        auto scale = r.instructions["scale"];
+
+        auto op = ins->get_operator().to_value();
+        if(ins->get_operator().name() == "quantizelinear")
+        {
+            op["out_type"] = to_value(ins->get_shape().type());
+        }
+        auto qdq_ins = m.insert_instruction(ins, migraphx::make_op(ins->name(), op), {x, scale});
+        m.replace_instruction(ins, qdq_ins);
+    }
+};
+
 struct find_zero_ops
 {
     auto matcher() const
     {
         auto mul_zero = match::name("mul")(
-            match::either_arg(0, 1)(match::has_value(0.0f).bind("x"), match::any()));
+            match::either_arg(0, 1)(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
         auto div_zero =
-            match::name("div")(match::args(match::has_value(0.0f).bind("x"), match::any()));
+            match::name("div")(match::args(match::has_value(0.0f, 0, 0).bind("x"), match::any()));
         return match::any_of(mul_zero, div_zero);
     }
 
@@ -1566,6 +1596,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_add{},
                             find_unit_ops{},
                             find_neg_unit_ops{},
+                            eliminate_zero_point{},
                             find_zero_ops{},
                             find_dot_add{},
                             find_conv_add{},

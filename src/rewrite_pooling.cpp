@@ -32,6 +32,8 @@
 
 #include <migraphx/program.hpp>
 
+#include <migraphx/register_op.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -40,10 +42,20 @@ struct window
     std::vector<int64_t> axes    = {};
     std::vector<int64_t> stride  = {};
     std::vector<int64_t> lengths = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"),
+                    f(self.stride, "stride"),
+                    f(self.lengths, "lengths"));
+    }
+
     std::string name() const { return "window"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
+        check_shapes{inputs, *this}.has(1);
         const auto& input = inputs[0];
         auto lens         = input.lens();
         auto strides      = input.strides();
@@ -61,7 +73,10 @@ struct window
         std::transform(axes.begin(), axes.end(), std::back_inserter(strides), [&](auto axis) {
             return input.strides()[axis];
         });
-        return shape{input.type(), lens, strides};
+        shape result{input.type(), lens, strides};
+        if(result.element_space() > input.element_space())
+            MIGRAPHX_THROW("Out of bounds window access");
+        return result;
     }
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
@@ -69,24 +84,34 @@ struct window
         return args[0].reshape(output_shape);
     }
 };
+MIGRAPHX_REGISTER_OP(window);
 
-static void replace_with_reduce(module& m, instruction_ref ins)
+static std::string get_reduce(op::pooling_mode mode)
+{
+    if(mode == op::pooling_mode::average)
+        return "reduce_mean";
+    return "reduce_max";
+}
+
+static void replace_with_reduce(module& m, instruction_ref ins, const op::pooling& op)
 {
     auto&& s  = ins->inputs().front()->get_shape();
-    auto&& op = any_cast<op::pooling>(ins->get_operator());
-    auto lens = s.lens();
-    std::vector<std::int64_t> axes(lens.size() - 2);
+    auto ndim = s.ndim();
+    auto pool_dim = ndim - 2;
+    std::vector<std::int64_t> axes(pool_dim);
     std::iota(axes.begin(), axes.end(), 2);
-
-    // average pooling
-    if(op.mode == op::pooling_mode::average)
+    bool global = std::all_of(axes.begin(), axes.end(), [&](auto axis) { return ins->get_shape().lens()[axis] == 1; });
+    if(global)
     {
-        m.replace_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), ins->inputs());
+        m.replace_instruction(ins, make_op(get_reduce(op.mode), {{"axes", axes}}), ins->inputs());
     }
-    // max pooling
     else
     {
-        m.replace_instruction(ins, make_op("reduce_max", {{"axes", axes}}), ins->inputs());
+        std::vector<std::int64_t> raxes(pool_dim);
+        std::iota(raxes.begin(), raxes.end(), ndim);
+        auto w = m.insert_instruction(ins, make_op("window", {{"axes", axes}, {"stride", op.stride}, {"lengths", op.lengths}}), ins->inputs());
+        auto r = m.insert_instruction(ins, make_op(get_reduce(op.mode), {{"axes", raxes}}), w);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", raxes}}), r);
     }
 }
 
@@ -192,9 +217,9 @@ void rewrite_pooling::apply(module& m) const
             std::all_of(op.padding.cbegin(), op.padding.cend(), [](auto i) { return i == 0; });
         bool default_dilations =
             std::all_of(op.dilations.cbegin(), op.dilations.cend(), [](auto i) { return i == 1; });
-        if(same_kernel_as_shape and default_strides and default_padding and default_dilations)
+        if(default_padding and default_dilations)
         {
-            replace_with_reduce(m, ins);
+            replace_with_reduce(m, ins, op);
         }
         else if(not default_dilations)
         {

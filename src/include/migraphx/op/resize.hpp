@@ -128,7 +128,6 @@ struct resize
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
     std::string nearest_mode{"floor"};
-
     // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
     // Only "nearest" currently supported.
     std::string mode{"nearest"};

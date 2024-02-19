@@ -37,24 +37,24 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct window
 {
-    std::vector<int64_t> axes = {};
-    std::vector<int64_t> stride = {};
+    std::vector<int64_t> axes    = {};
+    std::vector<int64_t> stride  = {};
     std::vector<int64_t> lengths = {};
     std::string name() const { return "window"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         const auto& input = inputs[0];
-        auto lens = input.lens();
-        auto strides = input.strides();
-        for(auto i:range(axes.size()))
+        auto lens         = input.lens();
+        auto strides      = input.strides();
+        for(auto i : range(axes.size()))
         {
-            auto axis = axes[i];
+            auto axis       = axes[i];
             auto win_stride = stride[i];
-            auto win_len = lengths[i];
-            auto& dim = lens[axis];
-            auto& s = strides[axis];
-            dim = ((dim - win_len) / win_stride) + 1;
+            auto win_len    = lengths[i];
+            auto& dim       = lens[axis];
+            auto& s         = strides[axis];
+            dim             = ((dim - win_len) / win_stride) + 1;
             s *= win_stride;
         }
         std::copy(lengths.begin(), lengths.end(), std::back_inserter(lens));

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -169,7 +169,7 @@ struct parse_pad : op_parser<parse_pad>
                                const std::vector<instruction_ref>& args) const
     {
         float value = 0.0f;
-        if(args.size() >= 3 and args.at(2)->get_shape().scalar())
+        if(args.size() >= 3 and args.at(2)->get_shape().scalar() and not args.at(2)->is_undefined())
         {
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())
@@ -177,14 +177,11 @@ struct parse_pad : op_parser<parse_pad>
                 MIGRAPHX_THROW("PARSE_PAD: input `value` must be constant");
             }
             auto val_arg = val_ins->eval();
-            if(val_arg.get_shape().elements() > 1)
+            if(val_arg.get_shape().elements() != 1)
             {
                 MIGRAPHX_THROW("PARSE_PAD: `value` should contain only one element");
             }
-            if(val_arg.get_shape().elements() == 1)
-            {
-                value = val_arg.at<float>();
-            }
+            value = val_arg.at<float>();
         }
         else if(contains(info.attributes, "value"))
         {

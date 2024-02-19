@@ -66,23 +66,8 @@ struct broadcast_with_dims
         auto in_lens = s0.lens();
         std::vector<std::size_t> dims_input(output_shape.ndim());
         args.at(1).visit([&](auto a) { dims_input.assign(a.begin(), a.end()); });
-        auto out_lens = compute_broadcasted_lens(in_lens, dims_input);
-
-        // same code as in multibroadcast
-        if(in_lens.size() > out_lens.size())
-        {
-            MIGRAPHX_THROW("BROADCAST_WITH_DIMS: input dimensions should <= output size");
-        }
-
-        auto offset = out_lens.size() - s0.ndim();
-        for(std::ptrdiff_t i = out_lens.size() - 1; i >= 0; --i)
-        {
-            if(out_lens[i + offset] != in_lens[i] and in_lens[i] != 1)
-            {
-                MIGRAPHX_THROW("BROADCAST_WITH_DIMS: input shape {" + to_string_range(s0.lens()) +
-                               "} cannot be broadcasted to {" + to_string_range(out_lens) + "}!");
-            }
-        }
+        auto out_lens  = compute_broadcasted_lens(in_lens, dims_input);
+        auto offset    = out_lens.size() - s0.ndim();
         auto out_shape = make_bcast_shape(s0, out_lens, offset);
         return args[0].reshape(out_shape);
     }

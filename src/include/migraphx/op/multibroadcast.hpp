@@ -37,7 +37,7 @@ namespace op {
 /**
  * Broadcast multiple dimensions between two tensors.
  * Two versions of this operator: 1 input and 2+ inputs.
- * One input version uses output_lens attribute and broadcasts to it.
+ * One input version uses output_lens attribute and broadcasts with it (misnomer of `output_lens`).
  * 2+ inputs version broadcasts first input to the common shape at evaluation time.
  */
 struct multibroadcast

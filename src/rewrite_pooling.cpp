@@ -46,9 +46,7 @@ struct window
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"),
-                    f(self.stride, "stride"),
-                    f(self.lengths, "lengths"));
+        return pack(f(self.axes, "axes"), f(self.stride, "stride"), f(self.lengths, "lengths"));
     }
 
     std::string name() const { return "window"; }
@@ -96,11 +94,12 @@ static std::string get_reduce(op::pooling_mode mode)
 static void replace_with_reduce(module& m, instruction_ref ins, const op::pooling& op)
 {
     auto&& s  = ins->inputs().front()->get_shape();
-    auto ndim = s.ndim();
+    auto ndim     = s.ndim();
     auto pool_dim = ndim - 2;
     std::vector<std::int64_t> axes(pool_dim);
     std::iota(axes.begin(), axes.end(), 2);
-    bool global = std::all_of(axes.begin(), axes.end(), [&](auto axis) { return ins->get_shape().lens()[axis] == 1; });
+    bool global = std::all_of(
+        axes.begin(), axes.end(), [&](auto axis) { return ins->get_shape().lens()[axis] == 1; });
     if(global)
     {
         m.replace_instruction(ins, make_op(get_reduce(op.mode), {{"axes", axes}}), ins->inputs());
@@ -109,7 +108,10 @@ static void replace_with_reduce(module& m, instruction_ref ins, const op::poolin
     {
         std::vector<std::int64_t> raxes(pool_dim);
         std::iota(raxes.begin(), raxes.end(), ndim);
-        auto w = m.insert_instruction(ins, make_op("window", {{"axes", axes}, {"stride", op.stride}, {"lengths", op.lengths}}), ins->inputs());
+        auto w = m.insert_instruction(
+            ins,
+            make_op("window", {{"axes", axes}, {"stride", op.stride}, {"lengths", op.lengths}}),
+            ins->inputs());
         auto r = m.insert_instruction(ins, make_op(get_reduce(op.mode), {{"axes", raxes}}), w);
         m.replace_instruction(ins, make_op("squeeze", {{"axes", raxes}}), r);
     }

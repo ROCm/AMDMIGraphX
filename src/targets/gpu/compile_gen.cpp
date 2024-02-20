@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/prepare_reduce.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -257,7 +258,10 @@ void reduce_op::set(instruction_ref ins, const operation& op)
 std::string reduce_op::generate(instruction_ref ins, const std::string& x)
 {
     reduce_op r{x};
-    r.set(ins, ins->get_operator());
+    auto op = ins->get_operator();
+    if (op.name() == "gpu::parallel_reduce")
+        op = from_value<operation>(ins->get_operator().to_value().at("op"));
+    r.set(ins, op);
     return r.str();
 }
 
@@ -285,7 +289,7 @@ void preload_params(module& m)
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
-    run_passes(m, {optimize_module{}});
+    run_passes(m, {prepare_reduce{}, optimize_module{}});
     m.sort();
     cpp_generator g;
     auto param_shapes = m.get_parameter_shapes();
@@ -298,7 +302,7 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
-            return reduce_op::generate(ins, names.at(ins->inputs().front()));
+            return reduce_op::generate(ins, join_strings(cpp_generator::to_args(ins->inputs(), names), ", "));
         }
         else if(ins->name() == "pointwise")
         {
@@ -345,6 +349,12 @@ std::string generate_reduce(module m, const std::string& name)
         else if(ins->name() == "multibroadcast")
         {
             return names.at(ins->inputs().front());
+        }
+        else if(ins->name() == "get_tuple_elem")
+        {
+            const auto& x = names.at(ins->inputs().front());
+            auto index = ins->get_operator().to_value()["index"].to<std::size_t>();
+            return interpolate_string("${x}[${index}]", {{"x", x}, {"index", std::to_string(index)}});
         }
         else if(ins->name() == "identity")
         {

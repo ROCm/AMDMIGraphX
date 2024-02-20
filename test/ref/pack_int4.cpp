@@ -41,7 +41,7 @@ TEST_CASE(pack_int4)
     auto result = p.eval({}).back();
     std::vector<uint8_t> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA), static_cast<uint8_t>(0xDC)};
+    std::vector<uint8_t> gold{0xBA, 0xDC};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -56,7 +56,7 @@ TEST_CASE(pack_int4_transposed)
     auto result = p.eval({}).back();
     std::vector<uint8_t> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA), static_cast<uint8_t>(0xDC)};
+    std::vector<uint8_t> gold{0xBA, 0xDC};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -72,14 +72,7 @@ TEST_CASE(pack_int4_broadcasted)
     auto result = p.eval({}).back();
     std::vector<uint8_t> results_vector(8);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> gold{static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC),
-                              static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC),
-                              static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC),
-                              static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC)};
+    std::vector<uint8_t> gold{0xBA, 0xDC, 0xBA, 0xDC, 0xBA, 0xDC, 0xBA, 0xDC};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -94,7 +87,7 @@ TEST_CASE(pack_int4_axis_0)
     auto result = p.eval({}).back();
     std::vector<uint8_t> results_vector(2);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> gold{static_cast<uint8_t>(0xCA), static_cast<uint8_t>(0xDB)};
+    std::vector<uint8_t> gold{0xCA, 0xDB};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
@@ -114,21 +107,21 @@ TEST_CASE(pack_int4_nchw)
     auto result = p.eval({}).back();
     std::vector<uint8_t> results_vector(16);
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> gold{static_cast<uint8_t>(0x10),
-                              static_cast<uint8_t>(0x32),
-                              static_cast<uint8_t>(0x54),
-                              static_cast<uint8_t>(0x76),
-                              static_cast<uint8_t>(0x98),
-                              static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC),
-                              static_cast<uint8_t>(0xFE),
-                              static_cast<uint8_t>(0x10),
-                              static_cast<uint8_t>(0x32),
-                              static_cast<uint8_t>(0x54),
-                              static_cast<uint8_t>(0x76),
-                              static_cast<uint8_t>(0x98),
-                              static_cast<uint8_t>(0xBA),
-                              static_cast<uint8_t>(0xDC),
-                              static_cast<uint8_t>(0xFE)};
+    std::vector<uint8_t> gold{0x10,
+                              0x32,
+                              0x54,
+                              0x76,
+                              0x98,
+                              0xBA,
+                              0xDC,
+                              0xFE,
+                              0x10,
+                              0x32,
+                              0x54,
+                              0x76,
+                              0x98,
+                              0xBA,
+                              0xDC,
+                              0xFE};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

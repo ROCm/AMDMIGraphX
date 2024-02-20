@@ -34,6 +34,8 @@ template <class T>
 T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
+    if(not is.is_open())
+        MIGRAPHX_THROW("Failure opening file: " + filename);
     if(nbytes == 0)
     {
         // if there is a non-zero offset and nbytes is not set,
@@ -68,6 +70,7 @@ void write_buffer(const fs::path& filename, const char* buffer, std::size_t size
     std::ofstream os(filename, std::ios::out | std::ios::binary);
     os.write(buffer, size);
 }
+
 void write_buffer(const fs::path& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());

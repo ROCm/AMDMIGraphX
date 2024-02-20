@@ -40,6 +40,11 @@ namespace op {
  * `input_tensor` must be broadcastable with `dims`, otherwise this operator with throw at compute.
  * This operator can be replaced with `multibroadcast(input_tensor)` if the `dims` vector is
  * constant.
+ *
+ * Example:
+ *  input_tensor shape: lens = {2, 3}, strides = {3, 1}
+ *  dims = [4, 1, 3]
+ *  output shape: lens = {4, 2, 3}, strides = {0, 3, 1}
  */
 struct broadcast_with_dims
 {

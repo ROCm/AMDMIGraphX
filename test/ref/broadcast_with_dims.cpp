@@ -112,3 +112,22 @@ TEST_CASE(broadcast_with_dims_dyn)
     EXPECT(output(1, 0) == -3);
     EXPECT(output(1, 1) == 3);
 }
+
+TEST_CASE(broadcast_with_dims_mismatch)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape dims_shape{migraphx::shape::int64_type, {1}};
+    auto input_param = mm->add_parameter("x", input_shape);
+    auto dims_param  = mm->add_parameter("dims", dims_shape);
+    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), input_param, dims_param);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data{3, 9};
+    std::vector<int64_t> dims_data{6};
+    migraphx::parameter_map params;
+    params["x"]    = migraphx::argument(input_shape, input_data.data());
+    params["dims"] = migraphx::argument(dims_shape, dims_data.data());
+    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
+}

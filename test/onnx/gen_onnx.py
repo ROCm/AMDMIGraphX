@@ -2196,6 +2196,19 @@ def expand_test():
     return ([shape_const, node], [x], [y])
 
 
+@onnx_test()
+def expand_dyn_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 1])
+    dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Expand',
+                                 inputs=['x', 'dims'],
+                                 outputs=['y'])
+
+    return ([node], [x, dims_in], [y])
+
+
 @onnx_test(True)
 def external_constant_test():
     x = np.array([0, 1, 2])

@@ -278,7 +278,7 @@ struct parse_resize : op_parser<parse_resize>
         // bool is_scale_input{true};
         instruction_ref scales_sizes_arg(args[0]);
 
-        //  boolean indicates whether the size of the output can be determined
+        // boolean indicates whether the size of the output can be determined
         // at compile time, i.e. its values come from literal input(s) and have
         // no dependencies anywhere in the graph on runtime inputs.
         bool is_constant_scale_input(not vec_scale.empty());
@@ -292,7 +292,6 @@ struct parse_resize : op_parser<parse_resize>
 
         if(is_constant_scale_input)
         {
-            // TODO:  How to make a test case where the scale input is not constant?
             if(in_lens.size() != vec_scale.size())
             {
                 MIGRAPHX_THROW("PARSE_" + opd.op_name +

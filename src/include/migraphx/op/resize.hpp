@@ -284,7 +284,6 @@ struct resize
 
         shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
-        // TODO: there could be ways to optimize this function map--is it worth it?
         auto nearest_op = get_nearest_op(nearest_mode);
         auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
 

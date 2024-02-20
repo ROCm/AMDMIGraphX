@@ -80,10 +80,11 @@ struct find_multi_reduce
             });
             auto op        = (*start)->get_operator();
             auto insertion = std::next(ins);
-            for(auto input:inputs)
+            for(auto input : inputs)
             {
                 if(input == ins)
-                    continue;;
+                    continue;
+                ;
                 m.move_instruction(input, insertion);
             }
             auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);

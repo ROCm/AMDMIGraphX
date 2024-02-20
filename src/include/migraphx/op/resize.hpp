@@ -168,18 +168,13 @@ struct resize
                     "RESIZE: One and only one of sizes or scales attributes must be given");
             if(not sizes.empty())
             {
-                if(not(sizes.size() == input_s.ndim()))
+                if(sizes.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
-                std::vector<size_t> lens;
-                std::transform(sizes.begin(),
-                               sizes.end(),
-                               std::back_inserter(lens),
-                               [](auto in_len) { return static_cast<size_t>(in_len); });
-                return shape{input_s.type(), lens};
+                return shape{input_s.type(), sizes};
             }
             else
             {
-                if(not(scales.size() == input_s.ndim()))
+                if(scales.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: scales attribute's size must match rank of input X");
                 std::vector<size_t> lens;
                 std::transform(scales.begin(),
@@ -293,7 +288,6 @@ struct resize
 
         shape output_shape = {args[0].get_shape().type(), out_lens};
         argument result{output_shape};
-        // TODO: there could be ways to optimize this function map--is it worth it?
         auto nearest_op = get_nearest_op(nearest_mode);
         auto idx_op     = get_original_idx_op(coordinate_transformation_mode);
 

@@ -26,6 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -86,26 +87,14 @@ struct find_reduce_mean
         auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
         if(is_integral)
         {
-            auto out_lens = reduce_mean->get_shape().lens();
-            for(const auto axis : axes)
-            {
-                auto norm_axis      = axis < 0 ? out_lens.size() + axis : axis;
-                out_lens[norm_axis] = 1;
-            }
-
             auto reduce_sum =
                 m.insert_instruction(reduce_mean, make_op("reduce_sum", {{"axes", axes}}), input);
-            auto n_bcast = m.insert_instruction(
-                reduce_mean, make_op("multibroadcast", {{"out_lens", out_lens}}), n_literal);
-            auto div = m.insert_instruction(reduce_mean, make_op("div"), {reduce_sum, n_bcast});
+            auto div = insert_common_op(m, reduce_mean, make_op("div"), {reduce_sum, n_literal});
             m.replace_instruction(reduce_mean, div);
         }
         else
         {
-            auto n_bcast = m.insert_instruction(
-                reduce_mean, make_op("multibroadcast", {{"out_lens", dims}}), n_literal);
-            auto new_input = m.insert_instruction(reduce_mean, make_op("div"), {input, n_bcast});
-
+            auto new_input  = insert_common_op(m, reduce_mean, make_op("div"), {input, n_literal});
             auto reduce_sum = m.insert_instruction(
                 reduce_mean, make_op("reduce_sum", {{"axes", axes}}), new_input);
             m.replace_instruction(reduce_mean, reduce_sum);

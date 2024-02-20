@@ -75,22 +75,17 @@ struct unpack_int4
     {
         argument result{output_shape};
         auto in_shape = args.front().get_shape();
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            if constexpr(std::is_same<type, uint8_t>{})
-            {
-                auto input = args[0].get<uint8_t>();
-                par_for(in_shape.elements(), [&](auto i) {
-                    auto data_idx           = in_shape.multi(i);
-                    auto out_data_multi_idx = data_idx;
-                    out_data_multi_idx[axis] *= 2;
-                    auto input_val = input[data_idx];
-                    // mask first 4 bits, packing is assumed to be little endian
-                    output[out_data_multi_idx] = static_cast<uint8_t>(0x0F) & input_val;
-                    out_data_multi_idx[axis] += 1;
-                    output[out_data_multi_idx] = input_val >> 4; // NOLINT
-                });
-            }
+        auto input    = args.at(0).get<uint8_t>();
+        auto output   = result.get<uint8_t>();
+        par_for(in_shape.elements(), [&](auto i) {
+            auto data_idx           = in_shape.multi(i);
+            auto out_data_multi_idx = data_idx;
+            out_data_multi_idx[axis] *= 2;
+            auto input_val = input[data_idx];
+            // mask first 4 bits, packing is assumed to be little endian
+            output[out_data_multi_idx] = uint8_t(0x0F) & input_val;
+            out_data_multi_idx[axis] += 1;
+            output[out_data_multi_idx] = input_val >> 4; // NOLINT
         });
         return result;
     }

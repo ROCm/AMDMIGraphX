@@ -24,6 +24,7 @@
 # This script generates onnx files for MIGraphX onnx operator tests.
 # To generate an individual onnx file, you can use the following
 # command: python3 -c "import gen_onnx; gen_onnx.{test_name}_test()"
+import math
 import numpy as np
 import onnx
 from onnx import helper
@@ -2516,6 +2517,28 @@ def gathernd_batch_dims_test():
     )
 
     return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gelu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        "Gelu", inputs=["x"], outputs=["y"], approximate="tanh"
+    )
+
+    return ([node], [x], [y])
 
 
 @onnx_test()

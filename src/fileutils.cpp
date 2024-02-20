@@ -21,57 +21,49 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/compile_src.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/tmp_dir.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/errors.hpp>
+
 #include <migraphx/fileutils.hpp>
-#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
+#ifdef _WIN32
+constexpr std::string_view executable_postfix{".exe"};
+constexpr std::string_view library_prefix{""};
+constexpr std::string_view library_postfix{".dll"};
+constexpr std::string_view static_library_postfix{".lib"};
+constexpr std::string_view object_file_postfix{".obj"};
+#else
+constexpr std::string_view executable_postfix{""};
+constexpr std::string_view library_prefix{"lib"};
+constexpr std::string_view library_postfix{".so"};
+constexpr std::string_view static_library_postfix{".a"};
+constexpr std::string_view object_file_postfix{".o"};
+#endif
+
+fs::path make_executable_filename(std::string_view name)
 {
-    assert(not srcs.empty());
-    tmp_dir td{"compile"};
-    auto params = flags;
+    return std::string{name}.append(executable_postfix);
+}
 
-    params += " -I.";
+fs::path make_shared_object_filename(std::string_view name)
+{
+    return std::string{library_prefix}.append(name).append(library_postfix);
+}
 
-    auto out = output;
+fs::path make_object_file_filename(std::string_view name)
+{
+    return std::string{name}.append(object_file_postfix);
+}
 
-    for(const auto& src : srcs)
-    {
-        fs::path full_path   = td.path / src.path;
-        fs::path parent_path = full_path.parent_path();
-        fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.data(), src.content.size());
-        if(src.path.extension().string() == ".cpp")
-        {
-            params += " " + src.path.filename().string();
-            if(out.empty())
-                out = src.path.stem().string() + out_ext;
-        }
-    }
+fs::path make_static_library_filename(std::string_view name)
+{
+    return std::string{library_prefix}.append(name).append(static_library_postfix);
+}
 
-    params += " -o " + out;
-
-    if(not launcher.empty())
-    {
-        td.execute(launcher, compiler + " " + params);
-    }
-    else
-    {
-        td.execute(compiler, params);
-    }
-
-    auto out_path = td.path / out;
-    if(not fs::exists(out_path))
-        MIGRAPHX_THROW("Output file missing: " + out);
-
-    return read_buffer(out_path.string());
+fs::path append_extension(const fs::path& path, std::string_view ext)
+{
+    return fs::path{path}.replace_extension(path.extension().string().append(ext));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

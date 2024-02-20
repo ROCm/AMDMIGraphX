@@ -85,7 +85,7 @@ TEST_CASE(append_to_string)
 
 TEST_CASE(append_file_extension)
 {
-    auto name = fs::path{baze_name}.replace_extension(txt);
+    auto name    = fs::path{baze_name}.replace_extension(txt);
     auto updated = migraphx::MIGRAPHX_INLINE_NS::append_extension(name, bz2);
     EXPECT(updated == std::string{baze_name}.append(txt).append(bz2));
 }

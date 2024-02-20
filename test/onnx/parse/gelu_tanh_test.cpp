@@ -27,21 +27,34 @@
 TEST_CASE(gelu_tanh_test)
 {
     migraphx::program p;
-    auto shape      = migraphx::shape{migraphx::shape::float_type, {3}};
+    auto type       = migraphx::shape::float_type;
+    auto lens       = {3};
+    auto shape      = migraphx::shape{type, lens};
     auto* mm        = p.get_main_module();
     auto x          = mm->add_parameter("x", shape);
-    auto fit_const  = mm->add_literal(migraphx::literal{shape, {0.044708251953125}});
-    auto sqrt_2_rpi = mm->add_literal(migraphx::literal{shape, {0.7978515625}});
-    auto one        = mm->add_literal(migraphx::literal{shape, {1.0f}});
-    auto one_half   = mm->add_literal(migraphx::literal{shape, {0.5f}});
-    auto three      = mm->add_literal(migraphx::literal{shape, {3.0f}});
-    auto pow0       = mm->add_instruction(migraphx::make_op("pow"), {x, three});
-    auto mul0       = mm->add_instruction(migraphx::make_op("mul"), {pow0, fit_const});
-    auto add0       = mm->add_instruction(migraphx::make_op("add"), {mul0, x});
-    auto mul1       = mm->add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi});
-    auto tanh0      = mm->add_instruction(migraphx::make_op("tanh"), mul1);
-    auto add1       = mm->add_instruction(migraphx::make_op("add"), {tanh0, one});
-    auto mul2       = mm->add_instruction(migraphx::make_op("mul"), {x, one_half});
+    auto fit_const  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.044715f}});
+    auto sqrt_2_rpi = mm->add_literal(
+        migraphx::literal{migraphx::shape{type}, {static_cast<float>(sqrt(M_2_PI))}});
+    auto one   = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+    auto half  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
+    auto three = mm->add_literal(migraphx::literal{migraphx::shape{type}, {3.0f}});
+    auto three_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), three);
+    auto pow0 = mm->add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
+    auto fit_const_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), fit_const);
+    auto mul0 = mm->add_instruction(migraphx::make_op("mul"), {pow0, fit_const_mbcast});
+    auto add0 = mm->add_instruction(migraphx::make_op("add"), {mul0, x});
+    auto sqrt_2_rpi_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), sqrt_2_rpi);
+    auto mul1  = mm->add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi_mbcast});
+    auto tanh0 = mm->add_instruction(migraphx::make_op("tanh"), mul1);
+    auto one_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), one);
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), {tanh0, one_mbcast});
+    auto half_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), half);
+    auto mul2 = mm->add_instruction(migraphx::make_op("mul"), {x, half_mbcast});
     mm->add_instruction(migraphx::make_op("mul"), {add1, mul2});
 
     auto prog = optimize_onnx("gelu_tanh_test.onnx");

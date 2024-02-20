@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fileutils.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -30,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbytes = 0)
+T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes = 0)
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(nbytes == 0)
@@ -52,22 +53,22 @@ T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbyte
     return buffer;
 }
 
-std::vector<char> read_buffer(const std::string& filename, size_t offset, size_t nbytes)
+std::vector<char> read_buffer(const fs::path& filename, size_t offset, size_t nbytes)
 {
     return generic_read_file<std::vector<char>>(filename, offset, nbytes);
 }
 
-std::string read_string(const std::string& filename)
+std::string read_string(const fs::path& filename)
 {
     return generic_read_file<std::string>(filename);
 }
 
-void write_buffer(const std::string& filename, const char* buffer, std::size_t size)
+void write_buffer(const fs::path& filename, const char* buffer, std::size_t size)
 {
-    std::ofstream os(filename);
+    std::ofstream os(filename, std::ios::out | std::ios::binary);
     os.write(buffer, size);
 }
-void write_buffer(const std::string& filename, const std::vector<char>& buffer)
+void write_buffer(const fs::path& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }

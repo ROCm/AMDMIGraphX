@@ -42,39 +42,39 @@ __device__ void dpp_reduce(T& in, Op op)
     if constexpr(SubWaveSize > 1)
     {
         auto out = dpp_mov<dpp_row_shr(1)>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
     if constexpr(SubWaveSize > 2)
     {
         auto out = dpp_mov<dpp_row_shr(2)>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
     if constexpr(SubWaveSize > 4)
     {
         auto out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
     if constexpr(SubWaveSize > 8)
     {
         auto out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
 #if __AMDGCN_WAVEFRONT_SIZE == 32
     if constexpr(SubWaveSize > 16)
     {
         auto out = dpp_swizzle<0x1e0>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
 #else
     if constexpr(SubWaveSize > 16)
     {
         auto out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
     if constexpr(SubWaveSize > 32)
     {
         auto out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
-        in  = op(in, out);
+        in       = op(in, out);
     }
 #endif
 }

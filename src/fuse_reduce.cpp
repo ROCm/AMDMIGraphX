@@ -192,27 +192,29 @@ static void create_reduce_modules(module_pass_manager& mpm)
 namespace {
 MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
 {
-    if (ins->outputs().size() == 1)
+    if(ins->outputs().size() == 1)
         return true;
-    if (ins->outputs().size() == 2)
+    if(ins->outputs().size() == 2)
     {
-        auto non_broadcast = std::find_if(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
-            return not contains(output->name(), "broadcast");
-        });
-        if (non_broadcast == ins->outputs().end())
+        auto non_broadcast =
+            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
+                return not contains(output->name(), "broadcast");
+            });
+        if(non_broadcast == ins->outputs().end())
             return false;
-        return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
-            if(not contains(output->name(), "broadcast"))
-                return true;
-            if (output->outputs().size() != 1)
-                return true;
-            return output->outputs().front() != *non_broadcast;
-        });
+        return std::count_if(
+            ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+                if(not contains(output->name(), "broadcast"))
+                    return true;
+                if(output->outputs().size() != 1)
+                    return true;
+                return output->outputs().front() != *non_broadcast;
+            });
     }
 
     return false;
 }
-}
+} // namespace
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {

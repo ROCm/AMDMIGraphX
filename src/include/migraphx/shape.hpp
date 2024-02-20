@@ -404,6 +404,7 @@ struct MIGRAPHX_EXPORT shape
      * Returns the number of elements in the data buffer.
      * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
      * is packed.
+     * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
 

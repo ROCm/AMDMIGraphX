@@ -65,10 +65,7 @@ struct test_gru_bidirct_default_actv1 : verify_program<test_gru_bidirct_default_
                 {{"hidden_size", hidden_size},
                  {"actv_func",
                   migraphx::to_value(
-                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid"),
-                                                       migraphx::make_op("sigmoid")})},
+                      std::vector<migraphx::operation>{migraphx::make_op("sigmoid")})},
                  {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
                  {"clip", clip}}),
             seq,

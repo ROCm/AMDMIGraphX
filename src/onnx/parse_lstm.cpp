@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,81 +38,9 @@ void lstm_actv_functions(op::rnn_direction dirct, std::vector<std::string>& actv
     // need 6 activation functions for bidirectional directions
     if(dirct == op::rnn_direction::bidirectional)
     {
-        // 6 activation functions are used in the bidirectional
-        // scenario. No spec is provided in onnx::operator. we
-        // use the algorithm that: if 1 actv function is provided,
-        // repeat 1st six times. If 2 actv functins are provided,
-        // repeat 2nd once, then repeat all three once
-        // if 3 actv funcs are provide, repeat all three once.
-        // the same algorithm is used for 4, 5, and 6 actv funcions
-        // provided. This may need change later
-        switch(actv_func_names.size())
-        {
-        case 1:
-            actv_func_names = {actv_func_names.at(0),
-                               actv_func_names.at(0),
-                               actv_func_names.at(0),
-                               actv_func_names.at(0),
-                               actv_func_names.at(0),
-                               actv_func_names.at(0)};
-            break;
-
-        case 2:
-            // repeat the 2nd actv func once, then repeat all three another time
-            actv_func_names = {actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(1),
-                               actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(1)};
-            break;
-
-        case 3:
-            // repeat all three actv funcs once
-            actv_func_names = {actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(2),
-                               actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(2)};
-            break;
-
-        case 4:
-            actv_func_names = {actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(2),
-                               actv_func_names.at(3),
-                               actv_func_names.at(3),
-                               actv_func_names.at(3)};
-            break;
-
-        case 5:
-            actv_func_names = {actv_func_names.at(0),
-                               actv_func_names.at(1),
-                               actv_func_names.at(2),
-                               actv_func_names.at(3),
-                               actv_func_names.at(4),
-                               actv_func_names.at(4)};
-            break;
-
-        default: break;
-        }
-    }
-    else
-    {
-        switch(actv_func_names.size())
-        {
-        case 1:
-            actv_func_names = {actv_func_names.at(0), actv_func_names.at(0), actv_func_names.at(0)};
-            break;
-
-        case 2:
-            // repeat the 2nd actv func once, so we have 3 actv funcs
-            actv_func_names = {actv_func_names.at(0), actv_func_names.at(1), actv_func_names.at(1)};
-            break;
-
-        default: break;
-        }
+        actv_func_names.push_back(actv_func_names.at(0));
+        actv_func_names.push_back(actv_func_names.at(1));
+        actv_func_names.push_back(actv_func_names.at(2));
     }
 }
 
@@ -194,7 +122,10 @@ struct parse_lstm : op_parser<parse_lstm>
             MIGRAPHX_THROW("LSTM: incorrect direction attribute");
         }
 
+        // set default activation functions
         std::vector<std::string> vec_names = {"sigmoid", "tanh", "tanh"};
+        lstm_actv_functions(dirct, vec_names);
+
         if(contains(info.attributes, "activations"))
         {
             auto names = info.attributes.at("activations").strings();
@@ -205,7 +136,12 @@ struct parse_lstm : op_parser<parse_lstm>
             });
         }
 
-        lstm_actv_functions(dirct, vec_names);
+        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 6 : 3;
+        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        {
+            MIGRAPHX_THROW("LSTM: Invalid activation functions number, should be: " +
+                           to_string(num_actv_functions));
+        }
 
         auto name_it = std::find_if(vec_names.begin(), vec_names.end(), [&](auto& name) {
             return (map_activation_functions().count(name) == 0);

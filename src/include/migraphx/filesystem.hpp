@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,18 +63,6 @@
 #else
 #error "No filesystem include available"
 #endif
-
-// NOLINTBEGIN
-#ifdef _WIN32
-#define MIGRAPHX_EXE_POSTFIX ".exe"
-#define MIGRAPHX_LIB_PREFIX ""
-#define MIGRAPHX_LIB_POSTFIX ".dll"
-#else
-#define MIGRAPHX_EXE_POSTFIX ""
-#define MIGRAPHX_LIB_PREFIX "lib"
-#define MIGRAPHX_LIB_POSTFIX ".so"
-#endif
-// NOLINTEND
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

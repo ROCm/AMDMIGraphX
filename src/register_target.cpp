@@ -26,6 +26,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/fileutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,7 +57,7 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        std::string target_name = MIGRAPHX_LIB_PREFIX "migraphx_" + name + MIGRAPHX_LIB_POSTFIX;
+        auto target_name = make_shared_object_filename("migraphx_" + name);
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

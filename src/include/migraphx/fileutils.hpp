@@ -21,47 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
 
-#include <migraphx/config.hpp>
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
+
 #include <migraphx/filesystem.hpp>
-#include <functional>
-#include <string>
-#include <utility>
-#include <vector>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct src_file
-{
-    fs::path path;
-    std::string_view content;
+MIGRAPHX_EXPORT fs::path make_executable_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_shared_object_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
 
-    src_file() = default;
-    src_file(fs::path file_path, std::string_view file_content)
-        : path{std::move(file_path)}, content{file_content}
-    {
-    }
+inline std::string operator+(std::string l, const fs::path& r) { return std::move(l) + r.string(); }
 
-    explicit src_file(const std::pair<std::string_view, std::string_view>& pair)
-        : path{pair.first}, content{pair.second}
-    {
-    }
-};
-
-struct MIGRAPHX_EXPORT src_compiler
-{
-    std::string compiler                      = "c++";
-    std::vector<std::string> flags            = {};
-    fs::path output                           = {};
-    std::string launcher                      = "";
-    std::string out_ext                       = ".o";
-    std::function<fs::path(fs::path)> process = nullptr;
-    std::vector<char> compile(const std::vector<src_file>& srcs) const;
-};
+inline std::string operator+(const fs::path& l, std::string r) { return l.string() + std::move(r); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
+
+#endif // MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP

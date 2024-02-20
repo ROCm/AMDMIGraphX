@@ -45,7 +45,4 @@
 #define MIGRAPHX_PP_REPEAT(n, m, ...) \
     MIGRAPHX_PP_PRIMITIVE_CAT(MIGRAPHX_PP_REPEAT, n)(m, __VA_ARGS__)
 
-namespace migraphx {
-
-} // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_PP_HPP

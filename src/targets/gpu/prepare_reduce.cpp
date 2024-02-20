@@ -36,6 +36,8 @@ namespace {
 
 optional<instruction_ref> get_reduce(instruction_ref ins)
 {
+    if (ins->name() == "gpu::parallel_reduce")
+        return nullopt;
     if(contains(ins->name(), "reduce"))
         return ins;
     if(ins->name() == "pointwise")
@@ -66,6 +68,8 @@ struct find_multi_reduce
         std::vector<instruction_ref> reduces;
         for(auto output : ins->outputs())
         {
+            if (output->outputs().empty())
+                continue;
             auto reduce = get_reduce(output);
             if(reduce.has_value())
                 reduces.push_back(*reduce);
@@ -89,9 +93,9 @@ struct find_multi_reduce
             auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);
             int i        = 0;
             std::for_each(start, last, [&](auto reduce) {
-                auto elem = m.insert_instruction(
-                    insertion, make_op("get_tuple_elem", {{"index", i}}), preduce);
-                m.replace_instruction(reduce, elem);
+                m.replace_instruction(
+                    reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
+                i++;
             });
         };
 
@@ -105,9 +109,7 @@ struct find_multi_reduce
 
 void prepare_reduce::apply(module& m) const
 {
-    m.debug_print();
     match::find_matches(m, find_multi_reduce{});
-    m.debug_print();
 }
 
 } // namespace gpu

@@ -289,7 +289,7 @@ void preload_params(module& m)
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
-    run_passes(m, {prepare_reduce{}, optimize_module{}});
+    run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
     cpp_generator g;
     auto param_shapes = m.get_parameter_shapes();

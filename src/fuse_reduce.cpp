@@ -189,6 +189,30 @@ static void create_reduce_modules(module_pass_manager& mpm)
     }
 }
 
+namespace {
+MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
+{
+    if (ins->outputs().size() == 1)
+        return true;
+    if (ins->outputs().size() == 2)
+    {
+        auto non_broadcast = std::find_if(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
+            return not contains(output->name(), "broadcast");
+        });
+        if (non_broadcast == ins->outputs().end())
+            return false;
+        return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+            if(not contains(output->name(), "broadcast"))
+                return true;
+            if (output->outputs().size() != 1)
+                return true;
+            return output->outputs().front() != *non_broadcast;
+        });
+    }
+
+    return false;
+}
+}
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
@@ -204,7 +228,7 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
-    auto match_op                 = match::name(op)(match::used_once()).bind(name);
+    auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
     return match::any_of(match_op_input, broadcast_match_op_input);

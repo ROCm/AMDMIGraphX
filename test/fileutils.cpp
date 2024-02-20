@@ -79,7 +79,7 @@ TEST_CASE(append_to_string)
     std::string prefix{baze_name};
     auto s1 = prefix + separator + cwd;
     EXPECT(s1 == prefix + separator + cwd.string());
-    auto s2 = cwd + separator + prefix;
+    auto s2 = cwd + std::string{separator} + prefix;
     EXPECT(s2 == cwd.string() + separator + prefix);
 }
 

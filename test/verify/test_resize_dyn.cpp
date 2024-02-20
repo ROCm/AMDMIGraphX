@@ -27,18 +27,13 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape.hpp>
-// template <migraphx::shape::type_t DType>
-// struct test_resize_dyn : verify_program<test_resize_dyn<DType>>
 
-//  TODO:  is this template correct for this test, or the one above?  Unknown error that the test
-//    isn't found if I use the above template.
 struct test_resize_dyn : verify_program<test_resize_dyn>
 {
     // TODO:  This test causes an assertion failure in propagate_constant.cpp.  Need to find
     //    out why.
     migraphx::program create_program() const
     {
-
         // matcher/optimized code should produce the same result as Resize op.
         migraphx::program p;
         auto* mm = p.get_main_module();
@@ -62,4 +57,32 @@ struct test_resize_dyn : verify_program<test_resize_dyn>
         return p;
     };
 };
-// template struct test_resize_dyn<migraphx::shape::float_type>;
+
+struct test_resize_dyn_scale : verify_program<test_resize_dyn_scale>
+{
+    // A Resize op. taking input scales instead of sizes
+    migraphx::program create_program() const
+    {
+        // matcher/optimized code should produce the same result as Resize op.
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {1, 1}, {3, 3}, {3, 3}}};
+        auto a0 = mm->add_parameter("a0", s);
+        migraphx::shape scale_input{migraphx::shape::float_type, {4}};
+        std::vector<float> scale_values = {1., 1., 5.00/3, 8.00/3};
+        auto a1                      = mm->add_literal(migraphx::literal{scale_input, scale_values});
+
+        // a0 = input data
+        // a1 = scales of output
+        // non-matching sizes/scales attributes are ignored for 2 input arguments
+        auto resize_ins = mm->add_instruction(
+            migraphx::make_op(
+                "resize",
+                {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "half_pixel"}}),
+            a0,
+            a1);
+        mm->add_return({resize_ins});
+        return p;
+    };
+};

@@ -259,7 +259,7 @@ std::string reduce_op::generate(instruction_ref ins, const std::string& x)
 {
     reduce_op r{x};
     auto op = ins->get_operator();
-    if (op.name() == "gpu::parallel_reduce")
+    if(op.name() == "gpu::parallel_reduce")
         op = from_value<operation>(ins->get_operator().to_value().at("op"));
     r.set(ins, op);
     return r.str();
@@ -302,7 +302,8 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
-            return reduce_op::generate(ins, join_strings(cpp_generator::to_args(ins->inputs(), names), ", "));
+            return reduce_op::generate(
+                ins, join_strings(cpp_generator::to_args(ins->inputs(), names), ", "));
         }
         else if(ins->name() == "pointwise")
         {
@@ -353,8 +354,9 @@ std::string generate_reduce(module m, const std::string& name)
         else if(ins->name() == "get_tuple_elem")
         {
             const auto& x = names.at(ins->inputs().front());
-            auto index = ins->get_operator().to_value()["index"].to<std::size_t>();
-            return interpolate_string("${x}[${index}]", {{"x", x}, {"index", std::to_string(index)}});
+            auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
+            return interpolate_string("${x}[${index}]",
+                                      {{"x", x}, {"index", std::to_string(index)}});
         }
         else if(ins->name() == "identity")
         {

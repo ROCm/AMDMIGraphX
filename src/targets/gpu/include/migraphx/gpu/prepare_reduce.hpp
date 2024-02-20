@@ -21,5 +21,3 @@ struct prepare_reduce
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
-
-

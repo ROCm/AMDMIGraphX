@@ -40,7 +40,7 @@ optional<instruction_ref> get_reduce(instruction_ref ins)
         return ins;
     if(ins->name() == "pointwise")
     {
-        if (ins->inputs().size() == 1 and ins->outputs().size() == 1)
+        if(ins->inputs().size() == 1 and ins->outputs().size() == 1)
             return get_reduce(ins->outputs().front());
     }
     return nullopt;
@@ -50,24 +50,21 @@ MIGRAPHX_PRED_MATCHER(split_reduce, instruction_ref ins)
 {
     if(ins->outputs().size() < 2)
         return false;
-    auto n = std::count_if(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
-        return get_reduce(output).has_value();
-    });
+    auto n = std::count_if(ins->outputs().begin(),
+                           ins->outputs().end(),
+                           [](instruction_ref output) { return get_reduce(output).has_value(); });
     return n > 1;
 }
 
 struct find_multi_reduce
 {
-    auto matcher() const
-    {
-        return split_reduce();
-    }
+    auto matcher() const { return split_reduce(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
         std::vector<instruction_ref> reduces;
-        for(auto output:ins->outputs())
+        for(auto output : ins->outputs())
         {
             auto reduce = get_reduce(output);
             if(reduce.has_value())
@@ -77,29 +74,30 @@ struct find_multi_reduce
         auto each = [&](auto start, auto last) {
             if(std::distance(start, last) < 2)
                 return;
-            auto op   = (*start)->get_operator();
+            auto op        = (*start)->get_operator();
             auto insertion = std::next(ins);
             std::for_each(start, last, [&](auto reduce) {
                 auto input = reduce->inputs().front();
-                if (input == ins)
+                if(input == ins)
                     return;
                 m.move_instruction(input, insertion);
             });
             auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, {start, last});
-            int i = 0;
+            int i        = 0;
             std::for_each(start, last, [&](auto reduce) {
-                auto elem = m.insert_instruction(insertion, make_op("get_tuple_elem", {{"index", i}}), preduce);
+                auto elem = m.insert_instruction(
+                    insertion, make_op("get_tuple_elem", {{"index", i}}), preduce);
                 m.replace_instruction(reduce, elem);
             });
         };
 
         group_by(reduces.begin(), reduces.end(), each, by(std::equal_to<>{}, [](instruction_ref i) {
-            return i->name();
-        }));
+                     return i->name();
+                 }));
     }
 };
 
-}
+} // namespace
 
 void prepare_reduce::apply(module& m) const
 {

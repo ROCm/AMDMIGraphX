@@ -36,7 +36,7 @@ namespace {
 
 optional<instruction_ref> get_reduce(instruction_ref ins)
 {
-    if (ins->name() == "gpu::parallel_reduce")
+    if(ins->name() == "gpu::parallel_reduce")
         return nullopt;
     if(contains(ins->name(), "reduce"))
         return ins;
@@ -68,7 +68,7 @@ struct find_multi_reduce
         std::vector<instruction_ref> reduces;
         for(auto output : ins->outputs())
         {
-            if (output->outputs().empty())
+            if(output->outputs().empty())
                 continue;
             auto reduce = get_reduce(output);
             if(reduce.has_value())
@@ -93,8 +93,7 @@ struct find_multi_reduce
             auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);
             int i        = 0;
             std::for_each(start, last, [&](auto reduce) {
-                m.replace_instruction(
-                    reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
+                m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
                 i++;
             });
         };
@@ -107,10 +106,7 @@ struct find_multi_reduce
 
 } // namespace
 
-void prepare_reduce::apply(module& m) const
-{
-    match::find_matches(m, find_multi_reduce{});
-}
+void prepare_reduce::apply(module& m) const { match::find_matches(m, find_multi_reduce{}); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -2523,6 +2523,26 @@ TEST_CASE(qlinear_fp16)
     migraphx::shape input{migraphx::shape::half_type, {2, 4}};
     migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
     expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_output_type_1)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    expect_shape(
+        result, migraphx::make_op("quantizelinear", {{"out_type", result.type()}}), input, scales);
+}
+
+TEST_CASE(qlinear_output_type_2)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    auto op         = migraphx::make_op("quantizelinear");
+    auto val        = op.to_value();
+    val["out_type"] = migraphx::to_value(migraphx::shape::int8_type);
+    expect_shape(result, migraphx::make_op("quantizelinear", val), input, scales);
 }
 
 TEST_CASE(qlinear_mismatch_type)

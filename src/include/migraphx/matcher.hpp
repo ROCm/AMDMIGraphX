@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
+#include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -577,6 +578,8 @@ MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
     return ins->get_shape().broadcasted();
 }
 
+MIGRAPHX_PRED_MATCHER(scalar_shape, instruction_ref ins) { return ins->get_shape().scalar(); }
+
 MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();
@@ -872,7 +875,7 @@ inline auto literal_value_checker(F f)
 
 /**
  * Uses integer multiples of the corresponding floating point epsilon and
- * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(y)).
+ * compares with abs(y - x) < eps * (atol_mult + rtol_mult * abs(x)).
  * atol_mult controls the absolute tolerance.
  * rtol_mult controls the relative tolerance.
  * Uses no tolerance for integral types.
@@ -885,24 +888,21 @@ inline auto has_value(T x, std::size_t atol_mult = 10, std::size_t rtol_mult = 1
         l.visit([&](auto v) {
             // cast to the literal's data type before comparing
             using type = typename decltype(v)::value_type;
-            if constexpr(std::is_integral<type>{})
+            auto tolerance = atol_mult + rtol_mult * std::fabs(x);
+            if(migraphx::float_equal(tolerance, 0) or std::is_integral<type>{})
             {
-                if(std::all_of(
-                       v.begin(), v.end(), [&](auto val) { return val == static_cast<type>(x); }))
-                {
+                if(std::all_of(v.begin(), v.end(), [&](auto val) {
+                       return migraphx::float_equal(val, static_cast<type>(x));
+                   }))
                     b = true;
-                }
             }
             else
             {
                 auto eps = std::numeric_limits<type>::epsilon();
                 if(std::all_of(v.begin(), v.end(), [&](auto val) {
-                       return std::fabs(val - static_cast<type>(x)) <
-                              eps * (atol_mult + rtol_mult * std::fabs(val));
+                       return std::fabs(val - static_cast<type>(x)) < (eps * tolerance);
                    }))
-                {
                     b = true;
-                }
             }
         });
         return b;

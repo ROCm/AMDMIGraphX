@@ -74,15 +74,19 @@ struct find_multi_reduce
         auto each = [&](auto start, auto last) {
             if(std::distance(start, last) < 2)
                 return;
+            std::vector<instruction_ref> inputs;
+            std::transform(start, last, std::back_inserter(inputs), [&](auto reduce) {
+                return reduce->inputs().front();
+            });
             auto op        = (*start)->get_operator();
             auto insertion = std::next(ins);
-            std::for_each(start, last, [&](auto reduce) {
-                auto input = reduce->inputs().front();
+            for(auto input:inputs)
+            {
                 if(input == ins)
-                    return;
+                    continue;;
                 m.move_instruction(input, insertion);
-            });
-            auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, {start, last});
+            }
+            auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);
             int i        = 0;
             std::for_each(start, last, [&](auto reduce) {
                 auto elem = m.insert_instruction(

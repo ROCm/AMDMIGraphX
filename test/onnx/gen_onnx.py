@@ -2202,9 +2202,7 @@ def expand_dyn_test():
     dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
 
-    node = onnx.helper.make_node('Expand',
-                                 inputs=['x', 'dims'],
-                                 outputs=['y'])
+    node = onnx.helper.make_node('Expand', inputs=['x', 'dims'], outputs=['y'])
 
     return ([node], [x, dims_in], [y])
 

@@ -42,12 +42,6 @@ TEST_CASE(gelu_default_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-
-    for (auto res: result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
     std::vector<float> gold = {-0.15865526, 0., 0.84134474};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));

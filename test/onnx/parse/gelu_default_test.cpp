@@ -27,16 +27,25 @@
 TEST_CASE(gelu_default_test)
 {
     migraphx::program p;
-    auto shape    = migraphx::shape{migraphx::shape::float_type, {3}};
-    auto* mm      = p.get_main_module();
-    auto x        = mm->add_parameter("x", shape);
-    auto half     = mm->add_literal(migraphx::literal{shape, {0.5f}});
-    auto one      = mm->add_literal(migraphx::literal{shape, {1.0f}});
-    auto sqrt2    = mm->add_literal(migraphx::literal{shape, {static_cast<float>(M_SQRT2)}});
-    auto mul_half = mm->add_instruction(migraphx::make_op("mul"), x, half);
-    auto div      = mm->add_instruction(migraphx::make_op("div"), x, sqrt2);
-    auto erf      = mm->add_instruction(migraphx::make_op("erf"), div);
-    auto add_one  = mm->add_instruction(migraphx::make_op("add"), erf, one);
+    auto type  = migraphx::shape::float_type;
+    auto lens  = {3};
+    auto shape = migraphx::shape{type, lens};
+    auto* mm   = p.get_main_module();
+    auto x     = mm->add_parameter("x", shape);
+    auto half  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
+    auto one   = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+    auto sqrt2 =
+        mm->add_literal(migraphx::literal{migraphx::shape{type}, {static_cast<float>(M_SQRT2)}});
+    auto half_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), half);
+    auto mul_half = mm->add_instruction(migraphx::make_op("mul"), x, half_mbcast);
+    auto sqrt2_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), sqrt2);
+    auto div = mm->add_instruction(migraphx::make_op("div"), x, sqrt2_mbcast);
+    auto erf = mm->add_instruction(migraphx::make_op("erf"), div);
+    auto one_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), one);
+    auto add_one = mm->add_instruction(migraphx::make_op("add"), erf, one_mbcast);
     mm->add_instruction(migraphx::make_op("mul"), mul_half, add_one);
 
     auto prog = optimize_onnx("gelu_default_test.onnx");

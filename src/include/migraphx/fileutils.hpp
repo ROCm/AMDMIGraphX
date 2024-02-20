@@ -21,58 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/compile_src.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/tmp_dir.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/errors.hpp>
-#include <migraphx/fileutils.hpp>
-#include <cassert>
+
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
+
+#include <migraphx/filesystem.hpp>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
-{
-    assert(not srcs.empty());
-    tmp_dir td{"compile"};
-    auto params = flags;
+MIGRAPHX_EXPORT fs::path make_executable_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_shared_object_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
+MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
 
-    params += " -I.";
+inline std::string operator+(std::string l, const fs::path& r) { return std::move(l) + r.string(); }
 
-    auto out = output;
-
-    for(const auto& src : srcs)
-    {
-        fs::path full_path   = td.path / src.path;
-        fs::path parent_path = full_path.parent_path();
-        fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.data(), src.content.size());
-        if(src.path.extension().string() == ".cpp")
-        {
-            params += " " + src.path.filename().string();
-            if(out.empty())
-                out = src.path.stem().string() + out_ext;
-        }
-    }
-
-    params += " -o " + out;
-
-    if(not launcher.empty())
-    {
-        td.execute(launcher, compiler + " " + params);
-    }
-    else
-    {
-        td.execute(compiler, params);
-    }
-
-    auto out_path = td.path / out;
-    if(not fs::exists(out_path))
-        MIGRAPHX_THROW("Output file missing: " + out);
-
-    return read_buffer(out_path.string());
-}
+inline std::string operator+(const fs::path& l, std::string r) { return l.string() + std::move(r); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP

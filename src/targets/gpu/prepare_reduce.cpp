@@ -84,7 +84,6 @@ struct find_multi_reduce
             {
                 if(input == ins)
                     continue;
-                ;
                 m.move_instruction(input, insertion);
             }
             auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);

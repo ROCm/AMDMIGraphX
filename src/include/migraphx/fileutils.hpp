@@ -37,9 +37,14 @@ MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
 
-inline std::string operator+(std::string_view l, const fs::path& r)
+inline std::string operator+(std::string l, const fs::path& r)
 {
-    return std::string{l} + r.string();
+    return std::move(l) + r.string();
+}
+
+inline std::string operator+(const fs::path& l, std::string r)
+{
+    return l.string() + std::move(r);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

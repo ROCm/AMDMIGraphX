@@ -3,6 +3,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 
 namespace migraphx {
@@ -36,7 +37,7 @@ namespace {
 
 optional<instruction_ref> get_reduce(instruction_ref ins)
 {
-    if(ins->name() == "gpu::parallel_reduce")
+    if(contains({"gpu::parallel_reduce", "reduce_mean"}, ins->name()))
         return nullopt;
     if(contains(ins->name(), "reduce"))
         return ins;

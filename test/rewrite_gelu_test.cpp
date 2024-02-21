@@ -64,17 +64,28 @@ TEST_CASE(bias_gelu)
 
     migraphx::module m2;
     {
-        auto a   = m2.add_parameter("a", s1);
-        auto b   = m2.add_parameter("b", s1);
-        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
-        auto l1  = m2.add_literal(migraphx::literal{s2, {1.702f}});
-        auto mul = add_common_op(m2, migraphx::make_op("mul"), {add, l1});
-        auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
-        sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
-        auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig      = m2.add_instruction(migraphx::make_op("div"), add, sig);
-        m2.add_return({sig});
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x_param        = m2.add_parameter("a", s1);
+        auto bias_param     = m2.add_parameter("b", s1);
+        auto bias_add       = m2.add_instruction(migraphx::make_op("add"), x_param, bias_param);
+        double sqrt_2_rpi   = sqrt(M_2_PI);
+        auto sqrt_2_rpi_lit = m2.add_literal(literal{shape{s2.type()}, {sqrt_2_rpi}});
+        auto fit_const      = m2.add_literal(literal{shape{s2.type()}, {0.044715f}});
+        auto one            = m2.add_literal(literal{shape{s2.type()}, {1.0f}});
+        auto xb             = add_common_op(m2, make_op("mul"), {bias_add, sqrt_2_rpi_lit});
+        auto a              = add_common_op(m2, make_op("mul"), {xb, fit_const});
+        auto b              = m2.add_instruction(make_op("mul"), a, bias_add);
+        auto c              = m2.add_instruction(make_op("mul"), b, bias_add);
+        auto u              = m2.add_instruction(make_op("add"), c, xb);
+        auto neg_u          = m2.add_instruction(make_op("neg"), u);
+        auto d              = m2.add_instruction(make_op("sub"), neg_u, u);
+        auto emu            = m2.add_instruction(make_op("exp"), d);
+        auto e              = add_common_op(m2, make_op("add"), {one, emu});
+        auto cdf            = add_common_op(m2, make_op("div"), {one, e});
+        auto y              = m2.add_instruction(make_op("mul"), bias_add, cdf);
+        m2.add_return({y});
     }
 
     EXPECT(m1 == m2);
@@ -106,17 +117,28 @@ TEST_CASE(non_bias_gelu)
 
     migraphx::module m2;
     {
-        auto a   = m2.add_parameter("a", s1);
-        auto b   = m2.add_parameter("b", s1);
-        auto sub = m2.add_instruction(migraphx::make_op("sub"), a, b);
-        auto l1  = m2.add_literal(migraphx::literal{s2, {1.702f}});
-        auto mul = add_common_op(m2, migraphx::make_op("mul"), {sub, l1});
-        auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
-        sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
-        auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig      = m2.add_instruction(migraphx::make_op("div"), sub, sig);
-        m2.add_return({sig});
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x_param        = m2.add_parameter("a", s1);
+        auto bias_param     = m2.add_parameter("b", s1);
+        auto bias_sub       = m2.add_instruction(migraphx::make_op("sub"), x_param, bias_param);
+        double sqrt_2_rpi   = sqrt(M_2_PI);
+        auto sqrt_2_rpi_lit = m2.add_literal(literal{shape{s2.type()}, {sqrt_2_rpi}});
+        auto fit_const      = m2.add_literal(literal{shape{s2.type()}, {0.044715f}});
+        auto one            = m2.add_literal(literal{shape{s2.type()}, {1.0f}});
+        auto xb             = add_common_op(m2, make_op("mul"), {bias_sub, sqrt_2_rpi_lit});
+        auto a              = add_common_op(m2, make_op("mul"), {xb, fit_const});
+        auto b              = m2.add_instruction(make_op("mul"), a, bias_sub);
+        auto c              = m2.add_instruction(make_op("mul"), b, bias_sub);
+        auto u              = m2.add_instruction(make_op("add"), c, xb);
+        auto neg_u          = m2.add_instruction(make_op("neg"), u);
+        auto d              = m2.add_instruction(make_op("sub"), neg_u, u);
+        auto emu            = m2.add_instruction(make_op("exp"), d);
+        auto e              = add_common_op(m2, make_op("add"), {one, emu});
+        auto cdf            = add_common_op(m2, make_op("div"), {one, e});
+        auto y              = m2.add_instruction(make_op("mul"), bias_sub, cdf);
+        m2.add_return({y});
     }
 
     EXPECT(m1 == m2);

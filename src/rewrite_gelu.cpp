@@ -64,7 +64,8 @@ void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r)
 }
 
 /**
- * Finds erfGELU blocks using the Gaussian distribution and replaces them with the tanh_exp approximation if the data type is fp16 or fp8.
+ * Finds erfGELU blocks using the Gaussian distribution and replaces them with the tanh_exp
+ * approximation if the data type is fp16. TODO consider also for fp8 datatype.
  */
 struct find_gelu_erf
 {
@@ -73,11 +74,8 @@ struct find_gelu_erf
     void apply(module& m, const match::matcher_result& r) const
     {
         auto x   = r.instructions["x"];
-        auto input_type = x->get_shape().type();
-        std::set<decltype(input_type)> convert_types = {
-            migraphx::shape::half_type,
-            migraphx::shape::fp8e4m3fnuz_type
-        };
+        auto input_type                              = x->get_shape().type();
+        std::set<decltype(input_type)> convert_types = {migraphx::shape::half_type};
         if(not contains(convert_types, input_type))
             return;
 
@@ -86,7 +84,8 @@ struct find_gelu_erf
 };
 
 /**
- * Find tanhGELU blocks and replace them with a rearranged version that is less likely to overflow and is more performant.
+ * Find tanhGELU blocks and replace them with a rearranged version that is less likely to overflow
+ * and is more performant.
  */
 struct find_tanh_fast_gelu
 {

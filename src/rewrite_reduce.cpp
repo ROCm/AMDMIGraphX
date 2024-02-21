@@ -98,10 +98,10 @@ struct find_reduce_mean
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto op          = ins->get_operator().to_value();
-        auto axes        = op["axes"].to_vector<std::int64_t>();
-        auto input       = ins->inputs().front();
+        auto ins   = r.result;
+        auto op    = ins->get_operator().to_value();
+        auto axes  = op["axes"].to_vector<std::int64_t>();
+        auto input = ins->inputs().front();
 
         bool is_integral = false;
         double max_n     = 0;
@@ -109,7 +109,7 @@ struct find_reduce_mean
         input->get_shape().visit_type([&](auto t) {
             is_integral = t.is_integral();
             max_n       = t.max();
-            size = t.size();
+            size        = t.size();
         });
 
         auto n = ins->get_shape().elements() / input->get_shape().elements();
@@ -126,14 +126,16 @@ struct find_reduce_mean
             auto reduce_sum =
                 m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), input);
             auto div = insert_common_op(m, ins, make_op("div"), {reduce_sum, n_literal});
-            m.replace_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), div);
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), div);
         }
         else
         {
-            auto new_input  = insert_common_op(m, ins, make_op("div"), {input, n_literal});
-            auto reduce_sum = m.insert_instruction(
-                ins, make_op("reduce_sum", {{"axes", axes}}), new_input);
-            m.replace_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), reduce_sum);
+            auto new_input = insert_common_op(m, ins, make_op("div"), {input, n_literal});
+            auto reduce_sum =
+                m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), new_input);
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), reduce_sum);
         }
     }
 };

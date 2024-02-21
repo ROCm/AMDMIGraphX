@@ -36,12 +36,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
-    tmp_dir(std::string_view prefix = "");
+    explicit tmp_dir(std::string_view prefix = "");
     tmp_dir(tmp_dir&&) = default;
 
-    void execute(const fs::path& exe,
-                 const std::vector<std::string>& args = {},
-                 const fs::path& launcher             = {}) const;
+    void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;
 
     tmp_dir(tmp_dir const&) = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;

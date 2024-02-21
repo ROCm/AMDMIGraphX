@@ -110,7 +110,7 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
-find_package(ParallelSTL QUIET) 
+find_package(ParallelSTL)
 # TODO: resolve parallism issue
 # if(ParallelSTL_FOUND)
 # set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)

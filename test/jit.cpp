@@ -47,7 +47,9 @@ std::function<F> compile_function(std::string_view src, std::string_view symbol_
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
+#ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
+#endif    
     compiler.flags.emplace_back("-shared");
     compiler.output = migraphx::make_shared_object_filename("simple");
     migraphx::src_file f{"main.cpp", src};

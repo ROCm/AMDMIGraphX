@@ -200,27 +200,27 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
 {
     hiprtc_program prog(std::move(srcs));
     auto options = params;
-    options.emplace_back("-DMIGRAPHX_USE_HIPRTC=1");
+    options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
     if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
     {
-        options.emplace_back("-DMIGRAPHX_HAS_DPP=0");
-        options.emplace_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
-        options.emplace_back("-Wno-reserved-identifier");
-        options.emplace_back("-Wno-unused-parameter");
-        options.emplace_back("-Wno-gnu-line-marker");
-        options.emplace_back("-Wno-old-style-cast");
+        options.push_back("-DMIGRAPHX_HAS_DPP=0");
+        options.push_back("-DMIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS=1");
+        options.push_back("-Wno-reserved-identifier");
+        options.push_back("-Wno-unused-parameter");
+        options.push_back("-Wno-gnu-line-marker");
+        options.push_back("-Wno-old-style-cast");
     }
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        options.emplace_back("-DMIGRAPHX_DEBUG");
+        options.push_back("-DMIGRAPHX_DEBUG");
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
-        options.emplace_back("-std=c++17");
-    options.emplace_back("-fno-gpu-rdc");
-    options.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
-    options.emplace_back("-Wno-cuda-compat");
-    options.emplace_back("--offload-arch=" + arch);
+        options.push_back("-std=c++17");
+    options.push_back("-fno-gpu-rdc");
+    options.push_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3"));
+    options.push_back("-Wno-cuda-compat");
+    options.push_back("--offload-arch=" + arch);
     prog.compile(options);
     return {prog.get_code_obj()};
 }
@@ -311,11 +311,7 @@ bool has_compiler_launcher()
 src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
-    for(auto& flag : compiler.flags)
-    {
-        if(flag == "-c")
-            flag = "-S";
-    }
+    std::replace(compiler.flags.begin(), compiler.flags.end(), "-c", "-S");
     return compiler;
 }
 

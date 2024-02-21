@@ -46,12 +46,12 @@ T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes =
         nbytes -= offset;
     }
     if(nbytes < 1)
-        MIGRAPHX_THROW("Invalid size for: " + filename.string());
+        MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(offset, std::ios::beg);
 
     T buffer(nbytes, 0);
     if(not is.read(&buffer[0], nbytes))
-        MIGRAPHX_THROW("Error reading file: " + filename.string());
+        MIGRAPHX_THROW("Error reading file: " + filename);
     return buffer;
 }
 

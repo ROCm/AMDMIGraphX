@@ -54,10 +54,10 @@ struct MIGRAPHX_EXPORT dynamic_loader
 
     dynamic_loader(const std::vector<char>& buffer);
 
-    std::shared_ptr<void> get_symbol(std::string_view name) const;
+    std::shared_ptr<void> get_symbol(const std::string& name) const;
 
     template <class F>
-    std::function<F> get_function(std::string_view name) const
+    std::function<F> get_function(const std::string& name) const
     {
         auto s = get_symbol(name);
         return [=](auto&&... xs) -> decltype(auto) {

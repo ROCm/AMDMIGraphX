@@ -335,7 +335,6 @@ struct process_impl
     std::string envs{};
     std::string command{};
     fs::path cwd{};
-    fs::path launcher{};
 
     std::string get_command() const
     {
@@ -344,8 +343,6 @@ struct process_impl
             result += "cd " + cwd.string() + "; ";
         if(not envs.empty())
             result += envs + " ";
-        if(not launcher.empty())
-            result += launcher.string() + " ";
         result += command;
         if(not args.empty())
             result += " " + args;
@@ -392,12 +389,6 @@ process& process::env(const std::vector<std::string>& envs)
     {
         impl->envs = join_strings(envs, " ");
     }
-    return *this;
-}
-
-process& process::launcher(const fs::path& launcher)
-{
-    impl->launcher = launcher;
     return *this;
 }
 

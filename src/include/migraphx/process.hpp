@@ -55,7 +55,6 @@ struct MIGRAPHX_EXPORT process
 
     process& cwd(const fs::path& p);
     process& env(const std::vector<std::string>& envs);
-    process& launcher(const fs::path& launcher);
 
     void exec();
     void write(std::function<void(process::writer)> pipe_in);

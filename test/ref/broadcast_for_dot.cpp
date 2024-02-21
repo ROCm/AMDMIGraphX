@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 
 #include "test.hpp"
 
-TEST_CASE(dot_broadcast_static)
+TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -40,10 +40,10 @@ TEST_CASE(dot_broadcast_static)
     std::vector<float> data1(16);
     std::iota(data1.begin(), data1.end(), 9.0);
     migraphx::shape s1{migraphx::shape::float_type, {1, 2, 4, 2}};
-    auto l0            = mm->add_literal(migraphx::literal{s0, data0});
-    auto l1            = mm->add_literal(migraphx::literal{s1, data1});
-    auto dot_broadcast = mm->add_instruction(migraphx::make_op("dot_broadcast"), l0, l1);
-    mm->add_return({dot_broadcast});
+    auto l0                = mm->add_literal(migraphx::literal{s0, data0});
+    auto l1                = mm->add_literal(migraphx::literal{s1, data1});
+    auto broadcast_for_dot = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), l0, l1);
+    mm->add_return({broadcast_for_dot});
     p.compile(migraphx::make_target("ref"));
 
     auto result = p.eval({}).back();
@@ -55,16 +55,16 @@ TEST_CASE(dot_broadcast_static)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-TEST_CASE(dot_broadcast_dyn)
+TEST_CASE(broadcast_for_dot_dyn)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s0{migraphx::shape::int32_type, {{2, 6}, {4, 4}}};
     migraphx::shape s1{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {4, 4}, {4, 6}}};
-    auto p0            = mm->add_parameter("0", s0);
-    auto p1            = mm->add_parameter("1", s1);
-    auto dot_broadcast = mm->add_instruction(migraphx::make_op("dot_broadcast"), p0, p1);
-    mm->add_return({dot_broadcast});
+    auto p0                = mm->add_parameter("0", s0);
+    auto p1                = mm->add_parameter("1", s1);
+    auto broadcast_for_dot = mm->add_instruction(migraphx::make_op("broadcast_for_dot"), p0, p1);
+    mm->add_return({broadcast_for_dot});
     p.compile(migraphx::make_target("ref"));
 
     std::vector<int> data0(8);

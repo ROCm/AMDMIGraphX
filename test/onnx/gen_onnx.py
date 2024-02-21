@@ -3017,6 +3017,27 @@ def gru_f_3arg_layout_test():
 
 
 @onnx_test()
+def gru_f_1af_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 60, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('GRU',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def gru_r_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 60, 10])
@@ -3064,6 +3085,42 @@ def gru_r_4arg_layout_test():
                                  layout=1)
 
     return ([node], [seq, w, r, bias], [hs, output])
+
+
+@onnx_test()
+def hardmax_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax', inputs=['x'], outputs=['y'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def hardmax_axis_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=2)
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def hardmax_axis_neg_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2, 3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 2, 3, 4])
+
+    node = onnx.helper.make_node('Hardmax',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 axis=-3)
+
+    return ([node], [x], [y])
 
 
 @onnx_test()
@@ -4703,7 +4760,7 @@ def lstm_bi_layout_cell_test():
         'LSTM',
         inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
         outputs=['', '', 'cellout'],
-        activations=['sigmoid', 'tanh', 'tanh'],
+        activations=['sigmoid', 'tanh', 'tanh', 'sigmoid', 'tanh', 'tanh'],
         clip=0,
         direction='bidirectional',
         hidden_size=20,
@@ -4732,7 +4789,7 @@ def lstm_bi_layout_last_test():
         'LSTM',
         inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0', 'c0', 'pph'],
         outputs=['hs', 'output'],
-        activations=['sigmoid', 'tanh', 'tanh'],
+        activations=['sigmoid', 'tanh', 'tanh', 'sigmoid', 'tanh', 'tanh'],
         clip=0,
         direction='bidirectional',
         hidden_size=20,
@@ -4797,6 +4854,28 @@ def lstm_f_layout_cell_test():
         layout=1)
 
     return ([node], [seq, w, r, bias, seq_len, h0, c0, pph], [cellout])
+
+
+@onnx_test()
+def lstm_f_1af_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 80, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 80, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('LSTM',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['sigmoid'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20,
+                                 input_forget=1)
+
+    return ([node], [seq, w, r], [hs, output])
 
 
 @onnx_test()
@@ -7901,6 +7980,27 @@ def rnn_bi_layout_test():
 
 
 @onnx_test()
+def rnn_bi_1af_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [2, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [2, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 2, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [2, 3, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 activations=['tanh'],
+                                 clip=0,
+                                 direction='bidirectional',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
+
+
+@onnx_test()
 def rnn_f_layout_test():
     seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [3, 5, 10])
     w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
@@ -7917,7 +8017,7 @@ def rnn_f_layout_test():
         'RNN',
         inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
         outputs=['hs', 'output'],
-        activations=['tanh', 'sigmoid'],
+        activations=['tanh'],
         clip=0,
         direction='forward',
         hidden_size=20,
@@ -7941,13 +8041,33 @@ def rnn_f_5arg_layout_test():
     node = onnx.helper.make_node('RNN',
                                  inputs=['seq', 'w', 'r', 'bias', 'seq_len'],
                                  outputs=['hs', 'output'],
-                                 activations=['tanh', 'sigmoid'],
+                                 activations=['tanh'],
                                  clip=0,
                                  direction='forward',
                                  hidden_size=20,
                                  layout=1)
 
     return ([node], [seq, w, r, bias, seq_len], [hs, output])
+
+
+@onnx_test()
+def rnn_f_default_af_test():
+    seq = helper.make_tensor_value_info('seq', TensorProto.FLOAT, [5, 3, 10])
+    w = helper.make_tensor_value_info('w', TensorProto.FLOAT, [1, 20, 10])
+    r = helper.make_tensor_value_info('r', TensorProto.FLOAT, [1, 20, 20])
+
+    hs = helper.make_tensor_value_info('hs', TensorProto.FLOAT, [5, 1, 3, 20])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, 3, 20])
+
+    node = onnx.helper.make_node('RNN',
+                                 inputs=['seq', 'w', 'r'],
+                                 outputs=['hs', 'output'],
+                                 clip=0,
+                                 direction='forward',
+                                 hidden_size=20)
+
+    return ([node], [seq, w, r], [hs, output])
 
 
 @onnx_test()
@@ -7967,7 +8087,7 @@ def rnn_r_layout_test():
         'RNN',
         inputs=['seq', 'w', 'r', 'bias', 'seq_len', 'h0'],
         outputs=['hs', 'output'],
-        activations=['tanh', 'sigmoid'],
+        activations=['tanh'],
         clip=0,
         direction='reverse',
         hidden_size=20,
@@ -7989,7 +8109,7 @@ def rnn_r_3arg_layout_test():
     node = onnx.helper.make_node('RNN',
                                  inputs=['seq', 'w', 'r'],
                                  outputs=['hs', 'output'],
-                                 activations=['tanh', 'sigmoid'],
+                                 activations=['tanh'],
                                  clip=0,
                                  direction='reverse',
                                  hidden_size=20,

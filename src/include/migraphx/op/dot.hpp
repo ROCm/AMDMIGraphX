@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,25 +59,22 @@ struct dot
 
             // check outer dimensions are within range
             // put within range dynamic_dimensions into the out_dyn_dims
-            bool outers_within_range = std::equal(s0.dyn_dims().rbegin() + 2,
-                                                  s0.dyn_dims().rend(),
-                                                  s1.dyn_dims().rbegin() + 2,
-                                                  s1.dyn_dims().rend(),
+            bool outers_within_range = std::equal(s0.dyn_dims().begin(),
+                                                  s0.dyn_dims().end() - 2,
+                                                  s1.dyn_dims().begin(),
+                                                  s1.dyn_dims().end() - 2,
                                                   [&](auto x, auto y) {
                                                       if(x.within_range(y))
                                                       {
                                                           out_dyn_dims.push_back(x);
                                                           return true;
                                                       }
-                                                      else if(y.within_range(x))
+                                                      if(y.within_range(x))
                                                       {
                                                           out_dyn_dims.push_back(y);
                                                           return true;
                                                       }
-                                                      else
-                                                      {
-                                                          return false;
-                                                      }
+                                                      return false;
                                                   });
 
             if(not outers_within_range)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_DOT_BROADCAST_HPP
-#define MIGRAPHX_GUARD_OPERATORS_DOT_BROADCAST_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_BROADCAST_FOR_DOT_HPP
+#define MIGRAPHX_GUARD_OPERATORS_BROADCAST_FOR_DOT_HPP
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
@@ -40,12 +40,12 @@ namespace op {
  * Example:
  * a = shape[{1, 4}, 3, 248, 248]
  * b = shape[248, 365]
- * dot_broadcast(a, b) => shape[{1, 4}, 3, 248, 248] (no change)
- * dot_broadcast(b, a) => shape[{1, 4}, 3, 248, 365]
+ * broadcast_for_dot(a, b) => shape[{1, 4}, 3, 248, 248] (no change)
+ * broadcast_for_dot(b, a) => shape[{1, 4}, 3, 248, 365]
  */
-struct dot_broadcast
+struct broadcast_for_dot
 {
-    std::string name() const { return "dot_broadcast"; }
+    std::string name() const { return "broadcast_for_dot"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

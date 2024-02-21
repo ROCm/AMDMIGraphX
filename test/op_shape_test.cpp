@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -800,11 +800,24 @@ TEST_CASE(dot_dyn_static_test0)
                  s_m2);
 }
 
-TEST_CASE(dot_dyn_static_mismatch_error)
+TEST_CASE(dot_dyn_static_test1)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 3}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {3, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_static_test2)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}}};
-    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
-    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+    migraphx::shape s_m2{migraphx::shape::float_type, {2, 3, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {3, 3}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
 }
 
 TEST_CASE(dot_dyn_test0)
@@ -848,38 +861,57 @@ TEST_CASE(dot_dyn_test3)
                  s_m2);
 }
 
-TEST_CASE(dot_broadcast_static)
+TEST_CASE(dot_dyn_test4)
+{
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape s_m1{migraphx::shape::float_type, {{0, max_val}, {5, 5}, {0, max_val}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dot_dyn_mismatcher_outer)
+{
+
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {1, 4}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{3, 8}, {5, 5}, {6, 8, {8}}}};
+    throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
+}
+
+TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 356, 254}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 481, 356}, {0, 0, 356, 1}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s0,
                  s1);
     expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 4, 356, 254}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s1,
                  s0);
 }
 
-TEST_CASE(dot_broadcast_dyn0)
+TEST_CASE(broadcast_for_dot_dyn0)
 {
     migraphx::shape s0{migraphx::shape::float_type, {{124, 282}, {254, 484}}};
     migraphx::shape s1{migraphx::shape::float_type,
                        {{1, 4, {1, 2, 4}}, {4, 4}, {254, 484}, {356, 584}}};
     expect_shape(migraphx::shape{migraphx::shape::float_type,
                                  {{1, 4, {1, 2, 4}}, {4, 4}, {124, 282}, {254, 484}}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s0,
                  s1);
     expect_shape(migraphx::shape{migraphx::shape::float_type,
                                  {{1, 4, {1, 2, 4}}, {4, 4}, {254, 484}, {356, 584}}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s1,
                  s0);
 }
 
-TEST_CASE(dot_broadcast_dyn1)
+TEST_CASE(broadcast_for_dot_dyn1)
 {
     std::size_t max_val = std::numeric_limits<std::size_t>::max();
     migraphx::shape s0{migraphx::shape::float_type, {{124, 282}, {0, max_val}}};
@@ -887,12 +919,12 @@ TEST_CASE(dot_broadcast_dyn1)
                        {{1, 4, {1, 2, 4}}, {4, 4}, {254, 484}, {356, 584}}};
     expect_shape(migraphx::shape{migraphx::shape::float_type,
                                  {{1, 4, {1, 2, 4}}, {4, 4}, {124, 282}, {0, max_val}}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s0,
                  s1);
     expect_shape(migraphx::shape{migraphx::shape::float_type,
                                  {{1, 4, {1, 2, 4}}, {4, 4}, {254, 484}, {356, 584}}},
-                 migraphx::make_op("dot_broadcast"),
+                 migraphx::make_op("broadcast_for_dot"),
                  s1,
                  s0);
 }
@@ -2604,6 +2636,26 @@ TEST_CASE(qlinear_fp16)
     migraphx::shape input{migraphx::shape::half_type, {2, 4}};
     migraphx::shape result{migraphx::shape::uint8_type, {2, 4}};
     expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
+}
+
+TEST_CASE(qlinear_output_type_1)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    expect_shape(
+        result, migraphx::make_op("quantizelinear", {{"out_type", result.type()}}), input, scales);
+}
+
+TEST_CASE(qlinear_output_type_2)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    auto op         = migraphx::make_op("quantizelinear");
+    auto val        = op.to_value();
+    val["out_type"] = migraphx::to_value(migraphx::shape::int8_type);
+    expect_shape(result, migraphx::make_op("quantizelinear", val), input, scales);
 }
 
 TEST_CASE(qlinear_mismatch_type)

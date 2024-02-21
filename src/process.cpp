@@ -359,7 +359,7 @@ struct process_impl
     }
 };
 
-process::process(std::string_view cmd, const std::vector<std::string>& args)
+process::process(const std::string& cmd, const std::vector<std::string>& args)
     : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;
@@ -392,7 +392,7 @@ process& process::env(const std::vector<std::string>& envs)
     return *this;
 }
 
-void process::read(const writer& output) const
+void process::read(writer&& output) const
 {
 #ifdef _WIN32
     // clang-format off

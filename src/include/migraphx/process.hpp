@@ -38,10 +38,10 @@ struct process_impl;
 struct MIGRAPHX_EXPORT process
 {
     using writer = std::function<void(const char*, std::size_t)>;
-    explicit process(std::string_view cmd, const std::vector<std::string>& args = {});
+    explicit process(const std::string& cmd, const std::vector<std::string>& args = {});
 
     explicit process(const fs::path& cmd, const std::vector<std::string>& args = {})
-        : process{std::string_view{cmd.string()}, args}
+        : process{cmd.string(), args}
     {
     }
 
@@ -58,7 +58,7 @@ struct MIGRAPHX_EXPORT process
 
     void exec();
     void write(std::function<void(writer)> pipe_in);
-    void read(const writer& output) const;
+    void read(writer&& output) const;
 
     private:
     std::unique_ptr<process_impl> impl;

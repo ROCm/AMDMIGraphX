@@ -38,14 +38,13 @@
 
 std::vector<char> read_stdin()
 {
-    std::vector<char> result;
-
-    std::array<char, 1024> buffer;
-    std::size_t len = 0;
 #ifdef _WIN32
     if(_setmode(_fileno(stdin), _O_BINARY) == -1)
-        throw std::runtime_error{"failure setting IO mode to binary"};
+        MIGRAPHX_THROW(std::strerror(errno));
 #endif
+    std::vector<char> result;
+    std::array<char, 1024> buffer;
+    std::size_t len = 0;
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
         if(std::ferror(stdin) != 0 and std::feof(stdin) == 0)
@@ -67,12 +66,18 @@ int main(int argc, char const* argv[])
         std::exit(0);
     }
     std::string output_name = argv[1];
-
-    auto v = migraphx::from_msgpack(read_stdin());
-    std::vector<migraphx::gpu::hiprtc_src_file> srcs;
-    migraphx::from_value(v.at("srcs"), srcs);
-    auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
-        std::move(srcs), v.at("params").to_vector<std::string>(), v.at("arch").to<std::string>());
-    if(not out.empty())
-        migraphx::write_buffer(output_name, out.front());
+    try
+    {
+        auto v = migraphx::from_msgpack(read_stdin());
+        std::vector<migraphx::gpu::hiprtc_src_file> srcs;
+        migraphx::from_value(v.at("srcs"), srcs);
+        auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
+            std::move(srcs), v.at("params").to_vector<std::string>(), v.at("arch").to<std::string>());
+        if(not out.empty())
+            migraphx::write_buffer(output_name, out.front());
+    }
+    catch (const std::exception& err)
+    {
+        std::cout << err.what() << std::endl;
+    }
 }

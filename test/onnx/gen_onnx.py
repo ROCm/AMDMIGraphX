@@ -2526,9 +2526,10 @@ def gelu_tanh_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
 
-    node = onnx.helper.make_node(
-        "Gelu", inputs=["x"], outputs=["y"], approximate="tanh"
-    )
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
 
     return ([node], [x], [y])
 

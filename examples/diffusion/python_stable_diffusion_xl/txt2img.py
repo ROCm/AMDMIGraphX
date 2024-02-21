@@ -124,7 +124,7 @@ class StableDiffusionMGX():
         self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
                                                        {"input_ids": [1, 77]})
         self.unetxl = StableDiffusionMGX.load_mgx_model(
-            "unetxl", {
+            "unetxl.opt", {
                 "sample": [2, 4, 128, 128],
                 "encoder_hidden_states": [2, 77, 2048],
                 "text_embeds": [2, 1280],

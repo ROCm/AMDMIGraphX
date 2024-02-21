@@ -32,11 +32,12 @@ namespace onnx {
 
 instruction_ref parse_gelu_no_approx(onnx_parser::node_info info, instruction_ref x)
 {
-    auto x_lens  = x->get_shape().lens();
-    auto x_type  = x->get_shape().type();
-    auto half    = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
-    auto one     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
-    auto sqrt2   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(M_SQRT2)}});
+    auto x_lens = x->get_shape().lens();
+    auto x_type = x->get_shape().type();
+    auto half   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
+    auto one    = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
+    auto sqrt2 =
+        info.add_literal(migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(M_SQRT2)}});
     auto half_mbcast =
         info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), half);
     auto mul_half = info.add_instruction(migraphx::make_op("mul"), x, half_mbcast);
@@ -55,24 +56,25 @@ instruction_ref parse_gelu_tanh_approx(onnx_parser::node_info info, instruction_
     auto x_lens     = x->get_shape().lens();
     auto x_type     = x->get_shape().type();
     auto fit_const  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.044715f}});
-    auto sqrt_2_rpi = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(sqrt(M_2_PI))}});
-    auto one        = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
-    auto half       = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
-    auto three      = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
+    auto sqrt_2_rpi = info.add_literal(
+        migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(sqrt(M_2_PI))}});
+    auto one   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
+    auto half  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
+    auto three = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
     auto three_mbcast =
         info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), three);
-    auto pow0       = info.add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
+    auto pow0             = info.add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
     auto fit_const_mbcast = info.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), fit_const);
-    auto mul0       = info.add_instruction(migraphx::make_op("mul"), {pow0, fit_const_mbcast});
-    auto add0       = info.add_instruction(migraphx::make_op("add"), {mul0, x});
+    auto mul0 = info.add_instruction(migraphx::make_op("mul"), {pow0, fit_const_mbcast});
+    auto add0 = info.add_instruction(migraphx::make_op("add"), {mul0, x});
     auto sqrt_2_rpi_mbcast = info.add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), sqrt_2_rpi);
-    auto mul1       = info.add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi_mbcast});
-    auto tanh0      = info.add_instruction(migraphx::make_op("tanh"), mul1);
-    auto one_mbcast = info.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), one);
-    auto add1       = info.add_instruction(migraphx::make_op("add"), {tanh0, one_mbcast});
+    auto mul1  = info.add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi_mbcast});
+    auto tanh0 = info.add_instruction(migraphx::make_op("tanh"), mul1);
+    auto one_mbcast =
+        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), one);
+    auto add1 = info.add_instruction(migraphx::make_op("add"), {tanh0, one_mbcast});
     auto half_mbcast =
         info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), half);
     auto mul2 = info.add_instruction(migraphx::make_op("mul"), {x, half_mbcast});
@@ -98,7 +100,7 @@ struct parse_gelu : op_parser<parse_gelu>
         {
             approximate = info.attributes["approximate"].s();
         }
-        if (approximate == "tanh")
+        if(approximate == "tanh")
         {
             return parse_gelu_tanh_approx(info, x);
         }

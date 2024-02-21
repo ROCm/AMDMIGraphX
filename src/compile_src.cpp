@@ -59,7 +59,11 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 
     params.emplace_back("-o " + out);
 
-    td.execute(compiler, params, launcher);
+    std::vector<std::string> args;
+    if(not launcher.empty())
+        args.push_back(compiler);
+    args.insert(args.end(), params.begin(), params.end());
+    td.execute(launcher.empty() ? compiler : launcher, args);
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))

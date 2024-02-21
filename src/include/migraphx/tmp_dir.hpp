@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
-    explicit tmp_dir(std::string_view prefix = "");
+    tmp_dir(std::string_view prefix = "");
     tmp_dir(tmp_dir&&) = default;
 
     void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;

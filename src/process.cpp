@@ -362,7 +362,7 @@ struct process_impl
     }
 };
 
-process::process(const std::string& cmd, const std::vector<std::string>& args)
+process::process(std::string_view cmd, const std::vector<std::string>& args)
     : impl(std::make_unique<process_impl>())
 {
     impl->command = cmd;

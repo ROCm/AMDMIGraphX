@@ -21,25 +21,50 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <string>
-#include <vector>
+#include <migraphx/fileutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_EXPORT std::vector<char>
-read_buffer(const fs::path& filename, size_t offset = 0, size_t nbytes = 0);
-MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
+#ifdef _WIN32
+constexpr std::string_view executable_postfix{".exe"};
+constexpr std::string_view library_prefix{""};
+constexpr std::string_view library_postfix{".dll"};
+constexpr std::string_view static_library_postfix{".lib"};
+constexpr std::string_view object_file_postfix{".obj"};
+#else
+constexpr std::string_view executable_postfix{""};
+constexpr std::string_view library_prefix{"lib"};
+constexpr std::string_view library_postfix{".so"};
+constexpr std::string_view static_library_postfix{".a"};
+constexpr std::string_view object_file_postfix{".o"};
+#endif
 
-MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);
-MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<char>& buffer);
+fs::path make_executable_filename(std::string_view name)
+{
+    return std::string{name}.append(executable_postfix);
+}
+
+fs::path make_shared_object_filename(std::string_view name)
+{
+    return std::string{library_prefix}.append(name).append(library_postfix);
+}
+
+fs::path make_object_file_filename(std::string_view name)
+{
+    return std::string{name}.append(object_file_postfix);
+}
+
+fs::path make_static_library_filename(std::string_view name)
+{
+    return std::string{library_prefix}.append(name).append(static_library_postfix);
+}
+
+fs::path append_extension(const fs::path& path, std::string_view ext)
+{
+    return fs::path{path}.replace_extension(path.extension().string().append(ext));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

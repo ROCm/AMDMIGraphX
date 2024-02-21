@@ -30,6 +30,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
@@ -150,7 +151,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
-        auto_contiguous{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         rewrite_reduce{},
@@ -168,9 +168,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
         dead_code_elimination{},
+        auto_contiguous{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},
         dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
         compile_miopen{&gctx},

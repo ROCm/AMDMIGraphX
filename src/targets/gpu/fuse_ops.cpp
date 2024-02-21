@@ -63,7 +63,7 @@ struct fusion
 
     fusion(const shape& input)
     {
-        assert(input.standard());
+        // assert(input.standard()); // TODO: change check
         auto t = make_tensor(input);
         fp     = make_fusion_plan(t);
         assert(fp);
@@ -778,15 +778,22 @@ struct find_contiguous_pointwise
     {
         auto ins    = r.result;
         auto pw     = ins->inputs().front();
+        for(auto output : ins->outputs())
+        {
+            if(output->name() != "gpu::gemm")
+                continue;
+            auto pw_strides = pw->get_shape().strides();
+            // ensure pointwise shape is still valid for gemm call
+            if(std::none_of(pw_strides.end() - 2, pw_strides.end(), [&](auto i) { return i == 1; }))
+                return;
+        }
         auto alloc  = ins->inputs().back();
         auto args   = pw->inputs();
         args.back() = alloc;
 
-        // Ensure the output shape of the pointwise module is contiguous
-        auto pw_op_val            = pw->get_operator().to_value();
-        pw_op_val["output_shape"] = to_value(ins->get_shape());
-
-        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
+        if(ins->get_shape() != pw->get_shape())
+            return;
+        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
     }
 };
 
@@ -843,7 +850,6 @@ struct find_concat_pointwise
 
         auto op = concat->get_operator();
         op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
-
         m.replace_instruction(ins, op, inputs, {pm});
     }
 };

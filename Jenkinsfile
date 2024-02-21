@@ -34,6 +34,7 @@ def rocmtestnode(Map conf) {
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
             export CXXFLAGS='-Werror'
+            export MIGRAPHX_ENABLE_NHWC=1
             env
             rm -rf build
             mkdir build

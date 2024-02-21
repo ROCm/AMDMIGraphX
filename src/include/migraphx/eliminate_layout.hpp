@@ -21,30 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_ELIMINATE_LAYOUT_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_ELIMINATE_LAYOUT_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/op/common.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_conv_pooling : verify_program<test_conv_pooling<DType>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
+/**
+ * Eliminate layout ops
+ */
+struct eliminate_layout
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input   = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 32, 32}});
-        auto weights = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 3, 3}});
-        auto conv    = mm->add_instruction(migraphx::make_op("convolution"), input, weights);
-        auto relu    = mm->add_instruction(migraphx::make_op("relu"), conv);
-        auto pooling = mm->add_instruction(
-            migraphx::make_op("pooling", {{"mode", migraphx::op::pooling_mode::max}}), relu);
-        mm->add_instruction(migraphx::make_op("relu"), pooling);
-        return p;
-    }
+    std::string name() const { return "eliminate_layout"; }
+    void apply(module_pass_manager& m) const;
 };
 
-template struct test_conv_pooling<migraphx::shape::float_type>;
-template struct test_conv_pooling<migraphx::shape::fp8e4m3fnuz_type>;
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_ELIMINATE_LAYOUT_HPP

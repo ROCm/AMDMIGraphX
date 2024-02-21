@@ -956,6 +956,7 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         const auto& input = inputs[i];
         auto param        = m.get_parameter(name);
         assert(param->get_shape().standard());
+        assert(param->get_shape().lens() == input.lens());
         if(input.standard())
             continue;
         auto new_param = m.add_parameter(name + ".0", input);

@@ -212,7 +212,8 @@ std::string generate_pointwise(const module& pm, const std::string& name)
 
 std::string reduce_op::str() const
 {
-    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + join_strings(inputs, ", ") + "))";
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
+           join_strings(inputs, ", ") + "))";
 }
 void reduce_op::set(const std::string& name, const shape& input, const shape& output)
 {
@@ -259,10 +260,10 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
 
 void reduce_op::set(instruction_ref ins, const operation& op)
 {
-    if (op.name() == "gpu::parallel_reduce")
+    if(op.name() == "gpu::parallel_reduce")
     {
-        auto rop = from_value<operation>(op.to_value().at("op"));
-        auto input = ins->inputs().front()->get_shape();
+        auto rop    = from_value<operation>(op.to_value().at("op"));
+        auto input  = ins->inputs().front()->get_shape();
         auto output = ins->get_shape().sub_shapes().front();
         set(rop.name(), input, output);
         read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
@@ -316,8 +317,7 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
-            return reduce_op::generate(
-                ins, cpp_generator::to_args(ins->inputs(), names));
+            return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
         else if(ins->name() == "pointwise")
         {

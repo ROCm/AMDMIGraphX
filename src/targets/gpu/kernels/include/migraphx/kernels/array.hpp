@@ -126,12 +126,13 @@ struct array
 
     constexpr array() = default;
 
-    template<class... Ts, MIGRAPHX_REQUIRES(sizeof...(Ts) == N and (is_convertible<Ts, T>{} and ...))>
-    constexpr array(Ts... xs)
-    : d{xs...}
-    {}
+    template <class... Ts,
+              MIGRAPHX_REQUIRES(sizeof...(Ts) == N and (is_convertible<Ts, T>{} and ...))>
+    constexpr array(Ts... xs) : d{xs...}
+    {
+    }
 
-    template<class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{} and (N > 1))>
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{} and (N > 1))>
     constexpr explicit array(U x)
     {
         for(index_int i = 0; i < N; i++)
@@ -275,12 +276,10 @@ struct array
     }
 };
 
-template<class F>
+template <class F>
 constexpr auto array_apply(F f)
 {
-    return [=](auto&& x) {
-        return x.apply(f);
-    };
+    return [=](auto&& x) { return x.apply(f); };
 }
 
 template <class T, class... Ts>

@@ -80,7 +80,7 @@ std::string generate_name_from_ops(const module& m, const std::string& postname 
 
 struct reduce_op
 {
-    std::vector<std::string> inputs     = {};
+    std::vector<std::string> inputs = {};
     std::string reduction = "";
     std::string init      = "0";
     std::string read      = "op::id{}";

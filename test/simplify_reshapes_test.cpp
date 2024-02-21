@@ -1665,8 +1665,8 @@ TEST_CASE(transpose_contiguous_squeeze_unary)
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
         auto transpose_ins =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
-        auto rsqrt    = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
-        auto sq_ins   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsqrt);
+        auto rsqrt  = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
+        auto sq_ins = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsqrt);
         m2.add_instruction(pass_op{}, sq_ins);
     }
     EXPECT(m1 == m2);
@@ -2084,6 +2084,42 @@ TEST_CASE(reshape_reshape_dot_gemm_axis)
     };
     migraphx::module m2 = m1;
     run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(pointwise_transpose)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 32, 64, 64}};
+    migraphx::module m1;
+    {
+        auto inp   = m1.add_parameter("input", s);
+        auto c1    = m1.add_literal(migraphx::generate_literal(s));
+        auto c2    = m1.add_literal(migraphx::generate_literal(s));
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), inp, c1);
+        auto add   = m1.add_instruction(migraphx::make_op("add"), mul, c2);
+        auto trans = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), add);
+        m1.add_return({trans});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp       = m2.add_parameter("input", s);
+        auto inp_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), inp);
+        auto c1 = m2.add_literal(migraphx::generate_literal(s));
+        auto c1_trans =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), c1);
+        auto c2 = m2.add_literal(migraphx::generate_literal(s));
+        auto c2_trans =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), c2);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), inp_trans, c1_trans);
+
+        auto add = m2.add_instruction(migraphx::make_op("add"), mul, c2_trans);
+        m2.add_return({add});
+    };
+
     EXPECT(m1.sort() == m2.sort());
 }
 

@@ -2540,6 +2540,15 @@ def gelu_tanh_test():
 
     return ([node], [x], [y])
 
+@onnx_test()
+def gelu_invalid_input_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [3])
+    y = helper.make_tensor_value_info("y", TensorProto.INT32, [3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
 
 @onnx_test()
 def gemm_test():

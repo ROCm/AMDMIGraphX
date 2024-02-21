@@ -30,7 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-instruction_ref parse_gelu_no_approx(onnx_parser::node_info info, instruction_ref x)
+instruction_ref parse_gelu_no_approx(const onnx_parser::node_info& info, instruction_ref x)
 {
     auto x_lens = x->get_shape().lens();
     auto x_type = x->get_shape().type();
@@ -51,7 +51,7 @@ instruction_ref parse_gelu_no_approx(onnx_parser::node_info info, instruction_re
     return info.add_instruction(migraphx::make_op("mul"), mul_half, add_one);
 }
 
-instruction_ref parse_gelu_tanh_approx(onnx_parser::node_info info, instruction_ref x)
+instruction_ref parse_gelu_tanh_approx(const onnx_parser::node_info& info, instruction_ref x)
 {
     auto x_lens     = x->get_shape().lens();
     auto x_type     = x->get_shape().type();

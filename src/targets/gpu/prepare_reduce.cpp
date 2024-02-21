@@ -99,7 +99,7 @@ struct find_multi_reduce
         };
 
         group_by(reduces.begin(), reduces.end(), each, by(std::equal_to<>{}, [](instruction_ref i) {
-                     return i->name();
+                     return std::make_tuple(i->name(), i->get_shape());
                  }));
     }
 };

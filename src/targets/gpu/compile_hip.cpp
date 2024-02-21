@@ -275,11 +275,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         tmp_dir td{};
         auto out = td.path / "output";
 
-        process(driver.string() + " " + out.string()).write([&](auto writer) {
-            to_msgpack(v, writer);
-        });
+        process(driver + " " + out).write([&](auto writer) { to_msgpack(v, writer); });
         if(fs::exists(out))
-            return {read_buffer(out.string())};
+            return {read_buffer(out)};
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch);
 }

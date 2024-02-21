@@ -392,7 +392,7 @@ process& process::env(const std::vector<std::string>& envs)
     return *this;
 }
 
-void process::read(std::string& buffer) const
+void process::read(const writer& output) const
 {
 #ifdef _WIN32
     // clang-format off
@@ -422,14 +422,14 @@ void process::read(std::string& buffer) const
     std::string result(size, '\0');
     if(ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
         MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
-    buffer = result;
     CloseHandle(handle);
     // clang-format on
 #else
     std::stringstream ss;
     impl->check_exec(impl->get_command(), redirect_to(ss));
-    buffer = ss.str();
+    auto result = ss.str();
 #endif
+    output(result.data(), result.size());
 }
 
 void process::exec()
@@ -444,7 +444,7 @@ void process::exec()
 #endif
 }
 
-void process::write(std::function<void(process::writer)> pipe_in)
+void process::write(std::function<void(writer)> pipe_in)
 {
 #ifndef _WIN32
     impl->check_exec(impl->get_command(), std::move(pipe_in));

@@ -57,8 +57,8 @@ struct MIGRAPHX_EXPORT process
     process& env(const std::vector<std::string>& envs);
 
     void exec();
-    void write(std::function<void(process::writer)> pipe_in);
-    void read(std::string& buffer) const;
+    void write(std::function<void(writer)> pipe_in);
+    void read(const writer& output) const;
 
     private:
     std::unique_ptr<process_impl> impl;

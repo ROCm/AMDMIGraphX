@@ -212,19 +212,20 @@ std::string generate_pointwise(const module& pm, const std::string& name)
 
 std::string reduce_op::str() const
 {
-    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + join_strings(inputs, ", ") + "))";
 }
-void reduce_op::set(instruction_ref ins, const operation& op)
+void reduce_op::set(const std::string& name, const shape& input, const shape& output)
 {
-    if(op.name() == "reduce_sum")
+    assert(input.type() != shape::tuple_type);
+    assert(output.type() != shape::tuple_type);
+    if(name == "reduce_sum")
     {
         reduction = "op::sum{}";
     }
-    else if(op.name() == "reduce_mean")
+    else if(name == "reduce_mean")
     {
-        auto s               = ins->inputs().front()->get_shape();
-        auto reduce_elements = s.elements() / ins->get_shape().elements();
-        auto reduce_type     = s.type();
+        auto reduce_elements = input.elements() / output.elements();
+        auto reduce_type     = input.type();
         reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
         // Use float accumulator when reduction size is too large for half
@@ -235,17 +236,17 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         else
             write = mean;
     }
-    else if(op.name() == "reduce_max")
+    else if(name == "reduce_max")
     {
         reduction = "op::max{}";
         init      = "lowest{}";
     }
-    else if(op.name() == "reduce_min")
+    else if(name == "reduce_min")
     {
         reduction = "op::min{}";
         init      = "highest{}";
     }
-    else if(op.name() == "reduce_prod")
+    else if(name == "reduce_prod")
     {
         reduction = "op::product{}";
         init      = "1";
@@ -255,13 +256,26 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         MIGRAPHX_THROW("Unsupported reduce");
     }
 }
-std::string reduce_op::generate(instruction_ref ins, const std::string& x)
+
+void reduce_op::set(instruction_ref ins, const operation& op)
+{
+    if (op.name() == "gpu::parallel_reduce")
+    {
+        auto rop = from_value<operation>(op.to_value().at("op"));
+        auto input = ins->inputs().front()->get_shape();
+        auto output = ins->get_shape().sub_shapes().front();
+        set(rop.name(), input, output);
+        read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
+    }
+    else
+    {
+        set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
+    }
+}
+std::string reduce_op::generate(instruction_ref ins, const std::vector<std::string>& x)
 {
     reduce_op r{x};
-    auto op = ins->get_operator();
-    if(op.name() == "gpu::parallel_reduce")
-        op = from_value<operation>(ins->get_operator().to_value().at("op"));
-    r.set(ins, op);
+    r.set(ins, ins->get_operator());
     return r.str();
 }
 
@@ -303,7 +317,7 @@ std::string generate_reduce(module m, const std::string& name)
         if(contains(ins->name(), "reduce"))
         {
             return reduce_op::generate(
-                ins, join_strings(cpp_generator::to_args(ins->inputs(), names), ", "));
+                ins, cpp_generator::to_args(ins->inputs(), names));
         }
         else if(ins->name() == "pointwise")
         {

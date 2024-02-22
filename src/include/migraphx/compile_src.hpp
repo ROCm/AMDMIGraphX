@@ -66,7 +66,7 @@ struct MIGRAPHX_EXPORT src_compiler
     std::string compiler                      = "c++";
 #endif
     std::vector<std::string> flags            = {};
-    std::string output                        = "";
+    fs::path output                           = {};
     std::string launcher                      = "";
     std::string out_ext                       = ".o";
     std::function<fs::path(fs::path)> process = nullptr;

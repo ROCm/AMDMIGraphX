@@ -119,7 +119,9 @@ TEST_CASE(binary_stdin)
 TEST_CASE(read_stdout)
 {
     std::string buffer;
-    migraphx::process{executable, {"--stdout"}}.read(buffer);
+    migraphx::process{executable, {"--stdout"}}.read([&buffer](const char* buf, std::size_t size) {
+        buffer = std::string{buf, size};
+    });
     EXPECT(buffer == string_data);
 }
 
@@ -146,7 +148,9 @@ TEST_CASE(environment_variable)
     std::string buffer;
     migraphx::process{executable, {"--stdout"}}
         .env({"MIGRAPHX_PROCESS_TEST_ENVIRONMENT_VARIABLE=1"})
-        .read(buffer);
+        .read([&buffer](const char* buf, std::size_t size) {
+            buffer = std::string{buf, size};
+        });
     std::string reversed(string_data);
     std::reverse(reversed.begin(), reversed.end());
     EXPECT(buffer == reversed);

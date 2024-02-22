@@ -23,6 +23,7 @@
  */
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fileutils.hpp>
 #include <fstream>
 #include <iostream>
 
@@ -34,7 +35,7 @@ T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes =
 {
     std::ifstream is(filename, std::ios::binary | std::ios::ate);
     if(not is.is_open())
-        MIGRAPHX_THROW("Failure opening file: " + filename.string());
+        MIGRAPHX_THROW("Failure opening file: " + filename);
     if(nbytes == 0)
     {
         // if there is a non-zero offset and nbytes is not set,
@@ -45,13 +46,12 @@ T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes =
         nbytes -= offset;
     }
     if(nbytes < 1)
-        MIGRAPHX_THROW("Invalid size for: " + filename.string());
+        MIGRAPHX_THROW("Invalid size for: " + filename);
     is.seekg(offset, std::ios::beg);
 
     T buffer(nbytes, 0);
     if(not is.read(&buffer[0], nbytes))
-        MIGRAPHX_THROW("Error reading file: " + filename.string());
-    is.close();
+        MIGRAPHX_THROW("Error reading file: " + filename);
     return buffer;
 }
 

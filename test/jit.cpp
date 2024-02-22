@@ -23,6 +23,7 @@
  */
 #include <migraphx/compile_src.hpp>
 #include <migraphx/dynamic_loader.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
@@ -52,15 +53,14 @@ std::function<F> compile_function(std::string_view src, std::string_view symbol_
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
-    compiler.flags.emplace_back("-shared");
-    compiler.output = MIGRAPHX_LIB_PREFIX "simple" MIGRAPHX_LIB_POSTFIX;
-
 #ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
 #endif
+    compiler.flags.emplace_back("-shared");
+    compiler.output = migraphx::make_shared_object_filename("simple");
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
-    return migraphx::dynamic_loader{image}.get_function<F>(symbol_name);
+    return migraphx::dynamic_loader{image}.get_function<F>(std::string{symbol_name});
 }
 
 template <class F>

@@ -213,6 +213,7 @@ register_migraphx_ops(
     relu
     reshape
     reshape_lazy
+    resize
     reverse
     rnn
     rnn_last_cell_output

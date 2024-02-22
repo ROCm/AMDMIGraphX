@@ -7625,6 +7625,27 @@ def reshape_variable_input_dyn_test():
 
 
 @onnx_test()
+def resize_downsample_c_test():
+    scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='ceil')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
 def resize_downsample_f_test():
     scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
@@ -7647,22 +7668,171 @@ def resize_downsample_f_test():
 
 
 @onnx_test()
-def resize_downsample_c_test():
-    scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
+def resize_downsample_f_dyn_test():
+    # scales is a compile-time input
+    scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
     scale_tensor = helper.make_tensor(name='scales',
                                       data_type=TensorProto.FLOAT,
                                       dims=scales.shape,
                                       vals=scales.flatten().astype(np.float32))
 
-    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
-    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 1, 2])
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
 
     node = onnx.helper.make_node('Resize',
                                  inputs=['X', '', 'scales'],
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
-                                 nearest_mode='ceil')
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_downsample_f_dyn2_test():
+    # output shape is an input
+    sizes = np.array([2, 1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'sizes', ''],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
+
+
+@onnx_test()
+def resize_downsample_f_dyn3_test():
+    # scales is a runtime input
+    scalesX = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [4])
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X, scalesX], [Y])
+
+
+@onnx_test()
+def resize_downsample_f_ref_test():
+    #  Same as resize_downsample_f_dyn_test but with static input
+    scales = np.array([1.0, 1.0, 0.601, 0.601], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_downsample_f_ref2_test():
+    # output shape is an input
+    sizes = np.array([2, 1, 3, 5], dtype=np.int64)
+    sizes_tensor = helper.make_tensor(name='sizes',
+                                      data_type=TensorProto.INT64,
+                                      dims=sizes.shape,
+                                      vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 1, 5, 9])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', 'sizes', ''],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 nearest_mode='floor')
+
+    return ([node], [X], [Y], [sizes_tensor])
+
+
+@onnx_test()
+def resize_dyn_err1_test():
+    scales = np.array([1.601], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 3])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='nearest',
+                                 nearest_mode='round_prefer_ceil')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_upsample_f_dyn_test():
+    scales = np.array([1.0, 1.0, 1.601, 1.601], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 3, 5])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='nearest',
+                                 nearest_mode='round_prefer_ceil')
+
+    return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_no_scale_test():
+    # node has no scales or shapes input
+    scales = np.array([1.0, 1.0, 1.601, 1.601], dtype=np.float32)
+    scale_tensor = helper.make_tensor(name='scales',
+                                      data_type=TensorProto.FLOAT,
+                                      dims=scales.shape,
+                                      vals=scales.flatten().astype(np.float32))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [None, 1, 3, 5])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', ''],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='half_pixel',
+                                 mode='nearest',
+                                 nearest_mode='round_prefer_ceil')
 
     return ([node], [X], [Y], [scale_tensor])
 
@@ -7684,6 +7854,22 @@ def resize_downsample_linear_test():
                                  mode='linear')
 
     return ([node], [X], [Y], [scale_tensor])
+
+
+@onnx_test()
+def resize_linear_non_const_test():
+    # scales is a runtime input
+    scalesX = helper.make_tensor_value_info('scales', TensorProto.FLOAT, [4])
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', 'scales'],
+                                 outputs=['Y'],
+                                 mode='linear')
+
+    return ([node], [X, scalesX], [Y])
 
 
 @onnx_test()

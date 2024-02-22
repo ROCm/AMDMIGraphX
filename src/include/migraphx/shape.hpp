@@ -102,6 +102,11 @@ struct MIGRAPHX_EXPORT shape
         bool is_fixed() const;
         bool has_optimal() const;
 
+        bool within_range(const dynamic_dimension& other) const
+        {
+            return ((this->min >= other.min) and (this->max <= other.max));
+        }
+
         MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
                                                const dynamic_dimension& y);
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x,

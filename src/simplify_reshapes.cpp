@@ -950,31 +950,34 @@ struct find_reshape_reshape_dot
 };
 
 // Move shape transformation before pointwise ops when doing pointwise op with constant
-// eg. mul -> add -> transpose becomes transpose -> mul -> add
-struct find_pointwise_shape_op
+// eg. mul -> add -> transpose -> dot becomes transpose -> mul -> add -> dot
+struct find_pointwise_transpose_dot
 {
-    std::string op_name;
-
     auto matcher() const
     {
+        auto reshapes = reshaper_names();
+        reshapes.insert("transpose");
         auto const_pw = match::pointwise()(
             match::either_arg(0, 1)(match::is_constant().bind("const"), match::any().bind("inp")));
-        return match::name(op_name)(match::args(const_pw.bind("pw")));
+        auto match_shape_op = match::name("transpose")(match::args(const_pw.bind("pw")));
+        auto skip_pointwise_reshape_outputs =
+            match::skip_output(match::any_of(match::name(reshapes), match::pointwise()));
+        return match_shape_op(skip_pointwise_reshape_outputs(match::name("dot")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto shape_instr = r.result;
-        auto pw          = r.instructions["pw"];
-        auto constant    = r.instructions["const"];
-        auto inp         = r.instructions["inp"];
+        auto trans    = r.result;
+        auto pw       = r.instructions["pw"];
+        auto constant = r.instructions["const"];
+        auto inp      = r.instructions["inp"];
 
-        auto shape_op  = shape_instr->get_operator();
+        auto shape_op  = trans->get_operator();
         auto pw_op     = pw->get_operator();
-        auto new_inp   = m.insert_instruction(shape_instr, shape_op, inp);
-        auto new_const = m.insert_instruction(shape_instr, shape_op, constant);
+        auto new_inp   = m.insert_instruction(trans, shape_op, inp);
+        auto new_const = m.insert_instruction(trans, shape_op, constant);
 
-        m.replace_instruction(shape_instr, pw_op, new_inp, new_const);
+        m.replace_instruction(trans, pw_op, new_inp, new_const);
 
         // Check if matcher is applicable to moved reshape
         auto new_r = match::match_instruction(m, new_inp, matcher());
@@ -1004,7 +1007,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
-                            find_pointwise_shape_op{"transpose"},
+                            find_pointwise_transpose_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }

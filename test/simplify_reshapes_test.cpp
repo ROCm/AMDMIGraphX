@@ -2090,6 +2090,7 @@ TEST_CASE(reshape_reshape_dot_gemm_axis)
 TEST_CASE(pointwise_transpose)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 32, 64, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 32, 32}};
     migraphx::module m1;
     {
         auto inp   = m1.add_parameter("input", s);
@@ -2099,7 +2100,12 @@ TEST_CASE(pointwise_transpose)
         auto add   = m1.add_instruction(migraphx::make_op("add"), mul, c2);
         auto trans = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), add);
-        m1.add_return({trans});
+        auto rsp =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 32}}}), trans);
+
+        auto c3  = m1.add_literal(migraphx::generate_literal(s2));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), rsp, c3);
+        m1.add_return({dot});
     };
     run_pass(m1);
 
@@ -2115,9 +2121,12 @@ TEST_CASE(pointwise_transpose)
         auto c2_trans =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), c2);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), inp_trans, c1_trans);
-
         auto add = m2.add_instruction(migraphx::make_op("add"), mul, c2_trans);
-        m2.add_return({add});
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4096, 32}}}), add);
+
+        auto c3  = m2.add_literal(migraphx::generate_literal(s2));
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), rsp, c3);
+        m2.add_return({dot});
     };
 
     EXPECT(m1.sort() == m2.sort());

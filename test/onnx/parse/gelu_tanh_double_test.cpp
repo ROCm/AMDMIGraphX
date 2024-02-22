@@ -24,11 +24,11 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(gelu_tanh_test)
+TEST_CASE(gelu_tanh_double_test)
 {
     migraphx::program p;
-    auto type       = migraphx::shape::float_type;
-    auto lens       = {3};
+    auto type       = migraphx::shape::double_type;
+    auto lens       = {3, 3};
     auto shape      = migraphx::shape{type, lens};
     auto* mm        = p.get_main_module();
     auto x          = mm->add_parameter("x", shape);
@@ -57,7 +57,7 @@ TEST_CASE(gelu_tanh_test)
     auto mul2 = mm->add_instruction(migraphx::make_op("mul"), {x, half_mbcast});
     mm->add_instruction(migraphx::make_op("mul"), {add1, mul2});
 
-    auto prog = optimize_onnx("gelu_tanh_test.onnx");
+    auto prog = optimize_onnx("gelu_tanh_double_test.onnx");
 
     EXPECT(p == prog);
 }

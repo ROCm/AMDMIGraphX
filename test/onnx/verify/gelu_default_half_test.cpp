@@ -26,15 +26,16 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(gelu_default_test)
+TEST_CASE(gelu_default_half_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gelu_default_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("gelu_default_half_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<std::size_t> input_lens{3, 3};
-    auto input_type = migraphx::shape::float_type;
+    auto input_type = migraphx::shape::half_type;
     migraphx::shape data_shape{input_type, input_lens};
-    std::vector<float> data = {-100.0f, -7.5f, -5.2f, -1.0f, 0.0f, 1.5f, 4.9f, 8.2f, 1000.0f};
+    std::vector<float> tmp = {-100.0f, -7.5f, -5.2f, -1.0f, 0.0f, 1.5f, 4.9f, 8.2f, 1000.0f};
+    std::vector<migraphx::half> data = {tmp.begin(), tmp.end()};
 
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(data_shape, data.data());
@@ -42,15 +43,17 @@ TEST_CASE(gelu_default_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {0.0,
-                               -2.3939184e-13,
-                               -5.1815033e-07f,
-                               -0.15865526f,
-                               0.0f,
-                               1.3997892f,
-                               4.8999977f,
-                               8.1999998f,
-                               1000.0f};
+    tmp = {0.0,
+           -2.3939184e-13,
+           -5.1815033e-07f,
+           -0.15865526f,
+           0.0f,
+           1.3997892f,
+           4.8999977f,
+           8.1999998f,
+           1000.0f};
+
+    std::vector<migraphx::half> gold = {tmp.begin(), tmp.end()};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

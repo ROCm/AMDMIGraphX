@@ -31,10 +31,10 @@ TEST_CASE(gelu_tanh_test)
     migraphx::program p = migraphx::parse_onnx("gelu_tanh_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<std::size_t> input_lens{3};
+    std::vector<std::size_t> input_lens{3, 3};
     auto input_type = migraphx::shape::float_type;
     migraphx::shape data_shape{input_type, input_lens};
-    std::vector<float> data = {-1.0f, 0.0f, 1.0f};
+    std::vector<float> data = {-100.0f, -7.5f, -5.2f, -1.0f, 0.0f, 1.5f, 4.9f, 8.2f, 1000.0f};
 
     migraphx::parameter_map pp;
     pp["x"] = migraphx::argument(data_shape, data.data());
@@ -42,7 +42,8 @@ TEST_CASE(gelu_tanh_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {-0.158808, 0., 0.841192};
+    std::vector<float> gold = {
+        0.0f, 0.0f, -1.5497207e-07, -0.15880799f, 0.0, 1.3995717f, 4.8999996f, 8.1999998f, 1000.0f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

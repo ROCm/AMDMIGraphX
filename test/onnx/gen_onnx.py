@@ -5086,10 +5086,10 @@ def matmul_dyn_vv_test():
 
 
 @onnx_test()
-def matmul_dyn_broadcast_error():
+def matmul_dyn_broadcast_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 7, None])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 1, None])
 
     node = onnx.helper.make_node(
         'MatMul',

@@ -138,6 +138,7 @@ register_migraphx_ops(
     atanh
     atan
     broadcast
+    broadcast_for_dot
     capture
     ceil
     clip

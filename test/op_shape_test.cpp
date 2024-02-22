@@ -856,7 +856,7 @@ TEST_CASE(dot_dyn_test4)
     // Note how the inner dimensions have an intersection in range
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}, {4, 8}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {{1, 4}, {5, 9}, {8, 8}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {{4, 4}, {5, 5}, {8, 8}}},
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
                  s_m1,
                  s_m2);
@@ -928,19 +928,18 @@ TEST_CASE(broadcast_for_dot_dyn1)
 
 TEST_CASE(broadcast_for_dot_dyn2)
 {
-    std::size_t max_val = std::numeric_limits<std::size_t>::max();
     migraphx::shape s0{migraphx::shape::float_type, {{6, 12}, {4, 4}, {8, 8}}};
     migraphx::shape s1{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {2, 10}, {8, 8}, {4, 4}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type,
-                                 {{1, 4, {1, 2, 4}}, {6, 10}, {124, 282}, {0, max_val}}},
-                 migraphx::make_op("broadcast_for_dot"),
-                 s0,
-                 s1);
-    expect_shape(migraphx::shape{migraphx::shape::float_type,
-                                 {{1, 4, {1, 2, 4}}, {6, 10}, {254, 484}, {356, 584}}},
-                 migraphx::make_op("broadcast_for_dot"),
-                 s1,
-                 s0);
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {6, 10}, {4, 4}, {8, 8}}},
+        migraphx::make_op("broadcast_for_dot"),
+        s0,
+        s1);
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {6, 10}, {8, 8}, {4, 4}}},
+        migraphx::make_op("broadcast_for_dot"),
+        s1,
+        s0);
 }
 
 TEST_CASE(flatten_shape)

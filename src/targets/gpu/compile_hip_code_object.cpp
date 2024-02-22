@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -164,9 +164,9 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
-std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
+std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size)
 {
-    const std::size_t min_block_size = 64;
+    const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
     auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }

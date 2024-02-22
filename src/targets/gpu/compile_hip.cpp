@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/fileutils.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -252,10 +253,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
             std::cout << std::string(src.content) << std::endl;
         }
     }
-    auto fname = fs::path{"migraphx-hiprtc-driver"};
-#ifdef _WIN32
-    fname.replace_extension(".exe");
-#endif
+
+    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path() / fname;
 
@@ -276,11 +275,9 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         tmp_dir td{};
         auto out = td.path / "output";
 
-        process(driver.string() + " " + out.string()).write([&](auto writer) {
-            to_msgpack(v, writer);
-        });
+        process(driver + " " + out).write([&](auto writer) { to_msgpack(v, writer); });
         if(fs::exists(out))
-            return {read_buffer(out.string())};
+            return {read_buffer(out)};
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch);
 }

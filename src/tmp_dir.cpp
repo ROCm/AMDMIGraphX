@@ -101,9 +101,7 @@ tmp_dir::~tmp_dir()
             }
             catch(const fs::filesystem_error& err)
             {
-                if(enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
-                    std::cerr << err.what() << std::endl;
-
+                std::cerr << err.what() << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(125));
             }
             ++count;

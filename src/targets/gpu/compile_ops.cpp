@@ -135,7 +135,8 @@ struct compile_plan
                 ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
                 if(solutions.empty())
-                    MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " + to_string(problem));
+                    MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
+                                   to_string(problem));
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {

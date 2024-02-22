@@ -194,7 +194,8 @@ struct compile_plan
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
-            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " + to_string(config->problem));
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           to_string(config->problem));
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

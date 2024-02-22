@@ -25,9 +25,6 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_SRC_HPP
 
 #include <migraphx/config.hpp>
-#ifdef _WIN32
-#include <migraphx/env.hpp>
-#endif
 #include <migraphx/filesystem.hpp>
 #include <functional>
 #include <string>
@@ -54,22 +51,15 @@ struct src_file
     }
 };
 
-#ifdef _WIN32
-MIGRAPHX_DECLARE_ENV_VAR(HIP_PATH)
-#endif
-
 struct MIGRAPHX_EXPORT src_compiler
 {
-#ifdef _WIN32
-    fs::path compiler = path_value_of(HIP_PATH{}) / "bin" / "clang++.exe";
-#else
-    fs::path compiler = "c++";
-#endif
+    fs::path compiler                         = "c++";
     std::string flags                         = "";
     fs::path output                           = {};
     std::string launcher                      = "";
     std::string out_ext                       = ".o";
     std::function<fs::path(fs::path)> process = nullptr;
+    src_compiler();
     std::vector<char> compile(const std::vector<src_file>& srcs) const;
 };
 

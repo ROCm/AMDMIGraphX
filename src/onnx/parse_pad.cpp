@@ -169,7 +169,7 @@ struct parse_pad : op_parser<parse_pad>
                                const std::vector<instruction_ref>& args) const
     {
         float value = 0.0f;
-        if(args.size() >= 3 and args.at(2)->get_shape().scalar() and not args.at(2)->is_undefined())
+        if(args.size() >= 3 and args.at(2)->get_shape().elements() >= 1)
         {
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_PARSER_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -43,7 +44,7 @@ namespace onnx = onnx_for_migraphx;
 struct onnx_parser
 {
     std::string filename;
-    std::string path    = ".";
+    fs::path path;
     using attribute_map = std::unordered_map<std::string, onnx::AttributeProto>;
     struct node_info
     {

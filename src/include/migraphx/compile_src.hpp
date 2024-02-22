@@ -63,7 +63,7 @@ struct MIGRAPHX_EXPORT src_compiler
 #ifdef _WIN32
     fs::path compiler = fs::path{string_value_of(HIP_PATH{})} / "bin" / "clang++.exe";
 #else
-    fs::path compiler                         = "c++";
+    fs::path compiler = "c++";
 #endif
     std::string flags                         = "";
     fs::path output                           = {};

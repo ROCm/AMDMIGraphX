@@ -24,31 +24,31 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(resize_nonstd_input_test)
+TEST_CASE(resize_downsample_f_dyn_test)
 {
     migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    std::vector<float> ds = {1.0f, 1.0f, 0.6f, 0.6f};
+    auto* mm              = p.get_main_module();
+    std::vector<float> ds = {1.f, 1.f, 0.601, 0.601};
     migraphx::shape ss{migraphx::shape::float_type, {4}};
-    mm->add_literal(migraphx::literal{ss, ds});
 
-    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 4, 2}};
-    auto inx = mm->add_parameter("X", sx);
-
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 1, 2}};
-    std::vector<int> ind = {0, 4};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
-
-    auto tx =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inx);
+    auto li = mm->add_literal(migraphx::literal{ss, ds});
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), tx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}}};
+    auto inx = mm->add_parameter("X", sx);
+
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"mode", "nearest"},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx,
+                            li);
+
     mm->add_return({r});
+    migraphx::onnx_options options;
+    options.map_dyn_input_dims["X"] = {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}};
 
-    auto prog = migraphx::parse_onnx("resize_nonstd_input_test.onnx");
-
+    auto prog = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

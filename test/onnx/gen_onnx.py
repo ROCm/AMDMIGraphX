@@ -5906,6 +5906,28 @@ def pad_3arg_test():
 
 
 @onnx_test()
+def pad_undef_const_val_test():
+    sizes = np.array([1, 1, 1, 1])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0', 'arg_pad', ''],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
+
+
+@onnx_test()
 def pad_4arg_axes_test():
     values = np.array([1])
     val_tensor = helper.make_tensor(name='val',

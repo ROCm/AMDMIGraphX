@@ -900,6 +900,38 @@ struct find_scalar_multibroadcast_reshape_or_transpose
     }
 };
 
+// Remove unnecessary preceeding size 1 dims for constants
+struct find_const_broadcast
+{
+    auto matcher() const
+    {
+        return match::name("multibroadcast", "broadcast")(
+            match::arg(0)(match::is_constant()(match::used_once()).bind("constant")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto mbr      = mr.result;
+        auto constant = mr.instructions["constant"];
+
+        if(constant->get_shape().scalar())
+            return;
+
+        auto const_lens = constant->get_shape().lens();
+        auto it = std::find_if(const_lens.begin(), const_lens.end(), [](auto i) { return i != 1; });
+        auto naxes = std::distance(const_lens.begin(), it);
+        if(naxes == 0)
+            return;
+
+        std::vector<std::size_t> sq_axes(naxes);
+        std::iota(sq_axes.begin(), sq_axes.end(), 0);
+
+        auto sq_const =
+            m.insert_instruction(mbr, make_op("squeeze", {{"axes", sq_axes}}), constant);
+        m.replace_instruction(mbr, mbr->get_operator(), sq_const);
+    }
+};
+
 struct find_reshape_reshape_dot
 {
     auto matcher() const
@@ -949,6 +981,74 @@ struct find_reshape_reshape_dot
     }
 };
 
+struct find_reshape_const_dot
+{
+    auto matcher() const
+    {
+        return match::name("dot")(
+            match::used_once(),
+            match::args(match::skip(match::name("convert").bind("convert"))(
+                            match::name("reshape").bind("rsp")),
+                        match::skip_broadcasts(match::is_constant().bind("constant"))));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto dot      = r.result;
+        auto rsp      = r.instructions["rsp"];
+        auto constant = r.instructions["constant"];
+
+        auto const_lens = constant->get_shape().lens();
+        if(const_lens.size() > 2)
+            return;
+
+        auto rsp_lens = rsp->get_shape().lens();
+        auto inp      = rsp->inputs().front();
+        auto inp_lens = inp->get_shape().lens();
+
+        // Gemm axis should not be altered by the reshape
+        if(rsp_lens.back() != inp_lens.back())
+            return;
+
+        if(contains(r.instructions, "convert"))
+        {
+            auto convert = r.instructions["convert"];
+            inp          = m.insert_instruction(dot, convert->get_operator(), inp);
+            rsp          = m.insert_instruction(dot, rsp->get_operator(), inp);
+        }
+
+        std::vector<size_t> new_const_lens{inp_lens.begin(), inp_lens.end() - 2};
+        migraphx::operation new_bc_op;
+
+        auto bc_const      = dot->inputs().back();
+        auto bc_const_lens = bc_const->get_shape().lens();
+        new_const_lens.insert(new_const_lens.end(), bc_const_lens.end() - 2, bc_const_lens.end());
+
+        // if the orignal weight is one dimensional, look at the original broadcast
+        // to determine the correct broadcast axis
+        if(const_lens.size() == 1)
+        {
+            auto bc_const_strides = bc_const->get_shape().strides();
+            auto it               = std::find_if(
+                bc_const_strides.begin(), bc_const_strides.end(), [&](auto i) { return i != 0; });
+            auto orig_bc_axis = std::distance(bc_const_strides.begin(), it);
+
+            auto new_bc_axis = new_const_lens.size() - (bc_const_lens.size() - orig_bc_axis);
+            new_bc_op        = migraphx::make_op("broadcast",
+                                                 {{"axis", new_bc_axis}, {"out_lens", new_const_lens}});
+        }
+        else
+        {
+            new_bc_op = migraphx::make_op("multibroadcast", {{"out_lens", new_const_lens}});
+        }
+
+        auto new_bc_const = m.insert_instruction(dot, new_bc_op, constant);
+        auto new_dot      = m.insert_instruction(dot, make_op("dot"), inp, new_bc_const);
+        m.replace_instruction(
+            dot, make_op("reshape", {{"dims", dot->get_shape().lens()}}), new_dot);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -960,6 +1060,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_reshape_cont{},
                             find_transpose{},
+                            find_const_broadcast{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
@@ -969,6 +1070,7 @@ void simplify_reshapes::apply(module& m) const
                             find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
+                            find_reshape_const_dot{},
                             find_reshape_reshape_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);

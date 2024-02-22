@@ -64,7 +64,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
     }
     else
     {
-        td.execute(compiler.string(), params);
+        td.execute(compiler, params);
     }
 
     auto out_path = td.path / out;

@@ -61,7 +61,7 @@ MIGRAPHX_DECLARE_ENV_VAR(HIP_PATH)
 struct MIGRAPHX_EXPORT src_compiler
 {
 #ifdef _WIN32
-    fs::path compiler = fs::path{string_value_of(HIP_PATH{})} / "bin" / "clang++.exe";
+    fs::path compiler = path_value_of(HIP_PATH{}) / "bin" / "clang++.exe";
 #else
     fs::path compiler = "c++";
 #endif

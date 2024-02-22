@@ -69,5 +69,13 @@ std::vector<std::string> env(const char* name)
         return {{p}};
 }
 
+fs::path path_value_of(const char* name, fs::path fallback)
+{
+    auto e = env(name);
+    if(e.empty())
+        return fallback;
+    return e.front();
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

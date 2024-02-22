@@ -2520,8 +2520,18 @@ def gathernd_batch_dims_test():
 
 @onnx_test()
 def gelu_default_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_default_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 3])
 
     node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
 
@@ -2530,8 +2540,8 @@ def gelu_default_test():
 
 @onnx_test()
 def gelu_tanh_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
 
     node = onnx.helper.make_node("Gelu",
                                  inputs=["x"],
@@ -2539,6 +2549,20 @@ def gelu_tanh_test():
                                  approximate="tanh")
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_double_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [3, 3])
+
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
+
+    return ([node], [x], [y])
+
 
 @onnx_test()
 def gelu_invalid_input_type_test():

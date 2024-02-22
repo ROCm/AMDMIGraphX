@@ -28,7 +28,7 @@ TEST_CASE(gelu_default_test)
 {
     migraphx::program p;
     auto type  = migraphx::shape::float_type;
-    auto lens  = {3};
+    auto lens  = {3, 3};
     auto shape = migraphx::shape{type, lens};
     auto* mm   = p.get_main_module();
     auto x     = mm->add_parameter("x", shape);

@@ -22,31 +22,37 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(resize_outsize_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    std::vector<int64_t> out_len = {1, 1, 4, 6};
-    migraphx::shape so{migraphx::shape::int64_type, {4}};
-    mm->add_literal(migraphx::literal(so, out_len));
+    // resize using output_size input, rather than scales
+    migraphx::program p = migraphx::parse_onnx("resize_outsize_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
-    auto inx = mm->add_parameter("X", sx);
+    std::vector<float> dx(sx.elements());
+    std::iota(dx.begin(), dx.end(), 0.1f);
 
-    mm->add_instruction(migraphx::make_op("undefined"));
+    migraphx::shape sy{migraphx::shape::float_type, {1, 1, 4, 6}};
+    std::vector<float> dy(sx.elements(), 0);
 
-    migraphx::shape si{migraphx::shape::int32_type, {1, 1, 4, 6}};
-    std::vector<int> ind = {0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2, 3, 3, 3, 3};
-    auto li              = mm->add_literal(migraphx::literal(si, ind));
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, dx.data());
+    pp["Y"] = migraphx::argument(sx, dy.data());
 
-    auto lrsp = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-    auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
-    mm->add_return({r});
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    auto prog = migraphx::parse_onnx("resize_outsize_test.onnx");
+    // clang-format off
+    std::vector<float> gold = {0.1f, 0.1f, 1.1f, 1.1f, 1.1f, 1.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f, 
+                                2.1f, 2.1f, 3.1f, 3.1f, 3.1f, 3.1f};
+    // clang-format on
 
-    EXPECT(p == prog);
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

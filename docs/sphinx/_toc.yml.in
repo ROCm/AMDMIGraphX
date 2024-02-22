@@ -7,8 +7,8 @@ subtrees:
       - file: migraphx-driver
         subtrees:
           - entries:
-            - file: driver-options
-      - file: contributing-to-migraphx
+            - file: reference/driver-options
+      - file: dev/contributing-to-migraphx
         subtrees:
           - entries:
             - file: dev/data

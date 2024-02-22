@@ -90,7 +90,7 @@ tmp_dir::~tmp_dir()
 {
     constexpr int MAX_RETRIES_COUNT = 5;
     if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
-    {       
+    {
         int count = 0;
         while(count < MAX_RETRIES_COUNT)
         {

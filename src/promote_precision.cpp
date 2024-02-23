@@ -101,8 +101,7 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
     return result;
 }
 
-static std::unordered_map<instruction_ref, shape::type_t>
-find_instruction_to_upgrade(module& m)
+static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_upgrade(module& m)
 {
     std::unordered_map<instruction_ref, shape::type_t> result;
     for(auto ins : iterator_for(m))
@@ -115,7 +114,7 @@ find_instruction_to_upgrade(module& m)
             continue;
         if(not is_lower_precision(input_type, output_type))
             continue;
-        for(auto u: find_adjacent_operators(ins))
+        for(auto u : find_adjacent_operators(ins))
         {
             result[u] = input_type;
         }
@@ -123,17 +122,22 @@ find_instruction_to_upgrade(module& m)
     return result;
 }
 
-void promote_precision::apply(module_pass_manager& mpm) const 
+void promote_precision::apply(module_pass_manager& mpm) const
 {
     auto upgrade = find_instruction_to_upgrade(mpm.get_module());
-    for(const auto&[ins, t]:upgrade)
+    for(const auto& [ins, t] : upgrade)
     {
-        auto convert1 = mpm.get_module().insert_instruction(std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
+        auto convert1 = mpm.get_module().insert_instruction(
+            std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
         mpm.get_module().replace_instruction(ins, convert1);
         std::vector<instruction_ref> inputs;
-        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&, t=t, ins=ins](auto input) {
-            return mpm.get_module().insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
-        });
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [&, t = t, ins = ins](auto input) {
+                           return mpm.get_module().insert_instruction(
+                               ins, make_op("convert", {{"target_type", t}}), input);
+                       });
         mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs);
     }
     mpm.run_pass(eliminate_convert{});

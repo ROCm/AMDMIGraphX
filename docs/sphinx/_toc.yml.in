@@ -25,3 +25,7 @@ subtrees:
     entries:
     - file: reference/cpp
     - file: reference/py
+
+  - caption: About
+    entries:
+    - file: license

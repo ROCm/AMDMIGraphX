@@ -25,6 +25,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/process.hpp>
+#include <migraphx/ranges.hpp>
 #include <algorithm>
 #include <random>
 #include <thread>
@@ -88,24 +89,15 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 
 tmp_dir::~tmp_dir()
 {
-    constexpr int MAX_RETRIES_COUNT = 5;
-    if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
+    constexpr int max_retries_count = 5;
+    for ([[maybe_unused]] auto count : range(max_retries_count))
     {
-        int count = 0;
-        while(count < MAX_RETRIES_COUNT)
-        {
-            try
-            {
-                fs::remove_all(this->path);
-                break;
-            }
-            catch(const fs::filesystem_error& err)
-            {
-                std::cerr << err.what() << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(125));
-            }
-            ++count;
-        }
+        std::error_code ec;
+        fs::remove_all(path, ec);
+        if(not ec)
+            break;
+        std::cerr << "Failed to remove " << path << ec.message() << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(125));
     }
 }
 

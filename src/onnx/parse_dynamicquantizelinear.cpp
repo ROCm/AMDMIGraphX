@@ -139,10 +139,25 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         auto y_zero_point = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), round);
 
-        // 3. quantize x with y_scale and y_zero_point
-        auto quant = bcast_qdq_instr("quantizelinear", x, y_scale, y_zero_point, info);
+        // 2.5 Adjust so output is int8 instead of uint due to MLIR being unable to handle int8 *
+        // uint8 ops upcast so we don't lose precision, subtract 128 and then conver this to an int8
+        // before passhing this along. int8 range is -128 to 127
+        auto int8_shift = info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+        auto y_zero_point_int16 = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}),
+            y_zero_point);
 
-        return {quant, y_scale, y_zero_point};
+        auto y_zero_point_shifted = info.add_common_op("add", y_zero_point_int16, int8_shift);
+
+        auto y_zero_point_converted = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+            y_zero_point_shifted);
+
+        // 3. quantize x with y_scale and y_zero_point
+        auto quant = bcast_qdq_instr("quantizelinear", x, y_scale, y_zero_point_converted, info);
+
+        return {quant, y_scale, y_zero_point_converted};
     }
 };
 

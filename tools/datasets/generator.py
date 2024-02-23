@@ -4,16 +4,21 @@ import onnxruntime as ort
 from utils import get_model_io, numpy_to_pb
 
 
-def generate_test_dataset(model_path, dataset_it, transform_fn, limit=None):
-    folder_name_prefix = f"{os.path.dirname(model_path)}/test_data_set"
-    inputs, outputs = get_model_io(model_path)
+def generate_test_dataset(model, dataset, output_path=None, limit=None):
+    if not output_path:
+        output_path = f"{dataset.name()}/{model.name()}"
+    folder_name_prefix = f"{output_path}/test_data_set"
     input_pb_name = "input_{}.pb"
     output_pb_name = "output_{}.pb"
 
-    for idx, data in enumerate(dataset_it):
+    # Model
+    model_path = model.download(output_path)
+    inputs, outputs = get_model_io(model_path)
+
+    print(f"Creating {folder_name_prefix}s...")
+    for idx, data in enumerate(dataset):
         folder_name = f"{folder_name_prefix}_{idx}"
-        print(f"Creating {folder_name}...")
-        input_data_map = transform_fn(inputs, data)
+        input_data_map = dataset.transform(inputs, data, model.preprocess)
 
         os.makedirs(folder_name, exist_ok=True)
         for input_idx, (input_name,
@@ -29,5 +34,5 @@ def generate_test_dataset(model_path, dataset_it, transform_fn, limit=None):
             numpy_to_pb(output_name, result_data,
                         f"{folder_name}/{output_pb_name.format(output_idx)}")
 
-        if limit and limit < idx:
+        if limit and limit <= idx:
             break

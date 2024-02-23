@@ -5,3 +5,5 @@ huggingface_hub
 Pillow
 opencv-python-headless
 onnxruntime
+transformers
+optimum

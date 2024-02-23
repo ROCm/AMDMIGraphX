@@ -24,30 +24,27 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(binary_dyn_brcst_mul_test)
+TEST_CASE(resize_downsample_f_dyn3_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter(
-        "0", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}});
-    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {4, 1}});
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    mm->add_instruction(migraphx::make_op("undefined"));
+    migraphx::shape sx{migraphx::shape::float_type, {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}}};
+    auto inx = mm->add_parameter("X", sx);
+    auto li  = mm->add_parameter("scales", ss);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"mode", "nearest"},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx,
+                            li);
 
-    auto bl0 = mm->add_instruction(
-        migraphx::make_op("multibroadcast",
-                          {{"out_dyn_dims", to_value(l0->get_shape().dyn_dims())}}),
-        l0,
-        l1);
-    auto bl1 = mm->add_instruction(
-        migraphx::make_op("multibroadcast",
-                          {{"out_dyn_dims", to_value(l0->get_shape().dyn_dims())}}),
-        l1,
-        bl0);
-    auto ret = mm->add_instruction(migraphx::make_op("mul"), bl0, bl1);
-    mm->add_return({ret});
-
+    mm->add_return({r});
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = migraphx::parse_onnx("binary_dyn_brcst_mul_test.onnx", options);
+    options.map_dyn_input_dims["X"] = {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}};
 
+    auto prog = migraphx::parse_onnx("resize_downsample_f_dyn3_test.onnx", options);
     EXPECT(p == prog);
 }

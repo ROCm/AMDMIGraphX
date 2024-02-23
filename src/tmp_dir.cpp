@@ -89,15 +89,18 @@ void tmp_dir::execute(const std::string& exe, const std::string& args) const
 
 tmp_dir::~tmp_dir()
 {
-    constexpr int max_retries_count = 5;
-    for ([[maybe_unused]] auto count : range(max_retries_count))
+    if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
     {
-        std::error_code ec;
-        fs::remove_all(path, ec);
-        if(not ec)
-            break;
-        std::cerr << "Failed to remove " << path << ec.message() << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(125));
+        constexpr int max_retries_count = 5;
+        for([[maybe_unused]] auto count : range(max_retries_count))
+        {
+            std::error_code ec;
+            fs::remove_all(path, ec);
+            if(not ec)
+                break;
+            std::cerr << "Failed to remove " << path << ec.message() << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(125));
+        }
     }
 }
 

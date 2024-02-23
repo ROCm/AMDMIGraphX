@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,21 +51,19 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
         });
     return out_lens;
 }
-
-std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
+std::vector<shape::dynamic_dimension>
+compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
+                             std::vector<shape::dynamic_dimension> dds1)
 {
-    // change both shapes to dynamic_dimension representation
-    s0 = s0.to_dynamic();
-    s1 = s1.to_dynamic();
-    if(s0.ndim() > s1.ndim())
+    if(dds0.size() > dds1.size())
     {
-        std::swap(s0, s1);
+        std::swap(dds0, dds1);
     }
-    auto offset = s1.ndim() - s0.ndim();
-    std::vector<shape::dynamic_dimension> out_dims(s1.dyn_dims());
-    std::transform(s0.dyn_dims().cbegin(),
-                   s0.dyn_dims().cend(),
-                   s1.dyn_dims().cbegin() + offset,
+    auto offset = dds1.size() - dds0.size();
+    std::vector<shape::dynamic_dimension> out_dims(dds1);
+    std::transform(dds0.cbegin(),
+                   dds0.cend(),
+                   dds1.cbegin() + offset,
                    out_dims.begin() + offset,
                    [&](auto a, auto b) {
                        if(a == b or b == 1)
@@ -76,14 +74,30 @@ std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, sha
                        {
                            return b;
                        }
+                       else if(a.within_range(b))
+                       {
+                           return shape::dynamic_dimension{a.min, a.max};
+                       }
+                       else if(b.within_range(a))
+                       {
+                           return shape::dynamic_dimension{b.min, b.max};
+                       }
                        else
                        {
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
-                                          migraphx::to_string_range(s0.dyn_dims()) + "} and {" +
-                                          migraphx::to_string_range(s1.dyn_dims()) + "} mismatch!");
+                                          migraphx::to_string_range(dds0) + "} and {" +
+                                          migraphx::to_string_range(dds1) + "} mismatch!");
                        }
                    });
     return out_dims;
+}
+
+std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
+{
+    // change both shapes to dynamic_dimension representation
+    s0 = s0.to_dynamic();
+    s1 = s1.to_dynamic();
+    return compute_broadcasted_dyn_dims(s0.dyn_dims(), s1.dyn_dims());
 }
 
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes)
@@ -151,24 +165,18 @@ insert_common_args(module& m, instruction_ref ins, std::vector<instruction_ref> 
         auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
 
         auto s0 = inputs[0]->get_shape();
-        if(not s0.dynamic() or s0.dyn_dims() != c_dyn_dims)
-        {
-            inputs[0] = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
-        }
+        // always add both multibroadcast instructions for dynamic shapes
+        inputs[0] = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
         std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
             // uses previous input to avoid recalculating the common shape from the
             // full set of input shapes at runtime
             auto s = input->get_shape();
-            if(not s.dynamic() or s.dyn_dims() != c_dyn_dims)
-            {
-                return m.insert_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                    input,
-                    inputs[0]);
-            }
-            return input;
+            return m.insert_instruction(
+                ins,
+                make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                input,
+                inputs[0]);
         });
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input->get_shape().type() != c_type)
@@ -215,6 +223,21 @@ instruction_ref insert_common_op(module& m,
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs)
 {
     return insert_common_op(m, m.end(), op, std::move(inputs));
+}
+
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<std::size_t>& bcast_lens,
+                       const std::size_t& offset)
+{
+    std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
+    for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
+    {
+        if(bcast_lens.at(i + offset) == input_shape.lens()[i])
+        {
+            bcast_strides.at(i + offset) = input_shape.strides()[i];
+        }
+    }
+    return shape{input_shape.type(), bcast_lens, bcast_strides};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -209,7 +209,7 @@ TEST_CASE(partial_pointwise_concat_pointwise)
                                  1,
                                  arg("main:pointwise2:concat", {}, single_pointwise("relu")),
                                  arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
-                                 arg("concat:noop0", {pooling}, noop_pointwise()));
+                                 arg("concat:noop3", {pooling}, noop_pointwise()));
         mm->add_return({fused_concat});
     }
     EXPECT(p1 == p2);
@@ -244,7 +244,7 @@ TEST_CASE(multiple_use_pointwise_concat_pointwise)
                                  1,
                                  arg("main:pointwise2:concat", {}, single_pointwise("relu")),
                                  arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
-                                 arg("concat:noop1", {sub}, noop_pointwise()));
+                                 arg("concat:noop4", {sub}, noop_pointwise()));
         auto slice = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
             fused_concat);
@@ -281,7 +281,7 @@ TEST_CASE(pointwise_concat_fusion)
                                  1,
                                  arg("main:pointwise2:concat", {}, single_pointwise("relu")),
                                  arg("concat:main:pointwise0", {x}, single_pointwise("sigmoid")),
-                                 arg("concat:noop2", {yc}, noop_pointwise()));
+                                 arg("concat:noop5", {yc}, noop_pointwise()));
         mm->add_return({fused_concat});
     }
     EXPECT(p1 == p2);

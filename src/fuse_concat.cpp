@@ -35,6 +35,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+unsigned int get_noop_counter()
+{
+    static unsigned int counter = 0;
+    return counter++;
+}
+
 struct fused_concat
 {
     int64_t axis = 0;
@@ -119,9 +125,7 @@ struct find_concat_pointwise
             else
                 inputs.push_back(input);
         }
-
         std::vector<module_ref> module_inputs;
-        static unsigned int counter_cp = 0;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -131,13 +135,13 @@ struct find_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm =
-                               mpm.create_module("concat:noop" + std::to_string(counter_cp++));
+                           auto* pm = mpm.create_module("concat:noop" +
+                                                        std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
-        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(counter_cp++));
+        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(get_noop_counter()));
         auto x        = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
         module_inputs.push_back(post_pm);
@@ -180,7 +184,6 @@ struct find_pointwise_concat_pointwise
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
-        static unsigned int counter_pcp = 0;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -190,8 +193,8 @@ struct find_pointwise_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm =
-                               mpm.create_module("concat:noop" + std::to_string(counter_pcp++));
+                           auto* pm = mpm.create_module("concat:noop" +
+                                                        std::to_string(get_noop_counter()));
                            auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;

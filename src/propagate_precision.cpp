@@ -1,4 +1,4 @@
-#include <migraphx/promote_precision.hpp>
+#include <migraphx/propagate_precision.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -122,7 +122,7 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
     return result;
 }
 
-void promote_precision::apply(module_pass_manager& mpm) const
+void propagate_precision::apply(module_pass_manager& mpm) const
 {
     auto upgrade = find_instruction_to_upgrade(mpm.get_module());
     for(const auto& [ins, t] : upgrade)

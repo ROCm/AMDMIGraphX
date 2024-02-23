@@ -169,36 +169,36 @@ TEST_CASE(register_half_copy_op)
     EXPECT(op.name() == "half_copy_device_same_buffer");
 }
 
-void run_test_prog(const std::string& op_name, bool buffer_alloc) {
-    migraphx::program p;
-    migraphx::module m = p.get_main_module();
-    migraphx::shape s{migraphx_shape_float_type, {4, 3}};
-    auto x                        = m.add_parameter("x", s);
-    migraphx::instructions inputs = {x};
-    if(buffer_alloc)
-    {
-        auto alloc = m.add_allocation(s);
-        inputs     = {x, alloc};
-    }
-    auto half_copy_ins = m.add_instruction(migraphx::operation(op_name.c_str()), inputs);
-    m.add_return({half_copy_ins});
-    migraphx::compile_options options;
-    options.set_offload_copy();
-    p.compile(migraphx::target("gpu"), options);
-    migraphx::program_parameters pp;
-    std::vector<float> x_data(12);
-    std::iota(x_data.begin(), x_data.end(), 0);
-    pp.add("x", migraphx::argument(s, x_data.data()));
-    auto results    = p.eval(pp);
-    auto result     = results[0];
-    auto result_vec = result.as_vector<float>();
-    std::vector<float> expected_result(12, 0);
-    std::iota(expected_result.begin() + 6, expected_result.end(), 6);
-    EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
-};
-
 TEST_CASE(half_copy_custom_op_test)
 {
+    auto run_test_prog = [](const std::string& op_name, bool buffer_alloc) {
+        migraphx::program p;
+        migraphx::module m = p.get_main_module();
+        migraphx::shape s{migraphx_shape_float_type, {4, 3}};
+        auto x                        = m.add_parameter("x", s);
+        migraphx::instructions inputs = {x};
+        if(buffer_alloc)
+        {
+            auto alloc = m.add_allocation(s);
+            inputs     = {x, alloc};
+        }
+        auto half_copy_ins = m.add_instruction(migraphx::operation(op_name.c_str()), inputs);
+        m.add_return({half_copy_ins});
+        migraphx::compile_options options;
+        options.set_offload_copy();
+        p.compile(migraphx::target("gpu"), options);
+        migraphx::program_parameters pp;
+        std::vector<float> x_data(12);
+        std::iota(x_data.begin(), x_data.end(), 0);
+        pp.add("x", migraphx::argument(s, x_data.data()));
+        auto results    = p.eval(pp);
+        auto result     = results[0];
+        auto result_vec = result.as_vector<float>();
+        std::vector<float> expected_result(12, 0);
+        std::iota(expected_result.begin() + 6, expected_result.end(), 6);
+        EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+    };
+
     // register all the ops
     half_copy_host hch;
     migraphx::register_experimental_custom_op(hch);

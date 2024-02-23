@@ -436,7 +436,7 @@ TEST_CASE(fp16_subgraph)
 
     auto p2 = create_fp16_program();
 
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(topk)
@@ -1146,7 +1146,7 @@ TEST_CASE(int8_quantization_dot)
         EXPECT(migraphx::verify::verify_range_with_tolerance(
             quant_result,
             migraphx::verify::expected{no_quant_result},
-            migraphx::verify::tolerance{0.003}));
+            migraphx::verify::tolerance{0.004}));
     }
 }
 

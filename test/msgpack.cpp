@@ -28,9 +28,6 @@
 #include <numeric>
 #include "test.hpp"
 
-#include <migraphx/filesystem.hpp>
-#include <migraphx/file_buffer.hpp>
-
 template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<std::vector<std::uint8_t>, T>{})>
 void write_msgpack(std::ostream& os, const T& src)
 {
@@ -59,6 +56,7 @@ std::vector<char> msgpack_buffer(const T& src)
 {
     std::stringstream buffer;
     write_msgpack(buffer, src);
+    buffer.seekg(0);
     std::string str = buffer.str();
     return std::vector<char>(str.data(), str.data() + str.size()); // NOLINT
 }
@@ -213,25 +211,13 @@ TEST_CASE(test_msgpack_large_binary1)
 
 TEST_CASE(test_msgpack_binary2)
 {
-#ifdef _WIN32
-    // In this test, the MSFT standard library vector
-    // implementation fails comparison between vectors
-    // larger than or equal to 2G.
-    // The vectors are generated and stored correctly.
-    // The manual comparison proofs for both vectors
-    // are identical. Yet the '==' operator is failing.
-    // TODO: investigate further why the comparison is failing.
-    //       Check for the limitations in that matter (if any).
-    constexpr std::size_t n = (1.9 * 1024 * 1024 * 1024) + 2;
-#else
-    constexpr std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
-#endif
-    migraphx::value::binary bin(n);
+    const std::size_t n = 4LL * 1024 * 1024 * 1024 + 2;
+    migraphx::value::binary bin{n};
     std::size_t i = 0;
     std::generate(bin.begin(), bin.end(), [&] {
         i++;
         return i % 256;
-    });   
+    });
     EXPECT(migraphx::to_msgpack(bin) == msgpack_buffer(bin));
 }
 #endif

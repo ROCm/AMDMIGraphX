@@ -21,34 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/onnx/gelu.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+#include <onnx_test.hpp>
 
-struct parse_gelu : op_parser<parse_gelu>
+TEST_CASE(gelu_bias_invalid_type_test)
 {
-    std::vector<op_desc> operators() const { return {{"Gelu"}}; }
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto x      = args[0];
-        auto x_type = x->get_shape().type();
-        if(not is_type_float(x_type))
-        {
-            MIGRAPHX_THROW("PARSE_GELU: input tensor is not a floating type");
-        }
-        return add_gelu(info, x);
-    }
-};
-
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gelu_bias_invalid_type_test.onnx"); }));
+}

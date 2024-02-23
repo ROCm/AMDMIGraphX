@@ -2568,6 +2568,28 @@ def gelu_invalid_input_type_test():
 
 
 @onnx_test()
+def gelu_add_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_bias_invalid_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def gemm_test():
     A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [8, 6])
     B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [8, 7])

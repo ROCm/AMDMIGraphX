@@ -31,21 +31,22 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_gelu : op_parser<parse_gelu>
+struct parse_biasgelu : op_parser<parse_biasgelu>
 {
-    std::vector<op_desc> operators() const { return {{"Gelu"}}; }
+    std::vector<op_desc> operators() const { return {{"BiasGelu"}}; }
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
+                          onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto x      = args[0];
-        auto x_type = x->get_shape().type();
-        if(not is_type_float(x_type))
+        auto x = args[0];
+        auto y = args[1];
+        if(not is_type_float(x->get_shape().type()) or not is_type_float(y->get_shape().type()))
         {
-            MIGRAPHX_THROW("PARSE_GELU: input tensor is not a floating type");
+            MIGRAPHX_THROW("PARSE_BIASGELU: input tensor is not a floating type");
         }
-        return add_gelu(info, x);
+        auto add = info.add_common_op("add", x, y);
+        return add_gelu(info, add);
     }
 };
 

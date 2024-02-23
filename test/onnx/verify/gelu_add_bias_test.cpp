@@ -21,34 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/onnx/gelu.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-struct parse_gelu : op_parser<parse_gelu>
+TEST_CASE(gelu_add_bias_test)
 {
-    std::vector<op_desc> operators() const { return {{"Gelu"}}; }
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto x      = args[0];
-        auto x_type = x->get_shape().type();
-        if(not is_type_float(x_type))
-        {
-            MIGRAPHX_THROW("PARSE_GELU: input tensor is not a floating type");
-        }
-        return add_gelu(info, x);
-    }
-};
+    migraphx::program p = migraphx::parse_onnx("gelu_add_bias_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace onnx
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, {3, 3}};
+    migraphx::shape bias_shape{input_type, {3}};
+    std::vector<float> data = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
+    std::vector<float> bias = {-1, 0, 1};
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(data_shape, data.data());
+    pp["y"] = migraphx::argument(bias_shape, bias.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {
+        -0.04550027, -0.15865526, 0.0, -0.15865526, 0.0, 0.8413447, 0.0, 0.8413447, 1.9544997};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

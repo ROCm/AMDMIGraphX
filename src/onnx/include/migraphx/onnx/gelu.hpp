@@ -21,34 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_GELU_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_ONNX_GELU_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/onnx/gelu.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
-struct parse_gelu : op_parser<parse_gelu>
-{
-    std::vector<op_desc> operators() const { return {{"Gelu"}}; }
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto x      = args[0];
-        auto x_type = x->get_shape().type();
-        if(not is_type_float(x_type))
-        {
-            MIGRAPHX_THROW("PARSE_GELU: input tensor is not a floating type");
-        }
-        return add_gelu(info, x);
-    }
-};
+instruction_ref add_gelu(onnx_parser::node_info info, instruction_ref x);
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

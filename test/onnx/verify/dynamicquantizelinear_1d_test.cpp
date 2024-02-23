@@ -37,9 +37,10 @@ TEST_CASE(dynamicquantizelinear_1d_test)
     pp["x"]      = migraphx::argument(s_x, data.data());
     auto results = p.eval(pp);
 
-    std::vector<uint8_t> y_results;
+    std::vector<int8_t> y_results;
     results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> y_gold = {153, 255, 0, 26, 221, 179};
+    // std::vector<uint8_t> y_gold = {153, 255, 0, 26, 221, 179};
+    std::vector<int8_t> y_gold = {25, 127, -128, -102, 93, 51};
     EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
 
     std::vector<float> y_scale;
@@ -47,9 +48,10 @@ TEST_CASE(dynamicquantizelinear_1d_test)
     std::vector<float> y_scale_gold = {0.0196078438};
     EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
 
-    std::vector<uint8_t> y_zpt;
+    std::vector<int8_t> y_zpt;
     results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> y_zpt_gold = {153};
+    // std::vector<uint8_t> y_zpt_gold = {153};
+    std::vector<uint8_t> y_zpt_gold = {25};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
@@ -64,9 +66,10 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
     pp["x"]      = migraphx::argument(s_x, data.data());
     auto results = p.eval(pp);
 
-    std::vector<uint8_t> y_results;
+    std::vector<int8_t> y_results;
     results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> y_gold = {191, 121, 172, 96, 42, 0};
+    // std::vector<uint8_t> y_gold = {191, 121, 172, 96, 42, 0};
+    std::vector<int8_t> y_gold = {63, -7, 44, -32, -86, -128};
     EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
 
     std::vector<float> y_scale;
@@ -74,8 +77,9 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
     std::vector<float> y_scale_gold = {0.0156862754};
     EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
 
-    std::vector<uint8_t> y_zpt;
+    std::vector<int8_t> y_zpt;
     results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> y_zpt_gold = {255};
+    // std::vector<uint8_t> y_zpt_gold = {255};
+    std::vector<int8_t> y_zpt_gold = {127};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }

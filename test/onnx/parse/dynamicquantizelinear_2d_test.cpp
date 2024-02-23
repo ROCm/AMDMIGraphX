@@ -56,11 +56,23 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     auto y_zero_point = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::uint8_type}}), round);
 
+    auto int8_shift =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+    auto y_zero_point_int16 = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), y_zero_point);
+
+    auto y_zero_point_shifted =
+        mm->add_instruction(migraphx::make_op("add"), y_zero_point_int16, int8_shift);
+
+    auto y_zero_point_converted = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+        y_zero_point_shifted);
+
     auto scale_y_bcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_scale);
 
     auto y_pt_c_bcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_zero_point);
+        migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_zero_point_converted);
 
     mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
 

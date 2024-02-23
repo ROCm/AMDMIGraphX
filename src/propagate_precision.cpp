@@ -13,32 +13,58 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static bool is_lower_precision(shape::type_t in_type, shape::type_t out_type)
+struct precision
 {
-    bool is_lower = false;
-    shape::visit(in_type, [&](auto in) {
-        shape::visit(out_type, [&](auto out) {
-            if(in.is_integral() != out.is_integral())
-                return;
-            if(in.is_integral())
-            {
-                if(in.is_unsigned() != out.is_unsigned() and in.size() == out.size())
-                    is_lower = in.is_unsigned();
+    shape::type_t type;
+
+    friend bool operator==(const precision& xp, const precision& yp)
+    {
+        return xp.type == yp.type;
+    }
+    friend bool operator<(const precision& xp, const precision& yp)
+    {
+        bool is_less = false;
+        shape::visit(xp.type, [&](auto x) {
+            shape::visit(yp.type, [&](auto y) {
+                if(x.is_integral() != y.is_integral())
+                    return;
+                if(x.is_integral())
+                {
+                    if(x.is_unsigned() != y.is_unsigned() and x.size() == y.size())
+                        is_less = y.is_unsigned();
+                    else
+                        is_less = x.size() < y.size();
+                }
                 else
-                    is_lower = out.size() < in.size();
-            }
-            else
-            {
-                is_lower = out.size() < in.size();
-            }
+                {
+                    is_less = x.size() < y.size();
+                }
+            });
         });
-    });
-    return is_lower;
-}
+        return is_less;
+    }
+    friend bool operator!=(const precision& xp, const precision& yp)
+    {
+        return not(xp == yp);
+    }
+    friend bool operator>(const precision& xp, const precision& yp)
+    {
+        return yp < xp;
+    }
+    // This is not totally ordered
+    friend bool operator<=(const precision& xp, const precision& yp)
+    {
+        return (xp < yp) or (xp == yp);
+    }
+    friend bool operator>=(const precision& xp, const precision& yp)
+    {
+        return (xp > yp) or (xp == yp);
+    }
+};
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
-    return contains(ins->name(), "reduce") and
+    return contains(ins->name(), "reduce") or
            ins->get_operator().attributes().get("pointwise", false);
 }
 static bool is_non_scalar_const(instruction_ref ins)
@@ -54,33 +80,36 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
     {
         auto non_scalar =
             std::find_if(ins->inputs().begin(), ins->inputs().end(), &is_non_scalar_const);
-        if(std::any_of(non_scalar, ins->inputs().end(), &is_non_scalar_const))
-            return nullopt;
         if(non_scalar == ins->inputs().end())
+            return nullopt;
+        if(std::any_of(std::next(non_scalar), ins->inputs().end(), &is_non_scalar_const))
             return nullopt;
         return *non_scalar;
     }
     return nullopt;
 }
 
-static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_ref start)
+static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref start)
 {
     std::unordered_set<instruction_ref> result;
     // Promote inputs
     fix([&](auto self, instruction_ref ins) {
-        for(auto input : ins->inputs())
-        {
-            if(not is_pointwise_or_reduce(input))
-                continue;
-            if(contains(result, input))
-                continue;
-            auto next = get_next_input(input);
-            if(not next.has_value())
-                continue;
-            result.insert(input);
-            self(*next);
-        }
-    })(start);
+        if(not is_pointwise_or_reduce(ins))
+            return;
+        if(contains(result, ins))
+            return;
+        auto next = get_next_input(ins);
+        if(not next.has_value())
+            return;
+        result.insert(ins);
+        self(*next);
+    })(start->inputs().front());
+    return result;
+}
+
+static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref start)
+{
+    std::unordered_set<instruction_ref> result;
     // Promote outputs
     fix([&](auto self, instruction_ref ins) {
         for(auto output : ins->outputs())
@@ -101,6 +130,23 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
     return result;
 }
 
+template<class Map, class Instructions>
+static void insert_instructions_to_upgrade(Map& m, const Instructions& instructions, shape::type_t t)
+{
+    for(auto ins:instructions)
+    {
+        auto it = m.find(ins);
+        if(it == m.end())
+        {
+            m[ins] = t;
+        }
+        else
+        {
+            it->second = std::max(precision{t}, precision{it->second}).type;
+        }
+    }
+}
+
 static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_upgrade(module& m)
 {
     std::unordered_map<instruction_ref, shape::type_t> result;
@@ -108,15 +154,17 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
     {
         if(ins->name() != "convert")
             continue;
-        auto output_type = ins->get_shape().type();
-        auto input_type  = ins->inputs().front()->get_shape().type();
-        if(output_type == shape::type_t::bool_type)
+        auto output = precision{ins->get_shape().type()};
+        auto input  = precision{ins->inputs().front()->get_shape().type()};
+        if(output.type == shape::type_t::bool_type)
             continue;
-        if(not is_lower_precision(input_type, output_type))
-            continue;
-        for(auto u : find_adjacent_operators(ins))
+        if (input < output)
         {
-            result[u] = input_type;
+            insert_instructions_to_upgrade(result, find_adjacent_inputs(ins), output.type);
+        }
+        else if (input > output)
+        {
+            insert_instructions_to_upgrade(result, find_adjacent_outputs(ins), input.type);
         }
     }
     return result;

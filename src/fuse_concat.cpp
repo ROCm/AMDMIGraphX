@@ -121,7 +121,7 @@ struct find_concat_pointwise
         }
 
         std::vector<module_ref> module_inputs;
-        static unsigned int counter = 0;
+        static unsigned int counter_cp = 0;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -131,12 +131,13 @@ struct find_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" + std::to_string(counter++));
+                           auto* pm =
+                               mpm.create_module("concat:noop" + std::to_string(counter_cp++));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
-        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(counter++));
+        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(counter_cp++));
         auto x        = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
         module_inputs.push_back(post_pm);
@@ -179,7 +180,7 @@ struct find_pointwise_concat_pointwise
                      [&](auto input) { return input != concat_ins; });
 
         std::vector<module_ref> module_inputs;
-        static unsigned int counter = 0;
+        static unsigned int counter_pcp = 0;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
                        std::back_inserter(module_inputs),
@@ -189,7 +190,8 @@ struct find_pointwise_concat_pointwise
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" + std::to_string(counter++));
+                           auto* pm =
+                               mpm.create_module("concat:noop" + std::to_string(counter_pcp++));
                            auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;

@@ -211,8 +211,18 @@ argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
 
-MIGRAPHX_REGISTER_TARGET(target);
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+static migraphx::MIGRAPHX_INLINE_NS::gpu::target gpu{};
+
+void register_target()
+{
+    migraphx::register_target(gpu);
+}
+
+void unregister_target()
+{
+    migraphx::unregister_target(gpu.name());
+}

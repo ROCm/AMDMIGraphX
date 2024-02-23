@@ -187,7 +187,7 @@ std::shared_ptr<void> dynamic_loader::get_symbol(std::string_view name) const
 #ifndef _WIN32
     // flush any previous error messages
     check_load_error(true);
-    void* symbol = dlsym(impl->handle.get(), name.c_str());
+    void* symbol = dlsym(impl->handle.get(), name.data());
     if(symbol == nullptr)
         check_load_error();
     return {impl, symbol};

@@ -34,7 +34,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
-    target_loader.emplace_back(lib);
+    try
+    {
+        lib.get_function<void()>("register_target")();
+        target_loader.push_back(lib);
+    }
+    catch(const std::runtime_error& err)
+    {
+        std::cerr << "Invalid target library: " << err.what() << std::endl;
+    }
 }
 
 std::unordered_map<std::string, target>& target_map()
@@ -47,11 +55,15 @@ void register_target_init() { (void)target_map(); }
 
 void unregister_target(const std::string& name)
 {
-    assert(target_map().count(name));
-    target_map().erase(name);
+    if(target_map().find(name) != target_map().end())
+        target_map().erase(name);
 }
 
-void register_target(const target& t) { target_map()[t.name()] = t; }
+void register_target(const target& t)
+{
+    if(target_map().find(t.name()) == target_map().end())
+        target_map()[t.name()] = t;
+}
 
 target make_target(const std::string& name)
 {

@@ -76,7 +76,18 @@ supported_segments target::find_supported(const_module_ref mod, support_metric m
     return {instrs};
 }
 
-MIGRAPHX_REGISTER_TARGET(target);
+static migraphx::MIGRAPHX_INLINE_NS::fpga::target fpga{};
+
+void register_target()
+{
+    migraphx::register_target(fpga);
+}
+
+void unregister_target()
+{
+    migraphx::unregister_target(fpga.name());
+}
+
 
 } // namespace fpga
 } // namespace MIGRAPHX_INLINE_NS

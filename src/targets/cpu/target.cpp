@@ -114,8 +114,18 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-MIGRAPHX_REGISTER_TARGET(target);
-
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+static migraphx::MIGRAPHX_INLINE_NS::cpu::target cpu{};
+
+void register_target()
+{
+    migraphx::register_target(cpu);
+}
+
+void unregister_target()
+{
+    migraphx::unregister_target(cpu.name());
+}

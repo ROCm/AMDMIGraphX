@@ -98,7 +98,7 @@ tmp_dir::~tmp_dir()
             fs::remove_all(path, ec);
             if(not ec)
                 break;
-            std::cerr << "Failed to remove " << path << ec.message() << std::endl;
+            std::cerr << "Failed to remove " << path << ": " << ec.message() << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(125));
         }
     }

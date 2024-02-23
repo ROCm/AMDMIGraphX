@@ -70,8 +70,8 @@ struct test_resize_dyn_scale : verify_program<test_resize_dyn_scale>
         migraphx::shape s{migraphx::shape::float_type, {{1, 2}, {1, 1}, {3, 3}, {3, 3}}};
         auto a0 = mm->add_parameter("a0", s);
         migraphx::shape scale_input{migraphx::shape::float_type, {4}};
-        std::vector<float> scale_values = {1., 1., 5.00/3, 8.00/3};
-        auto a1                      = mm->add_literal(migraphx::literal{scale_input, scale_values});
+        std::vector<float> scale_values = {1., 1., 5.00 / 3, 8.00 / 3};
+        auto a1 = mm->add_literal(migraphx::literal{scale_input, scale_values});
 
         // a0 = input data
         // a1 = scales of output

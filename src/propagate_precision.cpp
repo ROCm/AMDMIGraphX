@@ -17,10 +17,7 @@ struct precision
 {
     shape::type_t type;
 
-    friend bool operator==(const precision& xp, const precision& yp)
-    {
-        return xp.type == yp.type;
-    }
+    friend bool operator==(const precision& xp, const precision& yp) { return xp.type == yp.type; }
     friend bool operator<(const precision& xp, const precision& yp)
     {
         bool is_less = false;
@@ -43,14 +40,8 @@ struct precision
         });
         return is_less;
     }
-    friend bool operator!=(const precision& xp, const precision& yp)
-    {
-        return not(xp == yp);
-    }
-    friend bool operator>(const precision& xp, const precision& yp)
-    {
-        return yp < xp;
-    }
+    friend bool operator!=(const precision& xp, const precision& yp) { return not(xp == yp); }
+    friend bool operator>(const precision& xp, const precision& yp) { return yp < xp; }
     // This is not totally ordered
     friend bool operator<=(const precision& xp, const precision& yp)
     {
@@ -130,10 +121,11 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
     return result;
 }
 
-template<class Map, class Instructions>
-static void insert_instructions_to_upgrade(Map& m, const Instructions& instructions, shape::type_t t)
+template <class Map, class Instructions>
+static void
+insert_instructions_to_upgrade(Map& m, const Instructions& instructions, shape::type_t t)
 {
-    for(auto ins:instructions)
+    for(auto ins : instructions)
     {
         auto it = m.find(ins);
         if(it == m.end())
@@ -158,11 +150,11 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
         auto input  = precision{ins->inputs().front()->get_shape().type()};
         if(output.type == shape::type_t::bool_type)
             continue;
-        if (input < output)
+        if(input < output)
         {
             insert_instructions_to_upgrade(result, find_adjacent_inputs(ins), output.type);
         }
-        else if (input > output)
+        else if(input > output)
         {
             insert_instructions_to_upgrade(result, find_adjacent_outputs(ins), input.type);
         }

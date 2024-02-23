@@ -914,7 +914,7 @@ struct find_const_multibroadcast
         auto mbr      = mr.result;
         auto constant = mr.instructions["constant"];
 
-        if(constant->get_shape().scalar())
+        if(constant->get_shape().lens().size() <= 1)
             return;
 
         auto const_lens = constant->get_shape().lens();
@@ -987,8 +987,7 @@ struct find_reshape_const_dot
     {
         return match::name("dot")(
             match::used_once(),
-            match::either_arg(0, 1)(match::skip(match::name("convert").bind("convert"))(
-                                        match::name("reshape").bind("rsp")),
+            match::either_arg(0, 1)(match::name("reshape").bind("rsp"),
                                     match::skip_broadcasts(match::is_constant().bind("constant"))));
     }
 
@@ -1011,13 +1010,6 @@ struct find_reshape_const_dot
         size_t dot_axis = (flipped) ? -2 : -1;
         if(rsp_lens.end()[dot_axis] != inp_lens.end()[dot_axis])
             return;
-
-        if(contains(r.instructions, "convert"))
-        {
-            auto convert = r.instructions["convert"];
-            inp          = m.insert_instruction(dot, convert->get_operator(), inp);
-            rsp          = m.insert_instruction(dot, rsp->get_operator(), inp);
-        }
 
         std::vector<size_t> new_const_lens{inp_lens.begin(), inp_lens.end() - 2};
         operation new_bc_op;

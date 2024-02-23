@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <fenv.h>
+#include <cfenv>
 #include <migraphx/operation.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>

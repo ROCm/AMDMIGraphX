@@ -1,8 +1,13 @@
 from dataset import ImageNet2012Val
-from model import ResNet50_v1, ResNet50_v1_5
+from model import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large
 from generator import generate_test_dataset
 
-model_dataset_pairs = [{"dataset": ImageNet2012Val, "models": [ResNet50_v1, ResNet50_v1_5]}]
+model_dataset_pairs = [{
+    "dataset":
+    ImageNet2012Val,
+    "models":
+    [ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large]
+}]
 
 for model_dataset_map in model_dataset_pairs:
     dataset = model_dataset_map["dataset"]

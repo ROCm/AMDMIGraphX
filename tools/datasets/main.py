@@ -1,13 +1,13 @@
-from dataset import get_imagenet_dataset_iterator, imagenet_transform
-from model import download_resnet_model, RESNET_MODEL_NAME
+from dataset import ImageNet2012Val
+from model import ResNet50_v1, ResNet50_v1_5
 from generator import generate_test_dataset
 
-resnet_output_path = "imagenet/resnet50/"
-model_path = f"imagenet/resnet50/{RESNET_MODEL_NAME}"
+model_dataset_pairs = [{"dataset": ImageNet2012Val, "models": [ResNet50_v1, ResNet50_v1_5]}]
 
-download_resnet_model(model_path)
-generate_test_dataset(model_path, get_imagenet_dataset_iterator(),
-                      imagenet_transform, 5)
+for model_dataset_map in model_dataset_pairs:
+    dataset = model_dataset_map["dataset"]
+    for model in model_dataset_map["models"]:
+        generate_test_dataset(model(), dataset(), limit=5)
 print(
-    f"Use this to test migraphx with the result:\npython ../test_runner.py {resnet_output_path}"
+    f"Use this to test migraphx with the result:\npython ../test_runner.py <generated_dataset_path>"
 )

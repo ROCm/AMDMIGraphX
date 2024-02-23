@@ -34,15 +34,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
+#ifdef _WIN32
     try
     {
         lib.get_function<void()>("register_target")();
-        target_loader.push_back(lib);
     }
     catch(const std::runtime_error& err)
     {
-        std::cerr << "Invalid target library: " << err.what() << std::endl;
+        std::cerr << "Not a target library: " << err.what() << std::endl;
     }
+#endif
+    target_loader.push_back(lib);
 }
 
 std::unordered_map<std::string, target>& target_map()

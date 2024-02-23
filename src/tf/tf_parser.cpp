@@ -300,6 +300,7 @@ void tf_parser::parse_graph(const tensorflow::GraphDef& graph)
     }
     if(mm->size() == 0)
         return;
+
     // Needs to add a ret instruction at the end of
     // the program
     if(output_node_names.empty())

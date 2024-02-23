@@ -52,7 +52,4 @@ struct target
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-extern "C" void register_target();
-extern "C" void unregister_target();
-
 #endif // MIGRAPHX_GUARD_FPGA_TARGET_HPP

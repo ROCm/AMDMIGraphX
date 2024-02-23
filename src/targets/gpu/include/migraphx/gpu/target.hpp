@@ -46,7 +46,4 @@ struct MIGRAPHX_GPU_EXPORT target
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-MIGRAPHX_GPU_EXPORT extern "C" void register_target();
-MIGRAPHX_GPU_EXPORT extern "C" void unregister_target();
-
 #endif

@@ -50,7 +50,4 @@ struct MIGRAPHX_REF_EXPORT target
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-MIGRAPHX_REF_EXPORT extern "C" void register_target();
-MIGRAPHX_REF_EXPORT extern "C" void unregister_target();
-
 #endif

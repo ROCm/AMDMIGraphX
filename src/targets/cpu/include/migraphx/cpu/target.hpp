@@ -48,7 +48,4 @@ struct MIGRAPHX_CPU_EXPORT target
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-MIGRAPHX_CPU_EXPORT extern "C" void register_target();
-MIGRAPHX_CPU_EXPORT extern "C" void unregister_target();
-
 #endif

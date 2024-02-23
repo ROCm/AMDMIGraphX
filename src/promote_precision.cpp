@@ -3,8 +3,10 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -36,7 +38,7 @@ static bool is_lower_precision(shape::type_t in_type, shape::type_t out_type)
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
-    return contains(ins->name(), "reduce") &&
+    return contains(ins->name(), "reduce") and
            ins->get_operator().attributes().get("pointwise", false);
 }
 static bool is_non_scalar_const(instruction_ref ins)
@@ -70,6 +72,8 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
         {
             if(not is_pointwise_or_reduce(input))
                 continue;
+            if(contains(result, input))
+                continue;
             auto next = get_next_input(input);
             if(not next.has_value())
                 continue;
@@ -82,6 +86,8 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
         for(auto output : ins->outputs())
         {
             if(not is_pointwise_or_reduce(output))
+                continue;
+            if(contains(result, output))
                 continue;
             auto next = get_next_input(output);
             if(not next.has_value())
@@ -96,7 +102,7 @@ static std::unordered_set<instruction_ref> find_adjacent_operators(instruction_r
 }
 
 static std::unordered_map<instruction_ref, shape::type_t>
-find_instruction_to_upgrade(module& m, shape::type_t t)
+find_instruction_to_upgrade(module& m)
 {
     std::unordered_map<instruction_ref, shape::type_t> result;
     for(auto ins : iterator_for(m))
@@ -109,13 +115,29 @@ find_instruction_to_upgrade(module& m, shape::type_t t)
             continue;
         if(not is_lower_precision(input_type, output_type))
             continue;
-        if(ins->inputs().front()->get_shape().type() != t)
-            continue;
+        for(auto u: find_adjacent_operators(ins))
+        {
+            result[u] = input_type;
+        }
     }
     return result;
 }
 
-void promote_precision::apply(module_pass_manager& mpm) const {}
+void promote_precision::apply(module_pass_manager& mpm) const 
+{
+    auto upgrade = find_instruction_to_upgrade(mpm.get_module());
+    for(const auto&[ins, t]:upgrade)
+    {
+        auto convert1 = mpm.get_module().insert_instruction(std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
+        mpm.get_module().replace_instruction(ins, convert1);
+        std::vector<instruction_ref> inputs;
+        std::transform(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&, t=t, ins=ins](auto input) {
+            return mpm.get_module().insert_instruction(ins, make_op("convert", {{"target_type", t}}), input);
+        });
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs);
+    }
+    mpm.run_pass(eliminate_convert{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

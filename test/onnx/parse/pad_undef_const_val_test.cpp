@@ -21,25 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <string>
-#include <vector>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(pad_undef_const_val_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2, 2}});
+    mm->add_literal({migraphx::shape{migraphx::shape::int32_type, {4}}, {1, 1, 1, 1}});
+    mm->add_instruction(migraphx::make_op("undefined"));
+    mm->add_instruction(migraphx::make_op("pad", {{"pads", {1, 1, 1, 1}}}), l0);
+    auto prog = optimize_onnx("pad_undef_const_val_test.onnx");
 
-MIGRAPHX_EXPORT std::vector<char>
-read_buffer(const fs::path& filename, size_t offset = 0, size_t nbytes = 0);
-MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
-
-MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);
-MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<char>& buffer);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    EXPECT(p == prog);
+}

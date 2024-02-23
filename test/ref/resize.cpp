@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -29,7 +30,6 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>

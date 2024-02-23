@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/resize.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
@@ -417,6 +418,39 @@ struct find_const_alloc_fill
 };
 
 /**
+ * Simplify broadcast_for_dot instructions with two static shaped arguments
+ * From:
+ * broadcast_for_dot(static_shape_arg, static_shape_arg)
+ * To:
+ * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_doted_shape
+ */
+struct find_static_broadcast_for_dot
+{
+    auto matcher() const
+    {
+        return match::name("broadcast_for_dot")(match::arg(0)(match::static_shape()),
+                                                match::arg(1)(match::static_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto broadcast_for_dot_ins = mr.result;
+        auto inputs                = broadcast_for_dot_ins->inputs();
+        auto s0                    = inputs.at(0)->get_shape();
+        auto s1                    = inputs.at(1)->get_shape();
+        auto l0_it                 = s0.lens().end() - 2;
+        std::vector<std::size_t> l0_broadcasted_lens(s0.lens().begin(), l0_it);
+        auto l1_it = s1.lens().begin() + s1.ndim() - 2;
+        std::vector<std::size_t> l1_broadcasted_lens(s1.lens().begin(), l1_it);
+        auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+        output_lens.insert(output_lens.end(), l0_it, s0.lens().end());
+        m.replace_instruction(broadcast_for_dot_ins,
+                              make_op("multibroadcast", {{"out_lens", output_lens}}),
+                              inputs.at(0));
+    }
+};
+
+/**
  * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
  * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
  * This version ignores dynamic_dimension opt values.
@@ -559,7 +593,8 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{},
-                        find_const_alloc_fill{});
+                        find_const_alloc_fill{},
+                        find_static_broadcast_for_dot{});
     match::find_matches(m, simplify_select_module_output_shape{});
 }
 

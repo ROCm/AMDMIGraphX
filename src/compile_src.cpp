@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fileutils.hpp>
 #include <cassert>
 
 namespace migraphx {
@@ -46,7 +47,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         fs::path full_path   = td.path / src.path;
         fs::path parent_path = full_path.parent_path();
         fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.data(), src.content.size());
+        write_buffer(full_path, src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
             params += " " + src.path.filename().string();
@@ -70,7 +71,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
     if(not fs::exists(out_path))
         MIGRAPHX_THROW("Output file missing: " + out);
 
-    return read_buffer(out_path.string());
+    return read_buffer(out_path);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

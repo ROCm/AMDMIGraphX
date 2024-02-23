@@ -198,8 +198,6 @@ struct resize
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
-            // The output shape is dynamic.  The output dimensions aren't known until runtime.
-
             // Note:  a shape with {0, max_val} ranges can't really be allocated.  For the reference
             // target, this doesn't matter because the real output shape is determined in the
             // compute() method.  For any other target, there must be a compiler pass that replaces

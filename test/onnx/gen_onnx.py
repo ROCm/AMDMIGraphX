@@ -5086,10 +5086,10 @@ def matmul_dyn_vv_test():
 
 
 @onnx_test()
-def matmul_dyn_broadcast_error():
+def matmul_dyn_broadcast_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [5, 7, None])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5, 1, None])
 
     node = onnx.helper.make_node(
         'MatMul',
@@ -5903,6 +5903,28 @@ def pad_3arg_test():
                                  outputs=['1'])
 
     return ([arg_val, arg_pad, node], [x], [y])
+
+
+@onnx_test()
+def pad_undef_const_val_test():
+    sizes = np.array([1, 1, 1, 1])
+    pad_tensor = helper.make_tensor(name='pad_size',
+                                    data_type=TensorProto.INT32,
+                                    dims=sizes.shape,
+                                    vals=sizes.astype(int))
+    arg_pad = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['arg_pad'],
+                                    value=pad_tensor)
+
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 2])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4, 4])
+
+    node = onnx.helper.make_node('Pad',
+                                 inputs=['0', 'arg_pad', ''],
+                                 outputs=['1'])
+
+    return ([arg_pad, node], [x], [y])
 
 
 @onnx_test()

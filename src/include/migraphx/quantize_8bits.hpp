@@ -60,6 +60,17 @@ struct MIGRAPHX_EXPORT quantize_8bits_pass
     void apply(module& m) const;
 };
 
+/*
+Compress model by packing weights into smaller data type
+*/
+struct MIGRAPHX_EXPORT compress_weights
+{
+    shape::type_t precision                             = shape::uint8_type;
+    std::unordered_set<std::string> supported_ins_names = {"dot", "convolution"};
+    std::string name() const { return "compress_weights"; }
+    void apply(module& m) const;
+};
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

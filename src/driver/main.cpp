@@ -448,6 +448,7 @@ struct compiler
     bool to_fp16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
+    bool int4_weights = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -471,6 +472,10 @@ struct compiler
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));
+        ap(int4_weights,
+           {"--int4-weights"},
+           ap.help("Compress weights of the model using INT4 packing"),
+           ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -524,6 +529,10 @@ struct compiler
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
+        }
+        if(int4_weights)
+        {
+            quantize_weights_int4(p);
         }
         p.compile(t, co);
         l.save(p);

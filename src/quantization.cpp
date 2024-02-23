@@ -182,5 +182,19 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
     }
     quantize_8bits(prog, t, shape::fp8e4m3fnuz_type, calibration, supported_ins_names);
 }
+
+void quantize_weights_int4(program& prog, const std::unordered_set<std::string>& ins_names)
+{
+    std::unordered_set<std::string> op_names = {"convolution", "dot"};
+    if(op_names != ins_names)
+    {
+        MIGRAPHX_THROW("QUANTIZE_WEIGHTS_INT4: only support DOT and CONVOLUTION operation");
+    }
+    // Run optimize_module() before compressing to const eval and fold in FP32 to
+    // avoid loss of precision.
+    run_passes(prog,
+               {normalize_ops{}, optimize_module{}, compress_weights{}, dead_code_elimination{}});
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

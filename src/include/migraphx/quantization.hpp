@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
@@ -48,6 +49,10 @@ MIGRAPHX_EXPORT void quantize_int8(program& prog,
                                        "dot", "convolution"});
 MIGRAPHX_EXPORT void
 quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
+
+MIGRAPHX_EXPORT void quantize_weights_int4(program& prog,
+                                           const std::unordered_set<std::string>& ins_names = {
+                                               "dot", "convolution"});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

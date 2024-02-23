@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <fenv.h>
 #include <migraphx/operation.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -80,6 +81,48 @@ void quantize_8bits_pass::apply(module& m) const // NOLINT
                 m.insert_instruction(ins, make_op("dequantizelinear"), q_in, scale, zero_point);
             m.replace_instruction(ins, dq_in);
         }
+    }
+}
+
+void compress_weights::apply(module& m) const // NOLINT
+{
+    const auto& quantizable_types = get_quantizable_type();
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(supported_ins_names, ins->name()))
+            continue;
+        // assume for now that weight arg is always second one
+        auto weight_ins = ins->inputs().at(1);
+        auto s          = weight_ins->get_shape();
+        if(not weight_ins->can_eval() or not contains(quantizable_types, s.type()))
+            continue;
+        auto weight_arg = weight_ins->eval();
+        std::vector<double> vec_val;
+        weight_arg.visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
+        auto max_val      = *std::max_element(vec_val.begin(), vec_val.end());
+        auto min_val      = *std::min_element(vec_val.begin(), vec_val.end());
+        auto weight_range = (max_val - min_val);
+        // hard code to 15 for now
+        double quantized_range = 15;
+        double scaling_factor  = weight_range / quantized_range;
+        auto rounding_mode     = fegetround();
+        fesetround(FE_TONEAREST);
+        int shift = std::nearbyint(std::abs(min_val / scaling_factor));
+        fesetround(rounding_mode);
+
+        auto zero_point  = m.add_literal(migraphx::literal{migraphx::shape{precision}, {shift}});
+        auto scale       = m.add_literal(literal({s.type()}, {scaling_factor}));
+        const auto& lens = s.lens();
+        scale = m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), scale);
+        zero_point =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", lens}}), zero_point);
+        auto q_in =
+            m.insert_instruction(ins, make_op("quantizelinear"), weight_ins, scale, zero_point);
+        auto pack_ins   = m.insert_instruction(ins, make_op("pack_int4"), q_in);
+        auto unpack_ins = m.insert_instruction(ins, make_op("unpack_int4"), pack_ins);
+        auto dq_in =
+            m.insert_instruction(ins, make_op("dequantizelinear"), unpack_ins, scale, zero_point);
+        m.replace_instruction(ins, dq_in);
     }
 }
 

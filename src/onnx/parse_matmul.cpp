@@ -72,14 +72,18 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
             auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
-            // TODO: handling this case requires a new multibroadcast mode
             if(not std::equal(
                    s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
             {
-                MIGRAPHX_THROW("PARSE_MATMUL: dynamic shape broadcasting not supported");
+                auto broadcasted_a0 = info.add_instruction(make_op("broadcast_for_dot"), a0, a1);
+                auto broadcasted_a1 = info.add_instruction(make_op("broadcast_for_dot"), a1, a0);
+                dot_res =
+                    info.add_instruction(make_op(opd.op_name), broadcasted_a0, broadcasted_a1);
             }
-
-            dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
+            else
+            {
+                dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
+            }
         }
         else
         {

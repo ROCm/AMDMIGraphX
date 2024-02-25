@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,18 +67,6 @@ struct multibroadcast
             MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0");
         }
 
-        auto make_bcast_strides = [&](std::vector<std::size_t> bcast_lens, std::size_t offset) {
-            std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-            for(std::ptrdiff_t i = s0.ndim() - 1; i >= 0; i--)
-            {
-                if(bcast_lens[i + offset] == s0.lens()[i])
-                {
-                    bcast_strides[i + offset] = s0.strides()[i];
-                }
-            }
-            return bcast_strides;
-        };
-
         if(inputs.size() == 1)
         {
             if(s0.dynamic())
@@ -100,8 +88,7 @@ struct multibroadcast
                 }
             }
 
-            auto bcast_strides = make_bcast_strides(output_lens, offset);
-            return {t, output_lens, std::move(bcast_strides)};
+            return make_bcast_shape(s0, output_lens, offset);
         }
         else
         {
@@ -120,8 +107,7 @@ struct multibroadcast
                 // output_lens will not be set for 2+ input version
                 auto bcast_lens    = compute_common_lens(inputs);
                 auto offset        = bcast_lens.size() - s0.ndim();
-                auto bcast_strides = make_bcast_strides(bcast_lens, offset);
-                return {t, std::move(bcast_lens), std::move(bcast_strides)};
+                return make_bcast_shape(s0, bcast_lens, offset);
             }
         }
     }

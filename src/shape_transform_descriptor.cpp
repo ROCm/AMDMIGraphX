@@ -1,0 +1,146 @@
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/ranges.hpp>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+template <class Iterator, class Projection>
+static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
+{
+    std::size_t x = 1;
+    auto it       = std::find_if(start, last, [&](auto d) {
+        x *= proj(d);
+        return x >= dim;
+    });
+    if(x != dim)
+        return start;
+    return it;
+}
+
+shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::size_t>& dims)
+{
+    transform(dims, range(dims.size()), std::back_inserter(dimensions), [](std::size_t d, std::size_t a) -> dimension {
+        return {{dimension::sub{d, {a}}}};
+    });
+}
+
+std::vector<shape_transform_descriptor::dimension::sub> shape_transform_descriptor::get_all_subdimensions() const
+{
+    std::vector<dimension::sub> result;
+    for(const auto& dim:dimensions)
+    {
+        result.insert(result.end(), dim.subdimensions.begin(), dim.subdimensions.end());
+    }
+    return result;
+}
+
+bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
+{
+    for(const auto& op:ops)
+    {
+        auto v = op.to_value();
+        if(op.name() == "reshape")
+        {
+            if (not apply_reshape(v["dims"].to_vector<std::size_t>()))
+                return false;
+        }
+        else if(op.name() == "transpose")
+        {
+            if (not apply_transpose(v["permutation"].to_vector<std::int64_t>()))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return true;
+}
+bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
+{
+    std::vector<dimension> new_dims;
+    auto subs = get_all_subdimensions();
+    std::size_t i = 0;
+    std::size_t r = 0;
+    while(i < subs.size() and r < rdims.size())
+    {
+        const auto& sub = subs[i];
+        auto idim = sub.len;
+        auto rdim = rdims[r];
+        if(idim == rdim)
+        {
+            new_dims.push_back({{sub}});
+        }
+        // squeeze
+        else if(rdim > idim)
+        {
+            auto start = subs.begin() + i;
+            auto it    = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
+            if(it == start)
+                return false;
+            auto n = it - start;
+            i += n;
+            new_dims.push_back({{start, it}});
+        }
+        // unsqueeze
+        else // if(rdim < idim)
+        {
+            auto start = rdims.begin() + i;
+            auto it    = compute_end_dim(start, rdims.end(), idim, id{});
+            if(it == start)
+                return false;
+            auto n = it - start;
+            r += n;
+            std::vector<dimension::sub> new_subs;
+            transform(range(n), std::back_inserter(new_subs), [&](auto j) {
+                auto new_sub = sub;
+                if(not new_sub.axis.empty())
+                    new_sub.axis.push_back(j);
+                new_sub.len = start[j];
+                return new_sub;
+            });
+            new_dims.push_back({new_subs});
+        }
+        r++;
+        i++;
+    }
+
+    // Handle trailing 1s
+    if(new_dims.size() < rdims.size() and not new_dims.empty())
+    {
+        for(auto d : range(rdims.begin() + new_dims.size(), rdims.end()))
+        {
+            if(d != 1)
+                return false;
+            new_dims.push_back({{dimension::sub{1}}});
+        }
+    }
+
+    if(rdims.size() != new_dims.size())
+        return false;
+    dimensions = new_dims;
+    return true;
+}
+bool shape_transform_descriptor::apply_transpose(const std::vector<std::int64_t>& permutation)
+{
+    if(permutation.size() != dimensions.size())
+        return false;
+    dimensions = reorder_dims(dimensions, permutation);
+    return true;
+}
+
+
+std::size_t shape_transform_descriptor::dimension::len() const
+{
+    return transform_accumulate(subdimensions.begin(), subdimensions.end(), std::size_t{1}, std::multiplies<>{}, [](const auto& s) {
+        return s.len;
+    });
+}
+
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+

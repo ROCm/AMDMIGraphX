@@ -18,10 +18,11 @@ RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
+    bison \
     build-essential \
     cmake \
     curl \
-    doxygen \
+    flex \
     g++ \
     gdb \
     git \
@@ -100,6 +101,8 @@ RUN pip3 install -r /doc-requirements.txt
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+# Install a newer version of doxygen because the one that comes with ubuntu is broken
+RUN cget -p $PREFIX install doxygen@Release_1_9_8
 
 COPY ./test/onnx/.onnxrt-commit /
 

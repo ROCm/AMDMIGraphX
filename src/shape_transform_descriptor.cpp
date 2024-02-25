@@ -22,15 +22,19 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
 
 shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::size_t>& dims)
 {
-    transform(dims, range(dims.size()), std::back_inserter(dimensions), [](std::size_t d, std::size_t a) -> dimension {
-        return {{dimension::sub{d, {a}}}};
-    });
+    transform(dims,
+              range(dims.size()),
+              std::back_inserter(dimensions),
+              [](std::size_t d, std::size_t a) -> dimension {
+                  return {{dimension::sub{d, {a}}}};
+              });
 }
 
-std::vector<shape_transform_descriptor::dimension::sub> shape_transform_descriptor::get_all_subdimensions() const
+std::vector<shape_transform_descriptor::dimension::sub>
+shape_transform_descriptor::get_all_subdimensions() const
 {
     std::vector<dimension::sub> result;
-    for(const auto& dim:dimensions)
+    for(const auto& dim : dimensions)
     {
         result.insert(result.end(), dim.subdimensions.begin(), dim.subdimensions.end());
     }
@@ -39,17 +43,17 @@ std::vector<shape_transform_descriptor::dimension::sub> shape_transform_descript
 
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
-    for(const auto& op:ops)
+    for(const auto& op : ops)
     {
         auto v = op.to_value();
         if(op.name() == "reshape")
         {
-            if (not apply_reshape(v["dims"].to_vector<std::size_t>()))
+            if(not apply_reshape(v["dims"].to_vector<std::size_t>()))
                 return false;
         }
         else if(op.name() == "transpose")
         {
-            if (not apply_transpose(v["permutation"].to_vector<std::int64_t>()))
+            if(not apply_transpose(v["permutation"].to_vector<std::int64_t>()))
                 return false;
         }
         else
@@ -62,14 +66,14 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
 {
     std::vector<dimension> new_dims;
-    auto subs = get_all_subdimensions();
+    auto subs     = get_all_subdimensions();
     std::size_t i = 0;
     std::size_t r = 0;
     while(i < subs.size() and r < rdims.size())
     {
         const auto& sub = subs[i];
-        auto idim = sub.len;
-        auto rdim = rdims[r];
+        auto idim       = sub.len;
+        auto rdim       = rdims[r];
         if(idim == rdim)
         {
             new_dims.push_back({{sub}});
@@ -78,7 +82,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         else if(rdim > idim)
         {
             auto start = subs.begin() + i;
-            auto it    = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
+            auto it = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
             if(it == start)
                 return false;
             auto n = it - start;
@@ -132,15 +136,14 @@ bool shape_transform_descriptor::apply_transpose(const std::vector<std::int64_t>
     return true;
 }
 
-
 std::size_t shape_transform_descriptor::dimension::len() const
 {
-    return transform_accumulate(subdimensions.begin(), subdimensions.end(), std::size_t{1}, std::multiplies<>{}, [](const auto& s) {
-        return s.len;
-    });
+    return transform_accumulate(subdimensions.begin(),
+                                subdimensions.end(),
+                                std::size_t{1},
+                                std::multiplies<>{},
+                                [](const auto& s) { return s.len; });
 }
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

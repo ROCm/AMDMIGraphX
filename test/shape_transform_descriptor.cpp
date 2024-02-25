@@ -2,42 +2,57 @@
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
-using migraphx::shape_transform_descriptor;
 using migraphx::make_op;
-using all_lens = std::vector<std::vector<std::size_t>>;
+using migraphx::shape_transform_descriptor;
+using all_lens   = std::vector<std::vector<std::size_t>>;
 using final_lens = std::vector<std::size_t>;
-using all_axes = std::vector<std::vector<std::vector<std::size_t>>>;
+using all_axes   = std::vector<std::vector<std::vector<std::size_t>>>;
 
 all_lens get_all_lens(const shape_transform_descriptor& d)
 {
     all_lens result;
-    std::transform(d.dimensions.begin(), d.dimensions.end(), std::back_inserter(result), [](const auto& dimension) {
-        std::vector<std::size_t> sub_lens;
-        std::transform(dimension.subdimensions.begin(), dimension.subdimensions.end(), std::back_inserter(sub_lens), [](const auto& x) { return x.len; });
-        return sub_lens;
-    });
+    std::transform(d.dimensions.begin(),
+                   d.dimensions.end(),
+                   std::back_inserter(result),
+                   [](const auto& dimension) {
+                       std::vector<std::size_t> sub_lens;
+                       std::transform(dimension.subdimensions.begin(),
+                                      dimension.subdimensions.end(),
+                                      std::back_inserter(sub_lens),
+                                      [](const auto& x) { return x.len; });
+                       return sub_lens;
+                   });
     return result;
 }
 
 final_lens get_final_lens(const shape_transform_descriptor& d)
 {
     final_lens result;
-    std::transform(d.dimensions.begin(), d.dimensions.end(), std::back_inserter(result), [](const auto& x) { return x.len(); });
+    std::transform(d.dimensions.begin(),
+                   d.dimensions.end(),
+                   std::back_inserter(result),
+                   [](const auto& x) { return x.len(); });
     return result;
 }
 
 all_axes get_all_axes(const shape_transform_descriptor& d)
 {
     all_axes result;
-    std::transform(d.dimensions.begin(), d.dimensions.end(), std::back_inserter(result), [](const auto& dimension) {
-        std::vector<std::vector<std::size_t>> sub_axis;
-        std::transform(dimension.subdimensions.begin(), dimension.subdimensions.end(), std::back_inserter(sub_axis), [](const auto& x) { return x.axis; });
-        return sub_axis;
-    });
+    std::transform(d.dimensions.begin(),
+                   d.dimensions.end(),
+                   std::back_inserter(result),
+                   [](const auto& dimension) {
+                       std::vector<std::vector<std::size_t>> sub_axis;
+                       std::transform(dimension.subdimensions.begin(),
+                                      dimension.subdimensions.end(),
+                                      std::back_inserter(sub_axis),
+                                      [](const auto& x) { return x.axis; });
+                       return sub_axis;
+                   });
     return result;
 }
 
-template<class... Ts>
+template <class... Ts>
 shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims, const Ts&... xs)
 {
     auto desc = shape_transform_descriptor{dims};

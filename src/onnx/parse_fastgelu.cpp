@@ -51,15 +51,15 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
         const std::vector<migraphx::shape::type_t> fast_gelu_type{shape::float_type,
                                                                   shape::half_type};
         auto x = args[0];
-        auto x_type = args[0]->get_shape().type();
+        auto x_type = x->get_shape().type();
         if(not is_fast_gelu_input_type(x_type))
         {
             MIGRAPHX_THROW("PARSE_FASTGELU: input tensor `x` is not a float or half type");
         }
-        if(args.size() > 1 and args[2]->get_shape().elements() != 0)
+        if(args.size() > 1 and args.at(1)->name() != "undefined")
         {
             auto y      = args[1];
-            auto y_type = args[1]->get_shape().type();
+            auto y_type = y->get_shape().type();
             if(not is_fast_gelu_input_type(y_type))
             {
                 MIGRAPHX_THROW("PARSE_FASTGELU: input tensor `bias` is not a float or half type");

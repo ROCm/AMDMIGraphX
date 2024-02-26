@@ -27,7 +27,7 @@
 TEST_CASE(gelu_fast_bias_test)
 {
     migraphx::program p;
-    auto type  = migraphx::shape::float_type;
+    auto type  = migraphx::shape::half_type;
     auto lens  = {3, 3};
     auto shape = migraphx::shape{type, lens};
     auto* mm   = p.get_main_module();

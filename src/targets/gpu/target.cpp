@@ -220,9 +220,14 @@ MIGRAPHX_REGISTER_TARGET(target);
 } // namespace migraphx
 
 #ifdef _WIN32
-static migraphx::MIGRAPHX_INLINE_NS::gpu::target gpu{};
-
-MIGRAPHX_GPU_EXPORT extern "C" void register_target() { migraphx::register_target(gpu); }
-
-MIGRAPHX_GPU_EXPORT extern "C" void unregister_target() { migraphx::unregister_target(gpu.name()); }
+static auto& gpu()
+{
+    static migraphx::MIGRAPHX_INLINE_NS::gpu::target t{};
+    return t;
+}
+MIGRAPHX_GPU_EXPORT extern "C" void register_target() { migraphx::register_target(gpu()); }
+MIGRAPHX_GPU_EXPORT extern "C" void unregister_target()
+{
+    migraphx::unregister_target(gpu().name());
+}
 #endif

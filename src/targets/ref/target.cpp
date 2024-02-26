@@ -68,9 +68,14 @@ MIGRAPHX_REGISTER_TARGET(target);
 } // namespace migraphx
 
 #ifdef _WIN32
-static migraphx::MIGRAPHX_INLINE_NS::ref::target ref{};
-
-MIGRAPHX_REF_EXPORT extern "C" void register_target() { migraphx::register_target(ref); }
-
-MIGRAPHX_REF_EXPORT extern "C" void unregister_target() { migraphx::unregister_target(ref.name()); }
+static auto& ref()
+{
+    static migraphx::MIGRAPHX_INLINE_NS::ref::target t{};
+    return t;
+}
+MIGRAPHX_REF_EXPORT extern "C" void register_target() { migraphx::register_target(ref()); }
+MIGRAPHX_REF_EXPORT extern "C" void unregister_target()
+{
+    migraphx::unregister_target(ref().name());
+}
 #endif

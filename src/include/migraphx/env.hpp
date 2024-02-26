@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <vector>
 #include <string>
 #include <migraphx/config.hpp>
+#include <migraphx/filesystem.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,6 +46,8 @@ MIGRAPHX_EXPORT std::vector<std::string> env(const char* name);
 MIGRAPHX_EXPORT std::size_t value_of(const char* name, std::size_t fallback = 0);
 
 MIGRAPHX_EXPORT std::string string_value_of(const char* name, std::string fallback = "");
+
+MIGRAPHX_EXPORT fs::path path_value_of(const char* name, fs::path = {});
 
 template <class T>
 bool enabled(T)
@@ -71,6 +74,13 @@ template <class T>
 std::string string_value_of(T, std::string fallback = "")
 {
     static const std::string result = string_value_of(T::value(), fallback);
+    return result;
+}
+
+template <class T>
+fs::path path_value_of(T, fs::path fallback = {})
+{
+    static const fs::path result = path_value_of(T::value(), fallback);
     return result;
 }
 

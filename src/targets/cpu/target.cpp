@@ -123,9 +123,14 @@ MIGRAPHX_REGISTER_TARGET(target);
 } // namespace migraphx
 
 #ifdef _WIN32
-static migraphx::MIGRAPHX_INLINE_NS::cpu::target cpu{};
-
-MIGRAPHX_CPU_EXPORT extern "C" void register_target() { migraphx::register_target(cpu); }
-
-MIGRAPHX_CPU_EXPORT extern "C" void unregister_target() { migraphx::unregister_target(cpu.name()); }
+static auto& cpu()
+{
+    static migraphx::MIGRAPHX_INLINE_NS::cpu::target t{};
+    return t;
+}
+MIGRAPHX_CPU_EXPORT extern "C" void register_target() { migraphx::register_target(cpu()); }
+MIGRAPHX_CPU_EXPORT extern "C" void unregister_target()
+{
+    migraphx::unregister_target(cpu().name());
+}
 #endif

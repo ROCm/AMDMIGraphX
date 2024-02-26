@@ -3,13 +3,17 @@ from utils import download
 from preprocess import process_image
 import PIL
 from optimum.exporters.onnx import main_export
-from transformers import AutoImageProcessor, ViTImageProcessor, BitImageProcessor
 import timm
+# ImageNet
+from transformers import AutoImageProcessor, ViTImageProcessor, BitImageProcessor
+# SQuAD
+from transformers import AutoTokenizer, DistilBertTokenizer
 
 
 class BaseModel(object):
     __metaclass__ = abc.ABCMeta
 
+    @abc.abstractmethod
     def __init__(self):
         pass
 
@@ -115,3 +119,47 @@ class TIMM_MobileNetv3_large(BaseModel):
 
     def name(self):
         return "timm-mobilenetv3-large"
+
+
+class DistilBERT_base_cased_distilled_SQuAD(BaseModel):
+
+    def __init__(self):
+        self.model_id = "distilbert/distilbert-base-cased-distilled-squad"
+        self.processor = DistilBertTokenizer.from_pretrained(self.model_id)
+
+    def download(self, output_folder):
+        main_export(self.model_id, output=output_folder)
+        return f"{output_folder}/model.onnx"
+
+    def preprocess(self, question, context, max_length):
+        return self.processor(question,
+                              context,
+                              padding='max_length',
+                              max_length=max_length,
+                              truncation='only_second',
+                              return_tensors="np")
+
+    def name(self):
+        return "distilbert-base-cased-distilled-squad"
+
+
+class RobertaBaseSquad2(BaseModel):
+
+    def __init__(self):
+        self.model_id = "deepset/roberta-base-squad2"
+        self.processor = AutoTokenizer.from_pretrained(self.model_id)
+
+    def download(self, output_folder):
+        main_export(self.model_id, output=output_folder)
+        return f"{output_folder}/model.onnx"
+
+    def preprocess(self, question, context, max_length):
+        return self.processor(question,
+                              context,
+                              padding='max_length',
+                              max_length=max_length,
+                              truncation='only_second',
+                              return_tensors="np")
+
+    def name(self):
+        return "roberta-base-squad2"

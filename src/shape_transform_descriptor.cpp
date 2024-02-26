@@ -147,20 +147,28 @@ bool shape_transform_descriptor::apply_transpose(const std::vector<std::int64_t>
     return true;
 }
 
-bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>& out_lens, optional<std::size_t> axis)
+bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>& out_lens,
+                                                 optional<std::size_t> axis)
 {
     auto offset = out_lens.size() - dimensions.size();
     std::vector<dimension> new_dims;
-    std::transform(out_lens.begin(), out_lens.begin() + offset, std::back_inserter(new_dims), [&](auto len) -> dimension {
-        return {{dimension::sub{len, {}}}};
-    });
-    std::transform(out_lens.begin() + offset, out_lens.end(), dimensions.begin(), std::back_inserter(new_dims), [&](auto len, const dimension& dim) -> dimension {
-        if(len == dim.len())
-            return dim;
-        if(dim.len() != 1)
-            MIGRAPHX_THROW("Wrong out_lens for broadcast");
-        return {{dimension::sub{len, {}}}};
-    });
+    std::transform(out_lens.begin(),
+                   out_lens.begin() + offset,
+                   std::back_inserter(new_dims),
+                   [&](auto len) -> dimension {
+                       return {{dimension::sub{len, {}}}};
+                   });
+    std::transform(out_lens.begin() + offset,
+                   out_lens.end(),
+                   dimensions.begin(),
+                   std::back_inserter(new_dims),
+                   [&](auto len, const dimension& dim) -> dimension {
+                       if(len == dim.len())
+                           return dim;
+                       if(dim.len() != 1)
+                           MIGRAPHX_THROW("Wrong out_lens for broadcast");
+                       return {{dimension::sub{len, {}}}};
+                   });
     dimensions = new_dims;
     return true;
 }

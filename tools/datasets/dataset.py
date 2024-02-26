@@ -1,29 +1,30 @@
 import abc
-import numpy as np
 from datasets import load_dataset
 
-from preprocess import process_image
 
+class BaseDataset(abc.ABC):
 
-class BaseDataset(object):
-    __metaclass__ = abc.ABCMeta
-
-    @abc.abstractclassmethod
+    @classmethod
+    @abc.abstractmethod
     def __init__(self):
         pass
 
+    @classmethod
     @abc.abstractmethod
     def __iter__(self):
         pass
 
+    @classmethod
     @abc.abstractmethod
     def __next__(self):
         pass
 
+    @classmethod
     @abc.abstractmethod
-    def transform(self, inputs, data, prepocess_fn):
+    def transform(self, *args, **kwargs):
         pass
 
+    @classmethod
     @abc.abstractmethod
     def name(self):
         pass
@@ -58,10 +59,6 @@ class ImageNet2012Val(BaseDataset):
 
 class SQuADBase(BaseDataset):
 
-    @abc.abstractclassmethod
-    def __init__(self):
-        pass
-
     def __iter__(self):
         print(f"Load dataset from {self.url}")
         self.dataset = iter(
@@ -79,10 +76,6 @@ class SQuADBase(BaseDataset):
         assert inputs == keys, f"{inputs = } == {keys = }"
         # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
         return dict(result)
-
-    @abc.abstractclassmethod
-    def name(self):
-        return "squad-v1.1"
 
 
 class SQuADv1_1(SQuADBase):

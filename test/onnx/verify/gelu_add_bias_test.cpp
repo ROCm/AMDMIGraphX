@@ -44,6 +44,13 @@ TEST_CASE(gelu_add_bias_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    // golden values generated using numpy:
+    // >>> import numpy as np
+    // >>> import math
+    // >>> x = np.array([[-1, -1, -1],[0, 0, 0], [1, 1, 1]]).astype(np.float32)
+    // >>> y = np.array([-1, 0, 1]).astype(np.float32)
+    // >>> sum = x + y
+    // >>> 0.5 * sum * (1 + np.vectorize(math.erf)(sum / np.sqrt(2)))
     std::vector<float> gold = {
         -0.04550027, -0.15865526, 0.0, -0.15865526, 0.0, 0.8413447, 0.0, 0.8413447, 1.9544997};
 

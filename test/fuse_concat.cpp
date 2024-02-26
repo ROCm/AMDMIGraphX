@@ -53,7 +53,7 @@ concat_arg<F> arg(std::string name, std::vector<migraphx::instruction_ref> input
 
 template <class Arg, class... Args>
 migraphx::instruction_ref
-add_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
+add_pointwise_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
 {
     std::vector<migraphx::module_ref> module_inputs;
     std::vector<migraphx::instruction_ref> ins_inputs;
@@ -81,7 +81,73 @@ add_concat(migraphx::program& p, std::size_t axis, Arg post_arg, Args... args)
         migraphx::make_op("fused_concat", {{"axis", axis}}), ins_inputs, module_inputs);
 }
 
-TEST_CASE(simple_pointwise_concat)
+TEST_CASE(simple_concat_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto y      = mm->add_parameter("y", s);
+        auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto sub    = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
+        mm->add_return({concat});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("noop:concat0", {}, noop_pointwise()),
+                                 arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                                 arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(partial_pointwise_concat)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, pooling);
+        mm->add_return({concat});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s1);
+        auto y       = mm->add_parameter("y", s1);
+        auto z       = mm->add_parameter("z", s2);
+        auto pooling = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("noop:concat2", {}, noop_pointwise()),
+                                 arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                                 arg("concat:noop1", {pooling}, noop_pointwise()));
+        mm->add_return({fused_concat});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(simple_pointwise_concat_pointwise)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     migraphx::program p1;
@@ -102,17 +168,17 @@ TEST_CASE(simple_pointwise_concat)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto fused_concat =
-            add_concat(p2,
-                       1,
-                       arg("main:pointwise2:concat", {}, single_pointwise("relu")),
-                       arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
-                       arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:pointwise2:concat", {}, single_pointwise("relu")),
+                                 arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                                 arg("concat:main:pointwise1", {x, y}, single_pointwise("sub")));
         mm->add_return({fused_concat});
     }
     EXPECT(p1 == p2);
 }
 
-TEST_CASE(partial_pointwise_concat)
+TEST_CASE(partial_pointwise_concat_pointwise)
 {
     migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
     migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
@@ -139,12 +205,51 @@ TEST_CASE(partial_pointwise_concat)
         auto pooling = mm->add_instruction(
             migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
         auto fused_concat =
-            add_concat(p2,
-                       1,
-                       arg("main:pointwise2:concat", {}, single_pointwise("relu")),
-                       arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
-                       arg("concat:identity0", {pooling}, single_pointwise("identity")));
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:pointwise2:concat", {}, single_pointwise("relu")),
+                                 arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                                 arg("concat:noop3", {pooling}, noop_pointwise()));
         mm->add_return({fused_concat});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(multiple_use_pointwise_concat_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto x      = mm->add_parameter("x", s);
+        auto y      = mm->add_parameter("y", s);
+        auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto sub    = add_pointwise(p1, "main:pointwise1", {x, y}, single_pointwise("sub"));
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
+        auto relu   = add_pointwise(p1, "main:pointwise2", {concat}, single_pointwise("relu"));
+        auto slice  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}), relu);
+        auto mul = add_pointwise(p1, "main:pointwise3", {slice, sub}, single_pointwise({"mul"}));
+        mm->add_return({mul});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto sub = add_pointwise(p2, "main:pointwise1", {x, y}, single_pointwise("sub"));
+        auto fused_concat =
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:pointwise2:concat", {}, single_pointwise("relu")),
+                                 arg("concat:main:pointwise0", {x, y}, single_pointwise("add")),
+                                 arg("concat:noop4", {sub}, noop_pointwise()));
+        auto slice = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+            fused_concat);
+        auto mul = add_pointwise(p2, "main:pointwise3", {slice, sub}, single_pointwise({"mul"}));
+        mm->add_return({mul});
     }
     EXPECT(p1 == p2);
 }
@@ -172,11 +277,11 @@ TEST_CASE(pointwise_concat_fusion)
         auto y   = mm->add_parameter("y", s2);
         auto yc  = mm->add_instruction(migraphx::make_op("contiguous"), y);
         auto fused_concat =
-            add_concat(p2,
-                       1,
-                       arg("main:pointwise2:concat", {}, single_pointwise("relu")),
-                       arg("concat:main:pointwise0", {x}, single_pointwise("sigmoid")),
-                       arg("concat:identity1", {yc}, single_pointwise("identity")));
+            add_pointwise_concat(p2,
+                                 1,
+                                 arg("main:pointwise2:concat", {}, single_pointwise("relu")),
+                                 arg("concat:main:pointwise0", {x}, single_pointwise("sigmoid")),
+                                 arg("concat:noop5", {yc}, noop_pointwise()));
         mm->add_return({fused_concat});
     }
     EXPECT(p1 == p2);

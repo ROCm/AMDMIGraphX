@@ -981,24 +981,24 @@ struct find_reshape_reshape_dot
     }
 };
 
-struct find_reshape_const_dot
+struct find_reshape_dot
 {
     auto matcher() const
     {
         return match::name("dot")(
             match::used_once(),
             match::either_arg(0, 1)(match::name("reshape").bind("rsp"),
-                                    match::skip_broadcasts(match::is_constant().bind("constant"))));
+                                    match::skip_broadcasts(match::any().bind("other"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto dot      = r.result;
-        auto rsp      = r.instructions["rsp"];
-        auto constant = r.instructions["constant"];
+        auto dot   = r.result;
+        auto rsp   = r.instructions["rsp"];
+        auto other = r.instructions["other"];
 
-        auto const_lens = constant->get_shape().lens();
-        if(const_lens.size() > 2)
+        auto other_lens = other->get_shape().lens();
+        if(other_lens.size() > 2)
             return;
 
         auto rsp_lens = rsp->get_shape().lens();
@@ -1007,44 +1007,46 @@ struct find_reshape_const_dot
 
         // Gemm axis should not be altered by the reshape
         bool flipped    = rsp == dot->inputs().back();
-        size_t dot_axis = (flipped) ? -2 : -1;
-        if(rsp_lens.end()[dot_axis] != inp_lens.end()[dot_axis])
+        size_t dot_axis = (flipped) ? 2 : 1;
+
+        if(inp_lens.size() < dot_axis or
+           rsp_lens[rsp_lens.size() - dot_axis] != inp_lens[inp_lens.size() - dot_axis])
             return;
 
-        std::vector<size_t> new_const_lens{inp_lens.begin(), inp_lens.end() - 2};
+        std::vector<size_t> new_other_lens{inp_lens.begin(), inp_lens.end() - 2};
         operation new_bc_op;
 
-        auto bc_const      = (flipped) ? dot->inputs().front() : dot->inputs().back();
-        auto bc_const_lens = bc_const->get_shape().lens();
-        new_const_lens.insert(new_const_lens.end(), bc_const_lens.end() - 2, bc_const_lens.end());
+        auto bc_other      = (flipped) ? dot->inputs().front() : dot->inputs().back();
+        auto bc_other_lens = bc_other->get_shape().lens();
+        new_other_lens.insert(new_other_lens.end(), bc_other_lens.end() - 2, bc_other_lens.end());
 
-        // if the orignal weight is one dimensional, look at the original broadcast
+        // if the original weight is one dimensional, look at the original broadcast
         // to determine the correct broadcast axis
-        if(const_lens.size() == 1)
+        if(other_lens.size() == 1)
         {
-            auto bc_const_strides = bc_const->get_shape().strides();
+            auto bc_other_strides = bc_other->get_shape().strides();
             auto it               = std::find_if(
-                bc_const_strides.begin(), bc_const_strides.end(), [&](auto i) { return i != 0; });
-            auto orig_bc_axis = std::distance(bc_const_strides.begin(), it);
+                bc_other_strides.begin(), bc_other_strides.end(), [&](auto i) { return i != 0; });
+            auto orig_bc_axis = std::distance(bc_other_strides.begin(), it);
 
-            auto new_bc_axis = new_const_lens.size() - (bc_const_lens.size() - orig_bc_axis);
-            new_bc_op = make_op("broadcast", {{"axis", new_bc_axis}, {"out_lens", new_const_lens}});
+            auto new_bc_axis = new_other_lens.size() - (bc_other_lens.size() - orig_bc_axis);
+            new_bc_op = make_op("broadcast", {{"axis", new_bc_axis}, {"out_lens", new_other_lens}});
         }
         else
         {
-            new_bc_op = make_op("multibroadcast", {{"out_lens", new_const_lens}});
+            new_bc_op = make_op("multibroadcast", {{"out_lens", new_other_lens}});
         }
 
-        auto new_bc_const = m.insert_instruction(dot, new_bc_op, constant);
+        auto new_bc_other = m.insert_instruction(dot, new_bc_op, other);
 
         instruction_ref new_dot;
         if(flipped)
         {
-            new_dot = m.insert_instruction(dot, make_op("dot"), new_bc_const, inp);
+            new_dot = m.insert_instruction(dot, make_op("dot"), new_bc_other, inp);
         }
         else
         {
-            new_dot = m.insert_instruction(dot, make_op("dot"), inp, new_bc_const);
+            new_dot = m.insert_instruction(dot, make_op("dot"), inp, new_bc_other);
         }
         m.replace_instruction(
             dot, make_op("reshape", {{"dims", dot->get_shape().lens()}}), new_dot);
@@ -1073,7 +1075,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
-                            find_reshape_const_dot{},
+                            find_reshape_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }

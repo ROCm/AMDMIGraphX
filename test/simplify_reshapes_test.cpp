@@ -2127,7 +2127,7 @@ TEST_CASE(const_multibroadcast_no_apply)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot)
+TEST_CASE(reshape_dot)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
     migraphx::shape s_w{migraphx::shape::float_type, {32, 32}};
@@ -2158,7 +2158,7 @@ TEST_CASE(reshape_const_dot)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot_flipped)
+TEST_CASE(reshape_dot_flipped)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
     migraphx::shape s_w{migraphx::shape::float_type, {16, 8}};
@@ -2189,7 +2189,7 @@ TEST_CASE(reshape_const_dot_flipped)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot_dot_axis)
+TEST_CASE(reshape_dot_dot_axis)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 4}};
     migraphx::shape s_w{migraphx::shape::float_type, {32, 32}};
@@ -2210,7 +2210,7 @@ TEST_CASE(reshape_const_dot_dot_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot_flipped_dot_axis)
+TEST_CASE(reshape_dot_flipped_dot_axis)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
     migraphx::shape s_w{migraphx::shape::float_type, {8, 64}};
@@ -2231,7 +2231,7 @@ TEST_CASE(reshape_const_dot_flipped_dot_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot_broadcast)
+TEST_CASE(reshape_dot_broadcast)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
     migraphx::shape s_w{migraphx::shape::float_type, {32}};
@@ -2262,7 +2262,7 @@ TEST_CASE(reshape_const_dot_broadcast)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_const_dot_broadcast_2)
+TEST_CASE(reshape_dot_broadcast_2)
 {
     migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
     migraphx::shape s_w{migraphx::shape::float_type, {32}};

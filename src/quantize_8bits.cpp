@@ -96,6 +96,10 @@ void compress_weights::apply(module& m) const // NOLINT
         auto s          = weight_ins->get_shape();
         if(not weight_ins->can_eval() or not contains(quantizable_types, s.type()))
             continue;
+        if(s.lens().back() % 2 != 0)
+        {
+            continue;
+        }
         auto weight_arg = weight_ins->eval();
         std::vector<double> vec_val;
         weight_arg.visit([&](auto output) { vec_val.assign(output.begin(), output.end()); });
@@ -122,6 +126,7 @@ void compress_weights::apply(module& m) const // NOLINT
         auto unpack_ins = m.insert_instruction(ins, make_op("unpack_int4"), pack_ins);
         auto dq_in =
             m.insert_instruction(ins, make_op("dequantizelinear"), unpack_ins, scale, zero_point);
+        m.debug_print();
         m.replace_instruction(ins, dq_in);
     }
 }

@@ -60,7 +60,7 @@ struct pack_int4
 
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims().has(1);
+        check_shapes{inputs, *this}.has(1);
         auto in_shape = inputs.front();
         if(in_shape.type() != migraphx::shape::uint8_type)
         {

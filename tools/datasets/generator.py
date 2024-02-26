@@ -15,6 +15,7 @@ def generate_test_dataset(model, dataset, output_path=None, limit=None):
     model_path = model.download(output_path)
     inputs, outputs = get_model_io(model_path)
 
+    sess = ort.InferenceSession(model_path)
     print(f"Creating {folder_name_prefix}s...")
     for idx, data in enumerate(dataset):
         folder_name = f"{folder_name_prefix}_{idx}"
@@ -26,7 +27,6 @@ def generate_test_dataset(model, dataset, output_path=None, limit=None):
             numpy_to_pb(input_name, input_data,
                         f"{folder_name}/{input_pb_name.format(input_idx)}")
 
-        sess = ort.InferenceSession(model_path)
         ort_result = sess.run(outputs, input_data_map)
 
         for output_idx, (output_name,

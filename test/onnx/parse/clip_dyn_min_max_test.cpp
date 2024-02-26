@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,11 +32,16 @@ TEST_CASE(clip_dyn_min_max_test)
     auto max_val                                        = mm->add_literal(6.0f);
     std::vector<migraphx::shape::dynamic_dimension> dds = {{2, 8, {3}}};
     auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dds});
+    auto bl0 =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}),
+                            l0,
+                            min_val,
+                            max_val);
     min_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, bl0);
     max_val = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, l0);
-    auto ret = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, bl0);
+    auto ret = mm->add_instruction(migraphx::make_op("clip"), bl0, min_val, max_val);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

@@ -32,9 +32,9 @@ TEST_CASE(gelu_fast_bias_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape shape{migraphx::shape::half_type, {3, 3}};
-    std::vector<float> tmp = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
-    std::vector<migraphx::half> x = {tmp.begin(), tmp.end()};
-    tmp = {-10, 0.5, 10, -2, 0.5, 2, -1, 0.5, 1};
+    std::vector<float> tmp           = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
+    std::vector<migraphx::half> x    = {tmp.begin(), tmp.end()};
+    tmp                              = {-10, 0.5, 10, -2, 0.5, 2, -1, 0.5, 1};
     std::vector<migraphx::half> bias = {tmp.begin(), tmp.end()};
 
     migraphx::parameter_map pp;
@@ -44,11 +44,6 @@ TEST_CASE(gelu_fast_bias_test)
     auto result = p.eval(pp).back();
     std::vector<migraphx::half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    for (auto res: result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
     // golden values generated using numpy:
     // >>> import numpy as np
     // >>> import math

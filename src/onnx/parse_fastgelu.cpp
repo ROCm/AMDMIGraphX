@@ -50,7 +50,7 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
     {
         const std::vector<migraphx::shape::type_t> fast_gelu_type{shape::float_type,
                                                                   shape::half_type};
-        auto x = args[0];
+        auto x      = args[0];
         auto x_type = x->get_shape().type();
         if(not is_fast_gelu_input_type(x_type))
         {
@@ -67,18 +67,19 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
             x = info.add_common_op("add", x, y);
         }
 
-        auto x_lens     = x->get_shape().lens();
-        // FastGelu equation from https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftfastgelu
+        auto x_lens = x->get_shape().lens();
+        // FastGelu equation from
+        // https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftfastgelu
         // Y=0.5X(1+tanh(0.797885X+0.035677XXX))
-        auto const1     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.797885}});
-        auto const2     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.035677}});
-        auto one          = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
-        auto half         = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
-        auto three        = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
+        auto const1 = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.797885}});
+        auto const2 = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.035677}});
+        auto one    = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
+        auto half   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
+        auto three  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
         // 0.035677XXX
         auto three_mbcast = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), three);
-        auto pow0             = info.add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
+        auto pow0          = info.add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
         auto const2_mbcast = info.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), const2);
         auto mul0 = info.add_instruction(migraphx::make_op("mul"), {pow0, const2_mbcast});

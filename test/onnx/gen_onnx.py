@@ -2598,6 +2598,7 @@ def gelu_fast_test():
 
     return ([node], [x], [y])
 
+
 @onnx_test()
 def gelu_fast_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
@@ -2607,6 +2608,7 @@ def gelu_fast_bias_test():
     node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
 
     return ([node], [x, y], [z])
+
 
 @onnx_test()
 def gelu_fast_invalid_x_test():
@@ -2618,6 +2620,7 @@ def gelu_fast_invalid_x_test():
 
     return ([node], [x, y], [z])
 
+
 @onnx_test()
 def gelu_fast_invalid_bias_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
@@ -2627,6 +2630,7 @@ def gelu_fast_invalid_bias_test():
     node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
 
     return ([node], [x, y], [z])
+
 
 @onnx_test()
 def gemm_test():

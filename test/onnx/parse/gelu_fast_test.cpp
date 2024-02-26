@@ -27,27 +27,27 @@
 TEST_CASE(gelu_fast_test)
 {
     migraphx::program p;
-    auto type  = migraphx::shape::float_type;
-    auto lens  = {3, 3};
-    auto shape = migraphx::shape{type, lens};
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", shape);
-    auto const1     = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.797885}});
-    auto const2     = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.035677}});
-    auto one          = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
-    auto half         = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
-    auto three        = mm->add_literal(migraphx::literal{migraphx::shape{type}, {3.0f}});
+    auto type   = migraphx::shape::float_type;
+    auto lens   = {3, 3};
+    auto shape  = migraphx::shape{type, lens};
+    auto* mm    = p.get_main_module();
+    auto x      = mm->add_parameter("x", shape);
+    auto const1 = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.797885}});
+    auto const2 = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.035677}});
+    auto one    = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+    auto half   = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
+    auto three  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {3.0f}});
     // 0.035677XXX
-    auto three_mbcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", lens}}), three);
-    auto pow0             = mm->add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
-    auto const2_mbcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", lens}}), const2);
+    auto three_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), three);
+    auto pow0 = mm->add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
+    auto const2_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), const2);
     auto mul0 = mm->add_instruction(migraphx::make_op("mul"), {pow0, const2_mbcast});
 
     // 0.797885X+0.035677XXX
-    auto const1_mbcast = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", lens}}), const1);
+    auto const1_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), const1);
     auto mul1 = mm->add_instruction(migraphx::make_op("mul"), {const1_mbcast, x});
     auto add1 = mm->add_instruction(migraphx::make_op("add"), {mul0, mul1});
 

@@ -225,7 +225,7 @@ auto visit_all_pack(const shape& s, V1&& v1)
  * same number of parameters.
  *
  * @param x A raw data object
- * @param xs Many raw data objects.  All must be the same type as x.
+ * @param xs Many raw data objects.
  * @return A function to be called with the visitor
  */
 template <class T, class... Ts>

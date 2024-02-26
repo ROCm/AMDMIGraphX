@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,84 +28,126 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
 
 #if MIGRAPHX_HAS_DPP
 
-template <class T, class Op>
+template <unsigned int SubWaveSize, class T, class Op>
 __device__ void dpp_reduce(T& in, Op op)
 {
-    T out{};
-    out = dpp_mov<dpp_row_shr(1)>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(2)>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
-    in  = op(in, out);
+    static_assert(SubWaveSize <= __AMDGCN_WAVEFRONT_SIZE, "Too large subwave size");
+    static_assert(is_power_of_2(SubWaveSize), "SubWaveSize is not a power of 2");
+    if constexpr(SubWaveSize > 1)
+    {
+        auto out = dpp_mov<dpp_row_shr(1)>(in);
+        in       = op(in, out);
+    }
+    if constexpr(SubWaveSize > 2)
+    {
+        auto out = dpp_mov<dpp_row_shr(2)>(in);
+        in       = op(in, out);
+    }
+    if constexpr(SubWaveSize > 4)
+    {
+        auto out = dpp_mov<dpp_row_shr(4), 0xf, 0xe>(in);
+        in       = op(in, out);
+    }
+    if constexpr(SubWaveSize > 8)
+    {
+        auto out = dpp_mov<dpp_row_shr(8), 0xf, 0xc>(in);
+        in       = op(in, out);
+    }
 #if __AMDGCN_WAVEFRONT_SIZE == 32
-    out = dpp_swizzle<0x1e0>(in);
-    in  = op(in, out);
+    if constexpr(SubWaveSize > 16)
+    {
+        auto out = dpp_swizzle<0x1e0>(in);
+        in       = op(in, out);
+    }
 #else
-    out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
-    in  = op(in, out);
-    out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
-    in  = op(in, out);
+    if constexpr(SubWaveSize > 16)
+    {
+        auto out = dpp_mov<dpp_row_bcast(15), 0xa>(in);
+        in       = op(in, out);
+    }
+    if constexpr(SubWaveSize > 32)
+    {
+        auto out = dpp_mov<dpp_row_bcast(31), 0xc>(in);
+        in       = op(in, out);
+    }
 #endif
 }
+
 #if defined(MIGRAPHX_USE_CLANG_TIDY) || defined(CPPCHECK)
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f) \
-    (void)f;                               \
-    x = 1
-#elif __AMDGCN_WAVEFRONT_SIZE == 64
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                    \
-    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"                 \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"                 \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"   \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n"   \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:15 row_mask:0xa\n" \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n" \
-                     "s_nop 1\n"                                              \
-                     : "=v"(x)                                                \
-                     : "0"(x));                                               \
-    (void)f
+#define MIGRAPHX_DPP_REDUCE_ASM_FUN(type, op, ins)   \
+    template <unsigned int SubWaveSize>              \
+    __device__ inline void dpp_reduce(type& x, op f) \
+    {                                                \
+        (void)f;                                     \
+        x = 1;                                       \
+    }
 #else
-#define MIGRAPHX_DPP_REDUCE_ASM(x, ins, f)                                  \
-    __asm__ volatile("s_nop 4\n" #ins " %0 %0 %0 row_shr:1\n"               \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:2\n"               \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n" \
-                     "s_nop 1\n" #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n" \
-                     : "=v"(x)                                              \
-                     : "0"(x));                                             \
-    auto y = dpp_swizzle<0x1e0>(x);                                         \
-    x      = f(x, y)
+#define MIGRAPHX_DPP_IIF64(then, ...) then
+#define MIGRAPHX_DPP_IIF32(then, ...) __VA_ARGS__
+#define MIGRAPHX_DPP_IF_64(x) MIGRAPHX_PP_CAT(MIGRAPHX_DPP_IIF, x)
+#define MIGRAPHX_DPP_WHEN_64(x) MIGRAPHX_DPP_IF_64(x)(MIGRAPHX_PP_EXPAND, MIGRAPHX_PP_EAT)
+
+#define MIGRAPHX_DPP_REDUCE_ASM0(ins) #ins " %0 %0 %0 row_shr:1\n"
+#define MIGRAPHX_DPP_REDUCE_ASM1(ins) #ins " %0 %0 %0 row_shr:2\n"
+#define MIGRAPHX_DPP_REDUCE_ASM2(ins) #ins " %0 %0 %0 row_shr:4 bank_mask:0xe\n"
+#define MIGRAPHX_DPP_REDUCE_ASM3(ins) #ins " %0 %0 %0 row_shr:8 bank_mask:0xc\n"
+#define MIGRAPHX_DPP_REDUCE_ASM4(ins) #ins " %0 %0 %0 row_bcast:15 row_mask:0xa\n"
+#define MIGRAPHX_DPP_REDUCE_ASM5(ins) #ins " %0 %0 %0 row_bcast:31 row_mask:0xc\n"
+
+#define MIGRAPHX_DPP_REDUCE_ASM_REPEAT(i, ins) \
+    MIGRAPHX_PP_CAT(MIGRAPHX_DPP_REDUCE_ASM, i)(ins) "s_nop 1\n"
+#define MIGRAPHX_DPP_REDUCE_ASM(n, x, ins, ...)                                                 \
+    {                                                                                           \
+        __asm__ volatile("s_nop 4\n" MIGRAPHX_PP_REPEAT(n, MIGRAPHX_DPP_REDUCE_ASM_REPEAT, ins) \
+                         : "=v"(x)                                                              \
+                         : "0"(x));                                                             \
+        __VA_ARGS__                                                                             \
+    }
+
+#if __AMDGCN_WAVEFRONT_SIZE == 64
+#define MIGRAPHX_DPP_REDUCE_SWIZZLE(x, f) (void)f;
+#else
+#define MIGRAPHX_DPP_REDUCE_SWIZZLE(x, f) \
+    auto y = dpp_swizzle<0x1e0>(x);       \
+    x      = f(x, y);
+#endif
+
+#define MIGRAPHX_DPP_REDUCE_ASM_FUN(type, op, ins)                                     \
+    template <unsigned int SubWaveSize>                                                \
+    __device__ inline void dpp_reduce(type& x, op f)                                   \
+    {                                                                                  \
+        if constexpr(SubWaveSize == 2)                                                 \
+            MIGRAPHX_DPP_REDUCE_ASM(0, x, ins, );                                      \
+        if constexpr(SubWaveSize == 4)                                                 \
+            MIGRAPHX_DPP_REDUCE_ASM(1, x, ins, );                                      \
+        if constexpr(SubWaveSize == 8)                                                 \
+            MIGRAPHX_DPP_REDUCE_ASM(2, x, ins, );                                      \
+        if constexpr(SubWaveSize == 16)                                                \
+            MIGRAPHX_DPP_REDUCE_ASM(3, x, ins, );                                      \
+        if constexpr(SubWaveSize == 32)                                                \
+            MIGRAPHX_DPP_REDUCE_ASM(MIGRAPHX_DPP_IF_64(__AMDGCN_WAVEFRONT_SIZE)(4, 3), \
+                                    x,                                                 \
+                                    ins,                                               \
+                                    MIGRAPHX_DPP_REDUCE_SWIZZLE(x, f));                \
+        MIGRAPHX_DPP_WHEN_64(__AMDGCN_WAVEFRONT_SIZE)                                  \
+        (if constexpr(SubWaveSize == 64) MIGRAPHX_DPP_REDUCE_ASM(5, x, ins, ));        \
+    }
 #endif
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)            \
-    __device__ inline void dpp_reduce(double& x, op f)   \
-    {                                                    \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f64, f);     \
-    }                                                    \
-    __device__ inline void dpp_reduce(float& x, op f)    \
-    {                                                    \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f32, f);     \
-    }                                                    \
-    __device__ inline void dpp_reduce(half& x, op f)     \
-    {                                                    \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_f16, f);     \
-    }                                                    \
-    __device__ inline void dpp_reduce(int32_t& x, op f)  \
-    {                                                    \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##sign##32, f); \
-    }                                                    \
-    __device__ inline void dpp_reduce(uint32_t& x, op f) \
-    {                                                    \
-        MIGRAPHX_DPP_REDUCE_ASM(x, prefix##_u32, f);     \
-    }
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);       \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
@@ -113,14 +155,42 @@ MIGRAPHX_DPP_REDUCE(op::product, v_mul, _u)
 MIGRAPHX_DPP_REDUCE(op::max, v_max, _i)
 MIGRAPHX_DPP_REDUCE(op::min, v_min, _i)
 
+template <class T, class Op>
+__device__ void dpp_reduce(T& in, Op op)
+{
+    dpp_reduce<__AMDGCN_WAVEFRONT_SIZE>(in, op);
+}
+
+template <unsigned int SubWaveSize, class Op, class T, class Index, class F>
+__device__ auto subwave_reduce(index idx, Op op, T init, Index n, F f)
+{
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal() or (idx.nlocal() % SubWaveSize) == 0);
+    using type = decltype(index::invoke_loop(f, 0, _c<0>));
+    auto x     = type(init);
+    idx.local_subwave_stride<SubWaveSize>(
+        n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
+    dpp_reduce<SubWaveSize>(x, op);
+    return readlane<SubWaveSize - 1, SubWaveSize>(x);
+}
+
+template <class Op, class T, class Index, class F>
+__device__ auto wave_reduce(index idx, Op op, T init, Index n, F f)
+{
+    return subwave_reduce<__AMDGCN_WAVEFRONT_SIZE>(idx, op, init, n, f);
+}
+
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+    if constexpr(decltype(idx.nlocal()){} == __AMDGCN_WAVEFRONT_SIZE)
+        return wave_reduce(idx, op, init, n, f);
+#endif
     constexpr index_int lanes_per_thread = __AMDGCN_WAVEFRONT_SIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
-    type x = type(init);
+    auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
@@ -145,7 +215,7 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
     __shared__ type buffer[idx.max_nlocal()];
-    type x = init;
+    auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     buffer[idx.local] = x;
     __syncthreads();
@@ -482,6 +552,86 @@ struct block_large
         });
     }
 };
+
+template <unsigned int SubWaveSize>
+struct subwave
+{
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice;
+
+        template <class T, index_int N, class Size>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = T;
+            array<T, N> arr;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d) const
+            {
+                return arr[d];
+            }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d)
+            {
+                return arr[d];
+            }
+        };
+
+        template <class Op, class T, class Read, class N, class... Ts>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
+        {
+            return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
+                return vec_reduce(read(xs(j, d)...), op);
+            });
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            if(idx.local_subwave<SubWaveSize>() == 0)
+                f();
+        }
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            idx.local_subwave_stride<SubWaveSize>(n, [&](auto j, auto d) { f(xs(j, d)...); });
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            using max_iterations =
+                decltype(idx.max_local_subwave_stride_iterations<SubWaveSize>(n));
+            inner_storage<R, max_iterations{}, N> storage;
+            idx.local_subwave_stride<SubWaveSize>(
+                n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            return storage;
+        }
+    };
+
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        idx.global_stride(nelements * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal_subwave<SubWaveSize>());
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+        });
+    }
+};
+
+using wave = subwave<__AMDGCN_WAVEFRONT_SIZE>;
 
 struct lane
 {

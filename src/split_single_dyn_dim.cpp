@@ -49,10 +49,6 @@ struct dynamic_dimensions_check
 optional<std::vector<dynamic_dimensions_check>>
 has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 {
-    if(param_shapes.empty())
-    {
-        return std::nullopt;
-    }
     auto is_dynamic = [](const auto& p) { return p.second.dynamic(); };
     std::vector<std::decay_t<decltype(param_shapes)>::value_type> dyn_params{};
     std::copy_if(
@@ -64,19 +60,18 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     for(const auto& param : dyn_params)
     {
         const auto& dds   = param.second.dyn_dims();
-        int num_non_fixed = 0;
-        for(const auto& dd : dds)
-        {
+        auto num_non_fixed = std::count_if(dds.cbegin(), dds.cend(), [&](auto dd) {
             if(not dd.is_fixed())
             {
-                num_non_fixed += 1;
-                // catch more than one non-fixed dynamic_dimension
-                if(num_non_fixed > 1)
-                {
-                    return std::nullopt;
-                }
                 ret.push_back(dynamic_dimensions_check{param.first, dd});
+                return true;
             }
+            return false;
+        });
+        // catch more than one non-fixed dynamic_dimension
+        if(num_non_fixed > 1)
+        {
+            return std::nullopt;
         }
     }
     if(ret.empty())

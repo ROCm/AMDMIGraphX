@@ -70,4 +70,13 @@ TEST_CASE(record_reshape)
            all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}, d_axes{{1}, {2}}, d_axes{{3}}});
 }
 
+TEST_CASE(record_transpose)
+{
+    auto desc = make_descriptor({256, 3, 16, 16}, make_op("transpose", {{"permutation", {0, 2, 3, 1}}}));
+    EXPECT(get_final_lens(desc) == final_lens{256, 16, 16, 3});
+    EXPECT(get_all_lens(desc) == all_lens{{256}, {16}, {16}, {3}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{2}}, d_axes{{3}}, d_axes{{1}}});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

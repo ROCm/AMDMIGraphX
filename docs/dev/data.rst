@@ -29,8 +29,9 @@ raw_data
    :members:
    :undoc-members:
 
-.. doxygenfunction:: template<class T, class ...Ts> auto migraphx::internal::visit_all(T &&x, Ts&&... xs)
-
+.. doxygenfunction:: migraphx::internal::visit_all(T&& x, Ts&&... xs)
+   
+.. doxygenfunction:: migraphx::internal::visit_all(const std::vector<T>& x)
 
 tensor_view
 -----------

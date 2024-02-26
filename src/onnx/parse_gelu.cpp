@@ -35,7 +35,7 @@ struct parse_gelu : op_parser<parse_gelu>
     std::vector<op_desc> operators() const { return {{"Gelu"}}; }
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& /*parser*/,
-                          onnx_parser::node_info info,
+                          const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
         auto x      = args[0];

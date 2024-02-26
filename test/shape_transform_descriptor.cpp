@@ -79,4 +79,13 @@ TEST_CASE(record_transpose)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{2}}, d_axes{{3}}, d_axes{{1}}});
 }
 
+TEST_CASE(record_multibroadcast)
+{
+    auto desc =
+        make_descriptor({1, 3, 1, 1}, make_op("multibroadcast", {{"out_lens", {256, 3, 16, 16}}}));
+    EXPECT(get_final_lens(desc) == final_lens{256, 3, 16, 16});
+    EXPECT(get_all_lens(desc) == all_lens{{256}, {3}, {16}, {16}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

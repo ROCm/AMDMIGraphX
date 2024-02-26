@@ -2,6 +2,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_SHAPE_TRANSFORM_DESCRIPTOR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 #include <cstdint>
 #include <vector>
 
@@ -18,6 +19,7 @@ struct shape_transform_descriptor
     bool apply(const std::vector<operation>& ops);
     bool apply_reshape(const std::vector<std::size_t>& dims);
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
+    bool apply_broadcast(const std::vector<std::size_t>& out_lens, optional<std::size_t> axis = nullopt);
     struct dimension
     {
         std::size_t len() const;

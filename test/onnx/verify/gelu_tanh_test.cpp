@@ -42,6 +42,10 @@ TEST_CASE(gelu_tanh_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    // gold values according to specification:
+    // https://github.com/onnx/onnx/blob/main/docs/Operators.md#examples-59
+    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(np.float32)
+    // 0.5 * x * (1 + np.tanh(np.sqrt(2 / np.pi) * (x + 0.044715 * np.power(x, 3))))
     std::vector<float> gold = {
         0.0f, 0.0f, -1.5497207e-07, -0.15880799f, 0.0, 1.3995717f, 4.8999996f, 8.1999998f, 1000.0f};
 

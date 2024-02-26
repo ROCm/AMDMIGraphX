@@ -980,6 +980,31 @@ struct find_reshape_reshape_dot
     }
 };
 
+// Move convert before shape manipulation ops so shape manipulations can be matched with
+// following ops
+struct find_shape_op_convert
+{
+    auto matcher() const
+    {
+        auto shape_ops = reshaper_names();
+        shape_ops.insert("transpose");
+        shape_ops.insert("broadcast");
+        shape_ops.insert("multibroadcast");
+
+        return match::name("convert")(match::arg(0)(match::name(shape_ops).bind("shape_op")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto convert  = r.result;
+        auto shape_op = r.instructions["shape_op"];
+
+        auto inp         = shape_op->inputs().front();
+        auto new_convert = m.insert_instruction(shape_op, convert->get_operator(), inp);
+        m.replace_instruction(convert, shape_op->get_operator(), new_convert);
+    }
+};
+
 struct find_reshape_dot
 {
     auto matcher() const
@@ -1072,6 +1097,7 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},
+                            find_shape_op_convert{},
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
                             find_reshape_dot{},

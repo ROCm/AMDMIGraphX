@@ -527,6 +527,15 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
 {
     auto& contexts = this->impl->contexts;
 
+    if (contexts.size() == 1)
+    {
+        auto& ctx = contexts.front();
+        auto run = ctx.get_capture();
+        if(run != nullptr)
+            return run();
+        ctx.start_capture();
+    }
+
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
     std::vector<argument> ret;
 
@@ -599,6 +608,12 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
     {
         assert(contexts.size() == 1);
         contexts.front().finish_on(exec_env.queue);
+    }
+
+    if (contexts.size() == 1)
+    {
+        auto& ctx = contexts.front();
+        ctx.end_capture(ret);
     }
 
     return ret;

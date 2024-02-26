@@ -44,6 +44,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+using hip_graph_ptr = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t,   hipGraphExecDestroy);
 
 struct hip_device
 {
@@ -323,6 +325,41 @@ struct context
 
     problem_cache& get_problem_cache() { return pc; }
 
+    void start_capture()
+    {
+        // hipStreamCaptureModeThreadLocal
+        // hipStreamCaptureModeGlobal
+        // hipStreamCaptureModeRelaxed
+        auto status = hipStreamBeginCapture(get_stream().get(), hipStreamCaptureModeGlobal);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed: hipStreamBeginCapture: " + hip_error(status));
+    }
+    void end_capture(const std::vector<argument>& args)
+    {
+        hipGraph_t raw_graph = nullptr;
+        auto status = hipStreamEndCapture(get_stream().get(), &raw_graph);
+        auto graph = share(hip_graph_ptr{raw_graph});
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed: hipStreamEndCapture: " + hip_error(status));
+
+        // auto log = make_shared_array<char>(1024);
+        hipGraphExec_t raw_graph_exec = nullptr;
+        status = hipGraphInstantiate(&raw_graph_exec, graph.get(), nullptr, nullptr, 0);
+        auto graph_exec = share(hip_graph_exec_ptr{raw_graph_exec});
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed: hipGraphInstantiate: " + hip_error(status));
+        saved_graph = [this, graph, graph_exec, args] {
+            auto status2 = hipGraphLaunch(graph_exec.get(), get_stream().get());
+            if(status2 != hipSuccess)
+                MIGRAPHX_THROW("Failed: hipGraphLaunch: " + hip_error(status2));
+            return args;
+        };
+    }
+    std::function<std::vector<argument>()> get_capture() const
+    {
+        return saved_graph;
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -336,6 +373,8 @@ struct context
     shared<hip_event_ptr> begin_event  = nullptr;
     shared<hip_event_ptr> finish_event = nullptr;
     problem_cache pc{};
+
+    std::function<std::vector<argument>()> saved_graph = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

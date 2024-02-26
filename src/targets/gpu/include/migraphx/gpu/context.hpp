@@ -44,8 +44,8 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
 
 using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
-using hip_graph_ptr = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
-using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t,   hipGraphExecDestroy);
+using hip_graph_ptr      = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy);
 
 struct hip_device
 {
@@ -337,14 +337,14 @@ struct context
     void end_capture(const std::vector<argument>& args)
     {
         hipGraph_t raw_graph = nullptr;
-        auto status = hipStreamEndCapture(get_stream().get(), &raw_graph);
-        auto graph = share(hip_graph_ptr{raw_graph});
+        auto status          = hipStreamEndCapture(get_stream().get(), &raw_graph);
+        auto graph           = share(hip_graph_ptr{raw_graph});
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed: hipStreamEndCapture: " + hip_error(status));
 
         // auto log = make_shared_array<char>(1024);
         hipGraphExec_t raw_graph_exec = nullptr;
-        status = hipGraphInstantiate(&raw_graph_exec, graph.get(), nullptr, nullptr, 0);
+        status          = hipGraphInstantiate(&raw_graph_exec, graph.get(), nullptr, nullptr, 0);
         auto graph_exec = share(hip_graph_exec_ptr{raw_graph_exec});
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed: hipGraphInstantiate: " + hip_error(status));
@@ -355,10 +355,7 @@ struct context
             return args;
         };
     }
-    std::function<std::vector<argument>()> get_capture() const
-    {
-        return saved_graph;
-    }
+    std::function<std::vector<argument>()> get_capture() const { return saved_graph; }
 
     private:
     // TODO: Make this a vector to support multiple devices

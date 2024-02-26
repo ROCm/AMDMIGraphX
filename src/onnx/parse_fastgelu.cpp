@@ -68,6 +68,7 @@ struct parse_fastgelu : op_parser<parse_fastgelu>
         }
 
         auto x_lens     = x->get_shape().lens();
+        // FastGelu equation from https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftfastgelu
         // Y=0.5X(1+tanh(0.797885X+0.035677XXX))
         auto const1     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.797885}});
         auto const2     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.035677}});

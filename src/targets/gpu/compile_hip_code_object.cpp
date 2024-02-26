@@ -29,6 +29,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -153,8 +154,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
         std::size_t num_elements = n;
-        // if(not hip_accept_non_uniform_wg())
-        if(true)
+        if(enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or not hip_accept_non_uniform_wg())
         {
             num_elements = (1 + (n - 1) / local) * local;
         }

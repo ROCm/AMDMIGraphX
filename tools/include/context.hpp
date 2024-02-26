@@ -77,24 +77,34 @@ template <class T>
 void finish_on_context(T&, any_ptr){}
 
 template <class T, class... Ts>
-void nop_context(T&, Ts&&...) {}
+void nop_context(T&, Ts&&...)
+{
+}
 
 template <class T>
-std::function<std::vector<argument>()> get_capture_context(T&) {
+std::function<std::vector<argument>()> get_capture_context(T&)
+{
     return nullptr;
 }
 
 <%
- interface('context',
-           virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
-           virtual('from_value', v = 'const value&', default = 'from_value_context'),
-           virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
-           virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
-           virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
-           virtual('start_capture', returns = 'void', default = 'nop_context'),
-           virtual('end_capture', args='const std::vector<argument>&', returns = 'void', default = 'nop_context'),
-           virtual('get_capture', returns = 'std::function<std::vector<argument>()>', default = 'get_capture_context'),
-           virtual('finish', returns = 'void', const = True)) %>
+    interface(
+        'context',
+        virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
+        virtual('from_value', v = 'const value&', default = 'from_value_context'),
+        virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
+        virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
+        virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+        virtual('start_capture', returns = 'void', default = 'nop_context'),
+        virtual('end_capture',
+                args    = 'const std::vector<argument>&',
+                returns = 'void',
+                default = 'nop_context'),
+        virtual('get_capture',
+                returns = 'std::function<std::vector<argument>()>',
+                default = 'get_capture_context'),
+        virtual('finish', returns = 'void', const = True))
+%>
 
     inline void migraphx_to_value(value& v, const context& ctx)
 {

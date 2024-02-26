@@ -590,10 +590,10 @@ std::vector<argument> program::eval(const parameter_map& params,
 {
     auto& contexts = this->impl->contexts;
 
-    if (contexts.size() == 1)
+    if(contexts.size() == 1)
     {
         auto& ctx = contexts.front();
-        auto run = ctx.get_capture();
+        auto run  = ctx.get_capture();
         if(run != nullptr)
             return run();
         ctx.start_capture();
@@ -673,7 +673,7 @@ std::vector<argument> program::eval(const parameter_map& params,
         contexts.front().finish_on(exec_env.queue);
     }
 
-    if (contexts.size() == 1)
+    if(contexts.size() == 1)
     {
         auto& ctx = contexts.front();
         ctx.end_capture(ret);

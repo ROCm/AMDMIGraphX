@@ -42,6 +42,11 @@ TEST_CASE(gelu_default_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    // gold values according to specification:
+    // https://github.com/onnx/onnx/blob/main/docs/Operators.md#examples-59
+    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(np.float32)
+    // 0.5 * x * (1 + np.vectorize(math.erf)(x / np.sqrt(2)))
     std::vector<float> gold = {0.0,
                                -2.3939184e-13,
                                -5.1815033e-07f,

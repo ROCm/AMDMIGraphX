@@ -43,15 +43,12 @@ TEST_CASE(gelu_default_half_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    tmp = {0.0,
-           -2.3939184e-13,
-           -5.1815033e-07f,
-           -0.15865526f,
-           0.0f,
-           1.3997892f,
-           4.8999977f,
-           8.1999998f,
-           1000.0f};
+
+    // gold values according to specification:
+    // https://github.com/onnx/onnx/blob/main/docs/Operators.md#examples-59
+    // x = np.array([-100.0, -7.5, -5.2, -1.0, 0.0, 1.5, 4.9, 8.2, 1000.0]).astype(np.float16)
+    // (0.5 * x * (1 + np.vectorize(math.erf)(x / np.sqrt(2)))).astype(np.float16)
+    tmp = {0.0f, 0.0f, -5.364e-07f, -0.1587f, 0.0f, 1.399f, 4.898f, 8.203f, 1000.0f};
 
     std::vector<migraphx::half> gold = {tmp.begin(), tmp.end()};
 

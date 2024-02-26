@@ -7,7 +7,7 @@ using migraphx::shape_transform_descriptor;
 using all_lens   = std::vector<std::vector<std::size_t>>;
 using final_lens = std::vector<std::size_t>;
 using all_axes   = std::vector<std::vector<std::vector<std::size_t>>>;
-using d_axes = std::vector<std::vector<std::size_t>>;
+using d_axes     = std::vector<std::vector<std::size_t>>;
 
 all_lens get_all_lens(const shape_transform_descriptor& d)
 {
@@ -66,7 +66,8 @@ TEST_CASE(record_reshape)
     auto desc = make_descriptor({256, 3, 16, 16}, make_op("reshape", {{"dims", {16, 16, 48, 16}}}));
     EXPECT(get_final_lens(desc) == final_lens{16, 16, 48, 16});
     EXPECT(get_all_lens(desc) == all_lens{{16}, {16}, {3, 16}, {16}});
-    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}, d_axes{{1}, {2}}, d_axes{{3}}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}, d_axes{{1}, {2}}, d_axes{{3}}});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

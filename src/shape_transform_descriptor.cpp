@@ -95,7 +95,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
                 return false;
             auto n = it - start;
             i += n;
-            new_dims.push_back({{start, it+1}});
+            new_dims.push_back({{start, it + 1}});
         }
         // unsqueeze
         else // if(rdim < idim)
@@ -106,7 +106,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
                 return false;
             auto n = it - start;
             r += n;
-            transform(range(n+1), std::back_inserter(new_dims), [&](auto j) -> dimension {
+            transform(range(n + 1), std::back_inserter(new_dims), [&](auto j) -> dimension {
                 auto new_sub = sub;
                 if(not new_sub.axis.empty())
                     new_sub.axis.push_back(j);

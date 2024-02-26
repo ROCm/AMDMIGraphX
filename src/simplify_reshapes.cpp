@@ -905,8 +905,7 @@ struct find_const_multibroadcast
 {
     auto matcher() const
     {
-        return match::name("multibroadcast")(
-            match::arg(0)(match::is_constant()(match::used_once()).bind("constant")));
+        return match::name("multibroadcast")(match::arg(0)(match::is_constant().bind("constant")));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

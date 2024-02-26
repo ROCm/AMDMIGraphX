@@ -229,6 +229,25 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((2 + e) == d);
 }
 
+TEST_CASE(dynamic_dimension_within_range)
+{
+    using migraphx::shape;
+    auto a = shape::dynamic_dimension{2, 5, {2, 5}};
+    auto b = shape::dynamic_dimension{3, 4};
+    EXPECT(b.within_range(a));
+    EXPECT(not a.within_range(b));
+
+    auto c = shape::dynamic_dimension{3, 4};
+    EXPECT(c.within_range(b));
+    EXPECT(b.within_range(c));
+
+    auto d = shape::dynamic_dimension{0, std::numeric_limits<std::size_t>::max()};
+    EXPECT(a.within_range(d));
+    EXPECT(b.within_range(d));
+    EXPECT(not d.within_range(a));
+    EXPECT(not d.within_range(b));
+}
+
 TEST_CASE(dynamic_dimension_serialize)
 {
     using migraphx::shape;

@@ -3,9 +3,16 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/common_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+template <class Range>
+static auto elements(const Range& r)
+{
+    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
+}
 
 template <class Iterator, class Projection>
 static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
@@ -65,6 +72,7 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 }
 bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& rdims)
 {
+    assert(migraphx::elements(rdims) == this->elements());
     std::vector<dimension> new_dims;
     auto subs     = get_all_subdimensions();
     std::size_t i = 0;
@@ -87,7 +95,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
                 return false;
             auto n = it - start;
             i += n;
-            new_dims.push_back({{start, it}});
+            new_dims.push_back({{start, it+1}});
         }
         // unsqueeze
         else // if(rdim < idim)
@@ -98,15 +106,13 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
                 return false;
             auto n = it - start;
             r += n;
-            std::vector<dimension::sub> new_subs;
-            transform(range(n), std::back_inserter(new_subs), [&](auto j) {
+            transform(range(n+1), std::back_inserter(new_dims), [&](auto j) -> dimension {
                 auto new_sub = sub;
                 if(not new_sub.axis.empty())
                     new_sub.axis.push_back(j);
                 new_sub.len = start[j];
-                return new_sub;
+                return {{new_sub}};
             });
-            new_dims.push_back({new_subs});
         }
         r++;
         i++;
@@ -143,6 +149,15 @@ std::size_t shape_transform_descriptor::dimension::len() const
                                 std::size_t{1},
                                 std::multiplies<>{},
                                 [](const auto& s) { return s.len; });
+}
+
+std::size_t shape_transform_descriptor::elements() const
+{
+    return transform_accumulate(dimensions.begin(),
+                                dimensions.end(),
+                                std::size_t{1},
+                                std::multiplies<>{},
+                                [](const auto& s) { return s.len(); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

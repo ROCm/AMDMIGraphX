@@ -29,6 +29,7 @@ struct shape_transform_descriptor
         std::vector<sub> subdimensions;
     };
     std::vector<dimension::sub> get_all_subdimensions() const;
+    std::size_t elements() const;
     std::vector<dimension> dimensions;
 };
 

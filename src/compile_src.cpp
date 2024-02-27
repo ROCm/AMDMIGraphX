@@ -29,19 +29,8 @@
 #include <migraphx/fileutils.hpp>
 #include <cassert>
 
-#ifdef _WIN32
-#include <migraphx/env.hpp>
-MIGRAPHX_DECLARE_ENV_VAR(HIP_PATH)
-#endif
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-#ifndef _WIN32
-src_compiler::src_compiler() = default;
-#else
-src_compiler::src_compiler() : compiler{path_value_of(HIP_PATH{}) / "bin" / "clang++.exe"} {}
-#endif
 
 std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {

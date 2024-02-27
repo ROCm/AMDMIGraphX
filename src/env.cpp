@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,14 +67,6 @@ std::vector<std::string> env(const char* name)
         return {};
     else
         return {{p}};
-}
-
-fs::path path_value_of(const char* name, fs::path fallback)
-{
-    auto e = env(name);
-    if(e.empty())
-        return fallback;
-    return e.front();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

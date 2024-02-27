@@ -26,8 +26,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-// Keeping old values for uint8 incase we ever get support for uint8 in our kernels
-// int8 values are just uint8 shifted back -128
 TEST_CASE(dynamicquantizelinear_2d_test)
 {
     auto p = migraphx::parse_onnx("dynamicquantizelinear_2d_test.onnx");
@@ -39,10 +37,9 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     pp["x"]      = migraphx::argument(s_x, data.data());
     auto results = p.eval(pp);
 
-    std::vector<int8_t> y_results;
+    std::vector<uint8_t> y_results;
     results.at(0).visit([&](auto output) { y_results.assign(output.begin(), output.end()); });
-    // std::vector<int8_t> y_gold = {64, 134, 83, 159, 213, 255, 96, 166, 249, 255, 191, 149};
-    std::vector<int8_t> y_gold = {-64, 6, -45, 31, 85, 127, -32, 38, 121, 127, 63, 21};
+    std::vector<uint8_t> y_gold = {64, 134, 83, 159, 213, 255, 96, 166, 249, 255, 191, 149};
     EXPECT(migraphx::verify::verify_rms_range(y_results, y_gold));
 
     std::vector<float> y_scale;
@@ -50,9 +47,8 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     std::vector<float> y_scale_gold = {0.0156862754};
     EXPECT(migraphx::verify::verify_rms_range(y_scale, y_scale_gold));
 
-    std::vector<int8_t> y_zpt;
+    std::vector<uint8_t> y_zpt;
     results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
-    // std::vector<int8_t> y_zpt_gold = {0};
-    std::vector<int8_t> y_zpt_gold = {-128};
+    std::vector<uint8_t> y_zpt_gold = {0};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }

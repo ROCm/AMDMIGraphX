@@ -8,3 +8,5 @@ onnxruntime
 transformers
 optimum
 timm
+soundfile
+librosa

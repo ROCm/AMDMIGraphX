@@ -32,10 +32,11 @@ class BaseDataset(abc.ABC):
 
 class ValidationDatasetHFIteratorMixin(object):
 
+    split = "validation"
     def __iter__(self):
-        print(f"Load dataset from {self.url}")
+        print(f"Load dataset from {self.url} using {self.split} split")
         self.dataset = iter(
-            load_dataset(self.url, split="validation", streaming=True))
+            load_dataset(self.url, split=self.split, streaming=True))
         return self.dataset
 
     def __next__(self):
@@ -115,3 +116,20 @@ class SQuAD_HF(ValidationDatasetHFIteratorMixin, SQuADTransformMixin,
 
     def name(self):
         return "squad-hf"
+
+
+class LibriSpeechASR(ValidationDatasetHFIteratorMixin, BaseDataset):
+
+    def __init__(self):
+        self.url = "librispeech_asr"
+        # override default split
+        self.split = "validation.clean"
+
+    def transform(self, inputs, data, prepocess_fn):
+        print(f"{inputs = }")
+        print(f"{data = }")
+        print(f"{prepocess_fn(data) = }")
+        return {}
+
+    def name(self):
+        return "librispeech-asr"

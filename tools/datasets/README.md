@@ -8,6 +8,11 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
+To use audio based datasets, install sndfile
+```bash
+apt install libsndfile1
+```
+
 # Generate
 
 ```bash

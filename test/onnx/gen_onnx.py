@@ -1955,6 +1955,13 @@ def dequantizelinear_neg_axis_test():
 
 
 @onnx_test()
+def dim_param_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, ["dim0", "dim1"])
+
+    return ([], [x], [x])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

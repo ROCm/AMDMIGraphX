@@ -580,10 +580,10 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                    [&](auto&& d) -> shape::dynamic_dimension {
                        if(d.has_dim_param())
                        {
-                            auto dim_param = d.dim_param();
-                            if(contains(map_dim_params, dim_param))
+                            const auto& dim_param = d.dim_param();
+                            if(contains(dim_params, dim_param))
                             {
-                                return map_dim_params.at(dim_param);
+                                return dim_params.at(dim_param);
                             }
                        }
                        if(d.has_dim_value())

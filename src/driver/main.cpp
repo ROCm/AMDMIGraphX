@@ -290,7 +290,7 @@ struct loader
         options.print_program_on_error = true;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
-        options.map_dim_params         = map_dim_params;
+        options.dim_params             = map_dim_params;
         return options;
     }
 

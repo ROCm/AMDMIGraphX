@@ -1073,6 +1073,38 @@ struct find_reshape_dot
     }
 };
 
+// Remove transposes and converts between mul/add -> dot so simplify_algebra can perform
+// const folding simplifications
+struct find_mul_add_shape_op_dot
+{
+    std::string op_name;
+
+    auto matcher() const
+    {
+        auto const_mul_add = match::name("mul", "add")(
+            match::either_arg(0, 1)(match::is_constant().bind("const"), match::any().bind("inp")));
+        auto match_shape_op = match::name(op_name)(match::args(const_mul_add.bind("pw")));
+        auto skip_reshape_outputs =
+            match::skip_output(match::any_of(match::name("transpose", "convert")));
+        return match_shape_op(skip_reshape_outputs(match::name("dot")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto shape_ins = r.result;
+        auto pw        = r.instructions["pw"];
+        auto constant  = r.instructions["const"];
+        auto inp       = r.instructions["inp"];
+
+        auto shape_op  = shape_ins->get_operator();
+        auto pw_op     = pw->get_operator();
+        auto new_inp   = m.insert_instruction(shape_ins, shape_op, inp);
+        auto new_const = m.insert_instruction(shape_ins, shape_op, constant);
+
+        m.replace_instruction(shape_ins, pw_op, new_inp, new_const);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -1097,6 +1129,8 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
                             find_reshape_dot{},
+                            find_mul_add_shape_op_dot{"transpose"},
+                            find_mul_add_shape_op_dot{"convert"},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }

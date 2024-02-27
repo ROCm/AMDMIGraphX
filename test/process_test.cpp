@@ -65,7 +65,10 @@ std::vector<char> read_stdin()
     std::array<char, 1024> buffer{};
     std::size_t len = 0;
 #ifdef _WIN32
-    if(_setmode(_fileno(stdin), _O_BINARY) == -1)
+    // Set stream translation mode to BINARY to suppress translations.
+    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
+    auto old_mode = _setmode(_fileno(stdin), _O_BINARY);
+    if(old_mode == -1)
         throw std::runtime_error{"failure setting IO mode to binary"};
 #endif
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
@@ -75,6 +78,10 @@ std::vector<char> read_stdin()
 
         result.insert(result.end(), buffer.begin(), buffer.begin() + len);
     }
+#ifdef _WIN32
+    // Reset to the previously set translation mode.
+    _setmode(_fileno(stdin), old_mode);
+#endif
     return result;
 }
 

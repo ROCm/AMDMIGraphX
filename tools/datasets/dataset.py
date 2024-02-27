@@ -30,6 +30,18 @@ class BaseDataset(abc.ABC):
         pass
 
 
+class ValidationDatasetHFIteratorMixin(object):
+
+    def __iter__(self):
+        print(f"Load dataset from {self.url}")
+        self.dataset = iter(
+            load_dataset(self.url, split="validation", streaming=True))
+        return self.dataset
+
+    def __next__(self):
+        return next(self.dataset)
+
+
 class ImageNet2012Val(BaseDataset):
 
     def __init__(self):
@@ -57,16 +69,7 @@ class ImageNet2012Val(BaseDataset):
         return "imagenet-2012-val"
 
 
-class SQuADBase(BaseDataset):
-
-    def __iter__(self):
-        print(f"Load dataset from {self.url}")
-        self.dataset = iter(
-            load_dataset(self.url, split="validation", streaming=True))
-        return self.dataset
-
-    def __next__(self):
-        return next(self.dataset)
+class SQuADTransformMixin(object):
 
     def transform(self, inputs, data, prepocess_fn):
         result = prepocess_fn(data["question"],
@@ -78,7 +81,7 @@ class SQuADBase(BaseDataset):
         return dict(result)
 
 
-class SQuADv1_1(SQuADBase):
+class SQuADv1_1(SQuADTransformMixin, BaseDataset):
 
     def __init__(self):
         self.url = "https://raw.githubusercontent.com/rajpurkar/SQuAD-explorer/master/dataset/dev-v1.1.json"
@@ -97,11 +100,15 @@ class SQuADv1_1(SQuADBase):
                         for qas in paragraph["qas"])
         return self.dataset
 
+    def __next__(self):
+        return next(self.dataset)
+
     def name(self):
         return "squad-v1.1"
 
 
-class SQuAD_HF(SQuADBase):
+class SQuAD_HF(ValidationDatasetHFIteratorMixin, SQuADTransformMixin,
+               BaseDataset):
 
     def __init__(self):
         self.url = "squad"

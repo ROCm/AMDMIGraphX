@@ -95,7 +95,9 @@ struct shape_impl
         }
     }
 
-    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
+    explicit shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs)
+    {
+    }
 
     shape::type_t m_type;
     std::vector<std::size_t> m_lens    = {};
@@ -530,7 +532,7 @@ shape shape::to_dynamic() const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [](auto s) { return s.to_dynamic(); });
-        return {subs};
+        return shape(subs);
     }
     if(this->dynamic())
     {
@@ -548,7 +550,7 @@ shape shape::to_static(std::size_t x) const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [&](auto s) { return s.to_static(x); });
-        return {subs};
+        return shape(subs);
     }
     if(not this->dynamic())
     {

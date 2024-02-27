@@ -169,7 +169,7 @@ struct MIGRAPHX_EXPORT shape
     {
     }
 
-    shape(const std::vector<shape>& subs);
+    explicit shape(const std::vector<shape>& subs);
 
     /**
      * Creates an output shape with dimensions equal to the input lengths and strides determined

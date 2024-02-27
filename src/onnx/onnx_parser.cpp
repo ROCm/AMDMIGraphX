@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -514,7 +514,7 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
         {
             nbytes = std::stoul(t.external_data().at(2).value());
         }
-        auto raw_buffer = read_buffer(path + "/" + data_file, offset, nbytes);
+        auto raw_buffer = read_buffer(path / data_file, offset, nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
     }
@@ -578,6 +578,14 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                    tensor_dims.end(),
                    std::back_inserter(dynamic_dims),
                    [&](auto&& d) -> shape::dynamic_dimension {
+                       if(d.has_dim_param())
+                       {
+                           const auto& dim_param = d.dim_param();
+                           if(contains(dim_params, dim_param))
+                           {
+                               return dim_params.at(dim_param);
+                           }
+                       }
                        if(d.has_dim_value())
                        {
                            if(static_cast<int>(d.dim_value()) <= 0)

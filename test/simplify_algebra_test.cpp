@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1055,19 +1055,32 @@ TEST_CASE(simplify_div_const)
 {
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two = m1.add_literal(2);
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {1}});
+        auto two = m1.add_literal(2.0f);
         m1.add_instruction(migraphx::make_op("div"), x, two);
     }
     run_pass(m1);
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto two   = m2.add_literal(2);
+        auto x     = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
+        auto two   = m2.add_literal(2.0f);
         auto recip = m2.insert_instruction(std::next(two), migraphx::make_op("recip"), two);
         m2.add_instruction(migraphx::make_op("mul"), x, recip);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_div_integral_const)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto two = m1.add_literal(2);
+        m1.add_instruction(migraphx::make_op("div"), x, two);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 
@@ -3661,6 +3674,38 @@ TEST_CASE(dot_mul_b_non_const)
         m1.add_return({mul});
     };
     migraphx::module m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(conv_concat)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape ws{migraphx::shape::float_type, {2, 8, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", xs);
+        auto w      = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto y      = m1.add_parameter("y", xs);
+        auto v      = m1.add_literal(migraphx::generate_literal(ws, 2));
+        auto conv1  = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        auto conv2  = m1.add_instruction(migraphx::make_op("convolution"), y, v);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, conv2);
+        m1.add_instruction(migraphx::make_op("exp"), concat);
+    };
+    migraphx::module m2;
+    {
+        auto x       = m2.add_parameter("x", xs);
+        auto w       = m2.add_literal(migraphx::generate_literal(ws, 1));
+        auto y       = m2.add_parameter("y", xs);
+        auto v       = m2.add_literal(migraphx::generate_literal(ws, 2));
+        auto xconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        auto wconcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w, v);
+        auto conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"group", 2}}), xconcat, wconcat);
+        m2.add_instruction(migraphx::make_op("exp"), conv);
+    }
     run_pass(m1);
 
     EXPECT(m1.sort() == m2.sort());

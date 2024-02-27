@@ -158,7 +158,7 @@ TEST_CASE(dynamic_batch_multiple_input)
     }
     run_pass(p1);
 
-    EXPECT(p0 == p1);
+    EXPECT(p0.sort() == p1.sort());
 }
 
 TEST_CASE(multiple_outputs)

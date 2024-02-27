@@ -54,7 +54,7 @@ struct hip_prefix_scan_sum : oper<hip_prefix_scan_sum>
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        std::vector<shape> in_shapes(inputs);
+        std::vector<shape> in_shapes{inputs};
         in_shapes.pop_back();
         check_shapes{in_shapes, *this}.standard();
         return op.normalize_compute_shape(in_shapes);

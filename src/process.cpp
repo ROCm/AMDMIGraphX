@@ -26,6 +26,7 @@
 #include <migraphx/process.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/tmp_dir.hpp>
+#include <migraphx/fileutils.hpp>
 #include <algorithm>
 #include <numeric>
 #include <functional>
@@ -392,11 +393,11 @@ process& process::env(const std::vector<std::string>& envs)
     return *this;
 }
 
-void process::read(writer&& output) const
+void process::read(const writer& output) const
 {
 #ifdef _WIN32
     // clang-format off
-    constexpr auto filename = "stdout";
+    constexpr std::string_view filename = "stdout";
     auto tmp = tmp_dir{};
     HANDLE handle = CreateFile((tmp.path / filename).string().c_str(),
                                GENERIC_READ | GENERIC_WRITE,
@@ -417,11 +418,11 @@ void process::read(writer&& output) const
                         FILE_ATTRIBUTE_NORMAL,
                         nullptr);
     if(handle == nullptr or handle == INVALID_HANDLE_VALUE)
-        MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename).string());
+        MIGRAPHX_THROW("Unable to open file: " + (tmp.path / filename));
     auto size = GetFileSize(handle, nullptr);
     std::string result(size, '\0');
     if(ReadFile(handle, result.data(), size, nullptr, nullptr) == FALSE)
-        MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename).string());
+        MIGRAPHX_THROW("Failed reading file: " + (tmp.path / filename));
     CloseHandle(handle);
     // clang-format on
 #else

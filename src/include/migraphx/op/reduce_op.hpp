@@ -228,7 +228,7 @@ struct reduce_op : op_name<Derived>
         if(not axes.empty())
             return reduce(dyn_out.computed_shape, axes, data_arg);
 
-        if(args[1].empty())
+        if(args[1].get_shape().elements() == 0)
             return args[0];
 
         std::vector<int64_t> reduce_axes;

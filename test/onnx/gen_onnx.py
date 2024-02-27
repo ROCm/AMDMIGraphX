@@ -7622,6 +7622,19 @@ def reducesum_variable_dynamic_axes_verify_test():
 
     return ([node], [x, axes], [y])
 
+@onnx_test()
+def reducesum_variable_dynamic_axes_noop_set_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 noop_with_empty_axes=1)
+
+    return ([node], [x, axes], [y])
+
 
 @onnx_test()
 def reducesum_square_test():

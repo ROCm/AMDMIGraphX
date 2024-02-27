@@ -31,10 +31,18 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(const dynamic_loader& lib)
+void store_target_lib(const fs::path& target_name, const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
-    target_loader.emplace_back(lib);
+    try
+    {
+        lib.get_function<void()>("register_target")();
+        target_loader.push_back(lib);
+    }
+    catch(const std::runtime_error&)
+    {
+        std::cerr << "Not a target library: " << target_name << std::endl;
+    }
 }
 
 std::unordered_map<std::string, target>& target_map()
@@ -43,40 +51,27 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
-void register_target_init() { (void)target_map(); }
-
-void unregister_target(const std::string& name)
+void unregister_target(std::string_view name)
 {
-    assert(target_map().count(name));
-    target_map().erase(name);
+    assert(target_map().count(name.data()));
+    target_map().erase(name.data());
 }
 
 void register_target(const target& t) { target_map()[t.name()] = t; }
 
-target make_target(const std::string& name)
+target make_target(std::string_view name)
 {
-    if(not contains(target_map(), name))
+    if(not contains(target_map(), name.data()))
     {
         auto target_name = make_shared_object_filename("migraphx_" + name);
-        store_target_lib(dynamic_loader(target_name));
+        store_target_lib(target_name, dynamic_loader(target_name));
     }
-    const auto it = target_map().find(name);
+    const auto it = target_map().find(name.data());
     if(it == target_map().end())
     {
         MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
-}
-
-std::vector<std::string> get_targets()
-{
-    std::vector<std::string> result;
-    std::transform(target_map().begin(),
-                   target_map().end(),
-                   std::back_inserter(result),
-                   [&](auto&& p) { return p.first; });
-    std::sort(result.begin(), result.end());
-    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

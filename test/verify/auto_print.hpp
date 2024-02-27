@@ -26,6 +26,10 @@
 
 #include <migraphx/register_target.hpp>
 #include <functional>
+#include <string>
+#include <vector>
+
+std::vector<std::string> get_targets();
 
 struct auto_print
 {

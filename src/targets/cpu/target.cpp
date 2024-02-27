@@ -116,21 +116,14 @@ argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
 #ifndef _WIN32
 MIGRAPHX_REGISTER_TARGET(target);
+#else
+MIGRAPHX_CPU_EXPORT extern "C" void register_target()
+{
+    static target t;
+    migraphx::register_target(t);
+}
 #endif
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#ifdef _WIN32
-static auto& cpu()
-{
-    static migraphx::MIGRAPHX_INLINE_NS::cpu::target t{};
-    return t;
-}
-MIGRAPHX_CPU_EXPORT extern "C" void register_target() { migraphx::register_target(cpu()); }
-MIGRAPHX_CPU_EXPORT extern "C" void unregister_target()
-{
-    migraphx::unregister_target(cpu().name());
-}
-#endif

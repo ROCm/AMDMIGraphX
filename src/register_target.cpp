@@ -44,7 +44,7 @@ void store_target_lib(const dynamic_loader& lib)
         std::cerr << "Not a target library: " << err.what() << std::endl;
     }
 #endif
-    target_loader.push_back(lib);
+    target_loader.emplace_back(lib);
 }
 
 std::unordered_map<std::string, target>& target_map()

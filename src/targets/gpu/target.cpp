@@ -213,21 +213,14 @@ argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
 
 #ifndef _WIN32
 MIGRAPHX_REGISTER_TARGET(target);
+#else
+MIGRAPHX_GPU_EXPORT extern "C" void register_target()
+{
+    static target t;
+    migraphx::register_target(t);
+}
 #endif
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#ifdef _WIN32
-static auto& gpu()
-{
-    static migraphx::MIGRAPHX_INLINE_NS::gpu::target t{};
-    return t;
-}
-MIGRAPHX_GPU_EXPORT extern "C" void register_target() { migraphx::register_target(gpu()); }
-MIGRAPHX_GPU_EXPORT extern "C" void unregister_target()
-{
-    migraphx::unregister_target(gpu().name());
-}
-#endif

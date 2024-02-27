@@ -22,40 +22,27 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
-#define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
-
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/rewrite_quantization.hpp>
-#include <migraphx/eliminate_identity.hpp>
-#include <migraphx/onnx.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
 
-#include <test.hpp>
-
-inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
+struct test_conv_concat : verify_program<test_conv_concat>
 {
-    migraphx::onnx_options options;
-    options.skip_unknown_operators = true;
-    auto prog                      = migraphx::parse_onnx(name, options);
-    auto* mm                       = prog.get_main_module();
-    if(run_passes)
-        migraphx::run_passes(*mm,
-                             {migraphx::rewrite_quantization{}, migraphx::dead_code_elimination{}});
-
-    // remove the last identity instruction
-    auto last_ins = std::prev(mm->end());
-    if(last_ins->name() == "@return")
+    migraphx::program create_program() const
     {
-        mm->remove_instruction(last_ins);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto w   = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 1));
+        auto y = mm->add_parameter("y", {migraphx::shape::float_type, {1, 8, 4, 4}});
+        auto v = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {2, 8, 3, 3}}, 2));
+        auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        auto conv2 = mm->add_instruction(migraphx::make_op("convolution"), y, v);
+        auto sum   = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), conv1, conv2);
+        mm->add_instruction(migraphx::make_op("exp"), sum);
+        return p;
     }
-
-    return prog;
-}
-
-#endif
+};

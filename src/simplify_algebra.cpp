@@ -725,6 +725,54 @@ struct find_concat_op
     }
 };
 
+struct find_concat_conv
+{
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::all_of[match::inputs()](match::used_once(), match::name("convolution")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto axis = ins->get_operator().to_value()["axis"].to<int>();
+        if(axis != 1)
+            return;
+        if(ins->inputs().empty())
+            return;
+        auto conv = ins->inputs().front()->get_operator();
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto conv_ins) {
+               return conv_ins->get_operator() != conv;
+           }))
+            return;
+        std::vector<instruction_ref> inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(inputs),
+                       [](auto conv_ins) { return conv_ins->inputs()[0]; });
+        if(std::any_of(inputs.begin(), inputs.end(), [&](auto input) {
+               return input->get_shape() != inputs.front()->get_shape();
+           }))
+            return;
+
+        std::vector<instruction_ref> weights;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(weights),
+                       [](auto conv_ins) { return conv_ins->inputs()[1]; });
+        if(std::any_of(weights.begin(), weights.end(), [&](auto w) {
+               return w->get_shape() != weights.front()->get_shape();
+           }))
+            return;
+
+        auto x = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), inputs);
+        auto w = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
+        conv.from_value({{"group", inputs.size()}});
+        m.replace_instruction(ins, conv, x, w);
+    }
+};
+
 void move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_ref> inss)
 {
     auto start = range(m.begin(), pos);
@@ -1606,6 +1654,7 @@ void simplify_algebra::apply(module& m) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
+                            find_concat_conv{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

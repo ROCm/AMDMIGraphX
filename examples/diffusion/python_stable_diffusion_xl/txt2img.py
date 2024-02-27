@@ -55,7 +55,7 @@ def get_args():
     parser.add_argument(
         "--base-model-path",
         type=str,
-        default="/models/stable-diffusion-xl-1.0-tensorrt/sdxl-1.0-base",
+        default="./sdxl-1.0-base",
         help="Path to onnx model exports",
     )
     parser.add_argument(

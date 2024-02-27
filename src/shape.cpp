@@ -95,9 +95,7 @@ struct shape_impl
         }
     }
 
-    explicit shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs)
-    {
-    }
+    shape_impl(const std::vector<shape>& subs) : m_type(shape::tuple_type), m_shapes(subs) {}
 
     shape::type_t m_type;
     std::vector<std::size_t> m_lens    = {};

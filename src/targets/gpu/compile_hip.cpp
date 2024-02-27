@@ -332,11 +332,10 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
 
-    if(std::find_if(params.begin(), params.end(), [](const auto& s) { return s.find("-std="); }) ==
-       params.end())
-    {
+    if(std::none_of(params.begin(), params.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
         compiler.flags.emplace_back("--std=c++17");
-    }
     compiler.flags.emplace_back(" -fno-gpu-rdc");
     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
         compiler.flags.emplace_back("-g");

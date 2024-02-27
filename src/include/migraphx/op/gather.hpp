@@ -129,6 +129,8 @@ struct gather
                         auto data_idx   = out_idx_v;
                         auto in_index   = indices[data_idx[axis]];
                         in_index        = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                        // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
+                        assert(in_index >= 0 and in_index < axis_dim_size);
                         data_idx[axis]  = in_index;
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });

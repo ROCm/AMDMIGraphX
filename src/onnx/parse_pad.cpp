@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -169,7 +169,7 @@ struct parse_pad : op_parser<parse_pad>
                                const std::vector<instruction_ref>& args) const
     {
         float value = 0.0f;
-        if(args.size() >= 3 and args.at(2)->get_shape().scalar())
+        if(args.size() >= 3 and args.at(2)->get_shape().elements() >= 1)
         {
             auto val_ins = args.at(2);
             if(not val_ins->can_eval())

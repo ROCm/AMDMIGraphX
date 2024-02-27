@@ -1,7 +1,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -30,9 +30,9 @@
 
 import re
 
-from rocm_docs import ROCmDocs
+html_theme = "rocm_docs_theme"
+html_theme_options = {"flavor": "rocm-docs-home"}
 
-html_theme_options = {"flavor": "list"}
 templates_path = ["."]  # Use the current folder for templates
 
 setting_all_article_info = True
@@ -49,17 +49,19 @@ left_nav_title = f"AMD MIGraphX {version_number} Documentation"
 # for PDF output on Read the Docs
 project = "AMD MIGraphX Documentation"
 author = "Advanced Micro Devices, Inc."
-copyright = "Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved."
+copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved."
 version = version_number
 release = version_number
 
+extensions = ["rocm_docs", "rocm_docs.doxygen", "sphinx_collapse"]
 external_toc_path = "./sphinx/_toc.yml"
+doxygen_root = "doxygen"
+doxysphinx_enabled = False
+doxygen_project = {
+    "name": "doxygen",
+    "path": "doxygen/xml",
+}
 
-docs_core = ROCmDocs(left_nav_title)
-docs_core.run_doxygen(doxygen_root="doxygen", doxygen_path="doxygen/xml")
-docs_core.setup()
+html_title = f"ROCm Docs Core {left_nav_title}"
 
 external_projects_current_project = "amdmigraphx"
-
-for sphinx_var in ROCmDocs.SPHINX_VARS:
-    globals()[sphinx_var] = getattr(docs_core, sphinx_var)

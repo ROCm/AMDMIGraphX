@@ -1,14 +1,16 @@
 .. py:module:: migraphx
 
-Python Reference
-================
+.. _python-api-reference:
+
+Python API reference
+======================
 
 shape
 -----
 
 .. py:class:: shape(type, lens, strides=None, dyn_dims)
 
-    Describes the shape of a tensor. This includes size, layout, and data type. Can be a dynamic shape by using dyn_dims.
+    Describes the shape of a tensor. This includes size, layout, and data type. Use dyn_dims for a dynamic shape.
 
 .. py:method:: type()
 
@@ -99,11 +101,11 @@ dynamic_dimension
 
 .. py:class:: dynamic_dimension(min, max, optimals)
 
-    Construct a dynamic_dimension from a minimum, a maximum, and optionally a set of optimals.
+    Constructs a `dynamic_dimension` from a minimum, a maximum, and optionally a set of optimals.
 
 .. py:method:: is_fixed()
     
-    Returns true if the dynamic_dimension is fixed.
+    Returns true if the `dynamic_dimension` is fixed.
 
     :rtype : int
 
@@ -112,7 +114,7 @@ argument
 
 .. py:class:: argument(data)
 
-    Construct an argument from a python buffer. This can include numpy arrays.
+    Constructs an argument from a python buffer. This can include numpy arrays.
 
 .. py:method:: data_ptr()
 
@@ -128,14 +130,14 @@ argument
 
 .. py:method:: tolist()
 
-    Convert the elements of the argument to a python list.
+    Converts the elements of the argument to a python list.
 
     :rtype: list
 
 
 .. py:function:: generate_argument(s, seed=0)
 
-    Generate an argument with random data.
+    Generates an argument with random data.
 
     :param shape s: Shape of argument to generate.
     :param int seed: The seed used for random number generation.
@@ -144,7 +146,7 @@ argument
 
 .. py:function:: fill_argument(s, value)
 
-    Fill argument of shape s with value.
+    Fills argument of shape `s` with the given value.
 
     :param shape s: Shape of argument to fill.
     :param int value: Value to fill in the argument.
@@ -153,7 +155,7 @@ argument
 
 .. py:function:: create_argument(s, values)
 
-    Create an argument of shape s with a set of values.
+    Creates an argument of shape `s` with a set of values.
 
     :param shape s: Shape of argument to create.
     :param list values: Values to put in the argument. Must be the same number of elements as the shape.
@@ -162,12 +164,12 @@ argument
 
 .. py:function:: argument_from_pointer(shape, address)
 
-    Create argument from data stored in given address without copy.
+    Creates argument from data stored in given address without copy.
 
     :param shape shape: Shape of the data stored in address.
     :param long address: Memory address of data from another source
 
-    :rtype: argument 
+    :rtype: argument
 
 target
 ------
@@ -184,6 +186,7 @@ target
 
     :rtype: target
 
+.. _migraphx-module:
 
 module
 ------
@@ -209,7 +212,7 @@ module
 
 .. py:method:: add_parameter(name, shape)
     
-    Adds a parameter to the module with provided name and shape.
+    Adds a parameter to the module with the provided name and shape.
 
     :param str name: name of the parameter.
     :param shape shape: shape of the parameter.
@@ -232,25 +235,25 @@ program
 
 .. py:method:: clone()
 
-    Make a copy of the program.
+    Makes a copy of the program.
 
     :rtype: program
 
 .. py:method:: get_parameter_names()
  
-    Get all the input arguments' or parameters' names to the program as a list.
+    Gets all the input argument's or parameter's names to the program as a list.
 
     :rtype list[str]
 
 .. py:method:: get_parameter_shapes()
 
-    Get the shapes of all the input parameters in the program.
+    Gets the shapes of all the input parameters in the program.
 
     :rtype: dict[str, shape]
 
 .. py:method:: get_output_shapes()
 
-    Get the shapes of the final outputs of the program.
+    Gets the shapes of the final outputs of the program.
 
     :rtype: list[shape]
 
@@ -258,29 +261,29 @@ program
 
     Compiles the program for the target and optimizes it.
 
-    :param target t: This is the target to compile the program for.
+    :param target t: Compilation target for the program.
     :param bool offload_copy: For targets with offloaded memory(such as the gpu), this will insert instructions during compilation to copy the input parameters to the offloaded memory and to copy the final result from the offloaded memory back to main memory.
     :param bool fast_math: Optimize math functions to use faster approximate versions. There may be slight accuracy degredation when enabled.
     :param exhaustive_tune: Flag to enable exhaustive search to find the fastest version of generated kernels for selected backend.
 
 .. py:method:: get_main_module()
     
-    Get main module of the program.
+    Gets main module of the program.
 
     :rtype module
 
 .. py:method:: create_module(name)
     
-    Create and add a module of provided name into the program.
+    Creates and adds a module with the provided name into the program.
 
     :param str name : name of the new module.
     :rtype module
 
 .. py:method:: run(params)
 
-    Run the program.
+    Runs the program.
 
-    :param params: This is a map of the input parameters which will be used when running the program.
+    :param params: Map of the input parameters to be used when running the program.
     :type params: dict[str, argument]
 
     :return: The result of the last instruction.
@@ -288,11 +291,11 @@ program
 
 .. py:method:: sort()
 
-    Sort the modules of the program such that instructions appear in topologically sorted order.
+    Sorts the modules of the program for the instructions to appear in topologically sorted order.
 
 .. py:function:: quantize_fp16(prog, ins_names=["all"])
 
-    Quantize the program to use fp16.
+    Quantizes the program to use fp16.
 
     :param program prog: Program to quantize.
     :param ins_names: List of instructions to quantize.
@@ -301,10 +304,10 @@ program
 
 .. py:function:: quantize_int8(prog, t, calibration=[], ins_names=["dot", "convolution"])
 
-    Quantize the program to use int8.
+    Quantizes the program to use int8.
 
     :param program prog: Program to quantize.
-    :param target t: Target that will be used to run the calibration data.
+    :param target t: Target to be used to run the calibration data.
     :param calibration: Calibration data used to decide the parameters to the int8 optimization.
     :type calibration: list[dict[str, argument]]
     :param ins_names: List of instructions to quantize.
@@ -315,7 +318,7 @@ op
 --
 .. py::class:: op(name, kwargs)
 
-    Construct an operation with name and arguments.
+    Constructs an operation with name and arguments.
     
     :param str name : name of the operation, must be supported by MIGraphX.
     :param dict[str, any] kwargs: arguments to the operation.
@@ -328,7 +331,7 @@ parse_onnx
 
 .. py:function:: parse_onnx(filename, default_dim_value=1, map_input_dims={}, skip_unknown_operators=false, print_program_on_error=false, max_loop_iterations=10, limit_max_iterations=65535)
 
-    Load and parse an onnx file.
+    Loads and parses an ONNX file.
 
     :param str filename: Path to file.
     :param str default_dim_value: default dimension to use (if not specified in onnx file).
@@ -346,7 +349,7 @@ parse_tf
 
 .. py:function:: parse_tf(filename, is_nhwc=True, batch_size=1, map_input_dims=dict(), output_names=[])
 
-    Load and parse an tensorflow protobuf file file.
+    Loads and parses a tensorflow protobuf file.
 
     :param str filename: Path to file.
     :param bool is_nhwc: Use nhwc as default format.
@@ -360,7 +363,7 @@ load
 
 .. py:function:: load(filename, format='msgpack')
 
-    Load a MIGraphX program.
+    Loads a MIGraphX program.
 
     :param str filename: Path to file.
     :param str format: Format of file. Valid options are msgpack or json.
@@ -372,7 +375,7 @@ save
 
 .. py:function:: save(p, filename, format='msgpack')
 
-    Save a MIGraphX program.
+    Saves a MIGraphX program.
 
     :param program p: Program to save.
     :param str filename: Path to file.

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,12 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(matmul_dyn_broadcast_error)
+TEST_CASE(resize_dyn_err1_test)
 {
+    // dimensions of input and scales don't match
+    migraphx::shape::dynamic_dimension dd{1, 10};
     migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("matmul_dyn_broadcast_error.onnx", options); }));
+    options.default_dyn_dim_value = dd;
+
+    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err1_test.onnx", options); }));
 }

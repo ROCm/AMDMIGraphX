@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,8 +34,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class Output, class T, class Padding, class Stride>
-void convolution(Output output, T input, T weights, Padding padding, Stride stride, int group)
+template <class Output, class T, class Padding, class Stride, class Dilation>
+void convolution(
+    Output output, T input, T weights, Padding padding, Stride stride, Dilation dilation, int group)
 {
     auto output_shape = output.get_shape();
     auto in_lens      = input.get_shape().lens();
@@ -67,8 +68,14 @@ void convolution(Output output, T input, T weights, Padding padding, Stride stri
             const auto in_ch = group_id * wei_c + k;
             std::vector<std::ptrdiff_t> idx(idx_o.begin(), idx_o.end());
             idx[1] = in_ch;
-            std::transform(idx_win.begin() + 1,
-                           idx_win.end(),
+            std::vector<std::ptrdiff_t> idx_dil(idx_win.size() - 1);
+            std::transform(idx_win.cbegin() + 1,
+                           idx_win.cend(),
+                           dilation.cbegin(),
+                           idx_dil.begin(),
+                           [](std::ptrdiff_t ii, std::ptrdiff_t d) { return d * ii; });
+            std::transform(idx_dil.begin(),
+                           idx_dil.end(),
                            win_start.begin(),
                            idx.begin() + 2,
                            [](std::ptrdiff_t ii, std::ptrdiff_t jj) { return ii + jj; });

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -220,12 +220,12 @@ auto visit_all_pack(const shape& s, V1&& v1)
 /**
  * @brief Visits every object together
  * @details This will visit every object, but assumes each object is the same type. This can reduce
- * the deeply nested visit calls. This will return a function that will take the visitor callback.
- * So it will be called with `visit_all(xs...)([](auto... ys) {})` where `xs...` and `ys...` are the
+ * the deeply nested visit calls. Returns a function that takes the visitor callback.
+ * Calling syntax is `visit_all(xs...)([](auto... ys) {})` where `xs...` and `ys...` are the
  * same number of parameters.
  *
  * @param x A raw data object
- * @param xs Many raw data objects
+ * @param xs Many raw data objects.
  * @return A function to be called with the visitor
  */
 template <class T, class... Ts>
@@ -238,6 +238,14 @@ auto visit_all(T&& x, Ts&&... xs)
     return [&](auto... vs) { detail::visit_all_pack(s, vs...)(x, xs...); };
 }
 
+/**
+ * @brief Visits every object together
+ * @details This will visit every object, but assumes each object is the same type. This can reduce
+ * the deeply nested visit calls. Returns a function that takes the visitor callback.
+ *
+ * @param x A vector of raw data objects.  Types must all be the same.
+ * @return A function to be called with the visitor
+ */
 template <class T>
 auto visit_all(const std::vector<T>& x)
 {

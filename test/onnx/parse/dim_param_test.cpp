@@ -32,21 +32,25 @@ TEST_CASE(dim_param_fixed_test)
     mm->add_return({input});
 
     migraphx::onnx_options opt;
-    opt.dim_params = {{"dim0", migraphx::shape::dynamic_dimension{2, 2}}, {"dim1", migraphx::shape::dynamic_dimension{4, 4}}};
-    auto prog = migraphx::parse_onnx("dim_param_test.onnx", opt);
+    opt.dim_params = {{"dim0", migraphx::shape::dynamic_dimension{2, 2}},
+                      {"dim1", migraphx::shape::dynamic_dimension{4, 4}}};
+    auto prog      = migraphx::parse_onnx("dim_param_test.onnx", opt);
     EXPECT(p == prog);
 }
-
 
 TEST_CASE(dim_param_dynamic_test)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
-    auto input = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {migraphx::shape::dynamic_dimension{1, 2}, migraphx::shape::dynamic_dimension{2, 4}}});
+    auto input = mm->add_parameter("0",
+                                   migraphx::shape{migraphx::shape::float_type,
+                                                   {migraphx::shape::dynamic_dimension{1, 2},
+                                                    migraphx::shape::dynamic_dimension{2, 4}}});
     mm->add_return({input});
 
     migraphx::onnx_options opt;
-    opt.dim_params = {{"dim0", migraphx::shape::dynamic_dimension{1, 2}}, {"dim1", migraphx::shape::dynamic_dimension{2, 4}}};
-    auto prog = migraphx::parse_onnx("dim_param_test.onnx", opt);
+    opt.dim_params = {{"dim0", migraphx::shape::dynamic_dimension{1, 2}},
+                      {"dim1", migraphx::shape::dynamic_dimension{2, 4}}};
+    auto prog      = migraphx::parse_onnx("dim_param_test.onnx", opt);
     EXPECT(p == prog);
 }

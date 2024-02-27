@@ -232,7 +232,9 @@ struct loader
             }
             else
             {
-                if(std::all_of(x.begin(), x.end(), [] (char ch) { return std::isdigit(static_cast<unsigned char>(ch)); }))
+                if(std::all_of(x.begin(), x.end(), [](char ch) {
+                       return std::isdigit(static_cast<unsigned char>(ch));
+                   }))
                     map_dim_params[name] = {std::stoul(x), std::stoul(x)};
                 else
                 {
@@ -241,7 +243,6 @@ struct loader
                         MIGRAPHX_THROW("dim_param must only specifiy one dimension");
                     map_dim_params[name] = dyn_dim.front();
                 }
-                
             }
         }
 

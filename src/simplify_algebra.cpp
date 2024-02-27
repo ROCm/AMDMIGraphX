@@ -1200,12 +1200,6 @@ struct find_div_const
         auto ins   = r.result;
         auto c_ins = r.instructions["c"];
 
-        bool is_integral = false;
-        c_ins->get_shape().visit_type([&](auto t) { is_integral = t.is_integral(); });
-        // avoid 1 / integer
-        if(is_integral)
-            return;
-
         auto recip = m.insert_instruction(std::next(c_ins), make_op("recip"), c_ins);
 
         auto args = ins->inputs();

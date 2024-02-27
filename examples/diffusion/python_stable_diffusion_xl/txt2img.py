@@ -36,6 +36,7 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
+
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -51,6 +52,12 @@ def measure(fn):
 
 def get_args():
     parser = ArgumentParser()
+    parser.add_argument(
+        "--base-model-path",
+        type=str,
+        default="/models/stable-diffusion-xl-1.0-tensorrt/sdxl-1.0-base",
+        help="Path to onnx model exports",
+    )
     parser.add_argument(
         "-s",
         "--seed",
@@ -71,7 +78,8 @@ def get_args():
         "-p",
         "--prompt",
         type=str,
-        required=True,
+        default=
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
         help="Prompt",
     )
 
@@ -101,7 +109,8 @@ def get_args():
 
 
 class StableDiffusionMGX():
-    def __init__(self):
+
+    def __init__(self, base_model_path):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
@@ -118,11 +127,13 @@ class StableDiffusionMGX():
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae", {"latent_sample": [1, 4, 128, 128]})
+            "vae", {"latent_sample": [1, 4, 128, 128]}, base_model_path)
         self.clip = StableDiffusionMGX.load_mgx_model("clip",
-                                                      {"input_ids": [1, 77]})
+                                                      {"input_ids": [1, 77]},
+                                                      base_model_path)
         self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
-                                                       {"input_ids": [1, 77]})
+                                                       {"input_ids": [1, 77]},
+                                                       base_model_path)
         self.unetxl = StableDiffusionMGX.load_mgx_model(
             "unetxl.opt", {
                 "sample": [2, 4, 128, 128],
@@ -130,7 +141,7 @@ class StableDiffusionMGX():
                 "text_embeds": [2, 1280],
                 "time_ids": [2, 6],
                 "timestep": [1],
-            })
+            }, base_model_path)
 
     @measure
     def run(self, prompt, negative_prompt, steps, seed, scale):
@@ -192,8 +203,8 @@ class StableDiffusionMGX():
 
     @staticmethod
     @measure
-    def load_mgx_model(name, shapes):
-        file = f"models/sdxl/{name}/model"
+    def load_mgx_model(name, shapes, model_base_path):
+        file = f"{model_base_path}/{name}/model"
         print(f"Loading {name} model from {file}")
         if os.path.isfile(f"{file}.mxr"):
             print("Found mxr, loading it...")
@@ -312,7 +323,7 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX()
+    sd = StableDiffusionMGX(args.base_model_path)
     print("Warming up...")
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,

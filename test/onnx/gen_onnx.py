@@ -7629,6 +7629,7 @@ def reducesum_variable_dynamic_axes_verify_test():
 
     return ([node], [x, axes], [y])
 
+
 @onnx_test()
 def reducesum_variable_dynamic_axes_noop_set_verify_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])

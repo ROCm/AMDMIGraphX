@@ -53,13 +53,12 @@ struct src_file
 
 struct MIGRAPHX_EXPORT src_compiler
 {
-    fs::path compiler                         = "c++";
+    fs::path compiler                         = MIGRAPHX_CXX_COMPILER;
     std::vector<std::string> flags            = {};
     fs::path output                           = {};
     fs::path launcher                         = "";
     std::string out_ext                       = ".o";
     std::function<fs::path(fs::path)> process = nullptr;
-    src_compiler();
     std::vector<char> compile(const std::vector<src_file>& srcs) const;
 };
 

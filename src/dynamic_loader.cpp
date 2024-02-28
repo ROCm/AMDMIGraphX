@@ -26,6 +26,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
+#include <migraphx/stringutils.hpp>
 #include <utility>
 
 #ifdef _WIN32
@@ -194,8 +195,7 @@ std::shared_ptr<void> dynamic_loader::get_symbol(std::string_view name) const
 #else
     FARPROC addr = GetProcAddress(impl->handle, name.data());
     if(addr == nullptr)
-        MIGRAPHX_THROW("Symbol not found: " + std::string{name} + " (" +
-                       std::to_string(GetLastError()) + ")");
+        MIGRAPHX_THROW("Symbol not found: " + name + " (" + std::to_string(GetLastError()) + ")");
     return {impl, reinterpret_cast<void*>(addr)};
 #endif
 }

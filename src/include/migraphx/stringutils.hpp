@@ -30,6 +30,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <string_view>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -37,6 +38,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 #define MIGRAPHX_STRINGIZE_1(...) #__VA_ARGS__
 #define MIGRAPHX_STRINGIZE(...) MIGRAPHX_STRINGIZE_1(__VA_ARGS__)
+
+inline std::string operator+(std::string_view left, std::string_view right)
+{
+    return std::string{left}.append(right);
+}
 
 template <class F>
 auto with_char(F f)

@@ -421,7 +421,7 @@ TEST_CASE(resize_fail_test_4)
                                            {"coordinate_transformation_mode", "invalid"}}),
                         {a0});
     p.compile(migraphx::make_target("ref"));
-    EXPECT(test::throws([&] { std::ignore = p.eval({}).back(); }));
+    EXPECT(test::throws([&] { p.eval({}); }));
 }
 
 TEST_CASE(resize_fail_test_5)
@@ -444,7 +444,7 @@ TEST_CASE(resize_fail_test_5)
                            {"coordinate_transformation_mode", "pytorch_half_pixel"}}),
         {a0});
     p.compile(migraphx::make_target("ref"));
-    EXPECT(test::throws([&] { std::ignore = p.eval({}).back(); }));
+    EXPECT(test::throws([&] { p.eval({}); }));
 }
 
 TEST_CASE(resize_fail_test_6)

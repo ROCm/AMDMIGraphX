@@ -35,7 +35,13 @@ TEST_CASE(transpose_dot_issue)
     migraphx::parameter_map pm;
     pm["x1"] = migraphx::argument{x_sh, x1_data.data()};
     pm["x2"] = migraphx::argument{x_sh, x2_data.data()};
+
     auto res = p.eval(pm).back();
+    std::vector<float> result_vector;
+    res.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0, 0, 4, 5, 12, 14, 18, 21};
+    EXPECT(res.get_shape() == make_shape({2, 2, 2}));
+    EXPECT(result_vector == gold);
 }
 
 TEST_CASE(broadcast_dot_issue)
@@ -47,8 +53,8 @@ TEST_CASE(broadcast_dot_issue)
     auto x2_sh = make_shape({2, 1, 2});
     auto x1    = mm->add_parameter("x1", x1_sh);
     auto x2    = mm->add_parameter("x2", x2_sh);
-    x2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x1_sh.lens()}}),
-    x2); mm->add_instruction(migraphx::make_op("dot"), x1, x2);
+    x2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x1_sh.lens()}}), x2);
+    mm->add_instruction(migraphx::make_op("dot"), x1, x2);
 
     migraphx::compile_options opts;
     opts.offload_copy = true;
@@ -62,5 +68,11 @@ TEST_CASE(broadcast_dot_issue)
     migraphx::parameter_map pm;
     pm["x1"] = migraphx::argument{x1_sh, x1_data.data()};
     pm["x2"] = migraphx::argument{x2_sh, x2_data.data()};
+
     auto res = p.eval(pm).back();
+    std::vector<float> result_vector;
+    res.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{8, 9, 40, 45, 90, 99, 130, 143};
+    EXPECT(res.get_shape() == make_shape({2, 2, 2}));
+    EXPECT(result_vector == gold);
 }

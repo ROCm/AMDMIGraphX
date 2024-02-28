@@ -42,7 +42,7 @@ if __name__ == '__main__':
         backend='migraphx',
         options={
             # "save_mxr": True,
-            "save_compiled": "text_encoder.pt",
+            # "save_compiled": "text_encoder.pt",
             # "exhaustive_tune": True,
         },
     )
@@ -54,7 +54,7 @@ if __name__ == '__main__':
         backend='migraphx',
         options={
             # "save_mxr": True,
-            "save_compiled": "unet.pt",
+            # "save_compiled": "unet.pt",
             # "exhaustive_tune": True,
         },
     )

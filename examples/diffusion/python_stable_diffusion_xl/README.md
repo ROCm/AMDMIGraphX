@@ -8,7 +8,7 @@ docker run -it --network=host --device=/dev/kfd --device=/dev/dri --group-add=vi
 
 ## Run Image-to-Text script
 ```
-python txt2img.py --base-model-path /models/stable-diffusion-xl-1.0-tensorrt/sdxl-1.0-base/
+python txt2img.py --base-model-path /models/stable-diffusion-xl-1.0-tensorrt/sdxl-1.0-base/ --save-compiled
 ```
 
 ## Run pipeline using Torch-MIGraphX

@@ -220,8 +220,9 @@ class StableDiffusionMGX():
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
             model.compile(mgx.get_target("gpu"))
-            print(f"Saving {name} model to mxr file...")
-            mgx.save(model, f"{file}.mxr", format="msgpack")
+            if save_compiled:
+                print(f"Saving {name} model to mxr file...")
+                mgx.save(model, f"{file}.mxr", format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
             sys.exit(1)

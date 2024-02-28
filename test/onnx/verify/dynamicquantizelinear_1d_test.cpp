@@ -25,6 +25,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
+#include <migraphx/simplify_dynamicquantizelinear.hpp>
 
 TEST_CASE(dynamicquantizelinear_1d_test)
 {
@@ -83,7 +84,9 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
 TEST_CASE(dynamicquantizelinear_1d_simplify_test)
 {
     auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
-    p.compile(migraphx::make_target("gpu"));
+    auto *mm = p.get_main_module();
+    migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
+    p.compile(migraphx::make_target("ref"));
 
     std::vector<float> data{0, 2, -3, -2.5, 1.34, 0.5};
     migraphx::shape s_x{migraphx::shape::float_type, {6}};
@@ -103,14 +106,16 @@ TEST_CASE(dynamicquantizelinear_1d_simplify_test)
 
     std::vector<int8_t> y_zpt;
     results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
-    std::vector<uint8_t> y_zpt_gold = {25};
+    std::vector<int8_t> y_zpt_gold = {25};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
 TEST_CASE(dynamicquantizelinear_1d_max_adjusted_simplify_test)
 {
     auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
-    p.compile(migraphx::make_target("gpu"));
+    auto *mm = p.get_main_module();
+    migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
+    p.compile(migraphx::make_target("ref"));    
 
     std::vector<float> data{-1.0, -2.1, -1.3, -2.5, -3.34, -4.0};
     migraphx::shape s_x{migraphx::shape::float_type, {6}};

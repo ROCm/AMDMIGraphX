@@ -102,4 +102,3 @@ TEST_CASE(bla4)
     EXPECT(shape == migraphx::shape{migraphx::shape::float_type, {3, 4, 5, 6}});
     EXPECT(result_vector == gold);
 }
-

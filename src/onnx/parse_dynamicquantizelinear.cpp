@@ -116,12 +116,15 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         auto q_range =
             info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max - x_min}});
 
+        std::vector<size_t> len_vec(x_reshaped->get_shape().lens().size());
+        std::iota(len_vec.begin(), len_vec.end(),0);
+
         // maximum(0, max(x))
         auto max_x =
-            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), x_reshaped);
+            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", len_vec}}), x_reshaped);
         // minimum(0, min(x))
         auto min_x =
-            info.add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), x_reshaped);
+            info.add_instruction(migraphx::make_op("reduce_min", {{"axes", len_vec}}), x_reshaped);
 
         // y_scale = (maximum(0, max(x)) - minimum(0, min(x))) / (qmax - qmin)
         auto sub0    = info.add_common_op("sub", max_x, min_x);

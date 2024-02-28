@@ -52,6 +52,55 @@ std::unordered_set<std::string> get_quantizable_op_names()
     return s;
 }
 
+/* 
+*  Dynamicquantizelinear by default adds uint8_t typed zero point into a quantize linear
+*  which needs to converted to int8 in order to avoid uint8 x int8 operations or uint8 operations from occuring
+*  on the backend as this isn't supported by MLIR nor how we simplify our quantizable ops.
+*/
+struct match_find_dynamicquantizelinear_convert_int8_zp
+{
+    auto matcher() const
+    {
+        return match::name("quantizelinear")(
+            match::arg(0)(skip_broadcasts(match::any())).bind("x"),
+            match::arg(2)(skip_broadcasts(
+            match::name("convert")((match::has_type(shape::uint8_type)).bind("convert")))));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        /* Need to modify the uint8 min/max range as well as final convert to convert to int8 */
+        auto x  = r.instructions["x"];
+        //auto round = r.instructions["round"];
+        auto convert_op  = r.instructions["convert"];
+        //auto q_max  = r.instructions["q_max"];
+        //auto q_min  = r.instructions["q_min"];
+
+        auto round_op   = convert_op->inputs().at(0);
+        auto saturate_op = round_op->inputs().at(0);
+
+        auto q_min = saturate_op->inputs().at(1);
+        auto q_max = saturate_op->inputs().at(2);
+
+        const auto x_min = std::numeric_limits<int8_t>::min();
+        const auto x_max = std::numeric_limits<int8_t>::max();
+
+        auto x_type = x->get_shape().type();
+
+        // Replace min/max of uint8 with min/max of int8 - q_range is identical so doesn't need to be modified
+        auto q_min_int8  = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_min}});
+        auto q_max_int8  = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max}});
+    
+        m.replace_instruction(q_min, q_min_int8);
+        m.replace_instruction(q_max, q_max_int8);
+
+        auto new_convert = m.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), round_op);
+       
+        m.replace_instruction(convert_op, new_convert);
+    }
+};
+
 struct match_find_quantizable_ops
 {
     static bool
@@ -321,6 +370,8 @@ void remove_qdq_pairs(module& m)
 
 void simplify_qdq::apply(module& m) const
 {
+    match::find_matches(m, match_find_dynamicquantizelinear_convert_int8_zp{});
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     match::find_matches(m, match_find_quantizable_ops{});
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);

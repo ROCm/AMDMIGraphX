@@ -1,7 +1,6 @@
 ## Build and Run Docker Image
 ```
-GPU_ARCH="$(/opt/rocm/bin/rocminfo | grep -o -m 1 'gfx.*')"
-docker build -t sdxl_perf --build-arg GPU_ARCH="$GPU_ARCH" .
+docker build -t sdxl_perf .
 
 docker run -it --network=host --device=/dev/kfd --device=/dev/dri --group-add=video --ipc=host --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v=`pwd`:/workspace -v=/mnt/nas_share/migraphx/models:/models --entrypoint=/bin/bash -e HIP_FORCE_DEV_KERNARG=1 -e MIGRAPHX_MLIR_USE_SPECIFIC_OPS=dot,fused,attention  sdxl_perf
 ```

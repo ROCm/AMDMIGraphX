@@ -5,7 +5,6 @@ FROM rocm/pytorch-private:rocm13360_445_ubuntu22.04_py3.9_pytorch_tunablegemm-te
 
 ARG ROCM_PATH=/opt/rocm
 ARG GPU_ARCH="gfx900;gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102;gfx940;gfx941;gfx942"
-ARG SDXL_MODEL_PATH
 
 # install rbuild
 RUN pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -34,8 +33,6 @@ RUN git clone https://github.com/ROCm/torch_migraphx.git \
     && python -m pip install .
 
 WORKDIR /workspace
-ADD ${SDXL_MODEL_PATH} /workspace/
-
 ENV LD_LIBRARY_PATH=${ROCM_PATH}/lib
 ENV PYTHONPATH=${ROCM_PATH}/lib
 ENTRYPOINT [ "/bin/bash" ]

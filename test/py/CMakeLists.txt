@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@ set(REQUIREMENTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements.txt)
 set(REQUIREMENTS_ONNX ${CMAKE_CURRENT_SOURCE_DIR}/requirements-onnx.txt)
 set(PYTHON_VERSION_TO_DISABLE_ONNX 3.6)
 option(MIGRAPHX_DISABLE_VIRTUAL_ENV "Disable python virtual environments" OFF)
+option(MIGRAPHX_DISABLE_ONNX_TESTS "Disable Onnx backend tests" OFF)
 
 
 function(add_py_venv_fixture FIXTURE_NAME VIRTUAL_ENV_DIR REQUIREMENTS_FILE)
@@ -106,6 +107,8 @@ if(MIGRAPHX_ENABLE_GPU)
 add_py_test(gpu_offload test_gpu_offload.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(gpu test_gpu.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(array test_array.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
-add_py_test(backend onnx_backend_test.py onnx ${VENV_ONNX} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+if(NOT MIGRAPHX_DISABLE_ONNX_TESTS)
+    add_py_test(backend onnx_backend_test.py onnx ${VENV_ONNX} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+endif()
 add_py_test(gpu_async test_gpu_async.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 endif()

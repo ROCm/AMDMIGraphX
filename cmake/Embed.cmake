@@ -130,8 +130,11 @@ ${RC_FILE_MAPPING}
 namespace resource {
 std::string_view read(int id)
 {
-    HMODULE handle = GetModuleHandle(\"migraphx_gpu.dll\");
-    if(handle != nullptr)
+    HMODULE handle;
+    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         reinterpret_cast<LPCSTR>(${EMBED_NAME}),
+                         &handle) != 0)
     {
         HRSRC rc = FindResource(handle, MAKEINTRESOURCE(id), MAKEINTRESOURCE(TEXTFILE));
         if(rc != nullptr)

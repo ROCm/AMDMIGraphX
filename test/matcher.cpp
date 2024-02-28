@@ -174,6 +174,111 @@ TEST_CASE(match_arg8)
     EXPECT(bool{r.result == sum});
 }
 
+TEST_CASE(match_arg_by_type)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    auto two = mm.add_literal(2);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    mm.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::has_type(migraphx::shape::int32_type)),
+                                              match::arg(1)(match::name("@literal"))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_arg_by_type2)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    auto two = mm.add_literal(2);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    mm.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::has_type(migraphx::shape::int32_type))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_arg_by_type3)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    auto two = mm.add_literal(2);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    mm.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::has_type(migraphx::shape::half_type))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result != sum});
+}
+
+TEST_CASE(match_arg_by_type4)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    auto two = mm.add_literal(2);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    mm.add_instruction(pass_op{}, sum);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::has_type(migraphx::shape::half_type)),
+                                              match::arg(1)(match::name("@literal"))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result != sum});
+}
+
+TEST_CASE(match_arg_by_type5)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1.0f);
+    auto two = mm.add_literal(2.0f);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    auto sub = mm.add_instruction(minus_op{}, sum, two);
+    mm.add_instruction(pass_op{}, sub);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::name("@literal")),
+                                              match::arg(1)(match::has_type(migraphx::shape::float_type))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == sum});
+}
+
+TEST_CASE(match_arg_by_type6)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1.0f);
+    auto two = mm.add_literal(2.0f);
+    auto sum = mm.add_instruction(sum_op{}, one, two);
+    auto sub = mm.add_instruction(minus_op{}, one, sum);
+    mm.add_instruction(pass_op{}, sub);
+    auto m = match::name("sub")(match::all_of(match::arg(0)(match::has_type(migraphx::shape::float_type)),
+                                              match::arg(1)(match::name("@literal"))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result != sub});
+}
+
+TEST_CASE(match_arg_by_type7)
+{
+    migraphx::module mm;
+    auto one   = mm.add_literal(1.0);
+    auto two   = mm.add_literal(2.0);
+    auto one_f = mm.add_literal(1.0f);
+    auto two_f = mm.add_literal(2.0f);
+
+    auto sum   = mm.add_instruction(sum_op{}, one, two);
+    auto sum_f = mm.add_instruction(sum_op{}, one_f, two_f);
+    mm.add_instruction(pass_op{}, sum);
+    mm.add_instruction(pass_op{}, sum_f);
+    auto m = match::name("sum")(match::all_of(match::arg(0)(match::has_type(migraphx::shape::float_type)),
+                                              match::arg(1)(match::has_type(migraphx::shape::float_type))),
+                                match::standard_shape());
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result->inputs().at(0)->get_shape().type() == migraphx::shape::float_type});
+}
+
 TEST_CASE(match_nargs1)
 {
     migraphx::module mm;

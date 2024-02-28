@@ -689,6 +689,12 @@ inline auto var(std::string s)
         });
 }
 
+inline auto has_type(shape::type_t t)
+{
+    return make_basic_pred_matcher(
+        [=, m_t = std::move(t)](instruction_ref ins) { return ins->get_shape().type() == m_t; });
+}
+
 inline auto name(std::string s)
 {
     return make_basic_pred_matcher(

@@ -4,7 +4,8 @@
 FROM rocm/pytorch-private:rocm13360_445_ubuntu22.04_py3.9_pytorch_tunablegemm-temp_aed2c82_with_apex_v2
 
 ARG ROCM_PATH=/opt/rocm
-ARG GPU_ARCH
+ARG GPU_ARCH="gfx900;gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102;gfx940;gfx941;gfx942"
+ARG SDXL_MODEL_PATH
 
 # install rbuild
 RUN pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
@@ -19,7 +20,7 @@ RUN git clone https://github.com/RadeonOpenCompute/rocm-cmake.git \
 # install migraphx
 RUN git clone --single-branch --branch sdxl_perf --recursive https://github.com/ROCm/AMDMIGraphX.git \
     && cd AMDMIGraphX \
-    && rbuild build -d depend -DBUILD_TESTING=Off -DCMAKE_INSTALL_PREFIX=/opt/rocm/ --cxx=/opt/rocm/llvm/bin/clang++ -DGPU_TARGETS=$GPU_ARCH \
+    && rbuild build -d depend -DBUILD_TESTING=Off -DCMAKE_INSTALL_PREFIX=/opt/rocm/ --cxx=/opt/rocm/llvm/bin/clang++ -DGPU_TARGETS=${GPU_ARCH} \
     && cd build && make install
 
 
@@ -32,8 +33,9 @@ RUN git clone https://github.com/ROCm/torch_migraphx.git \
     && export TORCH_CMAKE_PATH=$(python -c "import torch; print(torch.utils.cmake_prefix_path)") \
     && python -m pip install .
 
-
 WORKDIR /workspace
+ADD ${SDXL_MODEL_PATH} /workspace/
+
 ENV LD_LIBRARY_PATH=${ROCM_PATH}/lib
 ENV PYTHONPATH=${ROCM_PATH}/lib
 ENTRYPOINT [ "/bin/bash" ]

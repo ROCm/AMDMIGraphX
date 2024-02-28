@@ -106,6 +106,14 @@ struct reduce_op : op_name<Derived>
         return original_shape.with_lens(lens);
     }
 
+    // Compute the output shape for cases when the input tensor has a dynamic shape.
+    //
+    // If the axes are passed as an attribute, or a constant input, we can precisely
+    // determine which axes need to be collapsed even during parsing.
+    //
+    // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
+    // determine which axes must be collapsed until we see the actual input values, so we must treat
+    // each axis as potentially collapsable and set its minimum dimension to 1.
     shape compute_dynamic_shape(const std::vector<shape>& inputs) const
     {
         const auto& data_shape = inputs[0];
@@ -128,6 +136,16 @@ struct reduce_op : op_name<Derived>
         return {data_shape.type(), dims};
     }
 
+    // Compute the output shape for cases when the input tensor has a static shape.
+    // Depending on how axes is passed to the operator the output shape can be either dynamic or
+    // static.
+    //
+    // If the axes are passed as an attribute, or a constant input, we can precisely
+    // determine which axes need to be collapsed even during parsing.
+    //
+    // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
+    // determine which axes must be collapsed until we see the actual input values, so we must treat
+    // each axis as potentially collapsable, producing a dynamic output shape.
     shape compute_static_shape(const std::vector<shape>& inputs) const
     {
         const auto& data_shape = inputs[0];
@@ -135,8 +153,8 @@ struct reduce_op : op_name<Derived>
         {
             std::vector<shape::dynamic_dimension> dims(data_shape.ndim());
             auto lens = data_shape.lens();
-            std::transform(lens.begin(), lens.end(), dims.begin(), [](auto l) {
-                return shape::dynamic_dimension{1, l};
+            std::transform(lens.begin(), lens.end(), dims.begin(), [](auto len) {
+                return shape::dynamic_dimension{1, len};
             });
 
             return {data_shape.type(), std::move(dims)};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,7 +72,7 @@ struct dynamic_loader_impl
     {
         auto t = std::make_shared<tmp_dir>("dloader");
         auto f = t->path / "libtmp.so";
-        write_buffer(f.string(), image, size);
+        write_buffer(f, image, size);
         return std::make_shared<dynamic_loader_impl>(f, t);
     }
 
@@ -122,7 +122,7 @@ struct dynamic_loader_impl
     {
         auto t = tmp_dir{"migx-dynload"};
         auto f = t.path / "tmp.dll";
-        write_buffer(f.string(), image, size);
+        write_buffer(f, image, size);
         return std::make_shared<dynamic_loader_impl>(f, std::move(t));
     }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,18 +162,32 @@ auto is_mlir_gemm()
     });
 }
 
+auto is_test_gemm(bool enable_attention)
+{
+    return match::make_basic_pred_matcher([=](instruction_ref ins) {
+        if(ins->name() != "dot")
+            return false;
+        return enable_attention;
+    });
+}
+
 struct find_gemm_softmax_gemm
 {
+    bool enable_attention = false;
+
     auto matcher() const
     {
-        auto gemm1 = match::skip(match::name("contiguous"))(
-            match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm1")));
-        auto mul = match::name("mul")(
+        auto gemm1 = match::skip(match::name("contiguous"))(match::name("dot")(
+            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
+                .bind("gemm1")));
+        auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto softmax = match::name("softmax")(match::arg(0)(mul)).bind("softmax");
+        auto softmax =
+            match::name("softmax")(match::arg(0)(match::any_of(mul, gemm1))).bind("softmax");
 
-        return match::name("dot")(match::any_of(is_ck_gemm(), is_mlir_gemm()).bind("gemm2"))(
-            match::arg(0)(softmax));
+        return match::name("dot")(
+            match::any_of(is_ck_gemm(), is_mlir_gemm(), is_test_gemm(enable_attention))
+                .bind("gemm2"))(match::arg(0)(softmax));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -181,17 +195,20 @@ struct find_gemm_softmax_gemm
         auto ins       = r.result;
         auto gemm2_ins = r.instructions["gemm2"];
         auto gemm1_ins = r.instructions["gemm1"];
-        auto scale_lit = r.instructions["scale"];
 
         float scale = 1.0;
-        scale_lit->eval().visit([&](const auto s) {
+        if(contains(r.instructions, "scale"))
+        {
+            auto scale_lit = r.instructions["scale"];
             // CK only supports single-valued scale
-            if(std::all_of(
-                   s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+            scale_lit->eval().visit([&](const auto s) {
+                // CK only supports single-valued scale
+                if(not std::all_of(
+                       s.begin() + 1, s.end(), [&](auto v) { return float_equal(v, s.front()); }))
+                    return;
                 scale = s.front();
-            else
-                return;
-        });
+            });
+        }
 
         auto inputs = gemm1_ins->inputs();            // A, B
         inputs.push_back(gemm2_ins->inputs().back()); // B1
@@ -208,7 +225,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm.get_module(), find_layernorm{});
     mpm.run_pass(dead_code_elimination{});
     match::find_matches(mpm.get_module(), find_add_layernorm{});
-    match::find_matches(mpm, find_gemm_softmax_gemm{});
+    match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 }
 
 } // namespace gpu

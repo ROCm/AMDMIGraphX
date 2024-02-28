@@ -78,10 +78,10 @@ int main(int argc, char const* argv[])
         auto v = migraphx::from_msgpack(read_stdin());
         std::vector<migraphx::gpu::hiprtc_src_file> srcs;
         migraphx::from_value(v.at("srcs"), srcs);
-        // clang-format off
-        auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
-            std::move(srcs), v.at("params").to_vector<std::string>(), v.at("arch").to<std::string>());
-        // clang-format on
+        auto out =
+            migraphx::gpu::compile_hip_src_with_hiprtc(std::move(srcs),
+                                                       v.at("params").to_vector<std::string>(),
+                                                       v.at("arch").to<std::string>());
         if(not out.empty())
             migraphx::write_buffer(output_name, out.front());
     }

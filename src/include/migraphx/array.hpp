@@ -90,21 +90,16 @@ template <class T, std::size_t N, class F>
 constexpr auto transform_array(const std::array<T, N>& a, F f)
 {
     using type = std::decay_t<decltype(f(a[0]))>;
-    return sequence_c<N>([&](auto... is) {
-        return make_array<type>(f(std::get<is>(a))...);
-    });
+    return sequence_c<N>([&](auto... is) { return make_array<type>(f(std::get<is>(a))...); });
 }
 
 template <class T, class U, std::size_t N, class F>
 constexpr auto transform_array(const std::array<T, N>& a1, const std::array<U, N>& a2, F f)
 {
     using type = std::decay_t<decltype(f(a1[0], a2[0]))>;
-    return sequence_c<N>([&](auto... is) {
-        return make_array<type>(f(std::get<is>(a1), std::get<is>(a2))...);
-    });
+    return sequence_c<N>(
+        [&](auto... is) { return make_array<type>(f(std::get<is>(a1), std::get<is>(a2))...); });
 }
-
-
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

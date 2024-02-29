@@ -1091,7 +1091,7 @@ struct find_add_convs
         return x.stride[0] / y.stride[0];
     }
 
-    template<class Range>
+    template <class Range>
     static operation create_pad(const Range& ipads)
     {
         std::vector<std::size_t> pads(2, 0);
@@ -1127,17 +1127,35 @@ struct find_add_convs
         if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
         {
 #if 1
-            if(a_weights->get_shape().lens().size() == 4 and a_weights->get_shape().lens()[0] == b_weights->get_shape().lens()[0] and std::tie(a_op.dilation, a_op.group) ==
-                   std::tie(b_op.dilation, b_op.group) and is_same_padding(a_conv) and is_same_padding(b_conv))
+            if(a_weights->get_shape().lens().size() == 4 and
+               a_weights->get_shape().lens()[0] == b_weights->get_shape().lens()[0] and
+               std::tie(a_op.dilation, a_op.group) == std::tie(b_op.dilation, b_op.group) and
+               is_same_padding(a_conv) and is_same_padding(b_conv))
             {
-                auto aw = make_array(a_weights->get_shape().lens()[2], a_weights->get_shape().lens()[3]);
-                auto bw = make_array(b_weights->get_shape().lens()[2], b_weights->get_shape().lens()[3]);
-                auto w = transform_array(aw, bw, MIGRAPHX_LIFT(std::max));
-                a_weights = m.insert_instruction(std::next(a_weights), create_pad(transform_array(w, aw, std::minus<>{})), a_weights);
-                b_weights = m.insert_instruction(std::next(b_weights), create_pad(transform_array(w, bw, std::minus<>{})), b_weights);
+                auto aw =
+                    make_array(a_weights->get_shape().lens()[2], a_weights->get_shape().lens()[3]);
+                auto bw =
+                    make_array(b_weights->get_shape().lens()[2], b_weights->get_shape().lens()[3]);
+                auto w    = transform_array(aw, bw, MIGRAPHX_LIFT(std::max));
+                a_weights = m.insert_instruction(std::next(a_weights),
+                                                 create_pad(transform_array(w, aw, std::minus<>{})),
+                                                 a_weights);
+                b_weights = m.insert_instruction(std::next(b_weights),
+                                                 create_pad(transform_array(w, bw, std::minus<>{})),
+                                                 b_weights);
                 std::vector<int64_t> padding(4);
-                calculate_padding(0, padding, a_input->get_shape().lens()[2], a_op.stride[0], a_op.dilation[0], w[0]);
-                calculate_padding(1, padding, a_input->get_shape().lens()[3], a_op.stride[1], a_op.dilation[1], w[1]);
+                calculate_padding(0,
+                                  padding,
+                                  a_input->get_shape().lens()[2],
+                                  a_op.stride[0],
+                                  a_op.dilation[0],
+                                  w[0]);
+                calculate_padding(1,
+                                  padding,
+                                  a_input->get_shape().lens()[3],
+                                  a_op.stride[1],
+                                  a_op.dilation[1],
+                                  w[1]);
                 new_op = a_op;
                 new_op->from_value({{"padding", padding}});
             }
@@ -1175,8 +1193,8 @@ struct find_add_convs
                 }
             }
         }
-        
-        if (not new_op.has_value())
+
+        if(not new_op.has_value())
             return;
 
         auto concat_input =

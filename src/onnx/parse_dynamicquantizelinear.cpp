@@ -134,8 +134,8 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         // intermediate_zero_point = qmin - min(x) / y_scale
         auto q_min     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_min}});
         auto q_max     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max}});
-        auto sub1      = info.add_common_op("sub", q_min, min_x);
-        auto interm_zp = info.add_common_op("div", sub1, y_scale);
+        auto div1      = info.add_common_op("div", min_x, y_scale);
+        auto interm_zp = info.add_common_op("sub", q_min, div1);
         // y_zero_point = cast(round(saturate(itermediate_zero_point)))
         auto saturate = info.add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
         auto round    = info.add_instruction(migraphx::make_op("nearbyint"), saturate);

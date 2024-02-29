@@ -49,8 +49,8 @@ TEST_CASE(dynamicquantizelinear_2d_test)
         migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
     auto q_max = mm->add_literal(
         migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
-    auto sub1         = mm->add_instruction(migraphx::make_op("sub"), q_min, min_x);
-    auto interm_zp    = mm->add_instruction(migraphx::make_op("div"), sub1, y_scale);
+    auto div1         = mm->add_instruction(migraphx::make_op("div"), min_x, y_scale);
+    auto interm_zp    = mm->add_instruction(migraphx::make_op("sub"), q_min, div1);
     auto saturate     = mm->add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
     auto round        = mm->add_instruction(migraphx::make_op("nearbyint"), saturate);
     auto y_zero_point = mm->add_instruction(

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/array.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
@@ -1090,6 +1091,22 @@ struct find_add_convs
         return x.stride[0] / y.stride[0];
     }
 
+    template<class Range>
+    static operation create_pad(const Range& ipads)
+    {
+        std::vector<std::size_t> pads(2, 0);
+        std::copy(ipads.begin(), ipads.end(), std::back_inserter(pads));
+        pads.resize(pads.size() * 2, 0);
+        return make_op("pad", {{"pads", pads}});
+    }
+
+    static bool is_same_padding(instruction_ref ins)
+    {
+        const auto& x = ins->inputs()[0]->get_shape().lens();
+        const auto& y = ins->get_shape().lens();
+        return std::equal(x.begin() + 2, x.end(), y.begin() + 2);
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins       = r.result;
@@ -1100,12 +1117,37 @@ struct find_add_convs
         auto b_input   = b_conv->inputs().at(0);
         auto b_weights = b_conv->inputs().at(1);
 
-        if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
+        if(not axis_shape_equal(a_input->get_shape(), b_input->get_shape(), 1))
             return;
 
         auto a_op   = any_cast<op::convolution>(a_conv->get_operator());
         auto b_op   = any_cast<op::convolution>(b_conv->get_operator());
-        auto new_op = a_op;
+        optional<operation> new_op = nullopt;
+
+        if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
+        {
+#if 1
+            if(a_weights->get_shape().lens().size() == 4 and a_weights->get_shape().lens()[0] == b_weights->get_shape().lens()[0] and std::tie(a_op.dilation, a_op.group) ==
+                   std::tie(b_op.dilation, b_op.group) and is_same_padding(a_conv) and is_same_padding(b_conv))
+            {
+                auto aw = make_array(a_weights->get_shape().lens()[2], a_weights->get_shape().lens()[3]);
+                auto bw = make_array(b_weights->get_shape().lens()[2], b_weights->get_shape().lens()[3]);
+                auto w = transform_array(aw, bw, MIGRAPHX_LIFT(std::max));
+                a_weights = m.insert_instruction(std::next(a_weights), create_pad(transform_array(w, aw, std::minus<>{})), a_weights);
+                b_weights = m.insert_instruction(std::next(b_weights), create_pad(transform_array(w, bw, std::minus<>{})), b_weights);
+                std::vector<int64_t> padding(4);
+                calculate_padding(0, padding, a_input->get_shape().lens()[2], a_op.stride[0], a_op.dilation[0], w[0]);
+                calculate_padding(1, padding, a_input->get_shape().lens()[3], a_op.stride[1], a_op.dilation[1], w[1]);
+                new_op = a_op;
+                new_op->from_value({{"padding", padding}});
+            }
+            else
+#endif
+                return;
+        }
+
+        if(a_conv->get_operator() == b_conv->get_operator())
+            new_op = a_op;
 
         if(a_op != b_op)
         {
@@ -1131,18 +1173,17 @@ struct find_add_convs
                     a_input = m.insert_instruction(
                         ins, make_op("step", {{"axes", {2, 3}}, {"steps", {n, n}}}), a_input);
                 }
-                else
-                    return;
             }
-            else
-                return;
         }
+        
+        if (not new_op.has_value())
+            return;
 
         auto concat_input =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_input, b_input);
         auto concat_weights =
             m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), a_weights, b_weights);
-        m.replace_instruction(ins, new_op, concat_input, concat_weights);
+        m.replace_instruction(ins, *new_op, concat_input, concat_weights);
     }
 };
 

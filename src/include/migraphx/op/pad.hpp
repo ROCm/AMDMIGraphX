@@ -31,6 +31,8 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/clamp.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <cmath>
 #include <utility>
 
@@ -95,6 +97,29 @@ struct pad
         std::size_t num_dims = pads.size() / 2;
         return std::equal(
             pads.begin(), pads.begin() + num_dims, pads.begin() + num_dims, pads.end());
+    }
+
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+    {
+        assert(dyn_out.computed_shape.standard());
+        argument result{dyn_out.computed_shape};
+        result.visit([&](auto output) {
+            using type = typename decltype(output)::value_type;
+            std::fill(output.begin(), output.end(), pad_clamp<type>(value));
+        });
+
+        visit_all(result, args[0])([&](auto output, auto input) {
+            shape_for_each(input.get_shape(), [&](const auto& idx) {
+                std::vector<std::size_t> new_idx(idx.size());
+                std::transform(
+                    idx.begin(), idx.end(), pads.begin(), new_idx.begin(), [](auto i, auto j) {
+                        return i + j;
+                    });
+                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
+            });
+        });
+
+        return result;
     }
 };
 

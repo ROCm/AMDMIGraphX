@@ -110,11 +110,11 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         // 1. Computing y_scale
         // Note: currently, DynamicQuantizeLinear only has uint8 quantization:
-        const auto x_max = std::numeric_limits<uint8_t>::max();
-        const auto x_min = std::numeric_limits<uint8_t>::min();
+        const auto type_max = std::numeric_limits<uint8_t>::max();
+        const auto type_min = std::numeric_limits<uint8_t>::min();
 
         auto q_range =
-            info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max - x_min}});
+            info.add_literal(migraphx::literal{migraphx::shape{x_type}, {type_max - type_min}});
 
         std::vector<size_t> len_vec(x_reshaped->get_shape().lens().size());
         std::iota(len_vec.begin(), len_vec.end(), 0);
@@ -132,8 +132,8 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         // 2. Computing y_zero_point
         // intermediate_zero_point = qmin - min(x) / y_scale
-        auto q_min     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_min}});
-        auto q_max     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max}});
+        auto q_min     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {type_min}});
+        auto q_max     = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {type_max}});
         auto div1      = info.add_common_op("div", min_x, y_scale);
         auto interm_zp = info.add_common_op("sub", q_min, div1);
         // y_zero_point = cast(round(saturate(itermediate_zero_point)))

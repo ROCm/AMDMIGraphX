@@ -117,7 +117,7 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
             info.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max - x_min}});
 
         std::vector<size_t> len_vec(x_reshaped->get_shape().lens().size());
-        std::iota(len_vec.begin(), len_vec.end(),0);
+        std::iota(len_vec.begin(), len_vec.end(), 0);
 
         // maximum(0, max(x))
         auto max_x =

@@ -83,8 +83,8 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
 
 TEST_CASE(dynamicquantizelinear_1d_simplify_test)
 {
-    auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
-    auto *mm = p.get_main_module();
+    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    auto* mm = p.get_main_module();
     migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
     p.compile(migraphx::make_target("ref"));
 
@@ -112,10 +112,10 @@ TEST_CASE(dynamicquantizelinear_1d_simplify_test)
 
 TEST_CASE(dynamicquantizelinear_1d_max_adjusted_simplify_test)
 {
-    auto p = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
-    auto *mm = p.get_main_module();
+    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    auto* mm = p.get_main_module();
     migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
-    p.compile(migraphx::make_target("ref"));    
+    p.compile(migraphx::make_target("ref"));
 
     std::vector<float> data{-1.0, -2.1, -1.3, -2.5, -3.34, -4.0};
     migraphx::shape s_x{migraphx::shape::float_type, {6}};

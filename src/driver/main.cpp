@@ -83,6 +83,7 @@ struct loader
     std::string output;
     std::string default_dyn_dim;
     std::vector<std::string> param_dims;
+    std::vector<std::string> dim_params;
     std::vector<std::string> dyn_param_dims;
     std::vector<std::string> output_names;
     std::vector<std::string> passes;
@@ -115,6 +116,13 @@ struct loader
         ap(param_dims,
            {"--input-dim"},
            ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.append(),
+           ap.nargs(2));
+        ap(dim_params,
+           {"--dim-param"},
+           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
+                   "(fixed format): \"@dim_param_name\" \"x\" / "
+                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
@@ -212,6 +220,35 @@ struct loader
         return map_dyn_input_dims;
     }
 
+    static auto parse_dim_params(const std::vector<std::string>& dim_params_info)
+    {
+        std::unordered_map<std::string, shape::dynamic_dimension> map_dim_params;
+        std::string name = "";
+        for(auto&& x : dim_params_info)
+        {
+            if(x[0] == '@')
+            {
+                name = x.substr(1);
+            }
+            else
+            {
+                if(std::all_of(x.begin(), x.end(), [](char ch) {
+                       return std::isdigit(static_cast<unsigned char>(ch));
+                   }))
+                    map_dim_params[name] = {std::stoul(x), std::stoul(x)};
+                else
+                {
+                    auto dyn_dim = parse_dyn_dims_json(x);
+                    if(dyn_dim.size() != 1)
+                        MIGRAPHX_THROW("dim_param must only specifiy one dimension");
+                    map_dim_params[name] = dyn_dim.front();
+                }
+            }
+        }
+
+        return map_dim_params;
+    }
+
     static auto parse_output_names(const std::vector<std::string>& output_names_info)
     {
         std::vector<std::string> output_node_names;
@@ -239,6 +276,7 @@ struct loader
     {
         auto map_input_dims     = parse_param_dims(param_dims);
         auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+        auto map_dim_params     = parse_dim_params(dim_params);
         onnx_options options;
         if(default_dyn_dim.empty())
         {
@@ -253,6 +291,7 @@ struct loader
         options.print_program_on_error = true;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
+        options.dim_params             = map_dim_params;
         return options;
     }
 

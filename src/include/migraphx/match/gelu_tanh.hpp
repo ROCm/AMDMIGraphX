@@ -41,6 +41,7 @@ struct gelu_tanh_matcher
     auto pow_fn() const { return f("pow")(used_once(), arg(1)(has_value(3.0))); }
 
     /// tanh( sqrt(2/M_PI) * (x + 0.044715 * x ^ 3 )
+    // TODO: Add tanh_fn1 variant for FastGelu version!
     auto tanh_fn() const
     {
         auto mul_const_pow    = f("mul")(either_arg(0, 1)(has_value(0.044715), pow_fn()));

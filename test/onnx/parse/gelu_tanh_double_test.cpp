@@ -27,26 +27,35 @@
 TEST_CASE(gelu_tanh_double_test)
 {
     migraphx::program p;
-    auto type  = migraphx::shape::double_type;
-    auto lens  = {3, 3};
-    auto shape = migraphx::shape{type, lens};
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", shape);
-    auto half  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
-    auto one   = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
-    auto sqrt2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{type}, {static_cast<float>(M_SQRT2)}});
-    auto half_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), half);
-    auto mul_half = mm->add_instruction(migraphx::make_op("mul"), x, half_mbcast);
-    auto sqrt2_mbcast =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), sqrt2);
-    auto div = mm->add_instruction(migraphx::make_op("div"), x, sqrt2_mbcast);
-    auto erf = mm->add_instruction(migraphx::make_op("erf"), div);
+    auto type       = migraphx::shape::double_type;
+    auto lens       = {3, 3};
+    auto shape      = migraphx::shape{type, lens};
+    auto* mm        = p.get_main_module();
+    auto x          = mm->add_parameter("x", shape);
+    auto fit_const  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.044715f}});
+    auto sqrt_2_rpi = mm->add_literal(migraphx::literal{migraphx::shape{type}, {sqrt(M_2_PI)}});
+    auto one        = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+    auto half       = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
+    auto three      = mm->add_literal(migraphx::literal{migraphx::shape{type}, {3.0f}});
+
+    auto three_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), three);
+    auto pow0 = mm->add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
+    auto fit_const_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), fit_const);
+    auto mul0 = mm->add_instruction(migraphx::make_op("mul"), {pow0, fit_const_mbcast});
+    auto sqrt_2_rpi_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), sqrt_2_rpi);
+    auto add0    = mm->add_instruction(migraphx::make_op("add"), {mul0, x});
+    auto tanh_in = mm->add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi_mbcast});
+    auto tanh0   = mm->add_instruction(migraphx::make_op("tanh"), tanh_in);
     auto one_mbcast =
         mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), one);
-    auto add_one = mm->add_instruction(migraphx::make_op("add"), erf, one_mbcast);
-    mm->add_instruction(migraphx::make_op("mul"), mul_half, add_one);
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), {tanh0, one_mbcast});
+    auto half_mbcast =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), half);
+    auto mul2 = mm->add_instruction(migraphx::make_op("mul"), {x, half_mbcast});
+    mm->add_instruction(migraphx::make_op("mul"), {add1, mul2});
 
     auto prog = optimize_onnx("gelu_tanh_double_test.onnx");
 

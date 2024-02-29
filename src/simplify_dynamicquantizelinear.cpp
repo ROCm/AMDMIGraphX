@@ -71,8 +71,10 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
         // Replace min/max of uint8 with min/max of int8 - q_range is identical so doesn't need to
         // be modified. Need to replace other ops which also take uint8 values first.
         auto x_type     = q_min->get_shape().type();
-        auto q_min_int8 = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_min}});
-        auto q_max_int8 = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {x_max}});
+        auto q_min_int8 = m.add_literal(
+            migraphx::literal{migraphx::shape{x_type, q_min->get_shape().lens()}, {x_min}});
+        auto q_max_int8 = m.add_literal(
+            migraphx::literal{migraphx::shape{x_type, q_max->get_shape().lens()}, {x_max}});
 
         m.replace_instruction(q_min, q_min_int8);
         m.replace_instruction(q_max, q_max_int8);

@@ -41,16 +41,16 @@ def test_autocast_fp8_1():
 
     y_fp8 = m2.add_instruction(
         migraphx.op("convert",
-                    target_type=migraphx.shape.type_t.fp8e4m3fnuz_type),
+                    target_type=int(migraphx.shape.type_t.fp8e4m3fnuz_type)),
         [y_fp32])
     x_fp8 = m2.add_instruction(
         migraphx.op("convert",
-                    target_type=migraphx.shape.type_t.fp8e4m3fnuz_type),
+                    target_type=int(migraphx.shape.type_t.fp8e4m3fnuz_type)),
         [x_fp32])
 
     sum_fp8 = m2.add_instruction(migraphx.op("add"), [x_fp8, y_fp8])
     sum_fp32 = m2.add_instruction(
-        migraphx.op("convert", target_type=migraphx.shape.type_t.float_type),
+        migraphx.op("convert", target_type=int(migraphx.shape.type_t.float_type)),
         [sum_fp8])
 
     m2.add_return([sum_fp32])

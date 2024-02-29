@@ -38,17 +38,11 @@ instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_r
     auto one    = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
     auto sqrt2 =
         info.add_literal(migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(M_SQRT2)}});
-    auto half_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), half);
-    auto mul_half = info.add_instruction(migraphx::make_op("mul"), x, half_mbcast);
-    auto sqrt2_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), sqrt2);
-    auto div = info.add_instruction(migraphx::make_op("div"), x, sqrt2_mbcast);
-    auto erf = info.add_instruction(migraphx::make_op("erf"), div);
-    auto one_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), one);
-    auto add_one = info.add_instruction(migraphx::make_op("add"), erf, one_mbcast);
-    return info.add_instruction(migraphx::make_op("mul"), mul_half, add_one);
+    auto mul_half = info.add_common_op("mul", x, half);
+    auto div      = info.add_common_op("div", x, sqrt2);
+    auto erf      = info.add_instruction(migraphx::make_op("erf"), div);
+    auto add_one  = info.add_common_op("add", erf, one);
+    return info.add_common_op("mul", mul_half, add_one);
 }
 
 instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
@@ -64,41 +58,28 @@ instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_
     auto half  = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
     auto three = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
 
-    // x^3
-    auto three_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), three);
-    auto pow0 = info.add_instruction(migraphx::make_op("pow"), {x, three_mbcast});
     // [0.044715|0.035677] * x^3
-    auto fit_const_mbcast = info.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), fit_const);
-    auto mul0 = info.add_instruction(migraphx::make_op("mul"), {pow0, fit_const_mbcast});
-    auto sqrt_2_rpi_mbcast = info.add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), sqrt_2_rpi);
+    auto pow0 = info.add_common_op("pow", x, three);
+    auto mul0 = info.add_common_op("mul", pow0, fit_const);
     instruction_ref tanh_in;
     if(fast)
     {
         // approx = 0.797885 * x + 0.035677 * x^3
-        auto mul1 = info.add_instruction(migraphx::make_op("mul"), {sqrt_2_rpi_mbcast, x});
-        tanh_in   = info.add_instruction(migraphx::make_op("add"), {mul0, mul1});
+        auto mul1 = info.add_common_op("mul", sqrt_2_rpi, x);
+        tanh_in   = info.add_common_op("add", mul0, mul1);
     }
     else
     {
         // approx = sqrt(2/pi) * (x + 0.044715 * x^3
-        auto add0 = info.add_instruction(migraphx::make_op("add"), {mul0, x});
-        tanh_in   = info.add_instruction(migraphx::make_op("mul"), {add0, sqrt_2_rpi_mbcast});
+        auto add0 = info.add_common_op("add", mul0, x);
+        tanh_in   = info.add_common_op("mul", add0, sqrt_2_rpi);
     }
 
-    // 1 + Tanh(approx)
-    auto tanh0 = info.add_instruction(migraphx::make_op("tanh"), tanh_in);
-    auto one_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), one);
-    auto add1 = info.add_instruction(migraphx::make_op("add"), {tanh0, one_mbcast});
-
     // 0.5 * x * (1 + Tanh(approx))​
-    auto half_mbcast =
-        info.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", x_lens}}), half);
-    auto mul2 = info.add_instruction(migraphx::make_op("mul"), {x, half_mbcast});
-    return info.add_instruction(migraphx::make_op("mul"), {add1, mul2});
+    auto tanh0 = info.add_instruction(migraphx::make_op("tanh"), tanh_in);
+    auto add1  = info.add_common_op("add", tanh0, one);
+    auto mul2  = info.add_common_op("mul", x, half);
+    return info.add_common_op("mul", add1, mul2);
 }
 
 struct parse_gelu : op_parser<parse_gelu>
@@ -133,6 +114,17 @@ struct parse_gelu : op_parser<parse_gelu>
             // FastGelu uses tanh approximation
             approximate = "tanh";
             fast        = true;
+        }
+
+        if(args.size() > 1 and args.at(1)->name() != "undefined")
+        {
+            auto y      = args[1];
+            auto y_type = y->get_shape().type();
+            if(y_type != x_type)
+            {
+                MIGRAPHX_THROW("PARSE_GELU: mismatching input tensor types");
+            }
+            x = info.add_common_op("add", x, y);
         }
 
         if(approximate == "tanh")

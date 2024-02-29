@@ -24,25 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(gelu_default_test)
+TEST_CASE(gelu_fast_invalid_x_test)
 {
-    migraphx::program p;
-    auto type  = migraphx::shape::float_type;
-    auto lens  = {3, 3};
-    auto shape = migraphx::shape{type, lens};
-    auto* mm   = p.get_main_module();
-    auto x     = mm->add_parameter("x", shape);
-    auto half  = mm->add_literal(migraphx::literal{migraphx::shape{type}, {0.5f}});
-    auto one   = mm->add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
-    auto sqrt2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{type}, {static_cast<float>(M_SQRT2)}});
-    auto mul_half = add_common_op(*mm, migraphx::make_op("mul"), {x, half});
-    auto div      = add_common_op(*mm, migraphx::make_op("div"), {x, sqrt2});
-    auto erf      = mm->add_instruction(migraphx::make_op("erf"), div);
-    auto add_one  = add_common_op(*mm, migraphx::make_op("add"), {erf, one});
-    add_common_op(*mm, migraphx::make_op("mul"), {mul_half, add_one});
-
-    auto prog = optimize_onnx("gelu_default_test.onnx");
-
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gelu_fast_invalid_x_test.onnx"); }));
 }

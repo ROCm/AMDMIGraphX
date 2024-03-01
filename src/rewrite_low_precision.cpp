@@ -54,8 +54,7 @@ struct find_pow2_div
         auto n   = r.instructions["n"];
         auto x   = r.instructions["x"];
 
-        // sqrt(n) with integral numbers can cause huge accuracy loss due to float->int rounding
-        if(n->get_shape().type() != migraphx::shape::half_type)
+        if(x->get_shape().type() != migraphx::shape::half_type)
             return;
         auto n_sqrt        = m.insert_instruction(ins, make_op("sqrt"), n);
         auto x_div_n_rsqrt = m.insert_instruction(ins, make_op("div"), {x, n_sqrt});

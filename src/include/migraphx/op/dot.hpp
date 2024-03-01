@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * Matrix multiplication of two tensors.
+ */
 struct dot
 {
     std::string name() const { return "dot"; }
@@ -52,25 +55,43 @@ struct dot
         {
             auto s0 = a.to_dynamic();
             auto s1 = b.to_dynamic();
-            if(not std::equal(s0.dyn_dims().rbegin() + 2,
-                              s0.dyn_dims().rend(),
-                              s1.dyn_dims().rbegin() + 2,
-                              s1.dyn_dims().rend()))
+            std::vector<shape::dynamic_dimension> out_dyn_dims;
+
+            // check outer dynamic dimensions are the same
+            bool same_outers = std::equal(s0.dyn_dims().begin(),
+                                          s0.dyn_dims().end() - 2,
+                                          s1.dyn_dims().begin(),
+                                          s1.dyn_dims().end() - 2,
+                                          [&](auto x, auto y) {
+                                              if(x == y)
+                                              {
+                                                  out_dyn_dims.push_back(x);
+                                                  return true;
+                                              }
+                                              return false;
+                                          });
+
+            if(not same_outers)
             {
-                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B mismatch: {" +
+                MIGRAPHX_THROW("DOT: dynamic outer dimensions of A and B are not compatible: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }
-            std::size_t dim_0 = s0.ndim() - 2;
-            std::size_t dim_1 = s0.ndim() - 1;
-            if(s0.dyn_dims()[dim_1] != s1.dyn_dims()[dim_0])
+            std::size_t dim_i = s0.ndim() - 2;
+            std::size_t dim_j = s0.ndim() - 1;
+            auto x            = s0.dyn_dims()[dim_j];
+            auto y            = s1.dyn_dims()[dim_i];
+
+            // check inner dimensions are compatible
+            if(not x.intersection(y).has_value())
             {
-                MIGRAPHX_THROW("DOT: dynamic inner dimensions do not match: {" +
+                MIGRAPHX_THROW("DOT: dynamic inner dimensions are not compatible: {" +
                                to_string_range(s0.dyn_dims()) + "} x {" +
                                to_string_range(s1.dyn_dims()) + "}");
             }
-            auto out_dyn_dims   = s0.dyn_dims();
-            out_dyn_dims[dim_1] = s1.dyn_dims()[dim_1];
+
+            out_dyn_dims.push_back(s0.dyn_dims()[dim_i]);
+            out_dyn_dims.push_back(s1.dyn_dims()[dim_j]);
             return {t, out_dyn_dims};
         }
         else

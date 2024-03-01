@@ -1,11 +1,12 @@
+.. _tools:
+
 Tools
 =====
 
 roctx.py
 --------
-MIGraphX driver provides `roctx` command which can be used with `rocprof` binary to get marker timing information for each MIGraphX operator.  
-In order to help user to process timing information, rocTX helper script is provided at `tools/roctx.py`.
-The `roctx.py` helper script provides two main functionality: `run` and `parse`. Available knobs and usage are given below:
+You can use the :ref:`roctx` command with :doc:`rocprof <rocprofiler:rocprofv1>` binary to get marker timing information for each MIGraphX operator.  
+To process timing information, use ``roctx.py`` helper script.
 
 ::
 
@@ -13,14 +14,16 @@ The `roctx.py` helper script provides two main functionality: `run` and `parse`.
     [--study-name study-name] [--repeat repeat] [--parse]
     [--run run] [--debug]
 
+The ``roctx.py`` helper script provides two main functionalities: ``run`` and ``parse``.
+
 .. option::  --run
 
-Runs `migraphx-driver roctx` command and given `migraphx-driver` knobs, and then parses the results, providing GPU kernel timing information.
-MIGraphX knobs can be given via a string to `--run` knob. Please see the examples below.
+Runs ``migraphx-driver roctx`` command with the given ``migraphx-driver`` knobs followed by the parsing of the result which provides GPU kernel timing information.
+You can pass the MIGraphX knobs via a string to `--run` knob. See the :ref:`_roctx-examples` for usage.
 
 .. option::  --parse
 
-Given `--json-path`, parses JSON file and provides GPU kernel timing information.
+Parses JSON file in the given ``--json-path`` and provides GPU kernel timing information.
 
 .. option::  --out
 
@@ -28,15 +31,17 @@ Output folder
 
 .. option::  --study-name
 
-Optional. Allows user to name a study for easier interpretation. Defaults to timestamp.
+Optional. Allows user to name a study for easy interpretation. Defaults to timestamp.
 
 .. option::  --repeat
 
-Number of iterations. Set to **2** by default.
+Number of iterations. Sets to **2** by default.
 
 .. option::  --debug
 
-Provides additional debug information related to data. Only use for debugging purposes.
+Provides additional debug information related to data. Use for debugging purposes only.
+
+.. _roctx-examples:
 
 **Examples:**
 
@@ -44,14 +49,7 @@ Provides additional debug information related to data. Only use for debugging pu
 ::
     python roctx.py --run '--onnx --gpu fcn-resnet50-11.onnx' --out output_folder --repeat 5
 
-After a run, similar to output given below is expected at terminal. The output will provide `SUM`, `MIN`, `MAX` and `COUNT` information for each kernel executed for a given model.
-Average total time is also provided. There are three files provided for reference:
-
-1. `OUTPUT CSV FILE` provides a summary of the run, providing utilized MIGraphX knobs and related kernel timing information
-2. `KERNEL TIMING DETAILS` provides the hotspot kernel timing information
-3. This will provide all output data related to all iterations executed during a run.
-
-An example output:
+Example output:
 
 .. image:: ../data/roctx1.jpg
 
@@ -59,7 +57,14 @@ Hotspot kerel timing information:
 
 .. image:: ../data/roctx2.jpg
 
-**Parsing an already existing JSON file:**
+The output provides ``SUM``, ``MIN``, ``MAX`` and ``COUNT`` information for each kernel executed for a given model. It also
+provides the average total time. The following three files are provided for reference:
+
+-   OUTPUT CSV FILE: Provides a summary of the run which includes utilized MIGraphX knobs and related kernel timing information.
+-   KERNEL TIMING DETAILS: Provides the hotspot kernel timing information.
+-   ALL DATA FROM ALL RUNS: Provides all output data related to all iterations executed during a run.
+
+**Parsing an existing JSON file:**
 ::
 
     python roctx.py --parse --json-path ../trace.json

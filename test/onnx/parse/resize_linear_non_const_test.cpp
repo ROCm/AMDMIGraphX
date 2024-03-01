@@ -24,22 +24,9 @@
 
 #include <onnx_test.hpp>
 
-< < < < < < < < HEAD : test / onnx / parse / expand_dyn_test.cpp TEST_CASE(expand_dyn_test)
+TEST_CASE(resize_linear_non_const_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape x_shape(migraphx::shape::float_type, {3, 1, 1});
-    migraphx::shape dims_shape(migraphx::shape::int64_type, {4});
-    auto x_param    = mm->add_parameter("x", x_shape);
-    auto dims_param = mm->add_parameter("dims", dims_shape);
-    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), x_param, dims_param);
-    auto prog = optimize_onnx("expand_dyn_test.onnx");
-    EXPECT(p == prog);
-    == == == == TEST_CASE(resize_linear_non_const_test)
-    {
-        // runtime (non-constant) input is only supported in "nearest" mode
-        migraphx::onnx_options options;
-        EXPECT(test::throws([&] { parse_onnx("resize_linear_non_const_test.onnx", options); }));
-        >>>>>>>> c14e3c8ff744369c84d603662fd36c1ab352228a : test / onnx / parse /
-                                                            resize_linear_non_const_test.cpp
-    }
+    // runtime (non-constant) input is only supported in "nearest" mode
+    migraphx::onnx_options options;
+    EXPECT(test::throws([&] { parse_onnx("resize_linear_non_const_test.onnx", options); }));
+}

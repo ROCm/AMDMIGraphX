@@ -235,7 +235,7 @@ TEST_CASE(dynamic_dimension_intersection)
     auto a = shape::dynamic_dimension{2, 5, {2, 5}};
     auto b = shape::dynamic_dimension{3, 4};
     auto aib = a.intersection(b);
-    auto bia = a.intersection(b);
+    auto bia = b.intersection(a);
     EXPECT(aib.has_value());
     EXPECT(bia.has_value());
     EXPECT(aib.value() == shape::dynamic_dimension{3, 4});

@@ -59,7 +59,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     // get non-fixed dynamic_dimension from all parameters
     for(const auto& param : dyn_params)
     {
-        const auto& dds   = param.second.dyn_dims();
+        const auto& dds    = param.second.dyn_dims();
         auto num_non_fixed = std::count_if(dds.cbegin(), dds.cend(), [&](auto dd) {
             if(not dd.is_fixed())
             {

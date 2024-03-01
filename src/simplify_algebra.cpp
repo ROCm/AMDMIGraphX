@@ -1628,35 +1628,6 @@ struct find_split_transpose
     }
 };
 
-struct find_pow2_div
-{
-    auto matcher() const
-    {
-        return match::name("div")(
-            match::arg(0)(match::name("pow")(match::arg(0)(match::any().bind("x")),
-                                             match::arg(1)(match::has_value(2.0f)))
-                              .bind("pow")),
-            match::arg(1)(match::is_constant().bind("n")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins = r.result;
-        auto pow = r.instructions["pow"];
-        auto n   = r.instructions["n"];
-        auto x   = r.instructions["x"];
-
-        // sqrt(n) with integral numbers can cause huge accuracy loss due to float->int rounding
-        if(shape::is_integral(n->get_shape().type()))
-            return;
-        auto n_sqrt        = m.insert_instruction(ins, make_op("sqrt"), n);
-        auto x_div_n_rsqrt = m.insert_instruction(ins, make_op("div"), {x, n_sqrt});
-        auto new_pow =
-            m.insert_instruction(ins, pow->get_operator(), {x_div_n_rsqrt, pow->inputs().at(1)});
-        m.replace_instruction(ins, new_pow);
-    }
-};
-
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -1680,7 +1651,6 @@ void simplify_algebra::apply(module& m) const
                             find_zero_ops{},
                             find_dot_add{},
                             find_conv_add{},
-                            find_pow2_div{},
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},

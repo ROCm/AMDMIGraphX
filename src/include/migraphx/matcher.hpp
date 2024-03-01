@@ -594,6 +594,14 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
 }
 
+MIGRAPHX_PRED_MATCHER(same_inputs, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto s = ins->inputs().front();
+    return std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x == s; });
+}
+
 MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)
 {
     if(ins->name() != "@literal")

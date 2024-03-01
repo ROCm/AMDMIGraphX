@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/simplify_algebra.hpp>
+#include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -30,12 +30,13 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/verify.hpp>
+#include <basic_ops.hpp>
 
 #include <test.hpp>
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::simplify_algebra{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::rewrite_low_precision{}, migraphx::dead_code_elimination{}});
 }
 
 template <migraphx::shape::type_t DType, typename T>
@@ -50,6 +51,112 @@ void create_pow2_div(migraphx::module& m, const std::vector<std::size_t>& input_
     auto pow   = add_common_op(m, migraphx::make_op("pow"), {input, l_pow_2});
     auto div   = add_common_op(m, migraphx::make_op("div"), {pow, l_div});
     m.add_return({div});
+}
+
+TEST_CASE(simplify_pow2_div)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::half_type, {1}});
+        auto n   = m1.add_literal(migraphx::half{5.0f});
+        auto two = m1.add_literal(migraphx::half{2.0f});
+
+        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, two);
+        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
+        m1.add_instruction(pass_op{}, div);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::half_type, {1}});
+        auto n = m2.add_literal(migraphx::half{5.0f});
+
+        auto rsqrt = m2.add_instruction(migraphx::make_op("sqrt"), n);
+        auto mul   = m2.add_instruction(migraphx::make_op("div"), x, rsqrt);
+        auto pow   = m2.add_instruction(migraphx::make_op("mul"), mul, mul);
+        m2.add_instruction(pass_op{}, pow);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(no_simplify_float_pow2_div)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {1}});
+        auto n   = m1.add_literal(5.0f);
+        auto two = m1.add_literal(2.0f);
+
+        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, two);
+        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
+        m1.add_instruction(pass_op{}, div);
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(no_simplify_int_pow2_div)
+{
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto n   = m1.add_literal(5);
+        auto two = m1.add_literal(2);
+
+        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, two);
+        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
+        m1.add_instruction(pass_op{}, div);
+    }
+    auto m2 = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_x_square_div)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {1}});
+        auto n = m1.add_literal(migraphx::half{5.0f});
+
+        auto pow = m1.add_instruction(migraphx::make_op("mul"), x, x);
+        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
+        m1.add_instruction(pass_op{}, div);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::half_type, {1}});
+        auto n = m2.add_literal(migraphx::half{5.0f});
+
+        auto rsqrt = m2.add_instruction(migraphx::make_op("sqrt"), n);
+        auto mul   = m2.add_instruction(migraphx::make_op("div"), x, rsqrt);
+        auto pow   = m2.add_instruction(migraphx::make_op("mul"), mul, mul);
+        m2.add_instruction(pass_op{}, pow);
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(no_simplify_x_mul_y_div)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {1}});
+        auto y = m1.add_parameter("y", {migraphx::shape::half_type, {1}});
+        auto n = m1.add_literal(migraphx::half{5.0f});
+
+        auto pow = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
+        m1.add_instruction(pass_op{}, div);
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(rewrite_pow2_div_fp16_accuracy_test)
@@ -123,74 +230,6 @@ TEST_CASE(rewrite_pow2_div_fp16_same_result_test)
     p2.compile(migraphx::make_target("ref"));
     auto result2 = p2.eval(params).back();
     std::vector<migraphx::half> no_rewrite_results;
-    result2.visit([&](auto output) { no_rewrite_results.assign(output.begin(), output.end()); });
-
-    EXPECT(migraphx::verify::verify_rms_range(rewrite_results, no_rewrite_results));
-}
-
-TEST_CASE(rewrite_pow2_div_fp32_accuracy_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-
-    migraphx::shape s_input{migraphx::shape::float_type, {1, 3, 9}};
-    create_pow2_div<migraphx::shape::float_type, float>(*mm, s_input.lens(), 9.0f);
-    run_pass(*mm);
-    p.compile(migraphx::make_target("ref"));
-
-    // >>> np.random.seed(0)
-    // >>> d = (np.sqrt(np.finfo(np.float16).max) * np.random.randn(27)).astype(np.float32)
-    std::vector<float> data{451.3769,  102.39023,  250.43459,  573.38855, 477.8614,  -250.06097,
-                            243.10387, -38.728527, -26.411123, 105.06189, 36.857147, 372.11224,
-                            194.73053, 31.133595,  113.5735,   85.37892,  382.2975,  -52.49487,
-                            80.1062,   -218.54175, -653.2463,  167.24466, 221.1876,  -189.90147,
-                            580.77344, -372.1358,  11.708461};
-
-    migraphx::parameter_map params;
-    params["input"] = migraphx::argument(s_input, data.data());
-    auto result     = p.eval(params).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-
-    // >>> (pow(d, 2) / 9.0)
-    std::vector<float> gold{
-        22637.898, 1164.862, 6968.609,  36530.492, 25372.389,  6947.8325, 6566.61,
-        166.65543, 77.50527, 1226.4446, 150.93881, 15385.279,  4213.331,  107.70008,
-        1433.2156, 809.9511, 16239.042, 306.19012, 713.00037,  5306.7217, 47414.52,
-        3107.864,  5435.995, 4006.9521, 37477.53,  15387.2295, 15.232006,
-    };
-    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
-}
-
-TEST_CASE(rewrite_pow2_div_fp32_same_result_test)
-{
-    migraphx::shape s_input{migraphx::shape::float_type, {1, 3, 9}};
-    // >>> np.random.seed(42)
-    // >>> d = (10000 * np.random.randn(27)).astype(np.float32)
-    std::vector<float> data{4967.1416, -1382.6431, 6476.8853,  15230.299,  -2341.5337, -2341.3696,
-                            15792.128, 7674.347,   -4694.7437, 5425.6006,  -4634.177,  -4657.2974,
-                            2419.6228, -19132.803, -17249.178, -5622.8755, -10128.312, 3142.4734,
-                            -9080.241, -14123.037, 14656.487,  -2257.763,  675.28204,  -14247.481,
-                            -5443.827, 1109.226,   -11509.936};
-
-    migraphx::parameter_map params;
-    params["input"] = migraphx::argument(s_input, data.data());
-
-    migraphx::program p1;
-    auto* mm = p1.get_main_module();
-    create_pow2_div<migraphx::shape::float_type, float>(*mm, s_input.lens(), 9.0f);
-    run_pass(*mm);
-    p1.compile(migraphx::make_target("ref"));
-    auto result1 = p1.eval(params).back();
-    std::vector<float> rewrite_results;
-    result1.visit([&](auto output) { rewrite_results.assign(output.begin(), output.end()); });
-
-    migraphx::program p2;
-    mm = p2.get_main_module();
-    create_pow2_div<migraphx::shape::float_type, float>(*mm, s_input.lens(), 9.0f);
-    p2.compile(migraphx::make_target("ref"));
-    auto result2 = p2.eval(params).back();
-    std::vector<float> no_rewrite_results;
     result2.visit([&](auto output) { no_rewrite_results.assign(output.begin(), output.end()); });
 
     EXPECT(migraphx::verify::verify_rms_range(rewrite_results, no_rewrite_results));

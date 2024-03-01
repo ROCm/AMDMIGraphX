@@ -3711,32 +3711,4 @@ TEST_CASE(conv_concat)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(simplify_pow2_div)
-{
-    migraphx::module m1;
-    {
-        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto n   = m1.add_literal(5.0f);
-        auto two = m1.add_literal(2.0f);
-
-        auto pow = m1.add_instruction(migraphx::make_op("pow"), x, two);
-        auto div = m1.add_instruction(migraphx::make_op("div"), pow, n);
-        m1.add_instruction(pass_op{}, div);
-    }
-    run_pass(m1);
-
-    migraphx::module m2;
-    {
-        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {1}});
-        auto n   = m2.add_literal(5.0f);
-        auto two = m2.add_literal(2.0f);
-
-        auto rsqrt = m2.add_instruction(migraphx::make_op("rsqrt"), n);
-        auto mul   = m2.add_instruction(migraphx::make_op("mul"), x, rsqrt);
-        auto pow   = m2.add_instruction(migraphx::make_op("pow"), mul, two);
-        m2.add_instruction(pass_op{}, pow);
-    }
-    EXPECT(m1 == m2);
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -124,7 +124,7 @@ struct unsqueeze
                     if(p < old_strides.size())
                     {
                         if((old_lens[p] % step) != 0)
-                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimenstion is not divisible by step");
+                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension is not divisible by step");
                         old_lens[p] /= step;
                         new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
                     }

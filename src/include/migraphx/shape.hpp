@@ -102,6 +102,21 @@ struct MIGRAPHX_EXPORT shape
         bool is_fixed() const;
         bool has_optimal() const;
 
+        /**
+         * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
+         * possible.
+         */
+        std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
+        {
+            auto left  = std::max(this->min, other.min);
+            auto right = std::min(this->max, other.max);
+            if(left <= right)
+            {
+                return dynamic_dimension{left, right};
+            }
+            return nullopt;
+        }
+
         MIGRAPHX_EXPORT friend bool operator==(const dynamic_dimension& x,
                                                const dynamic_dimension& y);
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x,
@@ -130,6 +145,8 @@ struct MIGRAPHX_EXPORT shape
 
     static std::string name(type_t t);
     static std::string cpp_type(type_t t);
+
+    static bool is_integral(type_t t);
 
     shape();
     shape(type_t t);

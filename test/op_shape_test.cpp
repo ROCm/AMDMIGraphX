@@ -2662,6 +2662,26 @@ TEST_CASE(qlinear_fp16)
     expect_shape(result, migraphx::make_op("quantizelinear"), input, scales);
 }
 
+TEST_CASE(qlinear_output_type_1)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    expect_shape(
+        result, migraphx::make_op("quantizelinear", {{"out_type", result.type()}}), input, scales);
+}
+
+TEST_CASE(qlinear_output_type_2)
+{
+    migraphx::shape scales{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape input{migraphx::shape::half_type, {2, 4}};
+    migraphx::shape result{migraphx::shape::int8_type, {2, 4}};
+    auto op         = migraphx::make_op("quantizelinear");
+    auto val        = op.to_value();
+    val["out_type"] = migraphx::to_value(migraphx::shape::int8_type);
+    expect_shape(result, migraphx::make_op("quantizelinear", val), input, scales);
+}
+
 TEST_CASE(qlinear_mismatch_type)
 {
     migraphx::shape scales{migraphx::shape::int8_type, {2, 4}};
@@ -2994,21 +3014,30 @@ TEST_CASE(reshape_dyn_2in_2)
     expect_shape(output, migraphx::make_op("reshape"), input, output);
 }
 
-TEST_CASE(reshape_multiple_non_fixed_error)
+TEST_CASE(reshape_dyn_1in_multiple_non_fixed0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 20}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {1, 1}, {10, 20}, {24, 24}}};
     std::vector<int64_t> new_shape = {0, 1, 0, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_fixed_ele_not_matching_error)
+TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 8}, {24, 24}, {10, 20}, {1, 1}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 8}, {1, 1}, {10, 20}, {24, 24}}};
+    std::vector<int64_t> new_shape = {-1, 1, 0, 24};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(reshape_dyn_fixed_ele_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 10}, {1, 1}}};
     std::vector<int64_t> new_shape = {0, 1, 5, 24};
     throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
-TEST_CASE(reshape_non_fixed_not_matching_error)
+TEST_CASE(reshape_dyn_non_fixed_not_matching_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {2, 1, 1, 24};
@@ -3230,6 +3259,74 @@ TEST_CASE(reshape_lazy_non_fixed_not_matching_error)
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     std::vector<int64_t> new_shape = {2, 1, 1, 24};
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
+}
+
+TEST_CASE(resize_single_input)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    std::vector<size_t> sizes_vec{3, 4};
+    migraphx::shape output{migraphx::shape::float_type, {sizes_vec}};
+    expect_shape(output,
+                 migraphx::make_op("resize",
+                                   {{"sizes", {3, 4}},
+                                    {"nearest_mode", "floor"},
+                                    {"coordinate_transformation_mode", "asymmetric"}}),
+                 input);
+}
+
+TEST_CASE(resize_single_scale_input)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    std::vector<size_t> sizes_vec{3, 4};
+    migraphx::shape output{migraphx::shape::float_type, {sizes_vec}};
+    expect_shape(output,
+                 migraphx::make_op("resize",
+                                   {{"scales", {0.75, 0.25}},
+                                    {"nearest_mode", "floor"},
+                                    {"coordinate_transformation_mode", "asymmetric"}}),
+                 input);
+}
+
+TEST_CASE(resize_single_input_err1)
+{
+    // doesn't have either sizes or scales attribute
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    throws_shape(migraphx::make_op(
+                     "resize",
+                     {{"nearest_mode", "floor"}, {"coordinate_transformation_mode", "asymmetric"}}),
+                 input);
+}
+
+TEST_CASE(resize_single_input_err2)
+{
+    // can't have both sizes and scales attribute
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    throws_shape(migraphx::make_op("resize", {{"scales", {0.75, 0.25}}, {"sizes", {87, 88}}}),
+                 input);
+}
+
+TEST_CASE(resize_single_dyn_input_err3)
+{
+    // single dynamic input not supported yet
+    std::vector<migraphx::shape::dynamic_dimension> input_dims = {{4, 5}, {15, 16}};
+    migraphx::shape input{migraphx::shape::float_type, input_dims};
+    throws_shape(migraphx::make_op("resize", {{"scales", {0.75, 0.25}}}), input);
+}
+
+TEST_CASE(resize_multi_input)
+{
+    // resize always outputs a dynamic shape if there are 2 inputs
+    migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape sizes{migraphx::shape::int64_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {{0, max_val}, {0, max_val}}};
+    expect_shape(output,
+                 migraphx::make_op("resize",
+                                   {{"mode", "nearest"},
+                                    {"nearest_mode", "floor"},
+                                    {"coordinate_transformation_mode", "asymmetric"}}),
+                 input,
+                 sizes);
 }
 
 TEST_CASE(return_shape_tuple)

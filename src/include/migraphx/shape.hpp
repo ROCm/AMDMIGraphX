@@ -136,6 +136,8 @@ struct MIGRAPHX_EXPORT shape
     static std::string name(type_t t);
     static std::string cpp_type(type_t t);
 
+    static bool is_integral(type_t t);
+
     shape();
     shape(type_t t);
     shape(type_t t, std::vector<std::size_t> l);

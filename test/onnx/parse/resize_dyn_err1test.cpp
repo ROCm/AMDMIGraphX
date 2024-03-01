@@ -24,15 +24,12 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(expand_dyn_test)
+TEST_CASE(resize_dyn_err1_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape x_shape(migraphx::shape::float_type, {3, 1, 1});
-    migraphx::shape dims_shape(migraphx::shape::int64_type, {4});
-    auto x_param    = mm->add_parameter("x", x_shape);
-    auto dims_param = mm->add_parameter("dims", dims_shape);
-    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), x_param, dims_param);
-    auto prog = optimize_onnx("expand_dyn_test.onnx");
-    EXPECT(p == prog);
+    // dimensions of input and scales don't match
+    migraphx::shape::dynamic_dimension dd{1, 10};
+    migraphx::onnx_options options;
+    options.default_dyn_dim_value = dd;
+
+    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err1_test.onnx", options); }));
 }

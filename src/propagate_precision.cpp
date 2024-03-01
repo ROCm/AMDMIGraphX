@@ -13,6 +13,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
 struct precision
 {
     shape::type_t type;
@@ -52,6 +53,7 @@ struct precision
         return (xp > yp) or (xp == yp);
     }
 };
+} // namespace
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
@@ -112,7 +114,7 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
             auto next = get_next_input(output);
             if(not next.has_value())
                 continue;
-            if(*next != output)
+            if(*next != ins)
                 continue;
             result.insert(output);
             self(output);

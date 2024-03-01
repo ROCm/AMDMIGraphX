@@ -27,6 +27,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/fileutils.hpp>
+#include <vector>
 #include <cassert>
 
 namespace migraphx {
@@ -36,9 +37,9 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {
     assert(not srcs.empty());
     tmp_dir td{"compile"};
-    auto params = flags;
+    std::vector<std::string> params{flags};
 
-    params += " -I.";
+    params.emplace_back("-I.");
 
     auto out = output;
 
@@ -50,22 +51,19 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         write_buffer(full_path, src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
-            params += " " + src.path.filename().string();
+            params.emplace_back(src.path.filename().string());
             if(out.empty())
                 out = src.path.stem().string() + out_ext;
         }
     }
 
-    params += " -o " + out;
+    params.emplace_back("-o " + out);
 
+    std::vector<std::string> args;
     if(not launcher.empty())
-    {
-        td.execute(launcher, compiler + " " + params);
-    }
-    else
-    {
-        td.execute(compiler, params);
-    }
+        args.push_back(compiler);
+    args.insert(args.end(), params.begin(), params.end());
+    td.execute(launcher.empty() ? compiler : launcher, args);
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))

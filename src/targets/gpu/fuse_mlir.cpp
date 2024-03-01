@@ -67,6 +67,8 @@ static bool is_requested(std::string_view option, bool fallback = false)
     if(string_value.empty())
         return fallback;
     const auto options = split_string(string_value, ',');
+    if(contains(option, "fused") and contains(options, "fused"))
+        return true;
     return contains(options, option);
 }
 
@@ -563,9 +565,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     }
 
     match::find_matches(mpm,
-                        find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
-                                            .dot_mode  = get_mode("fused", mlir_mode::fast)});
-
+                        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},

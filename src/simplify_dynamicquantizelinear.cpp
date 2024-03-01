@@ -49,8 +49,11 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
         return match::name("quantizelinear")(
             match::arg(0)(skip_broadcasts(match::any())),
             match::arg(2)(
-                skip_broadcasts(match::name("convert"),
-                                match::has_type(migraphx::shape::uint8_type).bind("convert"))));
+                skip_broadcasts(match::name("convert")(
+                                match::has_type(migraphx::shape::uint8_type),
+                                match::arg(0)( 
+                                    match::name("nearbyint")(
+                                    match::arg(0)(match::name("clip"))))).bind("convert"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const

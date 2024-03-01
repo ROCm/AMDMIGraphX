@@ -41,16 +41,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 
 struct precompile_op
 {
-    operation op                = op::identity{};
-    std::size_t additional_args = 1;
-    bool ignore_modules         = false;
+    operation op                      = op::identity{};
+    std::size_t additional_args       = 1;
+    bool ignore_modules               = false;
+    std::optional<shape> output_shape = nullopt;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         return pack(f(self.op, "op"),
                     f(self.additional_args, "additional_args"),
-                    f(self.ignore_modules, "ignore_modules"));
+                    f(self.ignore_modules, "ignore_modules"),
+                    f(self.output_shape, "output_shape"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }
@@ -59,6 +61,8 @@ struct precompile_op
     {
         // Pop off additional args
         inputs.resize(inputs.size() - additional_args);
+        if(output_shape.has_value())
+            return output_shape.value();
         if(ignore_modules)
             return op.compute_shape(inputs);
         return op.compute_shape(inputs, mods);
@@ -99,7 +103,9 @@ struct compile_plan
             }
             catch(const std::exception& e)
             {
-                std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+                if(trace_level > 0)
+                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                 results[i] = nullopt;
             }
             catch(...)
@@ -128,6 +134,9 @@ struct compile_plan
             {
                 ctx->get_problem_cache().mark(preop.name(), problem);
                 const auto& solutions = config->solutions;
+                if(solutions.empty())
+                    MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
+                                   to_string(problem));
                 results.resize(solutions.size());
                 for(auto i : range(solutions.size()))
                 {
@@ -186,7 +195,13 @@ struct compile_plan
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
-            MIGRAPHX_THROW("No valid tuned compilation.");
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           to_string(config->problem));
+        auto skipped = std::count_if(
+            results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
+        if(skipped > 0)
+            std::cout << "Skipped " << skipped << " configs for " << preop.name() << std::endl;
+
         return *results[i];
     }
 

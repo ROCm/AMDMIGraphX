@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fileutils.hpp>
+#include <vector>
 #include <cassert>
 
 namespace migraphx {
@@ -35,9 +37,9 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 {
     assert(not srcs.empty());
     tmp_dir td{"compile"};
-    auto params = flags;
+    std::vector<std::string> params{flags};
 
-    params += " -I.";
+    params.emplace_back("-I.");
 
     auto out = output;
 
@@ -46,31 +48,28 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         fs::path full_path   = td.path / src.path;
         fs::path parent_path = full_path.parent_path();
         fs::create_directories(parent_path);
-        write_buffer(full_path.string(), src.content.data(), src.content.size());
+        write_buffer(full_path, src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
-            params += " " + src.path.filename().string();
+            params.emplace_back(src.path.filename().string());
             if(out.empty())
                 out = src.path.stem().string() + out_ext;
         }
     }
 
-    params += " -o " + out;
+    params.emplace_back("-o " + out);
 
+    std::vector<std::string> args;
     if(not launcher.empty())
-    {
-        td.execute(launcher, compiler + " " + params);
-    }
-    else
-    {
-        td.execute(compiler, params);
-    }
+        args.push_back(compiler);
+    args.insert(args.end(), params.begin(), params.end());
+    td.execute(launcher.empty() ? compiler : launcher, args);
 
     auto out_path = td.path / out;
     if(not fs::exists(out_path))
         MIGRAPHX_THROW("Output file missing: " + out);
 
-    return read_buffer(out_path.string());
+    return read_buffer(out_path);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

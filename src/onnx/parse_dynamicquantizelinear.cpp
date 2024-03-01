@@ -103,17 +103,17 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
         // Note: currently, DynamicQuantizeLinear only has uint8 quantization:
         const auto type_max = std::numeric_limits<uint8_t>::max();
         const auto type_min = std::numeric_limits<uint8_t>::min();
-        std::vector<size_t> len_vec(x_shape.lens().size());
-        std::iota(len_vec.begin(), len_vec.end(), 0);
+        std::vector<size_t> axes(x_shape.lens().size());
+        std::iota(axes.begin(), axes.end(), 0);
 
         // maximum(0, max(x))
         auto reduce_max_x =
-            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", len_vec}}), x);
+            info.add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), x);
         auto max_x = info.add_common_op("max", lit_0, reduce_max_x);
 
         // minimum(0, min(x))
         auto reduce_min_x =
-            info.add_instruction(migraphx::make_op("reduce_min", {{"axes", len_vec}}), x);
+            info.add_instruction(migraphx::make_op("reduce_min", {{"axes", axes}}), x);
         auto min_x = info.add_common_op("min", lit_0, reduce_min_x);
 
         auto q_range = info.add_literal(migraphx::literal{

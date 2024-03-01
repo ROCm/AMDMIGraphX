@@ -81,12 +81,9 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                            {
                                return intersect.value();
                            }
-                           else
-                           {
-                               MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
-                                              migraphx::to_string_range(dds0) + "} and {" +
-                                              migraphx::to_string_range(dds1) + "} mismatch!");
-                           }
+                           MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
+                                          migraphx::to_string_range(dds0) + "} and {" +
+                                          migraphx::to_string_range(dds1) + "} mismatch!");
                        }
                    });
     return out_dims;

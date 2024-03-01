@@ -585,11 +585,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
           py::arg("ins_names")   = std::unordered_set<std::string>{"dot", "convolution"});
     m.def(
         "autocast_fp8",
-        [](migraphx::program& p) {
-            migraphx::run_passes(*p.get_main_module(), {migraphx::autocast_fp8_pass{}});
+        [](migraphx::program& prog) {
+            migraphx::run_passes(*prog.get_main_module(), {migraphx::autocast_fp8_pass{}});
         },
         "Auto-convert FP8 parameters and return values to Float for MIGraphX Program",
-        py::arg("p"));
+        py::arg("prog"));
 
 #ifdef HAVE_GPU
     m.def("allocate_gpu", &migraphx::gpu::allocate_gpu, py::arg("s"), py::arg("host") = false);

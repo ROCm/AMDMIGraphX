@@ -58,10 +58,10 @@ TEST_CASE(propagate_output)
         auto y        = m1.add_parameter("y", s2);
         auto convert1 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto two      = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {2}});
-        auto div      = migraphx::add_common_op(m1, migraphx::make_op("div"), {convert1, two});
-        auto sqrt     = m1.add_instruction(migraphx::make_op("sqrt"), div);
-        auto mul      = m1.add_instruction(migraphx::make_op("mul"), sqrt, y);
+        auto two  = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {2}});
+        auto div  = migraphx::add_common_op(m1, migraphx::make_op("div"), {convert1, two});
+        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), div);
+        auto mul  = m1.add_instruction(migraphx::make_op("mul"), sqrt, y);
         m1.add_return({mul});
     }
     run_pass(m1);
@@ -74,7 +74,7 @@ TEST_CASE(propagate_output)
         auto sqrt     = m2.add_instruction(migraphx::make_op("sqrt"), div);
         auto convert1 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), sqrt);
-        auto mul      = m2.add_instruction(migraphx::make_op("mul"), convert1, y);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), convert1, y);
         m2.add_return({mul});
     }
     EXPECT(m1.sort() == m2.sort());

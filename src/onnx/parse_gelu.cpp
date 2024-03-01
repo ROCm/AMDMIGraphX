@@ -32,7 +32,6 @@ namespace onnx {
 
 instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_ref x)
 {
-    auto x_lens = x->get_shape().lens();
     auto x_type = x->get_shape().type();
     auto half   = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
     auto one    = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
@@ -47,7 +46,6 @@ instruction_ref parse_gelu_erf(const onnx_parser::node_info& info, instruction_r
 
 instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_ref x, bool fast)
 {
-    auto x_lens        = x->get_shape().lens();
     auto x_type        = x->get_shape().type();
     auto fit_const_val = fast ? 0.035677 : 0.044715;
     auto fit_const = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {fit_const_val}});
@@ -75,7 +73,7 @@ instruction_ref parse_gelu_tanh(const onnx_parser::node_info& info, instruction_
         tanh_in   = info.add_common_op("mul", add0, sqrt_2_rpi);
     }
 
-    // 0.5 * x * (1 + Tanh(approx))​
+    // 0.5 * x * (1 + Tanh(approx))
     auto tanh0 = info.add_instruction(migraphx::make_op("tanh"), tanh_in);
     auto add1  = info.add_common_op("add", tanh0, one);
     auto mul2  = info.add_common_op("mul", x, half);

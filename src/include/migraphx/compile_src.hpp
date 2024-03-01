@@ -54,7 +54,7 @@ struct src_file
 struct MIGRAPHX_EXPORT src_compiler
 {
     std::string compiler                      = "c++";
-    std::string flags                         = "";
+    std::vector<std::string> flags            = {};
     fs::path output                           = {};
     std::string launcher                      = "";
     std::string out_ext                       = ".o";

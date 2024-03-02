@@ -81,9 +81,9 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
-TEST_CASE(dynamicquantizelinear_1d_simplify_test)
+TEST_CASE(dynamicquantizelinear_1d_dot_simplify_test)
 {
-    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_dot_test.onnx");
     auto* mm = p.get_main_module();
     migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
     p.compile(migraphx::make_target("ref"));
@@ -110,9 +110,9 @@ TEST_CASE(dynamicquantizelinear_1d_simplify_test)
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
-TEST_CASE(dynamicquantizelinear_1d_max_adjusted_simplify_test)
+TEST_CASE(dynamicquantizelinear_1d_max_adjusted_dot_simplify_test)
 {
-    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_test.onnx");
+    auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_dot_test.onnx");
     auto* mm = p.get_main_module();
     migraphx::run_passes(*mm, {migraphx::simplify_dynamicquantizelinear{}});
     p.compile(migraphx::make_target("ref"));

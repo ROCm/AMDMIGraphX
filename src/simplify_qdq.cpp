@@ -46,7 +46,7 @@ auto skip_post_dq_ops(Ms... ms)
         match::name("broadcast", "multibroadcast", "contiguous", "transpose", "reshape"))(ms...);
 }
 
-std::unordered_set<std::string> get_quantizable_op_names()
+static std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
     return s;

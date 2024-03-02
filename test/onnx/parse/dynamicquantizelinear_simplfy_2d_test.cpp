@@ -30,7 +30,7 @@ TEST_CASE(dynamicquantizelinear_simplify_2d_test)
 {
     migraphx::program p;
     auto* mm    = p.get_main_module();
-    auto x_dims = {3, 4};
+    auto x_dims = {3, 3};
     auto x_type = migraphx::shape::float_type;
     auto x      = mm->add_parameter("x", {x_type, x_dims});
     auto l0     = mm->add_literal({0.f});
@@ -69,11 +69,15 @@ TEST_CASE(dynamicquantizelinear_simplify_2d_test)
     auto y_pt_c_bcast = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", x_dims}}), y_zero_point);
 
-    mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
+    auto y_out =
+        mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
 
-    auto prog = optimize_onnx("dynamicquantizelinear_2d_test.onnx");
+    mm->add_instruction(migraphx::make_op("dot"), y_out, y_out);
+
+    auto prog = optimize_onnx("dynamicquantizelinear_2d_dot_test.onnx");
     auto* m   = prog.get_main_module();
     migraphx::run_passes(*m, {migraphx::simplify_dynamicquantizelinear{}});
-
+    p.debug_print();
+    p.debug_print();
     EXPECT(p == prog);
 }

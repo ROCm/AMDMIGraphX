@@ -36,6 +36,12 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+static std::unordered_set<std::string> get_quantizable_op_names()
+{
+    static std::unordered_set<std::string> s = {"convolution", "dot"};
+    return s;
+}
+
 /*
  *  Dynamicquantizelinear by default adds uint8_t typed zero point into a quantize linear
  *  which needs to converted to int8 in order to avoid uint8 x int8 operations or uint8 operations
@@ -46,13 +52,16 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
 {
     auto matcher() const
     {
-        return match::name("quantizelinear")(
-            match::arg(0)(skip_broadcasts(match::any())),
-            match::arg(2)(skip_broadcasts(
-                match::name("convert")(
-                    match::has_type(migraphx::shape::uint8_type),
-                    match::arg(0)(match::name("nearbyint")(match::arg(0)(match::name("clip")))))
-                    .bind("convert"))));
+        return match::name(get_quantizable_op_names())(
+            skip_broadcasts(match::any_arg(0, 1)(match::name("quantizelinear")(
+                match::arg(0)(skip_broadcasts(match::any())),
+                match::arg(2)(skip_broadcasts(
+                    match::name("convert")(
+                        match::has_type(migraphx::shape::uint8_type),
+                        match::arg(0)(match::name("nearbyint")(
+                                          match::arg(0)(match::name("clip").bind("saturate")))
+                                          .bind("round")))
+                        .bind("convert")))))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -60,8 +69,8 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
         /* Need to modify the uint8 min/max range as well as final convert to convert to int8 */
         auto convert_op = r.instructions["convert"];
         // Ops to get q_min/q_max quickly
-        auto round_op    = convert_op->inputs().at(0);
-        auto saturate_op = round_op->inputs().at(0);
+        auto round_op    = r.instructions["round"];
+        auto saturate_op = r.instructions["saturate"];
         auto q_min       = saturate_op->inputs().at(1);
         auto q_max       = saturate_op->inputs().at(2);
 

@@ -41,7 +41,7 @@ struct hip_compile_options
     std::vector<shape> inputs;
     shape output;
     std::string kernel_name                    = "kernel";
-    std::string params                         = "";
+    std::vector<std::string> params            = {};
     std::vector<shape> virtual_inputs          = {};
     std::vector<src_file> additional_src_files = {};
 
@@ -63,6 +63,8 @@ struct hip_compile_options
         set_launch_params(
             v, [=](auto) { return default_global; }, default_local);
     }
+
+    void emplace_param(std::string_view s) { params.emplace_back(s); }
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit

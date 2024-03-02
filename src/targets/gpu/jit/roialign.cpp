@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,21 +71,21 @@ struct roialign_compiler : compiler<roialign_compiler>
         options.kernel_name = "roialign_kernel";
 
         // sampling_ratio
-        options.params += " -DSAMPLING_RATIO=" + v.at("sampling_ratio").to<std::string>();
+        options.emplace_param("-DSAMPLING_RATIO=" + v.at("sampling_ratio").to<std::string>());
 
         // pooling_mode
         auto mode = v.at("mode").to<migraphx::op::pooling_mode>();
         std::string is_avg_pooling =
             (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
-        options.params += " -DIS_AVG_POOLING=" + is_avg_pooling;
+        options.emplace_param(" -DIS_AVG_POOLING=" + is_avg_pooling);
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
         float rois_offset = (ctm == "half_pixel") ? -0.5f : 0.0f;
-        options.params += " -DROIS_OFFSET=" + std::to_string(rois_offset);
+        options.emplace_param(" -DROIS_OFFSET=" + std::to_string(rois_offset));
 
         // spatial_scale
-        options.params += " -DSPATIAL_SCALE=" + v.at("spatial_scale").to<std::string>();
+        options.emplace_param("-DSPATIAL_SCALE=" + v.at("spatial_scale").to<std::string>());
 
         return compile_hip_code_object(roialign_kernel, options);
     }

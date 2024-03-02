@@ -84,7 +84,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         options.kernel_name = "softmax_kernel";
 
         if(enabled(MIGRAPHX_USE_FAST_SOFTMAX{}))
-            options.params = "-DMIGRAPHX_USE_FAST_SOFTMAX";
+            options.emplace_param("-DMIGRAPHX_USE_FAST_SOFTMAX");
 
         auto src = interpolate_string(
             softmax_kernel,

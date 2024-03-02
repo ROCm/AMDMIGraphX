@@ -90,7 +90,7 @@ struct pack_int4
             output[i] = uint8_t(0x0F) & input_val;
             in_data_multi_idx[axis] += 1;
             input_val = input[in_data_multi_idx];
-            output[i] = (input_val << 4u) | output[i]; // NOLINT(hipcc-signed-bitwise)
+            output[i] = (input_val << 4u) | output[i]; // NOLINT(hicpp-signed-bitwise)
         });
         return result;
     }

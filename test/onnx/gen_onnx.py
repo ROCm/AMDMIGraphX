@@ -1955,6 +1955,13 @@ def dequantizelinear_neg_axis_test():
 
 
 @onnx_test()
+def dim_param_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, ["dim0", "dim1"])
+
+    return ([], [x], [x])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -2509,6 +2516,127 @@ def gathernd_batch_dims_test():
     )
 
     return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gelu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_default_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_double_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [3, 3])
+
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_invalid_input_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [3])
+    y = helper.make_tensor_value_info("y", TensorProto.INT32, [3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_add_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_bias_invalid_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_fast_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT16, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT16, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_invalid_x_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_invalid_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.DOUBLE, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
 
 
 @onnx_test()

@@ -169,8 +169,8 @@ void propagate_precision::apply(module_pass_manager& mpm) const
     auto upgrade = find_instruction_to_upgrade(mpm.get_module());
     for(const auto& p : upgrade)
     {
-        auto ins = p.first;
-        auto t = p.second;
+        auto ins      = p.first;
+        auto t        = p.second;
         auto convert1 = mpm.get_module().insert_instruction(
             std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
         mpm.get_module().replace_instruction(ins, convert1);

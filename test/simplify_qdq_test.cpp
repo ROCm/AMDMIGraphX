@@ -40,9 +40,10 @@ bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "co
 bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
 
 void run_pass(migraphx::module& m) { run_passes(m, {migraphx::simplify_qdq{}}); }
-void run_cse(migraphx::module& m) { run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}}); }
-
-
+void run_cse(migraphx::module& m)
+{
+    run_passes(m, {migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+}
 
 migraphx::instruction_ref broadcast_scale(migraphx::module& m,
                                           migraphx::instruction_ref scale,
@@ -1460,7 +1461,7 @@ TEST_CASE(dot_reused)
         auto w2    = m2.add_parameter("w2", sh);
         auto scale = m2.add_literal(0.5f);
         auto zero  = m2.add_literal(std::int8_t{0});
-        auto zero2  = m2.add_literal(std::int32_t{0});
+        auto zero2 = m2.add_literal(std::int32_t{0});
 
         auto q1 = add_quantize_op(m2, "quantizelinear", x, scale, zero);
         auto q2 = add_quantize_op(m2, "quantizelinear", w1, scale, zero);

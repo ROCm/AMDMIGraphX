@@ -408,11 +408,11 @@ TEST_CASE(add_contiguous_reshape_add)
     migraphx::shape s3{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s1);
-        auto y    = mm->add_parameter("y", s1);
-        auto z    = mm->add_parameter("z", s2);
-        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto* mm        = p1.get_main_module();
+        auto x          = mm->add_parameter("x", s1);
+        auto y          = mm->add_parameter("y", s1);
+        auto z          = mm->add_parameter("z", s2);
+        auto add1       = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto contiguous = mm->add_instruction(migraphx::make_op("contiguous"), add1);
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), contiguous);

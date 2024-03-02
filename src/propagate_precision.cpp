@@ -72,8 +72,11 @@ static std::optional<instruction_ref> get_next_input(instruction_ref ins)
     if(ins->inputs().size() > 1)
     {
         std::unordered_set<instruction_ref> non_scalars;
-        std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::inserter(non_scalars, non_scalars.end()), &is_non_scalar_const);
-        if (non_scalars.size() == 1)
+        std::copy_if(ins->inputs().begin(),
+                     ins->inputs().end(),
+                     std::inserter(non_scalars, non_scalars.end()),
+                     &is_non_scalar_const);
+        if(non_scalars.size() == 1)
             return *non_scalars.begin();
     }
     return nullopt;

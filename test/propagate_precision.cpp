@@ -10,7 +10,10 @@
 
 void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::propagate_precision{}, migraphx::eliminate_common_subexpression{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m,
+                         {migraphx::propagate_precision{},
+                          migraphx::eliminate_common_subexpression{},
+                          migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(propagate_input)
@@ -91,12 +94,12 @@ TEST_CASE(propagate_conflict)
         auto y        = m1.add_parameter("y", s2);
         auto convert1 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto two  = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {2}});
-        auto div  = migraphx::add_common_op(m1, migraphx::make_op("div"), {convert1, two});
-        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), div);
+        auto two      = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {2}});
+        auto div      = migraphx::add_common_op(m1, migraphx::make_op("div"), {convert1, two});
+        auto sqrt     = m1.add_instruction(migraphx::make_op("sqrt"), div);
         auto convert2 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), sqrt);
-        auto mul  = m1.add_instruction(migraphx::make_op("mul"), convert2, y);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), convert2, y);
         m1.add_return({mul});
     }
     run_pass(m1);
@@ -121,16 +124,16 @@ TEST_CASE(propagate_reduce)
     migraphx::module m1;
     {
         auto x        = m1.add_parameter("x", s1);
-        auto three  = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {3}});
-        auto squared = m1.add_instruction(migraphx::make_op("mul"), x, x);
-        auto div = migraphx::add_common_op(m1, migraphx::make_op("div"), {squared, three});
+        auto three    = m1.add_literal(migraphx::literal{{migraphx::shape::half_type}, {3}});
+        auto squared  = m1.add_instruction(migraphx::make_op("mul"), x, x);
+        auto div      = migraphx::add_common_op(m1, migraphx::make_op("div"), {squared, three});
         auto convert1 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), div);
         auto reduce = m1.add_instruction(migraphx::make_op("reduce_sum", {{"axes", 1}}), convert1);
         auto convert2 = m1.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), reduce);
-        auto sqrt     = m1.add_instruction(migraphx::make_op("sqrt"), convert2);
-        auto mul      = migraphx::add_common_op(m1, migraphx::make_op("mul"), {x, sqrt});
+        auto sqrt = m1.add_instruction(migraphx::make_op("sqrt"), convert2);
+        auto mul  = migraphx::add_common_op(m1, migraphx::make_op("mul"), {x, sqrt});
         m1.add_return({mul});
     }
     run_pass(m1);
@@ -139,14 +142,14 @@ TEST_CASE(propagate_reduce)
         auto x        = m2.add_parameter("x", s1);
         auto convert1 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x);
-        auto three  = m2.add_literal(migraphx::literal{{migraphx::shape::half_type}, {3}});
-        auto squared = m2.add_instruction(migraphx::make_op("mul"), convert1, convert1);
-        auto div = migraphx::add_common_op(m2, migraphx::make_op("div"), {squared, three});
-        auto reduce = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", 1}}), div);
+        auto three    = m2.add_literal(migraphx::literal{{migraphx::shape::half_type}, {3}});
+        auto squared  = m2.add_instruction(migraphx::make_op("mul"), convert1, convert1);
+        auto div      = migraphx::add_common_op(m2, migraphx::make_op("div"), {squared, three});
+        auto reduce   = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", 1}}), div);
         auto sqrt     = m2.add_instruction(migraphx::make_op("sqrt"), reduce);
         auto convert2 = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), sqrt);
-        auto mul      = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x, convert2});
+        auto mul = migraphx::add_common_op(m2, migraphx::make_op("mul"), {x, convert2});
         m2.add_return({mul});
     }
     EXPECT(m1.sort() == m2.sort());

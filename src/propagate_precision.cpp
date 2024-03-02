@@ -167,8 +167,10 @@ static std::unordered_map<instruction_ref, shape::type_t> find_instruction_to_up
 void propagate_precision::apply(module_pass_manager& mpm) const
 {
     auto upgrade = find_instruction_to_upgrade(mpm.get_module());
-    for(const auto& [ins, t] : upgrade)
+    for(const auto& p : upgrade)
     {
+        auto ins = p.first;
+        auto t = p.second;
         auto convert1 = mpm.get_module().insert_instruction(
             std::next(ins), make_op("convert", {{"target_type", ins->get_shape().type()}}), ins);
         mpm.get_module().replace_instruction(ins, convert1);
@@ -176,7 +178,7 @@ void propagate_precision::apply(module_pass_manager& mpm) const
         std::transform(ins->inputs().begin(),
                        ins->inputs().end(),
                        std::back_inserter(inputs),
-                       [&, t = t, ins = ins](auto input) {
+                       [&](auto input) {
                            return mpm.get_module().insert_instruction(
                                ins, make_op("convert", {{"target_type", t}}), input);
                        });

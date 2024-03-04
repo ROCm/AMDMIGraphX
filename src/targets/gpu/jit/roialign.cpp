@@ -77,12 +77,12 @@ struct roialign_compiler : compiler<roialign_compiler>
         auto mode = v.at("mode").to<migraphx::op::pooling_mode>();
         std::string is_avg_pooling =
             (mode == migraphx::op::pooling_mode::average) ? "true" : "false";
-        options.emplace_param(" -DIS_AVG_POOLING=" + is_avg_pooling);
+        options.emplace_param("-DIS_AVG_POOLING=" + is_avg_pooling);
 
         // coord_trans_mode
         auto ctm          = v.at("coordinate_transformation_mode").to<std::string>();
         float rois_offset = (ctm == "half_pixel") ? -0.5f : 0.0f;
-        options.emplace_param(" -DROIS_OFFSET=" + std::to_string(rois_offset));
+        options.emplace_param("-DROIS_OFFSET=" + std::to_string(rois_offset));
 
         // spatial_scale
         options.emplace_param("-DSPATIAL_SCALE=" + v.at("spatial_scale").to<std::string>());

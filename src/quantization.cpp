@@ -41,7 +41,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/normalize_ops.hpp>
-#include <migraphx/rewrite_low_precision.hpp>
 #include <set>
 
 namespace migraphx {
@@ -58,7 +57,6 @@ void quantize_fp16(program& prog, const std::vector<std::string>& ins_names)
 {
     run_passes(prog,
                {normalize_ops{},
-                rewrite_low_precision{},
                 optimize_module{{"quantizelinear", "dequantizelinear"}},
                 quantize_fp16_pass{ins_names},
                 optimize_module{{"quantizelinear", "dequantizelinear"}}});

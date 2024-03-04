@@ -73,12 +73,7 @@ struct find_reduce_mean
             max_n       = t.max();
         });
 
-        auto dims = input->get_shape().lens();
-        double n  = std::accumulate(
-            axes.begin(), axes.end(), 1, [&](const auto& prod_value, const auto& axis) {
-                auto norm_axis = axis < 0 ? dims.size() + axis : axis;
-                return prod_value * dims.at(norm_axis);
-            });
+        auto n = input->get_shape().elements() / reduce_mean->get_shape().elements();
 
         // avoid overflow (the larger value will be later handled)
         if(n >= max_n / 4)

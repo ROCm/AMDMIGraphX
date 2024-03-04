@@ -70,7 +70,7 @@ struct concat_compiler : compiler<concat_compiler>
         hip_compile_options options;
         options.inputs      = inputs;
         options.output      = inputs.back();
-        options.params      = "-Wno-float-equal";
+        options.emplace_param("-Wno-float-equal");
         options.kernel_name = v.get("kernel", "concat_kernel");
         auto axis           = find_fast_axis(options.inputs);
         auto op_names       = v.at("ops").to_vector<std::string>();

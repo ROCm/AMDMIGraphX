@@ -47,4 +47,5 @@ struct test_dot_mul_a : verify_program<test_dot_mul_a>
         mm->add_return({mul});
         return p;
     }
+    std::string section() const { return "gemm"; }
 };

@@ -40,4 +40,5 @@ struct test_gemm_ld //: verify_program<test_gemm_ld>
         mm->add_instruction(migraphx::make_op("dot"), a, b);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };

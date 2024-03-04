@@ -43,6 +43,7 @@ struct gemm_literal : verify_program<gemm_literal<DType>>
 
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_literal<migraphx::shape::float_type>;

@@ -53,6 +53,8 @@ struct batch_quant_dot_1 : verify_program<batch_quant_dot_1<DType, CType>>
             *mm, {tl1, tl2, l3}, migraphx::make_op("quant_dot"), CType{3}, CType{2});
         return p;
     }
+
+    std::string section() const { return "gemm"; }
 };
 
 template struct batch_quant_dot_1<int8_t, int32_t>;

@@ -53,4 +53,6 @@ struct ck_gemm_softmax_gemm : verify_program<ck_gemm_softmax_gemm>
 
         return p;
     }
+
+    std::string section() const { return "gemm"; }
 };

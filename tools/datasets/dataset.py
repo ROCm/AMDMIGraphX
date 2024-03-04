@@ -33,6 +33,7 @@ class BaseDataset(abc.ABC):
 class ValidationDatasetHFIteratorMixin(object):
 
     split = "validation"
+
     def __iter__(self):
         print(f"Load dataset from {self.url} using {self.split} split")
         self.dataset = iter(
@@ -126,10 +127,12 @@ class LibriSpeechASR(ValidationDatasetHFIteratorMixin, BaseDataset):
         self.split = "validation.clean"
 
     def transform(self, inputs, data, prepocess_fn):
-        print(f"{inputs = }")
-        print(f"{data = }")
-        print(f"{prepocess_fn(data) = }")
-        return {}
+        result = prepocess_fn(data["audio"]["array"],
+                              data["audio"]["sampling_rate"])
+        inputs, keys = sorted(inputs), sorted(list(result.keys()))
+        assert inputs == keys, f"{inputs = } == {keys = }"
+        # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
+        return dict(result)
 
     def name(self):
         return "librispeech-asr"

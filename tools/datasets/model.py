@@ -3,7 +3,7 @@ from utils import download
 from preprocess import process_image
 from optimum.exporters.onnx import main_export
 import timm
-from transformers import AutoTokenizer, AutoImageProcessor
+from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
 
 
 class BaseModel(abc.ABC):
@@ -36,6 +36,16 @@ class SingleOptimumHFModelDownloadMixin(object):
         return f"{output_folder}/model.onnx"
 
 
+class EncoderDecoderOptimumHFModelDownloadMixin(object):
+
+    def download(self, output_folder):
+        main_export(self.model_id, output=output_folder)
+        return [
+            f"{output_folder}/encoder_model.onnx",
+            f"{output_folder}/decoder_model.onnx"
+        ]
+
+
 class AutoImageProcessorHFMixin(object):
 
     _processor = None
@@ -66,6 +76,23 @@ class AutoTokenizerHFMixin(object):
                               padding='max_length',
                               max_length=max_length,
                               truncation='only_second',
+                              return_tensors="np")
+
+
+class AutoFeatureExtractorHFMixin(object):
+
+    _processor = None
+
+    @property
+    def processor(self):
+        if self._processor is None:
+            self._processor = AutoFeatureExtractor.from_pretrained(
+                self.model_id)
+        return self._processor
+
+    def preprocess(self, audio_data, sampling_rate):
+        return self.processor(audio_data,
+                              sampling_rate=sampling_rate,
                               return_tensors="np")
 
 
@@ -153,3 +180,24 @@ class RobertaBaseSquad2(SingleOptimumHFModelDownloadMixin,
 
     def name(self):
         return "roberta-base-squad2"
+
+
+class Wav2Vec2_base_960h(SingleOptimumHFModelDownloadMixin,
+                         AutoFeatureExtractorHFMixin, BaseModel):
+
+    def __init__(self):
+        self.model_id = "facebook/wav2vec2-base-960h"
+
+    def name(self):
+        return "wav2vec2-base-960h"
+
+
+# TODO enable it when encoder-decoder models work
+class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
+                     AutoFeatureExtractorHFMixin, BaseModel):
+
+    def __init__(self):
+        self.model_id = "openai/whisper-small.en"
+
+    def name(self):
+        return "whisper-small-en"

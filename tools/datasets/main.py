@@ -1,5 +1,7 @@
-from dataset import ImageNet2012Val, SQuAD_HF
-from model import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large, DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2
+from dataset import ImageNet2012Val, SQuAD_HF, LibriSpeechASR
+from model import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large  #for imagemet
+from model import DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2  # for squad
+from model import Wav2Vec2_base_960h  # for librispeech
 from generator import generate_test_dataset
 
 model_dataset_pairs = [{
@@ -11,6 +13,9 @@ model_dataset_pairs = [{
     "dataset":
     SQuAD_HF,
     "models": [DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2]
+}, {
+    "dataset": LibriSpeechASR,
+    "models": [Wav2Vec2_base_960h]
 }]
 
 for model_dataset_map in model_dataset_pairs:

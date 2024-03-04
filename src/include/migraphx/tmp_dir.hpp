@@ -42,7 +42,7 @@ struct MIGRAPHX_EXPORT tmp_dir
     void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;
     void execute(const fs::path& cmd, const std::vector<std::string>& args = {}) const
     {
-        execute(std::string_view {cmd.string()}, args);
+        execute(std::string_view{cmd.string()}, args);
     }
 
     tmp_dir(tmp_dir const&) = delete;

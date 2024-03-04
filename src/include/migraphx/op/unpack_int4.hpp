@@ -85,7 +85,7 @@ struct unpack_int4
             // mask first 4 bits, packing is assumed to be little endian
             output[out_data_multi_idx] = uint8_t(0x0F) & input_val;
             out_data_multi_idx[axis] += 1;
-            output[out_data_multi_idx] = input_val >> 4; // NOLINT
+            output[out_data_multi_idx] = input_val >> 4; // NOLINT(hicpp-signed-bitwise)
         });
         return result;
     }

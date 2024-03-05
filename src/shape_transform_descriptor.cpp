@@ -343,8 +343,8 @@ std::vector<operation> shape_transform_descriptor::generate() const
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
            if(d.subdimensions.size() != 1)
-                return true;
-            return is_broadcast_dim(d);
+               return true;
+           return is_broadcast_dim(d);
        }))
     {
         std::vector<std::size_t> dims;

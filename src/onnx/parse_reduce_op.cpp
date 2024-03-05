@@ -72,6 +72,8 @@ struct reduce_parser : op_parser<Derived>
             MIGRAPHX_THROW("Keepdims not supported with runtime provided axes");
 
         // Empty axes attribute indicates to the operator to look for axes in the inputs
+        // If the input axes are empty, the default behavior of reduce_op is to be an
+        // identity operator
         auto reduce_op = make_op(op_name, {{"axes", {}}});
 
         if(noop_with_empty_axes != 0)

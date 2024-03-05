@@ -108,9 +108,6 @@ struct reduce_op : op_name<Derived>
 
     // Compute the output shape for cases when the input tensor has a dynamic shape.
     //
-    // If the axes are passed as an attribute, or a constant input, we can precisely
-    // determine which axes need to be collapsed even during parsing.
-    //
     // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
     // determine which axes must be collapsed until we see the actual input values, so we must treat
     // each axis as potentially collapsable and set its minimum dimension to 1.
@@ -139,9 +136,6 @@ struct reduce_op : op_name<Derived>
     // Compute the output shape for cases when the input tensor has a static shape.
     // Depending on how axes is passed to the operator the output shape can be either dynamic or
     // static.
-    //
-    // If the axes are passed as an attribute, or a constant input, we can precisely
-    // determine which axes need to be collapsed even during parsing.
     //
     // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
     // determine which axes must be collapsed until we see the actual input values, so we must treat

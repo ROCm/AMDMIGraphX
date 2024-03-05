@@ -75,16 +75,16 @@ std::string unique_string(const std::string& prefix)
     return ss.str();
 }
 
-tmp_dir::tmp_dir(const std::string& prefix)
+tmp_dir::tmp_dir(std::string_view prefix)
     : path(fs::temp_directory_path() /
-           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + prefix))
+           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + std::string{prefix}))
 {
     fs::create_directories(this->path);
 }
 
-void tmp_dir::execute(const std::string& exe, const std::string& args) const
+void tmp_dir::execute(std::string_view cmd, const std::vector<std::string>& args) const
 {
-    process{exe + " " + args}.cwd(this->path).exec();
+    process{cmd, args}.cwd(this->path).exec();
 }
 
 tmp_dir::~tmp_dir()

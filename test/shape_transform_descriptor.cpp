@@ -71,6 +71,15 @@ TEST_CASE(record_reshape)
            all_axes{d_axes{{0, 0}}, d_axes{{0, 1}}, d_axes{{1}, {2}}, d_axes{{3}}});
 }
 
+TEST_CASE(record_reshape_1s)
+{
+    auto desc = make_descriptor({3, 4, 4}, make_op("reshape", {{"dims", {3, 1, 4, 1, 4}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 1, 4, 1, 4});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {1}, {4}, {1}, {4}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}, d_axes{{2, 0}}, d_axes{{2, 1}}});
+}
+
 TEST_CASE(record_transpose)
 {
     auto desc =

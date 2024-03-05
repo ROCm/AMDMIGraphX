@@ -140,7 +140,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
         // unsqueeze
         else // if(rdim < idim)
         {
-            auto start = rdims.begin() + i;
+            auto start = rdims.begin() + r;
             auto it    = compute_end_dim(start, rdims.end(), idim, id{});
             if(it == start)
                 return false;
@@ -442,7 +442,8 @@ std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>&
                                                  const std::vector<operation>& ops)
 {
     shape_transform_descriptor sd{dims};
-    sd.apply(ops);
+    if (not sd.apply(ops))
+        return ops;
     sd.simplify();
     return sd.generate();
 }

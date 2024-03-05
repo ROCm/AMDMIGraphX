@@ -56,10 +56,9 @@ struct find_pow2_div
 
         if(x->get_shape().type() != migraphx::shape::half_type)
             return;
-        auto n_sqrt        = m.insert_instruction(ins, make_op("sqrt"), n);
-        auto x_div_n_rsqrt = m.insert_instruction(ins, make_op("div"), {x, n_sqrt});
-        auto new_pow2 = m.insert_instruction(ins, make_op("mul"), {x_div_n_rsqrt, x_div_n_rsqrt});
-        m.replace_instruction(ins, new_pow2);
+        auto x_div_n = m.insert_instruction(ins, make_op("div"), {x, n});
+        auto mul     = m.insert_instruction(ins, make_op("mul"), {x_div_n, x});
+        m.replace_instruction(ins, mul);
     }
 };
 

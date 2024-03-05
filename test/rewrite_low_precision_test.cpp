@@ -72,10 +72,9 @@ TEST_CASE(simplify_pow2_div)
         auto x = m2.add_parameter("x", {migraphx::shape::half_type, {1}});
         auto n = m2.add_literal(migraphx::half{5.0f});
 
-        auto rsqrt = m2.add_instruction(migraphx::make_op("sqrt"), n);
-        auto mul   = m2.add_instruction(migraphx::make_op("div"), x, rsqrt);
-        auto pow   = m2.add_instruction(migraphx::make_op("mul"), mul, mul);
-        m2.add_instruction(pass_op{}, pow);
+        auto x_div_n = m2.add_instruction(migraphx::make_op("div"), x, n);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), x_div_n, x);
+        m2.add_instruction(pass_op{}, mul);
     }
     EXPECT(m1 == m2);
 }
@@ -134,10 +133,9 @@ TEST_CASE(simplify_x_square_div)
         auto x = m2.add_parameter("x", {migraphx::shape::half_type, {1}});
         auto n = m2.add_literal(migraphx::half{5.0f});
 
-        auto rsqrt = m2.add_instruction(migraphx::make_op("sqrt"), n);
-        auto mul   = m2.add_instruction(migraphx::make_op("div"), x, rsqrt);
-        auto pow   = m2.add_instruction(migraphx::make_op("mul"), mul, mul);
-        m2.add_instruction(pass_op{}, pow);
+        auto x_div_n = m2.add_instruction(migraphx::make_op("div"), x, n);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), x_div_n, x);
+        m2.add_instruction(pass_op{}, mul);
     }
     EXPECT(m1 == m2);
 }

@@ -442,7 +442,7 @@ std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>&
                                                  const std::vector<operation>& ops)
 {
     shape_transform_descriptor sd{dims};
-    if (not sd.apply(ops))
+    if(not sd.apply(ops))
         return ops;
     sd.simplify();
     return sd.generate();

@@ -37,10 +37,10 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     std::iota(axes.begin(), axes.end(), 0);
 
     auto reduce_max_x = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), x);
-    auto max_x = add_common_op(*mm, migraphx::make_op("max"), {l0, reduce_max_x});
+    auto max_x        = add_common_op(*mm, migraphx::make_op("max"), {l0, reduce_max_x});
 
     auto reduce_min_x = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", axes}}), x);
-    auto min_x = add_common_op(*mm, migraphx::make_op("min"), {l0, reduce_min_x});
+    auto min_x        = add_common_op(*mm, migraphx::make_op("min"), {l0, reduce_min_x});
 
     auto q_range = mm->add_literal(migraphx::literal{
         migraphx::shape{x_type, max_x->get_shape().lens()},

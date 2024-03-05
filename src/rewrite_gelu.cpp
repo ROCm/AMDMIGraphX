@@ -56,8 +56,7 @@ void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r)
     auto u              = m.insert_instruction(ins, make_op("mul"), x, b);
     auto emu            = m.insert_instruction(ins, make_op("exp"), u);
     auto c              = insert_common_op(m, ins, make_op("add"), {one, emu});
-    auto cdf            = insert_common_op(m, ins, make_op("div"), {one, c});
-    auto y              = m.insert_instruction(ins, make_op("mul"), x, cdf);
+    auto y              = m.insert_instruction(ins, make_op("div"), x, c);
     m.replace_instruction(ins, y);
 }
 

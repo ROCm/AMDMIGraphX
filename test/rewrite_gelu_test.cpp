@@ -81,8 +81,7 @@ TEST_CASE(bias_gelu)
         auto u              = m2.add_instruction(make_op("mul"), bias_add, b);
         auto emu            = m2.add_instruction(make_op("exp"), u);
         auto c              = add_common_op(m2, make_op("add"), {one, emu});
-        auto cdf            = add_common_op(m2, make_op("div"), {one, c});
-        auto y              = m2.add_instruction(make_op("mul"), bias_add, cdf);
+        auto y              = m2.add_instruction(make_op("div"), bias_add, c);
         m2.add_return({y});
     }
 
@@ -132,8 +131,7 @@ TEST_CASE(non_bias_gelu)
         auto u              = m2.add_instruction(make_op("mul"), bias_sub, b);
         auto emu            = m2.add_instruction(make_op("exp"), u);
         auto c              = add_common_op(m2, make_op("add"), {one, emu});
-        auto cdf            = add_common_op(m2, make_op("div"), {one, c});
-        auto y              = m2.add_instruction(make_op("mul"), bias_sub, cdf);
+        auto y              = m2.add_instruction(make_op("div"), bias_sub, c);
         m2.add_return({y});
     }
 
@@ -185,8 +183,7 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
         auto u            = m2.add_instruction(make_op("mul"), x, b);
         auto emu          = m2.add_instruction(make_op("exp"), u);
         auto c            = add_common_op(m2, make_op("add"), {one, emu});
-        auto cdf          = add_common_op(m2, make_op("div"), {one, c});
-        auto y            = m2.add_instruction(make_op("mul"), x, cdf);
+        auto y            = m2.add_instruction(make_op("div"), x, c);
         m2.add_return({y});
     }
 
@@ -237,8 +234,7 @@ TEST_CASE(fastgelu_fp16)
         auto u            = m2.add_instruction(make_op("mul"), x, b);
         auto emu          = m2.add_instruction(make_op("exp"), u);
         auto c            = add_common_op(m2, make_op("add"), {one, emu});
-        auto cdf          = add_common_op(m2, make_op("div"), {one, c});
-        auto y            = m2.add_instruction(make_op("mul"), x, cdf);
+        auto y            = m2.add_instruction(make_op("div"), x, c);
         m2.add_return({y});
     }
 

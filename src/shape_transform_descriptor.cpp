@@ -4,6 +4,8 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/common_dims.hpp>
+#include <migraphx/make_op.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -28,6 +30,7 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
 }
 
 shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::size_t>& dims)
+: rank(dims.size())
 {
     transform(dims,
               range(dims.size()),
@@ -37,10 +40,9 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
               });
 }
 
-std::vector<shape_transform_descriptor::dimension::sub>
-shape_transform_descriptor::get_all_subdimensions() const
+static std::vector<shape_transform_descriptor::dimension::sub> get_all_subdimensions(const std::vector<shape_transform_descriptor::dimension>& dimensions)
 {
-    std::vector<dimension::sub> result;
+    std::vector<shape_transform_descriptor::dimension::sub> result;
     for(const auto& dim : dimensions)
     {
         result.insert(result.end(), dim.subdimensions.begin(), dim.subdimensions.end());
@@ -79,7 +81,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
 {
     assert(migraphx::elements(rdims) == this->elements());
     std::vector<dimension> new_dims;
-    auto subs     = get_all_subdimensions();
+    auto subs     = get_all_subdimensions(dimensions);
     std::size_t i = 0;
     std::size_t r = 0;
     while(i < subs.size() and r < rdims.size())
@@ -173,6 +175,203 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
     return true;
 }
 
+void shape_transform_descriptor::dimension::simplify() 
+{
+    if (subdimensions.size() < 2)
+         return;
+    // Remove dimensions of 1
+    subdimensions.erase(std::remove_if(std::next(subdimensions.begin()), subdimensions.end(), [&](const sub& d) {
+          return d.len == 1;
+    }), subdimensions.end());
+    // Remove adjacent dimensions
+    subdimensions.erase(adjacent_remove_if(subdimensions.begin(), subdimensions.end(), [&](const sub& d1, const sub& d2) {
+        if (d1.axis.empty())
+            return false;
+        if (d2.axis.empty())
+            return false;
+        if (not std::equal(d1.axis.begin(), d1.axis.end() - 1, d2.axis.begin(), d2.axis.end() - 1))
+            return false;
+        auto a1 = d1.axis.back();
+        auto a2 = d2.axis.back();
+        return (std::max(a1, a2) - std::min(a1, a2)) == 1;
+    }), subdimensions.end());
+}
+
+template<class Predicate>
+static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
+{
+    for(auto&d:td.dimensions)
+    {
+        auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), p);
+        if(it != d.subdimensions.end())
+            return std::make_tuple(std::ref(d.subdimensions), it);
+    }
+    MIGRAPHX_THROW("Searching for non-existent subdimension");
+}
+
+void shape_transform_descriptor::simplify()
+{
+    for(auto& d:dimensions)
+        d.simplify();
+
+    std::map<std::size_t, std::size_t> missing_axes;
+    std::vector<std::size_t> last_axis;
+    {
+        // Group axis
+        std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
+        for(auto& d:dimensions)
+        {
+            for(auto& s:d.subdimensions)
+            {
+                if(s.axis.empty())
+                    continue;
+                axes_map[s.axis.front()].push_back(&s);
+            }
+        }
+        if(axes_map.empty())
+            return;
+
+        // Renumber subaxis
+        for(auto&& p:axes_map)
+        {
+            const auto& axis = p.first;
+            auto& subs = p.second;
+            if(subs.size() == 1)
+            {
+                subs[0]->axis = {axis};
+            }
+            else
+            {
+                std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) { return s->axis; }));
+                for(std::size_t i:range(subs.size()))
+                    subs[i]->axis = {axis, i};
+            }
+        }
+
+        // Find last axis
+        last_axis = std::prev(axes_map.end())->second.back()->axis;
+
+        // Find missing axes
+        for(auto axis:range(rank))
+        {
+            if(contains(axes_map, axis))
+                continue;
+            auto it = axes_map.upper_bound(axis);
+            missing_axes[axis] = it == axes_map.end() ? rank : it->first;
+        }
+    }
+
+    // Reinsert removed axes of 1
+    for(auto&& p:missing_axes)
+    {
+        auto missing_axis = p.first;
+        auto next_axis = p.second;
+        if(next_axis == rank)
+        {
+            auto x = find_subdimension(*this, [&](const dimension::sub& s) {
+                return s.axis == last_axis;
+            });
+            std::get<0>(x).insert(std::next(std::get<1>(x)), dimension::sub{1, {missing_axis}});
+        }
+        else
+        {
+            auto x = find_subdimension(*this, [&](const dimension::sub& s) {
+                if (s.axis.empty())
+                    return false;
+                if(s.axis.front() != next_axis)
+                    return false;
+                if (s.axis.size() == 1)
+                    return true;
+                assert(s.axis.size() == 2);
+                return s.axis.back() == 0;
+            });
+            std::get<0>(x).insert(std::get<1>(x), dimension::sub{1, {missing_axis}});
+        }
+    }
+}
+
+static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
+{
+    if (d.subdimensions.empty())
+        return true;
+    if (d.subdimensions.size() != 1)
+        return false;
+    const auto& sub = d.subdimensions.front();
+    return sub.axis.empty();
+}
+
+std::vector<operation> shape_transform_descriptor::generate() const
+{
+    std::vector<operation> result;
+    std::vector<shape_transform_descriptor::dimension> new_dims = dimensions;
+    // Need multibroadcast
+    if (std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    {
+        std::vector<std::size_t> out_lens;
+        std::transform(new_dims.begin(), new_dims.end(), std::back_inserter(out_lens), [](const dimension& d) {
+            return d.len();
+        });
+        result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+    }
+    // Need squeeze reshape
+    if (std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+        if (d.subdimensions.size() != 1)
+            return is_broadcast_dim(d);
+        return false;
+    }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(new_dims.begin(), new_dims.end(), std::back_inserter(dims), [](const dimension& d) -> std::size_t {
+            if(is_broadcast_dim(d))
+                return 1;
+            return d.len();
+        });
+        result.push_back(make_op("reshape", {{"dims", dims}}));
+    }
+
+    // Remove broadcast
+    new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim), new_dims.end());
+
+    auto subs = get_all_subdimensions(new_dims);
+    // Need multibroadcast
+    if(std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) {
+        return s.axis.empty();
+    }))
+    {
+        std::vector<std::size_t> out_lens;
+        std::transform(subs.begin(), subs.end(), std::back_inserter(out_lens), [](const dimension::sub& s) {
+            return s.len;
+        });
+        result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+    }
+
+    auto compare_sub = [](auto f) {
+        return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
+    };
+    // Need transpose
+    if(not std::is_sorted(subs.begin(), subs.end(), compare_sub(std::less<>{})))
+    {
+        auto permutation = sort_permutation(subs, compare_sub(std::greater<>{}));
+        result.push_back(make_op("transpose", {{"permutation", permutation}}));
+        reorder_dims(subs, invert_permutation(permutation));
+    }
+    // Need reshape unsqeeze
+    if(std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) {
+        return s.axis.size() != 1;
+    }))
+    {
+        std::vector<std::size_t> dims;
+        std::transform(subs.begin(), subs.end(), std::back_inserter(dims), [](const dimension::sub& s) -> std::size_t {
+            if(s.axis.empty())
+                return 1;
+            return s.len;
+        });
+        result.push_back(make_op("reshape", {{"dims", dims}}));
+    }
+    std::reverse(result.begin(), result.end());
+    return result;
+}
+
 std::size_t shape_transform_descriptor::dimension::len() const
 {
     return transform_accumulate(subdimensions.begin(),
@@ -189,6 +388,14 @@ std::size_t shape_transform_descriptor::elements() const
                                 std::size_t{1},
                                 std::multiplies<>{},
                                 [](const auto& s) { return s.len(); });
+}
+
+std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops)
+{
+    shape_transform_descriptor sd{dims};
+    sd.apply(ops);
+    sd.simplify();
+    return sd.generate();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

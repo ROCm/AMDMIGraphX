@@ -21,8 +21,13 @@ struct shape_transform_descriptor
     bool apply_transpose(const std::vector<std::int64_t>& permutation);
     bool apply_broadcast(const std::vector<std::size_t>& out_lens,
                          optional<std::size_t> axis = nullopt);
+    void simplify();
+    std::size_t elements() const;
+    std::vector<operation> generate() const;
+
     struct dimension
     {
+        void simplify();
         std::size_t len() const;
         struct sub
         {
@@ -31,10 +36,11 @@ struct shape_transform_descriptor
         };
         std::vector<sub> subdimensions;
     };
-    std::vector<dimension::sub> get_all_subdimensions() const;
-    std::size_t elements() const;
     std::vector<dimension> dimensions;
+    std::size_t rank = 0;
 };
+
+std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

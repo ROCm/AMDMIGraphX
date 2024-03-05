@@ -76,6 +76,21 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
     }
 }
 
+template<class Iterator, class Predicate>
+Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
+{
+    first = std::adjacent_find(first, last, p);
+    if (first != last)
+    {
+        for (auto i = first; ++i != last;)
+        {
+            if (!p(*i, *std::next(i)))
+                *first++ = std::move(*i);
+        }
+    }
+    return first;
+}
+
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

@@ -8,6 +8,7 @@ using all_lens   = std::vector<std::vector<std::size_t>>;
 using final_lens = std::vector<std::size_t>;
 using all_axes   = std::vector<std::vector<std::vector<std::size_t>>>;
 using d_axes     = std::vector<std::vector<std::size_t>>;
+using ops = std::vector<migraphx::operation>;
 
 all_lens get_all_lens(const shape_transform_descriptor& d)
 {
@@ -86,6 +87,11 @@ TEST_CASE(record_multibroadcast)
     EXPECT(get_final_lens(desc) == final_lens{256, 3, 16, 16});
     EXPECT(get_all_lens(desc) == all_lens{{256}, {3}, {16}, {16}});
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
+}
+
+TEST_CASE(optimize_multibroadcast_reshape)
+{
+    EXPECT(migraphx::optimize_shape_transforms({1, 5, 2}, {make_op("multibroadcast", {{"out_lens", {20, 5, 2}}}), make_op("reshape", {{"dims", {20, 10}}})}) == ops{make_op("reshape", {{"dims", {1, 10}}}), make_op("multibroadcast", {{"out_lens", {20, 10}}})});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

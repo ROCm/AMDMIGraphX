@@ -5,6 +5,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/common_dims.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/stringutils.hpp>
 #include <map>
 
 namespace migraphx {
@@ -27,6 +28,22 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     if(x != dim)
         return start;
     return it;
+}
+
+static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs)
+{
+    for(const auto& s:subs)
+        std::cout << s.len << ":" << to_string_range(s.axis, "x") << ",";
+}
+static void debug_print(const std::vector<shape_transform_descriptor::dimension>& dims)
+{
+    for(const auto& d:dims)
+    {
+        std::cout << "[";
+        debug_print(d.subdimensions);
+        std::cout << "],";
+    }
+    std::cout << std::endl;
 }
 
 shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::size_t>& dims)

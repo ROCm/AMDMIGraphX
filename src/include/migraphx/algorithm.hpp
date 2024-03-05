@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_ALGORITHM_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -80,14 +81,19 @@ template <class Iterator, class Predicate>
 Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
 {
     first = std::adjacent_find(first, last, p);
-    if(first != last)
+    if (first == last)
+        return first;
+    auto i = first;
+    while(std::next(++i) != last)
     {
-        for(auto i = first; ++i != last;)
+        if(not p(*i, *std::next(i)))
         {
-            if(!p(*i, *std::next(i)))
-                *first++ = std::move(*i);
+            *first = std::move(*i);
+            ++first;
         }
     }
+    *first = std::move(*i);
+    ++first;
     return first;
 }
 

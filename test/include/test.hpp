@@ -831,7 +831,7 @@ inline void run(int argc, const char* argv[])
 
 // NOLINTNEXTLINE
 #define TEST_CASE_REGISTER(...)                                                    \
-    static test::auto_register_test_case TEST_CAT(register_test_case_, __LINE__) = \
+    static test::auto_register_test_case TEST_CAT(register_test_case_, __COUNTER__) = \
         test::auto_register_test_case(#__VA_ARGS__, &__VA_ARGS__);
 
 // NOLINTNEXTLINE

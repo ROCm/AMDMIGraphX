@@ -76,15 +76,15 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
     }
 }
 
-template<class Iterator, class Predicate>
+template <class Iterator, class Predicate>
 Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
 {
     first = std::adjacent_find(first, last, p);
-    if (first != last)
+    if(first != last)
     {
-        for (auto i = first; ++i != last;)
+        for(auto i = first; ++i != last;)
         {
-            if (!p(*i, *std::next(i)))
+            if(!p(*i, *std::next(i)))
                 *first++ = std::move(*i);
         }
     }

@@ -40,7 +40,8 @@ struct shape_transform_descriptor
     std::size_t rank = 0;
 };
 
-std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
+std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,
+                                                 const std::vector<operation>& ops);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

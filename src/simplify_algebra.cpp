@@ -1067,6 +1067,8 @@ bool axis_shape_equal(const shape& x, const shape& y, std::size_t axis)
     return axis_equal(x.lens(), y.lens(), axis);
 }
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPH_DISABLE_ENLARGE_CONV)
+
 struct find_add_convs
 {
     auto matcher() const
@@ -1126,8 +1128,10 @@ struct find_add_convs
 
         if(not axis_shape_equal(a_weights->get_shape(), b_weights->get_shape(), 1))
         {
-#if 1
+            if(enabled(MIGRAPH_DISABLE_ENLARGE_CONV{}))
+                return;
             if(a_weights->get_shape().lens().size() == 4 and
+                a_weights->get_shape().lens()[1] < 1024 and
                a_weights->get_shape().lens()[0] == b_weights->get_shape().lens()[0] and
                std::tie(a_op.dilation, a_op.group) == std::tie(b_op.dilation, b_op.group) and
                is_same_padding(a_conv) and is_same_padding(b_conv))
@@ -1160,7 +1164,6 @@ struct find_add_convs
                 new_op->from_value({{"padding", padding}});
             }
             else
-#endif
                 return;
         }
 

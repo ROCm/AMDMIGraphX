@@ -89,14 +89,28 @@ TEST_CASE(record_multibroadcast)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
-TEST_CASE(optimize_multibroadcast_reshape)
+TEST_CASE(optimize_multibroadcast_transpose_reshape)
 {
     EXPECT(
         migraphx::optimize_shape_transforms({1, 5, 2},
                                             {make_op("multibroadcast", {{"out_lens", {20, 5, 2}}}),
-                                             make_op("reshape", {{"dims", {20, 10}}})}) ==
-        ops{make_op("reshape", {{"dims", {1, 10}}}),
-            make_op("multibroadcast", {{"out_lens", {20, 10}}})});
+                                             make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                                             make_op("reshape", {{"dims", {20, 10}}}),}) ==
+        ops{make_op("transpose", {{"permutation", {0, 2, 1}}}),
+            make_op("reshape", {{"dims", {1, 10}}}),
+            make_op("multibroadcast", {{"out_lens", {20, 10}}}),});
+}
+
+TEST_CASE(optimize_resize)
+{
+    EXPECT(
+        migraphx::optimize_shape_transforms({3, 4, 4},
+                                            {make_op("reshape", {{"dims", {3, 1, 4, 1, 4}}}),
+                                            make_op("multibroadcast", {{"out_lens", {3, 2, 4, 2, 4}}}),
+                                             make_op("reshape", {{"dims", {3, 8, 8}}}),}) ==
+        ops{make_op("reshape", {{"dims", {3, 1, 4, 1, 4}}}),
+                                            make_op("multibroadcast", {{"out_lens", {3, 2, 4, 2, 4}}}),
+                                             make_op("reshape", {{"dims", {3, 8, 8}}}),});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

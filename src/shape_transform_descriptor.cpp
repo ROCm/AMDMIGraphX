@@ -68,24 +68,38 @@ get_all_subdimensions(const std::vector<shape_transform_descriptor::dimension>& 
     return result;
 }
 
+static std::vector<std::size_t> compute_dims(const operation& op, const std::vector<std::size_t>& idims)
+{
+    shape s{shape::float_type, idims};
+    return op.compute_shape({s}).lens();
+}
+
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
+    std::vector<std::size_t> dims;
+    std::transform(dimensions.begin(),
+                   dimensions.end(),
+                   std::back_inserter(dims),
+                   [](const dimension& d) { return d.len(); });
     for(const auto& op : ops)
     {
         auto v = op.to_value();
-        if(op.name() == "reshape")
+        if(contains({"reshape", "squeeze", "unsqueeze", "flatten"}, op.name()))
         {
-            if(not apply_reshape(v["dims"].to_vector<std::size_t>()))
+            dims = compute_dims(op, dims);
+            if(not apply_reshape(dims))
                 return false;
         }
         else if(op.name() == "transpose")
         {
+            dims = compute_dims(op, dims);
             if(not apply_transpose(v["permutation"].to_vector<std::int64_t>()))
                 return false;
         }
         else if(op.name() == "multibroadcast")
         {
-            if(not apply_broadcast(v["out_lens"].to_vector<std::size_t>()))
+            dims = compute_dims(op, dims);
+            if(not apply_broadcast(dims))
                 return false;
         }
         else

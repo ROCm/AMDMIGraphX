@@ -39,7 +39,7 @@ struct dot
     std::string name() const { return "dot"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this, true}.same_type().same_ndims().has(2);
+        check_shapes{inputs, *this, true}.same_ndims().has(2);
         const shape& a = inputs.at(0);
         const shape& b = inputs.at(1);
         auto t         = a.type();

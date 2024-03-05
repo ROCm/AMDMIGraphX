@@ -864,6 +864,12 @@ auto skip_broadcasts_converts(Ms... ms)
     return skip(name("broadcast", "multibroadcast", "contiguous", "convert"))(ms...);
 }
 
+template <class... Ms>
+auto skip_broadcast_squeeze(Ms... ms)
+{
+    return skip(name("broadcast", "multibroadcast", "contiguous", "squeeze", "unsqueeze"))(ms...);
+}
+
 template <class F>
 inline auto literal_value_checker(F f)
 {

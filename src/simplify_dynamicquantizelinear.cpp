@@ -53,7 +53,7 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
     auto matcher() const
     {
         return match::name(get_quantizable_op_names())(
-            skip_broadcasts(match::any_arg(0, 1)(match::name("quantizelinear")(
+            match::any_arg(0, 1)(skip_broadcast_squeeze(match::name("quantizelinear")(
                 match::arg(0)(skip_broadcasts(match::any())),
                 match::arg(2)(skip_broadcasts(
                     match::name("convert")(

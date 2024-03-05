@@ -81,7 +81,7 @@ template <class Iterator, class Predicate>
 Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
 {
     first = std::adjacent_find(first, last, p);
-    if (first == last)
+    if(first == last)
         return first;
     auto i = first;
     while(std::next(++i) != last)

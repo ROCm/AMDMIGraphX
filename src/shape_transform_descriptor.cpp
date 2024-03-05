@@ -32,12 +32,12 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
 
 static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs)
 {
-    for(const auto& s:subs)
+    for(const auto& s : subs)
         std::cout << s.len << ":" << to_string_range(s.axis, "x") << ",";
 }
 static void debug_print(const std::vector<shape_transform_descriptor::dimension>& dims)
 {
-    for(const auto& d:dims)
+    for(const auto& d : dims)
     {
         std::cout << "[";
         debug_print(d.subdimensions);

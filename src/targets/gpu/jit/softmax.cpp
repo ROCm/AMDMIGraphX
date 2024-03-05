@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
-        auto block_size = compute_block_size(relements, 256);
+        auto block_size = compute_block_size(ctx, relements, 256);
         hip_compile_options options;
         options.set_launch_params(
             v, compute_global_for(ctx, nelements * block_size, 256), block_size);
@@ -84,7 +84,7 @@ struct softmax_compiler : compiler<softmax_compiler>
         options.kernel_name = "softmax_kernel";
 
         if(enabled(MIGRAPHX_USE_FAST_SOFTMAX{}))
-            options.params = "-DMIGRAPHX_USE_FAST_SOFTMAX";
+            options.emplace_param("-DMIGRAPHX_USE_FAST_SOFTMAX");
 
         auto src = interpolate_string(
             softmax_kernel,

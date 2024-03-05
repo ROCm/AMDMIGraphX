@@ -47,6 +47,7 @@
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_pooling.hpp>
+#include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_quantization.hpp>
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
@@ -151,6 +152,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         prefuse_ops{},
         dead_code_elimination{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
+        dead_code_elimination{},
+        rewrite_reduce{},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},

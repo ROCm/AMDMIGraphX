@@ -56,6 +56,7 @@ add_library(migraphx
     eliminate_pad.cpp
     env.cpp
     file_buffer.cpp
+    fileutils.cpp
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
@@ -92,6 +93,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_reduce.cpp
     simplify_qdq.cpp
     sqlite.cpp
     rewrite_gelu.cpp
@@ -137,6 +139,7 @@ register_migraphx_ops(
     atanh
     atan
     broadcast
+    broadcast_for_dot
     capture
     ceil
     clip
@@ -212,6 +215,7 @@ register_migraphx_ops(
     relu
     reshape
     reshape_lazy
+    resize
     reverse
     rnn
     rnn_last_cell_output

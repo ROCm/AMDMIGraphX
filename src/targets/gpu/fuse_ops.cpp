@@ -791,9 +791,11 @@ struct find_contiguous_pointwise
         auto args   = pw->inputs();
         args.back() = alloc;
 
-        if(ins->get_shape() != pw->get_shape())
-            return;
-        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+        // Ensure the output shape of the pointwise module is contiguous
+        auto pw_op_val            = pw->get_operator().to_value();
+        pw_op_val["output_shape"] = to_value(ins->get_shape());
+
+        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
     }
 };
 

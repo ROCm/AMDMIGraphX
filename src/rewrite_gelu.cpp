@@ -43,20 +43,20 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 void replace_with_tanh_exp_gelu(module& m, const match::matcher_result& r)
 {
-    auto ins            = r.result;
-    auto x              = r.instructions["x"];
-    double const0       = -2. * sqrt(M_2_PI);
-    double const1       = 0.044715 * const0;
-    auto lit0           = m.add_literal(literal{shape{x->get_shape().type()}, {const0}});
-    auto lit1           = m.add_literal(literal{shape{x->get_shape().type()}, {const1}});
-    auto one            = m.add_literal(literal{shape{x->get_shape().type()}, {1.0}});
-    auto xb             = insert_common_op(m, ins, make_op("mul"), {x, lit1});
-    auto a              = m.insert_instruction(ins, make_op("mul"), x, xb);
-    auto b              = insert_common_op(m, ins, make_op("add"), {a, lit0});
-    auto u              = m.insert_instruction(ins, make_op("mul"), x, b);
-    auto emu            = m.insert_instruction(ins, make_op("exp"), u);
-    auto c              = insert_common_op(m, ins, make_op("add"), {one, emu});
-    auto y              = m.insert_instruction(ins, make_op("div"), x, c);
+    auto ins      = r.result;
+    auto x        = r.instructions["x"];
+    double const0 = -2. * sqrt(M_2_PI);
+    double const1 = 0.044715 * const0;
+    auto lit0     = m.add_literal(literal{shape{x->get_shape().type()}, {const0}});
+    auto lit1     = m.add_literal(literal{shape{x->get_shape().type()}, {const1}});
+    auto one      = m.add_literal(literal{shape{x->get_shape().type()}, {1.0}});
+    auto xb       = insert_common_op(m, ins, make_op("mul"), {x, lit1});
+    auto a        = m.insert_instruction(ins, make_op("mul"), x, xb);
+    auto b        = insert_common_op(m, ins, make_op("add"), {a, lit0});
+    auto u        = m.insert_instruction(ins, make_op("mul"), x, b);
+    auto emu      = m.insert_instruction(ins, make_op("exp"), u);
+    auto c        = insert_common_op(m, ins, make_op("add"), {one, emu});
+    auto y        = m.insert_instruction(ins, make_op("div"), x, c);
     m.replace_instruction(ins, y);
 }
 
@@ -70,8 +70,8 @@ struct find_gelu_erf
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto x   = r.instructions["x"];
-        auto input_type                              = x->get_shape().type();
+        auto x                                          = r.instructions["x"];
+        auto input_type                                 = x->get_shape().type();
         std::set<migraphx::shape::type_t> convert_types = {migraphx::shape::half_type};
         if(not contains(convert_types, input_type))
             return;

@@ -206,9 +206,9 @@ void shape_transform_descriptor::dimension::simplify()
     subdimensions.erase(adjacent_remove_if(subdimensions.begin(),
                                            subdimensions.end(),
                                            [&](const sub& d1, const sub& d2) {
-                                               if(d1.axis.empty())
+                                               if(d1.axis.size() < 2)
                                                    return false;
-                                               if(d2.axis.empty())
+                                               if(d2.axis.size() < 2)
                                                    return false;
                                                if(not std::equal(d1.axis.begin(),
                                                                  d1.axis.end() - 1,
@@ -343,8 +343,8 @@ std::vector<operation> shape_transform_descriptor::generate() const
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
            if(d.subdimensions.size() != 1)
-               return is_broadcast_dim(d);
-           return false;
+                return true;
+            return is_broadcast_dim(d);
        }))
     {
         std::vector<std::size_t> dims;

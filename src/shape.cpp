@@ -123,7 +123,17 @@ struct shape_impl
         if(not m_dyn_dims.empty())
         {
             auto maxes = max_lens();
-            return std::accumulate(maxes.begin(), maxes.end(), std::size_t{1}, std::multiplies<>());
+            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+
+            return std::accumulate(
+                maxes.begin(), maxes.end(), std::size_t{1}, [&](std::size_t x, std::size_t y) {
+                    // overflow check and clip
+                    if(x != 0 and y > max_val / x)
+                    {
+                        return max_val;
+                    }
+                    return x * y;
+                });
         }
 
         assert(m_lens.size() == m_strides.size());
@@ -242,6 +252,12 @@ std::string shape::cpp_type(shape::type_t t)
 #undef MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE
     }
     MIGRAPHX_THROW("Invalid type");
+}
+bool shape::is_integral(shape::type_t t)
+{
+    bool result = false;
+    visit(t, [&](auto as) { result = as.is_integral(); });
+    return result;
 }
 
 shape::shape() : impl(shape_impl::default_shape()) {}

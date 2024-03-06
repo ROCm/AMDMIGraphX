@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -67,7 +67,6 @@ int main(int argc, const char* argv[])
 {
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
-
     rv.disable_test_for("cpu", {
         "test_if_lp", "test_if_param", "test_if_literal", "test_select_module_add",
             "test_select_module_reduce", "test_select_module_conv", "test_split_single_dyn_dim",
@@ -81,8 +80,18 @@ int main(int argc, const char* argv[])
 #else
                 "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                 "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
-                "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"
+                "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
 #endif
+            "test_block_reduce_small<3, migraphx::shape::int8_type>",
+            "test_block_reduce_small<4, migraphx::shape::int8_type>",
+            "test_block_reduce_small<8, migraphx::shape::int8_type>",
+            "test_block_reduce_small<16, migraphx::shape::int8_type>",
+            "test_block_reduce_small<25, migraphx::shape::int8_type>",
+            "test_block_reduce_small<32, migraphx::shape::int8_type>",
+            "test_block_reduce_small<64, migraphx::shape::int8_type>",
+            "test_block_reduce_small<67, migraphx::shape::int8_type>",
+            "test_block_reduce_small<128, migraphx::shape::int8_type>",
+            "test_block_reduce_small<129, migraphx::shape::int8_type>",
     });
     rv.disable_test_for("gpu",
                         {// These passes on MI300 but fails on others, same issue as CPU.

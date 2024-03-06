@@ -64,17 +64,25 @@ TEST_CASE(bias_gelu)
 
     migraphx::module m2;
     {
-        auto a   = m2.add_parameter("a", s1);
-        auto b   = m2.add_parameter("b", s1);
-        auto add = m2.add_instruction(migraphx::make_op("add"), a, b);
-        auto l1  = m2.add_literal(migraphx::literal{s2, {1.702f}});
-        auto mul = add_common_op(m2, migraphx::make_op("mul"), {add, l1});
-        auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
-        sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
-        auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig      = m2.add_instruction(migraphx::make_op("div"), add, sig);
-        m2.add_return({sig});
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x_param    = m2.add_parameter("a", s1);
+        auto bias_param = m2.add_parameter("b", s1);
+        auto bias_add   = m2.add_instruction(migraphx::make_op("add"), x_param, bias_param);
+        double const0   = -2. * sqrt(M_2_PI);
+        double const1   = 0.044715 * const0;
+        auto lit0       = m2.add_literal(literal{shape{s2.type()}, {const0}});
+        auto lit1       = m2.add_literal(literal{shape{s2.type()}, {const1}});
+        auto one        = m2.add_literal(literal{shape{s2.type()}, {1.0}});
+        auto xb         = add_common_op(m2, make_op("mul"), {bias_add, lit1});
+        auto a          = m2.add_instruction(make_op("mul"), bias_add, xb);
+        auto b          = add_common_op(m2, make_op("add"), {a, lit0});
+        auto u          = m2.add_instruction(make_op("mul"), bias_add, b);
+        auto emu        = m2.add_instruction(make_op("exp"), u);
+        auto c          = add_common_op(m2, make_op("add"), {one, emu});
+        auto y          = m2.add_instruction(make_op("div"), bias_add, c);
+        m2.add_return({y});
     }
 
     EXPECT(m1 == m2);
@@ -106,17 +114,25 @@ TEST_CASE(non_bias_gelu)
 
     migraphx::module m2;
     {
-        auto a   = m2.add_parameter("a", s1);
-        auto b   = m2.add_parameter("b", s1);
-        auto sub = m2.add_instruction(migraphx::make_op("sub"), a, b);
-        auto l1  = m2.add_literal(migraphx::literal{s2, {1.702f}});
-        auto mul = add_common_op(m2, migraphx::make_op("mul"), {sub, l1});
-        auto sig = m2.add_instruction(migraphx::make_op("neg"), mul);
-        sig      = m2.add_instruction(migraphx::make_op("exp"), sig);
-        auto l2  = m2.add_literal(migraphx::literal{s2, {1.0f}});
-        sig      = add_common_op(m2, migraphx::make_op("add"), {sig, l2});
-        sig      = m2.add_instruction(migraphx::make_op("div"), sub, sig);
-        m2.add_return({sig});
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x_param    = m2.add_parameter("a", s1);
+        auto bias_param = m2.add_parameter("b", s1);
+        auto bias_sub   = m2.add_instruction(migraphx::make_op("sub"), x_param, bias_param);
+        double const0   = -2. * sqrt(M_2_PI);
+        double const1   = 0.044715 * const0;
+        auto lit0       = m2.add_literal(literal{shape{s2.type()}, {const0}});
+        auto lit1       = m2.add_literal(literal{shape{s2.type()}, {const1}});
+        auto one        = m2.add_literal(literal{shape{s2.type()}, {1.0}});
+        auto xb         = add_common_op(m2, make_op("mul"), {bias_sub, lit1});
+        auto a          = m2.add_instruction(make_op("mul"), bias_sub, xb);
+        auto b          = add_common_op(m2, make_op("add"), {a, lit0});
+        auto u          = m2.add_instruction(make_op("mul"), bias_sub, b);
+        auto emu        = m2.add_instruction(make_op("exp"), u);
+        auto c          = add_common_op(m2, make_op("add"), {one, emu});
+        auto y          = m2.add_instruction(make_op("div"), bias_sub, c);
+        m2.add_return({y});
     }
 
     EXPECT(m1 == m2);
@@ -152,25 +168,73 @@ TEST_CASE(tanh_gelu_distilgpt2_fp16)
 
     migraphx::module m2;
     {
-        auto x            = m2.add_parameter("x", s1);
-        double sqrt_2_rpi = sqrt(M_2_PI);
-        auto sqrt_2_rpi_lit =
-            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {sqrt_2_rpi}});
-        auto fit_const =
-            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {0.044715f}});
-        auto one =
-            m2.add_literal(migraphx::literal{migraphx::shape{x->get_shape().type()}, {1.0f}});
-        auto xb    = add_common_op(m2, migraphx::make_op("mul"), {x, sqrt_2_rpi_lit});
-        auto a     = add_common_op(m2, migraphx::make_op("mul"), {xb, fit_const});
-        auto b     = m2.add_instruction(migraphx::make_op("mul"), a, x);
-        auto c     = m2.add_instruction(migraphx::make_op("mul"), b, x);
-        auto u     = m2.add_instruction(migraphx::make_op("add"), c, xb);
-        auto neg_u = m2.add_instruction(migraphx::make_op("neg"), u);
-        auto d     = m2.add_instruction(migraphx::make_op("sub"), neg_u, u);
-        auto emu   = m2.add_instruction(migraphx::make_op("exp"), d);
-        auto e     = add_common_op(m2, migraphx::make_op("add"), {one, emu});
-        auto cdf   = add_common_op(m2, migraphx::make_op("div"), {one, e});
-        auto y     = m2.add_instruction(migraphx::make_op("mul"), x, cdf);
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x        = m2.add_parameter("x", s1);
+        double const0 = -2. * sqrt(M_2_PI);
+        double const1 = 0.044715 * const0;
+        auto lit0     = m2.add_literal(literal{shape{s2.type()}, {const0}});
+        auto lit1     = m2.add_literal(literal{shape{s2.type()}, {const1}});
+        auto one      = m2.add_literal(literal{shape{s2.type()}, {1.0}});
+        auto xb       = add_common_op(m2, make_op("mul"), {x, lit1});
+        auto a        = m2.add_instruction(make_op("mul"), x, xb);
+        auto b        = add_common_op(m2, make_op("add"), {a, lit0});
+        auto u        = m2.add_instruction(make_op("mul"), x, b);
+        auto emu      = m2.add_instruction(make_op("exp"), u);
+        auto c        = add_common_op(m2, make_op("add"), {one, emu});
+        auto y        = m2.add_instruction(make_op("div"), x, c);
+        m2.add_return({y});
+    }
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fastgelu_fp16)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {2, 4, 8}};
+    migraphx::shape s2{migraphx::shape::half_type};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s1);
+        auto fit_const  = m1.add_literal(migraphx::literal{s2, {0.035677}});
+        auto sqrt_2_rpi = m1.add_literal(migraphx::literal{s2, {0.797885}});
+        auto one        = m1.add_literal(migraphx::literal{s2, {1.0f}});
+        auto one_half   = m1.add_literal(migraphx::literal{s2, {0.5f}});
+        auto three      = m1.add_literal(migraphx::literal{s2, {3.0f}});
+        auto pow0       = add_common_op(m1, migraphx::make_op("pow"), {x, three});
+        auto mul0       = add_common_op(m1, migraphx::make_op("mul"), {pow0, fit_const});
+        auto mul1       = add_common_op(m1, migraphx::make_op("mul"), {sqrt_2_rpi, x});
+        auto add0       = m1.add_instruction(migraphx::make_op("add"), {mul0, mul1});
+        auto tanh0      = m1.add_instruction(migraphx::make_op("tanh"), add0);
+        auto add1       = add_common_op(m1, migraphx::make_op("add"), {tanh0, one});
+        auto mul2       = add_common_op(m1, migraphx::make_op("mul"), {x, one_half});
+        auto y          = m1.add_instruction(migraphx::make_op("mul"), {add1, mul2});
+        m1.add_return({y});
+    }
+    migraphx::rewrite_gelu pass;
+    pass.apply(m1);
+    migraphx::dead_code_elimination dce;
+    dce.apply(m1);
+
+    migraphx::module m2;
+    {
+        using migraphx::literal;
+        using migraphx::make_op;
+        using migraphx::shape;
+        auto x        = m2.add_parameter("x", s1);
+        double const0 = -2. * sqrt(M_2_PI);
+        double const1 = 0.044715 * const0;
+        auto lit0     = m2.add_literal(literal{shape{s2.type()}, {const0}});
+        auto lit1     = m2.add_literal(literal{shape{s2.type()}, {const1}});
+        auto one      = m2.add_literal(literal{shape{s2.type()}, {1.0}});
+        auto xb       = add_common_op(m2, make_op("mul"), {x, lit1});
+        auto a        = m2.add_instruction(make_op("mul"), x, xb);
+        auto b        = add_common_op(m2, make_op("add"), {a, lit0});
+        auto u        = m2.add_instruction(make_op("mul"), x, b);
+        auto emu      = m2.add_instruction(make_op("exp"), u);
+        auto c        = add_common_op(m2, make_op("add"), {one, emu});
+        auto y        = m2.add_instruction(make_op("div"), x, c);
         m2.add_return({y});
     }
 

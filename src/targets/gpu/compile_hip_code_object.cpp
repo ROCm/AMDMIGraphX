@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -164,9 +164,9 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
     };
 }
 
-std::size_t compute_block_size(std::size_t n, std::size_t max_block_size)
+std::size_t compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size)
 {
-    const std::size_t min_block_size = 64;
+    const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();
     auto block_size                  = (((n - 1) / min_block_size + 1)) * min_block_size;
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
@@ -191,15 +191,16 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     srcs.emplace_back("args.hpp", args_hpp);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
-        options.params += " -fno-offload-uniform-block";
+        options.emplace_param("-fno-offload-uniform-block");
     else
         assert(options.global % options.local == 0);
 
-    options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
-    options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
-    options.params += " " + join_strings(compiler_warnings(), " ");
-    options.params += " -ftemplate-backtrace-limit=0";
-    options.params += " -Werror";
+    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
+    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    const auto& warnings = compiler_warnings();
+    options.params.insert(options.params.end(), warnings.begin(), warnings.end());
+    options.emplace_param("-ftemplate-backtrace-limit=0");
+    options.emplace_param("-Werror");
     auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

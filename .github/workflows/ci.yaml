@@ -35,7 +35,7 @@ jobs:
 
     steps: 
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4.1.1
 
       - name: Create Image Tag
         id: image_hash
@@ -72,7 +72,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists != 'true' }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
 
     - name: Build and publish 
       env:            
@@ -94,7 +94,7 @@ jobs:
     needs: check_image
     if: ${{ needs.check_image.outputs.imageexists_sles != 'true' }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Build and publish SLES
       env:            
         DOCKER_TAG_SLES: ${{ needs.check_image.outputs.imagetag_sles }}
@@ -118,7 +118,7 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps: 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
 
     - name: Restore cache files for tidy
       uses: actions/cache/restore@v3 
@@ -172,7 +172,7 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
 
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
@@ -222,7 +222,7 @@ jobs:
 
     if: ${{ !cancelled() && (needs.build_image.result == 'success' || needs.build_image.result == 'skipped') }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
       with:
         fetch-depth: 0
 
@@ -253,7 +253,7 @@ jobs:
     
     if: ${{ !cancelled() && (needs.build_SLES_image.result == 'success' || needs.build_SLES_image.result == 'skipped') }}      
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
       with:
         fetch-depth: 0
 
@@ -319,7 +319,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -350,7 +350,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -397,7 +397,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -510,7 +510,7 @@ jobs:
         swap-storage: true
         docker-images: true
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4.1.1
     - name: Set up Python
       uses: actions/setup-python@v4
       with:

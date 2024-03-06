@@ -56,11 +56,11 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
     MIGRAPHX_STATIC_ASSERT_FOR(desc.IsValid())
     {
         G::Run(desc,
-            s.scale,
-            to_ck_const_pointer(a.data()),
-            to_ck_const_pointer(b.data()),
-            to_ck_const_pointer(b1.data()),
-            to_ck_pointer(c.data()));
+               s.scale,
+               to_ck_const_pointer(a.data()),
+               to_ck_const_pointer(b.data()),
+               to_ck_const_pointer(b1.data()),
+               to_ck_pointer(c.data()));
     }
 }
 

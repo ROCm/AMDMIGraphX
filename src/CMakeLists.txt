@@ -194,6 +194,7 @@ register_migraphx_ops(
     nonmaxsuppression
     nonzero
     outline
+    pack_int4
     pad
     pointwise
     pooling

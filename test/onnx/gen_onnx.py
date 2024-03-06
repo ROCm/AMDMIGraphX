@@ -2010,7 +2010,7 @@ def dynamicquantizelinear_1d_dot_test():
     y_zero_point = helper.make_tensor_value_info('y_zero_point',
                                                  TensorProto.UINT8, [1])
 
-    y_sub = helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
+    helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
     y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(
@@ -2041,7 +2041,7 @@ def dynamicquantizelinear_2d_dot_test():
     y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
     y_zero_point = helper.make_tensor_value_info('y_zero_point',
                                                  TensorProto.UINT8, [1])
-    y_sub = helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
+    helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
     y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(

@@ -341,6 +341,26 @@ static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
     return sub.axis.empty();
 }
 
+template<class Subs, class F>
+static void for_each_empty_axis(Subs& subs, F f)
+{
+    auto pred = [](const auto& s) 
+    {
+        return s.axis.empty();
+    };
+    // Skip over initial empty axes
+    auto it = std::find_if_not(subs.begin(), subs.end(), pred);
+    if(it == subs.end())
+        return;
+    while(it != subs.end())
+    {
+        auto start = std::find_if(it, subs.end(), pred);
+        it = std::find_if_not(start, subs.end(), pred);
+        f(std::prev(start), start, it);
+    }
+
+}
+
 std::vector<operation> shape_transform_descriptor::generate() const
 {
     std::vector<operation> result;
@@ -391,17 +411,28 @@ std::vector<operation> shape_transform_descriptor::generate() const
         result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
     }
 
+    auto tsubs = subs;
+    // Inject additonal axis to compute transpose permutation better
+    for_each_empty_axis(tsubs, [](auto base, auto start, auto last) {
+        auto axis = base->axis;
+        axis.push_back(0);
+        std::for_each(start, last, [&](auto& s) {
+            s.axis = axis;
+            axis.back()++;
+        });
+    });
+
     auto compare_sub = [](auto f) {
         return by(f, [](const dimension::sub& s) -> const auto& { return s.axis; });
     };
     // Need transpose
-    if(not std::is_sorted(subs.begin(), subs.end(), compare_sub(std::less<>{})))
+    if(not std::is_sorted(tsubs.begin(), tsubs.end(), compare_sub(std::less<>{})))
     {
-        auto permutation = sort_permutation(subs, compare_sub(std::greater<>{}));
-        result.push_back(make_op("transpose", {{"permutation", permutation}}));
-        reorder_dims(subs, invert_permutation(permutation));
+        auto permutation = sort_permutation(tsubs, compare_sub(std::greater<>{}));
+        result.push_back(make_op("transpose", {{"permutation", invert_permutation(permutation)}}));
+        subs = reorder_dims(subs, permutation);
     }
-    // Need reshape unsqeeze
+    // Need reshape unsqueeze
     if(std::any_of(
            subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() != 1; }))
     {

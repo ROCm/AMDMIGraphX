@@ -341,13 +341,10 @@ static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
     return sub.axis.empty();
 }
 
-template<class Subs, class F>
+template <class Subs, class F>
 static void for_each_empty_axis(Subs& subs, F f)
 {
-    auto pred = [](const auto& s) 
-    {
-        return s.axis.empty();
-    };
+    auto pred = [](const auto& s) { return s.axis.empty(); };
     // Skip over initial empty axes
     auto it = std::find_if_not(subs.begin(), subs.end(), pred);
     if(it == subs.end())
@@ -355,10 +352,9 @@ static void for_each_empty_axis(Subs& subs, F f)
     while(it != subs.end())
     {
         auto start = std::find_if(it, subs.end(), pred);
-        it = std::find_if_not(start, subs.end(), pred);
+        it         = std::find_if_not(start, subs.end(), pred);
         f(std::prev(start), start, it);
     }
-
 }
 
 std::vector<operation> shape_transform_descriptor::generate() const

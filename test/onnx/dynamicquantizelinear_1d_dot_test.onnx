@@ -1,9 +1,12 @@
-	!dynamicquantizelinear_1d_dot_test:Ú
+	!dynamicquantizelinear_1d_dot_test:ò
 4
 xyy_scaley_zero_point"DynamicQuantizeLinear
-
+
 y
-yy_dot"MatMul!dynamicquantizelinear_1d_dot_testZ
+yy_sub"Sub
+
+y
+y_suby_dot"MatMul!dynamicquantizelinear_1d_dot_testZ
 x
 
 

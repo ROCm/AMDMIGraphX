@@ -81,7 +81,7 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_test)
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
 }
 
-/* TEST_CASE(dynamicquantizelinear_1d_dot_simplify_test)
+TEST_CASE(dynamicquantizelinear_1d_dot_simplify_test)
 {
     auto p   = migraphx::parse_onnx("dynamicquantizelinear_1d_dot_test.onnx");
     auto* mm = p.get_main_module();
@@ -137,4 +137,4 @@ TEST_CASE(dynamicquantizelinear_1d_max_adjusted_dot_simplify_test)
     results.at(2).visit([&](auto output) { y_zpt.assign(output.begin(), output.end()); });
     std::vector<int8_t> y_zpt_gold = {127};
     EXPECT(migraphx::verify::verify_rms_range(y_zpt, y_zpt_gold));
-} */
+}

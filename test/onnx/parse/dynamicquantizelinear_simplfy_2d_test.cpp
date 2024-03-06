@@ -72,7 +72,8 @@ TEST_CASE(dynamicquantizelinear_simplify_2d_test)
     auto y_out =
         mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
 
-    mm->add_instruction(migraphx::make_op("dot"), y_out, y_out);
+    auto sub = mm->add_instruction(migraphx::make_op("sub"), y_out, y_out);
+    mm->add_instruction(migraphx::make_op("dot"), y_out, sub);
 
     auto prog = optimize_onnx("dynamicquantizelinear_2d_dot_test.onnx");
     auto* m   = prog.get_main_module();

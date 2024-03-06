@@ -2010,6 +2010,7 @@ def dynamicquantizelinear_1d_dot_test():
     y_zero_point = helper.make_tensor_value_info('y_zero_point',
                                                  TensorProto.UINT8, [1])
 
+    y_sub = helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
     y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(
@@ -2018,13 +2019,19 @@ def dynamicquantizelinear_1d_dot_test():
         outputs=['y', 'y_scale', 'y_zero_point'],
     )
 
+    node_sub = onnx.helper.make_node(
+        'Sub',
+        inputs=['y', 'y'],
+        outputs=['y_sub'],
+    )
+
     node_dot = onnx.helper.make_node(
         'MatMul',
-        inputs=['y', 'y'],
+        inputs=['y', 'y_sub'],
         outputs=['y_dot'],
     )
 
-    return ([node, node_dot], [x], [y, y_scale, y_zero_point, y_dot])
+    return ([node, node_sub, node_dot], [x], [y, y_scale, y_zero_point, y_dot])
 
 
 @onnx_test()
@@ -2034,6 +2041,7 @@ def dynamicquantizelinear_2d_dot_test():
     y_scale = helper.make_tensor_value_info('y_scale', TensorProto.FLOAT, [1])
     y_zero_point = helper.make_tensor_value_info('y_zero_point',
                                                  TensorProto.UINT8, [1])
+    y_sub = helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
     y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(
@@ -2042,13 +2050,19 @@ def dynamicquantizelinear_2d_dot_test():
         outputs=['y', 'y_scale', 'y_zero_point'],
     )
 
+    node_sub = onnx.helper.make_node(
+        'Sub',
+        inputs=['y', 'y'],
+        outputs=['y_sub'],
+    )
+
     node_dot = onnx.helper.make_node(
         'MatMul',
-        inputs=['y', 'y'],
+        inputs=['y', 'y_sub'],
         outputs=['y_dot'],
     )
 
-    return ([node, node_dot], [x], [y, y_scale, y_zero_point, y_dot])
+    return ([node, node_sub, node_dot], [x], [y, y_scale, y_zero_point, y_dot])
 
 
 @onnx_test()

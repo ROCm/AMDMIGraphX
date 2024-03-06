@@ -84,18 +84,18 @@ rocblas_datatype get_type(shape::type_t type)
 }
 
 // Convert hipBLAS datatypes to equivalent Migraphx data types
-hipblasltDatatype_t get_type_hipblas(shape::type_t type)
+hipDataType get_type_hipblas(shape::type_t type)
 {
     switch(type)
     {
-    case shape::double_type: return HIPBLASLT_R_64F;
-    case shape::float_type: return HIPBLASLT_R_32F;
-    case shape::half_type: return HIPBLASLT_R_16F;
-    case shape::int8_type: return HIPBLASLT_R_8I;
-    case shape::uint8_type: return HIPBLASLT_R_8U;
-    case shape::int32_type: return HIPBLASLT_R_32I;
-    case shape::uint32_type: return HIPBLASLT_R_32U;
-    case shape::fp8e4m3fnuz_type: return HIPBLASLT_R_8F_E4M3;
+    case shape::double_type: return HIP_R_64F;
+    case shape::float_type: return HIP_R_32F;
+    case shape::half_type: return HIP_R_16F;
+    case shape::int8_type: return HIP_R_8I;
+    case shape::uint8_type: return HIP_R_8U;
+    case shape::int32_type: return HIP_R_32I;
+    case shape::uint32_type: return HIP_R_32U;
+    case shape::fp8e4m3fnuz_type: return HIP_R_8F_E4M3_FNUZ;
     case shape::tuple_type:
     case shape::bool_type:
     case shape::uint16_type:
@@ -365,7 +365,7 @@ struct gemm_impl
             }
         }
 
-        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(&hipblaslt_desc, HIPBLASLT_COMPUTE_F32, HIPBLASLT_R_32F));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(&hipblaslt_desc, HIPBLAS_COMPUTE_32F, HIP_R_32F));
         CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(
             hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSA, &op_A, sizeof(int32_t)));
         CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(
@@ -691,7 +691,7 @@ struct gemm_impl
                     dtype,
                     dtype,
                     dtype,
-                    HIPBLASLT_COMPUTE_F32,
+                    HIPBLAS_COMPUTE_32F,
                     result
                     );
     }
@@ -785,7 +785,7 @@ struct gemm_impl
                     dtype,
                     dtype,
                     dtype,
-                    HIPBLASLT_COMPUTE_F32,
+                    HIPBLAS_COMPUTE_32F,
                     result
                     );
 #else
@@ -912,7 +912,7 @@ struct gemm_impl
     bool compute_fp32             = true;
 
     // hipblaslt
-    hipblasltDatatype_t dtype;
+    hipDataType dtype;
     hipblasLtMatmulDesc_t hipblaslt_desc;
     hipblasOperation_t op_A;
     hipblasOperation_t op_B;

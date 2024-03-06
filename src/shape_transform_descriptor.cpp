@@ -310,13 +310,13 @@ void shape_transform_descriptor::simplify()
         auto next_axis    = p.second;
         if(next_axis == rank)
         {
-            auto[sub, it] = find_subdimension(
+            auto [sub, it] = find_subdimension(
                 *this, [&](const dimension::sub& s) { return s.axis == last_axis; });
             sub->insert(std::next(it), dimension::sub{1, {missing_axis}});
         }
         else
         {
-            auto[sub, it] = find_subdimension(*this, [&](const dimension::sub& s) {
+            auto [sub, it] = find_subdimension(*this, [&](const dimension::sub& s) {
                 if(s.axis.empty())
                     return false;
                 if(s.axis.front() != next_axis)

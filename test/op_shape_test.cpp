@@ -2279,6 +2279,52 @@ TEST_CASE(nms_shape)
                  score_thres_s);
 }
 
+TEST_CASE(pack_int4)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 8}};
+    expect_shape(output, migraphx::make_op("pack_int4"), input);
+}
+
+TEST_CASE(pack_int4_axis1)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(pack_int4_axis2)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", -3}}), input);
+}
+
+TEST_CASE(pack_int4_invalid_axis)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 4}}), input);
+}
+
+TEST_CASE(pack_int4_nonstandard)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 8, 16, 4}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(pack_int4_invalid_dtype)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(pack_int4_odd_lengths)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {3, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
+}
+
 TEST_CASE(pad_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
@@ -2722,13 +2768,6 @@ void test_reduce_ops(const std::string& name)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
-                     migraphx::make_op(name),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
                      migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}),
                      input);
     }
@@ -2776,12 +2815,11 @@ void test_dyn_reduce_ops(const std::string& name)
             input);
     }
     {
-        // Empty axis argument reduces all axes
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
         expect_shape(
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {1, 1}})},
-            migraphx::make_op(name),
+            migraphx::make_op(name, {{"axes", {0, 1}}}),
             input);
     }
     {
@@ -2790,15 +2828,40 @@ void test_dyn_reduce_ops(const std::string& name)
     }
 }
 
+void test_reduce_ops_variable_axes(const std::string& name)
+{
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
+        migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+        migraphx::shape expected_shape{migraphx::shape::float_type, {{1, 2}, {1, 3}, {1, 4}}};
+        expect_shape(expected_shape, migraphx::make_op(name), input_shape, axes_shape);
+    }
+
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {{2, 3}, {3, 4}}};
+        migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+        migraphx::shape expected_shape{migraphx::shape::float_type, {{1, 3}, {1, 4}}};
+        expect_shape(expected_shape, migraphx::make_op(name), input_shape, axes_shape);
+    }
+}
+
 TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_min) { test_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
+
+TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
+TEST_CASE(reduce_min_variable_axes) { test_reduce_ops_variable_axes("reduce_min"); }
+TEST_CASE(reduce_mean_variable_axes) { test_reduce_ops_variable_axes("reduce_mean"); }
+TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_prod"); }
+TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
 
 TEST_CASE(reshape_shape)
 {

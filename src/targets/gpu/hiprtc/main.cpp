@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,11 +31,22 @@
 #include <iostream>
 #include <cstring>
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 std::vector<char> read_stdin()
 {
+#ifdef _WIN32
+    // Set stream translation mode to BINARY to suppress translations.
+    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/setmode?view=msvc-170
+    auto old_mode = _setmode(_fileno(stdin), _O_BINARY);
+    if(old_mode == -1)
+        MIGRAPHX_THROW(std::strerror(errno));
+#endif
     std::vector<char> result;
-
-    std::array<char, 1024> buffer;
+    std::array<char, 1024> buffer{};
     std::size_t len = 0;
     while((len = std::fread(buffer.data(), 1, buffer.size(), stdin)) > 0)
     {
@@ -44,6 +55,10 @@ std::vector<char> read_stdin()
 
         result.insert(result.end(), buffer.data(), buffer.data() + len);
     }
+#ifdef _WIN32
+    // Reset to the previously set translation mode.
+    _setmode(_fileno(stdin), old_mode);
+#endif
     return result;
 }
 
@@ -58,12 +73,20 @@ int main(int argc, char const* argv[])
         std::exit(0);
     }
     std::string output_name = argv[1];
-
-    auto v = migraphx::from_msgpack(read_stdin());
-    std::vector<migraphx::gpu::hiprtc_src_file> srcs;
-    migraphx::from_value(v.at("srcs"), srcs);
-    auto out = migraphx::gpu::compile_hip_src_with_hiprtc(
-        std::move(srcs), v.at("params").to<std::string>(), v.at("arch").to<std::string>());
-    if(not out.empty())
-        migraphx::write_buffer(output_name, out.front());
+    try
+    {
+        auto v = migraphx::from_msgpack(read_stdin());
+        std::vector<migraphx::gpu::hiprtc_src_file> srcs;
+        migraphx::from_value(v.at("srcs"), srcs);
+        auto out =
+            migraphx::gpu::compile_hip_src_with_hiprtc(std::move(srcs),
+                                                       v.at("params").to_vector<std::string>(),
+                                                       v.at("arch").to<std::string>());
+        if(not out.empty())
+            migraphx::write_buffer(output_name, out.front());
+    }
+    catch(const std::exception& err)
+    {
+        std::cout << err.what() << std::endl;
+    }
 }

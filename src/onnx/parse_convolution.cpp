@@ -150,6 +150,17 @@ struct parse_convolution : op_parser<parse_convolution>
         recalc_conv_attributes(values, kdims);
 
         op.from_value(values);
+        std::cout << "--activation ";
+        for(const auto& i : l0->get_shape().lens())
+        {
+            std::cout << i << " ";
+        }
+        std::cout << "--filter ";
+        for(const auto& i : weights->get_shape().lens())
+        {
+            std::cout << i << " ";
+        }
+        values.debug_print();
         auto l1 = info.add_instruction(op, l0, args[1]);
         return info.add_bias(args, l1, 1);
     }

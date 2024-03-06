@@ -17,7 +17,7 @@ RUN git clone https://github.com/RadeonOpenCompute/rocm-cmake.git \
     && cmake .. && cmake --build . --target install
 
 # install migraphx
-RUN git clone --single-branch --branch sdxl_perf --recursive https://github.com/ROCm/AMDMIGraphX.git \
+RUN git clone --single-branch --branch sdxl_perf_3-6 --recursive https://github.com/ROCm/AMDMIGraphX.git \
     && cd AMDMIGraphX \
     && rbuild build -d depend -DBUILD_TESTING=Off -DCMAKE_INSTALL_PREFIX=/opt/rocm/ --cxx=/opt/rocm/llvm/bin/clang++ -DGPU_TARGETS=${GPU_ARCH} \
     && cd build && make install

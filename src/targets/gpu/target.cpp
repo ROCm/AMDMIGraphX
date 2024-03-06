@@ -211,15 +211,7 @@ argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
 
-#ifndef _WIN32
-MIGRAPHX_REGISTER_TARGET(target);
-#else
-MIGRAPHX_GPU_EXPORT extern "C" void register_target()
-{
-    static target t;
-    migraphx::register_target(t);
-}
-#endif
+MIGRAPHX_REGISTER_TARGET(MIGRAPHX_GPU_EXPORT, target);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

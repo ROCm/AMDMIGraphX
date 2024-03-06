@@ -25,25 +25,29 @@
 #include <migraphx/target.hpp>
 #include "test.hpp"
 
+bool verify_target(std::string_view name)
+{
+    auto t = migraphx::make_target(name);
+    return t.name() == name;
+}
+
 TEST_CASE(make_target)
 {
-    for(const auto& name : migraphx::get_targets())
-    {
-        auto t = migraphx::make_target(name);
-        CHECK(t.name() == name);
-    }
+    CHECK(verify_target("ref"));
+#ifdef HAVE_CPU
+    CHECK(verify_target("cpu"));
+#endif
+#ifdef HAVE_GPU
+    CHECK(verify_target("gpu"));
+#endif
+#ifdef HAVE_FPGA
+    CHECK(verify_target("fpga"));
+#endif
 }
 
 TEST_CASE(make_invalid_target)
 {
     EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
-}
-
-TEST_CASE(targets)
-{
-    auto ref_target = migraphx::make_target("ref");
-    auto ts = migraphx::get_targets();
-    EXPECT(ts.size() >= 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

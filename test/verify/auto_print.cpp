@@ -36,8 +36,16 @@ using handler_map = std::map<std::string, std::function<void()>>;
 static handler_map create_handlers()
 {
     handler_map m;
-    for(const auto& name : migraphx::get_targets())
-        m[name] = [] {};
+    m["ref"] = [] {};
+#ifdef HAVE_CPU
+    m["cpu"] = [] {};
+#endif
+#ifdef HAVE_GPU
+    m["gpu"] = [] {};
+#endif
+#ifdef HAVE_FPGA
+    m["fpga"] = [] {};
+#endif
     return m;
 }
 
@@ -64,8 +72,16 @@ void auto_print::set_terminate_handler(const std::string& name)
             std::cout << "    what(): " << e.what() << std::endl;
         }
         std::cout << std::endl;
-        for(const auto& tname : migraphx::get_targets())
-            get_handler(tname)();
+        get_handler("ref")();
+#ifdef HAVE_CPU
+        get_handler("cpu")();
+#endif
+#ifdef HAVE_GPU
+        get_handler("gpu")();
+#endif
+#ifdef HAVE_FPGA
+        get_handler("fpga")();
+#endif
     });
 }
 
@@ -83,8 +99,16 @@ auto_print::~auto_print()
     if(in_exception())
     {
         std::cout << std::endl;
-        for(const auto& tname : migraphx::get_targets())
-            get_handler(tname)();
+        get_handler("ref")();
+#ifdef HAVE_CPU
+        get_handler("cpu")();
+#endif
+#ifdef HAVE_GPU
+        get_handler("gpu")();
+#endif
+#ifdef HAVE_FPGA
+        get_handler("fpga")();
+#endif
     }
     get_handler(name) = [] {};
 }

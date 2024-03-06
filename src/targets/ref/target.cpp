@@ -59,15 +59,7 @@ std::vector<pass> target::get_passes(migraphx::context&, const compile_options&)
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-#ifndef _WIN32
-MIGRAPHX_REGISTER_TARGET(target);
-#else
-MIGRAPHX_REF_EXPORT extern "C" void register_target()
-{
-    static target t;
-    migraphx::register_target(t);
-}
-#endif
+MIGRAPHX_REGISTER_TARGET(MIGRAPHX_REF_EXPORT, target);
 
 } // namespace ref
 } // namespace MIGRAPHX_INLINE_NS

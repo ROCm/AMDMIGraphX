@@ -33,10 +33,6 @@
 #include <migraphx/cpu/target.hpp>
 #endif
 
-#ifdef _WIN32
-#include <migraphx/register_target.hpp>
-#endif
-
 inline void check_gpu_streams(const migraphx::program& p)
 {
 #ifdef HAVE_GPU
@@ -69,14 +65,6 @@ void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
 
 int main(int argc, const char* argv[])
 {
-#ifdef _WIN32
-#ifdef HAVE_CPU
-    migraphx::make_target("cpu");
-#endif
-#ifdef HAVE_GPU
-    migraphx::make_target("gpu");
-#endif
-#endif
     run_verify rv;
     rv.add_validation_for("gpu", &validate_gpu);
     rv.disable_test_for("cpu", {

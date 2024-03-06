@@ -114,15 +114,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
 
-#ifndef _WIN32
-MIGRAPHX_REGISTER_TARGET(target);
-#else
-MIGRAPHX_CPU_EXPORT extern "C" void register_target()
-{
-    static target t;
-    migraphx::register_target(t);
-}
-#endif
+MIGRAPHX_REGISTER_TARGET(MIGRAPHX_CPU_EXPORT, target);
 
 } // namespace cpu
 } // namespace MIGRAPHX_INLINE_NS

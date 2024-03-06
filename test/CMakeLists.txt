@@ -39,6 +39,7 @@ foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     rocm_add_test_executable(test_${BASE_NAME} ${TEST})
     rocm_clang_tidy_check(test_${BASE_NAME})
+    target_link_libraries(test_${BASE_NAME} migraphx_all_targets)
 endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)

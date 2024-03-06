@@ -184,19 +184,29 @@ void run_verify::verify(const program_info& pi) const
         migraphx::save(p, name + ".mxr");
     verify_load_save(p);
     std::vector<std::string> target_names;
-    for(const auto& tname : migraphx::get_targets())
+    // if tests disabled, skip running it
+#ifdef HAVE_CPU
     {
-        // TODO(varunsh): once verify tests can run, remove fpga
-        if(tname == "ref" or tname == "fpga")
-            continue;
-
-        // if tests disabled, skip running it
-        target_info ti = get_target_info(tname);
-        if(migraphx::contains(ti.disabled_tests, name))
-            continue;
-
-        target_names.push_back(tname);
+        target_info ti = get_target_info("cpu");
+        if(not migraphx::contains(ti.disabled_tests, name))
+            target_names.emplace_back("cpu");
     }
+#endif
+#ifdef HAVE_GPU
+    {
+        target_info ti = get_target_info("gpu");
+        if(not migraphx::contains(ti.disabled_tests, name))
+            target_names.emplace_back("gpu");
+    }
+#endif
+    // TODO(varunsh): once verify tests can run, enable fpga
+    // #ifdef HAVE_FPGA
+    //    {
+    //        target_info ti = get_target_info("fpga");
+    //        if(not migraphx::contains(ti.disabled_tests, name))
+    //            target_names.emplace_back("fpga");
+    //    }
+    // #endif
     if(not target_names.empty())
     {
         std::vector<std::pair<std::string, result_future>> results;

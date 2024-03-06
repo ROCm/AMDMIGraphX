@@ -127,6 +127,10 @@ Disables use of the rocMLIR library.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``hip_copy_literal{}``.
 
+.. envvar:: MIGRAPHX_ENABLE_RMSNORM_FP16_REWRITE
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enables RMSNorm to be converted to fp32 precision to handle large numbers.
+
 Compilation traces
 ----------------------
 

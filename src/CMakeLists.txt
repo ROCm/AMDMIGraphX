@@ -98,6 +98,7 @@ add_library(migraphx
     rewrite_gelu.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
+    rewrite_rmsnorm.cpp
     rewrite_rnn.cpp
     schedule.cpp
     serialize.cpp

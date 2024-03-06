@@ -244,7 +244,7 @@ static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
     {
         auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), p);
         if(it != d.subdimensions.end())
-            return std::make_tuple(std::ref(d.subdimensions), it);
+            return std::make_tuple(&d.subdimensions, it);
     }
     MIGRAPHX_THROW("Searching for non-existent subdimension");
 }
@@ -310,13 +310,13 @@ void shape_transform_descriptor::simplify()
         auto next_axis    = p.second;
         if(next_axis == rank)
         {
-            auto x = find_subdimension(
+            auto[sub, it] = find_subdimension(
                 *this, [&](const dimension::sub& s) { return s.axis == last_axis; });
-            std::get<0>(x).insert(std::next(std::get<1>(x)), dimension::sub{1, {missing_axis}});
+            sub->insert(std::next(it), dimension::sub{1, {missing_axis}});
         }
         else
         {
-            auto x = find_subdimension(*this, [&](const dimension::sub& s) {
+            auto[sub, it] = find_subdimension(*this, [&](const dimension::sub& s) {
                 if(s.axis.empty())
                     return false;
                 if(s.axis.front() != next_axis)
@@ -326,7 +326,7 @@ void shape_transform_descriptor::simplify()
                 assert(s.axis.size() == 2);
                 return s.axis.back() == 0;
             });
-            std::get<0>(x).insert(std::get<1>(x), dimension::sub{1, {missing_axis}});
+            sub->insert(it, dimension::sub{1, {missing_axis}});
         }
     }
 }

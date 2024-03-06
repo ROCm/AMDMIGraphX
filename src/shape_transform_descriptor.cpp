@@ -424,7 +424,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
     // Need transpose
     if(not std::is_sorted(tsubs.begin(), tsubs.end(), compare_sub(std::less<>{})))
     {
-        auto permutation = sort_permutation(tsubs, compare_sub(std::greater<>{}));
+        auto permutation = sort_permutation(tsubs, compare_sub(std::less<>{}));
         result.push_back(make_op("transpose", {{"permutation", invert_permutation(permutation)}}));
         subs = reorder_dims(subs, permutation);
     }

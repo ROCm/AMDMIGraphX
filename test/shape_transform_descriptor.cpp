@@ -98,6 +98,18 @@ TEST_CASE(record_multibroadcast)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
+TEST_CASE(optimize_transpose_transpose)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {3, 5, 2},
+               {
+                   make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                   make_op("transpose", {{"permutation", {1, 0, 2}}}),
+               }) == ops{
+                         make_op("transpose", {{"permutation", {2, 0, 1}}}),
+                     });
+}
+
 TEST_CASE(optimize_multibroadcast_transpose_reshape)
 {
     EXPECT(migraphx::optimize_shape_transforms(

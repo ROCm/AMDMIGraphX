@@ -53,14 +53,15 @@ __device__ void ck_gemm_softmax_gemm_matrix(C c, A a, B b, B1 b1, Settings s)
                                              to_ck_tensor<ck_transposeb<B1>>(),
                                              to_ck_tensor<C>());
 
-    static_assert(desc.IsValid(), "Invalid ck gemm.");
-
-    G::Run(desc,
-           s.scale,
-           to_ck_const_pointer(a.data()),
-           to_ck_const_pointer(b.data()),
-           to_ck_const_pointer(b1.data()),
-           to_ck_pointer(c.data()));
+    MIGRAPHX_STATIC_ASSERT_FOR(desc.IsValid())
+    {
+        G::Run(desc,
+            s.scale,
+            to_ck_const_pointer(a.data()),
+            to_ck_const_pointer(b.data()),
+            to_ck_const_pointer(b1.data()),
+            to_ck_pointer(c.data()));
+    }
 }
 
 template <class G, index_int BlocksPerBatch, class... Ts, class Settings>

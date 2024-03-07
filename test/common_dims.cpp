@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,12 +34,27 @@ TEST_CASE(common_d1_less)
     EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3}});
 }
 
+void verify_common(const migraphx::common_dims& cd)
+{
+    EXPECT(cd.get_dimensions_for({2, 32, 40, 8, 8}) == std::vector<std::size_t>{2, 32, 40, 8, 8});
+    EXPECT(cd.get_dimensions_for({64, 2560}) == std::vector<std::size_t>{2, 32, 40, 8, 8});
+    EXPECT(cd.get_dimensions_for({2, 32, 1}) == std::vector<std::size_t>{2, 32, 1, 1, 1});
+    EXPECT(cd.get_dimensions_for({2, 1, 2560}) == std::vector<std::size_t>{2, 1, 40, 8, 8});
+    EXPECT(cd.get_dimensions_for({2, 8, 2560}) == std::vector<std::size_t>{2, 8, 40, 8, 8});
+    EXPECT(cd.get_dimensions_for({2, 1, 8, 8}) == std::vector<std::size_t>{2, 1, 1, 8, 8});
+    EXPECT(cd.get_dimensions_for({2, 32, 8}).empty());
+    EXPECT(cd.get_dimensions_for({2, 8, 8, 8}).empty());
+    EXPECT(cd.get_dimensions_for({2, 1, 40, 8, 8}) == std::vector<std::size_t>{2, 1, 40, 8, 8});
+    EXPECT(cd.get_dimensions_for({2, 32, 256, 8, 8}) == std::vector<std::size_t>{2, 32, 256, 8, 8});
+}
+
 TEST_CASE(common1)
 {
     auto cd = migraphx::common_dims::compute({2, 32, 2560}, {2, 1280, 8, 8});
     EXPECT(cd.dims == std::vector<std::size_t>{2, 32, 40, 8, 8});
     EXPECT(cd.axes_map1 == axes_map{{0}, {1}, {2, 3, 4}});
     EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3}, {4}});
+    verify_common(cd);
 }
 
 TEST_CASE(common2)
@@ -48,6 +63,17 @@ TEST_CASE(common2)
     EXPECT(cd.dims == std::vector<std::size_t>{2, 32, 40, 8, 8});
     EXPECT(cd.axes_map1 == axes_map{{0}, {1, 2}, {3}, {4}});
     EXPECT(cd.axes_map2 == axes_map{{0}, {1}, {2, 3, 4}});
+    verify_common(cd);
+}
+
+TEST_CASE(common_same_dims)
+{
+    auto cd = migraphx::common_dims::compute({{2, 32, 4}}, {64, 2, 2});
+    EXPECT(cd.dims == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({64, 2, 2}) == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({2, 32, 4}) == std::vector<std::size_t>{2, 32, 2, 2});
+    EXPECT(cd.get_dimensions_for({2, 32, 1}).empty());
+    EXPECT(cd.get_dimensions_for({64, 2, 1}).empty());
 }
 
 TEST_CASE(common_error1)

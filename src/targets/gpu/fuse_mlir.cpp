@@ -110,11 +110,20 @@ struct mlir_op
         std::sort(mod_params.begin(), mod_params.end());
         std::unordered_map<instruction_ref, shape> mod_ins_shapes;
         std::unordered_map<std::string, shape> adjusted_mod_param_shapes;
+        std::cout << "input shapes\n";
+        for(const auto& i:inputs) {
+            std::cout << i << std::endl;
+        }
+        std::cout << "mod param names\n";
+        for(const auto& i : mod_params) {
+            std::cout << i << std::endl;
+        }
         std::transform(inputs.begin(),
                        inputs.end(),
                        mod_params.begin(),
                        std::inserter(adjusted_mod_param_shapes, adjusted_mod_param_shapes.end()),
                        [](auto ps, auto name) { return std::make_pair(name, ps); });
+        mod->debug_print();
         for(auto ins : iterator_for(*mod))
         {
             if(ins->name() == "@param")
@@ -416,6 +425,8 @@ struct find_mlir_fused_ops
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input after contiguous
         auto* pm           = ins->module_inputs().front();
+        std::cout  << "inside mather\n";
+        pm->debug_print();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
@@ -425,11 +436,27 @@ struct find_mlir_fused_ops
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
+        std::cout << "pointwise inputs\n";
+        for(const auto& i : ins->inputs()) {
+            i->debug_print();
+        }
+        std::cout  << "\n";
+
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op; });
+                     [&](auto input) { 
+                        if(input->name() == "contiguous" and input->inputs().front() == gemm_based_op) {
+                            return false;
+                     }
+                     return input != gemm_based_op;
+                     });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
+        std::cout << "top inputs\n";
+        for(const auto& i : top_inputs) {
+            i->debug_print();
+        }
+        std::cout  << "\n";
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
     }

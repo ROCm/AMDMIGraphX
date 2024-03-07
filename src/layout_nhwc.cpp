@@ -108,7 +108,7 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
     transform_convolutions(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
-    mpm.run_pass(eliminate_contiguous{"contiguous"});
+    //mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
     remove_layout(mpm.get_module(), output_layouts);
     mpm.run_pass(dead_code_elimination{});

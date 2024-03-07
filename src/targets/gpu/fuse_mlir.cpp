@@ -269,7 +269,28 @@ auto is_mlir_conv(mlir_mode mode)
             return true;
         if(w.lens()[2] != w.lens()[3])
             return true;
-        return (w.lens()[3] % 3) != 0;
+        bool is_winograd = ((w.lens()[3] % 3) == 0);
+        if(not is_winograd)
+        {
+            return true;
+        }
+        else
+        {
+            auto padding = v["padding"].to_vector<size_t>();
+            // if padding is not (1, 1), use MLIR
+            if(not std::any_of(padding.begin(), padding.end(), [](const auto& pad_value) {
+                   return pad_value != 1;
+               }))
+            {
+                return true;
+            }
+            // if C * H * W < (2 ^ 20) use MLIR
+            if(input.lens().at(1) * input.lens().at(2) * input.lens().at(3) < std::pow(2, 20))
+            {
+                return true;
+            }
+        }
+        return false; 
     });
 }
 

@@ -25,7 +25,7 @@
 #include <migraphx/target.hpp>
 #include "test.hpp"
 
-bool verify_target(std::string_view name)
+bool verify_target(const std::string& name)
 {
     auto t = migraphx::make_target(name);
     return t.name() == name;

@@ -213,7 +213,7 @@ argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
 
-MIGRAPHX_REGISTER_TARGET(MIGRAPHX_GPU_EXPORT, target);
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

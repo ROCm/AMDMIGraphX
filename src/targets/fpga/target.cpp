@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 #include <migraphx/fpga/target.hpp>
 #include <migraphx/fpga/lowering.hpp>
 #include <migraphx/fpga/subgraph.hpp>
-#include <migraphx/fpga/export.h>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>
@@ -77,7 +76,7 @@ supported_segments target::find_supported(const_module_ref mod, support_metric m
     return {instrs};
 }
 
-MIGRAPHX_REGISTER_TARGET(MIGRAPHX_FPGA_EXPORT, target);
+MIGRAPHX_REGISTER_TARGET(target);
 
 } // namespace fpga
 } // namespace MIGRAPHX_INLINE_NS

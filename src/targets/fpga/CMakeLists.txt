@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -28,8 +28,6 @@ add_library(migraphx_fpga
     subgraph.cpp
     vitis_ai_adapter.cpp
 )
-
-migraphx_generate_export_header(migraphx_fpga)
 
 set_target_properties(migraphx_fpga PROPERTIES EXPORT_NAME fpga)
 rocm_set_soversion(migraphx_fpga ${MIGRAPHX_SO_VERSION})

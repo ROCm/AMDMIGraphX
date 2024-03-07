@@ -35,8 +35,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_EXPORT void register_target(const target& t);
-MIGRAPHX_EXPORT void unregister_target(std::string_view name);
-MIGRAPHX_EXPORT target make_target(std::string_view name);
+MIGRAPHX_EXPORT void unregister_target(const std::string& name);
+MIGRAPHX_EXPORT target make_target(const std::string& name);
 
 namespace detail {
 struct target_handler
@@ -55,8 +55,16 @@ void register_target()
     register_target(t_h.t);
 }
 
-#define MIGRAPHX_REGISTER_TARGET(_EXPORT_MACRO, ...) \
-    _EXPORT_MACRO extern "C" void register_target() { migraphx::register_target<__VA_ARGS__>(); }
+struct register_target_action
+{
+    template <class T>
+    static void apply()
+    {
+        register_target<T>();
+    }
+};
+
+#define MIGRAPHX_REGISTER_TARGET(...) MIGRAPHX_AUTO_REGISTER(register_target_action, __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

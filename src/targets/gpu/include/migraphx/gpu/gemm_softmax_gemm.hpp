@@ -70,7 +70,7 @@ struct gemm_softmax_gemm
         if(is_bias_enabled)
         {
             auto bias_shape = inputs[2];
-            if(bias_shape != gemm0_shape)
+            if(bias_shape.lens() != gemm0_shape.lens())
             {
                 std::stringstream err_msg;
                 err_msg << name() << ": has inconsistent bias size"

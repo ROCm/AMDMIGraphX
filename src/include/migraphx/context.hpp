@@ -32,6 +32,7 @@
 #include <utility>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/argument.hpp>
 #include <migraphx/any_ptr.hpp>
 
 namespace migraphx {
@@ -77,6 +78,17 @@ void finish_on_context(T&, any_ptr)
 {
 }
 
+template <class T, class... Ts>
+void nop_context(T&, Ts&&...)
+{
+}
+
+template <class T>
+std::function<std::vector<argument>()> get_capture_context(T&)
+{
+    return nullptr;
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -92,6 +104,12 @@ struct MIGRAPHX_EXPORT context
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    void start_capture();
+    // (optional)
+    void end_capture(const std::vector<argument>& args);
+    // (optional)
+    std::function<std::vector<argument>()> get_capture();
     //
     void finish() const;
 };
@@ -191,6 +209,24 @@ struct context
         (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
+    void start_capture()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().start_capture();
+    }
+
+    void end_capture(const std::vector<argument>& args)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().end_capture(args);
+    }
+
+    std::function<std::vector<argument>()> get_capture()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_capture();
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -210,12 +246,15 @@ struct context
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual value to_value() const          = 0;
-        virtual void from_value(const value& v) = 0;
-        virtual any_ptr get_queue()             = 0;
-        virtual void wait_for(any_ptr queue)    = 0;
-        virtual void finish_on(any_ptr queue)   = 0;
-        virtual void finish() const             = 0;
+        virtual value to_value() const                               = 0;
+        virtual void from_value(const value& v)                      = 0;
+        virtual any_ptr get_queue()                                  = 0;
+        virtual void wait_for(any_ptr queue)                         = 0;
+        virtual void finish_on(any_ptr queue)                        = 0;
+        virtual void start_capture()                                 = 0;
+        virtual void end_capture(const std::vector<argument>& args)  = 0;
+        virtual std::function<std::vector<argument>()> get_capture() = 0;
+        virtual void finish() const                                  = 0;
     };
 
     template <class T>
@@ -286,6 +325,50 @@ struct context
         finish_on_context(private_detail_te_self, queue);
     }
 
+    template <class T>
+    static auto private_detail_te_default_start_capture(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.start_capture())
+    {
+        private_detail_te_self.start_capture();
+    }
+
+    template <class T>
+    static void private_detail_te_default_start_capture(float, T&& private_detail_te_self)
+    {
+        nop_context(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_end_capture(char,
+                                                      T&& private_detail_te_self,
+                                                      const std::vector<argument>& args)
+        -> decltype(private_detail_te_self.end_capture(args))
+    {
+        private_detail_te_self.end_capture(args);
+    }
+
+    template <class T>
+    static void private_detail_te_default_end_capture(float,
+                                                      T&& private_detail_te_self,
+                                                      const std::vector<argument>& args)
+    {
+        nop_context(private_detail_te_self, args);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_get_capture(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_capture())
+    {
+        return private_detail_te_self.get_capture();
+    }
+
+    template <class T>
+    static std::function<std::vector<argument>()>
+    private_detail_te_default_get_capture(float, T&& private_detail_te_self)
+    {
+        return get_capture_context(private_detail_te_self);
+    }
+
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
     {
@@ -342,6 +425,24 @@ struct context
         {
 
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+        }
+
+        void start_capture() override
+        {
+
+            private_detail_te_default_start_capture(char(0), private_detail_te_value);
+        }
+
+        void end_capture(const std::vector<argument>& args) override
+        {
+
+            private_detail_te_default_end_capture(char(0), private_detail_te_value, args);
+        }
+
+        std::function<std::vector<argument>()> get_capture() override
+        {
+
+            return private_detail_te_default_get_capture(char(0), private_detail_te_value);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

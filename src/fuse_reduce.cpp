@@ -32,6 +32,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 #include <map>
 
@@ -100,11 +101,11 @@ get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref s
 }
 
 static void insert_params(module_ref sm,
-                          instruction_ref ins,
+                          const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     auto n = sm->get_parameter_shapes().size();
-    for(auto input : ins->inputs())
+    for(auto input : inputs)
     {
         if(contains(map_ins, input))
             continue;
@@ -117,7 +118,7 @@ static auto insert_ins_in_submodule(module_ref sm,
                                     instruction_ref ins,
                                     std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
-    insert_params(sm, ins, map_ins);
+    insert_params(sm, ins->inputs(), map_ins);
     return sm->add_instructions({ins}, map_ins);
 }
 
@@ -129,17 +130,37 @@ static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
 
 static auto
 insert_module_in_submodule(module_ref sm,
-                           instruction_ref ins,
-                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+                           const std::vector<instruction_ref>& inputs,
+                           module_ref m,
+                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                           module::inserter insert = nullptr)
 {
-    insert_params(sm, ins, map_ins);
-    auto* m        = ins->module_inputs().front();
-    auto param_map = get_ins_param_map(ins->inputs(), m);
+    insert_params(sm, inputs, map_ins);
+    auto param_map = get_ins_param_map(inputs, m);
     for(auto&& [input, param] : param_map)
     {
         map_ins[param] = map_ins.at(input);
     }
-    return sm->add_instructions(m, map_ins);
+    return sm->add_instructions(m, map_ins, std::move(insert));
+}
+
+static auto
+insert_module_in_submodule(module_ref sm,
+                           instruction_ref ins,
+                           std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+                           module::inserter insert = nullptr)
+{
+    return insert_module_in_submodule(
+        sm, ins->inputs(), ins->module_inputs().front(), map_ins, std::move(insert));
+}
+
+static auto insert_module_in_submodule(module_ref sm,
+                                       const std::vector<instruction_ref>& inputs,
+                                       module_ref m,
+                                       module::inserter insert = nullptr)
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    return insert_module_in_submodule(sm, inputs, m, map_ins, std::move(insert));
 }
 
 static std::vector<instruction_ref>
@@ -189,6 +210,32 @@ static void create_reduce_modules(module_pass_manager& mpm)
     }
 }
 
+namespace {
+MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return true;
+    if(ins->outputs().size() == 2)
+    {
+        auto non_broadcast =
+            std::find_if(ins->outputs().begin(), ins->outputs().end(), [](instruction_ref output) {
+                return not contains(output->name(), "broadcast");
+            });
+        if(non_broadcast == ins->outputs().end())
+            return false;
+        return std::count_if(
+            ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+                if(not contains(output->name(), "broadcast"))
+                    return true;
+                if(output->outputs().size() != 1)
+                    return true;
+                return output->outputs().front() != *non_broadcast;
+            });
+    }
+
+    return false;
+}
+} // namespace
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
@@ -204,7 +251,7 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
-    auto match_op                 = match::name(op)(match::used_once()).bind(name);
+    auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
     return match::any_of(match_op_input, broadcast_match_op_input);
@@ -332,6 +379,66 @@ struct find_reduce_reduce
     }
 };
 
+struct reduce_reshape : rewrite_reshapes_base
+{
+    static std::string name() { return "fused_reduce"; }
+
+    template <class Transform>
+    static auto transform_op(Transform t)
+    {
+        return [=](module& m,
+                   instruction_ref ins,
+                   const operation& op,
+                   const std::vector<instruction_ref>& inputs,
+                   const std::vector<module_ref>& mod_args) {
+            auto new_op = t(op);
+            return m.insert_instruction(ins, new_op, inputs, mod_args);
+        };
+    }
+
+    template <class AxesMap>
+    static instruction_ref insert(module_pass_manager& mpm,
+                                  instruction_ref ins,
+                                  const std::vector<instruction_ref>& inputs,
+                                  const AxesMap& am)
+    {
+        auto op = any_cast<fused_reduce>(ins->get_operator());
+        std::vector<int64_t> axes;
+        for(auto axis : op.axes)
+        {
+            auto new_axes = am.at(axis);
+            axes.insert(axes.end(), new_axes.begin(), new_axes.end());
+        }
+        std::sort(axes.begin(), axes.end());
+        auto dims  = base_dims(inputs);
+        auto* oldm = ins->module_inputs().front();
+        auto* sm   = mpm.create_module(oldm->name() + "_reshape");
+        insert_module_in_submodule(
+            sm, inputs, oldm, transform_op([&](const operation& sop) {
+                if(contains(sop.name(), "reduce"))
+                    return make_op(sop.name(), {{"axes", axes}});
+                if(sop.name() == "multibroadcast")
+                    return make_op("multibroadcast", {{"out_lens", dims}});
+                assert(sop.name() == "pointwise");
+                return sop;
+            }));
+        return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
+    }
+
+    static std::vector<std::size_t> base_dims(const std::vector<instruction_ref>& inputs)
+    {
+        auto input = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](auto i) {
+                                          return i->get_shape().elements();
+                                      }));
+        return (*input)->get_shape().lens();
+    }
+
+    static std::vector<std::size_t> base_dims(instruction_ref ins)
+    {
+        return base_dims(ins->inputs());
+    }
+};
+
 } // namespace
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
@@ -340,6 +447,7 @@ void fuse_reduce::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)
     {
+        mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

@@ -46,6 +46,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIP_GRAPH)
 
 struct program_impl;
 
@@ -102,8 +103,11 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
-    void
-    perf_report(std::ostream& os, std::size_t n, parameter_map params, std::size_t batch = 1) const;
+    void perf_report(std::ostream& os,
+                     std::size_t n,
+                     parameter_map params,
+                     std::size_t batch = 1,
+                     bool detailed     = false) const;
 
     void mark(const parameter_map& params, marker&& m);
 

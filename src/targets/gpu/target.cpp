@@ -45,6 +45,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
+#include <migraphx/rewrite_low_precision.hpp>
 #include <migraphx/rewrite_pooling.hpp>
 #include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/rewrite_quantization.hpp>
@@ -154,6 +155,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
         rewrite_reduce{},
+        rewrite_low_precision{},
         dead_code_elimination{},
         optimize_module{},
         fuse_pointwise{},

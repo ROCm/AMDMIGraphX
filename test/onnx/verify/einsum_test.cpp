@@ -629,6 +629,39 @@ TEST_CASE(einsum_3d_diagonal_test)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(einsum_diag_vector_multiply_test)
+{
+    migraphx::program p = migraphx::parse_onnx("einsum_diag_vector_multiply_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape x1_shape{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> x1_data = {0.8628764,
+                                  0.96045198,
+                                  0.14103307,
+                                  0.89249896,
+                                  0.97520951,
+                                  0.7015561,
+                                  0.06408759,
+                                  0.59921615,
+                                  0.76173894};
+
+    migraphx::shape x2_shape{migraphx::shape::float_type, {3}};
+    std::vector<float> x2_data = {0.79284103, 0.61505765, 0.70876231};
+
+    migraphx::parameter_map pm;
+    pm["x1"] = migraphx::argument{x1_shape, x1_data.data()};
+    pm["x2"] = migraphx::argument{x2_shape, x2_data.data()};
+
+    auto result = p.eval(pm).back();
+    EXPECT(result.get_shape() == make_shape({3}));
+
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0.68412382, 0.59981008, 0.53989185};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(einsum_matrix_trace_test)
 {
     migraphx::program p = migraphx::parse_onnx("einsum_matrix_trace_test.onnx");
@@ -1591,5 +1624,54 @@ TEST_CASE(einsum_common_7_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {2.90563922, 2.5946174, 2.82818581, 2.47204655, 2.28814157};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(einsum_common_8_test)
+{
+    migraphx::program p = migraphx::parse_onnx("einsum_common_8_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape x1_shape{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> x1_data = {0.31281588,
+                                  0.34922652,
+                                  0.79181082,
+                                  0.55581571,
+                                  0.34963734,
+                                  0.39777707,
+                                  0.43040396,
+                                  0.19965846,
+                                  0.68818176};
+
+    migraphx::shape x2_shape{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> x2_data = {0.94199384,
+                                  0.06564557,
+                                  0.36439139,
+                                  0.30556677,
+                                  0.25776106,
+                                  0.59531702,
+                                  0.21481152,
+                                  0.09608821,
+                                  0.41203512};
+
+    migraphx::parameter_map pm;
+    pm["x1"] = migraphx::argument{x1_shape, x1_data.data()};
+    pm["x2"] = migraphx::argument{x2_shape, x2_data.data()};
+
+    auto result = p.eval(pm).back();
+    EXPECT(result.get_shape() == make_shape({3, 3}));
+
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0.29467063,
+                               0.08063175,
+                               0.12889113,
+                               0.32935622,
+                               0.09012289,
+                               0.14406286,
+                               0.64826297,
+                               0.17738646,
+                               0.28355505};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -2227,6 +2227,20 @@ def einsum_3d_diagonal_test():
 
 
 @onnx_test()
+def einsum_diag_vector_multiply_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+ 
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,i->i')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
 def einsum_matrix_trace_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
@@ -2517,6 +2531,20 @@ def einsum_common_7_test():
                                  equation='...j->...')
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def einsum_common_8_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+ 
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj->ij')
+
+    return ([node], [x1, x2], [y])
 
 
 @onnx_test()

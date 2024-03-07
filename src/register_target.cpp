@@ -31,18 +31,10 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void store_target_lib(const fs::path& target_name, const dynamic_loader& lib)
+void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
-    try
-    {
-        lib.get_function<void()>("register_target")();
-        target_loader.emplace_back(lib);
-    }
-    catch(const std::runtime_error& err)
-    {
-        std::cerr << "Not a target library: " << target_name << "\n  " << err.what() << std::endl;
-    }
+    target_loader.emplace_back(lib);
 }
 
 std::unordered_map<std::string, target>& target_map()
@@ -51,22 +43,22 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
-void unregister_target(std::string_view name)
+void unregister_target(const std::string& name)
 {
     assert(target_map().count(name));
-    target_map().erase(std::string{name});
+    target_map().erase(name);
 }
 
 void register_target(const target& t) { target_map()[t.name()] = t; }
 
-target make_target(std::string_view name)
+target make_target(const std::string& name)
 {
-    if(not contains(target_map(), name.data()))
+    if(not contains(target_map(), name))
     {
         auto target_name = make_shared_object_filename("migraphx_" + name);
-        store_target_lib(target_name, dynamic_loader(target_name));
+        store_target_lib(dynamic_loader(target_name));
     }
-    const auto it = target_map().find(name.data());
+    const auto it = target_map().find(name);
     if(it == target_map().end())
     {
         MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");

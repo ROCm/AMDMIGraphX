@@ -29,8 +29,6 @@ add_library(migraphx_fpga
     vitis_ai_adapter.cpp
 )
 
-migraphx_generate_export_header(migraphx_fpga)
-
 set_target_properties(migraphx_fpga PROPERTIES EXPORT_NAME fpga)
 rocm_set_soversion(migraphx_fpga ${MIGRAPHX_SO_VERSION})
 

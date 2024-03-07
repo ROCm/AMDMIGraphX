@@ -289,16 +289,17 @@ struct parse_einsum : op_parser<parse_einsum>
         std::vector<std::map<char, int_vec>> duplicates;
         for(auto term : terms)
         {
-            if(term.size() == std::set<char>(term.begin(), term.end()).size())
-            {
-                duplicates.push_back({});
-                continue;
-            }
-
             std::map<char, int_vec> counts;
-            int i = 0;
-            for(char c : term)
-                counts[c].push_back(i++);
+            for(int i = 0; i < term.size(); ++i)
+                counts[term[i]].push_back(i);
+
+            for(auto it = counts.begin(); it != counts.end();)
+            {
+                if(it->second.size() < 2)
+                    it = counts.erase(it);
+                else
+                    ++it;
+            }
 
             duplicates.push_back(counts);
         }
@@ -315,10 +316,9 @@ struct parse_einsum : op_parser<parse_einsum>
     {
         if(not duplicates.empty())
         {
-            std::vector<std::tuple<int, int_vec>> diag;
+            std::vector<int_vec> diag;
             for(auto [_, v] : duplicates)
-                if(v.size() > 1)
-                    diag.push_back({v[0], v});
+                diag.push_back(v);
 
             op = apply_diagonal(info, cur_pair, op, diag);
         }
@@ -344,13 +344,13 @@ struct parse_einsum : op_parser<parse_einsum>
     instruction_ref apply_diagonal(const onnx_parser::node_info& info,
                                    int_mat& cur_pair,
                                    instruction_ref op,
-                                   std::vector<std::tuple<int, int_vec>> diag) const
+                                   const int_mat& diag) const
     {
         if(diag.size() != 1)
             MIGRAPHX_THROW("Not implemented with more than one duplicated label");
 
-        auto axis = std::get<0>(diag[0]);
-        auto axes = std::get<1>(diag[0]);
+        auto axis = diag[0][0];
+        auto axes = diag[0];
 
         int_vec batch_axes;
         for(int i = 0; i < cur_pair[0].size(); ++i)
@@ -392,16 +392,16 @@ struct parse_einsum : op_parser<parse_einsum>
             migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
         // compute output row
         int_vec to_remove;
-        for(auto [choice, choices] : diag)
+        for(const auto& choices : diag)
         {
             std::copy_if(choices.begin(),
                          choices.end(),
                          std::back_inserter(to_remove),
-                         [ch = choice](const auto& el) { return el != ch; });
+                         [ch = choices[0]](const auto& el) { return el != ch; });
 
             for(auto& r : cur_pair[1])
                 if(contains(choices, r))
-                    r = choice;
+                    r = choices[0];
         }
 
         std::sort(to_remove.begin(), to_remove.end());
@@ -428,15 +428,13 @@ struct parse_einsum : op_parser<parse_einsum>
                                  int_mat& cur_pair) const
     {
         // Label is present in current two terms and somewhere in subsequent terms
-        int_vec common_axes;
+        int_vec batch_axes;
         // Label is present in only left term
         int_vec left_only;
         // Label is present in only right term
         int_vec right_only;
         // Label is present in current two terms, but not in the subsequent terms
         int_vec sum_axes;
-        // Label is absent from the current two terms
-        int_vec unsqueezed_axes;
 
         auto not_neg_one = [](auto i) { return i != -1; };
         // Categorize axes according to label distribution in equation
@@ -447,7 +445,7 @@ struct parse_einsum : op_parser<parse_einsum>
             {
                 // The label is present in at least one of the subsequent terms
                 if(any_of(extract_column(mat, d, input_idx + 1, mat.size()), not_neg_one))
-                    common_axes.push_back(d);
+                    batch_axes.push_back(d);
                 else
                     sum_axes.push_back(d);
             }
@@ -459,34 +457,23 @@ struct parse_einsum : op_parser<parse_einsum>
                 else if(cur_pair[1][d] >= 0)
                     right_only.push_back(d);
                 else
-                    unsqueezed_axes.push_back(d);
+                    batch_axes.push_back(d);
             }
         }
 
-        auto batch_axes = set_union(common_axes, unsqueezed_axes);
         // Permute the inputs so batch_axes are outermost axes and sum_axes are innermost axes
         auto perm = concat_vectors(batch_axes, left_only, right_only, sum_axes);
         op1       = apply_transpose_op(info, op1, perm, cur_pair[0]);
         op2       = apply_transpose_op(info, op2, perm, cur_pair[1]);
 
         auto new_batch_axes = arange(0, batch_axes.size());
-        auto new_sum_axes   = arange(cur_pair[0].size() - sum_axes.size(), cur_pair[0].size());
+        auto new_sum_axes   = arange(perm.size() - sum_axes.size(), perm.size());
 
-        auto perm_for_side = [&](const auto& labels) {
-            int_vec ret;
-            for(int i = 0; i < perm.size(); ++i)
-                if(contains(labels, perm[i]))
-                    ret.push_back(i);
-            return ret;
-        };
-        auto perm_left  = perm_for_side(set_union(left_only, common_axes));
-        auto perm_right = perm_for_side(set_union(right_only, common_axes));
-        auto op         = batch_dot(
-            info, cur_pair, op1, op2, new_batch_axes, new_sum_axes, perm_left, perm_right);
+        auto op = batch_dot(info, cur_pair, op1, op2, new_batch_axes, new_sum_axes);
 
-        auto ordered_axes = concat_vectors(batch_axes, left_only, right_only, sum_axes);
-        for(auto i = 0; i < ordered_axes.size(); ++i)
-            perm[ordered_axes[i]] = i;
+        auto perm_cpy = perm;
+        for(auto i = 0; i < perm.size(); ++i)
+            perm[perm_cpy[i]] = i;
 
         return apply_transpose_op(info, op, perm, cur_pair[1]);
     }
@@ -496,47 +483,32 @@ struct parse_einsum : op_parser<parse_einsum>
                               instruction_ref op1,
                               instruction_ref op2,
                               const int_vec& batch_axes,
-                              const int_vec& sum_axes,
-                              const int_vec& perm_left,
-                              const int_vec& perm_right) const
+                              const int_vec& sum_axes) const
     {
         auto common_labels = set_union(batch_axes, sum_axes);
         std::tie(op1, op2) = apply_broadcast_op(info, op1, op2, common_labels);
 
-        auto op1_shape = op1->get_shape().lens();
-        auto op2_shape = op2->get_shape().lens();
+        auto op1_lens = op1->get_shape().lens();
+        auto op2_lens = op2->get_shape().lens();
 
         auto calc_dim = [](const auto& axes, const auto& lens) {
             return std::accumulate(
                 axes.begin(), axes.end(), 1, [&](auto acc, auto l) { return acc *= lens[l]; });
         };
-        std::array<int, 3> dims1{
-            calc_dim(batch_axes, op1_shape), -1, calc_dim(sum_axes, op1_shape)};
-        std::array<int, 3> dims2{
-            calc_dim(batch_axes, op2_shape), -1, calc_dim(sum_axes, op2_shape)};
+        int_vec dims1{calc_dim(batch_axes, op1_lens), -1, calc_dim(sum_axes, op1_lens)};
+        int_vec dims2{calc_dim(batch_axes, op2_lens), -1, calc_dim(sum_axes, op2_lens)};
 
         op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
         op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);
         op2 = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), op2);
         instruction_ref dot = info.add_instruction(make_op("dot"), op1, op2);
 
-        int_vec new_lens;
-
-        std::transform(batch_axes.begin(),
-                       batch_axes.end(),
-                       std::back_inserter(new_lens),
-                       [&](auto a) { return std::max(op1_shape[a], op2_shape[a]); });
-
-        for(int i : perm_left)
-            if(not contains(batch_axes, i))
-                new_lens.push_back(op1_shape[i]);
-
-        for(int i : perm_right)
-            if(not contains(batch_axes, i))
-                new_lens.push_back(op2_shape[i]);
-
-        while(new_lens.size() < op1_shape.size())
-            new_lens.push_back(1);
+        int_vec new_lens(op1_lens.size(), 1);
+        // auto new_lens_axes = concat_vectors(batch_axes, perm_left, perm_right);
+        // std::transform(new_lens_axes.begin(), new_lens_axes.end(), new_lens.begin(), [&](auto a)
+        // { return std::max(op1_lens[a], op2_lens[a]); });
+        for(auto i = 0; i < new_lens.size() - sum_axes.size(); ++i)
+            new_lens[i] = std::max(op1_lens[i], op2_lens[i]);
 
         auto op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), dot);
         // compute output row
@@ -545,10 +517,8 @@ struct parse_einsum : op_parser<parse_einsum>
                        cur_pair[1].begin(),
                        cur_pair[1].begin(),
                        [](int l, int r) { return std::max(l, r); });
-
         for(int a : sum_axes)
-            if(not contains(perm_right, a))
-                cur_pair[1][a] = -1;
+            cur_pair[1][a] = -1;
 
         return op;
     }

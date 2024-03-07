@@ -31,13 +31,19 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
+std::vector<dynamic_loader> target_loaders()
+{
+    static std::vector<dynamic_loader> target_loaders;
+    return target_loaders;
+}
+
 void store_target_lib(const fs::path& target_name, const dynamic_loader& lib)
 {
-    static std::vector<dynamic_loader> target_loader;
     try
     {
         lib.get_function<void()>("register_target")();
-        target_loader.push_back(lib);
+        target_loaders().push_back(lib);
     }
     catch(const std::runtime_error&)
     {
@@ -50,6 +56,7 @@ std::unordered_map<std::string, target>& target_map()
     static std::unordered_map<std::string, target> m; // NOLINT
     return m;
 }
+} // namespace
 
 void unregister_target(std::string_view name)
 {

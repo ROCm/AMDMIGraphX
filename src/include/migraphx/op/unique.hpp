@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -239,7 +239,7 @@ struct unique
         // The three outputted Indices are just 1-D:
         shape sh_idx{shape::int64_type, {d_out[0]}};
 
-        return {{sh_y, sh_idx, sh_idx, sh_idx}};
+        return shape({sh_y, sh_idx, sh_idx, sh_idx});
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

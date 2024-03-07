@@ -96,6 +96,7 @@ add_library(migraphx
     simplify_qdq.cpp
     sqlite.cpp
     rewrite_gelu.cpp
+    rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
@@ -194,6 +195,7 @@ register_migraphx_ops(
     nonmaxsuppression
     nonzero
     outline
+    pack_int4
     pad
     pointwise
     pooling

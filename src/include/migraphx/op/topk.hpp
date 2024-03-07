@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,7 +69,7 @@ struct topk
         shape s_val{type, lens};
         shape s_ind{shape::int64_type, lens};
 
-        return {{s_val, s_ind}};
+        return shape({s_val, s_ind});
     }
 
     template <class T, class Compare>

@@ -52,435 +52,33 @@ struct parse_einsum : op_parser<parse_einsum>
         std::string equation = info.attributes.at("equation").s();
 
         auto [terms, unique_labels, ellipses_ndim] = analyze_equation(equation, args);
-        auto mat        = make_mapping_matrix(terms, unique_labels, ellipses_ndim);
+        const auto mat  = make_mapping_matrix(terms, unique_labels, ellipses_ndim);
         auto duplicates = look_for_duplicates(terms);
-        int_mat rows    = full(2, mat[0].size(), -1);
 
+        // Holds the mapping matrix representations of the two terms being processed
+        // cur_pair[0] acts as the accumulator for previously processed inputs
+        // cur_pair[1] holds the representation for the current input
+        // As operations are added to the einsum graph, cur_pair gets manipulated
+        int_mat cur_pair = make_matrix(2, mat[0].size(), -1);
         instruction_ref op;
         std::optional<instruction_ref> last_op;
+        // Perform a left fold on the inputs
         for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
         {
-            op      = args[arg_idx];
-            rows[1] = mat[arg_idx];
+            op          = args[arg_idx];
+            cur_pair[1] = mat[arg_idx];
 
             auto duplicate = duplicates[arg_idx];
-            op             = preprocess_input(info, op, duplicate, mat, arg_idx, rows);
+            op             = preprocess_input(info, op, duplicate, mat, arg_idx, cur_pair);
 
             if(last_op)
-                op = process_pair(info, *last_op, op, mat, arg_idx, rows);
+                op = process_pair(info, *last_op, op, mat, arg_idx, cur_pair);
 
-            last_op = op;
-            rows[0] = rows[1];
+            last_op     = op;
+            cur_pair[0] = cur_pair[1];
         }
 
-        return finalize_output(info, op, mat, rows);
-    }
-
-    instruction_ref process_pair(const onnx_parser::node_info& info,
-                                 instruction_ref op1,
-                                 instruction_ref op2,
-                                 const int_mat& mat,
-                                 size_t input_idx,
-                                 int_mat& rows) const
-    {
-        // Label is present in current two terms, but not in the remainder of the equation
-        int_vec common_axes;
-        // Label is present in only left term or both terms and somewhere in the remainder
-        // of the equation
-        int_vec left_only;
-        // Label is present in only right term or both terms and somewhere in the remainder
-        // of the equation
-        int_vec right_only;
-        int_vec sum_axes;
-        int_vec unsqueezed_axes;
-
-        auto not_neg_one = [](auto i) { return i != -1; };
-        for(int d = 0; d < mat[0].size(); ++d)
-        {
-            // There is no -1 in the column, for the current two rows
-            // The label is present in both rows
-            if(all_of(extract_column(rows, d, 0, rows.size()), not_neg_one))
-            {
-                // There is at least 1 element that is not -1, for the remaining rows of the
-                // matrix.
-                // The label is present in at least one of the subsequent rows
-                if(any_of(extract_column(mat, d, input_idx + 1, mat.size()), not_neg_one))
-                    common_axes.push_back(d);
-                else
-                    sum_axes.push_back(d);
-            }
-            // The label is missing in one or both of the rows
-            else
-            {
-                if(rows[0][d] >= 0)
-                    left_only.push_back(d);
-                else if(rows[1][d] >= 0)
-                    right_only.push_back(d);
-                else
-                    unsqueezed_axes.push_back(d);
-            }
-        }
-
-        auto batch_axes = set_union(common_axes, unsqueezed_axes);
-        auto perm       = concat_vectors(batch_axes, left_only, right_only, sum_axes);
-        op1             = apply_transpose_op(info, op1, perm, rows[0]);
-        op2             = apply_transpose_op(info, op2, perm, rows[1]);
-
-        auto new_batch_axes = arange(0, batch_axes.size());
-        auto new_sum_axes   = arange(rows[0].size() - sum_axes.size(), rows[0].size());
-        auto perm_for_side  = [&](const auto& labels) {
-            int_vec ret;
-            for(int i = 0; i < perm.size(); ++i)
-                if(contains(labels, perm[i]))
-                    ret.push_back(i);
-            return ret;
-        };
-        auto perm_left  = perm_for_side(set_union(left_only, common_axes));
-        auto perm_right = perm_for_side(set_union(right_only, common_axes));
-        auto op =
-            batch_dot(info, rows, op1, op2, new_batch_axes, new_sum_axes, perm_left, perm_right);
-
-        auto ordered_axes = concat_vectors(batch_axes, left_only, right_only, sum_axes);
-        perm              = make_ordered_permutation(ordered_axes);
-
-        return apply_transpose_op(info, op, perm, rows[1]);
-    }
-
-    instruction_ref preprocess_input(const onnx_parser::node_info& info,
-                                     instruction_ref op,
-                                     const std::map<char, int_vec>& duplicates,
-                                     const int_mat& mat,
-                                     size_t input_idx,
-                                     int_mat& rows) const
-    {
-        if(not duplicates.empty())
-        {
-            std::vector<std::tuple<int, int_vec>> diag;
-            for(auto [_, v] : duplicates)
-                if(v.size() > 1)
-                    diag.push_back({v[0], v});
-
-            op = apply_diagonal(info, rows, op, diag);
-        }
-
-        // Transpose so the labels in the term are ordered alphabetically
-        op = unsqueeze_transpose(info, rows, op);
-
-        int_vec red;
-        for(int d = 0; d < mat[0].size(); ++d)
-        {
-            bool all_neg_one = all_of(extract_column(mat, d, input_idx + 1, mat.size()),
-                                      [](auto i) { return i == -1; });
-            if(all_neg_one and rows[1][d] != -1 and rows[0][d] == -1)
-                red.push_back(d);
-        }
-
-        return apply_reduce_sum_op(info, op, red, rows[1]);
-    }
-
-    instruction_ref finalize_output(const onnx_parser::node_info& info,
-                                    instruction_ref op,
-                                    const int_mat& mat,
-                                    int_mat& rows) const
-    {
-        if(any_of(mat.back(), [](auto i) { return i >= 0; }))
-        {
-            rows[1] = mat.back();
-            int_vec red;
-            for(int d = 0; d < mat[0].size(); ++d)
-            {
-                if(rows[0][d] > 0 and rows[1][d] == -1)
-                    red.push_back(d);
-                else if(rows[0][d] == -1 and rows[1][d] >= 0)
-                    MIGRAPHX_THROW("Issue in equation");
-            }
-
-            op = apply_reduce_sum_op(info, op, red, rows[1]);
-        }
-
-        return transpose_squeeze(info, rows, op, mat.back());
-    }
-
-    instruction_ref apply_diagonal(const onnx_parser::node_info& info,
-                                   int_mat& rows,
-                                   instruction_ref op,
-                                   std::vector<std::tuple<int, int_vec>> diag) const
-    {
-        if(diag.size() != 1)
-            MIGRAPHX_THROW("Not implemented with more than one duplicated label");
-
-        auto axis = std::get<0>(diag[0]);
-        auto axes = std::get<1>(diag[0]);
-
-        int_vec batch_axes;
-        for(int i = 0; i < rows[0].size(); ++i)
-            if(not contains(axes, i))
-                batch_axes.push_back(i);
-
-        auto min_axes = *(std::min_element(axes.begin(), axes.end()));
-        if(not all_of(batch_axes, [=](int ba) { return ba < min_axes; }))
-            MIGRAPHX_THROW("Currently batch axes have to be partitioned to the left");
-
-        auto op_shape = op->get_shape().lens();
-
-        if(not all_of(axes, [op_shape, axis](int a) { return op_shape[axis] == op_shape[a]; }))
-            MIGRAPHX_THROW("All duplicated indices have to be the same dimension");
-
-        size_t batch_size =
-            std::accumulate(batch_axes.begin(), batch_axes.end(), 1, [&](auto acc, auto dim) {
-                return acc *= op_shape[dim];
-            });
-
-        std::vector<size_t> indices;
-        for(int batch = 0; batch < batch_size; ++batch)
-        {
-            for(int i = 0; i < op_shape[axis]; ++i)
-            {
-                std::vector<size_t> index(axes.size(), static_cast<size_t>(i));
-                indices.insert(indices.end(), index.begin(), index.end());
-            }
-        }
-
-        std::vector<size_t> lens{op_shape[axis], axes.size()};
-        if(batch_size > 1)
-            lens.insert(lens.begin(), batch_size);
-
-        auto indices_arg = info.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, lens}, indices});
-
-        op = info.add_instruction(
-            migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
-        // compute output row
-        int_vec to_remove;
-        for(auto [choice, choices] : diag)
-        {
-            std::copy_if(choices.begin(),
-                         choices.end(),
-                         std::back_inserter(to_remove),
-                         [ch = choice](const auto& el) { return el != ch; });
-
-            for(auto& r : rows[1])
-                if(contains(choices, r))
-                    r = choice;
-        }
-
-        std::sort(to_remove.begin(), to_remove.end());
-        for(auto t : to_remove)
-        {
-            for(auto& r : rows[1])
-            {
-                if(r == t)
-                    MIGRAPHX_THROW("Unexpected result");
-
-                if(r > t)
-                    r -= 1;
-            }
-        }
-
-        return op;
-    }
-
-    instruction_ref
-    unsqueeze_transpose(const onnx_parser::node_info& info, int_mat& rows, instruction_ref op) const
-    {
-        int_vec unsq_axes;
-        std::vector<std::tuple<int, int>> perm;
-
-        for(auto i = 0; i < rows[1].size(); ++i)
-        {
-            if(rows[1][i] == -1)
-                unsq_axes.push_back(i);
-            else
-                perm.push_back({rows[1][i], i});
-        }
-        op = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
-
-        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
-            return std::get<0>(lhs) < std::get<0>(rhs);
-        });
-
-        int_vec new_perm(rows[1].size());
-        std::iota(new_perm.begin(), new_perm.end(), 0);
-
-        for(auto i = 0, p = 0; i < rows[1].size(); ++i)
-        {
-            if(rows[1][i] == -1)
-                continue;
-
-            new_perm[std::get<1>(perm[p++])] = i;
-        }
-
-        op = apply_transpose_op(info, op, new_perm, rows[1]);
-
-        return op;
-    }
-
-    instruction_ref transpose_squeeze(const onnx_parser::node_info& info,
-                                      int_mat& rows,
-                                      instruction_ref op,
-                                      int_vec row_output) const
-    {
-        std::vector<std::tuple<int, int>> perm;
-        int_vec sq;
-
-        for(auto i = 0; i < row_output.size(); ++i)
-        {
-            if(row_output[i] == -1)
-                sq.push_back(i);
-            else
-                perm.push_back({row_output[i], i});
-        }
-
-        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
-            return std::get<0>(lhs) < std::get<0>(rhs);
-        });
-
-        int_vec new_perm(rows[1].size());
-        std::iota(new_perm.begin(), new_perm.end(), 0);
-
-        for(auto i = 0, p = 0; i < row_output.size(); ++i)
-        {
-            if(row_output[i] == -1)
-                continue;
-
-            new_perm[i] = std::get<1>(perm[p++]);
-        }
-
-        op = apply_transpose_op(info, op, new_perm, rows[1]);
-
-        if(not sq.empty())
-        {
-            op = info.add_instruction(make_op("squeeze", {{"axes", sq}}), op);
-            // compute output row
-            for(int a : sq)
-                rows[1][a] = -1;
-        }
-
-        return op;
-    }
-
-    instruction_ref batch_dot(const onnx_parser::node_info& info,
-                              int_mat& rows,
-                              instruction_ref op1,
-                              instruction_ref op2,
-                              const int_vec& batch_axes,
-                              const int_vec& sum_axes,
-                              const int_vec& perm_left,
-                              const int_vec& perm_right) const
-    {
-        auto common_labels = set_union(batch_axes, sum_axes);
-        std::tie(op1, op2) = apply_broadcast_op(info, op1, op2, common_labels);
-
-        auto op1_shape = op1->get_shape().lens();
-        auto op2_shape = op2->get_shape().lens();
-
-        auto calc_dim = [](const auto& axes, const auto& lens) {
-            return std::accumulate(
-                axes.begin(), axes.end(), 1, [&](auto acc, auto l) { return acc *= lens[l]; });
-        };
-        std::array<int, 3> dims1{
-            calc_dim(batch_axes, op1_shape), -1, calc_dim(sum_axes, op1_shape)};
-        std::array<int, 3> dims2{
-            calc_dim(batch_axes, op2_shape), -1, calc_dim(sum_axes, op2_shape)};
-
-        op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
-        op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);
-        op2 = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), op2);
-        instruction_ref dot = info.add_instruction(make_op("dot"), op1, op2);
-
-        int_vec new_lens;
-
-        std::transform(batch_axes.begin(),
-                       batch_axes.end(),
-                       std::back_inserter(new_lens),
-                       [&](auto a) { return std::max(op1_shape[a], op2_shape[a]); });
-
-        for(int i : perm_left)
-            if(not contains(batch_axes, i))
-                new_lens.push_back(op1_shape[i]);
-
-        for(int i : perm_right)
-            if(not contains(batch_axes, i))
-                new_lens.push_back(op2_shape[i]);
-
-        while(new_lens.size() < op1_shape.size())
-            new_lens.push_back(1);
-
-        auto op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), dot);
-        // compute output row
-        std::transform(
-            rows[0].begin(), rows[0].end(), rows[1].begin(), rows[1].begin(), [](int l, int r) {
-                return std::max(l, r);
-            });
-
-        for(int a : sum_axes)
-            if(not contains(perm_right, a))
-                rows[1][a] = -1;
-
-        return op;
-    }
-
-    bool is_transpose_identity(int_vec perm) const
-    {
-        for(auto i = 0u; i < perm.size(); ++i)
-            if(perm[i] != i)
-                return false;
-
-        return true;
-    }
-
-    int_mat full(int rows, int cols, int fill_value) const
-    {
-        int_mat ret(rows);
-        for(auto& row : ret)
-            for(int i = 0; i < cols; ++i)
-                row.push_back(fill_value);
-
-        return ret;
-    }
-
-    int_vec extract_column(int_mat mat, int col_idx, int row_begin, int row_end) const
-    {
-        int_vec ret;
-        ret.reserve(row_end - row_begin);
-
-        for(int i = row_begin; i < row_end; ++i)
-            ret.push_back(mat[i][col_idx]);
-
-        return ret;
-    }
-
-    int_vec set_union(const int_vec& lhs, const int_vec& rhs) const
-    {
-        int_vec ret;
-        std::set_union(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
-
-        return ret;
-    }
-
-    int_vec set_intersection(const int_vec& lhs, const int_vec& rhs) const
-    {
-        int_vec ret;
-        std::set_intersection(
-            lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
-
-        return ret;
-    }
-
-    template <typename... Vecs>
-    std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> concat_vectors(Vecs&&... vecs) const
-    {
-        size_t reserve_size = 0u;
-        ([&](auto&& vec) { reserve_size += vec.size(); }(std::forward<Vecs>(vecs)), ...);
-
-        std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> ret;
-        ret.reserve(reserve_size);
-
-        ([&](auto&& vec) { ret.insert(ret.end(), vec.begin(), vec.end()); }(
-             std::forward<Vecs>(vecs)),
-         ...);
-
-        return ret;
+        return finalize_output(info, op, mat, cur_pair);
     }
 
     std::tuple<string_vec, std::string, size_t>
@@ -503,58 +101,6 @@ struct parse_einsum : op_parser<parse_einsum>
             unique_labels += l;
 
         return ret;
-    }
-
-    int_mat make_mapping_matrix(const string_vec& terms,
-                                std::string_view unique_labels,
-                                size_t ellipses_ndim) const
-    {
-        std::map<char, int> label_to_column;
-        for(auto i = 0; i < unique_labels.size(); ++i)
-            label_to_column[unique_labels[i]] = i;
-
-        int_mat mat = full(terms.size(), unique_labels.size() + ellipses_ndim, -1);
-
-        for(auto i = 0; i < terms.size(); ++i)
-        {
-            const auto& term = terms[i];
-            int col_id       = 0;
-            for(auto l : term)
-            {
-                if(l == '*')
-                {
-                    std::iota(mat[i].end() - ellipses_ndim, mat[i].end(), col_id);
-                    col_id += ellipses_ndim;
-                }
-                else
-                    mat[i][label_to_column[l]] = col_id++;
-            }
-        }
-
-        return mat;
-    }
-
-    std::vector<std::map<char, int_vec>> look_for_duplicates(const string_vec& terms) const
-    {
-        std::vector<std::map<char, int_vec>> duplicates;
-        for(auto term : terms)
-        {
-            if(term.size() == std::set<char>(term.begin(), term.end()).size())
-            {
-                duplicates.push_back({});
-                continue;
-            }
-
-            std::map<char, int_vec> counts;
-            int i = 0;
-            for(char c : term)
-            {
-                counts[c].push_back(i++);
-            }
-            duplicates.push_back(counts);
-        }
-
-        return duplicates;
     }
 
     std::tuple<std::vector<std::string>, std::string, std::map<char, int>, bool>
@@ -619,39 +165,13 @@ struct parse_einsum : op_parser<parse_einsum>
         return ret;
     }
 
-    std::string generate_output_term(const char_int_map& label_count, size_t ellipsis_ndim) const
-    {
-        std::string output_term = ellipsis_ndim == 0 ? "" : "*";
-        for(const auto [label, count] : label_count)
-            if(count == 1)
-                output_term += label;
-
-        return output_term;
-    }
-
-    void validate_output_term(std::string_view output_term,
-                              const char_int_map& label_count,
-                              size_t ellipses_ndim) const
-    {
-        const auto* it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
-            return not contains(label_count, l) and l != '*';
-        });
-        if(it != output_term.end())
-            MIGRAPHX_THROW("Output term contains label " + std::to_string(*it) +
-                           ", which is not present in any of the input terms");
-
-        if(ellipses_ndim != 0 and not contains(output_term, "*"))
-            MIGRAPHX_THROW(
-                "Output term does not contain ellipsis (...) even though an input term does");
-    }
-
     size_t validate_input_terms(const string_vec& input_terms,
                                 const std::vector<instruction_ref>& args) const
     {
         if(input_terms.size() != args.size())
-            MIGRAPHX_THROW(
-                "Number of terms in the input equation - " + std::to_string(input_terms.size()) +
-                " does not match the number of input tensors " + std::to_string(args.size()));
+            MIGRAPHX_THROW("Number of terms in the input equation - " +
+                           std::to_string(input_terms.size()) +
+                           " does not match the number of inputs " + std::to_string(args.size()));
 
         auto global_ellipses_dims = 0u;
         for(auto i = 0u; i < args.size(); ++i)
@@ -683,6 +203,483 @@ struct parse_einsum : op_parser<parse_einsum>
         }
 
         return global_ellipses_dims;
+    }
+
+    void validate_output_term(std::string_view output_term,
+                              const char_int_map& label_count,
+                              size_t ellipses_ndim) const
+    {
+        const auto* it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
+            return not contains(label_count, l) and l != '*';
+        });
+        if(it != output_term.end())
+            MIGRAPHX_THROW("Output term contains label " + std::to_string(*it) +
+                           ", which is not present in any of the input terms");
+
+        if(ellipses_ndim != 0 and not contains(output_term, "*"))
+            MIGRAPHX_THROW(
+                "Output term does not contain ellipsis (...) even though an input term does");
+    }
+
+    // Creates output term when the equation is in implicit mode.
+    // The created output term must contain the alphabetically sorted sequence of labels appearing
+    // exactly once in the equation.
+    // If ellipsis are present in the left hand side of the equation, the ellipsis dimensions are
+    // set to the beginning of the output term.
+    std::string generate_output_term(const char_int_map& label_count, size_t ellipsis_ndim) const
+    {
+        std::string output_term = ellipsis_ndim == 0 ? "" : "*";
+        for(const auto [label, count] : label_count)
+            if(count == 1)
+                output_term += label;
+
+        return output_term;
+    }
+
+    // Creates a matrix representation of the equation.
+    //
+    // Rows correspond to equation terms, in order of appearance.
+    //
+    // Columns represent the unique labels contained in the equation, ordered alphabetically. If
+    // ellipses are present in the equation, they are represented by the final N columns(N being the
+    // number of dimensions covered by and ellipsis).
+    // Labels not present in a given term are signified by -1.
+    // Labels present in a given term are signified by the input axis they represent.
+    //
+    // e.g. For equation "...ik,kj...->ij...", assuming ... cover two dimensions, the resulting
+    // matrix is:
+    // +-------+----+----+----+---+---+
+    // |       | i  | j  | k  | * | * |
+    // +-------+----+----+----+---+---+
+    // | ...ik |  2 | -1 |  3 | 0 | 1 |
+    // | kj... | -1 |  1 |  0 | 2 | 3 |
+    // | ij... |  0 |  1 | -1 | 2 | 3 |
+    // +-------+----+----+----+---+---+
+    int_mat make_mapping_matrix(const string_vec& terms,
+                                std::string_view unique_labels,
+                                size_t ellipses_ndim) const
+    {
+        std::map<char, int> label_to_column;
+        for(auto i = 0; i < unique_labels.size(); ++i)
+            label_to_column[unique_labels[i]] = i;
+
+        int_mat mat = make_matrix(terms.size(), unique_labels.size() + ellipses_ndim, -1);
+
+        for(auto i = 0; i < terms.size(); ++i)
+        {
+            const auto& term = terms[i];
+            int col_id       = 0;
+            for(auto l : term)
+            {
+                if(l == '*')
+                {
+                    std::iota(mat[i].end() - ellipses_ndim, mat[i].end(), col_id);
+                    col_id += ellipses_ndim;
+                }
+                else
+                    mat[i][label_to_column[l]] = col_id++;
+            }
+        }
+
+        return mat;
+    }
+
+    std::vector<std::map<char, int_vec>> look_for_duplicates(const string_vec& terms) const
+    {
+        std::vector<std::map<char, int_vec>> duplicates;
+        for(auto term : terms)
+        {
+            if(term.size() == std::set<char>(term.begin(), term.end()).size())
+            {
+                duplicates.push_back({});
+                continue;
+            }
+
+            std::map<char, int_vec> counts;
+            int i = 0;
+            for(char c : term)
+                counts[c].push_back(i++);
+
+            duplicates.push_back(counts);
+        }
+
+        return duplicates;
+    }
+
+    instruction_ref preprocess_input(const onnx_parser::node_info& info,
+                                     instruction_ref op,
+                                     const std::map<char, int_vec>& duplicates,
+                                     const int_mat& mat,
+                                     size_t input_idx,
+                                     int_mat& cur_pair) const
+    {
+        if(not duplicates.empty())
+        {
+            std::vector<std::tuple<int, int_vec>> diag;
+            for(auto [_, v] : duplicates)
+                if(v.size() > 1)
+                    diag.push_back({v[0], v});
+
+            op = apply_diagonal(info, cur_pair, op, diag);
+        }
+
+        // Unsqueeze the input shape in the dimensions marked as -1 in the mapping_matrix
+        // Transpose the input shape so the labels are in alphabetical order
+        op = unsqueeze_transpose(info, cur_pair, op);
+
+        int_vec red;
+        // Check if a given label appears in any of the subsequent mapping matrix terms(this
+        // includes the output). If does not, it is reduced and marked as -1 in cur_pair.
+        for(int d = 0; d < mat[0].size(); ++d)
+        {
+            bool all_neg_one = all_of(extract_column(mat, d, input_idx + 1, mat.size()),
+                                      [](auto i) { return i == -1; });
+            if(all_neg_one and cur_pair[1][d] != -1 and cur_pair[0][d] == -1)
+                red.push_back(d);
+        }
+
+        return apply_reduce_sum_op(info, op, red, cur_pair[1]);
+    }
+
+    instruction_ref apply_diagonal(const onnx_parser::node_info& info,
+                                   int_mat& cur_pair,
+                                   instruction_ref op,
+                                   std::vector<std::tuple<int, int_vec>> diag) const
+    {
+        if(diag.size() != 1)
+            MIGRAPHX_THROW("Not implemented with more than one duplicated label");
+
+        auto axis = std::get<0>(diag[0]);
+        auto axes = std::get<1>(diag[0]);
+
+        int_vec batch_axes;
+        for(int i = 0; i < cur_pair[0].size(); ++i)
+            if(not contains(axes, i))
+                batch_axes.push_back(i);
+
+        auto min_axes = *(std::min_element(axes.begin(), axes.end()));
+        if(not all_of(batch_axes, [=](int ba) { return ba < min_axes; }))
+            MIGRAPHX_THROW("Currently batch axes have to be partitioned to the left");
+
+        auto op_shape = op->get_shape().lens();
+
+        if(not all_of(axes, [op_shape, axis](int a) { return op_shape[axis] == op_shape[a]; }))
+            MIGRAPHX_THROW("All duplicated indices have to be the same dimension");
+
+        size_t batch_size =
+            std::accumulate(batch_axes.begin(), batch_axes.end(), 1, [&](auto acc, auto dim) {
+                return acc *= op_shape[dim];
+            });
+
+        std::vector<size_t> indices;
+        for(int batch = 0; batch < batch_size; ++batch)
+        {
+            for(int i = 0; i < op_shape[axis]; ++i)
+            {
+                std::vector<size_t> index(axes.size(), static_cast<size_t>(i));
+                indices.insert(indices.end(), index.begin(), index.end());
+            }
+        }
+
+        std::vector<size_t> lens{op_shape[axis], axes.size()};
+        if(batch_size > 1)
+            lens.insert(lens.begin(), batch_size);
+
+        auto indices_arg = info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, lens}, indices});
+
+        op = info.add_instruction(
+            migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
+        // compute output row
+        int_vec to_remove;
+        for(auto [choice, choices] : diag)
+        {
+            std::copy_if(choices.begin(),
+                         choices.end(),
+                         std::back_inserter(to_remove),
+                         [ch = choice](const auto& el) { return el != ch; });
+
+            for(auto& r : cur_pair[1])
+                if(contains(choices, r))
+                    r = choice;
+        }
+
+        std::sort(to_remove.begin(), to_remove.end());
+        for(auto t : to_remove)
+        {
+            for(auto& r : cur_pair[1])
+            {
+                if(r == t)
+                    MIGRAPHX_THROW("Unexpected result");
+
+                if(r > t)
+                    r -= 1;
+            }
+        }
+
+        return op;
+    }
+
+    instruction_ref process_pair(const onnx_parser::node_info& info,
+                                 instruction_ref op1,
+                                 instruction_ref op2,
+                                 const int_mat& mat,
+                                 size_t input_idx,
+                                 int_mat& cur_pair) const
+    {
+        // Label is present in current two terms and somewhere in subsequent terms
+        int_vec common_axes;
+        // Label is present in only left term
+        int_vec left_only;
+        // Label is present in only right term
+        int_vec right_only;
+        // Label is present in current two terms, but not in the subsequent terms
+        int_vec sum_axes;
+        // Label is absent from the current two terms
+        int_vec unsqueezed_axes;
+
+        auto not_neg_one = [](auto i) { return i != -1; };
+        // Categorize axes according to label distribution in equation
+        for(int d = 0; d < mat[0].size(); ++d)
+        {
+            // The label is present in both terms of cur_pair
+            if(all_of(extract_column(cur_pair, d, 0, cur_pair.size()), not_neg_one))
+            {
+                // The label is present in at least one of the subsequent terms
+                if(any_of(extract_column(mat, d, input_idx + 1, mat.size()), not_neg_one))
+                    common_axes.push_back(d);
+                else
+                    sum_axes.push_back(d);
+            }
+            // The label is missing in one or both of the cur_pair
+            else
+            {
+                if(cur_pair[0][d] >= 0)
+                    left_only.push_back(d);
+                else if(cur_pair[1][d] >= 0)
+                    right_only.push_back(d);
+                else
+                    unsqueezed_axes.push_back(d);
+            }
+        }
+
+        auto batch_axes = set_union(common_axes, unsqueezed_axes);
+        // Permute the inputs so batch_axes are outermost axes and sum_axes are innermost axes
+        auto perm = concat_vectors(batch_axes, left_only, right_only, sum_axes);
+        op1       = apply_transpose_op(info, op1, perm, cur_pair[0]);
+        op2       = apply_transpose_op(info, op2, perm, cur_pair[1]);
+
+        auto new_batch_axes = arange(0, batch_axes.size());
+        auto new_sum_axes   = arange(cur_pair[0].size() - sum_axes.size(), cur_pair[0].size());
+
+        auto perm_for_side = [&](const auto& labels) {
+            int_vec ret;
+            for(int i = 0; i < perm.size(); ++i)
+                if(contains(labels, perm[i]))
+                    ret.push_back(i);
+            return ret;
+        };
+        auto perm_left  = perm_for_side(set_union(left_only, common_axes));
+        auto perm_right = perm_for_side(set_union(right_only, common_axes));
+        auto op         = batch_dot(
+            info, cur_pair, op1, op2, new_batch_axes, new_sum_axes, perm_left, perm_right);
+
+        auto ordered_axes = concat_vectors(batch_axes, left_only, right_only, sum_axes);
+        for(auto i = 0; i < ordered_axes.size(); ++i)
+            perm[ordered_axes[i]] = i;
+
+        return apply_transpose_op(info, op, perm, cur_pair[1]);
+    }
+
+    instruction_ref batch_dot(const onnx_parser::node_info& info,
+                              int_mat& cur_pair,
+                              instruction_ref op1,
+                              instruction_ref op2,
+                              const int_vec& batch_axes,
+                              const int_vec& sum_axes,
+                              const int_vec& perm_left,
+                              const int_vec& perm_right) const
+    {
+        auto common_labels = set_union(batch_axes, sum_axes);
+        std::tie(op1, op2) = apply_broadcast_op(info, op1, op2, common_labels);
+
+        auto op1_shape = op1->get_shape().lens();
+        auto op2_shape = op2->get_shape().lens();
+
+        auto calc_dim = [](const auto& axes, const auto& lens) {
+            return std::accumulate(
+                axes.begin(), axes.end(), 1, [&](auto acc, auto l) { return acc *= lens[l]; });
+        };
+        std::array<int, 3> dims1{
+            calc_dim(batch_axes, op1_shape), -1, calc_dim(sum_axes, op1_shape)};
+        std::array<int, 3> dims2{
+            calc_dim(batch_axes, op2_shape), -1, calc_dim(sum_axes, op2_shape)};
+
+        op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
+        op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);
+        op2 = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), op2);
+        instruction_ref dot = info.add_instruction(make_op("dot"), op1, op2);
+
+        int_vec new_lens;
+
+        std::transform(batch_axes.begin(),
+                       batch_axes.end(),
+                       std::back_inserter(new_lens),
+                       [&](auto a) { return std::max(op1_shape[a], op2_shape[a]); });
+
+        for(int i : perm_left)
+            if(not contains(batch_axes, i))
+                new_lens.push_back(op1_shape[i]);
+
+        for(int i : perm_right)
+            if(not contains(batch_axes, i))
+                new_lens.push_back(op2_shape[i]);
+
+        while(new_lens.size() < op1_shape.size())
+            new_lens.push_back(1);
+
+        auto op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), dot);
+        // compute output row
+        std::transform(cur_pair[0].begin(),
+                       cur_pair[0].end(),
+                       cur_pair[1].begin(),
+                       cur_pair[1].begin(),
+                       [](int l, int r) { return std::max(l, r); });
+
+        for(int a : sum_axes)
+            if(not contains(perm_right, a))
+                cur_pair[1][a] = -1;
+
+        return op;
+    }
+
+    instruction_ref finalize_output(const onnx_parser::node_info& info,
+                                    instruction_ref op,
+                                    const int_mat& mat,
+                                    int_mat& cur_pair) const
+    {
+        if(any_of(mat.back(), [](auto i) { return i >= 0; }))
+        {
+            cur_pair[1] = mat.back();
+            int_vec red;
+            for(int d = 0; d < mat[0].size(); ++d)
+            {
+                if(cur_pair[0][d] > 0 and cur_pair[1][d] == -1)
+                    red.push_back(d);
+                else if(cur_pair[0][d] == -1 and cur_pair[1][d] >= 0)
+                    MIGRAPHX_THROW("Issue in equation");
+            }
+
+            op = apply_reduce_sum_op(info, op, red, cur_pair[1]);
+        }
+
+        return transpose_squeeze(info, cur_pair, op, mat.back());
+    }
+
+    instruction_ref unsqueeze_transpose(const onnx_parser::node_info& info,
+                                        int_mat& cur_pair,
+                                        instruction_ref op) const
+    {
+        int_vec unsq_axes;
+        std::vector<std::tuple<int, int>> perm;
+
+        for(auto i = 0; i < cur_pair[1].size(); ++i)
+        {
+            if(cur_pair[1][i] == -1)
+                unsq_axes.push_back(i);
+            else
+                perm.push_back({cur_pair[1][i], i});
+        }
+        op = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
+
+        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
+            return std::get<0>(lhs) < std::get<0>(rhs);
+        });
+
+        int_vec new_perm(cur_pair[1].size());
+        std::iota(new_perm.begin(), new_perm.end(), 0);
+
+        for(auto i = 0, p = 0; i < cur_pair[1].size(); ++i)
+        {
+            if(cur_pair[1][i] == -1)
+                continue;
+
+            new_perm[std::get<1>(perm[p++])] = i;
+        }
+
+        op = apply_transpose_op(info, op, new_perm, cur_pair[1]);
+
+        return op;
+    }
+
+    instruction_ref transpose_squeeze(const onnx_parser::node_info& info,
+                                      int_mat& cur_pair,
+                                      instruction_ref op,
+                                      int_vec row_output) const
+    {
+        std::vector<std::tuple<int, int>> perm;
+        int_vec sq;
+
+        for(auto i = 0; i < row_output.size(); ++i)
+        {
+            if(row_output[i] == -1)
+                sq.push_back(i);
+            else
+                perm.push_back({row_output[i], i});
+        }
+
+        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
+            return std::get<0>(lhs) < std::get<0>(rhs);
+        });
+
+        int_vec new_perm(cur_pair[1].size());
+        std::iota(new_perm.begin(), new_perm.end(), 0);
+
+        for(auto i = 0, p = 0; i < row_output.size(); ++i)
+        {
+            if(row_output[i] == -1)
+                continue;
+
+            new_perm[i] = std::get<1>(perm[p++]);
+        }
+
+        op = apply_transpose_op(info, op, new_perm, cur_pair[1]);
+
+        if(not sq.empty())
+        {
+            op = info.add_instruction(make_op("squeeze", {{"axes", sq}}), op);
+            // compute output row
+            for(int a : sq)
+                cur_pair[1][a] = -1;
+        }
+
+        return op;
+    }
+
+    bool is_transpose_identity(int_vec perm) const
+    {
+        for(auto i = 0u; i < perm.size(); ++i)
+            if(perm[i] != i)
+                return false;
+
+        return true;
+    }
+
+    instruction_ref apply_transpose_op(const onnx_parser::node_info& info,
+                                       instruction_ref op,
+                                       const int_vec& perm,
+                                       int_vec& row) const
+    {
+        if(is_transpose_identity(perm))
+            return op;
+
+        op = info.add_instruction(make_op("transpose", {{"permutation", perm}}), op);
+        // compute output row
+        auto cpy = row;
+        for(auto i = 0u; i < perm.size(); ++i)
+            row[i] = cpy[perm[i]];
+
+        return op;
     }
 
     std::pair<instruction_ref, instruction_ref>
@@ -726,23 +723,6 @@ struct parse_einsum : op_parser<parse_einsum>
         return ret;
     }
 
-    instruction_ref apply_transpose_op(const onnx_parser::node_info& info,
-                                       instruction_ref op,
-                                       const int_vec& perm,
-                                       int_vec& row) const
-    {
-        if(is_transpose_identity(perm))
-            return op;
-
-        op = info.add_instruction(make_op("transpose", {{"permutation", perm}}), op);
-        // compute output row
-        auto cpy = row;
-        for(auto i = 0u; i < perm.size(); ++i)
-            row[i] = cpy[perm[i]];
-
-        return op;
-    }
-
     instruction_ref apply_reduce_sum_op(const onnx_parser::node_info& info,
                                         instruction_ref op,
                                         const int_vec& axes,
@@ -757,19 +737,51 @@ struct parse_einsum : op_parser<parse_einsum>
         return info.add_instruction(make_op("reduce_sum", {{"axes", axes}}), op);
     }
 
-    int_vec make_ordered_permutation(const int_vec& axes) const
+    int_mat make_matrix(int cur_pair, int cols, int fill_value) const
     {
-        int_vec ret(axes.size());
-        for(auto i = 0; i < axes.size(); ++i)
-            ret[axes[i]] = i;
+        return int_mat(cur_pair, int_vec(cols, fill_value));
+    }
+
+    int_vec extract_column(int_mat mat, int col_idx, int row_begin, int row_end) const
+    {
+        int_vec ret;
+        ret.reserve(row_end - row_begin);
+
+        for(int i = row_begin; i < row_end; ++i)
+            ret.push_back(mat[i][col_idx]);
 
         return ret;
     }
 
+    int_vec set_union(const int_vec& lhs, const int_vec& rhs) const
+    {
+        int_vec ret;
+        std::set_union(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
+
+        return ret;
+    }
+
+    // Equivalent to numpy.arange without the step parameter
     int_vec arange(int start_value, int end_value) const
     {
         int_vec ret(end_value - start_value);
         std::iota(ret.begin(), ret.end(), start_value);
+        return ret;
+    }
+
+    template <typename... Vecs>
+    std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> concat_vectors(Vecs&&... vecs) const
+    {
+        size_t reserve_size = 0u;
+        ([&](auto&& vec) { reserve_size += vec.size(); }(std::forward<Vecs>(vecs)), ...);
+
+        std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> ret;
+        ret.reserve(reserve_size);
+
+        ([&](auto&& vec) { ret.insert(ret.end(), vec.begin(), vec.end()); }(
+             std::forward<Vecs>(vecs)),
+         ...);
+
         return ret;
     }
 };

@@ -21,45 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_LOW_PRECISION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_LOW_PRECISION_HPP
 
-#include "migraphx/fpga/vitis_ai_adapter.hpp"
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
-#include "migraphx/module.hpp"
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-#include "migraphx/stringutils.hpp"
-namespace vitis_ai {
+struct module;
 
-migraphx::shape x_model::get_shape() const { return shape; };
-
-void x_model::set_shape(migraphx::shape s) { shape = s; }
-
-x_model create_xmodel(migraphx::const_module_ref mod)
+/**
+ * Rewrite operators in low precision types to avoid going out of precision bounds.
+ */
+struct MIGRAPHX_EXPORT rewrite_low_precision
 {
-    std::cout << "Calling an external function: create_xmodel!\n";
-    x_model xmodel;
-    xmodel.set_shape(migraphx::shape(mod->get_output_shapes()));
-    return xmodel;
-}
+    std::string name() const { return "rewrite_low_precision"; }
+    void apply(module& m) const;
+};
 
-migraphx::argument execute(const x_model& xmodel,
-                           const migraphx::shape& output_shape,
-                           std::vector<migraphx::argument>& args)
-{
-    (void)xmodel;
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-    std::cout << "Calling an external function: execute!\n";
-
-    std::cout << "Output Shape: " << output_shape << std::endl;
-    std::cout << "Args: " << args.size() << std::endl;
-    for(const auto& arg : args)
-    {
-        std::cout << "  " << arg.get_shape() << std::endl;
-    }
-    std::cout << std::endl;
-
-    migraphx::argument result{output_shape};
-
-    return result;
-}
-
-} // namespace vitis_ai
+#endif

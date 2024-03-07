@@ -21,32 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_LOW_PRECISION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_LOW_PRECISION_HPP
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/make_op.hpp>
+#include <string>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/config.hpp>
 
-template <migraphx::shape::type_t DType>
-struct batch_quant_dot_4 : verify_program<batch_quant_dot_4<DType>>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
+/**
+ * Rewrite operators in low precision types to avoid going out of precision bounds.
+ */
+struct MIGRAPHX_EXPORT rewrite_low_precision
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {2, 4, 6, 3}};
-        migraphx::shape m2_shape{DType, {7, 2, 6, 3}};
-
-        auto l1  = mm->add_parameter("a", m1_shape);
-        auto l2  = mm->add_parameter("b", m2_shape);
-        auto tl1 = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {3, 0, 1, 2}}}), l1);
-        auto tl2 = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {3, 1, 2, 0}}}), l2);
-        mm->add_instruction(migraphx::make_op("quant_dot"), tl1, tl2);
-        return p;
-    }
-    std::string section() const { return "gemm"; }
+    std::string name() const { return "rewrite_low_precision"; }
+    void apply(module& m) const;
 };
-template struct batch_quant_dot_4<migraphx::shape::int8_type>;
-template struct batch_quant_dot_4<migraphx::shape::fp8e4m3fnuz_type>;
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

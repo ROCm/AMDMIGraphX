@@ -4525,7 +4525,8 @@ TEST_CASE(test_unique_axis_negative)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique", {{"axis", -3}}), x_shape);
+    expect_shape(
+        migraphx::shape(y_dyn_shape), migraphx::make_op("unique", {{"axis", -3}}), x_shape);
 }
 
 TEST_CASE(test_unique_axis_none)
@@ -4539,7 +4540,7 @@ TEST_CASE(test_unique_axis_none)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique"), x_shape);
+    expect_shape(migraphx::shape(y_dyn_shape), migraphx::make_op("unique"), x_shape);
 }
 
 TEST_CASE(test_unsqueeze)

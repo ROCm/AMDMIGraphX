@@ -25,6 +25,7 @@
 #include <migraphx/fpga/target.hpp>
 #include <migraphx/fpga/lowering.hpp>
 #include <migraphx/fpga/subgraph.hpp>
+#include <migraphx/fpga/export.h>
 #include <migraphx/register_target.hpp>
 #include <migraphx/pass.hpp>
 #include <migraphx/auto_contiguous.hpp>

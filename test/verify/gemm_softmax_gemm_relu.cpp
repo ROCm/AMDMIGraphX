@@ -50,8 +50,7 @@ struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu<WithBias>>
         std::optional<migraphx::instruction_ref> add_bias{std::nullopt};
         if constexpr(WithBias)
         {
-            std::vector<float> one_tenth(m2_elements, 0.1);
-            auto bias = mm->add_literal(migraphx::literal{m2_shape, one_tenth});
+            auto bias = mm->add_parameter("4", m1_shape);
             add_bias  = mm->add_instruction(migraphx::make_op("add"), scale, bias);
         }
 

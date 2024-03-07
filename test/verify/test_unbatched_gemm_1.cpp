@@ -57,6 +57,7 @@ struct test_unbatched_gemm_1 : verify_program<test_unbatched_gemm_1<DType>>
             *mm, {l1, concat, l5}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_unbatched_gemm_1<migraphx::shape::float_type>;

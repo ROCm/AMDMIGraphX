@@ -160,7 +160,30 @@ struct parse_convolution : op_parser<parse_convolution>
         {
             std::cout << i << " ";
         }
-        values.debug_print();
+        value v                       = op.to_value();
+        std::vector<size_t> v_padding = v["padding"].to_vector<size_t>();
+        std::cout << "--padding ";
+        for(const auto& i : v_padding)
+        {
+            std::cout << i << " ";
+        }
+        std::vector<size_t> v_strides = v["stride"].to_vector<size_t>();
+        std::cout << "--stride ";
+        for(const auto& i : v_strides)
+        {
+            std::cout << i << " ";
+        }
+        std::vector<size_t> v_dilation = v["dilation"].to_vector<size_t>();
+        std::cout << "--dilation ";
+        for(const auto& i : v_dilation)
+        {
+            std::cout << i << " ";
+        }
+        int v_padding_mode = v["padding_mode"].to<int>();
+        std::cout << "--padding_mode " << v_padding_mode << " ";
+        int v_group = v["group"].to<int>();
+        std::cout << "--group " << v_group << "\n";
+
         auto l1 = info.add_instruction(op, l0, args[1]);
         return info.add_bias(args, l1, 1);
     }

@@ -7,6 +7,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <map>
+#include <deque>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -30,17 +31,24 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return it;
 }
 
-static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs)
+static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs, bool new_line=true)
 {
     for(const auto& s : subs)
-        std::cout << s.len << ":" << to_string_range(s.axis, "x") << ",";
+    {
+        std::cout << s.len << ":" << to_string_range(s.axis, "x");
+        if(s.vaxis.has_value())
+            std::cout << "$" << s.vaxis.value();
+        std::cout << ",";
+    }
+    if(new_line)
+        std::cout << std::endl;
 }
 static void debug_print(const std::vector<shape_transform_descriptor::dimension>& dims)
 {
     for(const auto& d : dims)
     {
         std::cout << "[";
-        debug_print(d.subdimensions);
+        debug_print(d.subdimensions, false);
         std::cout << "],";
     }
     std::cout << std::endl;
@@ -240,13 +248,47 @@ void shape_transform_descriptor::dimension::simplify()
 template <class Predicate>
 static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
 {
+    shape_transform_descriptor::dimension* prev_dim = nullptr;
     for(auto& d : td.dimensions)
     {
         auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), p);
         if(it != d.subdimensions.end())
-            return std::make_tuple(&d.subdimensions, it);
+        {
+            decltype(std::make_optional(it)) prev = nullopt;
+            if(it == d.subdimensions.begin())
+            {
+                if(prev_dim != nullptr and not prev_dim->subdimensions.empty())
+                {
+                    prev = std::prev(prev_dim->subdimensions.end());
+                }
+            }
+            else
+            {
+                prev = std::prev(it);
+            }
+            return std::make_tuple(&d.subdimensions, it, prev);
+        }
+        prev_dim = &d;
     }
     MIGRAPHX_THROW("Searching for non-existent subdimension");
+}
+
+static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
+{
+    if(d.subdimensions.empty())
+        return true;
+    if(d.subdimensions.size() != 1)
+        return false;
+    const auto& sub = d.subdimensions.front();
+    return sub.axis.empty();
+}
+
+static void set_broadcast_dim(shape_transform_descriptor::dimension& d, std::size_t axis)
+{
+    if(d.subdimensions.empty())
+        d.subdimensions.push_back({1, {axis}});
+    else
+        d.subdimensions.front().vaxis = axis;
 }
 
 void shape_transform_descriptor::simplify()
@@ -303,20 +345,48 @@ void shape_transform_descriptor::simplify()
         }
     }
 
+    // Find broadcasted dimensions
+    std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
+    group_find(dimensions.begin(), dimensions.end(), &is_broadcast_dim, [&](auto start, auto last) {
+        auto axis = rank;
+        if (last != dimensions.end())
+        {
+            assert(not last->subdimensions.empty());
+            const auto& sub = last->subdimensions.front();
+            assert(not sub.axis.empty());
+            axis = sub.axis.front();
+        }
+        std::deque<std::size_t> dims(std::distance(start, last));
+        std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
+        broadcast_dims_map[axis] = dims;
+    });
+
     // Reinsert removed axes of 1
     for(auto&& p : missing_axes)
     {
         auto missing_axis = p.first;
         auto next_axis    = p.second;
+        auto missing_sub = dimension::sub{1, {missing_axis}};
         if(next_axis == rank)
         {
-            auto [sub, it] = find_subdimension(
+            auto[sub, it, prev] = find_subdimension(
                 *this, [&](const dimension::sub& s) { return s.axis == last_axis; });
-            sub->insert(std::next(it), dimension::sub{1, {missing_axis}});
+            // Check if we can insert it at the end
+            auto bdims = broadcast_dims_map.find(rank);
+            if(bdims != broadcast_dims_map.end() and not bdims->second.empty())
+            {
+                auto bdim = bdims->second.front();
+                bdims->second.pop_front();
+                set_broadcast_dim(dimensions[bdim], missing_axis);
+            }
+            else
+            {
+                sub->insert(std::next(it), missing_sub);
+            }
         }
         else
         {
-            auto [sub, it] = find_subdimension(*this, [&](const dimension::sub& s) {
+            auto[sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
                 if(s.axis.empty())
                     return false;
                 if(s.axis.front() != next_axis)
@@ -326,34 +396,24 @@ void shape_transform_descriptor::simplify()
                 assert(s.axis.size() == 2);
                 return s.axis.back() == 0;
             });
-            sub->insert(it, dimension::sub{1, {missing_axis}});
+            bool in_order = false;
+            if(prev.has_value() and not (*prev)->axis.empty())
+                in_order = (*prev)->axis.front() == missing_axis - 1;
+            else
+                in_order = missing_axis == 0;
+            // If the axis is not inorder then see if we can find a broadcast axis to place it
+            auto bdims = in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);
+            if(bdims != broadcast_dims_map.end() and not bdims->second.empty())
+            {
+                auto bdim = bdims->second.front();
+                bdims->second.pop_front();
+                set_broadcast_dim(dimensions[bdim], missing_axis);
+            }
+            else
+            {
+                sub->insert(it, missing_sub);
+            }
         }
-    }
-}
-
-static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
-{
-    if(d.subdimensions.empty())
-        return true;
-    if(d.subdimensions.size() != 1)
-        return false;
-    const auto& sub = d.subdimensions.front();
-    return sub.axis.empty();
-}
-
-template <class Subs, class F>
-static void for_each_empty_axis(Subs& subs, F f)
-{
-    auto pred = [](const auto& s) { return s.axis.empty(); };
-    // Skip over initial empty axes
-    auto it = std::find_if_not(subs.begin(), subs.end(), pred);
-    if(it == subs.end())
-        return;
-    while(it != subs.end())
-    {
-        auto start = std::find_if(it, subs.end(), pred);
-        it         = std::find_if_not(start, subs.end(), pred);
-        f(std::prev(start), start, it);
     }
 }
 
@@ -390,6 +450,20 @@ std::vector<operation> shape_transform_descriptor::generate() const
         result.push_back(make_op("reshape", {{"dims", dims}}));
     }
 
+    // Flatten broadcasted subdimensions
+    for(auto& d:new_dims)
+    {
+        for(auto& s:d.subdimensions)
+        {
+            if(s.axis.empty() and s.vaxis.has_value())
+            {
+                s.axis = {s.vaxis.value()};
+                s.len = 1;
+                s.vaxis = nullopt;
+            }
+        }
+    }
+
     // Remove broadcast
     new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim),
                    new_dims.end());
@@ -409,7 +483,11 @@ std::vector<operation> shape_transform_descriptor::generate() const
 
     auto tsubs = subs;
     // Inject additonal axis to compute transpose permutation better
-    for_each_empty_axis(tsubs, [](auto base, auto start, auto last) {
+    auto is_empty_axis = [](const auto& s) { return s.axis.empty(); };
+    group_find(tsubs.begin(), tsubs.end(), is_empty_axis, [&](auto start, auto last) {
+        if(start == tsubs.begin())
+            return;
+        auto base = std::prev(start);
         auto axis = base->axis;
         axis.push_back(0);
         std::for_each(start, last, [&](auto& s) {

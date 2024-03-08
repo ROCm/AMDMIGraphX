@@ -77,6 +77,18 @@ void group_unique(Iterator start, Iterator last, Output out, Predicate pred)
     }
 }
 
+template <class Iterator, class Predicate, class Output>
+void group_find(Iterator start, Iterator last, Predicate pred, Output out)
+{
+    start = std::find_if(start, last, pred);
+    while(start != last)
+    {
+        auto it = std::find_if_not(start, last, pred);
+        out(start, it);
+        start = std::find_if(it, last, pred);
+    }
+}
+
 template <class Iterator, class Predicate>
 Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
 {

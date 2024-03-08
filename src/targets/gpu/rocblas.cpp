@@ -35,6 +35,8 @@ namespace gpu {
 
 rocblas_handle_ptr create_rocblas_handle_ptr()
 {
+    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
+    rocblas_initialize();
     rocblas_handle handle;
     rocblas_create_handle(&handle);
     return rocblas_handle_ptr{handle};

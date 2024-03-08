@@ -80,6 +80,33 @@ TEST_CASE(record_reshape_1s)
            all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}, d_axes{{2, 0}}, d_axes{{2, 1}}});
 }
 
+TEST_CASE(record_reshape_trailing_1s)
+{
+    auto desc = make_descriptor({3, 4, 4}, make_op("reshape", {{"dims", {3, 4, 4, 1, 1}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 4, 1, 1});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}, {1}, {1}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}, d_axes{{}}, d_axes{{}}});
+}
+
+TEST_CASE(record_squeeze_trailing_1s)
+{
+    auto desc = make_descriptor({3, 4, 4, 1, 1}, make_op("reshape", {{"dims", {3, 4, 4}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
+}
+
+TEST_CASE(record_reshape_squeeze_trailing_1s)
+{
+    auto desc = make_descriptor({3, 4, 4}, make_op("reshape", {{"dims", {3, 4, 4, 1, 1}}}), make_op("reshape", {{"dims", {3, 4, 4}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
+}
+
 TEST_CASE(record_transpose)
 {
     auto desc =
@@ -107,6 +134,55 @@ TEST_CASE(optimize_transpose_transpose)
                    make_op("transpose", {{"permutation", {1, 0, 2}}}),
                }) == ops{
                          make_op("transpose", {{"permutation", {2, 0, 1}}}),
+                     });
+}
+
+TEST_CASE(optimize_reshape_reshape)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {3, 5, 2},
+               {
+                   make_op("reshape", {{"dims", {30}}}),
+                   make_op("reshape", {{"dims", {3, 10}}}),
+               }) == ops{
+                         make_op("reshape", {{"dims", {3, 10}}}),
+                     });
+}
+
+TEST_CASE(optimize_reshape_transpose_reshape_to_none)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {6, 5, 2},
+               {
+                   make_op("reshape", {{"dims", {6, 5, 2, 1, 1}}}),
+                   make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}),
+                   make_op("reshape", {{"dims", {6, 5, 2}}}),
+               }) == ops{});
+}
+
+TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {6, 5, 2},
+               {
+                   make_op("reshape", {{"dims", {2, 3, 5, 2}}}),
+                   make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                   make_op("reshape", {{"dims", {6, 2, 5}}}),
+               }) == ops{
+                         make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                     });
+}
+
+TEST_CASE(optimize_reshape_transpose_reshape_to_reshape)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {6, 5, 2},
+               {
+                   make_op("reshape", {{"dims", {6, 5, 2, 1}}}),
+                   make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                   make_op("reshape", {{"dims", {6, 10}}}),
+               }) == ops{
+                         make_op("reshape", {{"dims", {6, 10}}}),
                      });
 }
 

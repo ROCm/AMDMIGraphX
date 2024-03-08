@@ -41,6 +41,7 @@ struct quant_conv : verify_program<quant_conv<DType>>
         mm->add_instruction(migraphx::make_op("quant_convolution"), pa, pc);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct quant_conv<migraphx::shape::int8_type>;

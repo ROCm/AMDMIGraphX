@@ -459,7 +459,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
         {
             if(s.axis.empty() and s.hidden_axis.has_value())
             {
-                s.axis  = {s.hidden_axis.value()};
+                s.axis        = {s.hidden_axis.value()};
                 s.len   = 1;
                 s.hidden_axis = nullopt;
             }

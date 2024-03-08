@@ -33,7 +33,7 @@ struct shape_transform_descriptor
         {
             std::size_t len;
             std::vector<std::size_t> axis = {};
-            optional<std::size_t> hidden_axis   = nullopt;
+            optional<std::size_t> hidden_axis = nullopt;
         };
         std::vector<sub> subdimensions;
     };

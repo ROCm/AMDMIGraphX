@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,7 +98,7 @@ struct test_loop_op
             ins_out_shapes.push_back({out_s.type(), lens});
         }
 
-        return {ins_out_shapes};
+        return migraphx::shape(ins_out_shapes);
     }
 
     struct test_loop : public migraphx::op::loop::ref_loop

@@ -53,4 +53,5 @@ struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu>
         mm->add_instruction(migraphx::make_op("relu"), gemm2);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };

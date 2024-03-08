@@ -47,6 +47,7 @@ struct gemm_multi_transpose : verify_program<gemm_multi_transpose<DType>>
         migraphx::add_apply_alpha_beta(*mm, {l1, tl2}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_multi_transpose<migraphx::shape::float_type>;

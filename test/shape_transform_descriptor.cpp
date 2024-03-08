@@ -94,17 +94,17 @@ TEST_CASE(record_squeeze_trailing_1s)
     auto desc = make_descriptor({3, 4, 4, 1, 1}, make_op("reshape", {{"dims", {3, 4, 4}}}));
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
-    EXPECT(get_all_axes(desc) ==
-           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
 }
 
 TEST_CASE(record_reshape_squeeze_trailing_1s)
 {
-    auto desc = make_descriptor({3, 4, 4}, make_op("reshape", {{"dims", {3, 4, 4, 1, 1}}}), make_op("reshape", {{"dims", {3, 4, 4}}}));
+    auto desc = make_descriptor({3, 4, 4},
+                                make_op("reshape", {{"dims", {3, 4, 4, 1, 1}}}),
+                                make_op("reshape", {{"dims", {3, 4, 4}}}));
     EXPECT(get_final_lens(desc) == final_lens{3, 4, 4});
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}});
-    EXPECT(get_all_axes(desc) ==
-           all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
 }
 
 TEST_CASE(record_transpose)
@@ -139,14 +139,13 @@ TEST_CASE(optimize_transpose_transpose)
 
 TEST_CASE(optimize_reshape_reshape)
 {
-    EXPECT(migraphx::optimize_shape_transforms(
-               {3, 5, 2},
-               {
-                   make_op("reshape", {{"dims", {30}}}),
-                   make_op("reshape", {{"dims", {3, 10}}}),
-               }) == ops{
-                         make_op("reshape", {{"dims", {3, 10}}}),
-                     });
+    EXPECT(migraphx::optimize_shape_transforms({3, 5, 2},
+                                               {
+                                                   make_op("reshape", {{"dims", {30}}}),
+                                                   make_op("reshape", {{"dims", {3, 10}}}),
+                                               }) == ops{
+                                                         make_op("reshape", {{"dims", {3, 10}}}),
+                                                     });
 }
 
 TEST_CASE(optimize_reshape_transpose_reshape_to_none)

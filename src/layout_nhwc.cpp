@@ -40,7 +40,11 @@ template <class Predicate>
 std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 {
     std::vector<instruction_ref> result;
+    std::unordered_set<instruction_ref> visited;
     fix([&](auto self, auto ins) {
+        if(contains(visited, ins))
+            return;
+        visited.emplace(ins);
         if(pred(ins))
         {
             result.push_back(ins);
@@ -57,6 +61,8 @@ void preserve_output_layout(module& m)
     std::vector<instruction_ref> outputs = find_lasts(m, [](auto ins) {
         return ins->name() == "convolution" and ins->get_shape().lens().size() == 4;
     });
+    std::cout << "num outputs " << outputs.size() << std::endl;
+    m.debug_print(outputs);
     for(auto output : outputs)
     {
         auto permutation = find_permutation(output->get_shape());

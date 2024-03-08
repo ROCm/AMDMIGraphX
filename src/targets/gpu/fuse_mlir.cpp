@@ -127,6 +127,7 @@ struct mlir_op
                         ins->get_shape().type_string() + " to " +
                         mod_ins_shapes[ins].type_string());
                 }
+                mod->debug_print();
                 if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
                 {
                     MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
@@ -423,6 +424,8 @@ struct find_mlir_fused_ops
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
+        auto m = mpm.get_root_module();
+        m->debug_print(ins);
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),

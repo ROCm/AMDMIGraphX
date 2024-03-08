@@ -31,7 +31,8 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return it;
 }
 
-static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs, bool new_line=true)
+static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs,
+                        bool new_line = true)
 {
     for(const auto& s : subs)
     {
@@ -349,7 +350,7 @@ void shape_transform_descriptor::simplify()
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
     group_find(dimensions.begin(), dimensions.end(), &is_broadcast_dim, [&](auto start, auto last) {
         auto axis = rank;
-        if (last != dimensions.end())
+        if(last != dimensions.end())
         {
             assert(not last->subdimensions.empty());
             const auto& sub = last->subdimensions.front();
@@ -366,10 +367,10 @@ void shape_transform_descriptor::simplify()
     {
         auto missing_axis = p.first;
         auto next_axis    = p.second;
-        auto missing_sub = dimension::sub{1, {missing_axis}};
+        auto missing_sub  = dimension::sub{1, {missing_axis}};
         if(next_axis == rank)
         {
-            auto[sub, it, prev] = find_subdimension(
+            auto [sub, it, prev] = find_subdimension(
                 *this, [&](const dimension::sub& s) { return s.axis == last_axis; });
             // Check if we can insert it at the end
             auto bdims = broadcast_dims_map.find(rank);
@@ -386,7 +387,7 @@ void shape_transform_descriptor::simplify()
         }
         else
         {
-            auto[sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
+            auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
                 if(s.axis.empty())
                     return false;
                 if(s.axis.front() != next_axis)
@@ -396,13 +397,14 @@ void shape_transform_descriptor::simplify()
                 assert(s.axis.size() == 2);
                 return s.axis.back() == 0;
             });
-            bool in_order = false;
-            if(prev.has_value() and not (*prev)->axis.empty())
+            bool in_order        = false;
+            if(prev.has_value() and not(*prev)->axis.empty())
                 in_order = (*prev)->axis.front() == missing_axis - 1;
             else
                 in_order = missing_axis == 0;
             // If the axis is not inorder then see if we can find a broadcast axis to place it
-            auto bdims = in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);
+            auto bdims =
+                in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);
             if(bdims != broadcast_dims_map.end() and not bdims->second.empty())
             {
                 auto bdim = bdims->second.front();
@@ -451,14 +453,14 @@ std::vector<operation> shape_transform_descriptor::generate() const
     }
 
     // Flatten broadcasted subdimensions
-    for(auto& d:new_dims)
+    for(auto& d : new_dims)
     {
-        for(auto& s:d.subdimensions)
+        for(auto& s : d.subdimensions)
         {
             if(s.axis.empty() and s.vaxis.has_value())
             {
-                s.axis = {s.vaxis.value()};
-                s.len = 1;
+                s.axis  = {s.vaxis.value()};
+                s.len   = 1;
                 s.vaxis = nullopt;
             }
         }

@@ -37,8 +37,8 @@ static void debug_print(const std::vector<shape_transform_descriptor::dimension:
     for(const auto& s : subs)
     {
         std::cout << s.len << ":" << to_string_range(s.axis, "x");
-        if(s.vaxis.has_value())
-            std::cout << "$" << s.vaxis.value();
+        if(s.hidden_axis.has_value())
+            std::cout << "$" << s.hidden_axis.value();
         std::cout << ",";
     }
     if(new_line)
@@ -289,7 +289,7 @@ static void set_broadcast_dim(shape_transform_descriptor::dimension& d, std::siz
     if(d.subdimensions.empty())
         d.subdimensions.push_back({1, {axis}});
     else
-        d.subdimensions.front().vaxis = axis;
+        d.subdimensions.front().hidden_axis = axis;
 }
 
 void shape_transform_descriptor::simplify()
@@ -457,11 +457,11 @@ std::vector<operation> shape_transform_descriptor::generate() const
     {
         for(auto& s : d.subdimensions)
         {
-            if(s.axis.empty() and s.vaxis.has_value())
+            if(s.axis.empty() and s.hidden_axis.has_value())
             {
-                s.axis  = {s.vaxis.value()};
+                s.axis  = {s.hidden_axis.value()};
                 s.len   = 1;
-                s.vaxis = nullopt;
+                s.hidden_axis = nullopt;
             }
         }
     }

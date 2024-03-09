@@ -293,6 +293,20 @@ struct index
     }
 };
 
+inline __device__ __attribute__((const)) index_int compute_grid_size()
+{
+    return (compute_global_size() + compute_max_local_size() - 1) / compute_max_local_size();
+}
+
+inline __device__ __attribute__((const)) index_int compute_block_index()
+{
+#ifdef MIGRAPHX_NLOCAL_REVERSE_WG
+    return compute_grid_size() - blockIdx.x - 1;
+#else
+    return blockIdx.x;
+#endif
+}
+
 #ifdef MIGRAPHX_NLOCAL
 #define MIGRAPHX_GLOBAL \
     __global__ __attribute__((amdgpu_flat_work_group_size(MIGRAPHX_NLOCAL, MIGRAPHX_NLOCAL)))
@@ -301,8 +315,10 @@ struct index
 #endif
 inline __device__ __attribute__((const)) index make_index()
 {
+    index_int block_idx = compute_block_index();
+
     return index{
-        blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+        block_idx * compute_max_local_size() + threadIdx.x, threadIdx.x, block_idx}; // NOLINT
 }
 
 } // namespace migraphx

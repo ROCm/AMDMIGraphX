@@ -195,6 +195,9 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     else
         assert(options.global % options.local == 0);
 
+    if(options.reverse_workgroups)
+        options.emplace_param("-DMIGRAPHX_NLOCAL_REVERSE_WG=1");
+
     options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
     options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
     const auto& warnings = compiler_warnings();

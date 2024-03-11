@@ -131,7 +131,7 @@ struct find_concat_pointwise
                 inputs.push_back(input);
             }
         }
-        if(num_noops > 1)
+        if(num_noops > std::max(size_t{1}, concat_ins->inputs().size() / 4))
         {
             return;
         }

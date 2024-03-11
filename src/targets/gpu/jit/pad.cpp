@@ -92,10 +92,11 @@ struct pad_compiler : compiler<pad_compiler>
         rinputs.pop_back();
 
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = rinputs;
-        options.kernel_name    = "pad_kernel";
+        options.inputs             = inputs;
+        options.output             = inputs.back();
+        options.virtual_inputs     = rinputs;
+        options.kernel_name        = "pad_kernel";
+        options.reverse_workgroups = v.get("reverse", false);
         options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements()));
 
         auto pad_val        = v.get("value", 0.f);
@@ -113,7 +114,9 @@ struct pad_compiler : compiler<pad_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v       = op.to_value();
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 } // namespace gpu

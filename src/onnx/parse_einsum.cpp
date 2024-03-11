@@ -35,10 +35,12 @@ namespace onnx {
 
 struct parse_einsum : op_parser<parse_einsum>
 {
-    using string_vec   = std::vector<std::string>;
-    using int_vec      = std::vector<int>;
-    using int_mat      = std::vector<std::vector<int>>;
-    using char_int_map = std::map<char, int>;
+    using string_vec = std::vector<std::string>;
+    using int_vec    = std::vector<int>;
+    using int_mat    = std::vector<std::vector<int>>;
+    template <typename T>
+    using char_map     = std::map<char, T>;
+    using char_int_map = char_map<int>;
 
     std::vector<op_desc> operators() const { return {{"Einsum"}}; }
 
@@ -51,35 +53,38 @@ struct parse_einsum : op_parser<parse_einsum>
             MIGRAPHX_THROW("Equation attribute is required");
         std::string equation = info.attributes.at("equation").s();
 
-        auto [terms, unique_labels, ellipses_ndim] = analyze_equation(equation, args);
-        const auto mat  = make_mapping_matrix(terms, unique_labels, ellipses_ndim);
-        auto duplicates = look_for_duplicates(terms);
+        const auto [terms, unique_labels, ellipses_ndim] = analyze_equation(equation, args);
+        const auto map_mat    = make_mapping_matrix(terms, unique_labels, ellipses_ndim);
+        const auto duplicates = find_duplicates(terms);
 
         // Holds the mapping matrix representations of the two terms being processed
         // cur_pair[0] acts as the accumulator for previously processed inputs
         // cur_pair[1] holds the representation for the current input
         // As operations are added to the einsum graph, cur_pair gets manipulated
-        int_mat cur_pair = make_matrix(2, mat[0].size(), -1);
-        instruction_ref op;
+        int_mat cur_pair = make_matrix(2, map_mat[0].size(), -1);
+
+        instruction_ref cur_op;
         std::optional<instruction_ref> last_op;
         // Perform a left fold on the inputs
         for(auto arg_idx = 0; arg_idx < args.size(); ++arg_idx)
         {
-            op          = args[arg_idx];
-            cur_pair[1] = mat[arg_idx];
+            cur_op      = args[arg_idx];
+            cur_pair[1] = map_mat[arg_idx];
 
-            auto duplicate = duplicates[arg_idx];
-            op             = preprocess_input(info, op, duplicate, mat, arg_idx, cur_pair);
+            cur_op =
+                preprocess_input(info, cur_op, duplicates[arg_idx], map_mat, arg_idx, cur_pair);
 
             if(last_op)
-                op = process_pair(info, *last_op, op, mat, arg_idx, cur_pair);
+                cur_op = process_pair(info, *last_op, cur_op, map_mat, arg_idx, cur_pair);
 
-            last_op     = op;
+            last_op     = cur_op;
             cur_pair[0] = cur_pair[1];
         }
 
-        return finalize_output(info, op, mat, cur_pair);
+        return finalize_output(info, cur_op, map_mat, cur_pair);
     }
+
+    // Equation Parsing
 
     std::tuple<string_vec, std::string, size_t>
     analyze_equation(std::string_view equation, const std::vector<instruction_ref>& args) const
@@ -97,16 +102,16 @@ struct parse_einsum : op_parser<parse_einsum>
 
         terms = std::move(input_terms);
         terms.emplace_back(std::move(output_term));
-        for(auto [l, _] : label_count)
+        for(const auto [l, _] : label_count)
             unique_labels += l;
 
         return ret;
     }
 
-    std::tuple<std::vector<std::string>, std::string, std::map<char, int>, bool>
+    std::tuple<string_vec, std::string, char_int_map, bool>
     parse_equation(std::string_view equation) const
     {
-        std::tuple<std::vector<std::string>, std::string, std::map<char, int>, bool> ret;
+        std::tuple<string_vec, std::string, char_int_map, bool> ret;
         // cppcheck-suppress variableScope
         auto& [input_terms, output_term, label_count, explicit_form] = ret;
 
@@ -123,6 +128,7 @@ struct parse_einsum : op_parser<parse_einsum>
             case '-':
                 if(explicit_form)
                     MIGRAPHX_THROW("Einsum equation has multiple '->' symbols");
+
                 if(i + 1 >= equation.size() or equation[i + 1] != '>')
                     MIGRAPHX_THROW("Invalid '->' in einsum equation");
 
@@ -185,7 +191,7 @@ struct parse_einsum : op_parser<parse_einsum>
             {
                 if(l == '*')
                 {
-                    auto ellipses_dims = rank - term.size() + 1;
+                    const auto ellipses_dims = rank - term.size() + 1;
                     if(global_ellipses_dims > 0 and ellipses_dims != global_ellipses_dims)
                         MIGRAPHX_THROW("Every occurrence of ellipsis in the equation must "
                                        "represent the same number of dimensions");
@@ -259,38 +265,38 @@ struct parse_einsum : op_parser<parse_einsum>
                                 std::string_view unique_labels,
                                 size_t ellipses_ndim) const
     {
-        std::map<char, int> label_to_column;
+        char_int_map label_to_column;
         for(auto i = 0; i < unique_labels.size(); ++i)
             label_to_column[unique_labels[i]] = i;
 
-        int_mat mat = make_matrix(terms.size(), unique_labels.size() + ellipses_ndim, -1);
+        int_mat map_mat = make_matrix(terms.size(), unique_labels.size() + ellipses_ndim, -1);
 
         for(auto i = 0; i < terms.size(); ++i)
         {
             const auto& term = terms[i];
             int col_id       = 0;
-            for(auto l : term)
+            for(const auto l : term)
             {
                 if(l == '*')
                 {
-                    std::iota(mat[i].end() - ellipses_ndim, mat[i].end(), col_id);
+                    std::iota(map_mat[i].end() - ellipses_ndim, map_mat[i].end(), col_id);
                     col_id += ellipses_ndim;
                 }
                 else
-                    mat[i][label_to_column[l]] = col_id++;
+                    map_mat[i][label_to_column[l]] = col_id++;
             }
         }
 
-        return mat;
+        return map_mat;
     }
 
-    std::vector<std::map<char, int_vec>> look_for_duplicates(const string_vec& terms) const
+    std::vector<char_map<int_vec>> find_duplicates(const string_vec& terms) const
     {
-        std::vector<std::map<char, int_vec>> duplicates;
-        for(auto term : terms)
+        std::vector<char_map<int_vec>> duplicates;
+        for(const auto& term : terms)
         {
-            std::map<char, int_vec> counts;
-            for(int i = 0; i < term.size(); ++i)
+            char_map<int_vec> counts;
+            for(auto i = 0; i < term.size(); ++i)
                 counts[term[i]].push_back(i);
 
             for(auto it = counts.begin(); it != counts.end();)
@@ -307,20 +313,22 @@ struct parse_einsum : op_parser<parse_einsum>
         return duplicates;
     }
 
+    // Graph Building
+
     instruction_ref preprocess_input(const onnx_parser::node_info& info,
                                      instruction_ref op,
-                                     const std::map<char, int_vec>& duplicates,
-                                     const int_mat& mat,
+                                     const char_map<int_vec>& duplicates,
+                                     const int_mat& map_mat,
                                      size_t input_idx,
                                      int_mat& cur_pair) const
     {
         if(not duplicates.empty())
         {
             std::vector<int_vec> diag;
-            for(auto [_, v] : duplicates)
+            for(const auto& [_, v] : duplicates)
                 diag.push_back(v);
 
-            op = apply_diagonal(info, cur_pair, op, diag);
+            op = gather_diagonal(info, cur_pair, op, diag);
         }
 
         // Unsqueeze the input shape in the dimensions marked as -1 in the mapping_matrix
@@ -330,9 +338,9 @@ struct parse_einsum : op_parser<parse_einsum>
         int_vec red;
         // Check if a given label appears in any of the subsequent mapping matrix terms(this
         // includes the output). If does not, it is reduced and marked as -1 in cur_pair.
-        for(int d = 0; d < mat[0].size(); ++d)
+        for(int d = 0; d < map_mat[0].size(); ++d)
         {
-            bool all_neg_one = all_of(extract_column(mat, d, input_idx + 1, mat.size()),
+            bool all_neg_one = all_of(extract_column(map_mat, d, input_idx + 1, map_mat.size()),
                                       [](auto i) { return i == -1; });
             if(all_neg_one and cur_pair[1][d] != -1 and cur_pair[0][d] == -1)
                 red.push_back(d);
@@ -341,16 +349,17 @@ struct parse_einsum : op_parser<parse_einsum>
         return apply_reduce_sum_op(info, op, red, cur_pair[1]);
     }
 
-    instruction_ref apply_diagonal(const onnx_parser::node_info& info,
-                                   int_mat& cur_pair,
-                                   instruction_ref op,
-                                   const int_mat& diag) const
+    instruction_ref gather_diagonal(const onnx_parser::node_info& info,
+                                    int_mat& cur_pair,
+                                    instruction_ref op,
+                                    const int_mat& diag) const
     {
         if(diag.size() != 1)
-            MIGRAPHX_THROW("Not implemented with more than one duplicated label");
+            MIGRAPHX_THROW("Equations with more than one duplicated labels per input term are not "
+                           "implemented");
 
-        auto axis = diag[0][0];
-        auto axes = diag[0];
+        const auto axis  = diag[0][0];
+        const auto& axes = diag[0];
 
         int_vec batch_axes;
         for(int i = 0; i < cur_pair[0].size(); ++i)
@@ -390,6 +399,7 @@ struct parse_einsum : op_parser<parse_einsum>
 
         op = info.add_instruction(
             migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
+
         // compute output row
         int_vec to_remove;
         for(const auto& choices : diag)
@@ -403,7 +413,6 @@ struct parse_einsum : op_parser<parse_einsum>
                 if(contains(choices, r))
                     r = choices[0];
         }
-
         std::sort(to_remove.begin(), to_remove.end());
         for(auto t : to_remove)
         {
@@ -423,7 +432,7 @@ struct parse_einsum : op_parser<parse_einsum>
     instruction_ref process_pair(const onnx_parser::node_info& info,
                                  instruction_ref op1,
                                  instruction_ref op2,
-                                 const int_mat& mat,
+                                 const int_mat& map_mat,
                                  size_t input_idx,
                                  int_mat& cur_pair) const
     {
@@ -438,13 +447,13 @@ struct parse_einsum : op_parser<parse_einsum>
 
         auto not_neg_one = [](auto i) { return i != -1; };
         // Categorize axes according to label distribution in equation
-        for(int d = 0; d < mat[0].size(); ++d)
+        for(int d = 0; d < map_mat[0].size(); ++d)
         {
             // The label is present in both terms of cur_pair
             if(all_of(extract_column(cur_pair, d, 0, cur_pair.size()), not_neg_one))
             {
                 // The label is present in at least one of the subsequent terms
-                if(any_of(extract_column(mat, d, input_idx + 1, mat.size()), not_neg_one))
+                if(any_of(extract_column(map_mat, d, input_idx + 1, map_mat.size()), not_neg_one))
                     batch_axes.push_back(d);
                 else
                     sum_axes.push_back(d);
@@ -469,6 +478,9 @@ struct parse_einsum : op_parser<parse_einsum>
         auto new_batch_axes = arange(0, batch_axes.size());
         auto new_sum_axes   = arange(perm.size() - sum_axes.size(), perm.size());
 
+        auto common_labels = set_union(new_batch_axes, new_sum_axes);
+        std::tie(op1, op2) = apply_broadcast_op(info, op1, op2, common_labels);
+
         auto op = batch_dot(info, cur_pair, op1, op2, new_batch_axes, new_sum_axes);
 
         auto perm_cpy = perm;
@@ -485,15 +497,12 @@ struct parse_einsum : op_parser<parse_einsum>
                               const int_vec& batch_axes,
                               const int_vec& sum_axes) const
     {
-        auto common_labels = set_union(batch_axes, sum_axes);
-        std::tie(op1, op2) = apply_broadcast_op(info, op1, op2, common_labels);
-
         auto op1_lens = op1->get_shape().lens();
         auto op2_lens = op2->get_shape().lens();
 
         auto calc_dim = [](const auto& axes, const auto& lens) {
             return std::accumulate(
-                axes.begin(), axes.end(), 1, [&](auto acc, auto l) { return acc *= lens[l]; });
+                axes.begin(), axes.end(), 1, [&](auto acc, auto axis) { return acc * lens[axis]; });
         };
         int_vec dims1{calc_dim(batch_axes, op1_lens), -1, calc_dim(sum_axes, op1_lens)};
         int_vec dims2{calc_dim(batch_axes, op2_lens), -1, calc_dim(sum_axes, op2_lens)};
@@ -501,22 +510,20 @@ struct parse_einsum : op_parser<parse_einsum>
         op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
         op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);
         op2 = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), op2);
-        instruction_ref dot = info.add_instruction(make_op("dot"), op1, op2);
+        instruction_ref op = info.add_instruction(make_op("dot"), op1, op2);
 
         int_vec new_lens(op1_lens.size(), 1);
-        // auto new_lens_axes = concat_vectors(batch_axes, perm_left, perm_right);
-        // std::transform(new_lens_axes.begin(), new_lens_axes.end(), new_lens.begin(), [&](auto a)
-        // { return std::max(op1_lens[a], op2_lens[a]); });
         for(auto i = 0; i < new_lens.size() - sum_axes.size(); ++i)
             new_lens[i] = std::max(op1_lens[i], op2_lens[i]);
 
-        auto op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), dot);
+        op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), op);
+
         // compute output row
         std::transform(cur_pair[0].begin(),
                        cur_pair[0].end(),
                        cur_pair[1].begin(),
                        cur_pair[1].begin(),
-                       [](int l, int r) { return std::max(l, r); });
+                       [](int lhs, int rhs) { return std::max(lhs, rhs); });
         for(int a : sum_axes)
             cur_pair[1][a] = -1;
 
@@ -525,14 +532,14 @@ struct parse_einsum : op_parser<parse_einsum>
 
     instruction_ref finalize_output(const onnx_parser::node_info& info,
                                     instruction_ref op,
-                                    const int_mat& mat,
+                                    const int_mat& map_mat,
                                     int_mat& cur_pair) const
     {
-        if(any_of(mat.back(), [](auto i) { return i >= 0; }))
+        if(any_of(map_mat.back(), [](auto i) { return i >= 0; }))
         {
-            cur_pair[1] = mat.back();
+            cur_pair[1] = map_mat.back();
             int_vec red;
-            for(int d = 0; d < mat[0].size(); ++d)
+            for(int d = 0; d < map_mat[0].size(); ++d)
             {
                 if(cur_pair[0][d] > 0 and cur_pair[1][d] == -1)
                     red.push_back(d);
@@ -543,7 +550,7 @@ struct parse_einsum : op_parser<parse_einsum>
             op = apply_reduce_sum_op(info, op, red, cur_pair[1]);
         }
 
-        return transpose_squeeze(info, cur_pair, op, mat.back());
+        return transpose_squeeze(info, cur_pair, op, map_mat.back());
     }
 
     instruction_ref unsqueeze_transpose(const onnx_parser::node_info& info,
@@ -707,18 +714,20 @@ struct parse_einsum : op_parser<parse_einsum>
         return info.add_instruction(make_op("reduce_sum", {{"axes", axes}}), op);
     }
 
+    // Utility
+
     int_mat make_matrix(int cur_pair, int cols, int fill_value) const
     {
         return int_mat(cur_pair, int_vec(cols, fill_value));
     }
 
-    int_vec extract_column(int_mat mat, int col_idx, int row_begin, int row_end) const
+    int_vec extract_column(int_mat map_mat, int col_idx, int row_begin, int row_end) const
     {
         int_vec ret;
         ret.reserve(row_end - row_begin);
 
         for(int i = row_begin; i < row_end; ++i)
-            ret.push_back(mat[i][col_idx]);
+            ret.push_back(map_mat[i][col_idx]);
 
         return ret;
     }

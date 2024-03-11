@@ -355,72 +355,55 @@ struct parse_einsum : op_parser<parse_einsum>
                                     const int_mat& diag) const
     {
         if(diag.size() != 1)
-            MIGRAPHX_THROW("Equations with more than one duplicated labels per input term are not "
-                           "implemented");
+            MIGRAPHX_THROW(
+                "Parsing of equations with more than one duplicated labels per input term is not "
+                "implemented");
 
-        const auto axis  = diag[0][0];
-        const auto& axes = diag[0];
+        const auto& op_lens = op->get_shape().lens();
 
-        int_vec batch_axes;
-        for(int i = 0; i < cur_pair[0].size(); ++i)
-            if(not contains(axes, i))
-                batch_axes.push_back(i);
+        int first_axis      = diag[0][0];
+        const int_vec& axes = diag[0];
+        if(not all_of(axes, [&](int a) { return op_lens[first_axis] == op_lens[a]; }))
+            MIGRAPHX_THROW("All duplicate labels have to be the same dimension");
 
-        auto min_axes = *(std::min_element(axes.begin(), axes.end()));
-        if(not all_of(batch_axes, [=](int ba) { return ba < min_axes; }))
-            MIGRAPHX_THROW("Currently batch axes have to be partitioned to the left");
+        int_vec batch_axes = set_difference(arange(0, op_lens.size()), axes);
+        if(not all_of(batch_axes, [&](int ba) { return ba < axes.front(); }))
+            MIGRAPHX_THROW(
+                "Parsing of equations with duplicated labels and batch axes that are not "
+                "the outer-most axes, is not implemented");
 
-        auto op_shape = op->get_shape().lens();
-
-        if(not all_of(axes, [op_shape, axis](int a) { return op_shape[axis] == op_shape[a]; }))
-            MIGRAPHX_THROW("All duplicated indices have to be the same dimension");
-
-        size_t batch_size =
-            std::accumulate(batch_axes.begin(), batch_axes.end(), 1, [&](auto acc, auto dim) {
-                return acc *= op_shape[dim];
-            });
+        size_t batch_size = calc_dim(batch_axes, op_lens);
 
         std::vector<size_t> indices;
-        for(int batch = 0; batch < batch_size; ++batch)
+        for(size_t batch = 0; batch < batch_size; ++batch)
         {
-            for(int i = 0; i < op_shape[axis]; ++i)
+            for(size_t i = 0; i < op_lens[first_axis]; ++i)
             {
-                std::vector<size_t> index(axes.size(), static_cast<size_t>(i));
+                std::vector<size_t> index(axes.size(), i);
                 indices.insert(indices.end(), index.begin(), index.end());
             }
         }
 
-        std::vector<size_t> lens{op_shape[axis], axes.size()};
+        std::vector<size_t> indices_lens{op_lens[first_axis], axes.size()};
         if(batch_size > 1)
-            lens.insert(lens.begin(), batch_size);
+            indices_lens.insert(indices_lens.begin(), batch_size);
 
         auto indices_arg = info.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, lens}, indices});
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, indices_lens}, indices});
 
         op = info.add_instruction(
             migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
 
         // compute output row
-        int_vec to_remove;
-        for(const auto& choices : diag)
-        {
-            std::copy_if(choices.begin(),
-                         choices.end(),
-                         std::back_inserter(to_remove),
-                         [ch = choices[0]](const auto& el) { return el != ch; });
+        for(auto& r : cur_pair[1])
+            if(contains(axes, r))
+                r = first_axis;
 
-            for(auto& r : cur_pair[1])
-                if(contains(choices, r))
-                    r = choices[0];
-        }
-        std::sort(to_remove.begin(), to_remove.end());
+        int_vec to_remove(axes.begin() + 1, axes.end());
         for(auto t : to_remove)
         {
             for(auto& r : cur_pair[1])
             {
-                if(r == t)
-                    MIGRAPHX_THROW("Unexpected result");
-
                 if(r > t)
                     r -= 1;
             }
@@ -500,19 +483,19 @@ struct parse_einsum : op_parser<parse_einsum>
         auto op1_lens = op1->get_shape().lens();
         auto op2_lens = op2->get_shape().lens();
 
-        auto calc_dim = [](const auto& axes, const auto& lens) {
-            return std::accumulate(
-                axes.begin(), axes.end(), 1, [&](auto acc, auto axis) { return acc * lens[axis]; });
-        };
-        int_vec dims1{calc_dim(batch_axes, op1_lens), -1, calc_dim(sum_axes, op1_lens)};
-        int_vec dims2{calc_dim(batch_axes, op2_lens), -1, calc_dim(sum_axes, op2_lens)};
+        std::vector<ssize_t> dims1{static_cast<ssize_t>(calc_dim(batch_axes, op1_lens)),
+                                   -1,
+                                   static_cast<ssize_t>(calc_dim(sum_axes, op1_lens))};
+        std::vector<ssize_t> dims2{static_cast<ssize_t>(calc_dim(batch_axes, op2_lens)),
+                                   -1,
+                                   static_cast<ssize_t>(calc_dim(sum_axes, op2_lens))};
 
         op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
         op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);
         op2 = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), op2);
         instruction_ref op = info.add_instruction(make_op("dot"), op1, op2);
 
-        int_vec new_lens(op1_lens.size(), 1);
+        std::vector<size_t> new_lens(op1_lens.size(), 1);
         for(auto i = 0; i < new_lens.size() - sum_axes.size(); ++i)
             new_lens[i] = std::max(op1_lens[i], op2_lens[i]);
 
@@ -543,8 +526,6 @@ struct parse_einsum : op_parser<parse_einsum>
             {
                 if(cur_pair[0][d] > 0 and cur_pair[1][d] == -1)
                     red.push_back(d);
-                else if(cur_pair[0][d] == -1 and cur_pair[1][d] >= 0)
-                    MIGRAPHX_THROW("Issue in equation");
             }
 
             op = apply_reduce_sum_op(info, op, red, cur_pair[1]);
@@ -740,6 +721,15 @@ struct parse_einsum : op_parser<parse_einsum>
         return ret;
     }
 
+    int_vec set_difference(const int_vec& lhs, const int_vec& rhs) const
+    {
+        int_vec ret;
+        std::set_difference(
+            lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
+
+        return ret;
+    }
+
     // Equivalent to numpy.arange without the step parameter
     int_vec arange(int start_value, int end_value) const
     {
@@ -763,6 +753,12 @@ struct parse_einsum : op_parser<parse_einsum>
 
         return ret;
     }
+
+    size_t calc_dim(const int_vec& axes, const std::vector<size_t>& lens) const
+    {
+        return std::accumulate(
+            axes.begin(), axes.end(), 1, [&](auto acc, auto axis) { return acc * lens[axis]; });
+    };
 };
 
 } // namespace onnx

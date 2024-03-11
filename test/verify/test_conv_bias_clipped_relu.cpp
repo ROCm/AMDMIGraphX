@@ -54,6 +54,7 @@ struct test_conv_bias_clipped_relu : verify_program<test_conv_bias_clipped_relu<
         mm->add_instruction(migraphx::make_op("clip"), bias_add, min_val, max_val);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_bias_clipped_relu<migraphx::shape::float_type>;

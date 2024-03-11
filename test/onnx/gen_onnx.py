@@ -7978,6 +7978,23 @@ def recip_test():
     return ([node], [x], [y])
 
 
+def reduceop_variable_axes_test(op_name,
+                                axes_len=1,
+                                keepdims=1,
+                                noop_with_empty_axes=0):
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [axes_len])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+
+    node = onnx.helper.make_node(op_name,
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 keepdims=keepdims,
+                                 noop_with_empty_axes=noop_with_empty_axes)
+
+    return ([node], [x, axes], [y])
+
+
 @onnx_test()
 def reducel1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -8161,12 +8178,11 @@ def reduceprod_test():
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
-    axes = [2]
 
     node = onnx.helper.make_node('ReduceSum',
                                  inputs=['x'],
                                  outputs=['y'],
-                                 axes=axes,
+                                 axes=[2],
                                  keepdims=0)
 
     return ([node], [x], [y])
@@ -8238,6 +8254,53 @@ def reducesum_multiaxis_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def reducesum_variable_axes_test():
+    return reduceop_variable_axes_test('ReduceSum')
+
+
+@onnx_test()
+def reducesum_variable_axes_noop_test():
+    return reduceop_variable_axes_test('ReduceSum', noop_with_empty_axes=1)
+
+
+@onnx_test()
+def reducesum_variable_axes_keepdims_clear_test():
+    return reduceop_variable_axes_test('ReduceSum', keepdims=0)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_test():
+    return reduceop_variable_axes_test('ReduceSum', None)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x, axes], [y])
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_noop_set_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 noop_with_empty_axes=1)
+
+    return ([node], [x, axes], [y])
 
 
 @onnx_test()

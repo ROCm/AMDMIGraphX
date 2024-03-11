@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,13 +41,14 @@ __device__ void ck_gemm_matrix(E e, A a, B b, Ds... ds)
                                              ck::make_tuple(to_ck_tensor<Ds>()...),
                                              to_ck_tensor<E>());
 
-    static_assert(desc.IsValid(), "Invalid ck gemm.");
-
-    G::Run(desc,
-           to_ck_const_pointer(a.data()),
-           to_ck_const_pointer(b.data()),
-           ck::make_tuple(to_ck_const_pointer(ds.data())...),
-           to_ck_pointer(e.data()));
+    MIGRAPHX_STATIC_ASSERT_FOR(desc.IsValid())
+    {
+        G::Run(desc,
+               to_ck_const_pointer(a.data()),
+               to_ck_const_pointer(b.data()),
+               ck::make_tuple(to_ck_const_pointer(ds.data())...),
+               to_ck_pointer(e.data()));
+    }
 }
 
 template <class G, index_int BlocksPerBatch, class... Ts>

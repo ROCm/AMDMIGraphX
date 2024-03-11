@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,31 @@ TEST_CASE(reduce_max_axis0)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_max_variable_axis0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_max"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{9, 10, 11, 12};
+    EXPECT(results_vector == gold);
+}
+
 TEST_CASE(reduce_max_dynamic_axis0)
 {
     migraphx::program p;
@@ -67,6 +92,31 @@ TEST_CASE(reduce_max_dynamic_axis0)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(reduce_max_dynamic_variable_axis0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape x_shape{migraphx::shape::float_type, {{2, 4, {2}}, {3, 5, {3}}}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_max"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    migraphx::shape x_fixed_shape{migraphx::shape::float_type, {2, 5}};
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    pm["x"] = migraphx::argument(x_fixed_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {6, 7, 8, 9, 10};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(reduce_max_axis01)
 {
     migraphx::program p;
@@ -83,6 +133,31 @@ TEST_CASE(reduce_max_axis01)
     EXPECT(results_vector == gold);
 }
 
+TEST_CASE(reduce_max_variable_axes01)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {2}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_max"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0, 1};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold{11, 12};
+    EXPECT(results_vector == gold);
+}
+
 TEST_CASE(reduce_max_axis02)
 {
     migraphx::program p;
@@ -95,6 +170,31 @@ TEST_CASE(reduce_max_axis02)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{10, 12};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_max_variable_axes02)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {3, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {2}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_max"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0, 2};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
     std::vector<float> gold{10, 12};
     EXPECT(results_vector == gold);
 }

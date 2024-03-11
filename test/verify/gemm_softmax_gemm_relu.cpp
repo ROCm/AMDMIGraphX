@@ -27,9 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <bool WithBias, bool WithStandardBiasShape>
-struct gemm_softmax_gemm_relu
-    : verify_program<gemm_softmax_gemm_relu<WithBias, WithStandardBiasShape>>
+enum class bias
+{
+    without,
+    with,
+    with_standard_shape
+};
+
+template <bias Config>
+struct gemm_softmax_gemm_relu : verify_program<gemm_softmax_gemm_relu<Config>>
 {
     migraphx::program create_program() const
     {
@@ -48,20 +54,20 @@ struct gemm_softmax_gemm_relu
         auto scale = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
 
         std::optional<migraphx::instruction_ref> add_bias{std::nullopt};
-        if constexpr(WithBias)
+        if constexpr(Config == bias::with or Config == bias::with_standard_shape)
         {
             auto bias_shape = m1_shape;
-            if(not WithStandardBiasShape)
+            if(Config != bias::with_standard_shape)
             {
                 bias_shape = migraphx::shape::from_permutation(
                     bias_shape.type(), bias_shape.lens(), {0, 1, 3, 2});
             }
-            auto bias = mm->add_parameter("4", bias_shape);
-            add_bias  = mm->add_instruction(migraphx::make_op("add"), scale, bias);
+            auto bias_term = mm->add_parameter("4", bias_shape);
+            add_bias       = mm->add_instruction(migraphx::make_op("add"), scale, bias_term);
         }
 
         auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}),
-                                           WithBias ? add_bias.value() : scale);
+                                           Config == bias::without ? scale : add_bias.value());
         auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
         mm->add_instruction(migraphx::make_op("relu"), gemm2);
         return p;
@@ -69,6 +75,6 @@ struct gemm_softmax_gemm_relu
     std::string section() const { return "gemm"; }
 };
 
-template struct gemm_softmax_gemm_relu<false, true>;
-template struct gemm_softmax_gemm_relu<true, true>;
-template struct gemm_softmax_gemm_relu<true, false>;
+template struct gemm_softmax_gemm_relu<bias::without>;
+template struct gemm_softmax_gemm_relu<bias::with>;
+template struct gemm_softmax_gemm_relu<bias::with_standard_shape>;

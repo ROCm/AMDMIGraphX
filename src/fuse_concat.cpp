@@ -118,12 +118,22 @@ struct find_concat_pointwise
         auto concat_ins = r.result;
 
         std::vector<instruction_ref> inputs;
+        size_t num_noops = 0;
         for(auto input : concat_ins->inputs())
         {
             if(input->name() == "pointwise" and input->outputs().size() == 1)
+            {
                 inputs.insert(inputs.end(), input->inputs().begin(), input->inputs().end());
+            }
             else
+            {
+                num_noops++;
                 inputs.push_back(input);
+            }
+        }
+        if(num_noops > 1)
+        {
+            return;
         }
         std::vector<module_ref> module_inputs;
         std::transform(concat_ins->inputs().begin(),

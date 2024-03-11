@@ -147,6 +147,32 @@ TEST_CASE(partial_pointwise_concat)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(skip_pointwise_concat)
+{
+    // number of no-ops are two in this case and therefore pointwise+concat fusion wouldn't be
+    // applicable.
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 4, 16, 16}};
+    migraphx::program p1;
+    {
+        auto* mm        = p1.get_main_module();
+        auto w          = mm->add_parameter("w", s1);
+        auto x          = mm->add_parameter("x", s1);
+        auto y          = mm->add_parameter("y", s1);
+        auto z          = mm->add_parameter("z", s2);
+        auto reduce_ins = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {1}}}), w);
+        auto pooling    = mm->add_instruction(
+            migraphx::make_op("pooling", {{"lengths", {2, 2}}, {"stride", {2, 2}}}), z);
+        auto add    = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto concat = mm->add_instruction(
+            migraphx::make_op("concat", {{"axis", 1}}), reduce_ins, add, pooling);
+        mm->add_return({concat});
+    }
+    migraphx::program p2 = p1;
+    run_pass(p1);
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(simple_pointwise_concat_pointwise)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

@@ -278,9 +278,8 @@ auto is_mlir_conv(mlir_mode mode)
         {
             auto strides = v["stride"].to_vector<size_t>();
             // if stride is not (1, 1), use MLIR
-            if(std::any_of(strides.begin(), strides.end(), [](const auto& s_val) {
-                   return s_val != 1;
-               }))
+            if(std::any_of(
+                   strides.begin(), strides.end(), [](const auto& s_val) { return s_val != 1; }))
             {
                 return true;
             }

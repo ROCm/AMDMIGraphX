@@ -201,3 +201,12 @@ class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
 
     def name(self):
         return "whisper-small-en"
+
+
+class GPTJ(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin, BaseModel):
+
+    def __init__(self):
+        self.model_id = "EleutherAI/gpt-j-6b"
+
+    def name(self):
+        return "gpt-j"

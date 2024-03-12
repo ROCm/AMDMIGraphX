@@ -33,8 +33,7 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return it;
 }
 
-static void debug_print(const std::vector<dimension::sub>& subs,
-                        bool new_line = true)
+static void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
 {
     for(const auto& s : subs)
     {
@@ -68,8 +67,7 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
               });
 }
 
-static std::vector<dimension::sub>
-get_all_subdimensions(const std::vector<dimension>& dimensions)
+static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimension>& dimensions)
 {
     std::vector<dimension::sub> result;
     for(const auto& dim : dimensions)
@@ -278,7 +276,7 @@ static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
 
 static bool is_broadcast_dim(const dimension& d)
 {
-    if (d.len() == 1)
+    if(d.len() == 1)
         return false;
     assert(not d.subdimensions.empty());
     if(d.subdimensions.size() != 1)
@@ -388,7 +386,7 @@ void shape_transform_descriptor::simplify()
                 auto next = std::find_if(std::next(it), sub->end(), [&](const dimension::sub& s) {
                     if(s.len != 1)
                         return true;
-                    if (s.axis.empty())
+                    if(s.axis.empty())
                         return true;
                     return s.axis.front() > missing_axis;
                 });
@@ -432,33 +430,33 @@ void shape_transform_descriptor::simplify()
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
 {
     // Can use squeeze
-    if (std::all_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
-        if (d.subdimensions.size() < 2)
-            return true;
-        auto n = std::count_if(d.subdimensions.begin(), d.subdimensions.end(), [&](const dimension::sub& s) {
-            return s.len == 1;
-        });
-        return n >= (d.subdimensions.size() - 1);
-    }))
+    if(std::all_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+           if(d.subdimensions.size() < 2)
+               return true;
+           auto n = std::count_if(d.subdimensions.begin(),
+                                  d.subdimensions.end(),
+                                  [&](const dimension::sub& s) { return s.len == 1; });
+           return n >= (d.subdimensions.size() - 1);
+       }))
     {
         std::vector<std::size_t> axes;
         std::size_t axis = 0;
-        for(const auto& d:new_dims)
+        for(const auto& d : new_dims)
         {
-            if (d.subdimensions.size() > 1)
+            if(d.subdimensions.size() > 1)
             {
-                if (d.len() == 1)
+                if(d.len() == 1)
                 {
-                    for(auto i:range(d.subdimensions.size()-1))
-                        axes.push_back(axis+i);
+                    for(auto i : range(d.subdimensions.size() - 1))
+                        axes.push_back(axis + i);
                 }
                 else
                 {
-                    for(auto i:range(d.subdimensions.size()))
+                    for(auto i : range(d.subdimensions.size()))
                     {
                         if(d.subdimensions[i].len != 1)
                             continue;
-                        axes.push_back(axis+i);
+                        axes.push_back(axis + i);
                     }
                 }
             }
@@ -483,17 +481,21 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
 
 static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 {
-    auto expanded_dims = transform_accumulate(subs.begin(), subs.end(), std::size_t{1}, std::multiplies<>{}, [](const dimension::sub& s) -> std::size_t {
-        if(s.axis.size() == 1)
-            return 1;
-        return s.len;
-    });
+    auto expanded_dims = transform_accumulate(subs.begin(),
+                                              subs.end(),
+                                              std::size_t{1},
+                                              std::multiplies<>{},
+                                              [](const dimension::sub& s) -> std::size_t {
+                                                  if(s.axis.size() == 1)
+                                                      return 1;
+                                                  return s.len;
+                                              });
     if(expanded_dims > 1)
     {
         std::vector<std::size_t> axes;
-        for(auto i:range(subs.size()))
+        for(auto i : range(subs.size()))
         {
-            if (subs[i].axis.size() == 1)
+            if(subs[i].axis.size() == 1)
                 continue;
             if(subs[i].len != 1)
                 continue;
@@ -557,8 +559,9 @@ std::vector<operation> shape_transform_descriptor::generate() const
 
     auto subs = get_all_subdimensions(new_dims);
     // Need multibroadcast
-    if(std::any_of(
-           subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.empty() and s.len != 1; }))
+    if(std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) {
+           return s.axis.empty() and s.len != 1;
+       }))
     {
         std::vector<std::size_t> out_lens;
         std::transform(subs.begin(),

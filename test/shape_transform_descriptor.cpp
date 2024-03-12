@@ -220,19 +220,21 @@ TEST_CASE(optimize_reshape_2_squeeze)
     EXPECT(migraphx::optimize_shape_transforms({3, 1, 5, 1, 2, 1, 1},
                                                {
                                                    make_op("reshape", {{"dims", {3, 5, 2}}}),
-                                               }) == ops{
-                                                         make_op("squeeze", {{"axes", {1, 3, 5, 6}}}),
-                                                     });
+                                               }) ==
+           ops{
+               make_op("squeeze", {{"axes", {1, 3, 5, 6}}}),
+           });
 }
 
 TEST_CASE(optimize_reshape_2_unsqueeze)
 {
-    EXPECT(migraphx::optimize_shape_transforms({3, 5, 2},
-                                               {
-                                                   make_op("reshape", {{"dims", {3, 1, 5, 1, 2, 1, 1}}}),
-                                               }) == ops{
-                                                         make_op("unsqueeze", {{"axes", {1, 3, 5, 6}}}),
-                                                     });
+    EXPECT(migraphx::optimize_shape_transforms(
+               {3, 5, 2},
+               {
+                   make_op("reshape", {{"dims", {3, 1, 5, 1, 2, 1, 1}}}),
+               }) == ops{
+                         make_op("unsqueeze", {{"axes", {1, 3, 5, 6}}}),
+                     });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

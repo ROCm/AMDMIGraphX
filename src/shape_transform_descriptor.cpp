@@ -88,7 +88,7 @@ static std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
                                              const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
-    for(const auto& op:ops)
+    for(const auto& op : ops)
         s = op.compute_shape({s});
     return s.lens();
 }

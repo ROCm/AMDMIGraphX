@@ -12,6 +12,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+using dimension = shape_transform_descriptor::dimension;
+
 template <class Range>
 static auto elements(const Range& r)
 {
@@ -31,7 +33,7 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return it;
 }
 
-static void debug_print(const std::vector<shape_transform_descriptor::dimension::sub>& subs,
+static void debug_print(const std::vector<dimension::sub>& subs,
                         bool new_line = true)
 {
     for(const auto& s : subs)
@@ -44,7 +46,7 @@ static void debug_print(const std::vector<shape_transform_descriptor::dimension:
     if(new_line)
         std::cout << std::endl;
 }
-static void debug_print(const std::vector<shape_transform_descriptor::dimension>& dims)
+static void debug_print(const std::vector<dimension>& dims)
 {
     for(const auto& d : dims)
     {
@@ -66,10 +68,10 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
               });
 }
 
-static std::vector<shape_transform_descriptor::dimension::sub>
-get_all_subdimensions(const std::vector<shape_transform_descriptor::dimension>& dimensions)
+static std::vector<dimension::sub>
+get_all_subdimensions(const std::vector<dimension>& dimensions)
 {
-    std::vector<shape_transform_descriptor::dimension::sub> result;
+    std::vector<dimension::sub> result;
     for(const auto& dim : dimensions)
     {
         result.insert(result.end(), dim.subdimensions.begin(), dim.subdimensions.end());
@@ -217,7 +219,7 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
     return true;
 }
 
-void shape_transform_descriptor::dimension::simplify()
+void dimension::simplify()
 {
     if(subdimensions.size() < 2)
         return;
@@ -249,7 +251,7 @@ void shape_transform_descriptor::dimension::simplify()
 template <class Predicate>
 static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
 {
-    shape_transform_descriptor::dimension* prev_dim = nullptr;
+    dimension* prev_dim = nullptr;
     for(auto& d : td.dimensions)
     {
         auto it = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), p);
@@ -274,17 +276,18 @@ static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
     MIGRAPHX_THROW("Searching for non-existent subdimension");
 }
 
-static bool is_broadcast_dim(const shape_transform_descriptor::dimension& d)
+static bool is_broadcast_dim(const dimension& d)
 {
-    if(d.subdimensions.empty())
-        return true;
+    if (d.len() == 1)
+        return false;
+    assert(not d.subdimensions.empty());
     if(d.subdimensions.size() != 1)
         return false;
     const auto& sub = d.subdimensions.front();
     return sub.axis.empty();
 }
 
-static void set_broadcast_dim(shape_transform_descriptor::dimension& d, std::size_t axis)
+static void set_broadcast_dim(dimension& d, std::size_t axis)
 {
     if(d.subdimensions.empty())
         d.subdimensions.push_back({1, {axis}});
@@ -382,7 +385,14 @@ void shape_transform_descriptor::simplify()
             }
             else
             {
-                sub->insert(std::next(it), missing_sub);
+                auto next = std::find_if(std::next(it), sub->end(), [&](const dimension::sub& s) {
+                    if(s.len != 1)
+                        return true;
+                    if (s.axis.empty())
+                        return true;
+                    return s.axis.front() > missing_axis;
+                });
+                sub->insert(next, missing_sub);
             }
         }
         else
@@ -419,10 +429,94 @@ void shape_transform_descriptor::simplify()
     }
 }
 
+static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
+{
+    // Can use squeeze
+    if (std::all_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+        if (d.subdimensions.size() < 2)
+            return true;
+        auto n = std::count_if(d.subdimensions.begin(), d.subdimensions.end(), [&](const dimension::sub& s) {
+            return s.len == 1;
+        });
+        return n >= (d.subdimensions.size() - 1);
+    }))
+    {
+        std::vector<std::size_t> axes;
+        std::size_t axis = 0;
+        for(const auto& d:new_dims)
+        {
+            if (d.subdimensions.size() > 1)
+            {
+                if (d.len() == 1)
+                {
+                    for(auto i:range(d.subdimensions.size()-1))
+                        axes.push_back(axis+i);
+                }
+                else
+                {
+                    for(auto i:range(d.subdimensions.size()))
+                    {
+                        if(d.subdimensions[i].len != 1)
+                            continue;
+                        axes.push_back(axis+i);
+                    }
+                }
+            }
+            axis += std::max<std::size_t>(1, d.subdimensions.size());
+        }
+        return make_op("squeeze", {{"axes", axes}});
+    }
+    else
+    {
+        std::vector<std::size_t> dims;
+        std::transform(new_dims.begin(),
+                       new_dims.end(),
+                       std::back_inserter(dims),
+                       [](const dimension& d) -> std::size_t {
+                           if(is_broadcast_dim(d))
+                               return 1;
+                           return d.len();
+                       });
+        return make_op("reshape", {{"dims", dims}});
+    }
+}
+
+static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
+{
+    auto expanded_dims = transform_accumulate(subs.begin(), subs.end(), std::size_t{1}, std::multiplies<>{}, [](const dimension::sub& s) -> std::size_t {
+        if(s.axis.size() == 1)
+            return 1;
+        return s.len;
+    });
+    if(expanded_dims > 1)
+    {
+        std::vector<std::size_t> axes;
+        for(auto i:range(subs.size()))
+        {
+            if (subs[i].axis.size() == 1)
+                continue;
+            if(subs[i].len != 1)
+                continue;
+            axes.push_back(i);
+        }
+        return make_op("unsqueeze", {{"axes", axes}});
+    }
+    std::vector<std::size_t> dims;
+    std::transform(subs.begin(),
+                   subs.end(),
+                   std::back_inserter(dims),
+                   [](const dimension::sub& s) -> std::size_t {
+                       if(s.axis.empty())
+                           return 1;
+                       return s.len;
+                   });
+    return make_op("reshape", {{"dims", dims}});
+}
+
 std::vector<operation> shape_transform_descriptor::generate() const
 {
     std::vector<operation> result;
-    std::vector<shape_transform_descriptor::dimension> new_dims = dimensions;
+    std::vector<dimension> new_dims = dimensions;
     // Need multibroadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {
@@ -440,16 +534,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
            return is_broadcast_dim(d);
        }))
     {
-        std::vector<std::size_t> dims;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       std::back_inserter(dims),
-                       [](const dimension& d) -> std::size_t {
-                           if(is_broadcast_dim(d))
-                               return 1;
-                           return d.len();
-                       });
-        result.push_back(make_op("reshape", {{"dims", dims}}));
+        result.push_back(make_reshape_squeeze(new_dims));
     }
 
     // Flatten broadcasted subdimensions
@@ -473,7 +558,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
     auto subs = get_all_subdimensions(new_dims);
     // Need multibroadcast
     if(std::any_of(
-           subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.empty(); }))
+           subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.empty() and s.len != 1; }))
     {
         std::vector<std::size_t> out_lens;
         std::transform(subs.begin(),
@@ -512,22 +597,13 @@ std::vector<operation> shape_transform_descriptor::generate() const
     if(std::any_of(
            subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() != 1; }))
     {
-        std::vector<std::size_t> dims;
-        std::transform(subs.begin(),
-                       subs.end(),
-                       std::back_inserter(dims),
-                       [](const dimension::sub& s) -> std::size_t {
-                           if(s.axis.empty())
-                               return 1;
-                           return s.len;
-                       });
-        result.push_back(make_op("reshape", {{"dims", dims}}));
+        result.push_back(make_reshape_unsqueeze(subs));
     }
     std::reverse(result.begin(), result.end());
     return result;
 }
 
-std::size_t shape_transform_descriptor::dimension::len() const
+std::size_t dimension::len() const
 {
     return transform_accumulate(subdimensions.begin(),
                                 subdimensions.end(),

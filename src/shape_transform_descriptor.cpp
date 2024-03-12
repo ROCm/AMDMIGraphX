@@ -456,12 +456,7 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
             std::back_inserter(base_axes),
             std::plus<>{},
             [](const dimension& d) { return std::max<std::size_t>(1, d.subdimensions.size()); });
-        std::vector<std::size_t> axes;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       base_axes.begin(),
-                       join_back_inserter(axes),
-                       [](const dimension& d, std::size_t base_axis) {
+        auto get_squeezed_axes = [](const dimension& d, std::size_t base_axis) {
                            std::vector<std::size_t> result;
                            if(d.subdimensions.size() < 2)
                                return result;
@@ -475,7 +470,13 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
                            if(result.size() == d.subdimensions.size())
                                result.pop_back();
                            return result;
-                       });
+                       };
+        std::vector<std::size_t> axes;
+        std::transform(new_dims.begin(),
+                       new_dims.end(),
+                       base_axes.begin(),
+                       join_back_inserter(axes),
+                       get_squeezed_axes);
         return make_op("squeeze", {{"axes", axes}});
     }
     else

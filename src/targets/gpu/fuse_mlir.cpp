@@ -63,30 +63,40 @@ bool mlir_enabled()
 }
 
 namespace {
-struct requested {};
-struct rejected {};
-}
+struct requested
+{
+};
+struct rejected
+{
+};
+} // namespace
 
-template<class Action>
+template <class Action>
 static std::vector<std::string> get_usage()
 {
-    static const auto options = split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
+    static const auto options =
+        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
     static const auto enabled = std::is_same<Action, requested>{};
     std::vector<std::string> result;
     auto remove_not_symbol = [&](const std::string& s) {
-        if (starts_with(s, "!"))
+        if(starts_with(s, "!"))
             return s.substr(1);
         return s;
     };
-    transform_if(options.begin(), options.end(), std::back_inserter(result), [&](const std::string& option) {
-        if (starts_with(option, "!"))
-            return not enabled;
-        return enabled;
-    }, remove_not_symbol);
+    transform_if(
+        options.begin(),
+        options.end(),
+        std::back_inserter(result),
+        [&](const std::string& option) {
+            if(starts_with(option, "!"))
+                return not enabled;
+            return enabled;
+        },
+        remove_not_symbol);
     return result;
 }
 
-template<class Action>
+template <class Action>
 static bool specific_op(std::string_view option, bool fallback = false)
 {
     static const auto options = get_usage<Action>();

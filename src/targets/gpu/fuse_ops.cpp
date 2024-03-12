@@ -767,7 +767,7 @@ struct find_contiguous
     }
 };
 
-struct find_contiguous_pointwise
+struct find_pointwise_contiguous
 {
     auto matcher() const
     {
@@ -852,7 +852,7 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_contiguous_pointwise{});
+    match::find_matches(m, find_pointwise_contiguous{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});

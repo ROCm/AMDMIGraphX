@@ -44,10 +44,11 @@ struct scatter_compiler : compiler<Derived>
 
         hip_compile_options options;
         options.set_launch_params(op.to_value(), compute_global_for(ctx, inputs.at(1).elements()));
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.kernel_name    = derived().get_kernel_name(op);
-        options.virtual_inputs = inputs;
+        options.inputs             = inputs;
+        options.output             = inputs.back();
+        options.kernel_name        = derived().get_kernel_name(op);
+        options.virtual_inputs     = inputs;
+        options.reverse_workgroups = from_value<bool>(ins->get_operator().to_value()["reverse"]);
         // The compiler protests the inequality comparison in assign_mul when pertaining to floating
         // point, despite it making sense in the context. Thus the warning removal.
         options.emplace_param("-Wno-float-equal");

@@ -68,13 +68,14 @@ struct concat_compiler : compiler<concat_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs      = inputs;
-        options.output      = inputs.back();
+        options.inputs = inputs;
+        options.output = inputs.back();
         options.emplace_param("-Wno-float-equal");
-        options.kernel_name = v.get("kernel", "concat_kernel");
-        auto axis           = find_fast_axis(options.inputs);
-        auto op_names       = v.at("ops").to_vector<std::string>();
-        auto args           = v.at("args");
+        options.kernel_name        = v.get("kernel", "concat_kernel");
+        options.reverse_workgroups = v.get("reverse", false);
+        auto axis                  = find_fast_axis(options.inputs);
+        auto op_names              = v.at("ops").to_vector<std::string>();
+        auto args                  = v.at("args");
         vectorize vec{};
         if(axis != v.at("axis").to<std::size_t>())
             vec = vectorize::elements(ctx, axis, options.inputs);
@@ -175,6 +176,7 @@ struct concat_compiler : compiler<concat_compiler>
             std::unordered_map<std::string, std::size_t> mod_args = {{"op::id{}", 1}};
             v["args"]                                             = mod_args;
         }
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

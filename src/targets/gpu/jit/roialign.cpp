@@ -66,9 +66,10 @@ struct roialign_compiler : compiler<roialign_compiler>
     {
         hip_compile_options options;
         options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements()), 128);
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = "roialign_kernel";
+        options.output             = inputs.back();
+        options.inputs             = inputs;
+        options.kernel_name        = "roialign_kernel";
+        options.reverse_workgroups = v.get("reverse", false);
 
         // sampling_ratio
         options.emplace_param("-DSAMPLING_RATIO=" + v.at("sampling_ratio").to<std::string>());
@@ -92,7 +93,9 @@ struct roialign_compiler : compiler<roialign_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v       = op.to_value();
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

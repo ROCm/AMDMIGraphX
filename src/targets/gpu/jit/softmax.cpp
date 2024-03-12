@@ -79,9 +79,10 @@ struct softmax_compiler : compiler<softmax_compiler>
         hip_compile_options options;
         options.set_launch_params(
             v, compute_global_for(ctx, nelements * block_size, 256), block_size);
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = "softmax_kernel";
+        options.output             = inputs.back();
+        options.inputs             = inputs;
+        options.kernel_name        = "softmax_kernel";
+        options.reverse_workgroups = v.get("reverse", false);
 
         if(enabled(MIGRAPHX_USE_FAST_SOFTMAX{}))
             options.emplace_param("-DMIGRAPHX_USE_FAST_SOFTMAX");
@@ -95,7 +96,9 @@ struct softmax_compiler : compiler<softmax_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v       = op.to_value();
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

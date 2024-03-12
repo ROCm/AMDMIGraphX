@@ -45,6 +45,7 @@ struct precompile_op
     std::size_t additional_args       = 1;
     bool ignore_modules               = false;
     std::optional<shape> output_shape = nullopt;
+    bool reverse                      = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -52,7 +53,8 @@ struct precompile_op
         return pack(f(self.op, "op"),
                     f(self.additional_args, "additional_args"),
                     f(self.ignore_modules, "ignore_modules"),
-                    f(self.output_shape, "output_shape"));
+                    f(self.output_shape, "output_shape"),
+                    f(self.reverse, "reverse"));
     }
 
     std::string name() const { return "gpu::precompile_op"; }

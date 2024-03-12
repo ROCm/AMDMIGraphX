@@ -151,10 +151,11 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(inputs);
-        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
+        options.inputs             = inputs;
+        options.output             = inputs.back();
+        options.virtual_inputs     = reduce_dims(inputs);
+        options.reverse_workgroups = v.get("reverse", false);
+        auto faxis                 = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = options.virtual_inputs.back().elements();
         auto algo      = v.get("algo", get_reduce_algo(ctx, options.virtual_inputs));
@@ -163,7 +164,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
             // Vectorize if the axis is a reduction axis
             if(options.virtual_inputs.back().lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = get_reduce_elements(options.virtual_inputs) / vec.size;
+            auto relements = get_reduce_elements(options.virtual_inputs) / vec.size;
             if(algo == "block")
             {
                 auto block_size = compute_block_size(ctx, relements, 256);
@@ -192,13 +193,13 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         options.kernel_name  = "reduce_kernel";
         std::string identity = "[](auto x) { return x; }";
         auto src             = interpolate_string(simple_reduce_kernel,
-                                      {{"reduction", v.at("reduction").to<std::string>()},
-                                       {"init", v.get("init", std::string{"0"})},
-                                       {"read", v.get("read", identity)},
-                                       {"write", v.get("write", identity)},
-                                       {"algo", algo},
-                                       {"transformers", make_transformer_args(vec)},
-                                       {"preamble", v.get("preamble", std::string{})}});
+                                                  {{"reduction", v.at("reduction").to<std::string>()},
+                                                   {"init", v.get("init", std::string{"0"})},
+                                                   {"read", v.get("read", identity)},
+                                                   {"write", v.get("write", identity)},
+                                                   {"algo", algo},
+                                                   {"transformers", make_transformer_args(vec)},
+                                                   {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }
@@ -212,6 +213,8 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         v["read"]      = r.read;
         v["write"]     = r.write;
         v["init"]      = r.init;
+        v["reverse"]   = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
@@ -258,10 +261,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         virtual_inputs.pop_back();
 
         hip_compile_options options;
-        options.inputs         = inputs;
-        options.output         = inputs.back();
-        options.virtual_inputs = virtual_inputs;
-        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
+        options.inputs             = inputs;
+        options.output             = inputs.back();
+        options.virtual_inputs     = virtual_inputs;
+        options.reverse_workgroups = v.get("reverse", false);
+        auto faxis                 = find_fast_axis({options.virtual_inputs.front()});
         vectorize vec{};
         auto nelements = reduce_output_shape.elements();
         auto algo =
@@ -271,7 +275,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             // Vectorize if the axis is a reduction axis
             if(reduce_output_shape.lens()[faxis] == 1)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = reduction_shape.elements() / vec.size;
+            auto relements = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
                 auto block_size = compute_block_size(ctx, relements, 256);
@@ -301,13 +305,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-             {"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"algo", algo},
-             {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-             {"lambda", v.at("lambda").to<std::string>()},
-             {"transformers", make_transformer_args(vec)},
-             {"preamble", v.get("preamble", std::string{})}});
+                        {"params", enum_params(inputs.size(), "void * private_p")},
+                        {"args", enum_params(inputs.size(), "private_p")},
+                        {"algo", algo},
+                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+                        {"lambda", v.at("lambda").to<std::string>()},
+                        {"transformers", make_transformer_args(vec)},
+                        {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }
@@ -320,6 +324,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
+        v["reverse"]  = from_value<bool>(ins->get_operator().to_value()["reverse"]);
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

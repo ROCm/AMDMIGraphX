@@ -51,7 +51,7 @@ TEST_CASE(resize)
             migraphx::make_op("resize",
                               {{"mode", "nearest"},
                                {"nearest_mode", "floor"},
-                               // scales attr. should be ignored
+                               // scales attr. should be ignored when there are 2 inputs
                                {"scales", {1., 2.1, 3.1, 4.1}},
                                {"coordinate_transformation_mode", "asymmetric"}}),
             inx,
@@ -60,16 +60,12 @@ TEST_CASE(resize)
         m0.add_return({r});
     }
     run_pass(m0);
-    std::cout << "\n\n   ******               resize test:  \n";
-    m0.debug_print();
 
     migraphx::module m1;
     {
-
         migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
         auto inx = m1.add_parameter("X", sx);
 
-        // TODO:  verification that these indices are correctly calculated.  I just copied them.
         std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
                                       2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
         migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
@@ -80,9 +76,52 @@ TEST_CASE(resize)
             m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
         m1.add_return({gather_ins});
     }
-    std::cout << "\n\n   ******               end of resize test: m1= \n";
-    m1.debug_print();
+    EXPECT(m0 == m1);
+}
 
+TEST_CASE(resize_scales)
+{
+    migraphx::module m0;
+    {
+        // resize op. with scales (float_type) rather than sizes as an input
+        std::vector<float> ds = {1., 1., 2., 3.};
+        migraphx::shape ss{migraphx::shape::float_type, {4}};
+
+        auto li = m0.add_literal(migraphx::literal{ss, ds});
+        m0.add_instruction(migraphx::make_op("undefined"));
+
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m0.add_parameter("X", sx);
+
+        auto r = m0.add_instruction(
+            migraphx::make_op("resize",
+                              {{"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               // scales attr. should be ignored when there are 2 inputs
+                               {"scales", {1., 2.1, 3.1, 4.1}},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx,
+            li);
+
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
+        auto inx = m1.add_parameter("X", sx);
+
+        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
+        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
+        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
+
+        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
+        auto gather_ins =
+            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
+        m1.add_return({gather_ins});
+    }
     EXPECT(m0 == m1);
 }
 

@@ -2913,6 +2913,86 @@ def greaterorequal_test():
 
     return ([node], [x1, x2], [y])
 
+@onnx_test()
+def gridsample_nearest_test():
+    # X shape, [N, C, H, W] - [1, 1, 2, 2]
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 2, 2])
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 2, 2]
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT, [1, 2, 2, 2])
+    # Y shape, [N, C, H_out, W_out] - [1, 1, 2, 2]
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 2])
+
+    # setting mode = 'nearest'
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        align_corners=0,
+        mode="nearest",
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_linear_test():
+    # X shape, [N, C, H, W] - [1, 1, 2, 2]
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 2, 2])
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 2, 2]
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT, [1, 2, 2, 2])
+    # Y shape, [N, C, H_out, W_out] - [1, 1, 2, 2]
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 2])
+
+    # setting mode = 'nearest'
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        align_corners=0,
+        mode="linear",
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_aligncorners_test():
+    # X shape, [N, C, H, W] - [1, 1, 2, 2]
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 2, 2]
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT, [1, 2, 4, 2])
+    # Y shape, [N, C, H_out, W_out] - [1, 1, 2, 2]
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    # setting mode = 'nearest'
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        align_corners=1,
+        mode="linear",
+    )
+
+    return ([node], [x, grid], [y])
+
+@onnx_test()
+def gridsample_test():
+    # X shape, [N, C, H, W] - [1, 1, 2, 2]
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 4, 4])
+    # Grid shape, [N, H_out, W_out, 2] - [1, 2, 2, 2]
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT, [1, 6, 6, 2])
+    # Y shape, [N, C, H_out, W_out] - [1, 1, 2, 2]
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 6, 6])
+
+    # setting mode = 'nearest'
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        padding_mode="zeros",
+        align_corners=0,
+        mode="linear",
+    )
+
+    return ([node], [x, grid], [y])
 
 @onnx_test()
 def group_conv_test():

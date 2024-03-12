@@ -22,48 +22,47 @@
  * THE SOFTWARE.
  */
 
-#include <unordered_set>
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/rewrite_low_precision.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-rocblas_handle_ptr create_rocblas_handle_ptr()
+struct find_pow2_div
 {
-    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
-    rocblas_initialize();
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
-}
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
-{
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
+    auto pow2() const
+    {
+        auto pow2 = match::name("pow")(match::arg(0)(match::any().bind("x")),
+                                       match::arg(1)(match::has_value(2.0f)));
+        auto x_square =
+            match::name("mul")(match::same_inputs(), match::arg(0)(match::any().bind("x")));
+        return match::any_of(pow2, x_square);
+    }
 
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
+    auto matcher() const
+    {
+        return match::name("div")(match::arg(0)(pow2()),
+                                  match::arg(1)(match::is_constant().bind("n")));
+    }
 
-bool rocblas_fp8_available()
-{
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8_intrinsics();
-#endif
-}
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto n   = r.instructions["n"];
+        auto x   = r.instructions["x"];
 
-} // namespace gpu
+        if(x->get_shape().type() != migraphx::shape::half_type)
+            return;
+        auto x_div_n = m.insert_instruction(ins, make_op("div"), {x, n});
+        auto mul     = m.insert_instruction(ins, make_op("mul"), {x_div_n, x});
+        m.replace_instruction(ins, mul);
+    }
+};
+
+void rewrite_low_precision::apply(module& m) const { match::find_matches(m, find_pow2_div{}); }
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

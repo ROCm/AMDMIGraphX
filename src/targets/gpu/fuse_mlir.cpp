@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/algorithm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,12 +62,55 @@ bool mlir_enabled()
 #endif
 }
 
-static bool is_requested(std::string_view option, bool fallback = false)
+namespace {
+struct requested
 {
-    auto string_value = string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, "");
-    if(string_value.empty())
+};
+struct rejected
+{
+};
+} // namespace
+
+static bool is_negated_op(const std::string& s)
+{
+    if(s.empty())
+        return false;
+    return contains({'!', '~'}, s[0]);
+}
+
+template <class Action>
+static std::vector<std::string> get_usage()
+{
+    static const auto options =
+        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
+    static const bool enabled = std::is_same<Action, requested>{};
+    std::vector<std::string> result;
+    auto remove_not_symbol = [&](const std::string& s) {
+        if(is_negated_op(s))
+            return s.substr(1);
+        return s;
+    };
+    transform_if(
+        options.begin(),
+        options.end(),
+        std::back_inserter(result),
+        [&](const std::string& option) {
+            if(option.empty())
+                return false;
+            if(is_negated_op(option))
+                return not enabled;
+            return enabled;
+        },
+        remove_not_symbol);
+    return result;
+}
+
+template <class Action>
+static bool specific_op(std::string_view option, bool fallback = false)
+{
+    static const auto options = get_usage<Action>();
+    if(options.empty())
         return fallback;
-    const auto options = split_string(string_value, ',');
     if(contains(option, "fused") and contains(options, "fused"))
         return true;
     return contains(options, option);
@@ -77,7 +121,7 @@ bool mlir_attention_enabled()
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
         return false;
-    return is_requested("attention");
+    return specific_op<requested>("attention");
 #else
     return false;
 #endif
@@ -240,7 +284,7 @@ auto is_mlir_dot(mlir_mode mode)
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 2048;
+        return k <= 1024;
     });
 }
 
@@ -550,15 +594,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const bool is_navi      = starts_with(device_name, "gfx110");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
-        if(is_requested(option))
+        if(specific_op<rejected>(option))
+            return mlir_mode::none;
+        if(specific_op<requested>(option))
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
         return std::max(m1, m2);
     };
-
-    mlir_mode mode =
-        (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
 
     // Attention offloads; default disabled
     if(mlir_attention_enabled())
@@ -570,12 +613,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                            .dot_mode  = get_mode("fused_dot", mode)});
-
+                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
-        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
+        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
 #else
     (void)mpm;
 #endif

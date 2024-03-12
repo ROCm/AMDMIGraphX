@@ -55,22 +55,22 @@ T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, Un
         first, last, first, init, binop, [&](auto&& x, auto&&) { return unaryop(x); });
 }
 
-template<class Iterator, class OutputIterator, class BinaryOperation, class UnaryOp>
-OutputIterator transform_partial_sum(Iterator first, Iterator last, 
-                     OutputIterator d_first, BinaryOperation binop, UnaryOp unaryop)
+template <class Iterator, class OutputIterator, class BinaryOperation, class UnaryOp>
+OutputIterator transform_partial_sum(
+    Iterator first, Iterator last, OutputIterator d_first, BinaryOperation binop, UnaryOp unaryop)
 {
-    if (first == last)
+    if(first == last)
         return d_first;
- 
+
     auto acc = unaryop(*first);
     *d_first = acc;
- 
-    while (++first != last)
+
+    while(++first != last)
     {
-        acc = binop(std::move(acc), unaryop(*first));
+        acc        = binop(std::move(acc), unaryop(*first));
         *++d_first = acc;
     }
- 
+
     return ++d_first;
 }
 

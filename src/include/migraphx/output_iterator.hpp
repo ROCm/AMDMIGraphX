@@ -64,12 +64,11 @@ function_output_iterator<F> make_function_output_iterator(F f)
     return {std::move(f)};
 }
 
-template<class Container>
+template <class Container>
 auto join_back_inserter(Container& c)
 {
-    return make_function_output_iterator([&](const auto& r) {
-        c.insert(c.end(), r.begin(), r.end());
-    });
+    return make_function_output_iterator(
+        [&](const auto& r) { c.insert(c.end(), r.begin(), r.end()); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

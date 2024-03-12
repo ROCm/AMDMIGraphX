@@ -84,6 +84,15 @@ static std::vector<std::size_t> compute_dims(const operation& op,
     return op.compute_shape({s}).lens();
 }
 
+static std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
+                                             const std::vector<std::size_t>& idims)
+{
+    shape s{shape::float_type, idims};
+    for(const auto& op:ops)
+        s = op.compute_shape({s});
+    return s.lens();
+}
+
 bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
 {
     std::vector<std::size_t> dims;
@@ -495,9 +504,10 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
         std::vector<std::size_t> axes;
         for(auto i : range(subs.size()))
         {
-            if(subs[i].axis.size() == 1)
+            const auto& sub = subs[i];
+            if(sub.axis.size() == 1)
                 continue;
-            if(subs[i].len != 1)
+            if(sub.len != 1 and not sub.axis.empty())
                 continue;
             axes.push_back(i);
         }
@@ -631,7 +641,9 @@ std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>&
     if(not sd.apply(ops))
         return ops;
     sd.simplify();
-    return sd.generate();
+    auto result = sd.generate();
+    assert(compute_dims(ops, dims) == compute_dims(result, dims));
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -209,7 +209,7 @@ TEST_CASE(optimize_resize)
                    make_op("multibroadcast", {{"out_lens", {3, 2, 4, 2, 4}}}),
                    make_op("reshape", {{"dims", {3, 8, 8}}}),
                }) == ops{
-                         make_op("reshape", {{"dims", {3, 1, 4, 1, 4}}}),
+                         make_op("unsqueeze", {{"axes", {1, 3}}}),
                          make_op("multibroadcast", {{"out_lens", {3, 2, 4, 2, 4}}}),
                          make_op("reshape", {{"dims", {3, 8, 8}}}),
                      });

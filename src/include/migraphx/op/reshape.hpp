@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,13 +66,7 @@ struct reshape
 
     shape dyn_compute_shape(shape s0) const
     {
-        auto dyn_dims      = s0.dyn_dims();
-        auto num_not_fixed = std::count_if(
-            dyn_dims.cbegin(), dyn_dims.cend(), [](auto dd) { return not dd.is_fixed(); });
-        if(num_not_fixed != 1)
-        {
-            MIGRAPHX_THROW("Reshape: Only supports one non-fixed dynamic_dimension");
-        }
+        auto dyn_dims = s0.dyn_dims();
         // track number of fixed elements in input and output
         std::size_t num_dims_ele = 1;
         std::size_t num_dd_ele   = 1;
@@ -123,8 +117,7 @@ struct reshape
             if(dims[i] == 0)
                 rdims[i] = idims[i];
 
-            // since rdims using size_t type, -1 is the max value
-            // is size_t that cause later compuation incorrect
+            // convert -1 to 1 for rdims since rdims uses size_t (-1 is max_int for size_t)
             if(dims[i] == -1)
                 rdims[i] = 1;
         }
@@ -144,7 +137,7 @@ struct reshape
         auto s = shape{inputs.front().type(), rdims};
 
         if(s.elements() != inputs.front().elements())
-            MIGRAPHX_THROW("reshape: Wrong number of elements for reshape: reshape has " +
+            MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
                            std::to_string(s.elements()) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
@@ -157,7 +150,7 @@ struct reshape
 
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape: Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
         auto s0 = inputs.front();
         if(inputs.size() == 1)

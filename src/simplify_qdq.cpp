@@ -339,6 +339,24 @@ struct match_qlinear_reused
     }
 };
 
+static bool is_same_value(instruction_ref a, instruction_ref b)
+{
+    if (a == b)
+        return true;
+    return compare_literals(a, b);
+}
+
+static bool is_same_scale_zero(instruction_ref a, instruction_ref b)
+{
+    if(a->inputs().size() != b->inputs().size())
+        return false;
+    if (not is_same_value(a->inputs().at(1), b->inputs().at(1)))
+        return false;
+    if (a->inputs().size() == 2)
+        return true;
+    return is_same_value(a->inputs().at(2), b->inputs().at(2));
+}
+
 void remove_qdq_pairs(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -350,8 +368,7 @@ void remove_qdq_pairs(module& m)
             {
                 auto q = arg->inputs().front();
                 if((q->name() == "quantizelinear") and
-                   compare_literals(arg->inputs().at(1), q->inputs().at(1)) and
-                   compare_literals(arg->inputs().at(2), q->inputs().at(2)))
+                    is_same_scale_zero(arg, q))
                 {
                     instruction::replace_argument(ins, arg, q->inputs().front());
                 }

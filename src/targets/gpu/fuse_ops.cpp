@@ -842,7 +842,9 @@ struct find_concat_pointwise
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
 
         auto op = concat->get_operator();
-        op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
+        op.from_value({{"additional_args", ins->inputs().size() - 1},
+                       {"ignore_modules", true},
+                       {"output_shape", to_value(ins->get_shape())}});
 
         m.replace_instruction(ins, op, inputs, {pm});
     }

@@ -160,4 +160,69 @@ TEST_CASE(contiguous_pointwise)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(concat_pointwise_contiguous)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {128, 2, 196, 32}, {0, 2, 1, 3});
+    migraphx::shape s2 = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {128, 4, 196, 32}, {0, 2, 1, 3});
+    migraphx::shape s3{migraphx::shape::float_type, {128, 4, 196, 32}};
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x1  = mm->add_parameter("x1", s1);
+        auto x2  = mm->add_parameter("x2", s1);
+        auto y   = mm->add_parameter("y", s2);
+
+        auto concat_op = migraphx::make_op("concat", {{"axis", 1}});
+        auto concat_precompile_op =
+            migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(concat_op)}});
+        auto x_alloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s2)}}));
+        auto x         = mm->add_instruction(concat_precompile_op, {x1, x2, x_alloc});
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(s3)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto* pw_add1 =
+            create_pointwise_module(p, "main:pointwise0", {x, y}, single_pointwise("add"));
+
+        auto pw_op       = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(s3)}});
+        auto add1 = mm->add_instruction(pre_comp_op, {x, y, alloc_ins}, {pw_add1});
+        auto rsp =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {25088, 128}}}), add1);
+        mm->add_return({rsp});
+        return p;
+    };
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm                  = p.get_main_module();
+        auto x1                   = mm->add_parameter("x1", s1);
+        auto x2                   = mm->add_parameter("x2", s1);
+        auto y                    = mm->add_parameter("y", s2);
+        auto concat_op            = migraphx::make_op("concat", {{"axis", 1}});
+        auto concat_precompile_op = migraphx::make_op("gpu::precompile_op",
+                                                      {{"op", migraphx::to_value(concat_op)},
+                                                       {"additional_args", 2},
+                                                       {"ignore_modules", true},
+                                                       {"output_shape", migraphx::to_value(s3)}});
+        auto alloc                = migraphx::make_op("allocate", {{"shape", to_value(s3)}});
+        auto alloc_ins            = mm->add_instruction(alloc);
+        // use y's input shape for creating pointwise module for both the params
+        auto* pw_add1 =
+            create_pointwise_module(p, "main:pointwise0", {y, y}, single_pointwise("add"));
+        auto x     = mm->add_instruction(concat_precompile_op, {x1, x2, y, alloc_ins}, {pw_add1});
+        auto pw_op = migraphx::make_op("pointwise");
+        auto rsp =
+            mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {25088, 128}}}), x);
+        mm->add_return({rsp});
+        return p;
+    };
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_fused_program();
+    EXPECT(p1 == p2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

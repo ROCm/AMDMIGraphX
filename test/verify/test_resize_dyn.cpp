@@ -30,8 +30,6 @@
 
 struct test_resize_dyn : verify_program<test_resize_dyn>
 {
-    // TODO:  This test causes an assertion failure in propagate_constant.cpp.  Need to find
-    //    out why.
     migraphx::program create_program() const
     {
         // matcher/optimized code should produce the same result as Resize op.

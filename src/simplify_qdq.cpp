@@ -341,7 +341,7 @@ struct match_qlinear_reused
 
 static bool is_same_value(instruction_ref a, instruction_ref b)
 {
-    if (a == b)
+    if(a == b)
         return true;
     return compare_literals(a, b);
 }
@@ -350,9 +350,9 @@ static bool is_same_scale_zero(instruction_ref a, instruction_ref b)
 {
     if(a->inputs().size() != b->inputs().size())
         return false;
-    if (not is_same_value(a->inputs().at(1), b->inputs().at(1)))
+    if(not is_same_value(a->inputs().at(1), b->inputs().at(1)))
         return false;
-    if (a->inputs().size() == 2)
+    if(a->inputs().size() == 2)
         return true;
     return is_same_value(a->inputs().at(2), b->inputs().at(2));
 }
@@ -367,8 +367,7 @@ void remove_qdq_pairs(module& m)
             if(arg->name() == "dequantizelinear")
             {
                 auto q = arg->inputs().front();
-                if((q->name() == "quantizelinear") and
-                    is_same_scale_zero(arg, q))
+                if((q->name() == "quantizelinear") and is_same_scale_zero(arg, q))
                 {
                     instruction::replace_argument(ins, arg, q->inputs().front());
                 }

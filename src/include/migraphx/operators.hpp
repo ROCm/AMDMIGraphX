@@ -113,6 +113,7 @@
 #include <migraphx/op/roialign.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
+#include <migraphx/op/scan.hpp>
 #include <migraphx/op/scatter_none.hpp>
 #include <migraphx/op/scatter_add.hpp>
 #include <migraphx/op/scatter_mul.hpp>

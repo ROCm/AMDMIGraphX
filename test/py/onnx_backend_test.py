@@ -814,7 +814,9 @@ def create_backend_test(testname=None, target_device=None):
         c2.set_device(target_device)
     backend_test = MIGraphXBackendTest(c2, __name__)
 
-    if testname:
+    if True:
+        backend_test.include(r'test_scan9_sum_cpu')
+    elif testname:
         backend_test.include(testname + '.*')
     else:
         # Onnx Operator tests

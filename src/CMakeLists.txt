@@ -226,6 +226,7 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scan
     scatter_none
     scatter_add
     scatter_mul

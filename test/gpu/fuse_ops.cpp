@@ -104,7 +104,7 @@ TEST_CASE(layernorm_pointwise)
     }
 }
 
-TEST_CASE(contiguous_pointwise)
+TEST_CASE(pointwise_contiguous)
 {
     migraphx::shape s1{migraphx::shape::float_type, {128, 4, 196, 32}};
     migraphx::shape s2{migraphx::shape::float_type, {128, 196, 4, 32}};

@@ -2325,6 +2325,53 @@ TEST_CASE(pack_int4_odd_lengths)
     throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
 }
 
+TEST_CASE(unpack_int4)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 8}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4"), input);
+}
+
+TEST_CASE(unpack_int4_axis1)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_axis2)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", -3}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_axis)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 4}}), input);
+}
+
+TEST_CASE(unpack_int4_nonstandard)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 32, 16, 4}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_dtype)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(unpack_int4_odd_lengths)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {3, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {6, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
 TEST_CASE(pad_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
@@ -4525,7 +4572,8 @@ TEST_CASE(test_unique_axis_negative)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique", {{"axis", -3}}), x_shape);
+    expect_shape(
+        migraphx::shape(y_dyn_shape), migraphx::make_op("unique", {{"axis", -3}}), x_shape);
 }
 
 TEST_CASE(test_unique_axis_none)
@@ -4539,7 +4587,7 @@ TEST_CASE(test_unique_axis_none)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique"), x_shape);
+    expect_shape(migraphx::shape(y_dyn_shape), migraphx::make_op("unique"), x_shape);
 }
 
 TEST_CASE(test_unsqueeze)

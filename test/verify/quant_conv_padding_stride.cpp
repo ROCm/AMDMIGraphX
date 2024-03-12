@@ -45,6 +45,7 @@ struct quant_conv_padding_stride : verify_program<quant_conv_padding_stride<DTyp
 
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 template struct quant_conv_padding_stride<migraphx::shape::int8_type>;
 template struct quant_conv_padding_stride<migraphx::shape::fp8e4m3fnuz_type>;

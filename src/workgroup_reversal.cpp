@@ -31,17 +31,58 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+void reverse_wg(module& m, instruction_ref ins)
+{
+    if(ins->name() == "gpu::precompile_op")
+    {
+        auto precomp_op_val       = ins->get_operator().to_value();
+        precomp_op_val["reverse"] = true;
+
+        m.replace_instruction(
+            ins, make_op(ins->name(), precomp_op_val), ins->inputs(), ins->module_inputs());
+    }
+}
+
 void workgroup_reversal::apply(module& m) const
 {
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "gpu::precompile_op")
-        {
-            auto precomp_op_val       = ins->get_operator().to_value();
-            precomp_op_val["reverse"] = true;
+    std::unordered_set<std::string> blas_names = {"gpu::gemm", "gpu::convolution"};
 
-            m.replace_instruction(
-                ins, make_op(ins->name(), precomp_op_val), ins->inputs(), ins->module_inputs());
+    std::vector<instruction_ref> precomp_instrs;
+    auto m_it = iterator_for(m);
+    std::copy_if(m_it.begin(), m_it.end(), std::back_inserter(precomp_instrs), [&](auto ins) {
+        return (blas_names.find(ins->name()) != blas_names.end() or
+                ins->name() == "gpu::precompile_op");
+    });
+
+    // Apply reversals around non-mlir gemms and convolutions
+    for(auto i : iterator_for(precomp_instrs))
+    {
+        if(i == precomp_instrs.begin() or i == precomp_instrs.end())
+            continue;
+
+        instruction_ref ins      = *i;
+        instruction_ref prev_ins = *std::prev(i);
+        instruction_ref next_ins = *std::next(i);
+
+        if(blas_names.find(ins->name()) != blas_names.end())
+        {
+            reverse_wg(m, prev_ins);
+            reverse_wg(m, next_ins);
+        }
+    }
+
+    // Apply reversals for remaining precompile ops
+    for(auto i : iterator_for(precomp_instrs))
+    {
+        if(i == precomp_instrs.begin() or i == precomp_instrs.end())
+            continue;
+
+        if(std::all_of(std::prev(i), std::next(i), [](auto ins) {
+               return (ins->name() == "gpu::precompile_op" and
+                       not from_value<bool>(ins->get_operator().to_value()["reverse"]));
+           }))
+        {
+            reverse_wg(m, *i);
         }
     }
 }

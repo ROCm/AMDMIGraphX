@@ -28,7 +28,7 @@ struct parallel_reduce
         std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](auto input) {
             return op.compute_shape({input});
         });
-        return {result};
+        return shape{result};
     }
 };
 MIGRAPHX_REGISTER_OP(parallel_reduce);

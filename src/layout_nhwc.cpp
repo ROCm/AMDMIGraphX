@@ -39,8 +39,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Predicate>
 std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 {
+	std::unordered_set<instruction_ref> seen;
     std::vector<instruction_ref> result;
     fix([&](auto self, auto ins) {
+		if(contains(seen, ins)) {
+			return;
+		}
         if(pred(ins))
         {
             result.push_back(ins);

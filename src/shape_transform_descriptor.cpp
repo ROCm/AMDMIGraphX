@@ -2,6 +2,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/common_dims.hpp>
 #include <migraphx/make_op.hpp>
@@ -448,29 +449,23 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
            return n >= (d.subdimensions.size() - 1);
        }))
     {
+        std::vector<std::size_t> base_axes = {0};
+        transform_partial_sum(new_dims.begin(), std::prev(new_dims.end()), std::back_inserter(base_axes), std::plus<>{}, [](const dimension& d) {
+            return std::max<std::size_t>(1, d.subdimensions.size());
+        });
         std::vector<std::size_t> axes;
-        std::size_t axis = 0;
-        for(const auto& d : new_dims)
-        {
-            if(d.subdimensions.size() > 1)
-            {
-                if(d.len() == 1)
-                {
-                    for(auto i : range(d.subdimensions.size() - 1))
-                        axes.push_back(axis + i);
-                }
-                else
-                {
-                    for(auto i : range(d.subdimensions.size()))
-                    {
-                        if(d.subdimensions[i].len != 1)
-                            continue;
-                        axes.push_back(axis + i);
-                    }
-                }
-            }
-            axis += std::max<std::size_t>(1, d.subdimensions.size());
-        }
+        std::transform(new_dims.begin(), new_dims.end(), base_axes.begin(), join_back_inserter(axes), [](const dimension& d, std::size_t base_axis) {
+            std::vector<std::size_t> result;
+            if(d.subdimensions.size() < 2)
+                return result;
+            auto idx = range(d.subdimensions.size());
+            transform_if(idx.begin(), idx.end(), std::back_inserter(result), [&](std::size_t i) { return d.subdimensions[i].len == 1; }, [&](std::size_t i) {
+                return base_axis + i;
+            });
+            if(result.size() == d.subdimensions.size())
+                result.pop_back();
+            return result;
+        });
         return make_op("squeeze", {{"axes", axes}});
     }
     else

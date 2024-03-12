@@ -67,6 +67,8 @@ static bool is_requested(std::string_view option, bool fallback = false)
     if(string_value.empty())
         return fallback;
     const auto options = split_string(string_value, ',');
+    if(contains(option, "fused") and contains(options, "fused"))
+        return true;
     return contains(options, option);
 }
 
@@ -127,9 +129,9 @@ struct mlir_op
                         ins->get_shape().type_string() + " to " +
                         mod_ins_shapes[ins].type_string());
                 }
-                mod->debug_print();
                 if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
                 {
+                    mod->debug_print();
                     MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
                                    "original input. Lens changed from " +
                                    to_string_range(ins->get_shape().lens()) + " to " +
@@ -412,8 +414,7 @@ struct find_mlir_fused_ops
     {
         auto ins           = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        // auto x_ins         = gemm_based_op->inputs().front();
-        auto x_ins         = r.instructions["x"]; // input after contiguous
+        auto x_ins         = r.instructions["x"]; // gemm/conv after contiguous ins
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -425,13 +426,11 @@ struct find_mlir_fused_ops
 
         std::vector<instruction_ref> inputs;
         auto m = mpm.get_root_module();
-        m->debug_print(ins);
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
                      [&](auto input) {
-                         return input != gemm_based_op and
-                                not contains(input->name(), "contiguous");
+                         return input != x_ins;
                      });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
@@ -571,9 +570,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlir_standalone_attention_op{});
     }
 
-    match::find_matches(mpm,
-                        find_mlir_fused_ops{.conv_mode = get_mode("fused", mlir_mode::fast),
-                                            .dot_mode  = get_mode("fused", mode)});
+    match::find_matches(
+        mpm,
+        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                            .dot_mode  = get_mode("fused_dot", mode)});
 
     match::find_matches(
         mpm,

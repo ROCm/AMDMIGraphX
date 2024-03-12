@@ -61,8 +61,6 @@ void preserve_output_layout(module& m)
     std::vector<instruction_ref> outputs = find_lasts(m, [](auto ins) {
         return ins->name() == "convolution" and ins->get_shape().lens().size() == 4;
     });
-    std::cout << "num outputs " << outputs.size() << std::endl;
-    m.debug_print(outputs);
     for(auto output : outputs)
     {
         auto permutation = find_permutation(output->get_shape());

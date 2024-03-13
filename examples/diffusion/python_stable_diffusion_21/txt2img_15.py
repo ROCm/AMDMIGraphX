@@ -123,6 +123,7 @@ class StableDiffusionMGX():
                 "timestep": [1],
             })
 
+    @measure
     def run(self, prompt, negative_prompt, steps, seed, scale):
         # need to set this for each run
         self.scheduler.set_timesteps(steps)
@@ -130,14 +131,16 @@ class StableDiffusionMGX():
         print("Tokenizing prompt...")
         text_input = self.tokenize(prompt)
 
-        print("Creating text embeddings for prompt...")
-        text_embeddings = self.get_embeddings(text_input)
-
         print("Tokenizing negative prompt...")
         uncond_input = self.tokenize(negative_prompt)
 
+        print("Creating text embeddings for prompt...")
+        start_time = time.perf_counter_ns()
+        text_embeddings = self.get_embeddings(text_input)
+
         print("Creating text embeddings for negative prompt...")
         uncond_embeddings = self.get_embeddings(uncond_input)
+        clip_time = time.perf_counter_ns() - start_time
 
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
@@ -149,17 +152,25 @@ class StableDiffusionMGX():
         latents = latents * self.scheduler.init_noise_sigma
 
         print("Running denoising loop...")
+        start_time = time.perf_counter_ns()
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, uncond_embeddings,
                                         latents, t, scale)
+        unet_time = time.perf_counter_ns() - start_time
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
 
         print("Decode denoised result...")
+        start_time = time.perf_counter_ns()
         image = self.decode(latents)
+        vae_time = time.perf_counter_ns() - start_time
 
+
+        print(f"Elapsed time clip: {(clip_time) * 1e-6:.4f} ms\n")
+        print(f"Elapsed time unet: {(unet_time) * 1e-6:.4f} ms\n")
+        print(f"Elapsed time vae: {(vae_time) * 1e-6:.4f} ms\n")
         return image
 
     @staticmethod
@@ -207,18 +218,18 @@ class StableDiffusionMGX():
     def save_image(pil_image, filename="output.png"):
         pil_image.save(filename)
 
-    @measure
     def denoise_step(self, text_embeddings, uncond_embeddings, latents, t,
                      scale):
         sample = self.scheduler.scale_model_input(latents,
-                                                  t).numpy().astype(np.float32)
+                                                  t).numpy().astype(np.float16)
         sample = np.concatenate((sample, sample))
         timestep = np.atleast_1d(t.numpy().astype(
             np.int64))  # convert 0D -> 1D
 
         hidden_states = np.concatenate(
-            (text_embeddings, uncond_embeddings)).astype(np.float32)
+            (text_embeddings, uncond_embeddings)).astype(np.float16)
 
+        start_time = time.perf_counter_ns()
         unet_out = np.split(
             np.array(
                 self.unet.run({
@@ -226,6 +237,8 @@ class StableDiffusionMGX():
                     "encoder_hidden_states": hidden_states,
                     "timestep": timestep
                 })[0]), 2)
+        unet_time = time.perf_counter_ns() - start_time
+        print(f"Elapsed time unet step: {(unet_time) * 1e-6:.4f} ms\n")
 
         noise_pred_uncond = unet_out[1]
         noise_pred_text = unet_out[0]
@@ -242,7 +255,7 @@ class StableDiffusionMGX():
     def decode(self, latents):
         return np.array(
             self.vae.run({"latent_sample":
-                          latents.numpy().astype(np.float32)})[0])
+                          latents.numpy().astype(np.float16)})[0])
 
 
 if __name__ == "__main__":

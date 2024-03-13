@@ -41,9 +41,9 @@ optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onn
 
 For v1.5:
 ```bash
-optimum-cli export onnx --model runwayml/stable-diffusion-v1-5 models/sd15-onnx --task=stable-diffusion
+optimum-cli export onnx --model runwayml/stable-diffusion-v1-5 models/sd15-onnx --task=stable-diffusion --fp16 --device cuda
 ```
-*Note: `models/sd21-onnx` will be used in the scripts.*
+*Note: `models/sd15-onnx` will be used in the scripts.*
 
 Run the text-to-image script with the following example prompt and seed:
 

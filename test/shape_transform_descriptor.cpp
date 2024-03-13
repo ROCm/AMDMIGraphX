@@ -265,8 +265,7 @@ TEST_CASE(optimize_unsqueeze_multibroadcast)
                    make_op("multibroadcast", {{"out_lens", {256, 32, 10, 16, 16}}}),
                }) == ops{
                          make_op("broadcast", {{"axis", 1}, {"out_lens", {256, 32, 10, 16, 16}}}),
-                    });
+                     });
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -558,19 +558,21 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        [](const dimension& d) { return d.len(); });
         // Use broadcast instead of multibroadcast
         if(std::all_of(new_dims.begin(), new_dims.end(), [&](const dimension& d) {
-            if (not is_broadcast_dim(d))
-                return true;
-            // Check that the broadcasted dimension does not have an axis
-            return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
-                return s.axis.empty() and not s.hidden_axis.has_value();
-            });
-        }))
+               if(not is_broadcast_dim(d))
+                   return true;
+               // Check that the broadcasted dimension does not have an axis
+               return std::all_of(
+                   d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+                       return s.axis.empty() and not s.hidden_axis.has_value();
+                   });
+           }))
         {
-            auto it = std::find_if_not(new_dims.begin(), new_dims.end(), &is_broadcast_dim);
+            auto it   = std::find_if_not(new_dims.begin(), new_dims.end(), &is_broadcast_dim);
             auto axis = std::distance(new_dims.begin(), it);
             result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
             // Remove broadcasted axes
-            new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim), new_dims.end());
+            new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim),
+                           new_dims.end());
         }
         else
         {

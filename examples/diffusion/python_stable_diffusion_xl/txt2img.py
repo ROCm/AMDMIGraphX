@@ -101,14 +101,14 @@ def get_args():
     parser.add_argument(
         "--save-compiled",
         action="store_true",
-        default=True,
+        default=False,
         help="Save compiled programs as .mxr files",
     )
     
     parser.add_argument(
         "--exhaustive-tune",
         action="store_true",
-        default=True,
+        default=False,
         help="Perform exhaustive tuning when compiling onnx models",
     )
 

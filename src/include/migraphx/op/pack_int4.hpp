@@ -60,7 +60,7 @@ struct pack_int4
 
     migraphx::shape normalize_compute_shape(std::vector<migraphx::shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this}.same_dims().has(1);
         auto in_shape = inputs.front();
         if(in_shape.type() != migraphx::shape::uint8_type)
         {
@@ -90,7 +90,7 @@ struct pack_int4
             output[i] = uint8_t(0x0F) & input_val;
             in_data_multi_idx[axis] += 1;
             input_val = input[in_data_multi_idx];
-            output[i] = (input_val << 4u) | output[i]; // NOLINT
+            output[i] = (input_val << 4u) | output[i]; // NOLINT(hicpp-signed-bitwise)
         });
         return result;
     }

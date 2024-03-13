@@ -85,10 +85,11 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         hip_compile_options options;
         options.set_launch_params(
             v, compute_global_for(ctx, nelements * block_size, 256), block_size);
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = v.get("kernel", "layernorm_kernel");
-        auto eps            = v.get("epsilon", 1e-12f);
+        options.output             = inputs.back();
+        options.inputs             = inputs;
+        options.kernel_name        = v.get("kernel", "layernorm_kernel");
+        auto eps                   = v.get("epsilon", 1e-12f);
+        options.reverse_workgroups = v.get("reverse", false);
 
         auto src = interpolate_string(layernorm_kernel,
                                       {{"kernel", options.kernel_name},
@@ -122,6 +123,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
             v["kernel"] =
                 v["layernorm"].to<std::string>() + "_" + generate_name_from_ops(*pm) + "_kernel";
         }
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

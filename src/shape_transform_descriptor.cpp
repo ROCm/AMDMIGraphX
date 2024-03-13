@@ -128,7 +128,7 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
             if(not apply_broadcast(dims, v["axis"].to<std::size_t>()))
                 return false;
         }
-        else
+        else if (op.name() != "contiguous")
         {
             return false;
         }

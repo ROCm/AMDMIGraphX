@@ -38,6 +38,7 @@
 #include <unordered_set>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
 
 #include <map>
 
@@ -85,6 +86,60 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
     return std::adjacent_find(
                dims.begin(), dims.end(), [](auto x, auto y) { return (y - x) != 1; }) == dims.end();
 }
+
+struct find_nested_shape_transforms
+{
+    static const auto& shape_transforms()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "transpose",
+            "broadcast",
+            "multibroadcast",
+        };
+        return names;
+    }
+    auto matcher() const
+    {
+        auto output_not_shape_transform =
+            match::none_of(match::skip_output(match::name("contiguous"))(match::name(shape_transforms())));
+        auto input_has_shape_transform =
+            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+        return match::name(shape_transforms())(output_not_shape_transform, input_has_shape_transform);
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+
+        std::vector<operation> ops;
+        auto x   = ins;
+        while(contains(shape_transforms(), x->get_operator().name()) or x->get_operator().name() == "contiguous")
+        {
+            ops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        if (x->get_shape().scalar())
+        {
+            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
+        }
+        else
+        {
+            std::reverse(ops.begin(), ops.end());
+            auto opt_ops = optimize_shape_transforms(x->get_shape().lens(), ops);
+            if(ops == opt_ops)
+                return;
+            auto y = x;
+            for(auto op:opt_ops)
+                y = m.insert_instruction(ins, op, y);
+            m.replace_instruction(ins, y);
+
+        }
+    }
+};
 
 struct find_reshaper
 {
@@ -957,20 +1012,21 @@ void simplify_reshapes::apply(module& m) const
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},
-                            find_reshaper{},
+                            find_nested_shape_transforms{},
+                            // find_reshaper{},
                             find_reshape_cont{},
-                            find_transpose{},
+                            // find_transpose{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},
-                            find_broadcast_transpose{},
+                            // find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
-                            find_reshape_reshape_dot{},
-                            find_scalar_multibroadcast_reshape_or_transpose{});
+                            find_reshape_reshape_dot{});
+                            // find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

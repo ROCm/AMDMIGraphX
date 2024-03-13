@@ -122,6 +122,12 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
             if(not apply_broadcast(dims))
                 return false;
         }
+        else if(op.name() == "broadcast")
+        {
+            dims = compute_dims(op, dims);
+            if(not apply_broadcast(dims, v["axis"].to<std::size_t>()))
+                return false;
+        }
         else
         {
             return false;
@@ -204,7 +210,8 @@ bool shape_transform_descriptor::apply_transpose(const std::vector<std::int64_t>
 bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>& out_lens,
                                                  optional<std::size_t> axis)
 {
-    auto offset = out_lens.size() - dimensions.size();
+    auto offset = axis.value_or(out_lens.size() - dimensions.size());
+
     std::vector<dimension> new_dims;
     std::transform(out_lens.begin(),
                    out_lens.begin() + offset,
@@ -212,15 +219,21 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                    [&](auto len) -> dimension {
                        return {{dimension::sub{len, {}}}};
                    });
-    std::transform(out_lens.begin() + offset,
-                   out_lens.end(),
-                   dimensions.begin(),
+    std::transform(dimensions.begin(),
+                    dimensions.end(),
+                    out_lens.begin() + offset,                   
                    std::back_inserter(new_dims),
-                   [&](auto len, const dimension& dim) -> dimension {
+                   [&](const dimension& dim, auto len) -> dimension {
                        if(len == dim.len())
                            return dim;
                        if(dim.len() != 1)
                            MIGRAPHX_THROW("Wrong out_lens for broadcast");
+                       return {{dimension::sub{len, {}}}};
+                   });
+    std::transform(out_lens.begin() + offset + dimensions.size(),
+                   out_lens.end(),
+                   std::back_inserter(new_dims),
+                   [&](auto len) -> dimension {
                        return {{dimension::sub{len, {}}}};
                    });
     dimensions = new_dims;

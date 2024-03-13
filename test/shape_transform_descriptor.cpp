@@ -136,11 +136,12 @@ TEST_CASE(record_broadcast1)
 
 TEST_CASE(record_broadcast2)
 {
-    auto desc =
-        make_descriptor({32, 10}, make_op("broadcast", {{"axis", 1}, {"out_lens", {256, 32, 10, 16, 16}}}));
+    auto desc = make_descriptor(
+        {32, 10}, make_op("broadcast", {{"axis", 1}, {"out_lens", {256, 32, 10, 16, 16}}}));
     EXPECT(get_final_lens(desc) == final_lens{256, 32, 10, 16, 16});
     EXPECT(get_all_lens(desc) == all_lens{{256}, {32}, {10}, {16}, {16}});
-    EXPECT(get_all_axes(desc) == all_axes{d_axes{{}}, d_axes{{0}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
+    EXPECT(get_all_axes(desc) ==
+           all_axes{d_axes{{}}, d_axes{{0}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
 TEST_CASE(optimize_transpose_transpose)

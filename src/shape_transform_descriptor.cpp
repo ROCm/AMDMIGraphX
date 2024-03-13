@@ -220,8 +220,8 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                        return {{dimension::sub{len, {}}}};
                    });
     std::transform(dimensions.begin(),
-                    dimensions.end(),
-                    out_lens.begin() + offset,                   
+                   dimensions.end(),
+                   out_lens.begin() + offset,
                    std::back_inserter(new_dims),
                    [&](const dimension& dim, auto len) -> dimension {
                        if(len == dim.len())

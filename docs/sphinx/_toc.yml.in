@@ -3,13 +3,20 @@
 root: index
 subtrees:
   - entries:
-      - file: what-is-migraphx
+    - file: what-is-migraphx
+    
+  - caption: API reference
+    entries:
+    - file: reference/cpp
+    - file: reference/py
+
   - caption: Command-line tool
     entries:
     - file: migraphx-driver
       subtrees:
         - entries:
           - file: reference/driver-options
+
   - caption:  Tutorial
     entries:
     - file: dev/contributing-to-migraphx
@@ -23,13 +30,8 @@ subtrees:
           - file: dev/pass
           - file: dev/matchers
           - file: dev/tools
-          - file: dev/env_vars
-            
-  - caption: API Reference
-    entries:
-    - file: reference/cpp
-    - file: reference/py
-
+          - file: dev/env_vars            
+  
   - caption: About
     entries:
     - file: license

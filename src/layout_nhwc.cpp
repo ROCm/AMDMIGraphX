@@ -45,6 +45,7 @@ std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 		if(contains(seen, ins)) {
 			return;
 		}
+		seen.insert(ins);
         if(pred(ins))
         {
             result.push_back(ins);

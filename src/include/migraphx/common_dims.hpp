@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <cstdint>
+#include <numeric>
 #include <vector>
 
 namespace migraphx {
@@ -39,10 +40,23 @@ struct MIGRAPHX_EXPORT common_dims
 {
     static common_dims compute(const std::vector<std::size_t>& dims1,
                                const std::vector<std::size_t>& dims2);
+
+    /// Map the dimensions into the common higher dimensional space. The
+    /// dimension doesnt need to have the same number of elements as the
+    /// common dimension.
+    std::vector<std::size_t> get_dimensions_for(const std::vector<std::size_t>& idims) const;
+    /// Get the corresponding axes map based on the rank of tensor
+    const std::vector<std::vector<std::size_t>>* get_axes_map(std::size_t n) const;
     std::vector<std::size_t> dims;
     std::vector<std::vector<std::size_t>> axes_map1;
     std::vector<std::vector<std::size_t>> axes_map2;
 };
+
+template <class Range>
+auto elements(const Range& r)
+{
+    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

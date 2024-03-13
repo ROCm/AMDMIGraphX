@@ -40,6 +40,7 @@ struct test_conv_relu : verify_program<test_conv_relu<DType>>
         mm->add_instruction(migraphx::make_op("relu"), conv);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 struct test_conv_relu2 : verify_program<test_conv_relu2>

@@ -46,6 +46,7 @@ struct test_conv_add : verify_program<test_conv_add<DType>>
         mm->add_instruction(migraphx::make_op("exp"), sum);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template <migraphx::shape::type_t DType>

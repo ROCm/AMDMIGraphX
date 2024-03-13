@@ -240,7 +240,7 @@ auto is_mlir_dot(mlir_mode mode)
         // Skipping GEMMs with a K dimension greater than 2048 is a course-grained strategy
         // to avoid poor-performing GEMM kernels from MLIR
         // To-do: Investigate a more precise strategy
-        return k <= 2048;
+        return k <= 1024;
     });
 }
 
@@ -560,9 +560,6 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         return std::max(m1, m2);
     };
 
-    mlir_mode mode =
-        (enabled(MIGRAPHX_ENABLE_EXTRA_MLIR{}) or enable_extra) ? mlir_mode::fast : mlir_mode::none;
-
     // Attention offloads; default disabled
     if(mlir_attention_enabled())
     {
@@ -573,12 +570,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                            .dot_mode  = get_mode("fused_dot", mode)});
-
+                            .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
-        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::none)});
+        find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
 #else
     (void)mpm;
 #endif

@@ -36,6 +36,7 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
+
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -51,6 +52,12 @@ def measure(fn):
 
 def get_args():
     parser = ArgumentParser()
+    parser.add_argument(
+        "--base-model-path",
+        type=str,
+        default="./sdxl-1.0-base",
+        help="Path to onnx model exports",
+    )
     parser.add_argument(
         "-s",
         "--seed",
@@ -71,7 +78,8 @@ def get_args():
         "-p",
         "--prompt",
         type=str,
-        required=True,
+        default=
+        "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
         help="Prompt",
     )
 
@@ -89,6 +97,20 @@ def get_args():
         default=5.0,
         help="Guidance scale",
     )
+    
+    parser.add_argument(
+        "--save-compiled",
+        action="store_true",
+        default=False,
+        help="Save compiled programs as .mxr files",
+    )
+    
+    parser.add_argument(
+        "--exhaustive-tune",
+        action="store_true",
+        default=False,
+        help="Perform exhaustive tuning when compiling onnx models",
+    )
 
     parser.add_argument(
         "-o",
@@ -101,7 +123,8 @@ def get_args():
 
 
 class StableDiffusionMGX():
-    def __init__(self):
+
+    def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
@@ -118,19 +141,21 @@ class StableDiffusionMGX():
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae", {"latent_sample": [1, 4, 128, 128]})
+            "vae", {"latent_sample": [1, 4, 128, 128]}, base_model_path, save_compiled, exhaustive_tune)
         self.clip = StableDiffusionMGX.load_mgx_model("clip",
-                                                      {"input_ids": [1, 77]})
+                                                      {"input_ids": [1, 77]},
+                                                      base_model_path, save_compiled, exhaustive_tune)
         self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
-                                                       {"input_ids": [1, 77]})
+                                                       {"input_ids": [1, 77]},
+                                                       base_model_path, save_compiled, exhaustive_tune)
         self.unetxl = StableDiffusionMGX.load_mgx_model(
-            "unetxl.opt", {
+            "unetxl", {
                 "sample": [2, 4, 128, 128],
                 "encoder_hidden_states": [2, 77, 2048],
                 "text_embeds": [2, 1280],
                 "time_ids": [2, 6],
                 "timestep": [1],
-            })
+            }, base_model_path, save_compiled, exhaustive_tune)
 
     @measure
     def run(self, prompt, negative_prompt, steps, seed, scale):
@@ -192,8 +217,8 @@ class StableDiffusionMGX():
 
     @staticmethod
     @measure
-    def load_mgx_model(name, shapes):
-        file = f"models/sdxl/{name}/model"
+    def load_mgx_model(name, shapes, model_base_path, save_compiled, exhaustive_tune=False):
+        file = f"{model_base_path}/{name}/model"
         print(f"Loading {name} model from {file}")
         if os.path.isfile(f"{file}.mxr"):
             print("Found mxr, loading it...")
@@ -201,9 +226,10 @@ class StableDiffusionMGX():
         elif os.path.isfile(f"{file}.onnx"):
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
-            model.compile(mgx.get_target("gpu"))
-            print(f"Saving {name} model to mxr file...")
-            mgx.save(model, f"{file}.mxr", format="msgpack")
+            model.compile(mgx.get_target("gpu"), exhaustive_tune=exhaustive_tune)
+            if save_compiled:
+                print(f"Saving {name} model to mxr file...")
+                mgx.save(model, f"{file}.mxr", format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
             sys.exit(1)
@@ -312,7 +338,7 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX()
+    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled, args.exhaustive_tune)
     print("Warming up...")
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,

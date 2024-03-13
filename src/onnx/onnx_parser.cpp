@@ -578,6 +578,14 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                    tensor_dims.end(),
                    std::back_inserter(dynamic_dims),
                    [&](auto&& d) -> shape::dynamic_dimension {
+                       if(d.has_dim_param())
+                       {
+                           const auto& dim_param = d.dim_param();
+                           if(contains(dim_params, dim_param))
+                           {
+                               return dim_params.at(dim_param);
+                           }
+                       }
                        if(d.has_dim_value())
                        {
                            if(static_cast<int>(d.dim_value()) <= 0)

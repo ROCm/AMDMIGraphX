@@ -229,6 +229,35 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
     EXPECT((2 + e) == d);
 }
 
+TEST_CASE(dynamic_dimension_intersection)
+{
+    using migraphx::shape;
+    auto a   = shape::dynamic_dimension{2, 5, {2, 5}};
+    auto b   = shape::dynamic_dimension{3, 4};
+    auto aib = a.intersection(b);
+    auto bia = b.intersection(a);
+    EXPECT(aib.has_value());
+    EXPECT(bia.has_value());
+    EXPECT(aib.value() == shape::dynamic_dimension{3, 4});
+    EXPECT(aib.value() == bia.value());
+
+    auto c   = shape::dynamic_dimension{3, 8};
+    auto cia = c.intersection(a);
+    EXPECT(cia.value() == shape::dynamic_dimension{3, 5});
+
+    auto d   = shape::dynamic_dimension{8, 10};
+    auto dib = d.intersection(b);
+    EXPECT(not dib.has_value());
+
+    auto e   = shape::dynamic_dimension{4, 10};
+    auto eib = e.intersection(b);
+    EXPECT(eib.value() == shape::dynamic_dimension{4, 4});
+
+    auto f   = shape::dynamic_dimension{0, std::numeric_limits<std::size_t>::max()};
+    auto fib = f.intersection(b);
+    EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
+}
+
 TEST_CASE(dynamic_dimension_serialize)
 {
     using migraphx::shape;

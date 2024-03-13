@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,12 +41,6 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
     if(x < dim)
         return start;
     return it;
-}
-
-template <class Range>
-static auto elements(const Range& r)
-{
-    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
 }
 
 struct common_dim_state
@@ -150,6 +144,48 @@ common_dims common_dims::compute(const std::vector<std::size_t>& dims1,
     }
     assert(elements(dims1) == elements(cd.dims));
     return cd;
+}
+
+const std::vector<std::vector<std::size_t>>* common_dims::get_axes_map(std::size_t n) const
+{
+    if(axes_map1.size() == n)
+        return &axes_map1;
+    if(axes_map2.size() == n)
+        return &axes_map2;
+    return nullptr;
+}
+
+std::vector<std::size_t>
+common_dims::get_dimensions_for(const std::vector<std::size_t>& idims) const
+{
+    if(dims.size() == idims.size())
+        return idims;
+    if(elements(dims) == elements(idims))
+        return dims;
+    // Bail for now since its ambiguous which axes map can be used
+    if(axes_map1.size() == axes_map2.size())
+        return {};
+    const auto* axes_map = get_axes_map(idims.size());
+    if(axes_map == nullptr)
+        return {};
+    auto xdims = dims;
+    for(auto i : range(axes_map->size()))
+    {
+        auto dim         = idims[i];
+        const auto& axes = (*axes_map)[i];
+        if(axes.size() == 1)
+        {
+            xdims[axes.front()] = dim;
+        }
+        else if(dim == 1)
+        {
+            for(auto axis : axes)
+                xdims[axis] = 1;
+        }
+    }
+    if(elements(xdims) == elements(idims))
+        return xdims;
+    return {};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

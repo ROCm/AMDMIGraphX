@@ -29,6 +29,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/program.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -153,7 +154,7 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over)
                              ctx.get_current_device().get_max_workitems_per_cu();
     return [n, over, max_global](std::size_t local) {
         std::size_t num_elements = n;
-        if(not hip_accept_non_uniform_wg())
+        if(enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or not hip_accept_non_uniform_wg())
         {
             num_elements = (1 + (n - 1) / local) * local;
         }
@@ -191,15 +192,16 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
     srcs.emplace_back("args.hpp", args_hpp);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
-        options.params += " -fno-offload-uniform-block";
+        options.emplace_param("-fno-offload-uniform-block");
     else
         assert(options.global % options.local == 0);
 
-    options.params += " -DMIGRAPHX_NGLOBAL=" + std::to_string(options.global);
-    options.params += " -DMIGRAPHX_NLOCAL=" + std::to_string(options.local);
-    options.params += " " + join_strings(compiler_warnings(), " ");
-    options.params += " -ftemplate-backtrace-limit=0";
-    options.params += " -Werror";
+    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
+    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    const auto& warnings = compiler_warnings();
+    options.params.insert(options.params.end(), warnings.begin(), warnings.end());
+    options.emplace_param("-ftemplate-backtrace-limit=0");
+    options.emplace_param("-Werror");
     auto cos = compile_hip_src(srcs, options.params, get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");

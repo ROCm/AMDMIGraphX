@@ -37,6 +37,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+
 namespace {
 
 template <class Derived, std::size_t N>
@@ -222,9 +224,12 @@ struct find_gemm_softmax_gemm
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm.get_module(), find_layernorm{});
-    mpm.run_pass(dead_code_elimination{});
-    match::find_matches(mpm.get_module(), find_add_layernorm{});
+    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    {
+        match::find_matches(mpm.get_module(), find_layernorm{});
+        mpm.run_pass(dead_code_elimination{});
+        match::find_matches(mpm.get_module(), find_add_layernorm{});
+    }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 }
 

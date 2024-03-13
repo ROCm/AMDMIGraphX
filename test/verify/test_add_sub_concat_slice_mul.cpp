@@ -21,37 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <vector>
-#include <string>
-#include <string_view>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/pooling.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct MIGRAPHX_EXPORT tmp_dir
+// test for fuse_concat pass where pointwise input to concat has multiple outputs
+struct test_add_sub_concat_slice_mul : verify_program<test_add_sub_concat_slice_mul>
 {
-    fs::path path;
-    tmp_dir(std::string_view prefix = "");
-    tmp_dir(tmp_dir&&) = default;
-
-    void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;
-    void execute(const fs::path& cmd, const std::vector<std::string>& args = {}) const
+    migraphx::program create_program() const
     {
-        execute(std::string_view{cmd.string()}, args);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s1{migraphx::shape::float_type, {1, 4, 8, 8}};
+        auto x      = mm->add_parameter("x", s1);
+        auto y      = mm->add_parameter("y", s1);
+        auto add    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto sub    = mm->add_instruction(migraphx::make_op("sub"), x, y);
+        auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), add, sub);
+        auto relu   = mm->add_instruction(migraphx::make_op("relu"), concat);
+        auto slice  = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}}), relu);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), sub, slice);
+        mm->add_return({mul});
+        return p;
     }
-
-    tmp_dir(tmp_dir const&) = delete;
-    tmp_dir& operator=(tmp_dir const&) = delete;
-
-    ~tmp_dir();
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

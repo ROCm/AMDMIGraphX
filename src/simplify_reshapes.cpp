@@ -104,11 +104,12 @@ struct find_nested_shape_transforms
     }
     auto matcher() const
     {
-        auto output_not_shape_transform =
-            match::none_of(match::skip_output(match::name("contiguous"))(match::name(shape_transforms())));
+        auto output_not_shape_transform = match::none_of(
+            match::skip_output(match::name("contiguous"))(match::name(shape_transforms())));
         auto input_has_shape_transform =
             match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
-        return match::name(shape_transforms())(output_not_shape_transform, input_has_shape_transform);
+        return match::name(shape_transforms())(output_not_shape_transform,
+                                               input_has_shape_transform);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -116,15 +117,17 @@ struct find_nested_shape_transforms
         auto ins = mr.result;
 
         std::vector<operation> ops;
-        auto x   = ins;
-        while(contains(shape_transforms(), x->get_operator().name()) or x->get_operator().name() == "contiguous")
+        auto x = ins;
+        while(contains(shape_transforms(), x->get_operator().name()) or
+              x->get_operator().name() == "contiguous")
         {
             ops.push_back(x->get_operator());
             x = x->inputs().front();
         }
-        if (x->get_shape().scalar())
+        if(x->get_shape().scalar())
         {
-            m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), x);
         }
         else
         {
@@ -133,10 +136,9 @@ struct find_nested_shape_transforms
             if(ops == opt_ops)
                 return;
             auto y = x;
-            for(auto op:opt_ops)
+            for(auto op : opt_ops)
                 y = m.insert_instruction(ins, op, y);
             m.replace_instruction(ins, y);
-
         }
     }
 };
@@ -1026,7 +1028,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{});
-                            // find_scalar_multibroadcast_reshape_or_transpose{});
+        // find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

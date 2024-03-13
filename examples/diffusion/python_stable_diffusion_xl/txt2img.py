@@ -220,16 +220,17 @@ class StableDiffusionMGX():
     def load_mgx_model(name, shapes, model_base_path, save_compiled, exhaustive_tune=False):
         file = f"{model_base_path}/{name}/model"
         print(f"Loading {name} model from {file}")
-        if os.path.isfile(f"{file}.mxr"):
+        if os.path.isfile(f"{file}_fp16.mxr"):
             print("Found mxr, loading it...")
-            model = mgx.load(f"{file}.mxr", format="msgpack")
+            model = mgx.load(f"{file}_fp16.mxr", format="msgpack")
         elif os.path.isfile(f"{file}.onnx"):
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
+            mgx.quantize_fp16(model)
             model.compile(mgx.get_target("gpu"), exhaustive_tune=exhaustive_tune)
             if save_compiled:
                 print(f"Saving {name} model to mxr file...")
-                mgx.save(model, f"{file}.mxr", format="msgpack")
+                mgx.save(model, f"{file}_fp16.mxr", format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
             sys.exit(1)

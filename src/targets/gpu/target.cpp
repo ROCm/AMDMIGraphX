@@ -78,6 +78,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WORKGROUP_REVERSAL)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -187,7 +188,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         write_literals{&ctx},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
-        workgroup_reversal{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_WORKGROUP_REVERSAL{}), workgroup_reversal{}),
         memory_coloring{"hip::allocate"},
         compile_ops{&ctx, options.exhaustive_tune},
         sync_device{},

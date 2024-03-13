@@ -57,7 +57,7 @@ void workgroup_reversal::apply(module& m) const
     // Apply reversals around non-mlir gemms and convolutions
     for(auto i : iterator_for(precomp_instrs))
     {
-        if(i == precomp_instrs.begin() or i == precomp_instrs.end())
+        if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
             continue;
 
         instruction_ref ins      = *i;
@@ -74,7 +74,7 @@ void workgroup_reversal::apply(module& m) const
     // Apply reversals for remaining precompile ops
     for(auto i : iterator_for(precomp_instrs))
     {
-        if(i == precomp_instrs.begin() or i == precomp_instrs.end())
+        if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
             continue;
 
         if(std::all_of(std::prev(i), std::next(i), [](auto ins) {

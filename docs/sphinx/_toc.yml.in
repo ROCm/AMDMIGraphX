@@ -4,10 +4,12 @@ root: index
 subtrees:
   - entries:
       - file: what-is-migraphx
+  - caption: Command-line tool
       - file: migraphx-driver
         subtrees:
           - entries:
             - file: reference/driver-options
+  - caption:  Tutorial
       - file: dev/contributing-to-migraphx
         subtrees:
           - entries:

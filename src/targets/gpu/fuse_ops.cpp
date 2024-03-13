@@ -794,29 +794,6 @@ struct find_pointwise_layout
     }
 };
 
-struct find_pointwise_contiguous
-{
-    auto matcher() const
-    {
-        return match::name("gpu::contiguous")(match::arg(0)(precompile_name("pointwise")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins    = r.result;
-        auto pw     = ins->inputs().front();
-        auto alloc  = ins->inputs().back();
-        auto args   = pw->inputs();
-        args.back() = alloc;
-
-        // Ensure the output shape of the pointwise module is contiguous
-        auto pw_op_val            = pw->get_operator().to_value();
-        pw_op_val["output_shape"] = to_value(ins->get_shape());
-
-        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
-    }
-};
-
 struct find_layernorm_pointwise
 {
     auto matcher() const

@@ -88,12 +88,13 @@ struct quant_convolution
         }
 
         // all input type must be int8_type and output is float_type
-        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
-                                                             shape::fp8e4m3fnuz_type};
+        std::set<migraphx::shape::type_t> supported_types = {
+            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t or "
-                           "fp8e4m3fnuz_type");
+            MIGRAPHX_THROW(
+                "QUANT_CONVOLUTION: only accept input and weights of type uint8_t, int8_t or "
+                "fp8e4m3fnuz_type");
         }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};
@@ -110,7 +111,7 @@ struct quant_convolution
                         stride[i] +
                     1)));
         }
-        if(t == shape::int8_type)
+        if(t == shape::int8_type || t == shape::uint8_type)
         {
             return inputs[0].with_lens(shape::int32_type, output_lens);
         } // else fp8 conv

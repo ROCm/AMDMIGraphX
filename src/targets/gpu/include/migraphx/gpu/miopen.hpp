@@ -143,6 +143,8 @@ inline tensor_descriptor make_tensor(const migraphx::shape& os)
         d = miopenInt32;
     else if(s.type() == shape::int8_type)
         d = miopenInt8;
+    else if(s.type() == shape::uint8_type)
+        d = miopenInt8;
     else
         MIGRAPHX_THROW("MAKE_TENSOR: unsupported type");
     miopenSetTensorDescriptor(t.get(), d, s.lens().size(), lens.data(), strides.data());

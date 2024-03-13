@@ -5,23 +5,25 @@ subtrees:
   - entries:
       - file: what-is-migraphx
   - caption: Command-line tool
-      - file: migraphx-driver
-        subtrees:
-          - entries:
-            - file: reference/driver-options
+    entries:
+    - file: migraphx-driver
+      subtrees:
+        - entries:
+          - file: reference/driver-options
   - caption:  Tutorial
-      - file: dev/contributing-to-migraphx
-        subtrees:
-          - entries:
-            - file: dev/data
-            - file: dev/operators
-            - file: dev/program
-            - file: dev/targets
-            - file: dev/quantization
-            - file: dev/pass
-            - file: dev/matchers
-            - file: dev/tools
-            - file: dev/env_vars
+    entries:
+    - file: dev/contributing-to-migraphx
+      subtrees:
+        - entries:
+          - file: dev/data
+          - file: dev/operators
+          - file: dev/program
+          - file: dev/targets
+          - file: dev/quantization
+          - file: dev/pass
+          - file: dev/matchers
+          - file: dev/tools
+          - file: dev/env_vars
             
   - caption: API Reference
     entries:

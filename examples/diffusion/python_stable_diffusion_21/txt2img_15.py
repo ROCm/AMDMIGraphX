@@ -167,7 +167,6 @@ class StableDiffusionMGX():
         image = self.decode(latents)
         vae_time = time.perf_counter_ns() - start_time
 
-
         print(f"Elapsed time clip: {(clip_time) * 1e-6:.4f} ms\n")
         print(f"Elapsed time unet: {(unet_time) * 1e-6:.4f} ms\n")
         print(f"Elapsed time vae: {(vae_time) * 1e-6:.4f} ms\n")

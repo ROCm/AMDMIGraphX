@@ -1,4 +1,4 @@
-# Stable Diffusion 2.1
+# Stable Diffusion
 
 This version was tested with [rocm 5.7](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-5.7.0) revision.
 
@@ -32,19 +32,34 @@ export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
 
 Get models with optimum
 
+For v2.1:
+
 ```bash
 optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onnx
 ```
 *Note: `models/sd21-onnx` will be used in the scripts.*
 
+For v1.5:
+```bash
+optimum-cli export onnx --model runwayml/stable-diffusion-v1-5 models/sd15-onnx --task=stable-diffusion
+```
+*Note: `models/sd21-onnx` will be used in the scripts.*
+
 Run the text-to-image script with the following example prompt and seed:
 
+For v2.1:
 ```bash
 python txt2img.py --prompt "a photograph of an astronaut riding a horse" --seed 13 --output astro_horse.jpg
 ```
 *Note: The first run will compile the models and cache them to make subsequent runs faster.*
 
-The result should look like this:
+For v1.5:
+```bash
+python txt2img_15.py --prompt "a photograph of an astronaut riding a horse" --seed 13 --output astro_horse.jpg
+```
+*Note: The first run will compile the models and cache them to make subsequent runs faster.*
+
+The result for 2.1 should look like this:
 
 ![example_output.jpg](./example_output.jpg)
 

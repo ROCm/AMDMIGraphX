@@ -45,6 +45,7 @@ struct gemm_2args_mm_1 : verify_program<gemm_2args_mm_1<DType>>
 
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_2args_mm_1<migraphx::shape::float_type>;

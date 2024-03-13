@@ -39,6 +39,7 @@ struct test_gemm_ex : verify_program<test_gemm_ex<DType>>
         mm->add_instruction(migraphx::make_op("dot"), a, b);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 template struct test_gemm_ex<migraphx::shape::float_type>;
 template struct test_gemm_ex<migraphx::shape::half_type>;

@@ -767,7 +767,7 @@ struct find_contiguous
     }
 };
 
-struct find_contiguous_pointwise
+struct find_pointwise_contiguous
 {
     auto matcher() const
     {
@@ -842,7 +842,9 @@ struct find_concat_pointwise
         inputs.insert(inputs.end(), ins->inputs().begin() + 1, ins->inputs().end());
 
         auto op = concat->get_operator();
-        op.from_value({{"additional_args", ins->inputs().size() - 1}, {"ignore_modules", true}});
+        op.from_value({{"additional_args", ins->inputs().size() - 1},
+                       {"ignore_modules", true},
+                       {"output_shape", to_value(ins->get_shape())}});
 
         m.replace_instruction(ins, op, inputs, {pm});
     }
@@ -850,7 +852,7 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_contiguous_pointwise{});
+    match::find_matches(m, find_pointwise_contiguous{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});

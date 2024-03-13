@@ -548,7 +548,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
 {
     std::vector<operation> result;
     std::vector<dimension> new_dims = dimensions;
-    // Need multibroadcast
+    // Need broadcast
     if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
     {
         std::vector<std::size_t> out_lens;
@@ -556,7 +556,26 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        new_dims.end(),
                        std::back_inserter(out_lens),
                        [](const dimension& d) { return d.len(); });
-        result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+        // Use broadcast instead of multibroadcast
+        if(std::all_of(new_dims.begin(), new_dims.end(), [&](const dimension& d) {
+            if (not is_broadcast_dim(d))
+                return true;
+            // Check that the broadcasted dimension does not have an axis
+            return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+                return s.axis.empty() and not s.hidden_axis.has_value();
+            });
+        }))
+        {
+            auto it = std::find_if_not(new_dims.begin(), new_dims.end(), &is_broadcast_dim);
+            auto axis = std::distance(new_dims.begin(), it);
+            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+            // Remove broadcasted axes
+            new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim), new_dims.end());
+        }
+        else
+        {
+            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+        }
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {

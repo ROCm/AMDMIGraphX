@@ -509,7 +509,7 @@ static void flatten_broadcasted_dim(dimension::sub& s)
 {
     if(s.axis.empty())
     {
-        s.len   = 1;
+        s.len = 1;
         if(s.hidden_axis.has_value())
         {
             s.axis        = {s.hidden_axis.value()};
@@ -613,7 +613,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
     // Flatten broadcasted dimensions
     for(auto& d : new_dims)
     {
-        if (d.subdimensions.size() != 1)
+        if(d.subdimensions.size() != 1)
             continue;
         flatten_broadcasted_dim(d.subdimensions.front());
     }

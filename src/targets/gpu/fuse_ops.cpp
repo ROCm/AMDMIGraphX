@@ -767,7 +767,7 @@ struct find_contiguous
     }
 };
 
-struct find_pointwise_layout
+struct find_pointwise_layout_contiguous
 {
     auto matcher() const
     {
@@ -856,7 +856,7 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_pointwise_layout{});
+    match::find_matches(m, find_pointwise_layout_contiguous{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});

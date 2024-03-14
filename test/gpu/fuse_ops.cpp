@@ -165,7 +165,9 @@ TEST_CASE(pointwise_layout_convolution)
     migraphx::shape s1{migraphx::shape::float_type, {2, 320, 128, 128}};
     migraphx::shape s2{migraphx::shape::float_type, {320, 320, 3, 3}, {2880, 1, 960, 320}};
     migraphx::shape s3{migraphx::shape::float_type, {2, 320, 128, 128}, {5242880, 1, 40960, 320}};
-    migraphx::shape s4{migraphx::shape::int8_type, {41943040}}; //  workspace for gpu::convolution
+    // workspace for gpu::convolution, memory space can change based on gfx arch and rocm version,
+    // For the unit-test just use some random number.
+    migraphx::shape s4{migraphx::shape::int8_type, {41943040}};
 
     auto create_program = [=]() {
         migraphx::program p;

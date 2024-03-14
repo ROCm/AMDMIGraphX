@@ -767,6 +767,27 @@ struct find_contiguous
     }
 };
 
+struct find_contiguous_pointwise
+{
+    auto matcher() const
+    {
+        auto cont_pw   = precompile_name("pointwise")(match::any_of[match::inputs()](
+            match::name("gpu::contiguous")(match::used_once()).bind("layout_ins")));
+        auto layout_pw = precompile_name("pointwise")(match::any_of[match::inputs()])(
+            precompile_name("layout")(match::used_once().bind("layout_ins")));
+        return match::any_of(layout_pw, cont_pw);
+    }
+
+    void apply(module&, const match::matcher_result& r) const
+    {
+        auto pw_ins        = r.result;
+        auto layout_ins    = r.instructions["layout_ins"];
+        auto layout_input  = layout_ins->inputs().front();
+        auto pw_ins_inputs = pw_ins->inputs();
+        instruction::replace_argument(pw_ins, layout_ins, layout_input);
+    }
+};
+
 struct find_pointwise_contiguous
 {
     auto matcher() const
@@ -852,7 +873,7 @@ struct find_concat_pointwise
 
 void fuse_ops::apply(module& m) const
 {
-    match::find_matches(m, find_pointwise_contiguous{});
+    match::find_matches(m, find_pointwise_contiguous{}, find_contiguous_pointwise{});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});

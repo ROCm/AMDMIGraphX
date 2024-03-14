@@ -116,7 +116,6 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
 
         auto new_target_op =
             m.insert_instruction(target_op, target_op->get_operator(), converted_inputs);
-        m.debug_print();
 
         auto data  = quant_op->inputs().at(0);
         auto scale = quant_op->inputs().at(1);

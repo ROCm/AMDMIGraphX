@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -148,11 +148,13 @@ TEST_CASE(two_transpose_gather)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), data);
         auto ctd = m2.add_instruction(migraphx::make_op("contiguous"), td);
         auto sd  = m2.add_instruction(migraphx::make_op("softmax", {{"axis", 2}}), ctd);
-        auto bd =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), sd);
+        auto csd = m2.add_instruction(migraphx::make_op("contiguous"), sd);
+        auto bd  = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), csd);
         auto cbd = m2.add_instruction(migraphx::make_op("contiguous"), bd);
         auto r   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), cbd, ind);
-        m2.add_return({r});
+        auto cr  = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        m2.add_return({cr});
     }
 
     EXPECT(m1 == m2);
@@ -177,7 +179,8 @@ TEST_CASE(standard_reshape_lazy)
         auto ca   = m2.add_instruction(migraphx::make_op("contiguous"), add);
         auto r =
             m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 1, 12, 5}}}), ca);
-        m2.add_return({r});
+        auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        m2.add_return({cr});
     }
 
     EXPECT(m1 == m2);
@@ -198,8 +201,10 @@ TEST_CASE(standard_reshape)
     {
         auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {2, 3, 4, 5}});
         auto add  = m2.add_instruction(migraphx::make_op("add"), data, data);
-        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), add);
-        m2.add_return({r});
+        auto ca   = m2.add_instruction(migraphx::make_op("contiguous"), add);
+        auto r    = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 12, 5}}}), ca);
+        auto cr = m2.add_instruction(migraphx::make_op("contiguous"), r);
+        m2.add_return({cr});
     }
 
     EXPECT(m1 == m2);

@@ -205,8 +205,7 @@ class StableDiffusionMGX():
     def get_embeddings(self, input):
         return np.array(
             self.text_encoder.run(
-                {"input_ids":
-                 input.input_ids.astype(np.int32)})[0])
+                {"input_ids": input.input_ids.astype(np.int32)})[0])
 
     @staticmethod
     def convert_to_rgb_image(image):

@@ -505,6 +505,19 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
     }
 }
 
+static void flatten_broadcasted_dim(dimension::sub& s)
+{
+    if(s.axis.empty())
+    {
+        s.len   = 1;
+        if(s.hidden_axis.has_value())
+        {
+            s.axis        = {s.hidden_axis.value()};
+            s.hidden_axis = nullopt;
+        }
+    }
+}
+
 static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 {
     bool use_reshape = false;
@@ -597,18 +610,12 @@ std::vector<operation> shape_transform_descriptor::generate() const
             result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
         }
     }
-    // Flatten broadcasted subdimensions
+    // Flatten broadcasted dimensions
     for(auto& d : new_dims)
     {
-        for(auto& s : d.subdimensions)
-        {
-            if(s.axis.empty() and s.hidden_axis.has_value())
-            {
-                s.axis        = {s.hidden_axis.value()};
-                s.len   = 1;
-                s.hidden_axis = nullopt;
-            }
-        }
+        if (d.subdimensions.size() != 1)
+            continue;
+        flatten_broadcasted_dim(d.subdimensions.front());
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
@@ -633,6 +640,9 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        [](const dimension::sub& s) { return s.len; });
         result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
     }
+
+    // Flatten broadcasted subdimensions
+    std::for_each(subs.begin(), subs.end(), &flatten_broadcasted_dim);
 
     auto tsubs = subs;
     // Inject additonal axis to compute transpose permutation better

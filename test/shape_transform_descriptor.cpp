@@ -219,7 +219,7 @@ TEST_CASE(optimize_multibroadcast_transpose_reshape)
                      });
 }
 
-TEST_CASE(optimize_resize)
+TEST_CASE(optimize_resize1)
 {
     EXPECT(migraphx::optimize_shape_transforms(
                {3, 4, 4},
@@ -231,6 +231,22 @@ TEST_CASE(optimize_resize)
                          make_op("unsqueeze", {{"axes", {1, 3}}}),
                          make_op("multibroadcast", {{"out_lens", {3, 2, 4, 2, 4}}}),
                          make_op("reshape", {{"dims", {3, 8, 8}}}),
+                     });
+}
+
+TEST_CASE(optimize_resize2)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {1, 1, 2, 2},
+               {
+                   make_op("reshape", {{"dims", {1, 1, 2, 1, 2, 1}}}),
+                   make_op("multibroadcast", {{"out_lens", {1, 2, 2, 2, 2, 3}}}),
+                   make_op("reshape", {{"dims", {1, 2, 4, 6}}}),
+               }) == ops{
+                         make_op("unsqueeze", {{"axes", {3, 5}}}),
+                         make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}),
+                         make_op("reshape", {{"dims", {1, 1, 4, 6}}}),
+                         make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}),
                      });
 }
 

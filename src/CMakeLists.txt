@@ -111,6 +111,7 @@ add_library(migraphx
     tmp_dir.cpp
     value.cpp
     verify_args.cpp
+    workgroup_reversal.cpp
 )
 
 if(WIN32)

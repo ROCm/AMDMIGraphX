@@ -74,9 +74,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(inputs));
         options.emplace_param("-Wno-float-equal");
-        auto axis              = find_fast_axis(options.virtual_inputs);
-        auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
-        options.kernel_name    = v.get("kernel", "kernel");
+        auto axis                  = find_fast_axis(options.virtual_inputs);
+        auto vec                   = vectorize::elements(ctx, axis, options.virtual_inputs);
+        options.reverse_workgroups = v.get("reverse", false);
+        options.kernel_name        = v.get("kernel", "kernel");
         options.set_launch_params(
             v, compute_global_for(ctx, options.output.elements() / vec.size, 256));
         auto src = interpolate_string(pointwise_kernel,
@@ -105,9 +106,13 @@ struct pointwise_compiler : compiler<pointwise_compiler>
             auto pf            = generate_pointwise(*pm, "inner_pointwise");
             std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
             auto kernel_name   = generate_name_from_ops(*pm, "kernel");
+            auto reverse       = from_value<bool>(ins->get_operator().to_value()["reverse"]);
             return compile_op(ctx,
                               to_shapes(ins->inputs()),
-                              {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+                              {{"lambda", lambda},
+                               {"preamble", pf},
+                               {"kernel", kernel_name},
+                               {"reverse", reverse}});
         }
     }
 };

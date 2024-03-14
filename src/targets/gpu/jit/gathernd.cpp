@@ -67,10 +67,11 @@ struct gathernd_compiler : compiler<gathernd_compiler>
         hip_compile_options options;
         const auto& out_s = inputs.back();
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.kernel_name    = "gathernd_kernel";
-        options.virtual_inputs = inputs;
+        options.inputs             = inputs;
+        options.output             = out_s;
+        options.kernel_name        = "gathernd_kernel";
+        options.virtual_inputs     = inputs;
+        options.reverse_workgroups = v.get("reverse", false);
 
         // batch_dims
         assert(v.contains("batch_dims"));
@@ -82,7 +83,9 @@ struct gathernd_compiler : compiler<gathernd_compiler>
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v       = op.to_value();
+        v["reverse"] = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };
 

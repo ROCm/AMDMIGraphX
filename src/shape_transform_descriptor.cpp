@@ -431,8 +431,6 @@ void shape_transform_descriptor::simplify()
             bool in_order        = false;
             if(prev.has_value() and not(*prev)->axis.empty())
                 in_order = (*prev)->axis.front() == missing_axis - 1;
-            else
-                in_order = missing_axis == 0;
             // If the axis is not inorder then see if we can find a broadcast axis to place it
             auto bdims =
                 in_order ? broadcast_dims_map.end() : broadcast_dims_map.upper_bound(missing_axis);
@@ -509,16 +507,40 @@ static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
 
 static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 {
-    auto expanded_dims = transform_accumulate(subs.begin(),
-                                              subs.end(),
-                                              std::size_t{1},
-                                              std::multiplies<>{},
-                                              [](const dimension::sub& s) -> std::size_t {
-                                                  if(s.axis.size() == 1)
-                                                      return 1;
-                                                  return s.len;
-                                              });
-    if(expanded_dims > 1)
+    bool use_reshape = false;
+    // Check if split dimensions are all additional 1s
+    if (std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() > 1; }))
+    {
+        auto subs2 = subs;
+        auto by_axis = by(std::equal_to<>{}, [](const dimension::sub& s) -> int64_t { 
+            if (s.axis.empty())
+                return -1;
+            return s.axis.front();
+        });
+        group_by(subs2.begin(), subs2.end(), [&](auto start, auto last) {
+            if (use_reshape)
+                return;
+            auto n = std::distance(start, last);
+            if (n < 2)
+                return;
+            auto n1 = std::count_if(start, last, [](const dimension::sub& s) { return s.len == 1; });
+            use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;
+        }, by_axis);
+    }
+    if(use_reshape)
+    {
+        std::vector<std::size_t> dims;
+        std::transform(subs.begin(),
+                       subs.end(),
+                       std::back_inserter(dims),
+                       [](const dimension::sub& s) -> std::size_t {
+                           if(s.axis.empty())
+                               return 1;
+                           return s.len;
+                       });
+        return make_op("reshape", {{"dims", dims}});
+    }
+    else
     {
         std::vector<std::size_t> axes;
         for(auto i : range(subs.size()))
@@ -532,16 +554,6 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
         }
         return make_op("unsqueeze", {{"axes", axes}});
     }
-    std::vector<std::size_t> dims;
-    std::transform(subs.begin(),
-                   subs.end(),
-                   std::back_inserter(dims),
-                   [](const dimension::sub& s) -> std::size_t {
-                       if(s.axis.empty())
-                           return 1;
-                       return s.len;
-                   });
-    return make_op("reshape", {{"dims", dims}});
 }
 
 std::vector<operation> shape_transform_descriptor::generate() const
@@ -579,16 +591,6 @@ std::vector<operation> shape_transform_descriptor::generate() const
             result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
         }
     }
-    // Need squeeze reshape
-    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
-           if(d.subdimensions.size() != 1)
-               return true;
-           return is_broadcast_dim(d);
-       }))
-    {
-        result.push_back(make_reshape_squeeze(new_dims));
-    }
-
     // Flatten broadcasted subdimensions
     for(auto& d : new_dims)
     {
@@ -602,10 +604,15 @@ std::vector<operation> shape_transform_descriptor::generate() const
             }
         }
     }
-
-    // Remove broadcast
-    new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim),
-                   new_dims.end());
+    // Need squeeze reshape
+    if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
+           if(d.subdimensions.size() != 1)
+               return true;
+           return is_broadcast_dim(d);
+       }))
+    {
+        result.push_back(make_reshape_squeeze(new_dims));
+    }
 
     auto subs = get_all_subdimensions(new_dims);
     // Need multibroadcast

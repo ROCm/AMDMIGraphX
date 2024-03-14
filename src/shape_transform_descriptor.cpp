@@ -509,23 +509,29 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
 {
     bool use_reshape = false;
     // Check if split dimensions are all additional 1s
-    if (std::any_of(subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() > 1; }))
+    if(std::any_of(
+           subs.begin(), subs.end(), [](const dimension::sub& s) { return s.axis.size() > 1; }))
     {
-        auto subs2 = subs;
-        auto by_axis = by(std::equal_to<>{}, [](const dimension::sub& s) -> int64_t { 
-            if (s.axis.empty())
+        auto subs2   = subs;
+        auto by_axis = by(std::equal_to<>{}, [](const dimension::sub& s) -> int64_t {
+            if(s.axis.empty())
                 return -1;
             return s.axis.front();
         });
-        group_by(subs2.begin(), subs2.end(), [&](auto start, auto last) {
-            if (use_reshape)
-                return;
-            auto n = std::distance(start, last);
-            if (n < 2)
-                return;
-            auto n1 = std::count_if(start, last, [](const dimension::sub& s) { return s.len == 1; });
-            use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;
-        }, by_axis);
+        group_by(
+            subs2.begin(),
+            subs2.end(),
+            [&](auto start, auto last) {
+                if(use_reshape)
+                    return;
+                auto n = std::distance(start, last);
+                if(n < 2)
+                    return;
+                auto n1 =
+                    std::count_if(start, last, [](const dimension::sub& s) { return s.len == 1; });
+                use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;
+            },
+            by_axis);
     }
     if(use_reshape)
     {

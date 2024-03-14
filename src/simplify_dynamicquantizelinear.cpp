@@ -36,7 +36,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static std::unordered_set<std::string> get_quantizable_op_names()
+std::unordered_set<std::string> get_quantizable_op_names()
 {
     static std::unordered_set<std::string> s = {"convolution", "dot"};
     return s;

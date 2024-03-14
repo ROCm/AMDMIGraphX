@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -134,6 +134,32 @@ struct index
 #endif
 
     constexpr auto ngroup() const { return nglobal() / max_nlocal(); }
+
+    template <unsigned int SubWaveSize>
+    constexpr index_constant<SubWaveSize> nlocal_subwave() const
+    {
+        return {};
+    }
+    template <unsigned int SubWaveSize>
+    constexpr auto local_subwave() const
+    {
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+        if constexpr(decltype(nlocal()){} == SubWaveSize)
+            return local;
+#endif
+        return local % nlocal_subwave<SubWaveSize>();
+    }
+    template <unsigned int SubWaveSize>
+    constexpr auto nwave() const
+    {
+        return max_nlocal() / nlocal_subwave<SubWaveSize>();
+    }
+
+    constexpr index_constant<__AMDGCN_WAVEFRONT_SIZE> nlocal_wave() const { return {}; }
+    constexpr auto local_wave() const { return local % nlocal_wave(); }
+    constexpr auto nwave() const { return max_nlocal() / nlocal_wave(); }
+    constexpr auto wave() const { return local / nlocal_wave(); }
+
     template <class N, class Stride>
     static constexpr auto max_stride_iterations(N n, Stride stride)
     {
@@ -150,6 +176,18 @@ struct index
     constexpr auto max_local_stride_iterations(N n) const
     {
         return max_stride_iterations(n, nlocal());
+    }
+
+    template <class N>
+    constexpr auto max_local_wave_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal_wave());
+    }
+
+    template <unsigned int SubWaveSize, class N>
+    constexpr auto max_local_subwave_stride_iterations(N n) const
+    {
+        return max_stride_iterations(n, nlocal_subwave<SubWaveSize>());
     }
 
     template <class F, class I, class D>
@@ -240,6 +278,18 @@ struct index
     __device__ void group_stride(N n, F f) const
     {
         for_stride<false>(group, n, ngroup(), f);
+    }
+
+    template <unsigned int SubWaveSize, class F, class N>
+    __device__ void local_subwave_stride(N n, F f) const
+    {
+        for_stride<true>(local_subwave<SubWaveSize>(), n, nlocal_subwave<SubWaveSize>(), f);
+    }
+
+    template <class F, class N>
+    __device__ void local_wave_stride(N n, F f) const
+    {
+        for_stride<true>(local_wave(), n, nlocal_wave(), f);
     }
 };
 

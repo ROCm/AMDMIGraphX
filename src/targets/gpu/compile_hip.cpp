@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/fileutils.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -194,11 +195,11 @@ struct hiprtc_program
 };
 
 std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file> srcs,
-                                                           const std::string& params,
+                                                           const std::vector<std::string>& params,
                                                            const std::string& arch)
 {
     hiprtc_program prog(std::move(srcs));
-    auto options = split_string(params, ' ');
+    auto options = params;
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     // remove following three compilation flags for HIPRTC once fixes from hipRTC are available in
     if(enabled(MIGRAPHX_ENABLE_HIPRTC_WORKAROUNDS{}))
@@ -239,7 +240,7 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
-                                               const std::string& params,
+                                               const std::vector<std::string>& params,
                                                const std::string& arch)
 {
     std::vector<hiprtc_src_file> hsrcs{srcs.begin(), srcs.end()};
@@ -252,10 +253,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
             std::cout << std::string(src.content) << std::endl;
         }
     }
-    auto fname = fs::path{"migraphx-hiprtc-driver"};
-#ifdef _WIN32
-    fname.replace_extension(".exe");
-#endif
+
+    auto fname  = make_executable_filename("migraphx-hiprtc-driver");
     auto p      = dynamic_loader::path(&compile_hip_src_with_hiprtc);
     auto driver = p.parent_path() / fname;
 
@@ -276,20 +275,19 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         tmp_dir td{};
         auto out = td.path / "output";
 
-        process(driver.string() + " " + out.string()).write([&](auto writer) {
-            to_msgpack(v, writer);
-        });
+        process(driver, {out.string()}).write([&](auto writer) { to_msgpack(v, writer); });
         if(fs::exists(out))
-            return {read_buffer(out.string())};
+            return {read_buffer(out)};
     }
     return compile_hip_src_with_hiprtc(std::move(hsrcs), params, arch);
 }
 
 #else // MIGRAPHX_USE_HIPRTC
 
-std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>, // NOLINT
-                                                           const std::string&,           // NOLINT
-                                                           const std::string&)
+std::vector<std::vector<char>>
+compile_hip_src_with_hiprtc(std::vector<hiprtc_src_file>,    // NOLINT
+                            const std::vector<std::string>&, // NOLINT
+                            const std::string&)
 {
     MIGRAPHX_THROW("Not using hiprtc");
 }
@@ -313,12 +311,12 @@ bool has_compiler_launcher()
 src_compiler assemble(src_compiler compiler)
 {
     compiler.out_ext = ".S";
-    compiler.flags   = replace_string(compiler.flags, " -c", " -S");
+    std::replace(compiler.flags.begin(), compiler.flags.end(), "-c", "-S");
     return compiler;
 }
 
 std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs,
-                                               const std::string& params,
+                                               const std::vector<std::string>& params,
                                                const std::string& arch)
 {
     assert(not srcs.empty());
@@ -334,21 +332,24 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         compiler.launcher = MIGRAPHX_HIP_COMPILER_LAUNCHER;
 #endif
 
-    if(params.find("-std=") == std::string::npos)
-        compiler.flags += " --std=c++17";
-    compiler.flags += " -fno-gpu-rdc";
+    if(std::none_of(params.begin(), params.end(), [](const std::string& s) {
+           return starts_with(s, "--std=") or starts_with(s, "-std=");
+       }))
+        compiler.flags.emplace_back("--std=c++17");
+    compiler.flags.emplace_back(" -fno-gpu-rdc");
     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
-        compiler.flags += " -g";
-    compiler.flags += " -c";
-    compiler.flags += " --offload-arch=" + arch;
-    compiler.flags += " --cuda-device-only";
-    compiler.flags += " -O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ";
+        compiler.flags.emplace_back("-g");
+    compiler.flags.emplace_back("-c");
+    compiler.flags.emplace_back("--offload-arch=" + arch);
+    compiler.flags.emplace_back("--cuda-device-only");
+    compiler.flags.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ");
 
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
-        compiler.flags += " -DMIGRAPHX_DEBUG";
+        compiler.flags.emplace_back("-DMIGRAPHX_DEBUG");
 
-    compiler.flags += " -Wno-unused-command-line-argument -Wno-cuda-compat ";
-    compiler.flags += MIGRAPHX_HIP_COMPILER_FLAGS;
+    compiler.flags.emplace_back("-Wno-unused-command-line-argument");
+    compiler.flags.emplace_back("-Wno-cuda-compat");
+    compiler.flags.emplace_back(MIGRAPHX_HIP_COMPILER_FLAGS);
 
     if(enabled(MIGRAPHX_GPU_DUMP_SRC{}))
     {
@@ -373,8 +374,11 @@ bool hip_has_flags(const std::vector<std::string>& flags)
 {
     src_compiler compiler;
     compiler.compiler = MIGRAPHX_HIP_COMPILER;
-    compiler.flags =
-        join_strings(flags, " ") + " -x hip -c --offload-arch=gfx900 --cuda-device-only";
+    compiler.flags    = flags;
+    compiler.flags.emplace_back("-x hip");
+    compiler.flags.emplace_back("-c");
+    compiler.flags.emplace_back("--offload-arch=gfx900");
+    compiler.flags.emplace_back("--cuda-device-only");
 
     std::string src;
     src_file input{"main.cpp", src};

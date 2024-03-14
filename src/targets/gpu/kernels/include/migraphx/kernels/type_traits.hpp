@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -218,14 +218,14 @@ using common_type_t = typename common_type<Ts...>::type;
 
 #define MIGRAPHX_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 
-constexpr unsigned long int_max(unsigned long n)
+constexpr unsigned long long int_max(unsigned long n)
 {
     // Note, left shift cannot be used to get the maximum value of int64_type or
     // uint64_type because it is undefined behavior to left shift 64 bits for
     // these types
     if(n == sizeof(int64_t))
         return -1;
-    return (1ul << (n * 8)) - 1;
+    return (1ull << (n * 8)) - 1;
 }
 
 template <class T,

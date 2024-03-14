@@ -87,6 +87,7 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add<DType>>
         mm->add_instruction(migraphx::make_op("relu"), sum);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_bn_add<migraphx::shape::float_type>;

@@ -580,6 +580,7 @@ static value gemm_problem(const shape& output_shape, std::vector<shape> input_sh
     return to_value(input_shapes);
 }
 
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 static void gemm_save_solution(context& ctx,
                                const shape& output_shape,
                                const std::vector<shape>& input_shapes,
@@ -588,6 +589,7 @@ static void gemm_save_solution(context& ctx,
     ctx.get_problem_cache().insert(
         "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
 }
+#endif
 
 int32_t gemm_default_solution(context& ctx,
                               const shape& output_shape,

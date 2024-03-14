@@ -339,14 +339,14 @@ struct match_qlinear_reused
     }
 };
 
-static bool is_same_value(instruction_ref a, instruction_ref b)
+bool is_same_value(instruction_ref a, instruction_ref b)
 {
     if(a == b)
         return true;
     return compare_literals(a, b);
 }
 
-static bool is_same_scale_zero(instruction_ref a, instruction_ref b)
+bool is_same_scale_zero(instruction_ref a, instruction_ref b)
 {
     if(a->inputs().size() != b->inputs().size())
         return false;

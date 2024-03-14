@@ -15,16 +15,13 @@ Our documentation is structured as follows:
 .. grid:: 2
   :gutter: 3
 
-  .. grid-item-card:: API reference
+  .. grid-item-card:: Reference
 
     * :ref:`cpp-api-reference`
     * :ref:`python-api-reference`
+    * :ref:`migraphx-driver`
    
-  .. grid-item-card:: Command-line tool
-
-    * :ref:`migraphx-driver`    
-
-  .. grid-item-card:: Tutorial
+  .. grid-item-card:: Contribution
 
     * :ref:`contributing-to-migraphx`
 

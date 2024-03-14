@@ -5,19 +5,16 @@ subtrees:
   - entries:
     - file: what-is-migraphx
     
-  - caption: API reference
+  - caption: Reference
     entries:
     - file: reference/cpp
     - file: reference/py
-
-  - caption: Command-line tool
-    entries:
     - file: migraphx-driver
       subtrees:
         - entries:
           - file: reference/driver-options
 
-  - caption:  Tutorial
+  - caption:  Contribution
     entries:
     - file: dev/contributing-to-migraphx
       subtrees:

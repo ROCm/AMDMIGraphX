@@ -30,6 +30,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
@@ -182,6 +183,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
         replace_allocate{gpu_allocation_model{}, options.offload_copy},
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},

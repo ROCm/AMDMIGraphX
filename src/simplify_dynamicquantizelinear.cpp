@@ -52,8 +52,8 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
 {
     auto matcher() const
     {
-        return match::name(get_quantizable_op_names())(
-            match::any_arg(0, 1)(skip_broadcast_squeeze(match::name("quantizelinear")(
+        return match::name(get_quantizable_op_names())(match::any_arg(0, 1)(skip_broadcast_squeeze(
+            match::name("quantizelinear")(
                 match::arg(0)(skip_broadcasts(match::any())),
                 match::arg(2)(skip_broadcasts(
                     match::name("convert")(
@@ -61,15 +61,18 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
                         match::arg(0)(match::name("nearbyint")(
                                           match::arg(0)(match::name("clip").bind("saturate")))
                                           .bind("round")))
-                        .bind("convert")))))));
+                        .bind("convert"))))
+                .bind("quant_lin"))));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        auto target_op = r.result;
         /* Need to modify the uint8 min/max range as well as final convert to convert to int8 */
         auto convert_op = r.instructions["convert"];
         // Ops to get q_min/q_max quickly
         auto round_op    = r.instructions["round"];
+        auto quant_op    = r.instructions["quant_lin"];
         auto saturate_op = r.instructions["saturate"];
         auto q_min       = saturate_op->inputs().at(1);
         auto q_max       = saturate_op->inputs().at(2);
@@ -88,10 +91,47 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
 
         m.replace_instruction(q_min, q_min_int8);
         m.replace_instruction(q_max, q_max_int8);
-        m.replace_instruction(
+
+        auto new_conv = m.insert_instruction(
             convert_op,
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
             round_op);
+
+        // Convert inputs to the target op to ensure we're all int8 as part of our splice
+        // This will be optimized out as part of simplify_reshapes if convert is redundant
+        auto inputs = target_op->inputs();
+        std::vector<instruction_ref> converted_inputs;
+        for(auto& in : inputs)
+        {
+            auto item = in;
+            if(in->get_shape().type() == migraphx::shape::uint8_type)
+            {
+                item = m.insert_instruction(
+                    target_op,
+                    migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+                    in);
+            }
+            converted_inputs.push_back(item);
+        }
+
+        auto new_target_op =
+            m.insert_instruction(target_op, target_op->get_operator(), converted_inputs);
+        m.debug_print();
+
+        auto data  = quant_op->inputs().at(0);
+        auto scale = quant_op->inputs().at(1);
+
+        m.replace_instruction(target_op, new_target_op);
+        m.remove_instruction(target_op);
+
+        auto new_quant = m.insert_instruction(
+            quant_op,
+            migraphx::make_op("quantizelinear", {{"out_type", migraphx::shape::int8_type}}),
+            {data, scale, new_conv});
+
+        m.replace_instruction(convert_op, new_conv);
+        m.remove_instruction(convert_op);
+        m.move_instruction(new_quant, quant_op);
     }
 };
 

@@ -72,13 +72,15 @@ TEST_CASE(dynamicquantizelinear_simplify_2d_test)
     auto y_out =
         mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale_y_bcast, y_pt_c_bcast);
 
-    auto sub = mm->add_instruction(migraphx::make_op("sub"), y_out, y_out);
-    mm->add_instruction(migraphx::make_op("dot"), y_out, sub);
+    auto sub   = mm->add_instruction(migraphx::make_op("sub"), y_out, y_out);
+    auto conv1 = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), y_out);
+    auto conv2 = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), sub);
+    mm->add_instruction(migraphx::make_op("dot"), conv1, conv2);
 
     auto prog = optimize_onnx("dynamicquantizelinear_2d_dot_test.onnx");
     auto* m   = prog.get_main_module();
     migraphx::run_passes(*m, {migraphx::simplify_dynamicquantizelinear{}});
-    p.debug_print();
-    p.debug_print();
     EXPECT(p == prog);
 }

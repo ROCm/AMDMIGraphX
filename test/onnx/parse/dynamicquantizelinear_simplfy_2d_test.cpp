@@ -77,7 +77,8 @@ TEST_CASE(dynamicquantizelinear_simplify_2d_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), y_out);
     auto conv2 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), sub);
-    mm->add_instruction(migraphx::make_op("dot"), conv1, conv2);
+    auto dot1  =  mm->add_instruction(migraphx::make_op("dot"), conv1, conv2);
+    mm->add_instruction(migraphx::make_op("dot"), dot1, dot1);
 
     auto prog = optimize_onnx("dynamicquantizelinear_2d_dot_test.onnx");
     auto* m   = prog.get_main_module();

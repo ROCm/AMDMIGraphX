@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -2050,6 +2052,7 @@ def dynamicquantizelinear_2d_dot_test():
                                                  TensorProto.UINT8, [1])
     helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
     y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
+    y_dot2 = helper.make_tensor_value_info('y_dot2', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(
         'DynamicQuantizeLinear',
@@ -2069,7 +2072,14 @@ def dynamicquantizelinear_2d_dot_test():
         outputs=['y_dot'],
     )
 
-    return ([node, node_sub, node_dot], [x], [y, y_scale, y_zero_point, y_dot])
+    node_dot2 = onnx.helper.make_node(
+        'MatMul',
+        inputs=['y_dot', 'y_dot'],
+        outputs=['y_dot2'],
+    )
+
+    return ([node, node_sub, node_dot,
+             node_dot2], [x], [y, y_scale, y_zero_point, y_dot2])
 
 
 @onnx_test()

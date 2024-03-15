@@ -789,7 +789,8 @@ struct find_contiguous_layout_pointwise
         auto pw_op_val            = pw_ins->get_operator().to_value();
         pw_op_val["output_shape"] = to_value(pw_ins->get_shape());
 
-        auto new_ins = m.insert_instruction(pw_ins, make_op(pw_ins->name(), pw_op_val), pw_ins_inputs, pw_ins->module_inputs());
+        auto new_ins = m.insert_instruction(
+            pw_ins, make_op(pw_ins->name(), pw_op_val), pw_ins_inputs, pw_ins->module_inputs());
         m.replace_instruction(pw_ins, new_ins);
     }
 };

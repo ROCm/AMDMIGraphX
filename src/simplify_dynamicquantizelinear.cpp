@@ -52,22 +52,26 @@ struct match_find_dynamicquantizelinear_convert_int8_zp
 {
     auto matcher() const
     {
-        return match::name(get_quantizable_op_names())(match::any_arg(0, 1)(skip_broadcast_squeeze(
-            match::name("quantizelinear")(
-                match::arg(0)(skip_broadcasts(match::any())),
-                match::arg(2)(skip_broadcasts(
-                    match::name("convert")(
-                        match::has_type(migraphx::shape::uint8_type),
-                        match::arg(0)(match::name("nearbyint")(
-                                          match::arg(0)(match::name("clip").bind("saturate")))
-                                          .bind("round")))
-                        .bind("convert"))))
-                .bind("quant_lin"))));
+        return match::any_arg(0, 1)(
+            match::name(get_quantizable_op_names())(
+                match::any_arg(0, 1)(skip_broadcast_squeeze(
+                    match::name("quantizelinear")(
+                        match::arg(0)(skip_broadcasts(match::any())),
+                        match::arg(2)(skip_broadcasts(
+                            match::name("convert")(
+                                match::has_type(migraphx::shape::uint8_type),
+                                match::arg(0)(
+                                    match::name("nearbyint")(
+                                        match::arg(0)(match::name("clip").bind("saturate")))
+                                        .bind("round")))
+                                .bind("convert"))))
+                        .bind("quant_lin"))))
+                .bind("target"));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto target_op = r.result;
+        auto target_op = r.instructions["target"];
         /* Need to modify the uint8 min/max range as well as final convert to convert to int8 */
         auto convert_op = r.instructions["convert"];
         // Ops to get q_min/q_max quickly

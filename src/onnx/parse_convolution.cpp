@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -152,15 +152,18 @@ struct parse_convolution : op_parser<parse_convolution>
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
         auto l0_zp = l0;
-        auto w_zp =  weights;
+        auto w_zp  = weights;
 
         op.from_value(values);
-        if (op.name() == "quant_convolution") {
+        if(op.name() == "quant_convolution")
+        {
             if(args.size() > 2)
             {
                 l0_zp = args[2];
-                if (l0_zp->get_shape().type() != l0_shape.type()) {
-                    MIGRAPHX_THROW("PARSE: ConvInteger Data and Data Zero Point must have same type");
+                if(l0_zp->get_shape().type() != l0_shape.type())
+                {
+                    MIGRAPHX_THROW(
+                        "PARSE: ConvInteger Data and Data Zero Point must have same type");
                 }
 
                 l0_zp = info.add_common_op("sub", l0, l0_zp);
@@ -168,19 +171,22 @@ struct parse_convolution : op_parser<parse_convolution>
                 if(args.size() > 3)
                 {
                     w_zp = args[3];
-                    if (w_zp->get_shape().type() != w_shape.type()) {
-                        MIGRAPHX_THROW("PARSE: ConvInteger Weight and Weight Zero Point must have same type");
+                    if(w_zp->get_shape().type() != w_shape.type())
+                    {
+                        MIGRAPHX_THROW(
+                            "PARSE: ConvInteger Weight and Weight Zero Point must have same type");
                     }
-                    
+
                     w_zp = info.add_common_op("sub", weights, w_zp);
                 }
 
                 ret = info.add_instruction(op, l0_zp, w_zp);
             }
         }
-        else {
+        else
+        {
             auto l1 = info.add_instruction(op, l0, args[1]);
-            ret = info.add_bias(args, l1, 1);
+            ret     = info.add_bias(args, l1, 1);
         }
         return ret;
     }

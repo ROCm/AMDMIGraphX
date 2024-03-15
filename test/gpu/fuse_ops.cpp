@@ -265,7 +265,7 @@ TEST_CASE(contiguous_pointwise)
         mm->add_return({rsp});
         return p;
     };
-
+}
 
 TEST_CASE(pointwise_layout_convolution)
 {

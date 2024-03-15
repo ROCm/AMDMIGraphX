@@ -2051,7 +2051,7 @@ def dynamicquantizelinear_2d_dot_test():
     y_zero_point = helper.make_tensor_value_info('y_zero_point',
                                                  TensorProto.UINT8, [1])
     helper.make_tensor_value_info('y_sub', TensorProto.UINT8, [3, 3])
-    y_dot = helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
+    helper.make_tensor_value_info('y_dot', TensorProto.UINT8, [1])
     y_dot2 = helper.make_tensor_value_info('y_dot2', TensorProto.UINT8, [1])
 
     node = onnx.helper.make_node(

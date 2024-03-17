@@ -19,4 +19,3 @@ struct MIGRAPHX_EXPORT split_reduce
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP
-

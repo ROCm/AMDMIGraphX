@@ -11,7 +11,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/functional.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -59,11 +58,7 @@ struct split_fused_reduce
 };
 MIGRAPHX_REGISTER_OP(split_fused_reduce);
 
-
-static bool is_reduce(const instruction& ins)
-{
-    return contains(ins.name(), "reduce");
-}
+static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 static std::string param_name(std::size_t i, const std::string& prefix = "x")
 {
@@ -76,18 +71,25 @@ struct module_with_inputs
     std::vector<instruction_ref> inputs;
 };
 
-static std::pair<module_with_inputs, module_with_inputs> split_module(module_ref m, const std::vector<instruction_ref>& splits, const std::vector<instruction_ref>& args)
+static std::pair<module_with_inputs, module_with_inputs>
+split_module(module_ref m,
+             const std::vector<instruction_ref>& splits,
+             const std::vector<instruction_ref>& args)
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map;
     auto params = m->get_parameter_names();
     std::sort(params.begin(), params.end());
-    std::transform(params.begin(), params.end(), args.begin(), std::inserter(param_map, param_map.begin()), [&](const std::string& name, instruction_ref arg) {
-        return std::make_pair(m->get_parameter(name), arg);
-    });
+    std::transform(params.begin(),
+                   params.end(),
+                   args.begin(),
+                   std::inserter(param_map, param_map.begin()),
+                   [&](const std::string& name, instruction_ref arg) {
+                       return std::make_pair(m->get_parameter(name), arg);
+                   });
 
     std::unordered_set<instruction_ref> selected_instructions;
     fix([&](auto self, const std::vector<instruction_ref>& inputs) {
-        for(auto input:inputs)
+        for(auto input : inputs)
         {
             if(contains(selected_instructions, input))
                 continue;
@@ -98,7 +100,7 @@ static std::pair<module_with_inputs, module_with_inputs> split_module(module_ref
 
     std::vector<instruction_ref> instructions1;
     // TODO: copy_if
-    for(auto ins:iterator_for(*m))
+    for(auto ins : iterator_for(*m))
     {
         if(not contains(selected_instructions, ins))
             continue;
@@ -106,7 +108,7 @@ static std::pair<module_with_inputs, module_with_inputs> split_module(module_ref
     }
 
     std::vector<instruction_ref> inputs1;
-    for(auto ins:instructions1)
+    for(auto ins : instructions1)
     {
         if(not contains(param_map, ins))
             continue;
@@ -116,30 +118,34 @@ static std::pair<module_with_inputs, module_with_inputs> split_module(module_ref
     std::unordered_map<instruction_ref, instruction_ref> map_ins1;
     m1.add_instructions(instructions1, &map_ins1);
     std::vector<instruction_ref> outputs;
-    std::transform(splits.begin(), splits.end(), std::back_inserter(outputs), [&](instruction_ref ins) {
-        return map_ins1.at(ins);
-    });
+    std::transform(splits.begin(),
+                   splits.end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref ins) { return map_ins1.at(ins); });
     m1.add_return(outputs);
 
     std::vector<instruction_ref> instructions2;
-    for(auto ins:iterator_for(*m))
+    for(auto ins : iterator_for(*m))
     {
         if(contains(selected_instructions, ins))
             continue;
         // Input params can be used in both modules
         std::vector<instruction_ref> input_params;
         // TODO: Use join_inserter
-        std::copy_if(ins->inputs().begin(), ins->inputs().end(), std::back_inserter(input_params), [&](instruction_ref input) {
-            if(input->name() != "@param")
-                return false;
-            return not contains(instructions2, input);
-        });
+        std::copy_if(ins->inputs().begin(),
+                     ins->inputs().end(),
+                     std::back_inserter(input_params),
+                     [&](instruction_ref input) {
+                         if(input->name() != "@param")
+                             return false;
+                         return not contains(instructions2, input);
+                     });
         instructions2.insert(instructions2.end(), input_params.begin(), input_params.end());
         instructions2.push_back(ins);
     }
 
     std::vector<instruction_ref> inputs2;
-    for(auto ins:instructions2)
+    for(auto ins : instructions2)
     {
         if(not contains(param_map, ins))
             continue;
@@ -148,9 +154,9 @@ static std::pair<module_with_inputs, module_with_inputs> split_module(module_ref
     module m2;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
     std::size_t n = 0;
-    for(auto ins:splits)
+    for(auto ins : splits)
         map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
-    for(auto ins:iterator_for(*m))
+    for(auto ins : iterator_for(*m))
     {
         if(ins->name() != "@param")
             continue;
@@ -179,23 +185,24 @@ static std::vector<instruction_ref> find_split(module_ref rm)
 
 void split_reduce::apply(module_pass_manager& mpm) const
 {
-    for(auto ins:iterator_for(mpm.get_module()))
+    for(auto ins : iterator_for(mpm.get_module()))
     {
         if(ins->name() != "fused_reduce")
             continue;
-        auto* rm = ins->module_inputs().front();
+        auto* rm    = ins->module_inputs().front();
         auto splits = find_split(rm);
         if(splits.empty())
             continue;
-        auto v = ins->get_operator().to_value();
+        auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 
-        auto mp = split_module(rm, splits, ins->inputs());
+        auto mp  = split_module(rm, splits, ins->inputs());
         auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp.first.mod));
         auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp.second.mod));
         m1->set_bypass();
         m2->set_bypass();
-        auto split_reduce = mpm.get_module().insert_instruction(ins, make_op("split_fused_reduce", {{"axes", axes}}), mp.first.inputs, {m1});
+        auto split_reduce = mpm.get_module().insert_instruction(
+            ins, make_op("split_fused_reduce", {{"axes", axes}}), mp.first.inputs, {m1});
         std::vector<instruction_ref> inputs = {split_reduce};
         inputs.insert(inputs.end(), mp.second.inputs.begin(), mp.second.inputs.end());
         mpm.get_module().replace_instruction(ins, make_op("fused_reduce"), inputs, {m2});
@@ -204,4 +211,3 @@ void split_reduce::apply(module_pass_manager& mpm) const
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-

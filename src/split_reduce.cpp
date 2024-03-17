@@ -202,7 +202,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp.second.mod));
         m1->set_bypass();
         m2->set_bypass();
-        
+
         // Insert split reduce
         auto split_reduce = mpm.get_module().insert_instruction(
             ins, make_op("split_fused_reduce", {{"axes", axes}}), mp.first.inputs, {m1});
@@ -215,12 +215,12 @@ void split_reduce::apply(module_pass_manager& mpm) const
         // TODO: Use get_ins_param_map function
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         std::transform(param_names.begin(),
-                   param_names.end(),
-                   inputs.begin(),
-                   std::inserter(param_map, param_map.begin()),
-                   [&](const std::string& name, instruction_ref input) {
-                       return std::make_pair(m2->get_parameter(name), input);
-                   });
+                       param_names.end(),
+                       inputs.begin(),
+                       std::inserter(param_map, param_map.begin()),
+                       [&](const std::string& name, instruction_ref input) {
+                           return std::make_pair(m2->get_parameter(name), input);
+                       });
         auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());

@@ -54,6 +54,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
@@ -76,7 +77,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
@@ -161,6 +162,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_pointwise{},
         dead_code_elimination{},
         enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
+        dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

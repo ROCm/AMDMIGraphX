@@ -94,6 +94,7 @@ add_library(migraphx
     replace_allocate.cpp
     rewrite_reduce.cpp
     simplify_qdq.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp

@@ -204,7 +204,7 @@ static std::vector<instruction_ref>
 insert_generic_instructions(module& m,
                             instruction_ref ins,
                             Range&& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
     std::vector<instruction_ref> mod_outputs;
@@ -401,50 +401,53 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
-    return this->insert_instructions(this->end(), instructions, std::move(map_ins));
+    return this->insert_instructions(this->end(), instructions, map_ins);
 }
 
 std::vector<instruction_ref>
 module::add_instructions(const_module_ref m,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
-    return this->insert_instructions(this->end(), m, std::move(map_ins));
+    return this->insert_instructions(this->end(), m, map_ins);
 }
 
 std::vector<instruction_ref>
 module::add_instructions(instruction_ref start,
                          instruction_ref last,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
-    return this->insert_instructions(this->end(), start, last, std::move(map_ins));
+    return this->insert_instructions(this->end(), start, last, map_ins);
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
-    return insert_generic_instructions(*this, ins, instructions, std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this, ins, instructions, map_ins ? *map_ins : default_map_ins);
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const_module_ref m,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
-    return insert_generic_instructions(*this, ins, iterator_for(*m), std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this, ins, iterator_for(*m), map_ins ? *map_ins : default_map_ins);
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             instruction_ref start,
                             instruction_ref last,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins)
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(*this, ins, iterator_for(r), std::move(map_ins));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this, ins, iterator_for(r), map_ins ? *map_ins : default_map_ins);
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
@@ -462,6 +465,7 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
+    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     shape instr_shape = compute_shape(builtin::returns{}, args);
     impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());
@@ -486,6 +490,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
+    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")

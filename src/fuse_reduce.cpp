@@ -118,7 +118,7 @@ static auto insert_ins_in_submodule(module_ref sm,
                                     std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     insert_params(sm, ins, map_ins);
-    return sm->add_instructions({ins}, map_ins);
+    return sm->add_instructions({ins}, &map_ins);
 }
 
 static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
@@ -139,7 +139,7 @@ insert_module_in_submodule(module_ref sm,
     {
         map_ins[param] = map_ins.at(input);
     }
-    return sm->add_instructions(m, map_ins);
+    return sm->add_instructions(m, &map_ins);
 }
 
 static std::vector<instruction_ref>

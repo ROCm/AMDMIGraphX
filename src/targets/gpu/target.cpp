@@ -79,13 +79,12 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
-    MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
-        MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 
-            std::vector<pass> target::get_passes(migraphx::context& gctx,
-                                                 const compile_options& options) const
+std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);

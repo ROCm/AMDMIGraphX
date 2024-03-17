@@ -195,17 +195,35 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
+        // TODO: Check reduction size
 
         auto mp  = split_module(rm, splits, ins->inputs());
         auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp.first.mod));
         auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp.second.mod));
         m1->set_bypass();
         m2->set_bypass();
+        
+        // Insert split reduce
         auto split_reduce = mpm.get_module().insert_instruction(
             ins, make_op("split_fused_reduce", {{"axes", axes}}), mp.first.inputs, {m1});
+
         std::vector<instruction_ref> inputs = {split_reduce};
         inputs.insert(inputs.end(), mp.second.inputs.begin(), mp.second.inputs.end());
-        mpm.get_module().replace_instruction(ins, make_op("fused_reduce"), inputs, {m2});
+        auto param_names = m2->get_parameter_names();
+        std::sort(param_names.begin(), param_names.end());
+
+        // TODO: Use get_ins_param_map function
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        std::transform(param_names.begin(),
+                   param_names.end(),
+                   inputs.begin(),
+                   std::inserter(param_map, param_map.begin()),
+                   [&](const std::string& name, instruction_ref input) {
+                       return std::make_pair(m2->get_parameter(name), input);
+                   });
+        auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
+        assert(replaced.size() == 1);
+        mpm.get_module().replace_instruction(ins, replaced.front());
     }
 }
 

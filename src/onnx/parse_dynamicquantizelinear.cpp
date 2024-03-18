@@ -119,10 +119,10 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         auto q_range = info.add_literal(migraphx::literal{
             migraphx::shape{x_type, max_x->get_shape().lens()}, {type_max - type_min}});
-        auto q_min   = info.add_literal(migraphx::literal{
-            migraphx::shape{x_type, max_x->get_shape().lens()}, {type_min}});
-        auto q_max   = info.add_literal(migraphx::literal{
-            migraphx::shape{x_type, max_x->get_shape().lens()}, {type_max}});
+        auto q_min   = info.add_literal(
+            migraphx::literal{migraphx::shape{x_type, max_x->get_shape().lens()}, {type_min}});
+        auto q_max = info.add_literal(
+            migraphx::literal{migraphx::shape{x_type, max_x->get_shape().lens()}, {type_max}});
 
         // y_scale = (maximum(0, max(x)) - minimum(0, min(x))) / (qmax - qmin)
         auto sub0    = info.add_common_op("sub", max_x, min_x);
@@ -130,7 +130,7 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         // 2. Computing y_zero_point
         // intermediate_zero_point = qmin - min(x) / y_scale
-        auto div1 = info.add_common_op("div", min_x, y_scale);
+        auto div1      = info.add_common_op("div", min_x, y_scale);
         auto interm_zp = info.add_common_op("sub", q_min, div1);
 
         // y_zero_point = cast(round(saturate(itermediate_zero_point)))

@@ -31,7 +31,6 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     auto x_dims = {3, 4};
     auto x_type = migraphx::shape::float_type;
     auto x      = mm->add_parameter("x", {x_type, x_dims});
-    auto l0     = mm->add_literal({0.f});
 
     auto l0 = mm->add_literal({0.f});
 

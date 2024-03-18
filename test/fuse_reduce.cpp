@@ -414,6 +414,52 @@ TEST_CASE(reduce_reshape_pointwise2)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(reduce_contiguous_reshape_pointwise)
+{
+    migraphx::shape s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 32, 40960}, {1, 0, 2});
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 320, 64, 64}};
+    auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s2);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumc = mm->add_instruction(migraphx::make_op("contiguous"), rsum);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsumc);
+        auto rsumr =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), rsumb);
+        auto add = add_pointwise(p1, "main:pointwise0", {rsumr, y}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
+        auto xr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto yr  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto add = add_reduce(
+            p2,
+            "main:reduce_sum0_reshape:main:pointwise0",
+            {xr, yr},
+            {2, 3, 4},
+            [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                inputs[0]);
+                auto rsumb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum);
+                return add_pointwise(
+                    p2, rm, "main:pointwise0", {rsumb, inputs[1]}, single_pointwise("add"));
+            });
+        auto addr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add);
+        mm->add_return({addr});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(reduce_reshape_reduce)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 32, 4096}};

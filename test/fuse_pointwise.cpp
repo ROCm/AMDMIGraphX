@@ -403,9 +403,9 @@ TEST_CASE(add_reshape_add)
 
 TEST_CASE(add_contiguous_reshape_add)
 {
-    migraphx::shape s1{migraphx::shape::float_type, {3, 10, 16}};
-    migraphx::shape s2{migraphx::shape::float_type, {3, 40, 2, 2}};
-    migraphx::shape s3{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
+    auto s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {3, 10, 16}, {0, 2, 1});
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {3, 40, 2, 2}};
+    auto s3 = migraphx::shape{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
     migraphx::program p1;
     {
         auto* mm        = p1.get_main_module();

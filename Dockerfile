@@ -15,6 +15,9 @@ RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.0
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
+# rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
+RUN add-apt-repository -y ppa:deadsnakes/ppa
+
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
@@ -32,6 +35,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
+    python3.8 \
+    python3.8-dev \
     software-properties-common \
     wget \
     rocm-device-libs \

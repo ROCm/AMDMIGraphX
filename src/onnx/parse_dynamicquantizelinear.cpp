@@ -100,7 +100,6 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         auto lit_0 = info.add_literal(migraphx::literal{migraphx::shape{x_type}, {0}});
 
-
         // 1. Computing y_scale
         // Note: currently, DynamicQuantizeLinear only has uint8 quantization:
         const auto type_max = std::numeric_limits<uint8_t>::max();
@@ -120,10 +119,8 @@ struct parse_dynamicquantizelinear : op_parser<parse_dynamicquantizelinear>
 
         auto q_range = info.add_literal(migraphx::literal{
             migraphx::shape{x_type, max_x->get_shape().lens()}, {type_max - type_min}});
-
         auto q_min   = info.add_literal(
             migraphx::literal{migraphx::shape{x_type, max_x->get_shape().lens()}, {type_min}});
-      
         auto q_max = info.add_literal(
             migraphx::literal{migraphx::shape{x_type, max_x->get_shape().lens()}, {type_max}});
 

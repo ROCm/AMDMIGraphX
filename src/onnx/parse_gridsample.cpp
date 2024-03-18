@@ -175,7 +175,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(contains(info.attributes, "mode"))
         {
             mode = info.attributes.at("mode").s();
-            if (mode == "cubic")
+            if(contains(mode, "cubic"))
             {
                 MIGRAPHX_THROW("PARSE_GRID_SAMPLE: cubic mode is not supported");
             }
@@ -184,7 +184,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(contains(info.attributes, "padding_mode"))
         {
             padding_mode = info.attributes.at("padding_mode").s();
-            if(padding_mode == "reflect")
+            if(padding_mode == "reflection")
             {
                 MIGRAPHX_THROW("PARSE_GRID_SAMPLE: reflect padding_mode is not supported");
             }
@@ -251,7 +251,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
         instruction_ref wc;
         instruction_ref wd;
 
-        if (mode == "linear")
+        if(contains(mode,"linear"))
         {
             floor_x = info.add_common_op("floor", unnorm_x);
             floor_y = info.add_common_op("floor", unnorm_y);

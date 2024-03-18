@@ -38,7 +38,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::unordered_set<std::string> get_quantizable_op_names()
 {
-    static std::unordered_set<std::string> s = {"convolution", "dot"};
+    static std::unordered_set<std::string> s = {
+        "convolution", "dot", "quant_dot", "quant_convolution"};
     return s;
 }
 

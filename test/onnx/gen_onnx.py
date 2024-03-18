@@ -2065,7 +2065,7 @@ def dynamicquantizelinear_2d_dot_test():
     )
 
     node_dot = onnx.helper.make_node(
-        'MatMul',
+        'MatMulInteger',
         inputs=['y', 'y_sub'],
         outputs=['y_dot'],
     )

@@ -82,7 +82,7 @@ instruction_ref get_pixel(const onnx_parser::node_info& info,
     auto pixels = info.add_instruction(make_op("gathernd"), data, nchw);
     auto h_valid = info.add_common_op("equal", h, h_clamp);
     auto w_valid = info.add_common_op("equal", w, w_clamp);
-    auto zero = info.add_literal(migraphx::literal{migraphx::shape{data->get_shape().type()}, {0}});
+    auto zero     = info.add_literal(migraphx::literal{migraphx::shape{pixels->get_shape()}, {0}});
     pixels = info.add_instruction(make_op("where"), h_valid, pixels, zero);
     pixels = info.add_instruction(make_op("where"), w_valid, pixels, zero);
     return pixels;

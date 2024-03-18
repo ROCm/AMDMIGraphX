@@ -416,7 +416,8 @@ TEST_CASE(reduce_reshape_pointwise2)
 
 TEST_CASE(reduce_contiguous_reshape_pointwise)
 {
-    migraphx::shape s1 = migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 32, 40960}, {1, 0, 2});
+    migraphx::shape s1 =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {2, 32, 40960}, {1, 0, 2});
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 320, 64, 64}};
     auto s3 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
     migraphx::program p1;

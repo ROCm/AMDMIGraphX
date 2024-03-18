@@ -72,10 +72,9 @@ struct module_with_inputs
     std::vector<instruction_ref> inputs;
 };
 
-static std::array<module_with_inputs, 2>
-split_module(module_ref m,
-             const std::vector<instruction_ref>& splits,
-             const std::vector<instruction_ref>& args)
+static std::array<module_with_inputs, 2> split_module(module_ref m,
+                                                      const std::vector<instruction_ref>& splits,
+                                                      const std::vector<instruction_ref>& args)
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map;
     auto params = m->get_parameter_names();
@@ -207,8 +206,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
         if(splits.empty())
             continue;
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
-            return split->get_shape().type() == shape::float_type;
-        }))
+               return split->get_shape().type() == shape::float_type;
+           }))
             continue;
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();

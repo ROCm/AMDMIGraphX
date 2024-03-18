@@ -265,14 +265,10 @@ insert_generic_instructions(module& m,
                             module::inserter insert)
 {
     if(insert == nullptr)
-        return insert_generic_instructions_impl(m,
-                                                ins,
-                                                static_cast<Range&&>(instructions),
-                                                map_ins,
-                                                [](module& mm, auto&&... xs) {
-                                                    return mm.insert_instruction(
-                                                        std::forward<decltype(xs)>(xs)...);
-                                                });
+        return insert_generic_instructions_impl(
+            m, ins, static_cast<Range&&>(instructions), map_ins, [](module& mm, auto&&... xs) {
+                return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
+            });
     return insert_generic_instructions_impl(
         m, ins, static_cast<Range&&>(instructions), map_ins, insert);
 }

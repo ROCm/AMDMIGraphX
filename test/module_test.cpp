@@ -312,15 +312,9 @@ TEST_CASE(parameter_name_order)
 struct map_ins
 {
     using type = std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref>;
-    map_ins(std::initializer_list<type::value_type> x)
-        : m(x)
-    {
-    }
+    map_ins(std::initializer_list<type::value_type> x) : m(x) {}
 
-    operator type*()
-    {
-        return &m;
-    }
+    operator type*() { return &m; }
 
     type m;
 };

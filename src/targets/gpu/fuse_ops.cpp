@@ -845,7 +845,11 @@ struct find_layernorm_pointwise
         inputs.pop_back();
         inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
 
-        m.replace_instruction(pw_ins, layernorm->get_operator(), inputs, {pm});
+        // Ensure the output shape retains the memory layout
+        auto layernorm_op_val            = layernorm->get_operator().to_value();
+        layernorm_op_val["output_shape"] = to_value(pw_ins->get_shape());
+
+        m.replace_instruction(pw_ins, make_op(layernorm->name(), layernorm_op_val), inputs, {pm});
     }
 };
 

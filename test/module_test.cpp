@@ -311,18 +311,19 @@ TEST_CASE(parameter_name_order)
 
 struct map_ins
 {
-    map_ins(std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> x)
-        : m(std::move(x))
+    using type = std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref>;
+    map_ins(std::initializer_list<type::value_type> x)
+        : m(x)
     {
     }
 
-    operator std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref>*()
+    operator type*()
     {
         return &m;
     }
 
-    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> m;
-}
+    type m;
+};
 
 TEST_CASE(insert_instructions_module)
 {

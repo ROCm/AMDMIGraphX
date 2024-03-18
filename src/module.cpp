@@ -453,7 +453,7 @@ module::insert_instructions(instruction_ref ins,
                             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
+    return insert_generic_instructions_impl(
         *this, ins, instructions, map_ins ? *map_ins : default_map_ins, std::move(insert));
 }
 
@@ -464,7 +464,7 @@ module::insert_instructions(instruction_ref ins,
                             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
+    return insert_generic_instructions_impl(
         *this, ins, iterator_for(*m), map_ins ? *map_ins : default_map_ins, std::move(insert));
 }
 
@@ -477,7 +477,7 @@ module::insert_instructions(instruction_ref ins,
 {
     auto r = range(start, last);
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
+    return insert_generic_instructions_impl(
         *this, ins, iterator_for(r), map_ins ? *map_ins : default_map_ins, std::move(insert));
 }
 

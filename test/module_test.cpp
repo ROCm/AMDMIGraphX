@@ -309,6 +309,20 @@ TEST_CASE(parameter_name_order)
     EXPECT(param_names == names1);
 }
 
+struct map_ins
+{
+    map_ins(std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> x)
+    : m(std::move(x))
+    {}
+
+    operator std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref>*()
+    {
+        return &m;
+    }
+
+    std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> m;
+}
+
 TEST_CASE(insert_instructions_module)
 {
     migraphx::shape s{migraphx::shape::int32_type, {1}};
@@ -321,7 +335,7 @@ TEST_CASE(insert_instructions_module)
     auto x2 = m2.add_parameter("x2", s);
     m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
-    m1.insert_instructions(sqrt, &m2, {{x2, x1}});
+    m1.insert_instructions(sqrt, &m2, map_ins{{x2, x1}});
 
     EXPECT(std::prev(sqrt)->name() == "sqrt");
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
@@ -343,7 +357,7 @@ TEST_CASE(add_instructions_module)
     auto x2 = m2.add_parameter("x2", s);
     m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
-    m1.add_instructions(&m2, {{x2, x1}});
+    m1.add_instructions(&m2, map_ins{{x2, x1}});
 
     EXPECT(std::count_if(m1.begin(), m1.end(), [](auto&& ins) { return ins.name() == "sqrt"; }) ==
            2);
@@ -364,7 +378,7 @@ TEST_CASE(add_instructions_range)
     auto x2    = m2.add_parameter("x2", s);
     auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
-    m1.add_instructions(sqrt2, m2.end(), {{x2, x1}});
+    m1.add_instructions(sqrt2, m2.end(), map_ins{{x2, x1}});
     EXPECT(std::any_of(
         m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 
@@ -387,7 +401,7 @@ TEST_CASE(add_instructions_vector)
     auto x2    = m2.add_parameter("x2", s);
     auto sqrt2 = m2.add_instruction(migraphx::make_op("sqrt"), {x2});
 
-    m1.add_instructions({sqrt2}, {{x2, x1}});
+    m1.add_instructions({sqrt2}, map_ins{{x2, x1}});
     EXPECT(std::any_of(
         m1.begin(), m1.end(), [&](auto&& ins) { return migraphx::contains(ins.inputs(), x1); }));
 

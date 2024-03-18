@@ -33,6 +33,8 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     auto x      = mm->add_parameter("x", {x_type, x_dims});
     auto l0     = mm->add_literal({0.f});
 
+    auto l0 = mm->add_literal({0.f});
+
     std::vector<size_t> axes(x->get_shape().lens().size());
     std::iota(axes.begin(), axes.end(), 0);
 

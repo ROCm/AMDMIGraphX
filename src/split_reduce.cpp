@@ -17,11 +17,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct split_fused_reduce
 {
     std::vector<std::int64_t> axes{};
+    std::string assign = "assign_none";
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.axes, "axes"),
+            f(self.assign, "assign"));
     }
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
@@ -183,6 +185,18 @@ static std::vector<instruction_ref> find_split(module_ref rm)
     return result;
 }
 
+static std::string assign_op(const std::vector<instruction_ref>& splits)
+{
+    static std::unordered_map<std::string, std::string> m = {
+        {"reduce_sum", "assign_add"},
+        {"reduce_mean", "assign_add"},
+        {"reduce_prod", "assign_mul"},
+        {"reduce_max", "assign_max"},
+        {"reduce_min", "assign_min"},
+    };
+    return m.at(splits.front()->name());
+}
+
 void split_reduce::apply(module_pass_manager& mpm) const
 {
     for(auto ins : iterator_for(mpm.get_module()))
@@ -205,7 +219,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
 
         // Insert split reduce
         auto split_reduce = mpm.get_module().insert_instruction(
-            ins, make_op("split_fused_reduce", {{"axes", axes}}), mp.first.inputs, {m1});
+            ins, make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}), mp.first.inputs, {m1});
 
         std::vector<instruction_ref> inputs = {split_reduce};
         inputs.insert(inputs.end(), mp.second.inputs.begin(), mp.second.inputs.end());

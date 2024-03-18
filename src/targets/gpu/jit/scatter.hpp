@@ -50,7 +50,7 @@ struct scatter_compiler : compiler<Derived>
         options.virtual_inputs = inputs;
         // The compiler protests the inequality comparison in assign_mul when pertaining to floating
         // point, despite it making sense in the context. Thus the warning removal.
-        options.params += "-Wno-float-equal";
+        options.emplace_param("-Wno-float-equal");
 
         const auto src = derived().make_interpolated_string(op);
         return prepend_copy_data_to_output(compile_hip_code_object(src, options));

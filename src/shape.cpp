@@ -530,7 +530,7 @@ shape shape::to_dynamic() const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [](auto s) { return s.to_dynamic(); });
-        return {subs};
+        return shape(subs);
     }
     if(this->dynamic())
     {
@@ -548,7 +548,7 @@ shape shape::to_static(std::size_t x) const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [&](auto s) { return s.to_static(x); });
-        return {subs};
+        return shape(subs);
     }
     if(not this->dynamic())
     {

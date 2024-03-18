@@ -22,8 +22,7 @@ struct split_fused_reduce
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"),
-            f(self.assign, "assign"));
+        return pack(f(self.axes, "axes"), f(self.assign, "assign"));
     }
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
@@ -219,7 +218,10 @@ void split_reduce::apply(module_pass_manager& mpm) const
 
         // Insert split reduce
         auto split_reduce = mpm.get_module().insert_instruction(
-            ins, make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}), mp.first.inputs, {m1});
+            ins,
+            make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}),
+            mp.first.inputs,
+            {m1});
 
         std::vector<instruction_ref> inputs = {split_reduce};
         inputs.insert(inputs.end(), mp.second.inputs.begin(), mp.second.inputs.end());

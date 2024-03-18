@@ -747,6 +747,5 @@ __device__ void fused_reduce(Output output, Assign assign, F f)
     });
 }
 
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_REDUCE_HPP

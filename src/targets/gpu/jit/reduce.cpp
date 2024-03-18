@@ -133,55 +133,57 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     return wavefront_size;
 }
 
-static std::vector<shape> split_reduce(const std::vector<shape>& inputs, std::size_t min_size = 1024)
+static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
+                                       std::size_t min_size = 1024)
 {
     std::vector<shape> result;
-    auto input_shape = inputs.front();
+    auto input_shape  = inputs.front();
     auto reduce_shape = inputs[inputs.size() - 2];
     auto output_shape = inputs[inputs.size() - 1];
 
-    auto is = range(reduce_shape.lens().size());
+    auto is          = range(reduce_shape.lens().size());
     using array_type = std::array<std::size_t, 2>;
-    auto initial = array_type{std::numeric_limits<std::size_t>::max(), std::numeric_limits<std::size_t>::max()};
-    auto faxis = transform_accumulate(is.begin(), is.end(), initial, MIGRAPHX_LIFT(std::min), [&](auto i) -> array_type {
-        if(input_shape.lens()[i] == output_shape.lens()[i])
-            return initial;
-        return {input_shape.strides()[i], std::size_t(i)};
-    })[1];
+    auto initial     = array_type{std::numeric_limits<std::size_t>::max(),
+                              std::numeric_limits<std::size_t>::max()};
+    auto faxis       = transform_accumulate(
+        is.begin(), is.end(), initial, MIGRAPHX_LIFT(std::min), [&](auto i) -> array_type {
+            if(input_shape.lens()[i] == output_shape.lens()[i])
+                return initial;
+            return {input_shape.strides()[i], std::size_t(i)};
+        })[1];
 
     assert(faxis < reduce_shape.lens().size());
 
     std::size_t n = 1;
-    auto r = input_shape.lens()[faxis];
-    auto factors = make_array(2, 3, 5, 7, 11);
+    auto r        = input_shape.lens()[faxis];
+    auto factors  = make_array(2, 3, 5, 7, 11);
     while(r > min_size)
     {
-        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) {
-            return r % d == 0;
-        });
-        if (it == factors.end())
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        if(it == factors.end())
             break;
         r /= *it;
         n *= *it;
     }
     assert(n != 1);
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {
-        auto lens = s.lens();
-        auto strides = s.strides();
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {
+            auto lens    = s.lens();
+            auto strides = s.strides();
 
-        lens.push_back(n);
-        if(lens[faxis] == 1)
-        {
-            strides.push_back(0);
-        }
-        else
-        {
-            lens[faxis] /= n;
-            strides.push_back(strides[faxis] * lens[faxis]);
-        }
+            lens.push_back(n);
+            if(lens[faxis] == 1)
+            {
+                strides.push_back(0);
+            }
+            else
+            {
+                lens[faxis] /= n;
+                strides.push_back(strides[faxis] * lens[faxis]);
+            }
 
-        return {s.type(), lens, strides};
-    });
+            return {s.type(), lens, strides};
+        });
     return reduce_dims(normalize_permutation(result));
 }
 
@@ -301,7 +303,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto assign = v.get("assign", "assign_none");
+        auto assign         = v.get("assign", "assign_none");
         auto axes           = v.at("axes").to_vector<std::size_t>();
         auto virtual_inputs = inputs;
         virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
@@ -358,14 +360,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-             {"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"assign", assign},
-             {"algo", algo},
-             {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-             {"lambda", v.at("lambda").to<std::string>()},
-             {"transformers", make_transformer_args(vec)},
-             {"preamble", v.get("preamble", std::string{})}});
+                        {"params", enum_params(inputs.size(), "void * private_p")},
+                        {"args", enum_params(inputs.size(), "private_p")},
+                        {"assign", assign},
+                        {"algo", algo},
+                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+                        {"lambda", v.at("lambda").to<std::string>()},
+                        {"transformers", make_transformer_args(vec)},
+                        {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }

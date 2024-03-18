@@ -42,7 +42,7 @@ struct assign_add
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        atomicAdd(&x, T(y));
+        unsafeAtomicAdd(&x, T(y));
     }
 };
 

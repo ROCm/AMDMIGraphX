@@ -72,7 +72,7 @@ struct module_with_inputs
     std::vector<instruction_ref> inputs;
 };
 
-static std::pair<module_with_inputs, module_with_inputs>
+static std::array<module_with_inputs, 2>
 split_module(module_ref m,
              const std::vector<instruction_ref>& splits,
              const std::vector<instruction_ref>& args)
@@ -167,7 +167,7 @@ split_module(module_ref m,
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);
     m2.add_return(r);
-    return {{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}};
+    return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
 }
 
 static std::vector<instruction_ref> find_split(module_ref rm)
@@ -206,13 +206,17 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto splits = find_split(rm);
         if(splits.empty())
             continue;
+        if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
+            return split->get_shape().type() == shape::float_type;
+        }))
+            continue;
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
         // TODO: Check reduction size
 
         auto mp  = split_module(rm, splits, ins->inputs());
-        auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp.first.mod));
-        auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp.second.mod));
+        auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp[0].mod));
+        auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp[1].mod));
         m1->set_bypass();
         m2->set_bypass();
 
@@ -220,11 +224,11 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto split_reduce = mpm.get_module().insert_instruction(
             ins,
             make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}),
-            mp.first.inputs,
+            mp[0].inputs,
             {m1});
 
         std::vector<instruction_ref> inputs = {split_reduce};
-        inputs.insert(inputs.end(), mp.second.inputs.begin(), mp.second.inputs.end());
+        inputs.insert(inputs.end(), mp[1].inputs.begin(), mp[1].inputs.end());
         auto param_names = m2->get_parameter_names();
         std::sort(param_names.begin(), param_names.end());
 

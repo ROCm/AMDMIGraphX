@@ -333,10 +333,10 @@ TEST_CASE(reduce_reshape_pointwise1)
     migraphx::shape s2{migraphx::shape::float_type, {8, 8, 2, 2}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s1);
-        auto y    = mm->add_parameter("y", s2);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s2);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
         auto rsumr =
@@ -357,7 +357,7 @@ TEST_CASE(reduce_reshape_pointwise1)
             {xr, y},
             {2, 3},
             [&](auto* rm, const auto& inputs, const auto& axes) {
-                auto rsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                auto rsum  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                                 inputs[0]);
                 auto rsumb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), rsum);

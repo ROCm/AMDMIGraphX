@@ -121,7 +121,7 @@ instruction_ref linear_sample(const onnx_parser::node_info& info,
     return info.add_common_op("add", res, p4);
 }
 
-struct nearest_sampler
+struct grid_sampler
 {
     std::string m_padding;
     bool m_align_corners;
@@ -136,18 +136,15 @@ struct nearest_sampler
     size_t m_out_height;
     size_t m_out_width;
 
-    instruction_ref m_round_x;
-    instruction_ref m_round_y;
     instruction_ref m_one_l;
     instruction_ref m_zero_l;
     instruction_ref m_minus_half_l;
     instruction_ref m_width_l;
     instruction_ref m_height_l;
+    instruction_ref m_unnorm_x;
+    instruction_ref m_unnorm_y;
 
-    nearest_sampler(instruction_ref&& input,
-                    instruction_ref&& grid,
-                    bool align,
-                    std::string padding)
+    grid_sampler(instruction_ref&& input, instruction_ref&& grid, bool align, std::string padding)
         : m_padding(padding), m_align_corners(align), m_input(input), m_grid(grid)
     {
         auto i_lens  = input->get_shape().lens();
@@ -158,6 +155,39 @@ struct nearest_sampler
         auto g_lens  = grid->get_shape().lens();
         m_out_height = g_lens.at(1);
         m_out_width  = g_lens.at(2);
+    }
+
+    virtual ~grid_sampler() {}
+
+    virtual void setup(const onnx_parser::node_info& info)
+    {
+        m_one_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
+        m_zero_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {0.0f}});
+        m_minus_half_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {-0.5f}});
+        m_width_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width - 1}});
+        m_height_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height - 1}});
+
+        auto x_coords = info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
+
+        auto y_coords = info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), m_grid);
+
+        x_coords   = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), x_coords);
+        y_coords   = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), y_coords);
+        m_unnorm_x = unnormalize(info, x_coords, m_in_width);
+        m_unnorm_y = unnormalize(info, y_coords, m_in_height);
+
+        if(m_padding == "border")
+        {
+            m_unnorm_x = info.add_common_op("clip", m_unnorm_x, m_zero_l, m_width_l);
+            m_unnorm_y = info.add_common_op("clip", m_unnorm_y, m_zero_l, m_height_l);
+        }
     }
 
     instruction_ref
@@ -182,40 +212,28 @@ struct nearest_sampler
         return unnorm;
     }
 
-    void setup(const onnx_parser::node_info& info)
+    inline bool has_border_padding() const { return m_padding == "border"; }
+};
+
+struct nearest_sampler : grid_sampler
+{
+    instruction_ref m_round_x;
+    instruction_ref m_round_y;
+
+    nearest_sampler(instruction_ref&& input,
+                    instruction_ref&& grid,
+                    bool align,
+                    std::string padding)
+        : grid_sampler(std::move(input), std::move(grid), align, padding)
     {
-        m_one_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
-        m_zero_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {0.0f}});
-        m_minus_half_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {-0.5f}});
-        m_width_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width - 1}});
-        m_height_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height - 1}});
-
-        auto x_coords = info.add_instruction(
-            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
-
-        auto y_coords = info.add_instruction(
-            make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), m_grid);
-
-        x_coords      = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), x_coords);
-        y_coords      = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), y_coords);
-        auto unnorm_x = unnormalize(info, x_coords, m_in_width);
-        auto unnorm_y = unnormalize(info, y_coords, m_in_height);
-
-        if(m_padding == "border")
-        {
-            unnorm_x = info.add_common_op("clip", unnorm_x, m_zero_l, m_width_l);
-            unnorm_y = info.add_common_op("clip", unnorm_y, m_zero_l, m_height_l);
-        }
-        m_round_x = info.add_common_op("nearbyint", unnorm_x);
-        m_round_y = info.add_common_op("nearbyint", unnorm_y);
     }
 
-    inline bool has_border_padding() const { return m_padding == "border"; }
+    void setup(const onnx_parser::node_info& info) override
+    {
+        grid_sampler::setup(info);
+        m_round_x = info.add_common_op("nearbyint", m_unnorm_x);
+        m_round_y = info.add_common_op("nearbyint", m_unnorm_y);
+    }
 
     void update_indices(const onnx_parser::node_info& info,
                         const instruction_ref& h,

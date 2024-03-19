@@ -39,9 +39,9 @@ struct find_dot
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        auto a_mat = ins->inputs().front();
-        auto b_mat = ins->inputs().back();
+        auto ins     = r.result;
+        auto a_mat   = ins->inputs().front();
+        auto b_mat   = ins->inputs().back();
         auto a_shape = a_mat->get_shape();
         auto b_shape = b_mat->get_shape();
         if(a_shape.lens().size() != 2)
@@ -50,7 +50,8 @@ struct find_dot
         if(rows > 2)
             return;
 
-        // If the b matrix is const foldable then make sure its a transposed layout unless its broadcasting
+        // If the b matrix is const foldable then make sure its a transposed layout unless its
+        // broadcasting
         if(b_mat->can_eval() and not b_shape.transposed())
         {
             b_mat = m.insert_instruction(ins, make_op("layout", {{"permutation", {1, 0}}}), b_mat);
@@ -58,8 +59,8 @@ struct find_dot
 
         auto a_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), a_mat);
         auto b_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), b_mat);
-        auto mul = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
-        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {1}}}), mul);
+        auto mul         = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
+        auto reduce      = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {1}}}), mul);
         m.replace_instruction(ins, make_op("squeeze", {{"axes", {1}}}), reduce);
     }
 };

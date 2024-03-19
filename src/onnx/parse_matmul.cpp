@@ -196,8 +196,6 @@ struct parse_matmul : op_parser<parse_matmul>
                 broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
                 dot_res = info.add_instruction(make_op("quant_dot"), ba0, ba1);
-                dot_res = info.add_instruction(
-                    make_op("convert", {{"target_type", migraphx::shape::int32_type}}), dot_res);
             }
             else
             {

@@ -217,6 +217,10 @@ struct MIGRAPHX_EXPORT module
     std::array<with_inputs, 2> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits) const;
 
+    std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& splits1,
+                                     const std::vector<instruction_ref>& splits2) const;
+
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(instruction_ref ins,
@@ -284,6 +288,8 @@ struct module_with_inputs
     std::vector<instruction_ref> inputs;
     void replace(instruction_ref ins, instruction_ref rep);
     void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins);
+    void replace(
+    const std::vector<instruction_ref>& keys, const std::vector<instruction_ref>& values);
 };
 
 inline module& get_module(module& m) { return m; }

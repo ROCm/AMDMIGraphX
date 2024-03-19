@@ -104,7 +104,7 @@ TEST_CASE(single)
         auto* mm   = p2.get_main_module();
         auto x     = mm->add_parameter("x", s);
         auto rsum  = add_reduce(p2,
-                               "main:reduce_sum0:main:pointwise0_0",
+                               "main:reduce_sum0:main:pointwise0_split",
                                 {x},
                                 {2},
                                "assign_add",
@@ -112,6 +112,40 @@ TEST_CASE(single)
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
         auto add = add_pointwise(p2, mm, "main:pointwise0", {x, rsumb}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(split_pointwise)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto sqrt = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), sqrt);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = mm->add_instruction(migraphx::make_op("add"), sqrt, rsumb);
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto sqrt = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto rsum  = add_reduce(p2,
+                               "main:pointwise0:main:reduce_sum0:main:pointwise1_split",
+                                {sqrt},
+                                {2},
+                               "assign_add",
+                               single_reduce("reduce_sum"));
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = add_pointwise(p2, mm, "main:pointwise1", {sqrt, rsumb}, single_pointwise("add"));
         mm->add_return({add});
     }
     EXPECT(p1 == p2);

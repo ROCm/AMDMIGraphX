@@ -3,6 +3,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/liveness.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
@@ -77,6 +78,23 @@ static std::vector<instruction_ref> find_split(module_ref rm)
     return result;
 }
 
+static std::vector<instruction_ref> get_alive(module_ref rm, const std::vector<instruction_ref>& splits)
+{
+    std::vector<instruction_ref> result;
+    bool stop = false;
+    liveness(*rm, [&](auto ins, const auto& live_set) {
+        if(stop)
+            return;
+        if(not contains(splits, ins))
+            return;
+        std::copy_if(live_set.begin(), live_set.end(), std::back_inserter(result), [](instruction_ref live) {
+            return live->name() != "@param";
+        });
+        stop = true;
+    });
+    return result;
+}
+
 static std::string assign_op(const std::vector<instruction_ref>& splits)
 {
     static std::unordered_map<std::string, std::string> m = {
@@ -89,6 +107,13 @@ static std::string assign_op(const std::vector<instruction_ref>& splits)
     return m.at(splits.front()->name());
 }
 
+static std::vector<instruction_ref> insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& mwi)
+{
+    auto param_map =
+        mwi.mod.get_ins_param_map(mwi.inputs, true);
+    return m.insert_instructions(ins, &mwi.mod, &param_map);
+}
+
 void split_reduce::apply(module_pass_manager& mpm) const
 {
     for(auto ins : iterator_for(mpm.get_module()))
@@ -99,6 +124,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto splits = find_split(rm);
         if(splits.empty())
             continue;
+        // Only use split reduce with float for now
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
                return split->get_shape().type() == shape::float_type;
            }))
@@ -107,25 +133,34 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto axes = v["axes"].to_vector<std::int64_t>();
         // TODO: Check reduction size
 
-        auto mp  = rm->split(ins->inputs(), splits);
-        auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp[0].mod));
-        auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp[1].mod));
-        m1->set_bypass();
-        m2->set_bypass();
+        auto alive = get_alive(rm, splits);
+
+        std::array<module::with_inputs, 2> mods;
+        if(not alive.empty())
+        {
+            auto mods3 = rm->split(ins->inputs(), alive, splits);
+            auto r = insert_module_inline(mpm.get_module(), ins, mods3[0]);
+            mods3[1].replace(alive, r);
+            mods3[2].replace(alive, r);
+            mods = {std::move(mods3[1]), std::move(mods3[2])};
+        }
+        else
+        {
+            mods  = rm->split(ins->inputs(), splits);    
+        }
+
+        auto* splitm = mpm.create_module(rm->name() + "_split", std::move(mods[0].mod));
+        splitm->set_bypass();
 
         // Insert split reduce
         auto split_reduce = mpm.get_module().insert_instruction(
             ins,
             make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign_op(splits)}}),
-            mp[0].inputs,
-            {m1});
+            mods[0].inputs,
+            {splitm});
 
-        mp[1].replace(splits.front(), split_reduce);
-        std::vector<instruction_ref> inputs = {split_reduce};
-        inputs.insert(inputs.end(), mp[1].inputs.begin(), mp[1].inputs.end());
-        std::unordered_map<instruction_ref, instruction_ref> param_map =
-            m2->get_ins_param_map(mp[1].inputs, true);
-        auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
+        mods[1].replace(splits.front(), split_reduce);
+        auto replaced = insert_module_inline(mpm.get_module(), ins, mods[1]);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());
     }

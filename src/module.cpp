@@ -786,11 +786,12 @@ select_params(const std::vector<instruction_ref>& instructions,
     return result;
 }
 
-std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
-                                                 const std::vector<instruction_ref>& splits) const
+static std::array<module::with_inputs, 2> generic_split(const module& m, const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits,
+                                                 std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map =
-        this->get_ins_param_map(args, true);
+        m.get_ins_param_map(args, true);
 
     std::unordered_set<instruction_ref> selected_instructions;
     fix([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -805,7 +806,7 @@ std::array<module::with_inputs, 2> module::split(const std::vector<instruction_r
 
     std::vector<instruction_ref> instructions1;
     // TODO: copy_if
-    for(auto ins : iterator_for(*this))
+    for(auto ins : iterator_for(m))
     {
         if(not contains(selected_instructions, ins))
             continue;
@@ -824,7 +825,7 @@ std::array<module::with_inputs, 2> module::split(const std::vector<instruction_r
     m1.add_return(outputs);
 
     std::vector<instruction_ref> instructions2;
-    for(auto ins : iterator_for(*this))
+    for(auto ins : iterator_for(m))
     {
         if(contains(selected_instructions, ins))
             continue;
@@ -845,11 +846,11 @@ std::array<module::with_inputs, 2> module::split(const std::vector<instruction_r
     std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
     inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
     module m2;
-    std::unordered_map<instruction_ref, instruction_ref> map_ins2;
     std::size_t n = 0;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins2;
     for(auto ins : splits)
         map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
-    for(auto ins : iterator_for(*this))
+    for(auto ins : iterator_for(m))
     {
         if(ins->name() != "@param")
             continue;
@@ -859,7 +860,41 @@ std::array<module::with_inputs, 2> module::split(const std::vector<instruction_r
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);
     m2.add_return(r);
+    if(map_ins)
+        *map_ins = map_ins2;
     return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
+}
+
+
+std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits) const
+{
+    return generic_split(*this, args, splits);
+}
+
+std::array<module::with_inputs, 3> module::split(const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& splits1,
+                                     const std::vector<instruction_ref>& splits2) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    auto mods1 = generic_split(*this, args, splits1, &map_ins);
+    
+    assert(all_of(mods1[0].inputs, [&](auto ins) { return contains(args, ins); }));
+    assert(all_of(mods1[1].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+
+    std::vector<instruction_ref> new_splits2;
+    std::transform(splits2.begin(), splits2.end(), std::back_inserter(new_splits2), [&](auto ins) {
+        return map_ins.at(ins);
+    });
+
+    auto mods2 = mods1[1].mod.split(mods1[1].inputs, new_splits2);
+    // Replace new splits with old splits
+    mods2[1].replace(new_splits2, splits2);
+
+    assert(all_of(mods2[0].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    assert(all_of(mods2[1].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins) or contains(splits2, ins); }));
+
+    return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
 }
 
 void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
@@ -877,6 +912,17 @@ void module_with_inputs::replace(
         if(not contains(map_ins, ins))
             continue;
         ins = map_ins.at(ins);
+    }
+}
+void module_with_inputs::replace(
+    const std::vector<instruction_ref>& keys, const std::vector<instruction_ref>& values)
+{
+    for(auto& ins : inputs)
+    {
+        auto it = std::find(keys.begin(), keys.end(), ins);
+        if(it == keys.end())
+            continue;
+        ins = values[it - keys.begin()];
     }
 }
 

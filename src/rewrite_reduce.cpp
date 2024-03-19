@@ -32,6 +32,38 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+struct find_dot
+{
+    auto matcher() const { return match::name("dot"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto a_mat = ins->inputs().front();
+        auto b_mat = ins->inputs().back();
+        auto a_shape = a_mat->get_shape();
+        auto b_shape = b_mat->get_shape();
+        if(a_shape.lens().size() != 2)
+            return;
+        auto rows = a_shape.lens().front();
+        if(rows > 2)
+            return;
+
+        // If the b matrix is const foldable then make sure its a transposed layout unless its broadcasting
+        if(b_mat->can_eval() and not b_shape.transposed())
+        {
+            b_mat = m.insert_instruction(ins, make_op("layout", {{"permutation", {1, 0}}}), b_mat);
+        }
+
+        auto a_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {2}}}), a_mat);
+        auto b_unsqueeze = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {0}}}), b_mat);
+        auto mul = insert_common_op(m, ins, make_op("mul"), {a_unsqueeze, b_unsqueeze});
+        auto reduce = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", {1}}}), mul);
+        m.replace_instruction(ins, make_op("squeeze", {{"axes", {1}}}), reduce);
+    }
+};
+
 struct find_softmax
 {
     auto matcher() const { return match::name("softmax"); }
@@ -101,6 +133,7 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
+    match::find_matches(m, find_dot{});
     match::find_matches(m, find_softmax{}, find_reduce_mean{});
 }
 

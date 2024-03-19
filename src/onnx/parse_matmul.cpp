@@ -122,12 +122,12 @@ struct parse_matmul : op_parser<parse_matmul>
     {
         if(args.size() > index)
         {
-            if(args[index]->get_shape().type() != input->get_shape().type())
+            bias_arg = args[index];
+            if(bias_arg->get_shape().type() != input->get_shape().type())
             {
                 MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
             }
 
-            bias_arg = args[index];
             bias_arg = info.add_common_op("sub", input, bias_arg);
         }
     }

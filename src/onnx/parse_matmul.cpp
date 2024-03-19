@@ -39,8 +39,8 @@ struct parse_matmul : op_parser<parse_matmul>
     }
 
     static void broadcast_dimensions(const onnx_parser::node_info& info,
-                                     std::vector<size_t>& s0_lens,
-                                     std::vector<size_t>& s1_lens,
+                                     const std::vector<size_t>& s0_lens,
+                                     const std::vector<size_t>& s1_lens,
                                      instruction_ref& a0,
                                      instruction_ref& a1,
                                      instruction_ref& ba0,
@@ -69,6 +69,66 @@ struct parse_matmul : op_parser<parse_matmul>
                 ba1 = info.add_instruction(
                     make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
             }
+        }
+    }
+
+    static void
+    add_int8_shift(const onnx_parser::node_info& info, instruction_ref& ba0, instruction_ref& ba1)
+    {
+        const auto ba0_type = ba0->get_shape().type();
+        const auto ba1_type = ba1->get_shape().type();
+
+        // determine if we need to add a shift to ensure items get shifted to the same int8
+        // type if we see uint8/int8 mismatches
+        if(ba0_type == ba1_type)
+            return;
+
+        instruction_ref unshifted_input;
+        instruction_ref* shifted_output = nullptr;
+        if(ba0_type == migraphx::shape::int8_type)
+        {
+            unshifted_input = ba1;
+            shifted_output  = &ba1;
+        }
+        if(ba1_type == migraphx::shape::int8_type)
+        {
+            unshifted_input = ba0;
+            shifted_output  = &ba0;
+        }
+
+        // Convert to fp16 prior to a shift to ensure we preserve accuracy here then
+        // convert back to int8
+        auto int8_shift = info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+
+        auto unshifted_input_int16 = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}),
+            unshifted_input);
+
+        auto input_shifted_int16 = info.add_common_op("add", unshifted_input_int16, int8_shift);
+
+        auto shifted_input = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+            input_shifted_int16);
+
+        *shifted_output = shifted_input;
+    }
+
+    static void set_bias_arg(const onnx_parser::node_info& info,
+                             const std::vector<instruction_ref>& args,
+                             const int index,
+                             const instruction_ref& input,
+                             instruction_ref& bias_arg)
+    {
+        if(args.size() > index)
+        {
+            if(args[index]->get_shape().type() != input->get_shape().type())
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
+            }
+
+            bias_arg = args[index];
+            bias_arg = info.add_common_op("sub", input, bias_arg);
         }
     }
 
@@ -127,78 +187,12 @@ struct parse_matmul : op_parser<parse_matmul>
             instruction_ref ba1 = a1;
 
             // try broadcasting if dimensions other than last two do not match
-            if(not is_quant_dot)
+            if(is_quant_dot)
             {
-                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
-            }
+                set_bias_arg(info, args, 2, a0, ba0);
+                set_bias_arg(info, args, 3, a1, ba1);
 
-            // parse a_zero_point and b_zero_point values
-            if(args.size() > 2)
-            {
-                if(args[2]->get_shape().type() != a0->get_shape().type())
-                {
-                    MIGRAPHX_THROW("PARSE_QUANT_DOT: A zero point must be the same type as A data");
-                }
-
-                ba0 = args[2];
-                ba0 = info.add_common_op("sub", a0, ba0);
-
-                if(args.size() > 3)
-                {
-                    if(args[3]->get_shape().type() != a1->get_shape().type())
-                    {
-                        MIGRAPHX_THROW(
-                            "PARSE_QUANT_DOT: B zero point must be the same type as B data");
-                    }
-
-                    ba1 = args[3];
-                    ba1 = info.add_common_op("sub", a1, ba1);
-                }
-
-                auto ba0_type = ba0->get_shape().type();
-                auto ba1_type = ba1->get_shape().type();
-
-                // determine if we need to add a shift to ensure items get shifted to the same int8
-                // type if we see uint8/int8 mismatches
-                if(ba0_type != ba1_type)
-                {
-                    instruction_ref unshifted_input;
-                    if(ba0_type == migraphx::shape::int8_type)
-                    {
-                        unshifted_input = ba1;
-                    }
-                    if(ba1_type == migraphx::shape::int8_type)
-                    {
-                        unshifted_input = ba0;
-                    }
-
-                    // Convert to fp16 prior to a shift to ensure we preserve accuracy here then
-                    // convert back to int8
-                    auto int8_shift = info.add_literal(
-                        migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
-
-                    auto unshifted_input_int16 = info.add_instruction(
-                        migraphx::make_op("convert",
-                                          {{"target_type", migraphx::shape::int16_type}}),
-                        unshifted_input);
-
-                    auto input_shifted_int16 =
-                        info.add_common_op("add", unshifted_input_int16, int8_shift);
-
-                    auto shifted_input = info.add_instruction(
-                        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-                        input_shifted_int16);
-
-                    if(ba0_type == migraphx::shape::int8_type)
-                    {
-                        ba1 = shifted_input;
-                    }
-                    if(ba1_type == migraphx::shape::int8_type)
-                    {
-                        ba0 = shifted_input;
-                    }
-                }
-
+                add_int8_shift(info, ba0, ba1);
                 broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
                 dot_res = info.add_instruction(make_op("quant_dot"), ba0, ba1);
@@ -207,6 +201,7 @@ struct parse_matmul : op_parser<parse_matmul>
             }
             else
             {
+                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
                 dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
             }
         }

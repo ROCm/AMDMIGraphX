@@ -36,7 +36,11 @@
 
 void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p, {migraphx::fuse_pointwise{}, migraphx::fuse_reduce{}, migraphx::split_reduce{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::fuse_reduce{},
+                          migraphx::split_reduce{},
+                          migraphx::dead_code_elimination{}});
 }
 
 bool all_instructions_are_local(const migraphx::module& m)
@@ -68,7 +72,10 @@ migraphx::instruction_ref add_reduce(migraphx::program& p,
     auto r = f(rm, params, axes);
     rm->add_return({r});
     EXPECT(all_instructions_are_local(*rm));
-    return mm->add_instruction(migraphx::make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign}}), inputs, {rm});
+    return mm->add_instruction(
+        migraphx::make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign}}),
+        inputs,
+        {rm});
 }
 
 inline auto single_reduce(const std::string& name)
@@ -85,8 +92,9 @@ TEST_CASE(single)
     {
         auto* mm   = p1.get_main_module();
         auto x     = mm->add_parameter("x", s);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
-        auto rsumb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
         mm->add_return({add});
     }
@@ -95,8 +103,14 @@ TEST_CASE(single)
     {
         auto* mm   = p2.get_main_module();
         auto x     = mm->add_parameter("x", s);
-        auto rsum = add_reduce(p2, "main:reduce_sum0:main:pointwise0_0", {x}, {2}, "assign_add", single_reduce("reduce_sum"));
-        auto rsumb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto rsum  = add_reduce(p2,
+                               "main:reduce_sum0:main:pointwise0_0",
+                                {x},
+                                {2},
+                               "assign_add",
+                               single_reduce("reduce_sum"));
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
         auto add = add_pointwise(p2, mm, "main:pointwise0", {x, rsumb}, single_pointwise("add"));
         mm->add_return({add});
     }

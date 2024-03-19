@@ -265,14 +265,10 @@ insert_generic_instructions(module& m,
                             module::inserter insert)
 {
     if(insert == nullptr)
-        return insert_generic_instructions_impl(m,
-                                                ins,
-                                                static_cast<Range&&>(instructions),
-                                                map_ins,
-                                                [](module& mm, auto&&... xs) {
-                                                    return mm.insert_instruction(
-                                                        std::forward<decltype(xs)>(xs)...);
-                                                });
+        return insert_generic_instructions_impl(
+            m, ins, static_cast<Range&&>(instructions), map_ins, [](module& mm, auto&&... xs) {
+                return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
+            });
     return insert_generic_instructions_impl(
         m, ins, static_cast<Range&&>(instructions), map_ins, insert);
 }
@@ -735,7 +731,8 @@ void module::finalize(std::vector<context>& contexts)
                   << std::endl;
 }
 
-std::unordered_map<instruction_ref, instruction_ref> module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
+std::unordered_map<instruction_ref, instruction_ref>
+module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
 {
     std::unordered_map<instruction_ref, instruction_ref> result;
     auto names = this->get_parameter_names();
@@ -760,7 +757,6 @@ std::unordered_map<instruction_ref, instruction_ref> module::get_ins_param_map(c
                        [&](const auto& name, auto input) {
                            return std::make_pair(input, this->get_parameter(name));
                        });
-
     }
     return result;
 }

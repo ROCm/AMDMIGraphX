@@ -80,7 +80,7 @@ struct module_with_inputs
     }
     void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
     {
-        for(auto& ins:inputs)
+        for(auto& ins : inputs)
         {
             if(not contains(map_ins, ins))
                 continue;
@@ -89,16 +89,21 @@ struct module_with_inputs
     }
 };
 
-static std::vector<instruction_ref> select_params(const std::vector<instruction_ref>& instructions, const std::unordered_map<instruction_ref, instruction_ref>& param_map)
+static std::vector<instruction_ref>
+select_params(const std::vector<instruction_ref>& instructions,
+              const std::unordered_map<instruction_ref, instruction_ref>& param_map)
 {
     std::vector<instruction_ref> result;
-    transform_if(instructions.begin(), instructions.end(), std::back_inserter(result), [&](instruction_ref ins) { return contains(param_map, ins); }, [&](instruction_ref ins) {
-        return param_map.at(ins);
-    });
+    transform_if(
+        instructions.begin(),
+        instructions.end(),
+        std::back_inserter(result),
+        [&](instruction_ref ins) { return contains(param_map, ins); },
+        [&](instruction_ref ins) { return param_map.at(ins); });
     std::sort(result.begin(), result.end(), by(std::less<>{}, [](instruction_ref ins) {
-        const auto& param = any_cast<const builtin::param&>(ins->get_operator());
-        return param.parameter;
-    }));
+                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+                  return param.parameter;
+              }));
     return result;
 }
 
@@ -106,7 +111,8 @@ static std::array<module_with_inputs, 2> split_module(module_ref m,
                                                       const std::vector<instruction_ref>& splits,
                                                       const std::vector<instruction_ref>& args)
 {
-    std::unordered_map<instruction_ref, instruction_ref> param_map = m->get_ins_param_map(args, true);
+    std::unordered_map<instruction_ref, instruction_ref> param_map =
+        m->get_ins_param_map(args, true);
 
     std::unordered_set<instruction_ref> selected_instructions;
     fix([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -239,7 +245,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto param_names = m2->get_parameter_names();
         std::sort(param_names.begin(), param_names.end());
 
-        std::unordered_map<instruction_ref, instruction_ref> param_map = m2->get_ins_param_map(inputs, true);
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            m2->get_ins_param_map(inputs, true);
         auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());

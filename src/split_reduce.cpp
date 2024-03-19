@@ -11,6 +11,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -62,11 +63,6 @@ MIGRAPHX_REGISTER_OP(split_fused_reduce);
 
 static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
-static std::string param_name(std::size_t i, const std::string& prefix = "x")
-{
-    return prefix + std::to_string(i);
-}
-
 struct module_with_inputs
 {
     module mod;
@@ -100,10 +96,7 @@ select_params(const std::vector<instruction_ref>& instructions,
         std::back_inserter(result),
         [&](instruction_ref ins) { return contains(param_map, ins); },
         [&](instruction_ref ins) { return param_map.at(ins); });
-    std::sort(result.begin(), result.end(), by(std::less<>{}, [](instruction_ref ins) {
-                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
-                  return param.parameter;
-              }));
+    sort_params(result);
     return result;
 }
 
@@ -165,6 +158,7 @@ static std::array<module_with_inputs, 2> split_module(module_ref m,
     }
 
     std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
+    inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
     module m2;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
     std::size_t n = 0;
@@ -240,13 +234,11 @@ void split_reduce::apply(module_pass_manager& mpm) const
             mp[0].inputs,
             {m1});
 
+        mp[1].replace(splits.front(), split_reduce);
         std::vector<instruction_ref> inputs = {split_reduce};
         inputs.insert(inputs.end(), mp[1].inputs.begin(), mp[1].inputs.end());
-        auto param_names = m2->get_parameter_names();
-        std::sort(param_names.begin(), param_names.end());
-
         std::unordered_map<instruction_ref, instruction_ref> param_map =
-            m2->get_ins_param_map(inputs, true);
+            m2->get_ins_param_map(mp[1].inputs, true);
         auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());

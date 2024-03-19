@@ -33,6 +33,7 @@
 #include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <iostream>
@@ -588,6 +589,16 @@ instruction_ref module::get_parameter(std::string name) const
         return this->end();
 }
 
+std::vector<instruction_ref> module::get_parameters() const
+{
+    std::vector<instruction_ref> result;
+    auto refs = iterator_for(*this);
+    std::copy_if(refs.begin(), refs.end(), std::back_inserter(result), [&](instruction_ref ins) {
+        return ins->name() == "@param";
+    });
+    return result;
+}
+
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
     assert(ins->name() == "@param");
@@ -735,27 +746,27 @@ std::unordered_map<instruction_ref, instruction_ref>
 module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
 {
     std::unordered_map<instruction_ref, instruction_ref> result;
-    auto names = this->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    assert(names.size() == inputs.size());
+    auto params = this->get_parameters();
+    assert(params.size() == inputs.size());
+    sort_params(params);
     if(reverse)
     {
-        std::transform(names.begin(),
-                       names.end(),
+        std::transform(params.begin(),
+                       params.end(),
                        inputs.begin(),
                        std::inserter(result, result.end()),
-                       [&](const auto& name, auto input) {
-                           return std::make_pair(this->get_parameter(name), input);
+                       [&](instruction_ref param, auto input) {
+                           return std::make_pair(param, input);
                        });
     }
     else
     {
-        std::transform(names.begin(),
-                       names.end(),
+        std::transform(params.begin(),
+                       params.end(),
                        inputs.begin(),
                        std::inserter(result, result.end()),
-                       [&](const auto& name, auto input) {
-                           return std::make_pair(input, this->get_parameter(name));
+                       [&](instruction_ref param, auto input) {
+                           return std::make_pair(input, param);
                        });
     }
     return result;

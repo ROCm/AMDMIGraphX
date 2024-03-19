@@ -20,5 +20,3 @@ void sort_params(std::vector<instruction_ref>& params)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-

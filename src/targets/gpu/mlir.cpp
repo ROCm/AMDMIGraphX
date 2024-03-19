@@ -21,7 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/make_op.hpp"
+#include <migraphx/algorithm.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <ostream>
@@ -459,9 +460,12 @@ struct mlir_program
     {
         std::vector<MlirNamedAttribute> attributes;
         attributes.reserve(v.size());
-        std::transform(v.begin(), v.end(), std::back_inserter(attributes), [&](const value& x) {
-            return name_attribute(x.get_key(), x.without_key());
-        });
+        migraphx::transform_if(
+            v.begin(),
+            v.end(),
+            std::back_inserter(attributes),
+            [&](const value& x) { return not x.is_null(); },
+            [&](const value& x) { return name_attribute(x.get_key(), x.without_key()); });
         return attributes;
     }
 
@@ -610,9 +614,16 @@ struct mlir_program
         return "migraphx." + ins->name();
     }
 
-    static value get_operator_value(const operation& op)
+    static value get_operator_value(instruction_ref ins)
     {
-        auto v = op.to_value();
+        const operation& op = ins->get_operator();
+        auto v              = op.to_value();
+
+        // Reshape operator can have dim 0 or -1.
+        // Avoid passing those on to MLIR:
+        if(op.name() == "reshape")
+            v["dims"] = ins->get_shape().lens();
+
         if(op.name() == "convolution" or op.name() == "quant_convolution")
         {
             // Adjust symetrical padding
@@ -668,7 +679,7 @@ struct mlir_program
             }
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
-            ops.add_attribute_value(get_operator_value(ins->get_operator()));
+            ops.add_attribute_value(get_operator_value(ins));
             if(ins->name() != "@return")
                 ops.add_results({get_shape(ins)});
             if(ins->name() == "@literal")

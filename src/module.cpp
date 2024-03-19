@@ -324,7 +324,6 @@ insert_generic_instructions_impl(module& m,
                 break;
             }
 
-            // copy_ins = m.insert_instruction(ins, sins->get_operator(), copy_inputs, mod_args);
             copy_ins = insert(m, ins, sins->get_operator(), copy_inputs, mod_args);
         }
         map_ins[sins] = copy_ins;

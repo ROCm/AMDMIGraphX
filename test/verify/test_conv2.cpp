@@ -43,6 +43,7 @@ struct test_conv2 : verify_program<test_conv2<DType>>
             weights);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 template struct test_conv2<migraphx::shape::float_type>;
 template struct test_conv2<migraphx::shape::fp8e4m3fnuz_type>;

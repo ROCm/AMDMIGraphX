@@ -48,6 +48,7 @@ struct gemm_add_broadcast1 : verify_program<gemm_add_broadcast1<DType>>
         mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_add_broadcast1<migraphx::shape::float_type>;

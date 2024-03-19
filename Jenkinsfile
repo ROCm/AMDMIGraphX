@@ -3,6 +3,12 @@ def getgputargets() {
     return targets
 }
 
+def getnavi3xtargets() {
+    targets="gfx1100;gfx1101;gfx1102"
+    return targets
+}
+
+// Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -97,6 +103,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
+    } else if(name == "navi32") {
+        node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     }
@@ -161,11 +169,15 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }
-}//, clang_release_navi: rocmnode('navi21') { cmake_build ->
-//    stage('HIP Clang Release Navi') {
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
+}
+//, clang_release_navi: rocmnode('navi32') { cmake_build ->
+//    stage('HIP Clang Release Navi32') {
+//        def gpu_targets = getnavi3xtargets()
+//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
 //    }
 //}
+
+
 
 def onnxnode(name, body) {
     return { label ->

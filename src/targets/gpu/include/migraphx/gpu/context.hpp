@@ -183,6 +183,8 @@ struct hip_device
 
     std::size_t get_max_workitems_per_block() const { return device_props.maxThreadsPerBlock; }
 
+    std::size_t get_wavefront_size() const { return device_props.warpSize; }
+
     private:
     std::size_t device_id      = 0;
     std::size_t current_stream = 0;

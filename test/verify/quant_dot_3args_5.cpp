@@ -49,6 +49,7 @@ struct quant_dot_3args_5 : verify_program<quant_dot_3args_5<DType, CType>>
         migraphx::add_apply_alpha_beta(*mm, {tl1, tl2}, migraphx::make_op("quant_dot"), CType{3});
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct quant_dot_3args_5<int8_t, int32_t>;

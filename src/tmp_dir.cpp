@@ -25,6 +25,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/process.hpp>
+#include <migraphx/ranges.hpp>
 #include <algorithm>
 #include <random>
 #include <thread>
@@ -74,23 +75,32 @@ std::string unique_string(const std::string& prefix)
     return ss.str();
 }
 
-tmp_dir::tmp_dir(const std::string& prefix)
+tmp_dir::tmp_dir(std::string_view prefix)
     : path(fs::temp_directory_path() /
-           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + prefix))
+           unique_string(prefix.empty() ? "migraphx" : "migraphx-" + std::string{prefix}))
 {
     fs::create_directories(this->path);
 }
 
-void tmp_dir::execute(const std::string& exe, const std::string& args) const
+void tmp_dir::execute(std::string_view cmd, const std::vector<std::string>& args) const
 {
-    process{exe + " " + args}.cwd(this->path).exec();
+    process{cmd, args}.cwd(this->path).exec();
 }
 
 tmp_dir::~tmp_dir()
 {
     if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
     {
-        fs::remove_all(this->path);
+        constexpr int max_retries_count = 5;
+        for([[maybe_unused]] auto count : range(max_retries_count))
+        {
+            std::error_code ec;
+            fs::remove_all(path, ec);
+            if(not ec)
+                break;
+            std::cerr << "Failed to remove " << path << ": " << ec.message() << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(125));
+        }
     }
 }
 

@@ -68,39 +68,27 @@ clamp_values(const onnx_parser::node_info& info, instruction_ref coords_t, float
     return info.add_common_op("clip", coords_t, min_l, max_l);
 }
 
-instruction_ref get_pixel(const onnx_parser::node_info& info,
-                          instruction_ref data,
-                          instruction_ref h,
-                          instruction_ref w,
-                          size_t n,
-                          size_t c,
-                          float h_max,
-                          float w_max)
+instruction_ref get_sample(const onnx_parser::node_info& info,
+                           instruction_ref data,
+                           instruction_ref h,
+                           instruction_ref w,
+                           size_t n,
+                           size_t c,
+                           float h_max,
+                           float w_max)
 {
     auto nc_shape = migraphx::shape{migraphx::shape::int64_type, {2}};
     auto nc       = info.add_literal(migraphx::literal{nc_shape, {n, c}});
     auto h_clamp  = clamp_values(info, h, h_max - 1);
     auto w_clamp  = clamp_values(info, w, w_max - 1);
     auto nchw     = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
-    auto pixels   = info.add_instruction(make_op("gathernd"), data, nchw);
+    auto sample   = info.add_instruction(make_op("gathernd"), data, nchw);
     auto h_valid  = info.add_common_op("equal", h, h_clamp);
     auto w_valid  = info.add_common_op("equal", w, w_clamp);
-    auto zero     = info.add_literal(migraphx::literal{migraphx::shape{pixels->get_shape()}, {0}});
-    pixels        = info.add_instruction(make_op("where"), h_valid, pixels, zero);
-    pixels        = info.add_instruction(make_op("where"), w_valid, pixels, zero);
-    return pixels;
-}
-
-instruction_ref nearest_sample(const onnx_parser::node_info& info,
-                               size_t n,
-                               size_t c,
-                               const instruction_ref& h,
-                               const instruction_ref& w,
-                               const instruction_ref& data,
-                               float h_max,
-                               float w_max)
-{
-    return get_pixel(info, data, h, w, n, c, h_max, w_max);
+    auto zero     = info.add_literal(migraphx::literal{migraphx::shape{sample->get_shape()}, {0}});
+    sample        = info.add_instruction(make_op("where"), h_valid, sample, zero);
+    sample        = info.add_instruction(make_op("where"), w_valid, sample, zero);
+    return sample;
 }
 
 instruction_ref linear_sample(const onnx_parser::node_info& info,
@@ -119,7 +107,7 @@ instruction_ref linear_sample(const onnx_parser::node_info& info,
                               float w_max)
 {
     auto get_weighted_pixel = [&](auto y, auto x, auto w) {
-        auto p = get_pixel(info, data, y, x, n, c, h_max, w_max);
+        auto p = get_sample(info, data, y, x, n, c, h_max, w_max);
         return info.add_common_op("mul", p, w);
     };
 
@@ -132,6 +120,178 @@ instruction_ref linear_sample(const onnx_parser::node_info& info,
     res      = info.add_common_op("add", res, p3);
     return info.add_common_op("add", res, p4);
 }
+
+struct nearest_sampler
+{
+    std::string m_padding;
+    bool m_align_corners;
+
+    instruction_ref m_input;
+    instruction_ref m_grid;
+
+    size_t m_batch;
+    size_t m_channel;
+    size_t m_in_height;
+    size_t m_in_width;
+    size_t m_out_height;
+    size_t m_out_width;
+
+    instruction_ref m_round_x;
+    instruction_ref m_round_y;
+    instruction_ref m_one_l;
+    instruction_ref m_zero_l;
+    instruction_ref m_minus_half_l;
+    instruction_ref m_width_l;
+    instruction_ref m_height_l;
+
+    nearest_sampler(instruction_ref&& input,
+                    instruction_ref&& grid,
+                    bool align,
+                    std::string padding)
+        : m_padding(padding), m_align_corners(align), m_input(input), m_grid(grid)
+    {
+        auto i_lens  = input->get_shape().lens();
+        m_batch      = i_lens.at(0);
+        m_channel    = i_lens.at(1);
+        m_in_height  = i_lens.at(2);
+        m_in_width   = i_lens.at(3);
+        auto g_lens  = grid->get_shape().lens();
+        m_out_height = g_lens.at(1);
+        m_out_width  = g_lens.at(2);
+    }
+
+    instruction_ref
+    unnormalize(const onnx_parser::node_info& info, const instruction_ref& coords_t, float size)
+    {
+        auto unnorm = info.add_common_op("add", coords_t, m_one_l);
+        if(m_align_corners)
+        {
+            // unnorm_x = (x + 1) * (size - 1) / 2
+            auto mul_const = info.add_literal(
+                migraphx::literal{migraphx::shape{coords_t->get_shape().type()}, {(size - 1) / 2}});
+            unnorm = info.add_common_op("mul", unnorm, mul_const);
+        }
+        else
+        {
+            // unnorm_x = -0.5 + (x + 1) * size / 2
+            auto mul_const = info.add_literal(
+                migraphx::literal{migraphx::shape{coords_t->get_shape().type()}, {size / 2}});
+            unnorm = info.add_common_op("mul", unnorm, mul_const);
+            unnorm = info.add_common_op("add", unnorm, m_minus_half_l);
+        }
+        return unnorm;
+    }
+
+    void setup(const onnx_parser::node_info& info)
+    {
+        m_one_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
+        m_zero_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {0.0f}});
+        m_minus_half_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {-0.5f}});
+        m_width_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width - 1}});
+        m_height_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height - 1}});
+
+        auto x_coords = info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
+
+        auto y_coords = info.add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {2}}}), m_grid);
+
+        x_coords      = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), x_coords);
+        y_coords      = info.add_instruction(make_op("squeeze", {{"axes", {3}}}), y_coords);
+        auto unnorm_x = unnormalize(info, x_coords, m_in_width);
+        auto unnorm_y = unnormalize(info, y_coords, m_in_height);
+
+        if(m_padding == "border")
+        {
+            unnorm_x = info.add_common_op("clip", unnorm_x, m_zero_l, m_width_l);
+            unnorm_y = info.add_common_op("clip", unnorm_y, m_zero_l, m_height_l);
+        }
+        m_round_x = info.add_common_op("nearbyint", unnorm_x);
+        m_round_y = info.add_common_op("nearbyint", unnorm_y);
+    }
+
+    inline bool has_border_padding() const { return m_padding == "border"; }
+
+    void update_indices(const onnx_parser::node_info& info,
+                        const instruction_ref& h,
+                        const instruction_ref& w,
+                        size_t n,
+                        size_t c,
+                        std::vector<instruction_ref>& indices,
+                        std::vector<instruction_ref>& validation)
+    {
+        static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
+        auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
+        auto w_clamp =
+            has_border_padding() ? w : info.add_common_op("clip", w, m_zero_l, m_width_l);
+        auto h_clamp =
+            has_border_padding() ? h : info.add_common_op("clip", h, m_zero_l, m_height_l);
+        auto nchw = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
+        indices.push_back(nchw);
+        if(not has_border_padding())
+        {
+            auto h_valid = info.add_common_op("equal", h, h_clamp);
+            auto w_valid = info.add_common_op("equal", w, w_clamp);
+            auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
+            validation.push_back(valid);
+        }
+    }
+
+    instruction_ref sample(const onnx_parser::node_info& info)
+    {
+        setup(info);
+        std::vector<instruction_ref> indices;
+        std::vector<instruction_ref> validation;
+        static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+        for(size_t n = 0; n < m_batch; n++)
+        {
+            for(size_t h = 0; h < m_out_height; h++)
+            {
+                for(size_t w = 0; w < m_out_width; w++)
+                {
+                    auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
+                    auto h_t = info.add_instruction(make_op("gathernd"), m_round_y, nhw);
+                    auto w_t = info.add_instruction(make_op("gathernd"), m_round_x, nhw);
+                    for(size_t c = 0; c < m_channel; c++)
+                    {
+                        update_indices(info, h_t, w_t, n, c, indices, validation);
+                    }
+                }
+            }
+        }
+
+        auto indices_t = indices.at(0);
+        std::for_each(std::next(indices.begin()), indices.end(), [&info, &indices_t](auto& index) {
+            indices_t = info.add_instruction(make_op("concat", {{"axis", 0}}), indices_t, index);
+        });
+        indices_t = info.add_instruction(
+            make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);
+        auto samples = info.add_instruction(make_op("gathernd"), m_input, indices_t);
+        if(not has_border_padding())
+        {
+            auto validation_t = validation.at(0);
+            std::for_each(std::next(validation.begin()),
+                          validation.end(),
+                          [&info, &validation_t](auto& valid) {
+                              validation_t = info.add_instruction(
+                                  make_op("concat", {{"axis", 0}}), validation_t, valid);
+                          });
+            samples = info.add_common_op("where", validation_t, samples, m_zero_l);
+        }
+
+        samples = info.add_instruction(
+            make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}),
+            samples);
+        samples =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), samples);
+        return samples;
+    }
+};
 
 struct parse_gridsample : op_parser<parse_gridsample>
 {
@@ -261,118 +421,74 @@ struct parse_gridsample : op_parser<parse_gridsample>
 
         if(mode == "nearest")
         {
-            round_x = info.add_common_op("nearbyint", unnorm_x);
-            round_y = info.add_common_op("nearbyint", unnorm_y);
+            auto sampler =
+                nearest_sampler(std::move(x), std::move(grid), align_corners, padding_mode);
+            return sampler.sample(info);
         }
 
-        std::vector<instruction_ref> pixels;
+        std::vector<instruction_ref> samples;
         for(size_t n = 0; n < batch; n++)
         {
-            for(size_t c = 0; c < channel; c++)
+            for(size_t h = 0; h < out_height; h++)
             {
-                for(size_t h = 0; h < out_height; h++)
+                for(size_t w = 0; w < out_width; w++)
                 {
-                    for(size_t w = 0; w < out_width; w++)
+                    std::stringstream ss;
+                    ss << n << "_" << h << "_" << w;
+                    auto nhw_key = ss.str();
+
+                    auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+                    auto nhw       = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
+
+                    auto y0 = info.add_instruction(make_op("gathernd"), floor_y, nhw);
+                    floor_y_cache[nhw_key] = info.add_instruction(
+                        make_op("convert", {{"target_type", migraphx::shape::int64_type}}), y0);
+
+                    auto x0 = info.add_instruction(make_op("gathernd"), floor_x, nhw);
+                    floor_x_cache[nhw_key] = info.add_instruction(
+                        make_op("convert", {{"target_type", migraphx::shape::int64_type}}), x0);
+
+                    auto y1               = info.add_instruction(make_op("gathernd"), ceil_y, nhw);
+                    ceil_y_cache[nhw_key] = info.add_instruction(
+                        make_op("convert", {{"target_type", migraphx::shape::int64_type}}), y1);
+                    auto x1               = info.add_instruction(make_op("gathernd"), ceil_x, nhw);
+                    ceil_x_cache[nhw_key] = info.add_instruction(
+                        make_op("convert", {{"target_type", migraphx::shape::int64_type}}), x1);
+
+                    wa_cache[nhw_key] = info.add_instruction(make_op("gathernd"), wa, nhw);
+                    wb_cache[nhw_key] = info.add_instruction(make_op("gathernd"), wb, nhw);
+                    wc_cache[nhw_key] = info.add_instruction(make_op("gathernd"), wc, nhw);
+                    wd_cache[nhw_key] = info.add_instruction(make_op("gathernd"), wd, nhw);
+                    for(size_t c = 0; c < channel; c++)
                     {
-                        std::stringstream ss;
-                        ss << n << "_" << h << "_" << w;
-                        auto nhw_key = ss.str();
-                        if(mode == "nearest")
-                        {
-                            if(not contains(round_x_cache, nhw_key))
-                            {
-                                auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
-                                auto nhw =
-                                    info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-                                auto h_t = info.add_instruction(make_op("gathernd"), round_y, nhw);
-                                round_y_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    h_t);
-                                auto w_t = info.add_instruction(make_op("gathernd"), round_x, nhw);
-                                round_x_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    w_t);
-                            }
-                            pixels.push_back(nearest_sample(info,
-                                                            n,
-                                                            c,
-                                                            round_y_cache.at(nhw_key),
-                                                            round_x_cache.at(nhw_key),
-                                                            x,
-                                                            in_height,
-                                                            in_width));
-                        }
-                        // linear
-                        else
-                        {
-                            if(not contains(floor_x_cache, nhw_key))
-                            {
-                                auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
-                                auto nhw =
-                                    info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-
-                                auto y0 = info.add_instruction(make_op("gathernd"), floor_y, nhw);
-                                floor_y_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    y0);
-
-                                auto x0 = info.add_instruction(make_op("gathernd"), floor_x, nhw);
-                                floor_x_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    x0);
-
-                                auto y1 = info.add_instruction(make_op("gathernd"), ceil_y, nhw);
-                                ceil_y_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    y1);
-                                auto x1 = info.add_instruction(make_op("gathernd"), ceil_x, nhw);
-                                ceil_x_cache[nhw_key] = info.add_instruction(
-                                    make_op("convert",
-                                            {{"target_type", migraphx::shape::int64_type}}),
-                                    x1);
-
-                                wa_cache[nhw_key] =
-                                    info.add_instruction(make_op("gathernd"), wa, nhw);
-                                wb_cache[nhw_key] =
-                                    info.add_instruction(make_op("gathernd"), wb, nhw);
-                                wc_cache[nhw_key] =
-                                    info.add_instruction(make_op("gathernd"), wc, nhw);
-                                wd_cache[nhw_key] =
-                                    info.add_instruction(make_op("gathernd"), wd, nhw);
-                            }
-
-                            pixels.push_back(linear_sample(info,
-                                                           floor_x_cache.at(nhw_key),
-                                                           floor_y_cache.at(nhw_key),
-                                                           ceil_x_cache.at(nhw_key),
-                                                           ceil_y_cache.at(nhw_key),
-                                                           wa_cache.at(nhw_key),
-                                                           wb_cache.at(nhw_key),
-                                                           wc_cache.at(nhw_key),
-                                                           wd_cache.at(nhw_key),
-                                                           x,
-                                                           n,
-                                                           c,
-                                                           in_height,
-                                                           in_width));
-                        }
+                        samples.push_back(linear_sample(info,
+                                                        floor_x_cache.at(nhw_key),
+                                                        floor_y_cache.at(nhw_key),
+                                                        ceil_x_cache.at(nhw_key),
+                                                        ceil_y_cache.at(nhw_key),
+                                                        wa_cache.at(nhw_key),
+                                                        wb_cache.at(nhw_key),
+                                                        wc_cache.at(nhw_key),
+                                                        wd_cache.at(nhw_key),
+                                                        x,
+                                                        n,
+                                                        c,
+                                                        in_height,
+                                                        in_width));
                     }
                 }
             }
         }
 
-        auto output = pixels.at(0);
-        for(size_t i = 1; i < pixels.size(); ++i)
+        auto output = samples.at(0);
+        for(size_t i = 1; i < samples.size(); ++i)
         {
-            output = info.add_instruction(make_op("concat", {{"axis", 0}}), output, pixels.at(i));
+            output = info.add_instruction(make_op("concat", {{"axis", 0}}), output, samples.at(i));
         }
         output = info.add_instruction(
-            make_op("reshape", {{"dims", {batch, channel, out_height, out_width}}}), output);
+            make_op("reshape", {{"dims", {batch, out_height, out_width, channel}}}), output);
+        output =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), output);
         return output;
     }
 };

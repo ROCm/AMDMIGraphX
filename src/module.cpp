@@ -751,23 +751,21 @@ module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool rever
     sort_params(params);
     if(reverse)
     {
-        std::transform(params.begin(),
-                       params.end(),
-                       inputs.begin(),
-                       std::inserter(result, result.end()),
-                       [&](instruction_ref param, auto input) {
-                           return std::make_pair(param, input);
-                       });
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(param, input); });
     }
     else
     {
-        std::transform(params.begin(),
-                       params.end(),
-                       inputs.begin(),
-                       std::inserter(result, result.end()),
-                       [&](instruction_ref param, auto input) {
-                           return std::make_pair(input, param);
-                       });
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(input, param); });
     }
     return result;
 }

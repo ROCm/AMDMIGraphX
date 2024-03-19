@@ -185,7 +185,7 @@ struct MIGRAPHX_EXPORT module
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;
-    
+
     std::vector<instruction_ref> get_parameters() const;
 
     void rename_parameter(instruction_ref ins, const std::string& name);

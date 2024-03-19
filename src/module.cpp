@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <iterator>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -768,6 +769,113 @@ module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool rever
             [&](instruction_ref param, auto input) { return std::make_pair(input, param); });
     }
     return result;
+}
+
+static std::vector<instruction_ref>
+select_params(const std::vector<instruction_ref>& instructions,
+              const std::unordered_map<instruction_ref, instruction_ref>& param_map)
+{
+    std::vector<instruction_ref> result;
+    transform_if(
+        instructions.begin(),
+        instructions.end(),
+        std::back_inserter(result),
+        [&](instruction_ref ins) { return contains(param_map, ins); },
+        [&](instruction_ref ins) { return param_map.at(ins); });
+    sort_params(result);
+    return result;
+}
+
+std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args, const std::vector<instruction_ref>& splits) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> param_map =
+        this->get_ins_param_map(args, true);
+
+    std::unordered_set<instruction_ref> selected_instructions;
+    fix([&](auto self, const std::vector<instruction_ref>& inputs) {
+        for(auto input : inputs)
+        {
+            if(contains(selected_instructions, input))
+                continue;
+            selected_instructions.insert(input);
+            self(input->inputs());
+        }
+    })(splits);
+
+    std::vector<instruction_ref> instructions1;
+    // TODO: copy_if
+    for(auto ins : iterator_for(*this))
+    {
+        if(not contains(selected_instructions, ins))
+            continue;
+        instructions1.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs1 = select_params(instructions1, param_map);
+    module m1;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins1;
+    m1.add_instructions(instructions1, &map_ins1);
+    std::vector<instruction_ref> outputs;
+    std::transform(splits.begin(),
+                   splits.end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref ins) { return map_ins1.at(ins); });
+    m1.add_return(outputs);
+
+    std::vector<instruction_ref> instructions2;
+    for(auto ins : iterator_for(*this))
+    {
+        if(contains(selected_instructions, ins))
+            continue;
+        // Input params can be used in both modules
+        std::vector<instruction_ref> input_params;
+        std::copy_if(ins->inputs().begin(),
+                     ins->inputs().end(),
+                     std::back_inserter(input_params),
+                     [&](instruction_ref input) {
+                         if(input->name() != "@param")
+                             return false;
+                         return not contains(instructions2, input);
+                     });
+        instructions2.insert(instructions2.end(), input_params.begin(), input_params.end());
+        instructions2.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
+    inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
+    module m2;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins2;
+    std::size_t n = 0;
+    for(auto ins : splits)
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() != "@param")
+            continue;
+        if(not contains(instructions2, ins))
+            continue;
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    }
+    auto r = m2.add_instructions(instructions2, &map_ins2);
+    m2.add_return(r);
+    return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
+}
+
+void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
+{
+    auto it = std::find(inputs.begin(), inputs.end(), ins);
+    if(it == inputs.end())
+        return;
+    *it = rep;
+}
+void module_with_inputs::replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    for(auto& ins : inputs)
+    {
+        if(not contains(map_ins, ins))
+            continue;
+        ins = map_ins.at(ins);
+    }
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }

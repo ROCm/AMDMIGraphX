@@ -50,6 +50,8 @@ struct module_impl;
 using parameter_map = std::unordered_map<std::string, argument>;
 using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
 
+struct module_with_inputs;
+
 /**
  * @brief Stores the instruction stream
  */
@@ -185,7 +187,7 @@ struct MIGRAPHX_EXPORT module
     shape get_parameter_shape(std::string name) const;
 
     instruction_ref get_parameter(std::string name) const;
-
+    
     std::vector<instruction_ref> get_parameters() const;
 
     void rename_parameter(instruction_ref ins, const std::string& name);
@@ -209,6 +211,10 @@ struct MIGRAPHX_EXPORT module
 
     std::unordered_map<instruction_ref, instruction_ref>
     get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
+
+    using with_inputs = module_with_inputs;
+
+    std::array<with_inputs, 2> split(const std::vector<instruction_ref>& args, const std::vector<instruction_ref>& splits) const;
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -269,6 +275,14 @@ struct MIGRAPHX_EXPORT module
                             ins_dep_map& deps) const;
 
     std::unique_ptr<module_impl> impl;
+};
+
+struct module_with_inputs
+{
+    module mod;
+    std::vector<instruction_ref> inputs;
+    void replace(instruction_ref ins, instruction_ref rep);
+    void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins);
 };
 
 inline module& get_module(module& m) { return m; }

@@ -38,6 +38,40 @@ struct parse_matmul : op_parser<parse_matmul>
         return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
     }
 
+    static void broadcast_dimensions(const onnx_parser::node_info& info,
+                                     std::vector<size_t>& s0_lens,
+                                     std::vector<size_t>& s1_lens,
+                                     instruction_ref& a0,
+                                     instruction_ref& a1,
+                                     instruction_ref& ba0,
+                                     instruction_ref& ba1)
+    {
+        // try broadcasting if dimensions other than last two do not match
+        if(not std::equal(
+               s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
+        {
+            auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
+            std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
+            auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
+            std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
+            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+            l0_broadcasted_lens = output_lens;
+            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
+            l1_broadcasted_lens = output_lens;
+            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
+            if(s0_lens != l0_broadcasted_lens)
+            {
+                ba0 = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
+            }
+            if(s1_lens != l1_broadcasted_lens)
+            {
+                ba1 = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
+            }
+        }
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -91,6 +125,12 @@ struct parse_matmul : op_parser<parse_matmul>
             auto s1_lens        = a1->get_shape().lens();
             instruction_ref ba0 = a0;
             instruction_ref ba1 = a1;
+
+            // try broadcasting if dimensions other than last two do not match
+            if(not is_quant_dot)
+            {
+                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+            }
 
             // parse a_zero_point and b_zero_point values
             if(args.size() > 2)
@@ -159,31 +199,7 @@ struct parse_matmul : op_parser<parse_matmul>
                     }
                 }
 
-                // try broadcasting if dimensions other than last two do not match
-                if(not std::equal(
-                       s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
-                {
-                    auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
-                    std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
-                    auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
-                    std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
-                    auto output_lens =
-                        compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
-                    l0_broadcasted_lens = output_lens;
-                    l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
-                    l1_broadcasted_lens = output_lens;
-                    l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
-                    if(s0_lens != l0_broadcasted_lens)
-                    {
-                        ba0 = info.add_instruction(
-                            make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
-                    }
-                    if(s1_lens != l1_broadcasted_lens)
-                    {
-                        ba1 = info.add_instruction(
-                            make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
-                    }
-                }
+                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 
                 dot_res = info.add_instruction(make_op("quant_dot"), ba0, ba1);
                 dot_res = info.add_instruction(

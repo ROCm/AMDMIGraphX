@@ -10,6 +10,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/algorithm.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,22 +71,42 @@ struct module_with_inputs
 {
     module mod;
     std::vector<instruction_ref> inputs;
+    void replace(instruction_ref ins, instruction_ref rep)
+    {
+        auto it = std::find(inputs.begin(), inputs.end(), ins);
+        if(it == inputs.end())
+            return;
+        *it = rep;
+    }
+    void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+    {
+        for(auto& ins:inputs)
+        {
+            if(not contains(map_ins, ins))
+                continue;
+            ins = map_ins.at(ins);
+        }
+    }
 };
+
+static std::vector<instruction_ref> select_params(const std::vector<instruction_ref>& instructions, const std::unordered_map<instruction_ref, instruction_ref>& param_map)
+{
+    std::vector<instruction_ref> result;
+    transform_if(instructions.begin(), instructions.end(), std::back_inserter(result), [&](instruction_ref ins) { return contains(param_map, ins); }, [&](instruction_ref ins) {
+        return param_map.at(ins);
+    });
+    std::sort(result.begin(), result.end(), by(std::less<>{}, [](instruction_ref ins) {
+        const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+        return param.parameter;
+    }));
+    return result;
+}
 
 static std::array<module_with_inputs, 2> split_module(module_ref m,
                                                       const std::vector<instruction_ref>& splits,
                                                       const std::vector<instruction_ref>& args)
 {
-    std::unordered_map<instruction_ref, instruction_ref> param_map;
-    auto params = m->get_parameter_names();
-    std::sort(params.begin(), params.end());
-    std::transform(params.begin(),
-                   params.end(),
-                   args.begin(),
-                   std::inserter(param_map, param_map.begin()),
-                   [&](const std::string& name, instruction_ref arg) {
-                       return std::make_pair(m->get_parameter(name), arg);
-                   });
+    std::unordered_map<instruction_ref, instruction_ref> param_map = m->get_ins_param_map(args, true);
 
     std::unordered_set<instruction_ref> selected_instructions;
     fix([&](auto self, const std::vector<instruction_ref>& inputs) {
@@ -107,13 +128,7 @@ static std::array<module_with_inputs, 2> split_module(module_ref m,
         instructions1.push_back(ins);
     }
 
-    std::vector<instruction_ref> inputs1;
-    for(auto ins : instructions1)
-    {
-        if(not contains(param_map, ins))
-            continue;
-        inputs1.push_back(param_map[ins]);
-    }
+    std::vector<instruction_ref> inputs1 = select_params(instructions1, param_map);
     module m1;
     std::unordered_map<instruction_ref, instruction_ref> map_ins1;
     m1.add_instructions(instructions1, &map_ins1);
@@ -131,7 +146,6 @@ static std::array<module_with_inputs, 2> split_module(module_ref m,
             continue;
         // Input params can be used in both modules
         std::vector<instruction_ref> input_params;
-        // TODO: Use join_inserter
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(input_params),
@@ -144,13 +158,7 @@ static std::array<module_with_inputs, 2> split_module(module_ref m,
         instructions2.push_back(ins);
     }
 
-    std::vector<instruction_ref> inputs2;
-    for(auto ins : instructions2)
-    {
-        if(not contains(param_map, ins))
-            continue;
-        inputs2.push_back(param_map[ins]);
-    }
+    std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
     module m2;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
     std::size_t n = 0;
@@ -231,15 +239,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto param_names = m2->get_parameter_names();
         std::sort(param_names.begin(), param_names.end());
 
-        // TODO: Use get_ins_param_map function
-        std::unordered_map<instruction_ref, instruction_ref> param_map;
-        std::transform(param_names.begin(),
-                       param_names.end(),
-                       inputs.begin(),
-                       std::inserter(param_map, param_map.begin()),
-                       [&](const std::string& name, instruction_ref input) {
-                           return std::make_pair(m2->get_parameter(name), input);
-                       });
+        std::unordered_map<instruction_ref, instruction_ref> param_map = m2->get_ins_param_map(inputs, true);
         auto replaced = mpm.get_module().insert_instructions(ins, m2, &param_map);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());

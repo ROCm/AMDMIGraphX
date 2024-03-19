@@ -205,6 +205,8 @@ struct MIGRAPHX_EXPORT module
 
     void finalize(std::vector<context>& contexts);
 
+    std::unordered_map<instruction_ref, instruction_ref> get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
+
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(instruction_ref ins,

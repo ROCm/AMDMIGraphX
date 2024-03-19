@@ -265,10 +265,14 @@ insert_generic_instructions(module& m,
                             module::inserter insert)
 {
     if(insert == nullptr)
-        return insert_generic_instructions_impl(
-            m, ins, static_cast<Range&&>(instructions), map_ins, [](module& mm, auto&&... xs) {
-                return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
-            });
+        return insert_generic_instructions_impl(m,
+                                                ins,
+                                                static_cast<Range&&>(instructions),
+                                                map_ins,
+                                                [](module& mm, auto&&... xs) {
+                                                    return mm.insert_instruction(
+                                                        std::forward<decltype(xs)>(xs)...);
+                                                });
     return insert_generic_instructions_impl(
         m, ins, static_cast<Range&&>(instructions), map_ins, insert);
 }
@@ -729,6 +733,36 @@ void module::finalize(std::vector<context>& contexts)
     if(ins != end())
         std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
+}
+
+std::unordered_map<instruction_ref, instruction_ref> module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> result;
+    auto names = this->get_parameter_names();
+    std::sort(names.begin(), names.end());
+    assert(names.size() == inputs.size());
+    if(reverse)
+    {
+        std::transform(names.begin(),
+                       names.end(),
+                       inputs.begin(),
+                       std::inserter(result, result.end()),
+                       [&](const auto& name, auto input) {
+                           return std::make_pair(this->get_parameter(name), input);
+                       });
+    }
+    else
+    {
+        std::transform(names.begin(),
+                       names.end(),
+                       inputs.begin(),
+                       std::inserter(result, result.end()),
+                       [&](const auto& name, auto input) {
+                           return std::make_pair(input, this->get_parameter(name));
+                       });
+
+    }
+    return result;
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }

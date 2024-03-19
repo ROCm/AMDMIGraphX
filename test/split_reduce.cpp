@@ -124,7 +124,7 @@ TEST_CASE(split_pointwise)
     {
         auto* mm   = p1.get_main_module();
         auto x     = mm->add_parameter("x", s);
-        auto sqrt = mm->add_instruction(migraphx::make_op("sqrt"), x);
+        auto sqrt  = mm->add_instruction(migraphx::make_op("sqrt"), x);
         auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), sqrt);
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
@@ -136,7 +136,7 @@ TEST_CASE(split_pointwise)
     {
         auto* mm   = p2.get_main_module();
         auto x     = mm->add_parameter("x", s);
-        auto sqrt = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto sqrt  = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
         auto rsum  = add_reduce(p2,
                                "main:pointwise0:main:reduce_sum0:main:pointwise1_split",
                                 {sqrt},

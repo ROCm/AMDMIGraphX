@@ -288,8 +288,8 @@ struct module_with_inputs
     std::vector<instruction_ref> inputs;
     void replace(instruction_ref ins, instruction_ref rep);
     void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins);
-    void replace(
-    const std::vector<instruction_ref>& keys, const std::vector<instruction_ref>& values);
+    void replace(const std::vector<instruction_ref>& keys,
+                 const std::vector<instruction_ref>& values);
 };
 
 inline module& get_module(module& m) { return m; }

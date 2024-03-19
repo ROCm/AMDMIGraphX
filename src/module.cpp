@@ -786,9 +786,11 @@ select_params(const std::vector<instruction_ref>& instructions,
     return result;
 }
 
-static std::array<module::with_inputs, 2> generic_split(const module& m, const std::vector<instruction_ref>& args,
-                                                 const std::vector<instruction_ref>& splits,
-                                                 std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
+static std::array<module::with_inputs, 2>
+generic_split(const module& m,
+              const std::vector<instruction_ref>& args,
+              const std::vector<instruction_ref>& splits,
+              std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map =
         m.get_ins_param_map(args, true);
@@ -865,7 +867,6 @@ static std::array<module::with_inputs, 2> generic_split(const module& m, const s
     return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
 }
 
-
 std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
                                                  const std::vector<instruction_ref>& splits) const
 {
@@ -873,14 +874,15 @@ std::array<module::with_inputs, 2> module::split(const std::vector<instruction_r
 }
 
 std::array<module::with_inputs, 3> module::split(const std::vector<instruction_ref>& args,
-                                     const std::vector<instruction_ref>& splits1,
-                                     const std::vector<instruction_ref>& splits2) const
+                                                 const std::vector<instruction_ref>& splits1,
+                                                 const std::vector<instruction_ref>& splits2) const
 {
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     auto mods1 = generic_split(*this, args, splits1, &map_ins);
-    
+
     assert(all_of(mods1[0].inputs, [&](auto ins) { return contains(args, ins); }));
-    assert(all_of(mods1[1].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    assert(all_of(mods1[1].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
 
     std::vector<instruction_ref> new_splits2;
     std::transform(splits2.begin(), splits2.end(), std::back_inserter(new_splits2), [&](auto ins) {
@@ -891,8 +893,11 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
     // Replace new splits with old splits
     mods2[1].replace(new_splits2, splits2);
 
-    assert(all_of(mods2[0].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
-    assert(all_of(mods2[1].inputs, [&](auto ins) { return contains(args, ins) or contains(splits1, ins) or contains(splits2, ins); }));
+    assert(all_of(mods2[0].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    assert(all_of(mods2[1].inputs, [&](auto ins) {
+        return contains(args, ins) or contains(splits1, ins) or contains(splits2, ins);
+    }));
 
     return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
 }
@@ -914,8 +919,8 @@ void module_with_inputs::replace(
         ins = map_ins.at(ins);
     }
 }
-void module_with_inputs::replace(
-    const std::vector<instruction_ref>& keys, const std::vector<instruction_ref>& values)
+void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
+                                 const std::vector<instruction_ref>& values)
 {
     for(auto& ins : inputs)
     {

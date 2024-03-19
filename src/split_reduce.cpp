@@ -78,7 +78,8 @@ static std::vector<instruction_ref> find_split(module_ref rm)
     return result;
 }
 
-static std::vector<instruction_ref> get_alive(module_ref rm, const std::vector<instruction_ref>& splits)
+static std::vector<instruction_ref> get_alive(module_ref rm,
+                                              const std::vector<instruction_ref>& splits)
 {
     std::vector<instruction_ref> result;
     bool stop = false;
@@ -87,9 +88,10 @@ static std::vector<instruction_ref> get_alive(module_ref rm, const std::vector<i
             return;
         if(not contains(splits, ins))
             return;
-        std::copy_if(live_set.begin(), live_set.end(), std::back_inserter(result), [](instruction_ref live) {
-            return live->name() != "@param";
-        });
+        std::copy_if(live_set.begin(),
+                     live_set.end(),
+                     std::back_inserter(result),
+                     [](instruction_ref live) { return live->name() != "@param"; });
         stop = true;
     });
     return result;
@@ -107,10 +109,10 @@ static std::string assign_op(const std::vector<instruction_ref>& splits)
     return m.at(splits.front()->name());
 }
 
-static std::vector<instruction_ref> insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& mwi)
+static std::vector<instruction_ref>
+insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& mwi)
 {
-    auto param_map =
-        mwi.mod.get_ins_param_map(mwi.inputs, true);
+    auto param_map = mwi.mod.get_ins_param_map(mwi.inputs, true);
     return m.insert_instructions(ins, &mwi.mod, &param_map);
 }
 
@@ -139,14 +141,14 @@ void split_reduce::apply(module_pass_manager& mpm) const
         if(not alive.empty())
         {
             auto mods3 = rm->split(ins->inputs(), alive, splits);
-            auto r = insert_module_inline(mpm.get_module(), ins, mods3[0]);
+            auto r     = insert_module_inline(mpm.get_module(), ins, mods3[0]);
             mods3[1].replace(alive, r);
             mods3[2].replace(alive, r);
             mods = {std::move(mods3[1]), std::move(mods3[2])};
         }
         else
         {
-            mods  = rm->split(ins->inputs(), splits);    
+            mods = rm->split(ins->inputs(), splits);
         }
 
         auto* splitm = mpm.create_module(rm->name() + "_split", std::move(mods[0].mod));

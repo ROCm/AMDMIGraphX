@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/instruction_ref.hpp"
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -41,57 +42,48 @@ struct parse_scan : op_parser<parse_scan>
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
-        std::cout << "Scan parse" << std::endl;
+        // NOTE Version 8 of the operator differs to all the later versions
         if(not contains(info.attributes, "body"))
             MIGRAPHX_THROW("Scan: body attribute required");
 
         if(not contains(info.attributes, "num_scan_inputs"))
             MIGRAPHX_THROW("Scan: num_scan_inputs attribute required");
 
-        const auto& body           = info.attributes["body"].g();
-        const auto num_scan_inputs = info.attributes["num_scan_inputs"].i();
-
-        auto sub_mod = parser.prog.create_module(info.name + "_scan");
+        const auto& body = info.attributes["body"].g();
+        auto sub_mod     = parser.prog.create_module(info.name + "_scan");
         (void)parser.parse_graph(sub_mod, body);
 
-        auto param_names = sub_mod->get_parameter_names();
-        std::cout << param_names.size() << std::endl;
-        std::cout << args.size() << std::endl;
-
-        // This does not hold for the opset 8 version of Scan, which has an optional first input
-        // that the other versions do not have
-        // if(param_names.size() != args.size())
-        //     MIGRAPHX_THROW("Scan: Number of inputs to Scan does not match the number of inputs to
-        //     "
-        //                    "its subgraph");
+        const auto num_scan_inputs = info.attributes["num_scan_inputs"].i();
 
         std::vector<int64_t> scan_input_axes(num_scan_inputs, 0);
         if(contains(info.attributes, "scan_input_axes"))
         {
             auto&& axes = info.attributes["scan_input_axes"].ints();
-            // if(axes.size() != num_scan_inputs)
-            // {
-            //     MIGRAPHX_THROW("Scan: Size of scan_input_axes needs to match num_scan_inputs");
-            // }
             scan_input_axes.assign(axes.begin(), axes.end());
-            // TODO add axes normalization
+            // Validate: Size of scan_input_axes must be equal to num_scan_inputs
+            // Perform: Normalize the axes
         }
-        std::cout << "scan_input_axes: " << to_string_range(scan_input_axes) << std::endl;
+        // Validate: The scan axis len across each scan_in must be equal
 
-        // TODO check that scan_input_axes lens match for every arg
-        auto num_inits   = args.size() - num_scan_inputs;
-        size_t num_iters = args[num_inits]->get_shape().lens()[scan_input_axes[0]];
+        // TODO
+        // Parse scan_input_directions
+        // Validate: Size of scan_input_directions must be equal to num_scan_inputs
+        // Validate: 0 and 1 are only allowed values
 
-        std::cout << "num_scan_inputs: " << num_scan_inputs << std::endl;
-        std::cout << "args shapes: " << to_string_range(to_shapes(args)) << std::endl;
-        sub_mod->debug_print();
-        auto param_shapes = sub_mod->get_parameter_shapes();
-        std::cout << to_string_range(param_names) << std::endl;
-        for(const auto& s : param_shapes)
-            std::cout << s.first << " " << s.second << std::endl;
-        std::cout << "num_iters: " << num_iters << std::endl;
+        // TODO
+        // Parse scan_output_axes
+        // Validate: Size of scan_output_axes must be equal to K
+        // Perform: Normalize the axes
+        // Validate: Values must be in range[0, r-1]
 
-        auto N = args.size() - num_scan_inputs;
+        // TODO
+        // Parse scan_output_directions
+        // Validate: Size of scan_output_directions must be equal to K
+        // Validate: 0 and 1 are only allowed values
+
+        auto N           = args.size() - num_scan_inputs;
+        size_t num_iters = args[N]->get_shape().lens()[scan_input_axes[0]];
+
         std::vector<instruction_ref> alt_args(args.begin(), args.begin() + N);
         for(int64_t i = 0; i < num_iters; ++i)
         {
@@ -103,36 +95,47 @@ struct parse_scan : op_parser<parse_scan>
                 });
         }
 
-        std::cout << "Whole args" << std::endl;
-        for(const auto& ins : args)
-        {
-            ins->debug_print();
-        }
-        std::cout << "Sliced args" << std::endl;
-        for(const auto& ins : alt_args)
-        {
-            ins->debug_print();
-        }
+        // Inputs: init_states, array of pre-sliced scan_inputs
+        // N + M * num_iters number of inputs
+        auto scan = info.add_instruction(make_op("scan",
+                                                 {{"iterations", num_iters},
+                                                  {"num_scan_inputs", num_scan_inputs},
+                                                  {"num_state_vars", N}}),
+                                         alt_args,
+                                         {sub_mod});
+        // Outputs: final_states, array of scan_output_elements
+        // N + K * num_iters number of outputs
 
-        auto ret = info.add_instruction(make_op("scan",
-                                                {{"iterations", num_iters},
-                                                 {"num_scan_inputs", num_scan_inputs},
-                                                 {"num_state_vars", N}}),
-                                        alt_args,
-                                        {sub_mod});
-
-        auto out_s = ret->get_shape();
-        assert(out_s.type() == shape::tuple_type);
-
-        const auto& vec_shapes = out_s.sub_shapes();
-        std::vector<instruction_ref> out_inss;
-        for(std::size_t i = 0; i < vec_shapes.size(); ++i)
+        std::vector<instruction_ref> ret;
+        auto K = sub_mod->get_output_shapes().size() - N;
+        for(auto i = 0; i < N; ++i)
         {
-            auto r = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), ret);
-            out_inss.push_back(r);
+            auto get = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), scan);
+            ret.push_back(get);
         }
 
-        return out_inss;
+        for(auto i = N; i < N + K; ++i)
+        {
+            auto get = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), scan);
+            auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), get);
+            ret.push_back(usq);
+        }
+
+        for(auto i = 1; i < num_iters; ++i)
+        {
+            for(auto j = 0; j < K; ++j)
+            {
+                auto tuple_idx = N + i * K + j;
+                auto get =
+                    info.add_instruction(make_op("get_tuple_elem", {{"index", tuple_idx}}), scan);
+                auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), get);
+                auto concat =
+                    info.add_instruction(make_op("concat", {{"axis", 0}}), ret[N + j], usq);
+                ret[N + j] = concat;
+            }
+        }
+
+        return ret;
     }
 };
 

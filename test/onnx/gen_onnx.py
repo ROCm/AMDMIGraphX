@@ -10684,3 +10684,50 @@ def where_mixed_test():
                                  outputs=['z'])
 
     return ([node], [c, x, y], [z])
+
+
+@onnx_test()
+def scan_test():
+    sum_in = onnx.helper.make_tensor_value_info(
+        "sum_in", onnx.TensorProto.FLOAT, [2]
+    )
+    next = onnx.helper.make_tensor_value_info(
+        "next", onnx.TensorProto.FLOAT, [2]
+    )
+    sum_out = onnx.helper.make_tensor_value_info(
+        "sum_out", onnx.TensorProto.FLOAT, [2]
+    )
+    scan_out = onnx.helper.make_tensor_value_info(
+        "scan_out", onnx.TensorProto.FLOAT, [2]
+    )
+    add_node = onnx.helper.make_node(
+        "Add", inputs=["sum_in", "next"], outputs=["sum_out"]
+    )
+    id_node = onnx.helper.make_node(
+        "Identity", inputs=["sum_out"], outputs=["scan_out"]
+    )
+    scan_body = onnx.helper.make_graph(
+        [add_node, id_node], "scan_body", [sum_in, next], [sum_out, scan_out]
+    )
+
+    init_state = onnx.helper.make_tensor_value_info(
+        "init_state", onnx.TensorProto.FLOAT, [2]
+    )
+    scan_ins = onnx.helper.make_tensor_value_info(
+        "scan_ins", onnx.TensorProto.FLOAT, [3, 2]
+    )
+    final_state = onnx.helper.make_tensor_value_info(
+        "final_state", onnx.TensorProto.FLOAT, [2]
+    )
+    scan_outs = onnx.helper.make_tensor_value_info(
+        "scan_outs", onnx.TensorProto.FLOAT, [3, 2]
+    )
+    node = onnx.helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=1,
+        body=scan_body,
+    )
+
+    return ([node], [init_state, scan_ins], [final_state, scan_outs])

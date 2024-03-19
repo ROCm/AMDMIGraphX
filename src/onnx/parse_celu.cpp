@@ -35,6 +35,7 @@ struct parse_celu : op_parser<parse_celu>
 {
     std::vector<op_desc> operators() const { return {{"Celu"}}; }
 
+
     instruction_ref parse(const op_desc&,
                           const onnx_parser&,
                           const onnx_parser::node_info& info,

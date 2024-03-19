@@ -57,33 +57,21 @@ struct scan : op_name<scan>
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
-        std::cout << "SCAN COMPUTE SHAPE" << std::endl;
         assert(mods.size() == 1);
         check_shapes{inputs, *this}.standard();
         auto mod = mods.front();
-        std::cout << "Inputs size: " << inputs.size() << std::endl;
-        // The module has:
-        // N + M inputs (M = num_scan_inputs), same as the Scan node itself
-        // N + K outputs, same as the Scan node itself
-        auto output_shapes = mod->get_output_shapes();
-        std::cout << to_string_range(output_shapes) << std::endl;
-        // Can't use mod->get_parameter_shapes() like this, parameters can include output parameters
-        // as well
-        // auto N = mod->get_parameter_shapes().size() - num_scan_inputs;
-        auto N = num_state_vars;
-        std::transform(output_shapes.begin() + N,
-                       output_shapes.end(),
-                       output_shapes.begin() + N,
-                       [&](const auto& s) {
-                           auto lens = s.lens();
-                           lens.insert(lens.begin(), iterations);
-                           return shape{s.type(), lens};
-                       });
+        // The module has N + K outputs
+        auto mod_output_shapes = mod->get_output_shapes();
+        std::vector<shape> op_output_shapes{mod_output_shapes.begin(),
+                                            mod_output_shapes.begin() + num_state_vars};
+        auto K = mod_output_shapes.size() - num_state_vars;
+        op_output_shapes.reserve(num_state_vars + iterations * K);
+        for(auto i = 0; i < iterations; ++i)
+            op_output_shapes.insert(op_output_shapes.end(),
+                                    mod_output_shapes.begin() + num_state_vars,
+                                    mod_output_shapes.end());
 
-        std::cout << "OUTPUT SHAPES: " << std::endl;
-        std::cout << to_string_range(output_shapes) << std::endl;
-
-        return shape{output_shapes};
+        return shape{op_output_shapes};
     }
 
     std::unordered_map<std::string, int> get_output_params(const module_ref mod) const
@@ -111,25 +99,28 @@ struct scan : op_name<scan>
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        std::cout << "SCAN COMPUTE" << std::endl;
-        std::cout << args.size() << std::endl;
-        std::cout << out_shape << std::endl;
         assert(mods.size() == 1);
         auto mod          = mods.front();
-        mod->debug_print();
         auto param_shapes = mod->get_parameter_shapes();
-        for(const auto& s : param_shapes)
-            std::cout << s.first << " " << s.second << std::endl;
-        auto output_params = get_output_params(mod);
-        for(const auto& p : output_params)
-            std::cout << p.first << " " << p.second << std::endl;
-        for(int64_t i = 0; i < iterations; ++i)
+        auto param_names  = mod->get_parameter_names();
+
+        auto K = mod->get_output_shapes().size() - num_state_vars;
+        parameter_map pm;
+        std::vector<argument> ret{args.begin(), args.begin() + num_state_vars};
+        for(auto i = 0; i < iterations; ++i)
         {
-            // Prepare params
-            // Run 
-            // Set up next iteration
+            for(auto j = 0; j < num_state_vars; ++j)
+                pm[param_names[j]] = ret[j];
+            for(auto j = num_state_vars; j < num_state_vars + K; ++j)
+                pm[param_names[j]] = args[i * K + j];
+
+            auto mod_output = run(mod, pm);
+
+            std::copy(mod_output.begin(), mod_output.begin() + num_state_vars, ret.begin());
+            ret.insert(ret.end(), mod_output.begin() + num_state_vars, mod_output.end());
         }
-        return args[0];
+
+        return argument{ret};
     }
 };
 

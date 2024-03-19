@@ -107,7 +107,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto axes = v["axes"].to_vector<std::int64_t>();
         // TODO: Check reduction size
 
-        auto mp  =  rm->split(ins->inputs(), splits);
+        auto mp  = rm->split(ins->inputs(), splits);
         auto* m1 = mpm.create_module(rm->name() + "_0", std::move(mp[0].mod));
         auto* m2 = mpm.create_module(rm->name() + "_1", std::move(mp[1].mod));
         m1->set_bypass();

@@ -786,7 +786,8 @@ select_params(const std::vector<instruction_ref>& instructions,
     return result;
 }
 
-std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args, const std::vector<instruction_ref>& splits) const
+std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits) const
 {
     std::unordered_map<instruction_ref, instruction_ref> param_map =
         this->get_ins_param_map(args, true);
@@ -868,7 +869,8 @@ void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
         return;
     *it = rep;
 }
-void module_with_inputs::replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+void module_with_inputs::replace(
+    const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     for(auto& ins : inputs)
     {

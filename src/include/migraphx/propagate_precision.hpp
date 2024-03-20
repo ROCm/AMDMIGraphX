@@ -33,6 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
+/// This pass will propagate higher precision through more adjacent operators.
 struct MIGRAPHX_EXPORT propagate_precision
 {
     std::string name() const { return "propagate_precision"; }

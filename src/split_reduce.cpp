@@ -28,6 +28,8 @@ struct split_fused_reduce
         return pack(f(self.axes, "axes"), f(self.assign, "assign"));
     }
 
+    value attributes() const { return {{"zero_init", true}}; }
+
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
         if(mods.size() != 1)

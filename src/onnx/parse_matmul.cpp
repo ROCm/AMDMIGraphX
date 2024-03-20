@@ -72,7 +72,7 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
-    // Convert to fp16 prior to a shift to ensure we preserve accuracy here then
+    // Convert to int16 prior to a shift to ensure we preserve accuracy here then
     // convert back to int8
     static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
                                           instruction_ref& unshifted_input)

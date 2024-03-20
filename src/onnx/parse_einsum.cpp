@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/permutation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,12 +36,17 @@ namespace onnx {
 
 struct parse_einsum : op_parser<parse_einsum>
 {
-    using string_vec = std::vector<std::string>;
-    using int_vec    = std::vector<int>;
-    using int_mat    = std::vector<std::vector<int>>;
-    template <typename T>
-    using char_map     = std::map<char, T>;
-    using char_int_map = char_map<int>;
+    using int_mat = std::vector<std::vector<int>>;
+
+    struct EquationInfo
+    {
+        std::vector<std::string> input_terms;
+        std::string output_term;
+        std::map<char, int> label_count;
+        bool explicit_form;
+        std::string unique_labels;
+        size_t ellipses_ndim;
+    };
 
     std::vector<op_desc> operators() const { return {{"Einsum"}}; }
 
@@ -53,8 +59,12 @@ struct parse_einsum : op_parser<parse_einsum>
             MIGRAPHX_THROW("Equation attribute is required");
         std::string equation = info.attributes.at("equation").s();
 
-        const auto [terms, unique_labels, ellipses_ndim] = analyze_equation(equation, args);
-        const auto map_mat    = make_mapping_matrix(terms, unique_labels, ellipses_ndim);
+        const EquationInfo eq_info = analyze_equation(equation, args);
+        auto terms                 = eq_info.input_terms;
+        terms.push_back(eq_info.output_term);
+
+        const auto map_mat =
+            make_mapping_matrix(terms, eq_info.unique_labels, eq_info.ellipses_ndim);
         const auto duplicates = find_duplicates(terms);
 
         // Holds the mapping matrix representations of the two terms being processed
@@ -86,38 +96,30 @@ struct parse_einsum : op_parser<parse_einsum>
 
     // Equation Parsing
 
-    std::tuple<string_vec, std::string, size_t>
-    analyze_equation(std::string_view equation, const std::vector<instruction_ref>& args) const
+    EquationInfo analyze_equation(std::string_view equation,
+                                  const std::vector<instruction_ref>& args) const
     {
-        std::tuple<string_vec, std::string, size_t> ret;
-        auto& [terms, unique_labels, ellipses_ndim] = ret;
+        EquationInfo eq_info = parse_equation(equation);
 
-        auto [input_terms, output_term, label_count, explicit_form] = parse_equation(equation);
+        eq_info.ellipses_ndim = validate_input_terms(eq_info.input_terms, args);
+        if(not eq_info.output_term.empty())
+            validate_output_term(eq_info.output_term, eq_info.label_count, eq_info.ellipses_ndim);
+        else if(not eq_info.explicit_form)
+            eq_info.output_term = generate_output_term(eq_info.label_count, eq_info.ellipses_ndim);
 
-        ellipses_ndim = validate_input_terms(input_terms, args);
-        if(not output_term.empty())
-            validate_output_term(output_term, label_count, ellipses_ndim);
-        else if(not explicit_form)
-            output_term = generate_output_term(label_count, ellipses_ndim);
+        for(const auto [l, _] : eq_info.label_count)
+            eq_info.unique_labels += l;
 
-        terms = std::move(input_terms);
-        terms.emplace_back(std::move(output_term));
-        for(const auto [l, _] : label_count)
-            unique_labels += l;
-
-        return ret;
+        return eq_info;
     }
 
-    std::tuple<string_vec, std::string, char_int_map, bool>
-    parse_equation(std::string_view equation) const
+    EquationInfo parse_equation(std::string_view equation) const
     {
-        std::tuple<string_vec, std::string, char_int_map, bool> ret;
-        // cppcheck-suppress variableScope
-        auto& [input_terms, output_term, label_count, explicit_form] = ret;
+        EquationInfo ret;
 
         std::string term;
         bool has_ellipsis = false;
-        explicit_form     = false;
+        ret.explicit_form = false;
 
         for(int i = 0; i < equation.size(); ++i)
         {
@@ -126,18 +128,18 @@ struct parse_einsum : op_parser<parse_einsum>
             {
             case ' ': break;
             case '-':
-                if(explicit_form)
+                if(ret.explicit_form)
                     MIGRAPHX_THROW("Einsum equation has multiple '->' symbols");
 
                 if(i + 1 >= equation.size() or equation[i + 1] != '>')
                     MIGRAPHX_THROW("Invalid '->' in einsum equation");
 
                 ++i;
-                explicit_form = true;
+                ret.explicit_form = true;
                 [[fallthrough]];
             case ',':
                 has_ellipsis = false;
-                input_terms.emplace_back(term);
+                ret.input_terms.emplace_back(term);
                 term.clear();
                 break;
             case '.':
@@ -158,20 +160,20 @@ struct parse_einsum : op_parser<parse_einsum>
                                    "' in einsum equation term");
 
                 term += c;
-                if(not explicit_form)
-                    ++label_count[c];
+                if(not ret.explicit_form)
+                    ++ret.label_count[c];
             }
         }
 
-        if(explicit_form)
-            output_term = term;
+        if(ret.explicit_form)
+            ret.output_term = term;
         else
-            input_terms.push_back(term);
+            ret.input_terms.push_back(term);
 
         return ret;
     }
 
-    size_t validate_input_terms(const string_vec& input_terms,
+    size_t validate_input_terms(const std::vector<std::string>& input_terms,
                                 const std::vector<instruction_ref>& args) const
     {
         if(input_terms.size() != args.size())
@@ -212,7 +214,7 @@ struct parse_einsum : op_parser<parse_einsum>
     }
 
     void validate_output_term(std::string_view output_term,
-                              const char_int_map& label_count,
+                              const std::map<char, int>& label_count,
                               size_t ellipses_ndim) const
     {
         const auto* it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
@@ -232,7 +234,8 @@ struct parse_einsum : op_parser<parse_einsum>
     // exactly once in the equation.
     // If ellipsis are present in the left hand side of the equation, the ellipsis dimensions are
     // set to the beginning of the output term.
-    std::string generate_output_term(const char_int_map& label_count, size_t ellipsis_ndim) const
+    std::string generate_output_term(const std::map<char, int>& label_count,
+                                     size_t ellipsis_ndim) const
     {
         std::string output_term = ellipsis_ndim == 0 ? "" : "*";
         for(const auto [label, count] : label_count)
@@ -261,11 +264,11 @@ struct parse_einsum : op_parser<parse_einsum>
     // | kj... | -1 |  1 |  0 | 2 | 3 |
     // | ij... |  0 |  1 | -1 | 2 | 3 |
     // +-------+----+----+----+---+---+
-    int_mat make_mapping_matrix(const string_vec& terms,
+    int_mat make_mapping_matrix(const std::vector<std::string>& terms,
                                 std::string_view unique_labels,
                                 size_t ellipses_ndim) const
     {
-        char_int_map label_to_column;
+        std::map<char, int> label_to_column;
         for(auto i = 0; i < unique_labels.size(); ++i)
             label_to_column[unique_labels[i]] = i;
 
@@ -290,24 +293,23 @@ struct parse_einsum : op_parser<parse_einsum>
         return map_mat;
     }
 
-    std::vector<char_map<int_vec>> find_duplicates(const string_vec& terms) const
+    // Finds the duplicated labels in each of the terms and stores the axes on which they occur.
+    //
+    // e.g. For equation "iikjj,jkj", the result is a vector containing the two following maps:
+    // result[0]: {'i': [0, 1], 'j': [3, 4]}
+    // result[1]: {'j': [0, 2]}
+    std::vector<std::map<char, std::vector<int>>>
+    find_duplicates(const std::vector<std::string>& terms) const
     {
-        std::vector<char_map<int_vec>> duplicates;
+        std::vector<std::map<char, std::vector<int>>> duplicates;
         for(const auto& term : terms)
         {
-            char_map<int_vec> counts;
+            std::map<char, std::vector<int>> duplicate_axes;
             for(auto i = 0; i < term.size(); ++i)
-                counts[term[i]].push_back(i);
+                duplicate_axes[term[i]].push_back(i);
 
-            for(auto it = counts.begin(); it != counts.end();)
-            {
-                if(it->second.size() < 2)
-                    it = counts.erase(it);
-                else
-                    ++it;
-            }
-
-            duplicates.push_back(counts);
+            erase_if(duplicate_axes, [](const auto& p) { return p.second.size() < 2; });
+            duplicates.push_back(duplicate_axes);
         }
 
         return duplicates;
@@ -317,14 +319,14 @@ struct parse_einsum : op_parser<parse_einsum>
 
     instruction_ref preprocess_input(const onnx_parser::node_info& info,
                                      instruction_ref op,
-                                     const char_map<int_vec>& duplicates,
+                                     const std::map<char, std::vector<int>>& duplicates,
                                      const int_mat& map_mat,
                                      size_t input_idx,
                                      int_mat& cur_pair) const
     {
         if(not duplicates.empty())
         {
-            std::vector<int_vec> diag;
+            std::vector<std::vector<int>> diag;
             for(const auto& [_, v] : duplicates)
                 diag.push_back(v);
 
@@ -335,7 +337,7 @@ struct parse_einsum : op_parser<parse_einsum>
         // Transpose the input shape so the labels are in alphabetical order
         op = unsqueeze_transpose(info, cur_pair, op);
 
-        int_vec red;
+        std::vector<int> red;
         // Check if a given label appears in any of the subsequent mapping matrix terms(this
         // includes the output). If does not, it is reduced and marked as -1 in cur_pair.
         for(int d = 0; d < map_mat[0].size(); ++d)
@@ -361,12 +363,12 @@ struct parse_einsum : op_parser<parse_einsum>
 
         const auto& op_lens = op->get_shape().lens();
 
-        int first_axis      = diag[0][0];
-        const int_vec& axes = diag[0];
+        int first_axis               = diag[0][0];
+        const std::vector<int>& axes = diag[0];
         if(not all_of(axes, [&](int a) { return op_lens[first_axis] == op_lens[a]; }))
             MIGRAPHX_THROW("All duplicate labels have to be the same dimension");
 
-        int_vec batch_axes = set_difference(arange(0, op_lens.size()), axes);
+        std::vector<int> batch_axes = set_difference(arange(0, op_lens.size()), axes);
         if(not all_of(batch_axes, [&](int ba) { return ba < axes.front(); }))
             MIGRAPHX_THROW(
                 "Parsing of equations with duplicated labels and batch axes that are not "
@@ -399,14 +401,13 @@ struct parse_einsum : op_parser<parse_einsum>
             if(contains(axes, r))
                 r = first_axis;
 
-        int_vec to_remove(axes.begin() + 1, axes.end());
+        std::vector<int> to_remove(axes.begin() + 1, axes.end());
         for(auto t : to_remove)
         {
-            for(auto& r : cur_pair[1])
-            {
-                if(r > t)
-                    r -= 1;
-            }
+            std::transform(cur_pair[1].begin(),
+                           cur_pair[1].end(),
+                           cur_pair[1].begin(),
+                           [t](auto r) { return r > t ? r - 1 : r; });
         }
 
         return op;
@@ -420,13 +421,13 @@ struct parse_einsum : op_parser<parse_einsum>
                                  int_mat& cur_pair) const
     {
         // Label is present in current two terms and somewhere in subsequent terms
-        int_vec batch_axes;
+        std::vector<int> batch_axes;
         // Label is present in only left term
-        int_vec left_only;
+        std::vector<int> left_only;
         // Label is present in only right term
-        int_vec right_only;
+        std::vector<int> right_only;
         // Label is present in current two terms, but not in the subsequent terms
-        int_vec sum_axes;
+        std::vector<int> sum_axes;
 
         auto not_neg_one = [](auto i) { return i != -1; };
         // Categorize axes according to label distribution in equation
@@ -477,8 +478,8 @@ struct parse_einsum : op_parser<parse_einsum>
                               int_mat& cur_pair,
                               instruction_ref op1,
                               instruction_ref op2,
-                              const int_vec& batch_axes,
-                              const int_vec& sum_axes) const
+                              const std::vector<int>& batch_axes,
+                              const std::vector<int>& sum_axes) const
     {
         auto op1_lens = op1->get_shape().lens();
         auto op2_lens = op2->get_shape().lens();
@@ -496,8 +497,11 @@ struct parse_einsum : op_parser<parse_einsum>
         instruction_ref op = info.add_instruction(make_op("dot"), op1, op2);
 
         std::vector<size_t> new_lens(op1_lens.size(), 1);
-        for(auto i = 0; i < new_lens.size() - sum_axes.size(); ++i)
-            new_lens[i] = std::max(op1_lens[i], op2_lens[i]);
+        std::transform(op1_lens.begin(),
+                       op1_lens.begin() + (new_lens.size() - sum_axes.size()),
+                       op2_lens.begin(),
+                       new_lens.begin(),
+                       [](auto len1, auto len2) { return std::max(len1, len2); });
 
         op = info.add_instruction(make_op("reshape", {{"dims", new_lens}}), op);
 
@@ -521,7 +525,7 @@ struct parse_einsum : op_parser<parse_einsum>
         if(any_of(map_mat.back(), [](auto i) { return i >= 0; }))
         {
             cur_pair[1] = map_mat.back();
-            int_vec red;
+            std::vector<int> red;
             for(int d = 0; d < map_mat[0].size(); ++d)
             {
                 if(cur_pair[0][d] > 0 and cur_pair[1][d] == -1)
@@ -538,7 +542,7 @@ struct parse_einsum : op_parser<parse_einsum>
                                         int_mat& cur_pair,
                                         instruction_ref op) const
     {
-        int_vec unsq_axes;
+        std::vector<int> unsq_axes;
         std::vector<std::tuple<int, int>> perm;
 
         for(auto i = 0; i < cur_pair[1].size(); ++i)
@@ -548,13 +552,12 @@ struct parse_einsum : op_parser<parse_einsum>
             else
                 perm.push_back({cur_pair[1][i], i});
         }
-        op = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
+        auto unsqueeze = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
 
-        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
-            return std::get<0>(lhs) < std::get<0>(rhs);
-        });
+        std::sort(
+            perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
 
-        int_vec new_perm(cur_pair[1].size());
+        std::vector<int> new_perm(cur_pair[1].size());
         std::iota(new_perm.begin(), new_perm.end(), 0);
 
         for(auto i = 0, p = 0; i < cur_pair[1].size(); ++i)
@@ -565,18 +568,16 @@ struct parse_einsum : op_parser<parse_einsum>
             new_perm[std::get<1>(perm[p++])] = i;
         }
 
-        op = apply_transpose_op(info, op, new_perm, cur_pair[1]);
-
-        return op;
+        return apply_transpose_op(info, unsqueeze, new_perm, cur_pair[1]);
     }
 
     instruction_ref transpose_squeeze(const onnx_parser::node_info& info,
                                       int_mat& cur_pair,
                                       instruction_ref op,
-                                      int_vec row_output) const
+                                      std::vector<int> row_output) const
     {
         std::vector<std::tuple<int, int>> perm;
-        int_vec sq;
+        std::vector<int> sq;
 
         for(auto i = 0; i < row_output.size(); ++i)
         {
@@ -586,11 +587,10 @@ struct parse_einsum : op_parser<parse_einsum>
                 perm.push_back({row_output[i], i});
         }
 
-        std::sort(perm.begin(), perm.end(), [](auto lhs, auto rhs) {
-            return std::get<0>(lhs) < std::get<0>(rhs);
-        });
+        std::sort(
+            perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
 
-        int_vec new_perm(cur_pair[1].size());
+        std::vector<int> new_perm(cur_pair[1].size());
         std::iota(new_perm.begin(), new_perm.end(), 0);
 
         for(auto i = 0, p = 0; i < row_output.size(); ++i)
@@ -614,28 +614,14 @@ struct parse_einsum : op_parser<parse_einsum>
         return op;
     }
 
-    bool is_transpose_identity(int_vec perm) const
-    {
-        for(auto i = 0u; i < perm.size(); ++i)
-            if(perm[i] != i)
-                return false;
-
-        return true;
-    }
-
     instruction_ref apply_transpose_op(const onnx_parser::node_info& info,
                                        instruction_ref op,
-                                       const int_vec& perm,
-                                       int_vec& row) const
+                                       const std::vector<int>& perm,
+                                       std::vector<int>& row) const
     {
-        if(is_transpose_identity(perm))
-            return op;
-
         op = info.add_instruction(make_op("transpose", {{"permutation", perm}}), op);
         // compute output row
-        auto cpy = row;
-        for(auto i = 0u; i < perm.size(); ++i)
-            row[i] = cpy[perm[i]];
+        row = reorder_dims(row, {perm.begin(), perm.end()});
 
         return op;
     }
@@ -644,7 +630,7 @@ struct parse_einsum : op_parser<parse_einsum>
     apply_broadcast_op(const onnx_parser::node_info& info,
                        instruction_ref opl,
                        instruction_ref opr,
-                       const int_vec& common_labels) const
+                       const std::vector<int>& common_labels) const
     {
         std::pair<instruction_ref, instruction_ref> ret;
 
@@ -683,8 +669,8 @@ struct parse_einsum : op_parser<parse_einsum>
 
     instruction_ref apply_reduce_sum_op(const onnx_parser::node_info& info,
                                         instruction_ref op,
-                                        const int_vec& axes,
-                                        int_vec& row) const
+                                        const std::vector<int>& axes,
+                                        std::vector<int>& row) const
     {
         if(axes.empty())
             return op;
@@ -699,31 +685,33 @@ struct parse_einsum : op_parser<parse_einsum>
 
     int_mat make_matrix(int cur_pair, int cols, int fill_value) const
     {
-        return int_mat(cur_pair, int_vec(cols, fill_value));
+        return {static_cast<size_t>(cur_pair), std::vector<int>(cols, fill_value)};
     }
 
-    int_vec extract_column(int_mat map_mat, int col_idx, int row_begin, int row_end) const
+    std::vector<int> extract_column(int_mat map_mat, int col_idx, int row_begin, int row_end) const
     {
-        int_vec ret;
+        std::vector<int> ret;
         ret.reserve(row_end - row_begin);
 
-        for(int i = row_begin; i < row_end; ++i)
-            ret.push_back(map_mat[i][col_idx]);
+        std::transform(map_mat.begin() + row_begin,
+                       map_mat.begin() + row_end,
+                       std::back_inserter(ret),
+                       [col_idx](const auto& x) { return x[col_idx]; });
 
         return ret;
     }
 
-    int_vec set_union(const int_vec& lhs, const int_vec& rhs) const
+    std::vector<int> set_union(const std::vector<int>& lhs, const std::vector<int>& rhs) const
     {
-        int_vec ret;
+        std::vector<int> ret;
         std::set_union(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
 
         return ret;
     }
 
-    int_vec set_difference(const int_vec& lhs, const int_vec& rhs) const
+    std::vector<int> set_difference(const std::vector<int>& lhs, const std::vector<int>& rhs) const
     {
-        int_vec ret;
+        std::vector<int> ret;
         std::set_difference(
             lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::back_inserter(ret));
 
@@ -731,14 +719,14 @@ struct parse_einsum : op_parser<parse_einsum>
     }
 
     // Equivalent to numpy.arange without the step parameter
-    int_vec arange(int start_value, int end_value) const
+    std::vector<int> arange(int start_value, int end_value) const
     {
-        int_vec ret(end_value - start_value);
+        std::vector<int> ret(end_value - start_value);
         std::iota(ret.begin(), ret.end(), start_value);
         return ret;
     }
 
-    template <typename... Vecs>
+    template <class... Vecs>
     std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> concat_vectors(Vecs&&... vecs) const
     {
         size_t reserve_size = 0u;
@@ -754,7 +742,7 @@ struct parse_einsum : op_parser<parse_einsum>
         return ret;
     }
 
-    size_t calc_dim(const int_vec& axes, const std::vector<size_t>& lens) const
+    size_t calc_dim(const std::vector<int>& axes, const std::vector<size_t>& lens) const
     {
         return std::accumulate(
             axes.begin(), axes.end(), 1, [&](auto acc, auto axis) { return acc * lens[axis]; });

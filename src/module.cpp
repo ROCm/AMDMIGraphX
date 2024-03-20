@@ -452,7 +452,7 @@ module::insert_instructions(instruction_ref ins,
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     return insert_generic_instructions(
-        *this, ins, instructions, map_ins ? *map_ins : default_map_ins, std::move(insert));
+        *this, ins, instructions, map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -463,7 +463,7 @@ module::insert_instructions(instruction_ref ins,
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     return insert_generic_instructions(
-        *this, ins, iterator_for(*m), map_ins ? *map_ins : default_map_ins, std::move(insert));
+        *this, ins, iterator_for(*m), map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -476,7 +476,7 @@ module::insert_instructions(instruction_ref ins,
     auto r = range(start, last);
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     return insert_generic_instructions(
-        *this, ins, iterator_for(r), map_ins ? *map_ins : default_map_ins, std::move(insert));
+        *this, ins, iterator_for(r), map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
@@ -862,7 +862,7 @@ generic_split(const module& m,
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);
     m2.add_return(r);
-    if(map_ins)
+    if(map_ins != nullptr)
         *map_ins = map_ins2;
     return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
 }

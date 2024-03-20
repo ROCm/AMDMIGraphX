@@ -29,7 +29,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/liveness.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/matcher.hpp>
@@ -90,7 +89,7 @@ MIGRAPHX_REGISTER_OP(split_fused_reduce);
 
 static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
-static std::vector<instruction_ref> find_split(module_ref rm)
+static std::vector<instruction_ref> find_split(const_module_ref rm)
 {
     std::vector<instruction_ref> result;
     auto reduce_ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
@@ -104,7 +103,7 @@ static std::vector<instruction_ref> find_split(module_ref rm)
     return result;
 }
 
-static std::vector<instruction_ref> get_alive(module_ref rm,
+static std::vector<instruction_ref> get_alive(const_module_ref rm,
                                               const std::vector<instruction_ref>& splits)
 {
     std::vector<instruction_ref> result;
@@ -142,7 +141,7 @@ insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& 
     return m.insert_instructions(ins, &mwi.mod, &param_map);
 }
 
-static std::size_t get_reduce_size(module_ref rm)
+static std::size_t get_reduce_size(const_module_ref rm)
 {
     auto ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
     assert(ins != rm->end());

@@ -138,8 +138,8 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
 {
     std::vector<shape> result;
     auto input_shape  = inputs.front();
-    auto reduce_shape = inputs[inputs.size() - 2];
-    auto output_shape = inputs[inputs.size() - 1];
+    const auto& reduce_shape = inputs[inputs.size() - 2];
+    const auto& output_shape = inputs[inputs.size() - 1];
 
     auto is          = range(reduce_shape.lens().size());
     using array_type = std::array<std::size_t, 2>;
@@ -159,7 +159,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     auto factors  = make_array(2, 3, 5, 7, 11);
     while(r > min_size)
     {
-        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        const auto* it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
         if(it == factors.end())
             break;
         r /= *it;

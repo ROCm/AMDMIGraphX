@@ -50,19 +50,5 @@ TEST_CASE(gridsample_aligncorners_test)
 
     std::vector<float> gold = {0.0000, 1.2500, 2.0000, 2.5000, 2.5000, 2.0000, 3.7500, 5.0000};
 
-    std::cout << "res: " << std::endl;
-    for(auto res : result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "gold: " << std::endl;
-    for(auto g : gold)
-    {
-        std::cout << g << ", ";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

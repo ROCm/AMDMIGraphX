@@ -174,7 +174,7 @@ struct miopen_apply
             {
                 check_shape(s, insert_custom_op(it, attrs));
             }
-            if(attrs.contains("prefiil"))
+            if(attrs.contains("prefill"))
             {
                 insert_fill(it, attrs.at("prefill"));
             }

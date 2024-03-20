@@ -92,9 +92,9 @@ struct parse_matmul : op_parser<parse_matmul>
     }
 
     static instruction_ref set_bias_arg(const onnx_parser::node_info& info,
-                             const std::vector<instruction_ref>& args,
-                             const int index,
-                             const instruction_ref& input)
+                                        const std::vector<instruction_ref>& args,
+                                        const int index,
+                                        const instruction_ref& input)
     {
         if(args.size() > index)
         {

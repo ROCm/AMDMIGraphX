@@ -114,22 +114,22 @@ struct parse_matmul : op_parser<parse_matmul>
         *shifted_output = shifted_input;
     }
 
-    static void set_bias_arg(const onnx_parser::node_info& info,
+    static instruction_ref set_bias_arg(const onnx_parser::node_info& info,
                              const std::vector<instruction_ref>& args,
                              const int index,
-                             const instruction_ref& input,
-                             instruction_ref& bias_arg)
+                             const instruction_ref& input)
     {
         if(args.size() > index)
         {
-            bias_arg = args[index];
+            instruction_ref bias_arg = args[index];
             if(bias_arg->get_shape().type() != input->get_shape().type())
             {
                 MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
             }
 
-            bias_arg = info.add_common_op("sub", input, bias_arg);
+            return info.add_common_op("sub", input, bias_arg);
         }
+        return input;
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -183,15 +183,12 @@ struct parse_matmul : op_parser<parse_matmul>
         {
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
-            instruction_ref ba0 = a0;
-            instruction_ref ba1 = a1;
+            instruction_ref ba0 = set_bias_arg(info, args, 2, a0);
+            instruction_ref ba1 = set_bias_arg(info, args, 3, a1);
 
             // try broadcasting if dimensions other than last two do not match
             if(is_quant_dot)
             {
-                set_bias_arg(info, args, 2, a0, ba0);
-                set_bias_arg(info, args, 3, a1, ba1);
-
                 add_int8_shift(info, ba0, ba1);
                 broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
 

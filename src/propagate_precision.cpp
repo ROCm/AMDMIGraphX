@@ -38,6 +38,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#endif
 // Class wrappper so we can compare precision using comparison operators
 struct precision
 {
@@ -78,6 +82,9 @@ struct precision
         return (xp > yp) or (xp == yp);
     }
 };
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 } // namespace
 
 static bool is_pointwise_or_reduce(instruction_ref ins)

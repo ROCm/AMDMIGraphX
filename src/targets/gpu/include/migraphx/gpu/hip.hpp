@@ -104,10 +104,7 @@ struct hip_fill
         gpu_fill(ctx, args.front(), value);
         return args.front();
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const
-    {
-        return 0;
-    }
+    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
 };
 
 struct hip_sync_stream

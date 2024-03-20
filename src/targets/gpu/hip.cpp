@@ -250,7 +250,7 @@ void gpu_sync(const context& ctx) { ctx.finish(); }
 void hip_async_memset(context& ctx, const argument& dst, int value)
 {
     std::size_t dst_size = dst.get_shape().bytes();
-    auto status = hipMemsetAsync(dst.data(), value, dst_size, ctx.get_stream().get());
+    auto status          = hipMemsetAsync(dst.data(), value, dst_size, ctx.get_stream().get());
     if(status != hipSuccess)
         MIGRAPHX_THROW("Gpu fill failed: " + hip_error(status));
 }

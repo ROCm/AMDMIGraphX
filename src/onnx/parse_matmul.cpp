@@ -169,7 +169,7 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto ba0_type                               = ba0->get_shape().type();
             const auto ba1_type                               = ba1->get_shape().type();
 
-            if(not is_quant_dot && args.size() > 2)
+            if(not is_quant_dot and args.size() > 2)
             {
                 MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }

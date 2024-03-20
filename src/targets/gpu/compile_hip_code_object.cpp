@@ -190,7 +190,16 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
         generate_args_hpp(options.virtual_inputs.empty() ? options.inputs : options.virtual_inputs);
     srcs.emplace_back("args.hpp", args_hpp);
 
-    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+    bool is_uniform_wg = options.global % options.local == 0;
+
+    if(!is_uniform_wg and options.reverse_workgroups)
+    {
+        options.global = options.local * (options.global / options.local + 1);
+        is_uniform_wg = options.global % options.local == 0;
+        assert(is_uniform_wg);
+    }
+
+    if(!is_uniform_wg and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
     else
         assert(options.global % options.local == 0);

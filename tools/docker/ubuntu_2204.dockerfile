@@ -87,13 +87,8 @@ RUN test -f /usr/local/hash || exit 1
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-ADD docs/.sphinx/requirements.txt /doc-requirements.txt
+ADD docs/sphinx/requirements.txt /doc-requirements.txt
 RUN pip3 install -r /doc-requirements.txt
-
-# Download real models to run onnx unit tests
-ENV ONNX_HOME=/.onnx
-COPY ./tools/download_models.sh /
-RUN /download_models.sh && rm /download_models.sh
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

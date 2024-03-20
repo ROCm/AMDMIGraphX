@@ -1,4 +1,4 @@
-FROM registry.suse.com/suse/sle15:15.4
+FROM registry.suse.com/suse/sle15:15.4.27.14.128
 
 RUN sh -c 'echo -e "\
 [rocm]\n\
@@ -39,7 +39,7 @@ ENV LANG=C.UTF-8
 RUN pip3 install yapf==0.28.0
 
 # Install doc requirements
-# ADD docs/.sphinx/requirements.txt /doc-requirements.txt
+# ADD docs/sphinx/requirements.txt /doc-requirements.txt
 # RUN pip3 install -r /doc-requirements.txt
 
 # Install dependencies

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,8 @@
     m(int32_type, int32_t) \
     m(int64_type, int64_t) \
     m(uint32_type, uint32_t) \
-    m(uint64_type, uint64_t)
+    m(uint64_type, uint64_t) \
+    m(fp8e4m3fnuz_type, migraphx::fp8::fp8e4m3fnuz)
 // clang-format on
 
 #ifdef __cplusplus
@@ -70,7 +71,9 @@ typedef enum
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
-<% generate_c_header() %>
+<%
+    generate_c_header()
+%>
 
 #ifdef __cplusplus
 }

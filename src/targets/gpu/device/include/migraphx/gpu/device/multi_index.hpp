@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -94,6 +94,7 @@ inline auto mi_nglobal(const hip_shape<N>& s, index_int nlocal)
     //
     // assert(std::any_of(nglobal_multi.begin(), nglobal_multi.end(), [](auto x){return x>0;}));
 
+    // cppcheck-suppress migraphx-RedundantLocalVariable
     return nglobal_multi;
 }
 
@@ -109,6 +110,7 @@ inline auto mi_nlocal(const hip_shape<N>& s, index_int local)
     //
     // assert(std::any_of(nlocal_multi.begin(), nlocal_multi.end(), [](auto x){return x>0;}));
 
+    // cppcheck-suppress migraphx-RedundantLocalVariable
     return nlocal_multi;
 }
 

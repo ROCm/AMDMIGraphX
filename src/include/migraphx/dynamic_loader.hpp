@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,15 +38,12 @@ struct dynamic_loader_impl;
 
 struct MIGRAPHX_EXPORT dynamic_loader
 {
-#ifndef _WIN32
     template <class T>
     static fs::path path(T* address)
     {
         return path(reinterpret_cast<void*>(address));
     }
     static fs::path path(void* address);
-#endif
-
     static optional<dynamic_loader> try_load(const fs::path& p);
 
     dynamic_loader() = default;

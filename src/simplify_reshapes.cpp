@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -103,8 +103,6 @@ struct find_reshaper
         auto input = mr.instructions["x"];
         auto dims  = ins->get_shape().lens();
 
-        if(not input->get_shape().standard())
-            input = m.insert_instruction(ins, make_op("contiguous"), input);
         m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
     }
 };
@@ -172,23 +170,6 @@ struct find_transpose
             m.replace_instruction(
                 ins, make_op("transpose", {{"permutation", dims}}), t->inputs().front());
         }
-    }
-};
-
-struct find_nested_convert
-{
-    auto matcher() const { return match::name("convert")(match::arg(0)(match::name("convert"))); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins   = mr.result;
-        auto x     = ins->inputs().front();
-        auto input = x->inputs().front();
-
-        if(ins->get_shape() != input->get_shape())
-            return;
-
-        m.replace_instruction(ins, input);
     }
 };
 
@@ -324,7 +305,7 @@ struct find_concat_transpose
         }
 
         // axis could be a negative value
-        int64_t n_dim = static_cast<int64_t>(s.lens().size());
+        int64_t n_dim = s.lens().size();
         op.axis       = tune_axis(n_dim, op.axis, op.name());
 
         auto ipermutation = invert_permutation(permutation);
@@ -475,9 +456,8 @@ struct find_resize
             ins_rsp, migraphx::make_op("reshape", {{"dims", in_dims}}), in_rsp);
         auto mb_rsp = m.insert_instruction(
             ins_rsp, migraphx::make_op("multibroadcast", {{"out_lens", out_dims}}), rsp_data);
-        auto std_mb = m.insert_instruction(ins, migraphx::make_op("contiguous"), mb_rsp);
         std::vector<int64_t> rsp_dims(out_lens.begin(), out_lens.end());
-        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), std_mb);
+        m.replace_instruction(ins, migraphx::make_op("reshape", {{"dims", rsp_dims}}), mb_rsp);
     }
 };
 
@@ -626,9 +606,8 @@ struct find_transpose_contiguous_reshaper_unary
         auto cont_ins      = r.instructions["cont_ins"];
         auto unary_op_name = ins->get_operator().name();
         auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
-        auto new_cont_ins  = m.insert_instruction(cont_ins, make_op("contiguous"), unary_ins);
         // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), new_cont_ins);
+        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
     }
 };
 
@@ -647,8 +626,8 @@ struct find_broadcast_transpose
     {
         auto transpose      = r.result;
         auto transpose_lens = transpose->get_shape().lens();
-        auto bcast_ins = r.instructions["bcast_ins"];
-        auto input     = bcast_ins->inputs().front();
+        auto bcast_ins      = r.instructions["bcast_ins"];
+        auto input          = bcast_ins->inputs().front();
         // scalar transformation does not need extra transpose
         if(not input->get_shape().scalar())
         {
@@ -840,7 +819,6 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
-                            find_nested_convert{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},

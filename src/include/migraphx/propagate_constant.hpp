@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <string>
 #include <migraphx/config.hpp>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,6 +38,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT propagate_constant
 {
+    std::unordered_set<std::string> skip_ops = {};
     std::string name() const { return "propagate_constant"; }
     void apply(module& m) const;
 };

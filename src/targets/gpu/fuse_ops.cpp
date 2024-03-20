@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -782,7 +782,11 @@ struct find_contiguous_pointwise
         auto args   = pw->inputs();
         args.back() = alloc;
 
-        m.replace_instruction(ins, pw->get_operator(), args, pw->module_inputs());
+        // Ensure the output shape of the pointwise module is contiguous
+        auto pw_op_val            = pw->get_operator().to_value();
+        pw_op_val["output_shape"] = to_value(ins->get_shape());
+
+        m.replace_instruction(ins, make_op(pw->name(), pw_op_val), args, pw->module_inputs());
     }
 };
 
@@ -851,9 +855,9 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
+                        find_gemm_pointwise{},
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
-                        find_gemm_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
     match::find_matches(m, find_contiguous{});

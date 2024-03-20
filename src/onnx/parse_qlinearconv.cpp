@@ -230,9 +230,7 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         if(args.size() > 8)
             conv_x_w = add_bias_to_conv(args[8], conv_x_w, info);
 
-        auto quant_conv =
-            bcast_qdq_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
-        return quant_conv;
+        return bcast_qdq_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
     }
 };
 

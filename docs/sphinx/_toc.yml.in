@@ -1,0 +1,31 @@
+# Anywhere {branch} is used, the branch name will be substituted.
+# These comments will also be removed.
+root: index
+subtrees:
+  - entries:
+      - file: what-is-migraphx
+      - file: migraphx-driver
+        subtrees:
+          - entries:
+            - file: reference/driver-options
+      - file: dev/contributing-to-migraphx
+        subtrees:
+          - entries:
+            - file: dev/data
+            - file: dev/operators
+            - file: dev/program
+            - file: dev/targets
+            - file: dev/quantization
+            - file: dev/pass
+            - file: dev/matchers
+            - file: dev/tools
+            - file: dev/env_vars
+            
+  - caption: API Reference
+    entries:
+    - file: reference/cpp
+    - file: reference/py
+
+  - caption: About
+    entries:
+    - file: license

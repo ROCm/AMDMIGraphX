@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ struct compile_miopen
     context* ctx = nullptr;
     std::string name() const { return "gpu::compile_miopen"; }
     void apply(module& m) const;
-    std::size_t compile(operation& op, instruction_ref ins, bool format) const;
+    std::size_t compile(operation& op, instruction_ref ins) const;
 };
 
 } // namespace gpu

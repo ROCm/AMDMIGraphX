@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,8 +72,8 @@ struct dequantizelinear
         visit_all(x, x_zero_point)([&](auto input, auto zero_pts) {
             visit_all(result, x_scale)([&](auto output, auto scales) {
                 par_for(output_shape.elements(), [&](auto i) {
-                    output[i] = static_cast<double>(static_cast<int64_t>(input[i]) -
-                                                    static_cast<int64_t>(zero_pts[i])) *
+                    output[i] = static_cast<double>(static_cast<double>(input[i]) -
+                                                    static_cast<double>(zero_pts[i])) *
                                 scales[i];
                 });
             });

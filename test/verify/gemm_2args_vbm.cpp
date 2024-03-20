@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct gemm_2args_vbm : verify_program<gemm_2args_vbm>
+template <migraphx::shape::type_t DType>
+struct gemm_2args_vbm : verify_program<gemm_2args_vbm<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{migraphx::shape::float_type, {5}};
-        migraphx::shape m2_shape{migraphx::shape::float_type, {2, 2, 5, 4}};
+        migraphx::shape m1_shape{DType, {5}};
+        migraphx::shape m2_shape{DType, {2, 2, 5, 4}};
         auto l1   = mm->add_parameter("1", m1_shape);
         auto ul1  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), l1);
         auto bul1 = mm->add_instruction(
@@ -48,3 +49,7 @@ struct gemm_2args_vbm : verify_program<gemm_2args_vbm>
         return p;
     }
 };
+
+template struct gemm_2args_vbm<migraphx::shape::float_type>;
+template struct gemm_2args_vbm<migraphx::shape::half_type>;
+template struct gemm_2args_vbm<migraphx::shape::fp8e4m3fnuz_type>;

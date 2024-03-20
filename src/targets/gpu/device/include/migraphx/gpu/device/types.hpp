@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -146,20 +146,20 @@ __device__ __host__ T to_hip_type(T x)
 // Hip doens't support __fp16
 inline __device__ __host__ float to_hip_type(gpu_half x) { return x; }
 
-#define MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
-    template <class X>                             \
-    struct trait : std::trait<X>                   \
-    {                                              \
-    };                                             \
-                                                   \
-    template <>                                    \
-    struct trait<T> : std::true_type               \
-    {                                              \
+#define MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(trait, T) \
+    template <class X>                                    \
+    struct trait : std::trait<X>                          \
+    {                                                     \
+    };                                                    \
+                                                          \
+    template <>                                           \
+    struct trait<T> : std::true_type                      \
+    {                                                     \
     };
 
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
-MIGRAPHX_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
+MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_floating_point, __fp16)
+MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_signed, __fp16)
+MIGRAPHX_DEVICE_DETAIL_EXTEND_TRAIT_FOR(is_arithmetic, __fp16)
 
 } // namespace device
 } // namespace gpu

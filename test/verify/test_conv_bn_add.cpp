@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,22 +29,27 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 
-struct test_conv_bn_add : verify_program<test_conv_bn_add>
+template <migraphx::shape::type_t DType>
+struct test_conv_bn_add : verify_program<test_conv_bn_add<DType>>
 {
     static migraphx::instruction_ref add_bn(migraphx::module& m, migraphx::instruction_ref x)
     {
         auto bn_lens = x->get_shape().lens();
         auto c_len   = bn_lens.at(1);
 
-        migraphx::shape vars{migraphx::shape::float_type, {c_len}};
+        migraphx::shape vars{DType, {c_len}};
         auto scale    = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 1 + c_len)));
         auto bias     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 2 + c_len)));
         auto mean     = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 3 + c_len)));
         auto variance = m.add_literal(migraphx::abs(migraphx::generate_literal(vars, 4 + c_len)));
 
-        auto rt  = m.add_literal(migraphx::literal{migraphx::shape::float_type, {0.5}});
-        auto eps = m.add_literal(migraphx::literal{migraphx::shape::float_type, {1e-5f}});
-
+        auto rt  = m.add_literal(migraphx::literal{DType, {0.5}});
+        auto eps = m.add_literal(migraphx::literal{DType, {1e-5f}});
+        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        {
+            // use 0.250 for fp8
+            eps = m.add_literal(migraphx::literal{DType, {0.250}});
+        }
         auto usq_scale =
             m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
         auto usq_bias = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), bias);
@@ -66,12 +71,12 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add>
         auto* mm              = p.get_main_module();
         std::size_t ichannels = 64;
         std::size_t ochannels = 256;
-        auto x     = mm->add_parameter("x", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
-        auto w     = mm->add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 1));
-        auto y     = mm->add_parameter("y", {migraphx::shape::float_type, {1, ichannels, 56, 56}});
-        auto v     = mm->add_literal(migraphx::generate_literal(
-            {migraphx::shape::float_type, {ochannels, ichannels, 1, 1}}, 2));
+        auto x                = mm->add_parameter("x", {DType, {1, ichannels, 56, 56}});
+        auto w =
+            mm->add_literal(migraphx::generate_literal({DType, {ochannels, ichannels, 1, 1}}, 1));
+        auto y = mm->add_parameter("y", {DType, {1, ichannels, 56, 56}});
+        auto v =
+            mm->add_literal(migraphx::generate_literal({DType, {ochannels, ichannels, 1, 1}}, 2));
         auto relu1 = mm->add_instruction(migraphx::make_op("relu"), x);
         auto conv1 = mm->add_instruction(migraphx::make_op("convolution"), relu1, w);
         auto bn1   = add_bn(*mm, conv1);
@@ -83,3 +88,6 @@ struct test_conv_bn_add : verify_program<test_conv_bn_add>
         return p;
     }
 };
+
+template struct test_conv_bn_add<migraphx::shape::float_type>;
+template struct test_conv_bn_add<migraphx::shape::fp8e4m3fnuz_type>;

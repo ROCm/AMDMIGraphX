@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@
 #define MIGRAPHX_MIOPEN_ASSERT(x) (assert((x) == miopenStatusSuccess))
 #define MIGRAPHX_HIP_ASSERT(x) (assert((x) == hipSuccess))
 
-inline miopenTensorDescriptor_t make_miopen_tensor(const migraphx::shape& s, bool pack = false)
+inline miopenTensorDescriptor_t make_miopen_tensor(const migraphx::shape& s)
 {
     miopenTensorDescriptor_t t;
     MIGRAPHX_MIOPEN_ASSERT(miopenCreateTensorDescriptor(&t));
@@ -49,23 +49,9 @@ inline miopenTensorDescriptor_t make_miopen_tensor(const migraphx::shape& s, boo
     else if(s.type() == migraphx_shape_int32_type)
         d = miopenInt32;
     else if(s.type() == migraphx_shape_int8_type)
-    {
-        if(pack)
-        {
-            // update the lens and corresponding strides
-            d          = miopenInt8x4;
-            lens[1]    = ((lens[1] + 3) / 4) * 4;
-            strides[0] = strides[1] * lens[1];
-        }
-        else
-        {
-            d = miopenInt8;
-        }
-    }
+        d = miopenInt8;
     else
-    {
         throw("MAKE_TENSOR: unsupported type");
-    }
     miopenSetTensorDescriptor(t, d, s_lens.size(), lens.data(), strides.data());
     return t;
 }

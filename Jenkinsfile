@@ -3,6 +3,12 @@ def getgputargets() {
     return targets
 }
 
+def getnavi3xtargets() {
+    targets="gfx1100;gfx1101;gfx1102"
+    return targets
+}
+
+// Test
 // def rocmtestnode(variant, name, body, args, pre) {
 def rocmtestnode(Map conf) {
     def variant = conf.get("variant")
@@ -11,7 +17,7 @@ def rocmtestnode(Map conf) {
     def docker_args = conf.get("docker_args", "")
     def docker_build_args = conf.get("docker_build_args", "")
     def pre = conf.get("pre", {})
-    def ccache = "/var/jenkins/.cache/ccache"
+    def ccache = "/home/jenkins/workspace/.cache/ccache"
     def image = 'migraphxlib'
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
@@ -22,6 +28,8 @@ def rocmtestnode(Map conf) {
         def cmd = """
             ulimit -c unlimited
             echo "leak:dnnl::impl::malloc" > suppressions.txt
+            echo "leak:libtbb.so" >> suppressions.txt
+            cat suppressions.txt
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
@@ -30,7 +38,7 @@ def rocmtestnode(Map conf) {
             rm -rf build
             mkdir build
             cd build
-            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT ${flags} ..
+            cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
             git diff
             git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
             make -j\$(nproc) generate VERBOSE=1
@@ -61,7 +69,7 @@ def rocmtestnode(Map conf) {
 
                     }
                 }
-                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/var/jenkins/:/var/jenkins ${docker_args}") {
+                withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins:/home/jenkins ${docker_args}") {
                     timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }
@@ -95,6 +103,8 @@ def rocmnodename(name) {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
+    } else if(name == "navi32") {
+        node_name = "${rocmtest_name} && gfx1101 && !vm";
     } else if(name == "nogpu") {
         node_name = "${rocmtest_name} && nogpu";
     }
@@ -134,12 +144,14 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, mlir_debug: rocmnode('mi100+') { cmake_build ->
     stage('MLIR Debug') {
-        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1']) {
+        withEnv(['MIGRAPHX_ENABLE_EXTRA_MLIR=1', 'MIGRAPHX_MLIR_USE_SPECIFIC_OPS=fused,attention,convolution,dot']) {
             def sanitizers = "undefined"
             // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
             def debug_flags_cxx = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
+            // Since the purpose of this run verify all things MLIR supports,
+            // enabling all possible types of offloads
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }
@@ -157,11 +169,14 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }
-}//, clang_release_navi: rocmnode('navi21') { cmake_build ->
-//    stage('HIP Clang Release Navi') {
-//        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release")
-//    }
-//}
+}, clang_release_navi: rocmnode('navi32') { cmake_build ->
+    stage('HIP Clang Release Navi32') {
+        def gpu_targets = getnavi3xtargets()
+        cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${gpu_targets}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
+    }
+}
+
+
 
 def onnxnode(name, body) {
     return { label ->

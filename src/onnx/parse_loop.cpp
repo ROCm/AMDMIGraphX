@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +56,16 @@ struct parse_loop : op_parser<parse_loop>
             {
                 max_iterations = arg_iters.at<int64_t>();
             }
+        }
+
+        // cap max_iter because loop uses static shapes with max_iter size and huge numbers
+        // here can cause overflow
+        if(max_iterations > parser.limit_max_iterations)
+        {
+            std::cerr << "WARNING: PARSE_LOOP max_iterations exceeds the maximum loop "
+                         "iterations limit, it will be changed from "
+                      << max_iterations << " to " << parser.limit_max_iterations << ".\n";
+            max_iterations = parser.limit_max_iterations;
         }
 
         // condition input is empty

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ void apply_quantizelinear(module& m, instruction_ref ins)
             ins, make_op("convert", {{"target_type", y_scale->get_shape().type()}}), x);
     }
     auto div            = m.insert_instruction(ins, make_op("div"), x, y_scale);
-    auto add_zero_point = m.insert_instruction(ins, make_op("round"), div);
+    auto add_zero_point = m.insert_instruction(ins, make_op("nearbyint"), div);
 
     if(ins->inputs().size() == 3)
     {
@@ -58,8 +58,8 @@ void apply_quantizelinear(module& m, instruction_ref ins)
         add_zero_point = m.insert_instruction(ins, make_op("add"), add_zero_point, zero_point);
     }
 
-    int64_t max_quant = 0;
-    int64_t min_quant = 0;
+    double max_quant = 0;
+    double min_quant = 0;
     ins->get_shape().visit_type([&](auto qt) {
         max_quant = qt.max();
         min_quant = qt.min();
@@ -70,8 +70,8 @@ void apply_quantizelinear(module& m, instruction_ref ins)
 
     if(enabled(MIGRAPHX_ENABLE_CK_WORKAROUNDS{}))
     {
-        std::vector<int> min_data(s.elements(), min_quant);
-        std::vector<int> max_data(s.elements(), max_quant);
+        std::vector<double> min_data(s.elements(), min_quant);
+        std::vector<double> max_data(s.elements(), max_quant);
         min_arg = m.add_literal(literal(s, min_data));
         max_arg = m.add_literal(literal(s, max_data));
     }

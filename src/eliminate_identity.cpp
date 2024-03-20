@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,7 +54,7 @@ void eliminate_identity::apply(module& m) const
                 const instruction_ref& identity_input = ins->inputs().front();
                 if(identity_input->outputs().size() == 1)
                 {
-                    m.move_instruction(identity_input, i);
+                    m.move_instruction(identity_input, last);
                     // since this is the last instruction, removing it only
                     // requires changing "last" and calling remove below
                     last = std::prev(last);

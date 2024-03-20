@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -507,10 +507,8 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        if(not ins->get_shape().any_of_dynamic())
-        {
-            assert(results.at(ins).get_shape() == ins->get_shape());
-        }
+        assert(ins->get_shape().any_of_dynamic() or
+               results.at(ins).get_shape() == ins->get_shape());
     }
     return {results.at(std::prev(mod->end()))};
 }
@@ -1062,6 +1060,13 @@ module* program::create_module(const std::string& name)
 {
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
+    return &(r.first->second);
+}
+module* program::create_module(const std::string& name, module m)
+{
+    assert(not contains(impl->modules, name));
+    m.set_name(name);
+    auto r = impl->modules.emplace(name, std::move(m));
     return &(r.first->second);
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -195,6 +195,31 @@ TEST_CASE(set_loop_default_iter_num)
     std::vector<std::size_t> out_lens0 = {1};
     EXPECT(out_shapes[0].lengths() == out_lens0);
     std::vector<std::size_t> out_lens1 = {15, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_loop_limit_iterations)
+{
+    migraphx::onnx_options option;
+    option.set_default_loop_iterations(15);
+    option.set_limit_loop_iterations(10);
+    auto p                             = migraphx::parse_onnx("loop_default_test.onnx", option);
+    auto out_shapes                    = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
+    EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_loop_limit_iterations2)
+{
+    migraphx::onnx_options option;
+    option.set_limit_loop_iterations(10);
+    auto p          = migraphx::parse_onnx("loop_test_implicit_tripcnt.onnx", option);
+    auto out_shapes = p.get_output_shapes();
+    std::vector<std::size_t> out_lens0 = {1};
+    EXPECT(out_shapes[0].lengths() == out_lens0);
+    std::vector<std::size_t> out_lens1 = {10, 1};
     EXPECT(out_shapes[1].lengths() == out_lens1);
 }
 

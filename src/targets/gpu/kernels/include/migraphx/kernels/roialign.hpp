@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@ struct avg_pool
     template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y)
     {
-        return (y == 0) ? 0.0 : (x / y);
+        return (y == 0) ? T{0.0} : T{x / y};
     }
 };
 
@@ -76,7 +76,7 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
     {
         if(xy[ii] < -1.0f or xy[ii] > dims[ii])
         {
-            return 0;
+            return implicit_conversion(0);
         }
 
         xy[ii]   = migraphx::max(xy[ii], 0.0f);
@@ -92,15 +92,16 @@ MIGRAPHX_DEVICE_CONSTEXPR typename Iterator::value_type bilinear_interpolate(
                                 high[0] * dims[1] + low[1],
                                 high[0] * dims[1] + high[1]};
 
-    float ly                                   = xy[0] - low[0];
-    float lx                                   = xy[1] - low[1];
-    float hy                                   = 1.0f - ly;
-    float hx                                   = 1.0f - lx;
-    array<typename Iterator::value_type, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
+    float ly = xy[0] - low[0];
+    float lx = xy[1] - low[1];
+    float hy = 1.0f - ly;
+    float hx = 1.0f - lx;
+    // do calculations in floating point and convert final result to required type
+    array<float, 4> ws = {hy * hx, hy * lx, ly * hx, ly * lx};
 
     auto v01 = pooling(data[locs[0]] * ws[0], data[locs[1]] * ws[1]);
     auto v23 = pooling(data[locs[2]] * ws[2], data[locs[3]] * ws[3]);
-    return pooling(v01, v23);
+    return implicit_conversion(pooling(v01, v23));
 }
 
 template <class Iterator, class Op>
@@ -113,8 +114,9 @@ MIGRAPHX_DEVICE_CONSTEXPR auto calc_pooling(const Iterator& data,
                                             float roi_offset,
                                             Op op)
 {
-    typename Iterator::value_type output_val = op.init();
-    const int64_t count                      = bin_grid_size[0] * bin_grid_size[1];
+    using in_dtype      = typename Iterator::value_type;
+    in_dtype output_val = in_dtype{op.init()};
+    const int64_t count = bin_grid_size[0] * bin_grid_size[1];
     dfor(bin_grid_size[0], bin_grid_size[1])([&](auto iy, auto ix) {
         array<index_int, 2> id = {iy, ix};
         array<float, 2> locs =
@@ -148,7 +150,6 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
     const auto x    = x_t.begin();
     const auto rois = rois_t.begin();
     const auto ind  = ind_t.begin();
-
     // input shape
     auto x_lens      = x_t.get_shape().lens;
     auto channel_num = x_lens[1];
@@ -176,10 +177,12 @@ __device__ void roialign(const T& x_t, const U& rois_t, const V& ind_t, W& y_t, 
         const auto offset_rois = rois + (n * roi_column_num);
         const int batch_ind    = ind[n];
 
-        array<float, 2> roi_starts = {offset_rois[1] * s.spatial_scale,
-                                      offset_rois[0] * s.spatial_scale};
-        array<float, 2> roi_ends   = {offset_rois[3] * s.spatial_scale,
-                                    offset_rois[2] * s.spatial_scale};
+        array<float, 2> roi_starts = {
+            static_cast<float>(offset_rois[1]) * static_cast<float>(s.spatial_scale),
+            static_cast<float>(offset_rois[0]) * static_cast<float>(s.spatial_scale)};
+        array<float, 2> roi_ends = {
+            static_cast<float>(offset_rois[3]) * static_cast<float>(s.spatial_scale),
+            static_cast<float>(offset_rois[2]) * static_cast<float>(s.spatial_scale)};
 
         array<float, 2> roi_size{};
         array<float, 2> bin_size{};

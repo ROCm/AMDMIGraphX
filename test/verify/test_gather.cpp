@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,14 +27,14 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <int Axis>
-struct test_gather : verify_program<test_gather<Axis>>
+template <int Axis, migraphx::shape::type_t DType>
+struct test_gather : verify_program<test_gather<Axis, DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+        migraphx::shape s{DType, {3, 3}};
         migraphx::shape s_indices{migraphx::shape::int32_type, {2, 2}};
         std::vector<int> indices{1, 2, 2, 1};
         auto a0  = mm->add_parameter("data", s);
@@ -46,6 +46,10 @@ struct test_gather : verify_program<test_gather<Axis>>
 };
 
 // Standard gather test
-template struct test_gather<0>;
+template struct test_gather<0, migraphx::shape::float_type>;
+template struct test_gather<0, migraphx::shape::half_type>;
+template struct test_gather<0, migraphx::shape::fp8e4m3fnuz_type>;
 // Test Negative axis
-template struct test_gather<-2>;
+template struct test_gather<-2, migraphx::shape::float_type>;
+template struct test_gather<-2, migraphx::shape::half_type>;
+template struct test_gather<-2, migraphx::shape::fp8e4m3fnuz_type>;

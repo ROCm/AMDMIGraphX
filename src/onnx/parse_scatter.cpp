@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,23 +41,24 @@ struct parse_scatter : op_parser<parse_scatter>
     {
         operation op;
 
-        std::string op_name = "scatter_none";
-        int axis            = 0;
+        std::string reduction = "none";
+        int axis              = 0;
 
         if(contains(info.attributes, "axis"))
             axis = info.attributes.at("axis").i();
+
         if(contains(info.attributes, "reduction"))
         {
-            std::string reduction_att(info.attributes.at("reduction").s());
+            reduction = info.attributes.at("reduction").s();
             // check for a valid reduction attribute.  We have an operator for each one.
-            if(not contains({"none", "add", "mul"}, reduction_att))
-                MIGRAPHX_THROW("PARSE_SCATTER: unsupported reduction mode " + reduction_att);
+            if(not contains({"none", "add", "mul", "min", "max"}, reduction))
+                MIGRAPHX_THROW("PARSE_SCATTER: unsupported reduction mode " + reduction);
             // merge scatter with reduction attribute to specify which scatter operation.  Future
             // reduction op names should follow this pattern and should also be added to the check
             // above.
-            op_name = std::string("scatter_") + reduction_att;
         }
-        op = migraphx::make_op(op_name, {{"axis", axis}});
+        op = migraphx::make_op("scatter_" + reduction, {{"axis", axis}});
+
         return info.add_instruction(op, args);
     }
 };

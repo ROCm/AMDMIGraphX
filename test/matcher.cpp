@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -824,6 +824,7 @@ TEST_CASE(match_bind_modules2)
     EXPECT(bool{r.result == pass});
 }
 
+// Note that mm.add_literal(1) makes a scalar int32 literal with value 1
 TEST_CASE(match_has_value1)
 {
     migraphx::module mm;
@@ -899,6 +900,110 @@ TEST_CASE(match_has_value6)
     mm.add_instruction(pass_op{}, sum2);
     auto m = match::name("sum")(match::args(match::has_value(2), match::has_value(1)));
     auto r = find_match(mm, m);
+    EXPECT(bool{r.result == mm.end()});
+}
+
+TEST_CASE(match_has_value7)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {0.00239754}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 0, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
+TEST_CASE(match_has_value8)
+{
+    // zero detection
+    migraphx::module mm;
+    auto s    = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto zero = mm.add_literal(migraphx::literal{s, {9.07183e-05}});
+    auto one  = mm.add_literal(migraphx::literal{s, {1.0}});
+    auto sum1 = mm.add_instruction(sum_op{}, one, zero);
+    mm.add_instruction(pass_op{}, sum1);
+    auto m1 = match::has_value(0.0f, 0, 0);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(0.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == zero});
+}
+
+TEST_CASE(match_has_value9)
+{
+    migraphx::module mm;
+    auto s      = migraphx::shape{migraphx::shape::half_type, {1}, {0}};
+    auto n_five = mm.add_literal(migraphx::literal{s, {-5.0}});
+    mm.add_instruction(pass_op{}, n_five);
+    auto m1 = match::has_value(5.0f);
+    auto r1 = find_match(mm, m1);
+    EXPECT(bool{r1.result == mm.end()});
+    // increase tolerance
+    auto m2 = match::has_value(-5.0f);
+    auto r2 = find_match(mm, m2);
+    EXPECT(bool{r2.result == n_five});
+    // do exact match
+    auto m3 = match::has_value(-5.0f, 0, 0);
+    auto r3 = find_match(mm, m3);
+    EXPECT(bool{r3.result == n_five});
+    // do exact match
+    auto m4 = match::has_value(5.0f, 0, 0);
+    auto r4 = find_match(mm, m4);
+    EXPECT(bool{r4.result == mm.end()});
+}
+TEST_CASE(match_has_value_eps1)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto m = match::has_value(7.f, 1, 0);
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == l0});
+}
+
+TEST_CASE(match_has_value_eps2)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto m = match::has_value(3.f, 10, 10);
+    auto r = find_match(mm, m);
+    EXPECT(bool{r.result == l1});
+}
+
+TEST_CASE(match_has_value_eps3)
+{
+    migraphx::module mm;
+    migraphx::shape s{migraphx::shape::float_type, {3}};
+    std::vector<float> data0{7.f, 7.f, 7.f};
+    auto l0 = mm.add_literal(migraphx::literal{s, data0});
+    std::vector<float> data1{3.f, 3.f, 3.f};
+    auto l1   = mm.add_literal(migraphx::literal{s, data1});
+    auto sum1 = mm.add_instruction(sum_op{}, l0, l1);
+    mm.add_return({sum1});
+    auto eps = std::numeric_limits<float>::epsilon();
+    auto m   = match::has_value(7.0 + 100 * eps, 10, 10);
+    auto r   = find_match(mm, m);
     EXPECT(bool{r.result == mm.end()});
 }
 

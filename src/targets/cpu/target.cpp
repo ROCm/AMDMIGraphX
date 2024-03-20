@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/eliminate_convert.hpp>
 #include <migraphx/layout_nhwc.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/propagate_constant.hpp>
@@ -73,6 +74,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             eliminate_data_type{unsupported_types, shape::type_t::float_type},
             dead_code_elimination{},
             simplify_reshapes{},
+            eliminate_convert{},
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},
@@ -82,11 +84,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
             dead_code_elimination{},
             simplify_algebra{},
             simplify_reshapes{},
+            eliminate_convert{},
             dead_code_elimination{},
             simplify_reshapes{},
+            eliminate_convert{},
+            dead_code_elimination{},
             simplify_algebra{},
             auto_contiguous{},
             simplify_reshapes{},
+            eliminate_convert{},
+            dead_code_elimination{},
             propagate_constant{},
             dead_code_elimination{},
             lowering{},

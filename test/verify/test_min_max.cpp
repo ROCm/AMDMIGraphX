@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,9 @@ struct test_min_max : verify_program<test_min_max<Op, T>>
 template struct test_min_max<migraphx::op::max, migraphx::shape::float_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::half_type>;
 template struct test_min_max<migraphx::op::max, migraphx::shape::double_type>;
+template struct test_min_max<migraphx::op::max, migraphx::shape::fp8e4m3fnuz_type>;
 
 template struct test_min_max<migraphx::op::min, migraphx::shape::float_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::half_type>;
 template struct test_min_max<migraphx::op::min, migraphx::shape::double_type>;
+template struct test_min_max<migraphx::op::min, migraphx::shape::fp8e4m3fnuz_type>;

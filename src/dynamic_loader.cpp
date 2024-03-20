@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -129,6 +129,30 @@ struct dynamic_loader_impl
     HMODULE handle = nullptr;
     tmp_dir temp;
 };
+
+fs::path dynamic_loader::path(void* address)
+{
+    HMODULE module = nullptr;
+    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         static_cast<LPCSTR>(address),
+                         &module) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to obtain module handle, error = " + std::to_string(err));
+    }
+    TCHAR buffer[MAX_PATH];
+    if(GetModuleFileName(module, buffer, sizeof(buffer)) == 0)
+    {
+        auto err = GetLastError();
+        MIGRAPHX_THROW("Unable to read module file path, error = " + std::to_string(err));
+    }
+    if(GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
+        MIGRAPHX_THROW("Buffer too small (" + std::to_string(MAX_PATH) + ") to hold the path");
+    }
+    return {buffer};
+}
 
 #endif
 

@@ -6,4 +6,4 @@
 !*.ini
 !/tools/*.sh
 !/test/onnx/.onnxrt-commit
-!/docs/.sphinx/*.txt
+!/docs/sphinx/*.txt

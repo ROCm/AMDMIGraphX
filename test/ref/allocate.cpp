@@ -30,7 +30,7 @@
 
 #include <test.hpp>
 
-TEST_CASE(allocate_dyn)
+TEST_CASE(allocate_dyn0)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -46,4 +46,22 @@ TEST_CASE(allocate_dyn)
     auto result               = p.eval(params).back();
     migraphx::shape sresult{migraphx::shape::float_type, {2, 3, 4, 4}};
     result.visit([&](auto output) { EXPECT(output.get_shape() == sresult); });
+}
+
+TEST_CASE(allocate_dyn1)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::int64_type, {4}};
+    migraphx::shape out_shape{migraphx::shape::float_type, {2, 3, 4, 4}};
+    auto out_dims = mm->add_parameter("out_dims", s);
+    mm->add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_shape)}}),
+                        out_dims);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int64_t> data = {2, 3, 4, 4};
+    params["out_dims"]        = migraphx::argument(s, data.data());
+    auto result               = p.eval(params).back();
+    result.visit([&](auto output) { EXPECT(output.get_shape() == out_shape); });
 }

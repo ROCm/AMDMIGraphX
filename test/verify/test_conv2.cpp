@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,16 +27,15 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-struct test_conv2 : verify_program<test_conv2>
+template <migraphx::shape::type_t DType>
+struct test_conv2 : verify_program<test_conv2<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 512, 28, 28}});
-        auto weights =
-            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {256, 512, 1, 1}});
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 512, 28, 28}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {256, 512, 1, 1}});
         mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
@@ -45,3 +44,5 @@ struct test_conv2 : verify_program<test_conv2>
         return p;
     }
 };
+template struct test_conv2<migraphx::shape::float_type>;
+template struct test_conv2<migraphx::shape::fp8e4m3fnuz_type>;

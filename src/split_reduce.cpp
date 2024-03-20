@@ -116,6 +116,13 @@ insert_module_inline(module& m, instruction_ref ins, const module::with_inputs& 
     return m.insert_instructions(ins, &mwi.mod, &param_map);
 }
 
+static std::size_t get_reduce_size(module_ref rm)
+{
+    auto ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
+    assert(ins != rm->end());
+    return ins->inputs().front()->get_shape().elements() / ins->get_shape().elements();
+}
+
 void split_reduce::apply(module_pass_manager& mpm) const
 {
     for(auto ins : iterator_for(mpm.get_module()))
@@ -123,6 +130,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
         if(ins->name() != "fused_reduce")
             continue;
         auto* rm    = ins->module_inputs().front();
+        if(get_reduce_size(rm) < split_size)
+            continue;
         auto splits = find_split(rm);
         if(splits.empty())
             continue;
@@ -133,7 +142,6 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
-        // TODO: Check reduction size
 
         auto alive = get_alive(rm, splits);
 

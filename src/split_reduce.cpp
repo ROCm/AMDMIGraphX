@@ -51,7 +51,7 @@ struct split_fused_reduce
         return pack(f(self.axes, "axes"), f(self.assign, "assign"));
     }
 
-    value attributes() const { return {{"zero_init", true}}; }
+    value attributes() const { return {{"prefill", 0}}; }
 
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
@@ -97,6 +97,9 @@ static std::vector<instruction_ref> find_split(const_module_ref rm)
         return result;
     // Bail if there is more than one reduce for now
     if(std::any_of(std::next(reduce_ins), rm->end(), &is_reduce))
+        return result;
+    // Only handle reduce_sum for now
+    if(reduce_ins->name() != "reduce_sum")
         return result;
     result.push_back(reduce_ins);
     // TODO: Find instructions that are used again in the module

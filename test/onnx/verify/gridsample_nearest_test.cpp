@@ -46,12 +46,5 @@ TEST_CASE(gridsample_nearest_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {1.0, 0.0, 0.0, 4.0};
-
-    for(auto res : result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

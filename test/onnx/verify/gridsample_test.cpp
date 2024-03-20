@@ -59,19 +59,5 @@ TEST_CASE(gridsample_test)
                                3.8,  7.9,  8.7,  9.5,  10.3, 5.3,  5.4,  11.1, 11.9,
                                12.7, 13.5, 6.9,  3.,   6.15, 6.55, 6.95, 7.35, 3.75};
 
-    std::cout << "res: " << std::endl;
-    for(auto res : result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "gold: " << std::endl;
-    for(auto g : gold)
-    {
-        std::cout << g << ", ";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

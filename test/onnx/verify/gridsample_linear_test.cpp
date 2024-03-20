@@ -46,12 +46,5 @@ TEST_CASE(gridsample_linear_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<float> gold = {2.5, 1.75, 1.75, 4.0};
-
-    for(auto res : result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -72,32 +72,11 @@ struct parse_matmul : op_parser<parse_matmul>
         }
     }
 
-    static void
-    add_int8_shift(const onnx_parser::node_info& info, instruction_ref& ba0, instruction_ref& ba1)
+    // Convert to fp16 prior to a shift to ensure we preserve accuracy here then
+    // convert back to int8
+    static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
+                                          instruction_ref& unshifted_input)
     {
-        const auto ba0_type = ba0->get_shape().type();
-        const auto ba1_type = ba1->get_shape().type();
-
-        // determine if we need to add a shift to ensure items get shifted to the same int8
-        // type if we see uint8/int8 mismatches
-        if(ba0_type == ba1_type)
-            return;
-
-        instruction_ref unshifted_input;
-        instruction_ref* shifted_output = nullptr;
-        if(ba0_type == migraphx::shape::int8_type)
-        {
-            unshifted_input = ba1;
-            shifted_output  = &ba1;
-        }
-        if(ba1_type == migraphx::shape::int8_type)
-        {
-            unshifted_input = ba0;
-            shifted_output  = &ba0;
-        }
-
-        // Convert to fp16 prior to a shift to ensure we preserve accuracy here then
-        // convert back to int8
         auto int8_shift = info.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
 
@@ -107,11 +86,9 @@ struct parse_matmul : op_parser<parse_matmul>
 
         auto input_shifted_int16 = info.add_common_op("add", unshifted_input_int16, int8_shift);
 
-        auto shifted_input = info.add_instruction(
+        return info.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
             input_shifted_int16);
-
-        *shifted_output = shifted_input;
     }
 
     static instruction_ref set_bias_arg(const onnx_parser::node_info& info,
@@ -186,19 +163,37 @@ struct parse_matmul : op_parser<parse_matmul>
             instruction_ref ba0 = set_bias_arg(info, args, 2, a0);
             instruction_ref ba1 = set_bias_arg(info, args, 3, a1);
 
-            // try broadcasting if dimensions other than last two do not match
-            if(is_quant_dot)
-            {
-                add_int8_shift(info, ba0, ba1);
-                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+            // Only INT8 or UINT8 type currently supported
+            std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
+                                                                 migraphx::shape::int8_type};
+            const auto ba0_type                               = ba0->get_shape().type();
+            const auto ba1_type                               = ba1->get_shape().type();
 
-                dot_res = info.add_instruction(make_op("quant_dot"), ba0, ba1);
-            }
-            else
+            if(not is_quant_dot && args.size() > 2)
             {
-                broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
-                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }
+
+            if(is_quant_dot and
+               (not contains(supported_types, ba0_type) or not contains(supported_types, ba1_type)))
+            {
+                MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
+            }
+
+            auto is_same_type = (ba0_type == ba1_type);
+
+            if(is_quant_dot and not is_same_type and (ba0_type == migraphx::shape::uint8_type))
+            {
+                ba0 = add_int8_shift(info, ba0);
+            }
+
+            if(is_quant_dot and not is_same_type and (ba1_type == migraphx::shape::uint8_type))
+            {
+                ba1 = add_int8_shift(info, ba1);
+            }
+
+            broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
         }
 
         // squeeze the appended or prepended dimensions

@@ -451,8 +451,11 @@ module::insert_instructions(instruction_ref ins,
                             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
-        *this, ins, instructions, map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       instructions,
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -462,8 +465,11 @@ module::insert_instructions(instruction_ref ins,
                             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
-        *this, ins, iterator_for(*m), map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(*m),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
@@ -475,8 +481,11 @@ module::insert_instructions(instruction_ref ins,
 {
     auto r = range(start, last);
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    return insert_generic_instructions(
-        *this, ins, iterator_for(r), map_ins == nullptr ? default_map_ins : *map_ins, std::move(insert));
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(r),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }

@@ -159,7 +159,8 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     auto factors  = make_array(2, 3, 5, 7, 11);
     while(r > min_size)
     {
-        const auto* it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        const auto* it =
+            std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
         if(it == factors.end())
             break;
         r /= *it;

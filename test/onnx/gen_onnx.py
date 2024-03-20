@@ -10686,48 +10686,68 @@ def where_mixed_test():
     return ([node], [c, x, y], [z])
 
 
-@onnx_test()
-def scan_test():
-    sum_in = onnx.helper.make_tensor_value_info(
-        "sum_in", onnx.TensorProto.FLOAT, [2]
-    )
-    next = onnx.helper.make_tensor_value_info(
-        "next", onnx.TensorProto.FLOAT, [2]
-    )
-    sum_out = onnx.helper.make_tensor_value_info(
-        "sum_out", onnx.TensorProto.FLOAT, [2]
-    )
-    scan_out = onnx.helper.make_tensor_value_info(
-        "scan_out", onnx.TensorProto.FLOAT, [2]
-    )
-    add_node = onnx.helper.make_node(
-        "Add", inputs=["sum_in", "next"], outputs=["sum_out"]
-    )
-    id_node = onnx.helper.make_node(
-        "Identity", inputs=["sum_out"], outputs=["scan_out"]
-    )
-    scan_body = onnx.helper.make_graph(
-        [add_node, id_node], "scan_body", [sum_in, next], [sum_out, scan_out]
-    )
+def scan_test(scan_output_axes=[0, 0], scan_output_directions=[0, 0]):
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    next = helper.make_tensor_value_info("next", TensorProto.FLOAT, [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out1 = helper.make_tensor_value_info("scan_out1", TensorProto.FLOAT,
+                                              [2, 2])
+    scan_out2 = helper.make_tensor_value_info("scan_out2", TensorProto.FLOAT,
+                                              [2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "next"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity",
+                          inputs=["sum_out"],
+                          outputs=["scan_out1"])
+    reduce_sum = helper.make_node("ReduceSum",
+                                  axes=[0],
+                                  keepdims=0,
+                                  inputs=["sum_out"],
+                                  outputs=["scan_out2"])
+    scan_body = helper.make_graph([add, id, reduce_sum], "scan_body",
+                                  [sum_in, next],
+                                  [sum_out, scan_out1, scan_out2])
 
-    init_state = onnx.helper.make_tensor_value_info(
-        "init_state", onnx.TensorProto.FLOAT, [2]
-    )
-    scan_ins = onnx.helper.make_tensor_value_info(
-        "scan_ins", onnx.TensorProto.FLOAT, [3, 2]
-    )
-    final_state = onnx.helper.make_tensor_value_info(
-        "final_state", onnx.TensorProto.FLOAT, [2]
-    )
-    scan_outs = onnx.helper.make_tensor_value_info(
-        "scan_outs", onnx.TensorProto.FLOAT, [3, 2]
-    )
-    node = onnx.helper.make_node(
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
+                                             [3, 2, 2])
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs1_sh = [2, 2, 2]
+    scan_outs1_sh[scan_output_axes[0]] = 3
+    scan_outs1 = helper.make_tensor_value_info("scan_outs1", TensorProto.FLOAT,
+                                               scan_outs1_sh)
+    scan_outs2_sh = [2, 2]
+    scan_outs2_sh[scan_output_axes[1]] = 3
+    scan_outs2 = helper.make_tensor_value_info("scan_outs2", TensorProto.FLOAT,
+                                               scan_outs2_sh)
+    node = helper.make_node(
         "Scan",
         inputs=["init_state", "scan_ins"],
-        outputs=["final_state", "scan_outs"],
+        outputs=["final_state", "scan_outs1", "scan_outs2"],
         num_scan_inputs=1,
+        scan_output_axes=scan_output_axes,
+        scan_output_directions=scan_output_directions,
         body=scan_body,
     )
 
-    return ([node], [init_state, scan_ins], [final_state, scan_outs])
+    return ([node], [init_state,
+                     scan_ins], [final_state, scan_outs1, scan_outs2])
+
+
+@onnx_test()
+def scan_test1():
+    return scan_test()
+
+
+@onnx_test()
+def scan_test2():
+    return scan_test(scan_output_directions=[1, 0])
+
+
+@onnx_test()
+def scan_test3():
+    return scan_test(scan_output_axes=[1, -1], scan_output_directions=[0, 1])

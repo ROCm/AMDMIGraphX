@@ -111,8 +111,8 @@ struct scan : op_name<scan>
         {
             for(auto j = 0; j < num_state_vars; ++j)
                 pm[param_names[j]] = ret[j];
-            for(auto j = num_state_vars; j < num_state_vars + K; ++j)
-                pm[param_names[j]] = args[i * K + j];
+            for(auto j = num_state_vars; j < num_state_vars + num_scan_inputs; ++j)
+                pm[param_names[j]] = args[i * num_scan_inputs + j];
 
             auto mod_output = run(mod, pm);
 

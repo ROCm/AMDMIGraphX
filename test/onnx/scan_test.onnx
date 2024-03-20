@@ -1,45 +1,0 @@
-		scan_test:ø
-ü
-
-init_state
-scan_insfinal_state	scan_outs"Scan*­
-body2¡
-
-sum_in
-nextsum_out"Add
-
-sum_outscan_out"Identity	scan_bodyZ
-sum_in
-
-
-Z
-next
-
-
-b
-sum_out
-
-
-b
-scan_out
-
-
- *
-num_scan_inputs 	scan_testZ
-
-init_state
-
-
-Z
-scan_ins
-
-
-b
-final_state
-
-
-b
-	scan_outs
-
-
-B

@@ -21,7 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/errors.hpp"
 #include "migraphx/instruction_ref.hpp"
+#include <algorithm>
+#include <cstdint>
+#include <iterator>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
@@ -54,6 +58,9 @@ struct parse_scan : op_parser<parse_scan>
         (void)parser.parse_graph(sub_mod, body);
 
         const auto num_scan_inputs = info.attributes["num_scan_inputs"].i();
+        auto N                     = args.size() - num_scan_inputs;
+        auto sub_mod_output_shapes = sub_mod->get_output_shapes();
+        auto K                     = sub_mod_output_shapes.size() - N;
 
         std::vector<int64_t> scan_input_axes(num_scan_inputs, 0);
         if(contains(info.attributes, "scan_input_axes"))
@@ -70,20 +77,50 @@ struct parse_scan : op_parser<parse_scan>
         // Validate: Size of scan_input_directions must be equal to num_scan_inputs
         // Validate: 0 and 1 are only allowed values
 
-        // TODO
-        // Parse scan_output_axes
-        // Validate: Size of scan_output_axes must be equal to K
-        // Perform: Normalize the axes
-        // Validate: Values must be in range[0, r-1]
+        // SCAN OUTPUT AXES
+        std::vector<int64_t> scan_output_axes(K, 0);
+        if(contains(info.attributes, "scan_output_axes"))
+        {
+            auto&& axes = info.attributes["scan_output_axes"].ints();
+            scan_output_axes.assign(axes.begin(), axes.end());
 
-        // TODO
-        // Parse scan_output_directions
-        // Validate: Size of scan_output_directions must be equal to K
-        // Validate: 0 and 1 are only allowed values
+            if(scan_output_axes.size() != K)
+                MIGRAPHX_THROW("Number of scan output axes (" + to_string(scan_output_axes.size()) +
+                               ") does not match number of body scan outputs(" + to_string(K) +
+                               ")");
 
-        auto N           = args.size() - num_scan_inputs;
+            std::vector<int64_t> ndims;
+            ndims.reserve(K);
+            std::transform(sub_mod_output_shapes.begin() + N,
+                           sub_mod_output_shapes.end(),
+                           std::back_inserter(ndims),
+                           [](const shape& sh) { return sh.ndim() + 1; });
+            normalize_axes(scan_output_axes, ndims);
+        }
+        std::cout << to_string_range(scan_output_axes) << std::endl;
+        // SCAN OUTPUT AXES
+
+        // SCAN OUTPUT DIRECTIONS
+        std::vector<int64_t> scan_output_directions(K, 0);
+        if(contains(info.attributes, "scan_output_directions"))
+        {
+            auto&& dirs = info.attributes["scan_output_directions"].ints();
+            scan_output_directions.assign(dirs.begin(), dirs.end());
+
+            if(scan_output_directions.size() != K)
+                MIGRAPHX_THROW("Number of scan output directions (" +
+                               to_string(scan_output_directions.size()) +
+                               ") does not match number of body scan outputs(" + to_string(K) +
+                               ")");
+
+            if(any_of(scan_output_directions, [](auto i) { return i != 0 and i != 1; }))
+                MIGRAPHX_THROW(
+                    "Scan output directions may contain only 1s and 0s, actual values: " +
+                    to_string_range(scan_output_directions));
+        }
+        // SCAN OUTPUT DIRECTIONS
+
         size_t num_iters = args[N]->get_shape().lens()[scan_input_axes[0]];
-
         std::vector<instruction_ref> alt_args(args.begin(), args.begin() + N);
         for(int64_t i = 0; i < num_iters; ++i)
         {
@@ -107,7 +144,6 @@ struct parse_scan : op_parser<parse_scan>
         // N + K * num_iters number of outputs
 
         std::vector<instruction_ref> ret;
-        auto K = sub_mod->get_output_shapes().size() - N;
         for(auto i = 0; i < N; ++i)
         {
             auto get = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), scan);
@@ -117,7 +153,8 @@ struct parse_scan : op_parser<parse_scan>
         for(auto i = N; i < N + K; ++i)
         {
             auto get = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), scan);
-            auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), get);
+            auto scan_axis = scan_output_axes[i - N];
+            auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {scan_axis}}}), get);
             ret.push_back(usq);
         }
 
@@ -128,14 +165,31 @@ struct parse_scan : op_parser<parse_scan>
                 auto tuple_idx = N + i * K + j;
                 auto get =
                     info.add_instruction(make_op("get_tuple_elem", {{"index", tuple_idx}}), scan);
-                auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), get);
+                auto scan_axis = scan_output_axes[j];
+                auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {scan_axis}}}), get);
+                auto dir = scan_output_directions[j];
+                std::vector<instruction_ref> concat_args(2, usq);
+                concat_args[dir] = ret[N + j];
                 auto concat =
-                    info.add_instruction(make_op("concat", {{"axis", 0}}), ret[N + j], usq);
+                    info.add_instruction(make_op("concat", {{"axis", scan_axis}}), concat_args);
                 ret[N + j] = concat;
             }
         }
 
         return ret;
+    }
+
+    void normalize_axes(std::vector<int64_t>& axes, const std::vector<int64_t>& ndims) const
+    {
+        auto normalize_axis = [=](int64_t axis, int64_t ndim) {
+            if(axis < -ndim or axis >= ndim)
+                MIGRAPHX_THROW("Axis value {" + to_string(axis) + "} out of range [" +
+                               to_string(-ndim) + ", " + to_string(ndim) + ")");
+
+            return axis < 0 ? ndim + axis : axis;
+        };
+
+        std::transform(axes.begin(), axes.end(), ndims.begin(), axes.begin(), normalize_axis);
     }
 };
 

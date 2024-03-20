@@ -503,7 +503,6 @@ instruction_ref module::add_parameter(std::string name, shape s)
 
 instruction_ref module::add_return(std::vector<instruction_ref> args)
 {
-    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     shape instr_shape = compute_shape(builtin::returns{}, args);
     impl->push_back({builtin::returns{}, instr_shape, std::move(args)});
     auto result = std::prev(impl->instructions.end());

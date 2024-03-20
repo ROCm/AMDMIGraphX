@@ -10686,7 +10686,10 @@ def where_mixed_test():
     return ([node], [c, x, y], [z])
 
 
-def scan_test(scan_output_axes=[0, 0], scan_output_directions=[0, 0]):
+def scan_test(scan_input_axes=[0],
+              scan_input_directions=[0],
+              scan_output_axes=[0, 0],
+              scan_output_directions=[0, 0]):
     sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
     next = helper.make_tensor_value_info("next", TensorProto.FLOAT, [2, 2])
     sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
@@ -10712,8 +10715,10 @@ def scan_test(scan_output_axes=[0, 0], scan_output_directions=[0, 0]):
 
     init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
                                                [2, 2])
+    scan_ins_sh = [2, 2, 2]
+    scan_ins_sh[scan_input_axes[0]] = 3
     scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
-                                             [3, 2, 2])
+                                             scan_ins_sh)
     final_state = helper.make_tensor_value_info("final_state",
                                                 TensorProto.FLOAT, [2, 2])
     scan_outs1_sh = [2, 2, 2]
@@ -10729,6 +10734,8 @@ def scan_test(scan_output_axes=[0, 0], scan_output_directions=[0, 0]):
         inputs=["init_state", "scan_ins"],
         outputs=["final_state", "scan_outs1", "scan_outs2"],
         num_scan_inputs=1,
+        scan_input_axes=scan_input_axes,
+        scan_input_directions=scan_input_directions,
         scan_output_axes=scan_output_axes,
         scan_output_directions=scan_output_directions,
         body=scan_body,
@@ -10751,3 +10758,13 @@ def scan_test2():
 @onnx_test()
 def scan_test3():
     return scan_test(scan_output_axes=[1, -1], scan_output_directions=[0, 1])
+
+
+@onnx_test()
+def scan_test4():
+    return scan_test(scan_input_directions=[1])
+
+
+@onnx_test()
+def scan_test5():
+    return scan_test(scan_input_axes=[1])

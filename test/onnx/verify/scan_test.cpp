@@ -150,3 +150,75 @@ TEST_CASE(scan_test3)
     std::vector<float> scan_out2_gold{36, 16, 4, 42, 20, 6};
     EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
 }
+
+TEST_CASE(scan_test4)
+{
+    auto prog = migraphx::parse_onnx("scan_test4.onnx");
+    prog.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+
+    migraphx::shape init_state_sh{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> init_state(4, 0);
+    pm["init_state"] = migraphx::argument(init_state_sh, init_state.data());
+
+    migraphx::shape scan_ins_sh{migraphx::shape::float_type, {3, 2, 2}};
+    std::vector<float> scan_ins(12);
+    std::iota(scan_ins.begin(), scan_ins.end(), 1);
+    pm["scan_ins"] = migraphx::argument(scan_ins_sh, scan_ins.data());
+
+    auto result = prog.eval(pm);
+    EXPECT(result.size() == 3);
+
+    auto final_state = result[0];
+    auto scan_out1   = result[1];
+    auto scan_out2   = result[2];
+
+    EXPECT(final_state.get_shape() == make_shape({2, 2}));
+    std::vector<float> final_state_gold{15, 18, 21, 24};
+    EXPECT(arg_to_vec(final_state) == final_state_gold);
+
+    EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
+    std::vector<float> scan_out1_gold{9, 10, 11, 12, 14, 16, 18, 20, 15, 18, 21, 24};
+    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+
+    EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
+    std::vector<float> scan_out2_gold{20, 22, 32, 36, 36, 42};
+    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+}
+
+TEST_CASE(scan_test5)
+{
+    auto prog = migraphx::parse_onnx("scan_test5.onnx");
+    prog.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+
+    migraphx::shape init_state_sh{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> init_state(4, 0);
+    pm["init_state"] = migraphx::argument(init_state_sh, init_state.data());
+
+    migraphx::shape scan_ins_sh{migraphx::shape::float_type, {2, 3, 2}};
+    std::vector<float> scan_ins(12);
+    std::iota(scan_ins.begin(), scan_ins.end(), 1);
+    pm["scan_ins"] = migraphx::argument(scan_ins_sh, scan_ins.data());
+
+    auto result = prog.eval(pm);
+    EXPECT(result.size() == 3);
+
+    auto final_state = result[0];
+    auto scan_out1   = result[1];
+    auto scan_out2   = result[2];
+
+    EXPECT(final_state.get_shape() == make_shape({2, 2}));
+    std::vector<float> final_state_gold{9, 12, 27, 30};
+    EXPECT(arg_to_vec(final_state) == final_state_gold);
+
+    EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
+    std::vector<float> scan_out1_gold{1, 2, 7, 8, 4, 6, 16, 18, 9, 12, 27, 30};
+    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+
+    EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
+    std::vector<float> scan_out2_gold{8, 10, 20, 24, 36, 42};
+    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+}

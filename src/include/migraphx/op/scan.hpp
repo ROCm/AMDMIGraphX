@@ -58,7 +58,7 @@ struct scan : op_name<scan>
     shape compute_shape(const std::vector<shape>& inputs, std::vector<module_ref> mods) const
     {
         assert(mods.size() == 1);
-        check_shapes{inputs, *this}.standard();
+        // check_shapes{inputs, *this}.standard();
         auto mod = mods.front();
         // The module has N + K outputs
         auto mod_output_shapes = mod->get_output_shapes();

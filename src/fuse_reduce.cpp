@@ -230,7 +230,7 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
                 if(output->outputs().size() != 1)
                     return true;
                 return output->outputs().front() != *non_broadcast;
-            });
+            }) > 0;
     }
 
     return false;

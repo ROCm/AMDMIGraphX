@@ -5259,6 +5259,21 @@ def matmulinteger_dyn_error():
 
 
 @onnx_test()
+def matmulinteger_invalid_type_error():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [None, 6, 16])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT16, [None, 16, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [None, 6, 8])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmulinteger_uns_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
@@ -5308,6 +5323,22 @@ def matmulinteger_uns_zp_test():
 @onnx_test()
 def matmulinteger_int8_uint8_one_zp_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [5])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_error_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
     zp1 = helper.make_tensor('3', TensorProto.INT8, [], [5])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])

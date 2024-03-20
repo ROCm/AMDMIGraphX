@@ -388,6 +388,8 @@ std::string generate_name_from_ops(const module& m, const std::string& postname)
     auto op_names = get_op_names(m);
     if(not postname.empty())
         op_names.push_back(postname);
+    if(op_names.empty())
+        return "noop";
     return join_strings(op_names, "_");
 }
 

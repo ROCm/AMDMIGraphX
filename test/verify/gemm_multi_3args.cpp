@@ -47,6 +47,7 @@ struct gemm_multi_3args : verify_program<gemm_multi_3args<DType>>
         migraphx::add_apply_alpha_beta(*mm, {l1, l2, l3}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_multi_3args<migraphx::shape::float_type>;

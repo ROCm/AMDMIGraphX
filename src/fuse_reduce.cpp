@@ -413,15 +413,14 @@ struct reduce_reshape : rewrite_reshapes_base
         auto dims  = base_dims(inputs);
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
-        insert_module_in_submodule(
-            sm, inputs, oldm, transform_op([&](const operation& sop) {
-                if(contains(sop.name(), "reduce"))
-                    return make_op(sop.name(), {{"axes", axes}});
-                if(sop.name() == "multibroadcast")
-                    return make_op("multibroadcast", {{"out_lens", dims}});
-                assert(sop.name() == "pointwise");
-                return sop;
-            }));
+        insert_module_in_submodule(sm, inputs, oldm, transform_op([&](const operation& sop) {
+                                       if(contains(sop.name(), "reduce"))
+                                           return make_op(sop.name(), {{"axes", axes}});
+                                       if(sop.name() == "multibroadcast")
+                                           return make_op("multibroadcast", {{"out_lens", dims}});
+                                       assert(sop.name() == "pointwise");
+                                       return sop;
+                                   }));
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 

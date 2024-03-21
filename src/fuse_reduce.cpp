@@ -224,13 +224,13 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
         if(non_broadcast == ins->outputs().end())
             return false;
         return std::count_if(
-            ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
-                if(not contains(output->name(), "broadcast"))
-                    return true;
-                if(output->outputs().size() != 1)
-                    return true;
-                return output->outputs().front() != *non_broadcast;
-            });
+                   ins->outputs().begin(), ins->outputs().end(), [&](instruction_ref output) {
+                       if(not contains(output->name(), "broadcast"))
+                           return true;
+                       if(output->outputs().size() != 1)
+                           return true;
+                       return output->outputs().front() != *non_broadcast;
+                   }) > 0;
     }
 
     return false;

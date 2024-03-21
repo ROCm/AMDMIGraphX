@@ -156,6 +156,12 @@ struct parse_matmul : op_parser<parse_matmul>
         {
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
+
+            if(not is_quant_dot and args.size() > 2)
+            {
+                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
+            }
+
             instruction_ref ba0 = set_bias_arg(info, args, 2, a0);
             instruction_ref ba1 = set_bias_arg(info, args, 3, a1);
 
@@ -165,11 +171,6 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto ba0_type                               = ba0->get_shape().type();
             const auto ba1_type                               = ba1->get_shape().type();
 
-            if(not is_quant_dot and args.size() > 2)
-            {
-                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
-            }
-
             if(is_quant_dot and
                (not contains(supported_types, ba0_type) or not contains(supported_types, ba1_type)))
             {
@@ -178,14 +179,13 @@ struct parse_matmul : op_parser<parse_matmul>
 
             auto is_same_type = (ba0_type == ba1_type);
 
-            if(is_quant_dot and not is_same_type and (ba0_type == migraphx::shape::uint8_type))
+            if(is_quant_dot and not is_same_type )
             {
-                ba0 = add_int8_shift(info, ba0);
-            }
+                if(ba0_type == migraphx::shape::uint8_type)
+                    ba0 = add_int8_shift(info, ba0);
 
-            if(is_quant_dot and not is_same_type and (ba1_type == migraphx::shape::uint8_type))
-            {
-                ba1 = add_int8_shift(info, ba1);
+                if(ba1_type == migraphx::shape::uint8_type)
+                    ba1 = add_int8_shift(info, ba1);
             }
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);

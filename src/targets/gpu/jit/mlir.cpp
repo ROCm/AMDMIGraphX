@@ -41,7 +41,8 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        return insert(compile_mlir(ctx, *smod, ins->inputs(), solution));
+        auto reverse_grid = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+        return insert(compile_mlir(ctx, *smod, ins->inputs(), solution, reverse_grid));
     }
 
     compiler_replace insert(code_object_op co) const

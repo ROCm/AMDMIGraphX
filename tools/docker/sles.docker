@@ -1,5 +1,4 @@
 FROM registry.suse.com/suse/sle15:15.5
-#FROM registry.suse.com/suse/sle15:15.4.27.14.128
 
 RUN sh -c 'echo -e "\
 [rocm]\n\
@@ -25,9 +24,6 @@ RUN zypper --gpg-auto-import-keys install -y \
 
 #addition of repos for packages
 RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 
-
-#RUN OPENSUSE_REPO=https://download.opensuse.org/repositories && \
-#    zypper addrepo ${OPENSUSE_REPO}/devel:/languages:/perl/SLE_15_SP4/devel:languages:perl.repo
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

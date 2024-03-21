@@ -100,7 +100,7 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
 
     migraphx::gpu::context ctx;
     migraphx::gpu::insert_mlir(
-        *mm, mm->end(), compile_mlir(ctx, create_mlir_submodule(mmlir), inputs, {}), inputs);
+        *mm, mm->end(), compile_mlir(ctx, create_mlir_submodule(mmlir), inputs, {}, false), inputs);
     return p;
 }
 

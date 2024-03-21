@@ -594,7 +594,8 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu}});
+                            {"num_cu", num_cu},
+                            {"reverse_grid", reverse_grid}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -778,6 +779,8 @@ struct mlir_program
         num_cu             = device.get_cu_count();
     }
 
+    void set_reverse_grid(bool b) { reverse_grid = b; }
+
     std::pair<std::size_t, std::size_t> get_launch_params() const
     {
         uint32_t attrs[2];
@@ -943,6 +946,7 @@ struct mlir_program
     std::string target_arch = "";
     std::size_t num_cu      = 0;
     std::string sym_name;
+    bool reverse_grid = false;
 };
 
 std::string dump_mlir(const module& m)
@@ -974,7 +978,8 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 code_object_op compile_mlir(const context& migraphx_ctx,
                             module m,
                             const std::vector<instruction_ref>& inputs,
-                            const value& solution)
+                            const value& solution,
+                            const bool reverse_grid)
 {
     adjust_param_shapes(m, to_shapes(inputs));
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
@@ -988,6 +993,7 @@ code_object_op compile_mlir(const context& migraphx_ctx,
 
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
+    mp.set_reverse_grid(reverse_grid);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
@@ -1050,8 +1056,11 @@ void use(T&)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-code_object_op
-compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
+code_object_op compile_mlir(const context&,
+                            module,
+                            const std::vector<instruction_ref>&,
+                            const value&,
+                            const bool reverse_grid)
 {
     return {};
 }

@@ -45,4 +45,5 @@ struct test_conv_concat : verify_program<test_conv_concat>
         mm->add_instruction(migraphx::make_op("exp"), sum);
         return p;
     }
+    std::string section() const { return "conv"; }
 };

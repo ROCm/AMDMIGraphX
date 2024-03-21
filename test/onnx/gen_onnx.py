@@ -1316,6 +1316,22 @@ def conv_bias_test():
 
 
 @onnx_test()
+def conv_bad_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [1])
+    out = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z], [out])
+
+
+@onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])

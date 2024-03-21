@@ -38,7 +38,7 @@ TEST_CASE(gridsample_border_padding_test)
     migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
     std::vector<float> data = {0., 1., 2., 3., 4., 5.};
     std::vector<float> grid = {
-        -10. , -10. ,  -5. ,  -5. ,  -0.2,  -0.2,  10. ,  10. ,  10. ,  10. ,  -0.2,  -0.2,   5. ,   5. ,  10. ,  10. };
+        -10., -10., -5., -5., -0.2, -0.2, 10., 10., 10., 10., -0.2, -0.2, 5., 5., 10., 10.};
 
     migraphx::parameter_map pp;
     pp["x"]    = migraphx::argument(data_shape, data.data());

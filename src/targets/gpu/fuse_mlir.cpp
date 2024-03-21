@@ -459,7 +459,7 @@ struct find_mlir_fused_ops
     {
         auto ins           = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input after contiguous
+        auto x_ins         = r.instructions["x"]; // gemm/conv after contiguous ins
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
@@ -475,10 +475,7 @@ struct find_mlir_fused_ops
                      ins->inputs().end(),
                      std::back_inserter(inputs),
                      [&](auto input) { 
-                        if(input->name() == "contiguous" and input->inputs().front() == gemm_based_op) {
-                            return false;
-                     }
-                     return input != gemm_based_op;
+                        return input != x_ins;
                      });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(

@@ -39,13 +39,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Predicate>
 std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 {
-	std::unordered_set<instruction_ref> seen;
+    std::unordered_set<instruction_ref> seen;
     std::vector<instruction_ref> result;
     fix([&](auto self, auto ins) {
-		if(contains(seen, ins)) {
-			return;
-		}
-		seen.insert(ins);
+        if(contains(seen, ins))
+        {
+            return;
+        }
+        seen.insert(ins);
         if(pred(ins))
         {
             result.push_back(ins);
@@ -113,7 +114,7 @@ void layout_nhwc::apply(module_pass_manager& mpm) const
     std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
     transform_convolutions(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
-    //mpm.run_pass(eliminate_contiguous{"contiguous"});
+    // mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
     remove_layout(mpm.get_module(), output_layouts);
     mpm.run_pass(dead_code_elimination{});

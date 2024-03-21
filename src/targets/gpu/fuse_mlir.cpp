@@ -470,13 +470,11 @@ struct find_mlir_fused_ops
         mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
 
         std::vector<instruction_ref> inputs;
-        
+
         std::copy_if(ins->inputs().begin(),
                      ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { 
-                        return input != x_ins;
-                     });
+                     [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
             ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});

@@ -183,7 +183,7 @@ struct parse_matmul : op_parser<parse_matmul>
 
             auto is_same_type = (ba0_type == ba1_type);
 
-            if(is_quant_dot and not is_same_type )
+            if(is_quant_dot and not is_same_type)
             {
                 if(ba0_type == migraphx::shape::uint8_type)
                     ba0 = add_int8_shift(info, ba0);

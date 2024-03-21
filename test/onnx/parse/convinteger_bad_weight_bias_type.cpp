@@ -24,21 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(convinteger_bias_test)
+TEST_CASE(convinteger_bad_weight_bias_type_test)
 {
-
-    migraphx::program p;
-    auto* mm       = p.get_main_module();
-    auto data      = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
-    auto weights   = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
-    auto data_bias = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
-
-    auto bcast_data_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
-    auto sub_data = mm->add_instruction(migraphx::make_op("sub"), data, bcast_data_bias);
-
-    mm->add_instruction(migraphx::make_op("quant_convolution"), sub_data, weights);
-
-    auto prog = optimize_onnx("convinteger_bias_test.onnx");
-    EXPECT(p == prog);
+    EXPECT(test::throws([&] { migraphx::parse_onnx("convinteger_mismatched_weight_bias.onnx"); }));
 }

@@ -47,7 +47,7 @@ struct parse_convolution : op_parser<parse_convolution>
     {
         if(args.size() > index)
         {
-            return args[2];
+            return args[index];
         }
         return input;
     }

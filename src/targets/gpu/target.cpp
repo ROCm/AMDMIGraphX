@@ -30,6 +30,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_pointwise.hpp>
@@ -150,7 +151,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
-        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         dead_code_elimination{},
         prefuse_ops{},
         dead_code_elimination{},
@@ -162,6 +162,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         propagate_precision{},
         dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         optimize_module{},
         fuse_pointwise{},
         dead_code_elimination{},
@@ -185,6 +186,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},
+        enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), eliminate_layout{}),
         replace_allocate{gpu_allocation_model{}, options.offload_copy},
         dead_code_elimination{},
         adjust_allocation{gpu_allocation_model{}},

@@ -822,68 +822,6 @@ struct find_pointwise_layout_contiguous
     }
 };
 
-struct find_layernorm_reshape_pointwise
-{
-    auto matcher() const
-    {
-        return precompile_name("pointwise")(
-            match::used_once(),
-            match::any_of[match::inputs()](match::skip(match::name("reshape_lazy"))(
-                precompile_name("gpu::prelayernorm", "gpu::preadd_layernorm").bind("layernorm"))));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto pw_ins    = r.result;
-        auto layernorm = r.instructions["layernorm"];
-        if(not layernorm->module_inputs().empty())
-            return;
-
-        auto pw_inputs = pw_ins->inputs();
-        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
-               if(i == layernorm or
-                  (i->name() == "reshape_lazy" and i->inputs().front() == layernorm))
-               {
-                   return false;
-               }
-               return not i->can_eval();
-           }))
-            return;
-        auto layernorm_out = layernorm->outputs().front();
-        auto reshape_shape = layernorm_out->get_shape();
-        std::vector<instruction_ref> new_inputs;
-        for(const auto& i : pw_inputs)
-        {
-            if(i == layernorm_out)
-            {
-                continue;
-            }
-            else
-            {
-                auto c = make_op("contiguous");
-                auto l = c.compute(c.compute_shape({i->get_shape()}), {i->eval()});
-                auto literal_ins  = m.insert_literal(pw_ins, migraphx::literal{l.get_shape(), l.data()});
-
-                new_inputs.push_back(m.insert_instruction(
-                    pw_ins,
-                    migraphx::make_op("reshape_lazy", {{"dims", layernorm->get_shape().lens()}}),
-                    literal_ins));
-            }
-        }
-        auto inputs = layernorm->inputs();
-        inputs.pop_back();
-        inputs.insert(inputs.end(), new_inputs.begin(), new_inputs.end());
-        auto* pm           = pw_ins->module_inputs().front();
-        auto new_layernorm = m.insert_instruction(pw_ins, layernorm->get_operator(), inputs, {pm});
-        std::cout << "done inserting new layernorm\n";
-        auto new_reshape   = m.insert_instruction(
-            pw_ins,
-            migraphx::make_op("reshape_lazy", {{"dims", pw_ins->get_shape().lens()}}),
-            new_layernorm);
-        m.replace_instruction(pw_ins, new_reshape);
-    }
-};
-
 struct find_layernorm_pointwise
 {
     auto matcher() const
@@ -953,7 +891,6 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m,
                         find_gemm_pointwise{},
                         find_layernorm_pointwise{},
-						//find_layernorm_reshape_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});

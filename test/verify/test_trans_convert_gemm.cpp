@@ -21,49 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <unordered_set>
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/context.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-rocblas_handle_ptr create_rocblas_handle_ptr()
+template <migraphx::shape::type_t DType>
+struct test_trans_convert_gemm : verify_program<test_trans_convert_gemm<DType>>
 {
-    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
-    rocblas_initialize();
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a =
+            mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {2, 1920, 2, 2}});
+        auto b = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1920, 2}});
+        auto at =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), a);
+        auto atc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), at);
+        mm->add_instruction(migraphx::make_op("dot"), atc, b);
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
-{
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
-
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
-bool rocblas_fp8_available()
-{
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8_intrinsics();
-#endif
-}
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_trans_convert_gemm<migraphx::shape::float_type>;
+template struct test_trans_convert_gemm<migraphx::shape::half_type>;
+template struct test_trans_convert_gemm<migraphx::shape::fp8e4m3fnuz_type>;

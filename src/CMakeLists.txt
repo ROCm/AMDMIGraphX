@@ -256,6 +256,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_int4
     unsqueeze
     where
 )
@@ -344,6 +345,8 @@ endif()
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
+
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

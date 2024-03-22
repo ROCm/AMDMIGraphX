@@ -188,15 +188,20 @@ class StableDiffusionMGX():
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
 
-        start_time = time.perf_counter_ns()
+        hidden_states = np.concatenate(
+            (text_embeddings[0], uncond_embeddings[0])).astype(np.float16)
+        text_embeds = np.concatenate(
+            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)     
         print("Running denoising loop...")
+        start_time = time.perf_counter_ns()
+        scale = torch.tensor(scale)
         for step, t in enumerate(self.scheduler.timesteps):
             time_id = np.array([[1024, 1024, 0, 0, 1024, 1024],
                                 [1024, 1024, 0, 0, 1024,
                                  1024]]).astype(np.float16)
-            # time_id = np.array(torch.ones((2, 6))).astype(np.float16)
+
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
-            latents = self.denoise_step(text_embeddings, uncond_embeddings,
+            latents = self.denoise_step(hidden_states, text_embeds,
                                         latents, t, scale, time_id)
         end_time = time.perf_counter_ns()
         unet_time = end_time - start_time
@@ -272,28 +277,26 @@ class StableDiffusionMGX():
         pil_image.save(filename)
 
     @measure
-    def denoise_step(self, text_embeddings, uncond_embeddings, latents, t,
+    def denoise_step(self, hidden_states, text_embeds, latents, t,
                      scale, time_id):
         sample = self.scheduler.scale_model_input(latents,
-                                                  t).numpy().astype(np.float32)
-        sample = np.concatenate((sample, sample))
+                                                  t)    
+        sample = torch.cat((sample, sample))
         timestep = np.atleast_1d(t.numpy().astype(
             np.float32))  # convert 0D -> 1D
 
-        hidden_states = np.concatenate(
-            (text_embeddings[0], uncond_embeddings[0])).astype(np.float16)
-        text_embeds = np.concatenate(
-            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
 
-        unet_out = np.split(
-            np.array(
+        unet_out = torch.split(
+            torch.reshape(
+            torch.frombuffer(
                 self.unetxl.run({
-                    "sample": sample,
+                    "sample": sample.numpy().astype(np.float32),
                     "encoder_hidden_states": hidden_states,
                     "timestep": timestep,
                     "text_embeds": text_embeds,
                     "time_ids": time_id
-                })[0]), 2)
+                })[0],dtype=torch.float16), (2, 4, 128, 128))
+                , 1)
 
         noise_pred_uncond = unet_out[1]
         noise_pred_text = unet_out[0]
@@ -301,10 +304,9 @@ class StableDiffusionMGX():
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -
                                                   noise_pred_uncond)
-        # print(noise_pred)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(torch.from_numpy(noise_pred), t,
+        return self.scheduler.step(noise_pred, t,
                                    latents).prev_sample
 
     @measure

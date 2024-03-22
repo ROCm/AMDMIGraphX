@@ -50,34 +50,28 @@ __device__ void generic_binary_layernorm(
     using reduce_output = reduce::with_axis<Input1, Axis>;
 
     block::template run<reduce_output>([&](auto, auto r) {
-        auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
-        using value_type = typename Input1::type;
-        using vec_value_type       = vec_type<value_type>;
-        constexpr auto relements   = r.template elements<Input1>();
-        constexpr auto relements_r = vec_value_type{1.0 / relements};
-        auto relements_rsqrt       = sqrt(relements_r);
+        auto input = r.inner(
+            [&](auto x1, auto x2) { return migraphx::convert<float>(op(x1, x2)); })(input1, input2);
+        using value_type     = typename Input1::type;
+        using vec_value_type = vec_type<value_type>;
 
-        auto means = r.reduce(op::sum{},
-                              make_array<vec_value_type>(vec_value_type{0}, vec_value_type{0}),
-                              [&](auto x) {
-                                  auto x_out = x * relements_r;
-                                  // dividing x by sqrt(relements) before squaring allows computing
-                                  // higher values before overflow in low precision
-                                  auto x2_sqrt = x * relements_rsqrt;
-                                  return make_array(x_out, x2_sqrt * x2_sqrt);
-                              })(input);
+        constexpr auto n = r.template elements<Input1>();
 
-        auto mean_x        = means[0];
-        auto mean_x2       = means[1];
-        auto variance      = mean_x2 - (mean_x * mean_x);
-        value_type eps_val = implicit_conversion(eps);
+        auto x_sum = r.reduce(op::sum{}, 0, op::id{})(input);
+        auto mean  = x_sum / n;
 
-        r.inner([&](auto& y, auto x, auto... xs) {
-            auto m = x - mean_x;
+        auto x_diff = r.inner([&](auto x) { return x - mean; })(input);
 
-            // m * rsqrt(mean(m ^ 2) + epsilon)
-            y = compute(m * rsqrt(variance + eps_val), xs...);
-        })(output, input, inputs...);
+        auto sq_diff_sum = r.reduce(op::sum{}, 0, [](auto dx) { return dx * dx; })(x_diff);
+
+        auto var       = sq_diff_sum / n;
+        auto r_std_dev = rsqrt(var + eps);
+
+        auto normalized = r.inner(
+            [&](auto dx) { return migraphx::convert<vec_value_type>(dx * r_std_dev); })(x_diff);
+
+        r.inner([&](auto& y, auto nx, auto... xs) { y = compute(nx, xs...); })(
+            output, normalized, inputs...);
     });
 }
 

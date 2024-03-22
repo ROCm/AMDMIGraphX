@@ -108,8 +108,7 @@ void eliminate_data_type::apply(module& m) const
                                                            "scatternd_add",
                                                            "scatternd_mul",
                                                            "scatternd_none",
-                                                           "select_module",
-                                                           "quantizelinear"};
+                                                           "select_module"};
     if(unsupported_types.empty())
         return;
 

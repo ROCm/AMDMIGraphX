@@ -340,7 +340,8 @@ struct parse_gridsample : op_parser<parse_gridsample>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        bool align_corners       = false;
+        bool align_corners = false;
+        // Note: defult mode can be linear or bilinear depending on the onnx version
         std::string mode         = "linear";
         std::string padding_mode = "zeros";
 
@@ -352,6 +353,7 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(contains(info.attributes, "mode"))
         {
             mode = info.attributes.at("mode").s();
+            // Note: can be cubic or bicubic depending on the onnx version
             if(contains(mode, "cubic"))
             {
                 MIGRAPHX_THROW("PARSE_GRID_SAMPLE: cubic mode is not supported");

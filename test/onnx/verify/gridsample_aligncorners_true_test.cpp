@@ -26,9 +26,11 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(gridsample_nearest_test)
+TEST_CASE(gridsample_aligncorners_true_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_nearest_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("gridsample_aligncorners_true_test.onnx");
+    // migraphx::compile_options options;
+    // options.offload_copy = true;
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
@@ -46,6 +48,7 @@ TEST_CASE(gridsample_nearest_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0.0, 0.0, 2.0, 2.0, 2.0, 2.0, 5.0, 0.0};
+    std::vector<float> gold = {0.0000, 1.2500, 2.0000, 2.5000, 2.5000, 2.0000, 3.7500, 5.0000};
+
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

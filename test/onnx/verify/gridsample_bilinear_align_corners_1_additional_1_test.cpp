@@ -26,19 +26,18 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(gridsample_aligncorners_test)
+TEST_CASE(gridsample_bilinear_align_corners_1_additional_1_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_aligncorners_test.onnx");
-    // migraphx::compile_options options;
-    // options.offload_copy = true;
+    migraphx::program p =
+        migraphx::parse_onnx("gridsample_bilinear_align_corners_1_additional_1_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
     migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
     migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
-    std::vector<float> data = {0., 1., 2., 3., 4., 5.};
+    std::vector<float> data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
     std::vector<float> grid = {
-        -1., -1., -0.5, -0.5, -0.2, -0.2, 0., 0., 0., 0., -0.2, -0.2, 0.5, 0.5, 1., 1.};
+        -1., -0.8, -0.6, -0.5, -0.1, -0.2, 0.7, 0., 0., 0.4, 0.2, -0.2, -0.3, 0.5, -1., 1.};
 
     migraphx::parameter_map pp;
     pp["x"]    = migraphx::argument(data_shape, data.data());
@@ -48,7 +47,6 @@ TEST_CASE(gridsample_aligncorners_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0.0000, 1.2500, 2.0000, 2.5000, 2.5000, 2.0000, 3.7500, 5.0000};
-
+    std::vector<float> gold = {0.4, 1.2, 2.05, 2.85, 3.3, 2.2, 3.35, 4.0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

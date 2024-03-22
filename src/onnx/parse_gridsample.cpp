@@ -53,8 +53,11 @@ struct grid_sampler
     instruction_ref m_unnorm_x;
     instruction_ref m_unnorm_y;
 
-    grid_sampler(instruction_ref&& input, instruction_ref&& grid, bool align, std::string padding)
-        : m_padding(padding), m_align_corners(align), m_input(input), m_grid(grid)
+    grid_sampler(const instruction_ref& input,
+                 const instruction_ref& grid,
+                 bool align,
+                 std::string&& padding)
+        : m_padding(std::move(padding)), m_align_corners(align), m_input(input), m_grid(grid)
     {
         auto i_lens  = input->get_shape().lens();
         m_batch      = i_lens.at(0);
@@ -99,8 +102,9 @@ struct grid_sampler
         }
     }
 
-    instruction_ref
-    unnormalize(const onnx_parser::node_info& info, const instruction_ref& coords_t, float size)
+    instruction_ref unnormalize(const onnx_parser::node_info& info,
+                                const instruction_ref& coords_t,
+                                float size) const
     {
         auto unnorm = info.add_common_op("add", coords_t, m_one_l);
         if(m_align_corners)
@@ -119,6 +123,30 @@ struct grid_sampler
             unnorm = info.add_common_op("add", unnorm, m_minus_half_l);
         }
         return unnorm;
+    }
+
+    void update_indices(const onnx_parser::node_info& info,
+                        const instruction_ref& h,
+                        const instruction_ref& w,
+                        size_t n,
+                        size_t c,
+                        std::vector<instruction_ref>& indices,
+                        std::vector<instruction_ref>& validation,
+                        bool validate = true) const
+    {
+        static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
+        auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
+        auto w_clamp         = validate ? info.add_common_op("clip", w, m_zero_l, m_width_l) : w;
+        auto h_clamp         = validate ? info.add_common_op("clip", h, m_zero_l, m_height_l) : h;
+        auto nchw = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
+        indices.push_back(nchw);
+        if(validate)
+        {
+            auto h_valid = info.add_common_op("equal", h, h_clamp);
+            auto w_valid = info.add_common_op("equal", w, w_clamp);
+            auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
+            validation.push_back(valid);
+        }
     }
 
     static instruction_ref concat_on_first_dim(const onnx_parser::node_info& info,
@@ -142,11 +170,11 @@ struct nearest_sampler : grid_sampler
     instruction_ref m_round_x;
     instruction_ref m_round_y;
 
-    nearest_sampler(instruction_ref&& input,
-                    instruction_ref&& grid,
+    nearest_sampler(const instruction_ref& input,
+                    const instruction_ref& grid,
                     bool align,
-                    std::string padding)
-        : grid_sampler(std::move(input), std::move(grid), align, padding)
+                    std::string&& padding)
+        : grid_sampler(input, grid, align, std::move(padding))
     {
     }
 
@@ -157,37 +185,13 @@ struct nearest_sampler : grid_sampler
         m_round_y = info.add_common_op("nearbyint", m_unnorm_y);
     }
 
-    void update_indices(const onnx_parser::node_info& info,
-                        const instruction_ref& h,
-                        const instruction_ref& w,
-                        size_t n,
-                        size_t c,
-                        std::vector<instruction_ref>& indices,
-                        std::vector<instruction_ref>& validation)
-    {
-        static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
-        auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
-        auto w_clamp =
-            has_border_padding() ? w : info.add_common_op("clip", w, m_zero_l, m_width_l);
-        auto h_clamp =
-            has_border_padding() ? h : info.add_common_op("clip", h, m_zero_l, m_height_l);
-        auto nchw = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
-        indices.push_back(nchw);
-        if(not has_border_padding())
-        {
-            auto h_valid = info.add_common_op("equal", h, h_clamp);
-            auto w_valid = info.add_common_op("equal", w, w_clamp);
-            auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
-            validation.push_back(valid);
-        }
-    }
-
     instruction_ref sample(const onnx_parser::node_info& info) override
     {
         setup(info);
         std::vector<instruction_ref> indices;
         std::vector<instruction_ref> validation;
         static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+        bool validate         = not has_border_padding();
         for(size_t n = 0; n < m_batch; n++)
         {
             for(size_t h = 0; h < m_out_height; h++)
@@ -199,7 +203,7 @@ struct nearest_sampler : grid_sampler
                     auto w_t = info.add_instruction(make_op("gathernd"), m_round_x, nhw);
                     for(size_t c = 0; c < m_channel; c++)
                     {
-                        update_indices(info, h_t, w_t, n, c, indices, validation);
+                        update_indices(info, h_t, w_t, n, c, indices, validation, validate);
                     }
                 }
             }
@@ -212,7 +216,7 @@ struct nearest_sampler : grid_sampler
         indices_t      = info.add_instruction(
             make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);
         auto samples = info.add_instruction(make_op("gathernd"), m_input, indices_t);
-        if(not has_border_padding())
+        if(validate)
         {
             auto validation_t = concat_on_first_dim(info, validation);
             samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
@@ -235,8 +239,11 @@ struct linear_sampler : grid_sampler
     instruction_ref m_ceil_y;
     std::array<instruction_ref, 4> m_corner_weights;
 
-    linear_sampler(instruction_ref&& input, instruction_ref&& grid, bool align, std::string padding)
-        : grid_sampler(std::move(input), std::move(grid), align, padding)
+    linear_sampler(const instruction_ref& input,
+                   const instruction_ref& grid,
+                   bool align,
+                   std::string&& padding)
+        : grid_sampler(input, grid, align, std::move(padding))
     {
     }
 
@@ -255,26 +262,6 @@ struct linear_sampler : grid_sampler
         m_corner_weights[1]    = info.add_common_op("mul", one_minus_fract_y, fract_x);
         m_corner_weights[2]    = info.add_common_op("mul", fract_y, one_minus_fract_x);
         m_corner_weights[3]    = info.add_common_op("mul", fract_y, fract_x);
-    }
-
-    void update_indices(const onnx_parser::node_info& info,
-                        const instruction_ref& h,
-                        const instruction_ref& w,
-                        size_t n,
-                        size_t c,
-                        std::vector<instruction_ref>& indices,
-                        std::vector<instruction_ref>& validation)
-    {
-        static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
-        auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
-        auto w_clamp         = info.add_common_op("clip", w, m_zero_l, m_width_l);
-        auto h_clamp         = info.add_common_op("clip", h, m_zero_l, m_height_l);
-        auto nchw = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
-        indices.push_back(nchw);
-        auto h_valid = info.add_common_op("equal", h, h_clamp);
-        auto w_valid = info.add_common_op("equal", w, w_clamp);
-        auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
-        validation.push_back(valid);
     }
 
     instruction_ref sample(const onnx_parser::node_info& info) override
@@ -380,16 +367,14 @@ struct parse_gridsample : op_parser<parse_gridsample>
             }
         }
 
-        auto grid       = args.at(1);
-        auto grid_shape = grid->get_shape();
+        const auto& grid       = args.at(1);
+        const auto& grid_shape = grid->get_shape();
         if(not is_type_float(grid_shape.type()))
         {
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: grid input must have floating type");
         }
-        auto x       = args.at(0);
-        auto x_shape = x->get_shape();
-        auto x_lens  = x_shape.lens();
-        auto x_dims  = x_lens.size();
+        const auto& x      = args.at(0);
+        const auto& x_dims = x->get_shape().lens().size();
         if(grid_shape.lens().size() != x_dims)
         {
             MIGRAPHX_THROW(
@@ -401,10 +386,8 @@ struct parse_gridsample : op_parser<parse_gridsample>
         }
 
         return (mode == "nearest")
-                   ? nearest_sampler(std::move(x), std::move(grid), align_corners, padding_mode)
-                         .sample(info)
-                   : linear_sampler(std::move(x), std::move(grid), align_corners, padding_mode)
-                         .sample(info);
+                   ? nearest_sampler(x, grid, align_corners, std::move(padding_mode)).sample(info)
+                   : linear_sampler(x, grid, align_corners, std::move(padding_mode)).sample(info);
     }
 };
 

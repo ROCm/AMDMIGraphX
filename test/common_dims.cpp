@@ -72,6 +72,7 @@ TEST_CASE(common_same_dims)
     EXPECT(cd.dims == std::vector<std::size_t>{2, 32, 2, 2});
     EXPECT(cd.get_dimensions_for({64, 2, 2}) == std::vector<std::size_t>{2, 32, 2, 2});
     EXPECT(cd.get_dimensions_for({2, 32, 4}) == std::vector<std::size_t>{2, 32, 2, 2});
+    // TODO: CHeck for similiarity
     EXPECT(cd.get_dimensions_for({2, 32, 1}).empty());
     EXPECT(cd.get_dimensions_for({64, 2, 1}).empty());
 }

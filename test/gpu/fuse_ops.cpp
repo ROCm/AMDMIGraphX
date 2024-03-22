@@ -84,8 +84,12 @@ TEST_CASE(layernorm_pointwise)
         auto alloc_ins2 = mm->add_instruction(alloc);
         auto* pw_add2 =
             create_pointwise_module(p, "main:pointwise1", {x, z}, single_pointwise("add"));
-        auto layernorm_ins = mm->add_instruction(
-            make_precompile_op("gpu::prelayernorm"), {add1, z, alloc_ins2}, {pw_add2});
+        auto layernorm_op = migraphx::make_op("gpu::prelayernorm");
+        auto pre_comp_op  = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(layernorm_op)}, {"output_shape", migraphx::to_value(s)}});
+
+        auto layernorm_ins = mm->add_instruction(pre_comp_op, {add1, z, alloc_ins2}, {pw_add2});
         mm->add_return({layernorm_ins});
         return p;
     };

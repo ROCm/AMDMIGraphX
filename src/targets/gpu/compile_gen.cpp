@@ -319,7 +319,7 @@ std::string generate_reduce(module m, const std::string& name)
         {
             return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
-        else if(ins->name() == "pointwise")
+        if(ins->name() == "pointwise")
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
@@ -361,18 +361,18 @@ std::string generate_reduce(module m, const std::string& name)
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
         }
-        else if(ins->name() == "multibroadcast")
+        if(ins->name() == "multibroadcast")
         {
             return names.at(ins->inputs().front());
         }
-        else if(ins->name() == "get_tuple_elem")
+        if(ins->name() == "get_tuple_elem")
         {
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[${index}]",
                                       {{"x", x}, {"index", std::to_string(index)}});
         }
-        else if(ins->name() == "identity")
+        if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
             return "r.inner(op::id{})(" + x + ")";

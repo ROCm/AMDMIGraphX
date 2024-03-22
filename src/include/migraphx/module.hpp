@@ -249,6 +249,8 @@ struct MIGRAPHX_EXPORT module
      */
     ins_dep_map calc_implicit_deps() const;
 
+    void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }

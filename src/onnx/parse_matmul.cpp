@@ -41,8 +41,8 @@ struct parse_matmul : op_parser<parse_matmul>
     static void broadcast_dimensions(const onnx_parser::node_info& info,
                                      const std::vector<size_t>& s0_lens,
                                      const std::vector<size_t>& s1_lens,
-                                     instruction_ref& a0,
-                                     instruction_ref& a1,
+                                     const instruction_ref& a0,
+                                     const instruction_ref& a1,
                                      instruction_ref& ba0,
                                      instruction_ref& ba1)
     {

@@ -645,6 +645,102 @@ struct find_reshape_cont
     }
 };
 
+struct find_unary_shape_transforms
+{
+    static const auto& shape_transforms()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "transpose",
+            "broadcast",
+            "multibroadcast",
+        };
+        return names;
+    }
+    auto matcher() const
+    {
+        auto output_not_pointwise = match::none_of(
+            match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto input_has_shape_transform =
+            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+        return match::pointwise(match::used_once(), input_has_shape_transform, output_not_pointwise);
+    }
+
+    static bool is_shape_transform(instruction_ref ins)
+    {
+        return ins->inputs().size() == 1 and (contains(shape_transforms(), ins->name()) or ins->name() == "contiguous");
+    }
+
+    static bool can_fuse_unary(instruction_ref ins)
+    {
+        return ins->name() == "@literal" or ins->get_operator().attributes().contains("pointwise") or contains(ins->name(), "reduce");
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        auto input = ins->inputs().front();
+        auto output = ins->outputs().front();
+        
+        auto insert_ops = [&](const auto& ops, instruction_ref z) {
+            for(const auto& op:ops)
+            {
+                z = m.insert_instruction(ins, op, z);
+            }
+            return z;
+        };
+
+        std::vector<operation> xops;
+        auto x = input;
+        while(is_shape_transform(x))
+        {
+            xops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        std::reverse(xops.begin(), xops.end());
+
+        std::vector<operation> yops;
+        auto y = output;
+        while(is_shape_transform(y) and y->outputs().size() == 1)
+        {
+            yops.push_back(y->get_operator());
+            y = y->outputs().front();
+        }
+
+        bool move_up = can_fuse_unary(x);
+        bool move_down = can_fuse_unary(y);
+
+        if(move_up and move_down)
+        {
+            if(x->name() == "@literal")
+                move_down = false;
+            else if(yops.empty())
+                move_up = false;
+            else
+                move_down = false;
+        }
+        else if(not move_up and not move_down)
+        {
+
+        }
+
+        if(move_up)
+        {
+            auto z = m.insert_instruction(ins, ins->get_operator(), x);
+            z = insert_ops(xops, z);
+            m.replace_instruction(ins, z);
+        }
+        else if (move_down and not yops.empty())
+        {
+            auto z = insert_ops(yops, input);
+            m.replace_instruction(ins, ins->get_operator(), z);
+        }
+    }
+};
+
 // match sequence of transpose --> contiguous --> reshaper_op
 auto match_transpose_contiguous_reshaper()
 {

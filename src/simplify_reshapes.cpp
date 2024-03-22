@@ -662,31 +662,35 @@ struct find_unary_shape_transforms
     }
     auto matcher() const
     {
-        auto output_not_pointwise = match::none_of(
-            match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto output_not_pointwise =
+            match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
         auto input_has_shape_transform =
             match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
-        return match::pointwise(match::used_once(), input_has_shape_transform, output_not_pointwise);
+        return match::pointwise(
+            match::used_once(), input_has_shape_transform, output_not_pointwise);
     }
 
     static bool is_shape_transform(instruction_ref ins)
     {
-        return ins->inputs().size() == 1 and (contains(shape_transforms(), ins->name()) or ins->name() == "contiguous");
+        return ins->inputs().size() == 1 and
+               (contains(shape_transforms(), ins->name()) or ins->name() == "contiguous");
     }
 
     static bool can_fuse_unary(instruction_ref ins)
     {
-        return ins->name() == "@literal" or ins->get_operator().attributes().contains("pointwise") or contains(ins->name(), "reduce");
+        return ins->name() == "@literal" or
+               ins->get_operator().attributes().contains("pointwise") or
+               contains(ins->name(), "reduce");
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto input = ins->inputs().front();
+        auto ins    = mr.result;
+        auto input  = ins->inputs().front();
         auto output = ins->outputs().front();
-        
+
         auto insert_ops = [&](const auto& ops, instruction_ref z) {
-            for(const auto& op:ops)
+            for(const auto& op : ops)
             {
                 z = m.insert_instruction(ins, op, z);
             }
@@ -710,7 +714,7 @@ struct find_unary_shape_transforms
             y = y->outputs().front();
         }
 
-        bool move_up = can_fuse_unary(x);
+        bool move_up   = can_fuse_unary(x);
         bool move_down = can_fuse_unary(y);
 
         if(move_up and move_down)
@@ -722,18 +726,15 @@ struct find_unary_shape_transforms
             else
                 move_down = false;
         }
-        else if(not move_up and not move_down)
-        {
-
-        }
+        else if(not move_up and not move_down) {}
 
         if(move_up)
         {
             auto z = m.insert_instruction(ins, ins->get_operator(), x);
-            z = insert_ops(xops, z);
+            z      = insert_ops(xops, z);
             m.replace_instruction(ins, z);
         }
-        else if (move_down and not yops.empty())
+        else if(move_down and not yops.empty())
         {
             auto z = insert_ops(yops, input);
             m.replace_instruction(ins, ins->get_operator(), z);

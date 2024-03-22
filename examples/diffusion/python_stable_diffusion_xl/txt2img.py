@@ -36,7 +36,6 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
-
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -97,14 +96,14 @@ def get_args():
         default=5.0,
         help="Guidance scale",
     )
-    
+
     parser.add_argument(
         "--save-compiled",
         action="store_true",
         default=False,
         help="Save compiled programs as .mxr files",
     )
-    
+
     parser.add_argument(
         "--exhaustive-tune",
         action="store_true",
@@ -123,7 +122,6 @@ def get_args():
 
 
 class StableDiffusionMGX():
-
     def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
@@ -141,13 +139,18 @@ class StableDiffusionMGX():
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae", {"latent_sample": [1, 4, 128, 128]}, base_model_path, save_compiled, exhaustive_tune)
+            "vae", {"latent_sample": [1, 4, 128, 128]}, base_model_path,
+            save_compiled, exhaustive_tune)
         self.clip = StableDiffusionMGX.load_mgx_model("clip",
                                                       {"input_ids": [1, 77]},
-                                                      base_model_path, save_compiled, exhaustive_tune)
+                                                      base_model_path,
+                                                      save_compiled,
+                                                      exhaustive_tune)
         self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
                                                        {"input_ids": [1, 77]},
-                                                       base_model_path, save_compiled, exhaustive_tune)
+                                                       base_model_path,
+                                                       save_compiled,
+                                                       exhaustive_tune)
         self.unetxl = StableDiffusionMGX.load_mgx_model(
             "unetxl", {
                 "sample": [2, 4, 128, 128],
@@ -191,7 +194,7 @@ class StableDiffusionMGX():
         hidden_states = np.concatenate(
             (text_embeddings[0], uncond_embeddings[0])).astype(np.float16)
         text_embeds = np.concatenate(
-            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)     
+            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
         print("Running denoising loop...")
         start_time = time.perf_counter_ns()
         scale = torch.tensor(scale)
@@ -201,8 +204,8 @@ class StableDiffusionMGX():
                                  1024]]).astype(np.float16)
 
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
-            latents = self.denoise_step(hidden_states, text_embeds,
-                                        latents, t, scale, time_id)
+            latents = self.denoise_step(hidden_states, text_embeds, latents, t,
+                                        scale, time_id)
         end_time = time.perf_counter_ns()
         unet_time = end_time - start_time
 
@@ -222,7 +225,11 @@ class StableDiffusionMGX():
 
     @staticmethod
     @measure
-    def load_mgx_model(name, shapes, model_base_path, save_compiled, exhaustive_tune=False):
+    def load_mgx_model(name,
+                       shapes,
+                       model_base_path,
+                       save_compiled,
+                       exhaustive_tune=False):
         file = f"{model_base_path}/{name}/model"
         print(f"Loading {name} model from {file}")
         if os.path.isfile(f"{file}.mxr"):
@@ -231,7 +238,8 @@ class StableDiffusionMGX():
         elif os.path.isfile(f"{file}.onnx"):
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
-            model.compile(mgx.get_target("gpu"), exhaustive_tune=exhaustive_tune)
+            model.compile(mgx.get_target("gpu"),
+                          exhaustive_tune=exhaustive_tune)
             if save_compiled:
                 print(f"Saving {name} model to mxr file...")
                 mgx.save(model, f"{file}.mxr", format="msgpack")
@@ -277,26 +285,28 @@ class StableDiffusionMGX():
         pil_image.save(filename)
 
     @measure
-    def denoise_step(self, hidden_states, text_embeds, latents, t,
-                     scale, time_id):
-        sample = self.scheduler.scale_model_input(latents,
-                                                  t)    
+    def denoise_step(self, hidden_states, text_embeds, latents, t, scale,
+                     time_id):
+        sample = self.scheduler.scale_model_input(latents, t)
         sample = torch.cat((sample, sample))
         timestep = np.atleast_1d(t.numpy().astype(
             np.float32))  # convert 0D -> 1D
 
-
         unet_out = torch.split(
             torch.reshape(
-            torch.frombuffer(
-                self.unetxl.run({
-                    "sample": sample.numpy().astype(np.float32),
-                    "encoder_hidden_states": hidden_states,
-                    "timestep": timestep,
-                    "text_embeds": text_embeds,
-                    "time_ids": time_id
-                })[0],dtype=torch.float16), (2, 4, 128, 128))
-                , 1)
+                torch.frombuffer(self.unetxl.run({
+                    "sample":
+                    sample.numpy().astype(np.float32),
+                    "encoder_hidden_states":
+                    hidden_states,
+                    "timestep":
+                    timestep,
+                    "text_embeds":
+                    text_embeds,
+                    "time_ids":
+                    time_id
+                })[0],
+                                 dtype=torch.float16), (2, 4, 128, 128)), 1)
 
         noise_pred_uncond = unet_out[1]
         noise_pred_text = unet_out[0]
@@ -306,8 +316,7 @@ class StableDiffusionMGX():
                                                   noise_pred_uncond)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(noise_pred, t,
-                                   latents).prev_sample
+        return self.scheduler.step(noise_pred, t, latents).prev_sample
 
     @measure
     def decode(self, latents):
@@ -340,7 +349,8 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled, args.exhaustive_tune)
+    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled,
+                            args.exhaustive_tune)
     print("Warming up...")
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,

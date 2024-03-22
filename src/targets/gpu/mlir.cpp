@@ -589,13 +589,17 @@ struct mlir_program
         MlirBlock result = fbody.get();
         mlirRegionAppendOwnedBlock(region.get(), fbody.release());
 
-        auto ops = create_operation_state("func.func");
-        ops.add_attributes({{"function_type", make_function_type(inputs, outputs)},
-                            {"sym_name", sym_name},
-                            {"kernel", std::string("mixr")},
-                            {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"reverse_grid", reverse_grid}});
+        auto ops                                   = create_operation_state("func.func");
+        std::vector<named_attribute_t> named_attrs = {
+            {"function_type", make_function_type(inputs, outputs)},
+            {"sym_name", sym_name},
+            {"kernel", std::string("mixr")},
+            {"arch", target_arch},
+            {"num_cu", num_cu}};
+        if(reverse_grid)
+            named_attrs.push_back({"reverse_grid", mlirUnitAttrGet(ctx.get())});
+
+        ops.add_attributes(named_attrs);
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

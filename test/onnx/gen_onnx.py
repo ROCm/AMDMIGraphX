@@ -2934,6 +2934,23 @@ def gridsample_test():
 
 
 @onnx_test()
+def gridsample_simple_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 2, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 1, 1, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 1, 1])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
 def gridsample_bilinear_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
@@ -3139,6 +3156,38 @@ def gridsample_volumetric_nearest_align_corners_0_test():
         outputs=["y"],
         mode="nearest",
         align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_wrong_grid_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.INT32,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_mismatching_dims_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [1, 1, 3, 2, 2])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 2, 4, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1, 1, 2, 4])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
     )
 
     return ([node], [x, grid], [y])

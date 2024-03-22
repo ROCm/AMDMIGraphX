@@ -26,16 +26,18 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(gridsample_linear_test)
+TEST_CASE(gridsample_nearest_align_corners_0_additional_1_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_linear_test.onnx");
+    migraphx::program p =
+        migraphx::parse_onnx("gridsample_nearest_align_corners_0_additional_1_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
-    migraphx::shape data_shape{input_type, {1, 1, 2, 2}};
-    migraphx::shape grid_shape{input_type, {1, 2, 2, 2}};
-    std::vector<float> data = {1.0, 2.0, 3.0, 4.0};
-    std::vector<float> grid = {0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.5, 0.5};
+    migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
+    migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
+    std::vector<float> data = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
+    std::vector<float> grid = {
+        -1., -0.8, -0.6, -0.5, -0.1, -0.2, 0.7, 0., 0., 0.4, 0.2, -0.2, -0.3, 0.5, -1., 1.};
 
     migraphx::parameter_map pp;
     pp["x"]    = migraphx::argument(data_shape, data.data());
@@ -45,6 +47,6 @@ TEST_CASE(gridsample_linear_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {2.5, 1.75, 1.75, 4.0};
+    std::vector<float> gold = {0.0, 0.0, 2.0, 3.0, 4.0, 3.0, 4.0, 4.0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

@@ -708,9 +708,11 @@ struct find_unary_shape_transforms
 
         std::vector<operation> yops;
         auto y = output;
+        auto last_transform = m.end();
         while(is_shape_transform(y) and y->outputs().size() == 1)
         {
             yops.push_back(y->get_operator());
+            last_transform = y;
             y = y->outputs().front();
         }
 
@@ -726,7 +728,11 @@ struct find_unary_shape_transforms
             else
                 move_down = false;
         }
-        else if(not move_up and not move_down) {}
+        else if(not move_up and not move_down) 
+        {
+            if (not yops.empty())
+                move_up = true;
+        }
 
         if(move_up)
         {
@@ -737,7 +743,7 @@ struct find_unary_shape_transforms
         else if(move_down and not yops.empty())
         {
             auto z = insert_ops(yops, input);
-            m.replace_instruction(ins, ins->get_operator(), z);
+            m.replace_instruction(last_transform, ins->get_operator(), z);
         }
     }
 };
@@ -1064,6 +1070,7 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},
+                            find_unary_shape_transforms{},
                             find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});

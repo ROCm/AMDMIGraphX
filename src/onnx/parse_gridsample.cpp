@@ -209,9 +209,6 @@ struct nearest_sampler : grid_sampler
             }
         }
 
-        if(indices.empty())
-            MIGRAPHX_THROW("PARSE_GRID_SAMPLE: failed to compute sample indices");
-
         auto indices_t = concat_on_first_dim(info, indices);
         indices_t      = info.add_instruction(
             make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);

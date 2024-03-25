@@ -223,6 +223,13 @@ class StableDiffusionMGX():
             "vae": allocate_torch_buffers(self.vae),
         }
 
+        self.model_args = {
+            "clip": tensors_to_args(self.tensors['clip']),
+            "clip2": tensors_to_args(self.tensors['clip2']),
+            "unetxl": tensors_to_args(self.tensors['unetxl']),
+            "vae": tensors_to_args(self.tensors['vae']),
+        }
+
     @measure
     def run(self, prompt, negative_prompt, steps, seed, scale):
         with torch.inference_mode():
@@ -338,11 +345,11 @@ class StableDiffusionMGX():
     def get_embeddings(self, input, input2):
         self.tensors['clip']['input_ids'].copy_(input.input_ids.to(
             torch.int32))
-        self.clip.run(tensors_to_args(self.tensors['clip']))
+        self.clip.run(self.model_args['clip'])
 
         self.tensors['clip2']['input_ids'].copy_(
             input2.input_ids.to(torch.int64))
-        self.clip2.run(tensors_to_args(self.tensors['clip2']))
+        self.clip2.run(self.model_args['clip2'])
 
         mgx.gpu_sync()
         clip_hidden = self.tensors['clip'][get_output_name(0)]
@@ -382,7 +389,7 @@ class StableDiffusionMGX():
         self.tensors['unetxl']['text_embeds'].copy_(
             text_embeds.to(torch.float16))
         self.tensors['unetxl']['time_ids'].copy_(time_id.to(torch.float16))
-        self.unetxl.run(tensors_to_args(self.tensors['unetxl']))
+        self.unetxl.run(self.model_args['unetxl'])
         mgx.gpu_sync()
         return torch.tensor_split(self.tensors['unetxl'][get_output_name(0)],
                                   2)
@@ -409,7 +416,7 @@ class StableDiffusionMGX():
     @measure
     def decode(self, latents):
         self.tensors['vae']['latent_sample'].copy_(latents.to(torch.float32))
-        self.vae.run(tensors_to_args(self.tensors['vae']))
+        self.vae.run(self.model_args['vae'])
         mgx.gpu_sync()
         return self.tensors['vae'][get_output_name(0)]
 
@@ -431,10 +438,10 @@ class StableDiffusionMGX():
         self.tensors['vae']['latent_sample'].copy_(
             torch.randn((1, 4, 128, 128)).to(torch.float32))
         for _ in range(num_runs):
-            self.clip.run(tensors_to_args(self.tensors['clip']))
-            self.clip2.run(tensors_to_args(self.tensors['clip2']))
-            self.unetxl.run(tensors_to_args(self.tensors['unetxl']))
-            self.vae.run(tensors_to_args(self.tensors['vae']))
+            self.clip.run(self.model_args['clip'])
+            self.clip2.run(self.model_args['clip2'])
+            self.unetxl.run(self.model_args['unetxl'])
+            self.vae.run(self.model_args['vae'])
             mgx.gpu_sync()
 
 

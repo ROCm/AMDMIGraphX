@@ -38,6 +38,77 @@ struct parse_matmul : op_parser<parse_matmul>
         return {{"MatMul", "dot"}, {"MatMulInteger", "quant_dot"}};
     }
 
+    static void broadcast_dimensions(const onnx_parser::node_info& info,
+                                     const std::vector<size_t>& s0_lens,
+                                     const std::vector<size_t>& s1_lens,
+                                     const instruction_ref& a0,
+                                     const instruction_ref& a1,
+                                     instruction_ref& ba0,
+                                     instruction_ref& ba1)
+    {
+        // try broadcasting if dimensions other than last two do not match
+        if(not std::equal(
+               s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
+        {
+            auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
+            std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
+            auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
+            std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
+            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
+            l0_broadcasted_lens = output_lens;
+            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
+            l1_broadcasted_lens = output_lens;
+            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
+            if(s0_lens != l0_broadcasted_lens)
+            {
+                ba0 = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
+            }
+            if(s1_lens != l1_broadcasted_lens)
+            {
+                ba1 = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
+            }
+        }
+    }
+
+    // Convert to int16 prior to a shift to ensure we preserve accuracy here then
+    // convert back to int8
+    static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
+                                          instruction_ref& unshifted_input)
+    {
+        auto int8_shift = info.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+
+        auto unshifted_input_int16 = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}),
+            unshifted_input);
+
+        auto input_shifted_int16 = info.add_common_op("add", unshifted_input_int16, int8_shift);
+
+        return info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+            input_shifted_int16);
+    }
+
+    static instruction_ref set_bias_arg(const onnx_parser::node_info& info,
+                                        const std::vector<instruction_ref>& args,
+                                        const int index,
+                                        const instruction_ref& input)
+    {
+        if(args.size() > index)
+        {
+            instruction_ref bias_arg = args[index];
+            if(bias_arg->get_shape().type() != input->get_shape().type())
+            {
+                MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
+            }
+
+            return info.add_common_op("sub", input, bias_arg);
+        }
+        return input;
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -85,55 +156,40 @@ struct parse_matmul : op_parser<parse_matmul>
         {
             auto s0_lens        = a0->get_shape().lens();
             auto s1_lens        = a1->get_shape().lens();
-            instruction_ref ba0 = a0;
-            instruction_ref ba1 = a1;
-            // try broadcasting if dimensions other than last two do not match
-            if(not std::equal(
-                   s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
+
+            if(not is_quant_dot and args.size() > 2)
             {
-                auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
-                std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
-                auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
-                std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
-                auto output_lens =
-                    compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
-                l0_broadcasted_lens = output_lens;
-                l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
-                l1_broadcasted_lens = output_lens;
-                l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
-                if(s0_lens != l0_broadcasted_lens)
-                {
-                    ba0 = info.add_instruction(
-                        make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
-                }
-                if(s1_lens != l1_broadcasted_lens)
-                {
-                    ba1 = info.add_instruction(
-                        make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
-                }
+                MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }
 
-            // parse a_zero_point and b_zero_point values
-            if(args.size() > 2)
-            {
-                ba0 = info.add_instruction(
-                    make_op("convert", {{"target_type", migraphx::shape::float_type}}), ba0);
+            instruction_ref ba0 = set_bias_arg(info, args, 2, a0);
+            instruction_ref ba1 = set_bias_arg(info, args, 3, a1);
 
-                ba0 = info.add_common_op("sub", ba0, args[2]);
-                if(args.size() > 3)
-                {
-                    ba1 = info.add_instruction(
-                        make_op("convert", {{"target_type", migraphx::shape::float_type}}), ba1);
-                    ba1 = info.add_common_op("sub", ba1, args[3]);
-                }
-                dot_res = info.add_instruction(make_op("dot"), ba0, ba1);
-                dot_res = info.add_instruction(
-                    make_op("convert", {{"target_type", migraphx::shape::int32_type}}), dot_res);
-            }
-            else
+            // Only INT8 or UINT8 type currently supported
+            std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
+                                                                 migraphx::shape::int8_type};
+            const auto ba0_type                               = ba0->get_shape().type();
+            const auto ba1_type                               = ba1->get_shape().type();
+
+            if(is_quant_dot and
+               (not contains(supported_types, ba0_type) or not contains(supported_types, ba1_type)))
             {
-                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+                MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
             }
+
+            auto is_same_type = (ba0_type == ba1_type);
+
+            if(is_quant_dot and not is_same_type)
+            {
+                if(ba0_type == migraphx::shape::uint8_type)
+                    ba0 = add_int8_shift(info, ba0);
+
+                if(ba1_type == migraphx::shape::uint8_type)
+                    ba1 = add_int8_shift(info, ba1);
+            }
+
+            broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+            dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
         }
 
         // squeeze the appended or prepended dimensions

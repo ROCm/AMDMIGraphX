@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,22 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/print.hpp>
 
+namespace {
+
+template <typename T>
+struct acc_type
+{
+    typedef float type;
+};
+
+template <>
+struct acc_type<double>
+{
+    typedef double type;
+};
+
+} // namespace
+
 namespace migraphx {
 
 template <class T, index_int N, class Op>
@@ -50,9 +66,13 @@ __device__ void generic_binary_layernorm(
     using reduce_output = reduce::with_axis<Input1, Axis>;
 
     block::template run<reduce_output>([&](auto, auto r) {
-        auto input       = r.inner([&](auto x1, auto x2) { return op(x1, x2); })(input1, input2);
-        using value_type = typename Input1::type;
-        using vec_value_type       = vec_type<value_type>;
+        using value_type     = typename Input1::type;
+        using vec_value_type = typename acc_type<vec_type<value_type>>::type;
+
+        auto input = r.inner([&](auto x1, auto x2) {
+            return migraphx::convert<vec_value_type>(op(x1, x2));
+        })(input1, input2);
+
         constexpr auto relements   = r.template elements<Input1>();
         constexpr auto relements_r = vec_value_type{1.0 / relements};
         auto relements_rsqrt       = sqrt(relements_r);
@@ -67,16 +87,14 @@ __device__ void generic_binary_layernorm(
                                   return make_array(x_out, x2_sqrt * x2_sqrt);
                               })(input);
 
-        auto mean_x        = means[0];
-        auto mean_x2       = means[1];
-        auto variance      = mean_x2 - (mean_x * mean_x);
-        value_type eps_val = implicit_conversion(eps);
+        auto mean_x            = means[0];
+        auto mean_x2           = means[1];
+        auto variance          = mean_x2 - (mean_x * mean_x);
+        vec_value_type eps_val = implicit_conversion(eps);
+        auto rsqrt_val         = rsqrt(variance + eps_val);
 
         r.inner([&](auto& y, auto x, auto... xs) {
-            auto m = x - mean_x;
-
-            // m * rsqrt(mean(m ^ 2) + epsilon)
-            y = compute(m * rsqrt(variance + eps_val), xs...);
+            y = compute(migraphx::convert<vec_type<value_type>>((x - mean_x) * rsqrt_val), xs...);
         })(output, input, inputs...);
     });
 }

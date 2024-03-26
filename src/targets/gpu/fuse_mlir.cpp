@@ -277,6 +277,10 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(mode != mlir_mode::fast)
             return true;
+        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
+        // for it.
+        if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
+            return false;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
         // auto m = a.lens()[a.lens().size() - 2];

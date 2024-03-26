@@ -26,15 +26,55 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <rocblas/rocblas.h>
+#include <hipblaslt/hipblaslt.h>
+
+#define HIPBLASLT_WORKSPACE_SIZE (2*128*1024*1024)
+
+#ifndef CHECK_HIP_ERROR
+#define CHECK_HIP_ERROR(error)                    \
+    if(error != hipSuccess)                       \
+    {                                             \
+        fprintf(stderr,                           \
+                "Hip error: '%s'(%d) at %s:%d\n", \
+                hipGetErrorString(error),         \
+                error,                            \
+                __FILE__,                         \
+                __LINE__);                        \
+        exit(EXIT_FAILURE);                       \
+    }
+#endif
+
+#ifndef CHECK_HIPBLAS_ERROR
+#define CHECK_HIPBLAS_ERROR(error)                    \
+    if(error != HIPBLAS_STATUS_SUCCESS)               \
+    {                                                 \
+        fprintf(stderr,                               \
+                "hipBLAS error: '%s'(%d) at %s:%d\n", \
+                hipblasStatusToString(error),         \
+                error,                                \
+                __FILE__,                             \
+                __LINE__);                            \
+        exit(EXIT_FAILURE);                           \
+    }
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
-
 rocblas_handle_ptr create_rocblas_handle_ptr();
 rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
+
+using hipblaslt_handle_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtHandle_t, hipblasLtDestroy);
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr();
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s);
+
+using hipblaslt_preference_ptr = MIGRAPHX_MANAGE_PTR(hipblasLtMatmulPreference_t, hipblasLtMatmulPreferenceDestroy);
+hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
+
+using hipblaslt_workspace_ptr = MIGRAPHX_MANAGE_PTR(void *, hipFree);
+hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr();
 
 struct context;
 

@@ -508,6 +508,7 @@ struct gemm_impl
         }
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }
 #endif

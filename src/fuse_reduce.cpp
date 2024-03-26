@@ -24,6 +24,7 @@
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -251,10 +252,17 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
+    // auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
     return match::any_of(match_op_input, broadcast_match_op_input);
+}
+
+static void finalize_reduce_module(module_ref m)
+{
+    eliminate_common_subexpression{}.apply(*m);
+    dead_code_elimination{}.apply(*m);
 }
 
 namespace {
@@ -288,6 +296,7 @@ struct find_pointwise_reduce
 
         // Insert fused_reduce
         rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
@@ -329,6 +338,7 @@ struct find_reduce_pointwise
 
         auto out = insert_ins_in_submodule(rm, pw, map_ins);
         rm->replace_return(out);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(pw, reduce->get_operator(), new_inputs, {rm});
@@ -373,6 +383,7 @@ struct find_reduce_reduce
 
         auto out = insert_module_in_submodule(rm, reduce1, map_ins);
         rm->replace_return(out);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce1, reduce1->get_operator(), new_inputs, {rm});

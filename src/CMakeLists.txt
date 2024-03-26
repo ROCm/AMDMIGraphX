@@ -227,6 +227,7 @@ register_migraphx_ops(
     run_on_target
     scalar
     scan
+    scan_slice
     scatter_none
     scatter_add
     scatter_mul

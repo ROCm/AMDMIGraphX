@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,31 @@ TEST_CASE(reduce_prod_axis0)
     auto result = p.eval({}).back();
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{6, 18, 12, 18};
+    EXPECT(results_vector == gold);
+}
+
+TEST_CASE(reduce_prod_variable_axis0)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape x_shape{migraphx::shape::float_type, {4, 2, 2}};
+    auto x = mm->add_parameter("x", x_shape);
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+    auto axes = mm->add_parameter("axes", axes_shape);
+    mm->add_instruction(migraphx::make_op("reduce_prod"), x, axes);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+    std::vector<float> x_arg{1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 3, 2, 3};
+    pm["x"] = migraphx::argument(x_shape, x_arg.data());
+    std::vector<int64_t> axes_arg{0};
+    pm["axes"]  = migraphx::argument(axes_shape, axes_arg.data());
+    auto result = p.eval(pm).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
     std::vector<float> gold{6, 18, 12, 18};
     EXPECT(results_vector == gold);
 }

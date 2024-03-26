@@ -1647,6 +1647,41 @@ TEST_CASE(transpose_contiguous_reshape_unary)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(transpose_contiguous_reshape_unary_attributes)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {2, 8, 5, 5}});
+        auto reshape_ins1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        auto transpose_ins = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
+        auto cont_ins = m1.add_instruction(migraphx::make_op("contiguous"), transpose_ins);
+        auto reshape_ins2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), cont_ins);
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            reshape_ins2);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::half_type, {2, 8, 5, 5}});
+        auto reshape_ins1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        auto transpose_ins = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), reshape_ins1);
+        auto conv = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+            transpose_ins);
+        auto reshape_ins2 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 10, 10}}}), conv);
+        m2.add_instruction(pass_op{}, reshape_ins2);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(transpose_contiguous_squeeze_unary)
 {
     migraphx::module m1;

@@ -43,6 +43,7 @@ struct gemm_multi_dim_2_3 : verify_program<gemm_multi_dim_2_3<DType>>
 
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_multi_dim_2_3<migraphx::shape::float_type>;

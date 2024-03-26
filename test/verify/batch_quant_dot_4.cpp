@@ -46,6 +46,7 @@ struct batch_quant_dot_4 : verify_program<batch_quant_dot_4<DType>>
         mm->add_instruction(migraphx::make_op("quant_dot"), tl1, tl2);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 template struct batch_quant_dot_4<migraphx::shape::int8_type>;
 template struct batch_quant_dot_4<migraphx::shape::fp8e4m3fnuz_type>;

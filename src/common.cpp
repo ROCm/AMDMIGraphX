@@ -74,16 +74,13 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        {
                            return b;
                        }
-                       else if(a.within_range(b))
-                       {
-                           return shape::dynamic_dimension{a.min, a.max};
-                       }
-                       else if(b.within_range(a))
-                       {
-                           return shape::dynamic_dimension{b.min, b.max};
-                       }
                        else
                        {
+                           auto intersect = a.intersection(b);
+                           if(intersect.has_value())
+                           {
+                               return intersect.value();
+                           }
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
                                           migraphx::to_string_range(dds0) + "} and {" +
                                           migraphx::to_string_range(dds1) + "} mismatch!");
@@ -225,10 +222,10 @@ instruction_ref add_common_op(module& m, const operation& op, std::vector<instru
     return insert_common_op(m, m.end(), op, std::move(inputs));
 }
 
-shape make_bcast_shape(const shape& input_shape,
-                       const std::vector<std::size_t>& bcast_lens,
-                       const std::size_t& offset)
+shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)
 {
+    assert(not input_shape.dynamic());
+    auto offset = bcast_lens.size() - input_shape.ndim();
     std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
     for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
     {

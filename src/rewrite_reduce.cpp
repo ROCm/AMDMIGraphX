@@ -26,6 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/common.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,9 +55,54 @@ struct find_softmax
     }
 };
 
+struct find_reduce_mean
+{
+    auto matcher() const { return match::name("reduce_mean"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto reduce_mean = r.result;
+        auto op          = reduce_mean->get_operator().to_value();
+        auto axes        = op["axes"].to_vector<std::int64_t>();
+        auto input       = reduce_mean->inputs().front();
+
+        bool is_integral = false;
+        double max_n     = 0;
+        input->get_shape().visit_type([&](auto t) {
+            is_integral = t.is_integral();
+            max_n       = t.max();
+        });
+
+        auto n = input->get_shape().elements() / reduce_mean->get_shape().elements();
+
+        // avoid overflow (the larger value will be later handled)
+        if(n >= max_n / 4)
+            return;
+
+        auto n_literal = m.add_literal(literal{{input->get_shape().type(), {1}}, {n}});
+        if(is_integral)
+        {
+            auto reduce_sum =
+                m.insert_instruction(reduce_mean, make_op("reduce_sum", {{"axes", axes}}), input);
+            auto div = insert_common_op(m, reduce_mean, make_op("div"), {reduce_sum, n_literal});
+            m.replace_instruction(reduce_mean, div);
+        }
+        else
+        {
+            auto new_input  = insert_common_op(m, reduce_mean, make_op("div"), {input, n_literal});
+            auto reduce_sum = m.insert_instruction(
+                reduce_mean, make_op("reduce_sum", {{"axes", axes}}), new_input);
+            m.replace_instruction(reduce_mean, reduce_sum);
+        }
+    }
+};
+
 } // namespace
 
-void rewrite_reduce::apply(module& m) const { match::find_matches(m, find_softmax{}); }
+void rewrite_reduce::apply(module& m) const
+{
+    match::find_matches(m, find_softmax{}, find_reduce_mean{});
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

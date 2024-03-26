@@ -46,6 +46,7 @@ struct gemm_add : verify_program<gemm_add<DType>>
         mm->add_instruction(migraphx::make_op("add"), dot, l3);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct gemm_add<migraphx::shape::float_type>;

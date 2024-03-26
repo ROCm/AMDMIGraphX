@@ -122,10 +122,6 @@ Use it in conjunction with ``MIGRAPHX_DISABLE_MLIR=1``.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables use of the rocMLIR library.
 
-.. envvar:: MIGRAPHX_ENABLE_EXTRA_MLIR
-Set to "1", "enable", "enabled", "yes", or "true" to use.
-Enables additional opportunities to use MLIR for chances of an improved performance.
-
 .. envvar:: MIGRAPHX_COPY_LITERALS
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

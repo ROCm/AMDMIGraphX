@@ -691,10 +691,15 @@ struct perf : command<perf>
 {
     compiler c;
     unsigned n = 100;
+    bool detailed = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
+        ap(detailed,
+           {"--detailed", "-d"},
+           ap.help("Show a more detailed summary report"),
+           ap.set_value(true));
     }
 
     void run()
@@ -704,7 +709,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m, c.l.batch);
+        p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
 

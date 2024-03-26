@@ -44,6 +44,7 @@ struct test_conv_group_add : verify_program<test_conv_group_add<DType>>
         mm->add_instruction(migraphx::make_op("add"), conv, bb);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 template struct test_conv_group_add<migraphx::shape::float_type>;
 // grouped  convolutions are not supported with MLIR therefore disable it

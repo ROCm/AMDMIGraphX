@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ struct if_op
             MIGRAPHX_THROW("IF: output shapes of submodules must be the same.");
         }
 
-        return {out_shapes0};
+        return shape(out_shapes0);
     }
 
     argument compute(const shape&,

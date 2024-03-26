@@ -80,6 +80,7 @@ struct test_conv_bn : verify_program<test_conv_bn<DType>>
         add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_bn<migraphx::shape::float_type>;

@@ -48,6 +48,7 @@ struct test_convert : verify_program<test_convert<From, To>>
 
         return p;
     };
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_convert<migraphx::shape::int8_type, migraphx::shape::float_type>;

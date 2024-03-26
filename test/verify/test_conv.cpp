@@ -39,6 +39,7 @@ struct test_conv : verify_program<test_conv<DType>>
         mm->add_instruction(migraphx::make_op("convolution"), input, weights);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv<migraphx::shape::float_type>;

@@ -88,7 +88,7 @@ struct multibroadcast
                 }
             }
 
-            return make_bcast_shape(s0, output_lens, offset);
+            return make_bcast_shape(s0, output_lens);
         }
         else
         {
@@ -106,8 +106,7 @@ struct multibroadcast
             {
                 // output_lens will not be set for 2+ input version
                 auto bcast_lens    = compute_common_lens(inputs);
-                auto offset        = bcast_lens.size() - s0.ndim();
-                return make_bcast_shape(s0, bcast_lens, offset);
+                return make_bcast_shape(s0, bcast_lens);
             }
         }
     }

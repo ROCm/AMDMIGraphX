@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,25 +32,31 @@ TEST_CASE(dynamicquantizelinear_2d_test)
     auto x_type = migraphx::shape::float_type;
     auto x      = mm->add_parameter("x", {x_type, x_dims});
 
-    auto l0         = mm->add_literal({0.f});
-    auto x_reshaped = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), x);
-    x_reshaped = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x_reshaped, l0);
+    auto l0 = mm->add_literal({0.f});
 
-    auto q_range = mm->add_literal(
-        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
+    std::vector<size_t> axes(x->get_shape().lens().size());
+    std::iota(axes.begin(), axes.end(), 0);
 
-    auto max_x = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), x_reshaped);
-    auto min_x = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", {0}}}), x_reshaped);
+    auto reduce_max_x = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), x);
+    auto max_x        = add_common_op(*mm, migraphx::make_op("max"), {l0, reduce_max_x});
+
+    auto reduce_min_x = mm->add_instruction(migraphx::make_op("reduce_min", {{"axes", axes}}), x);
+    auto min_x        = add_common_op(*mm, migraphx::make_op("min"), {l0, reduce_min_x});
+
+    auto q_range = mm->add_literal(migraphx::literal{
+        migraphx::shape{x_type, max_x->get_shape().lens()},
+        {std::numeric_limits<uint8_t>::max() - std::numeric_limits<uint8_t>::min()}});
+    auto q_min   = mm->add_literal(migraphx::literal{
+        migraphx::shape{x_type, max_x->get_shape().lens()}, {std::numeric_limits<uint8_t>::min()}});
+    auto q_max   = mm->add_literal(migraphx::literal{
+        migraphx::shape{x_type, min_x->get_shape().lens()}, {std::numeric_limits<uint8_t>::max()}});
 
     auto sub0    = mm->add_instruction(migraphx::make_op("sub"), max_x, min_x);
     auto y_scale = mm->add_instruction(migraphx::make_op("div"), sub0, q_range);
 
-    auto q_min = mm->add_literal(
-        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::min()}});
-    auto q_max = mm->add_literal(
-        migraphx::literal{migraphx::shape{x_type}, {std::numeric_limits<uint8_t>::max()}});
-    auto sub1         = mm->add_instruction(migraphx::make_op("sub"), q_min, min_x);
-    auto interm_zp    = mm->add_instruction(migraphx::make_op("div"), sub1, y_scale);
+    auto div1      = add_common_op(*mm, migraphx::make_op("div"), {min_x, y_scale});
+    auto interm_zp = add_common_op(*mm, migraphx::make_op("sub"), {q_min, div1});
+
     auto saturate     = mm->add_instruction(migraphx::make_op("clip"), interm_zp, q_min, q_max);
     auto round        = mm->add_instruction(migraphx::make_op("nearbyint"), saturate);
     auto y_zero_point = mm->add_instruction(

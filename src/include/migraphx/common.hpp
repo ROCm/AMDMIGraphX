@@ -63,19 +63,16 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
  * Compares `dynamic_dimension` objects from the trailing (right-most) dimension and working
  * leftwards.
  *
- * Rules for broadcasting:
+ * Rules for broadcasting dynamic_dimension:
  * If the same `dynamic_dimension`, return either.
  * If one of the `dynamic_dimension`s is 1, return the other one.
- * If one `dynamic_dimension` can fit within the range of the other,
- * return the `dynamic_dimension` with the smaller range.
- * Else, throw an error.
- *
- * For the within_range() cases the broadcasting works out to outputting the smaller ranger because
- * for the shape to be broadcastable at runtime (when the dimensions are constant) the dimensions
- * must be the same. The only way for the dimensions to be the same is if the output dimension is
- * the intersection of the ranges. The current code only handles if one range is within the other,
- * but it can be extended to do the intersection of the ranges.
- * This case is mainly for handling unknown dynamic_dimensions like {0, max_int}.
+ * If the `dynamic_dimension`s have an intersection, return the intersection.
+ *   Explanation:
+ *   For the shape to be broadcastable at runtime (when the dimensions are constant) the dimensions
+ *   must be the same. The only way for the dimensions to be the same is if the output dimension is
+ *   the intersection of the ranges.
+ *   In practice, we will mostly see this case for handling unknown dynamic_dimensions like {0,
+ * max_int}. Else, throw an error.
  *
  * There is a contrived edge case for ranges that include 1 but are not a fixed {1, 1}.
  * That case is not supported.
@@ -134,12 +131,14 @@ MIGRAPHX_EXPORT
 instruction_ref add_common_op(module& m, const operation& op, std::vector<instruction_ref> inputs);
 
 /**
- * Calculates the broadcasted strides from broadcast_for_dot or multibroadcast.
+ * Calculates the broadcasted shape with the given input_shape and broadcasted dimensions.
+ *
+ * @param input_shape static shape to broadcast
+ * @param bcast_lens dimensions to broadcast to
+ * @return broadcasted shape with calculated strides
  */
 MIGRAPHX_EXPORT
-shape make_bcast_shape(const shape& input_shape,
-                       const std::vector<std::size_t>& bcast_lens,
-                       const std::size_t& offset);
+shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

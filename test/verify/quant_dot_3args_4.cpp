@@ -52,6 +52,7 @@ struct quant_dot_3args_4 : verify_program<quant_dot_3args_4<DType, CType>>
             *mm, {tl1, tl2, l3}, migraphx::make_op("quant_dot"), CType{3}, CType{2});
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct quant_dot_3args_4<int8_t, int32_t>;

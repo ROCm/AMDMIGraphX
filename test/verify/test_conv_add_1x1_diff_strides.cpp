@@ -45,6 +45,7 @@ struct test_conv_add_1x1_diff_strides : verify_program<test_conv_add_1x1_diff_st
         mm->add_instruction(migraphx::make_op("exp"), sum);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_add_1x1_diff_strides<migraphx::shape::float_type>;

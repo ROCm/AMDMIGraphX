@@ -45,6 +45,7 @@ struct quant_conv_1d : verify_program<quant_conv_1d<DType>>
             pc);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct quant_conv_1d<migraphx::shape::int8_type>;

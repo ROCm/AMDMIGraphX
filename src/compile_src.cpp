@@ -61,7 +61,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
 
     std::vector<std::string> args;
     if(not launcher.empty())
-        args.push_back(compiler);
+        args.push_back(compiler.string());
     args.insert(args.end(), params.begin(), params.end());
     td.execute(launcher.empty() ? compiler : launcher, args);
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,16 @@ struct parse_convolution : op_parser<parse_convolution>
     std::vector<op_desc> operators() const
     {
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
+    }
+
+    static instruction_ref
+    set_bias(const instruction_ref& input, int index, const std::vector<instruction_ref>& args)
+    {
+        if(args.size() > index)
+        {
+            return args[index];
+        }
+        return input;
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -149,9 +159,45 @@ struct parse_convolution : op_parser<parse_convolution>
 
         recalc_conv_attributes(values, kdims);
 
+        instruction_ref ret;
+        // parse a_zero_point and b_zero_point values
+        auto l0_zp         = set_bias(l0, 2, args);
+        auto w_zp          = set_bias(weights, 3, args);
+        auto is_quant_conv = opd.op_name == "quant_convolution";
+
         op.from_value(values);
-        auto l1 = info.add_instruction(op, l0, args[1]);
-        return info.add_bias(args, l1, 1);
+
+        // Check for type mismatch on parse
+        if(l0_zp->get_shape().type() != l0_shape.type())
+        {
+            MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
+        }
+
+        if(is_quant_conv && (w_zp->get_shape().type() != w_shape.type()))
+        {
+            MIGRAPHX_THROW("PARSE:ConvInteger Weights and Weights Zero Point must have same type");
+        }
+
+        // Assign input bias on weights or data accordingly
+        if(is_quant_conv && (l0_zp != l0))
+        {
+            l0 = info.add_common_op("sub", l0, l0_zp);
+        }
+
+        if(is_quant_conv && (w_zp != weights))
+        {
+            weights = info.add_common_op("sub", weights, w_zp);
+        }
+
+        ret = info.add_instruction(op, l0, w_zp);
+
+        // Handle Convolution case with bias to output
+        if((not is_quant_conv) && (l0_zp != l0))
+        {
+            ret = info.add_bias(args, ret, 1);
+        }
+
+        return ret;
     }
 };
 

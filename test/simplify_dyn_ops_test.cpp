@@ -40,18 +40,14 @@ TEST_CASE(broadcast_with_dims)
     {
         // the X input
         migraphx::shape input_x{migraphx::shape::float_type, {3, 1, 1}};
-        auto inx = m0.add_parameter("x", input_x);    
+        auto inx = m0.add_parameter("x", input_x);
 
         // the shape input.  Broadcast to this
         migraphx::shape dims_s{migraphx::shape::int64_type, {4}};
         std::vector<size_t> dims = {2, 3, 4, 5};
-        auto out_dims = m0.add_literal(migraphx::literal{dims_s, dims});
+        auto out_dims            = m0.add_literal(migraphx::literal{dims_s, dims});
 
-        auto r = m0.add_instruction(
-            migraphx::make_op("broadcast_with_dims" ),
-            inx,
-            out_dims
-                );
+        auto r = m0.add_instruction(migraphx::make_op("broadcast_with_dims"), inx, out_dims);
         m0.add_return({r});
     }
     run_pass(m0);
@@ -62,12 +58,10 @@ TEST_CASE(broadcast_with_dims)
         auto inx = m1.add_parameter("x", sx);
 
         auto r = m1.add_instruction(
-            migraphx::make_op("multibroadcast",{{"out_lens", {2, 3, 4, 5}}}), inx);
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4, 5}}}), inx);
         m1.add_return({r});
-
     }
     EXPECT(m0 == m1);
-
 }
 
 TEST_CASE(resize)

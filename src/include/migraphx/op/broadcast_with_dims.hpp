@@ -58,8 +58,8 @@ struct broadcast_with_dims
         // output tensor rank greater of input_tensor rank or length of dims vector
         auto input_tensor_shape = inputs.at(0);
         auto dims_shape         = inputs.at(1);
-        size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
-        std::size_t max_int = std::numeric_limits<std::size_t>::max();
+        size_t out_ndim         = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
+        std::size_t max_int     = std::numeric_limits<std::size_t>::max();
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,
                                                        shape::dynamic_dimension{0, max_int});
         return {input_tensor_shape.type(), dyn_dims};

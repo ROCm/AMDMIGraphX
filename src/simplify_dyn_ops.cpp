@@ -36,33 +36,32 @@ inline namespace MIGRAPHX_INLINE_NS {
 /**
  *    Convert a Broadcast_with_dims op, which always outputs a dynamic shape,
  *    to a Multibroadcast op with a static output shape attribute.
- * 
+ *
  *    This conversion is required to be made since runtime target ops can only output
  *    static shapes.
-*/
+ */
 struct find_broadcast_with_dims_static
 {
     auto matcher() const
     {
         return match::name("broadcast_with_dims")(match::nargs(2),
-                                     match::arg(0)(match::static_shape()),
-                                     match::arg(1)(match::is_constant()));
+                                                  match::arg(0)(match::static_shape()),
+                                                  match::arg(1)(match::is_constant()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins       = mr.result;
-        auto inputs    = ins->inputs();
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
 
         // read the values of arg(1) to create input to multibroadcast
         std::vector<size_t> sizes_vec(inputs.at(0)->get_shape().ndim());
 
         inputs.at(1)->eval().visit(
-                [&](auto output) { 
-                    sizes_vec.assign(output.begin(), output.end()); 
-                    });
+            [&](auto output) { sizes_vec.assign(output.begin(), output.end()); });
 
-        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0) );
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0));
     }
 };
 

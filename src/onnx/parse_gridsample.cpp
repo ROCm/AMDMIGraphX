@@ -46,10 +46,13 @@ struct grid_sampler
     size_t m_out_width{1};
 
     instruction_ref m_one_l;
+    instruction_ref m_two_l;
     instruction_ref m_zero_l;
     instruction_ref m_minus_half_l;
     instruction_ref m_width_l;
+    instruction_ref m_width_max_l;
     instruction_ref m_height_l;
+    instruction_ref m_height_max_l;
     instruction_ref m_unnorm_x;
     instruction_ref m_unnorm_y;
 
@@ -71,18 +74,49 @@ struct grid_sampler
 
     virtual ~grid_sampler() {}
 
+    instruction_ref reflect_coordinates(const onnx_parser::node_info& info,
+                                        instruction_ref coords,
+                                        instruction_ref size,
+                                        instruction_ref corner_start) const
+    {
+        // TODO: add reduce_min and if operator check
+        auto index_align_corner = info.add_common_op("sub", corner_start, coords);
+        index_align_corner      = info.add_common_op("abs", index_align_corner);
+        auto size_times         = info.add_instruction(
+            migraphx::make_op("convert",
+                                      {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
+            index_align_corner);
+        size_times = info.add_common_op("div", size_times, size);
+        size_times = info.add_instruction(
+            migraphx::make_op("convert",
+                              {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
+            size_times);
+        auto cond   = info.add_common_op("mod", size_times, m_two_l);
+        cond        = info.add_common_op("equal", cond, m_zero_l);
+        auto extra  = info.add_common_op("mul", size_times, size);
+        extra       = info.add_common_op("sub", index_align_corner, extra);
+        auto cond_a = info.add_common_op("add", extra, corner_start);
+        auto cond_b = info.add_common_op("sub", size, extra);
+        cond_b      = info.add_common_op("add", cond_b, corner_start);
+        return info.add_common_op("where", cond, cond_a, cond_b);
+    }
+
     virtual void setup(const onnx_parser::node_info& info)
     {
-        m_one_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
         m_zero_l = info.add_literal(
             migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {0.0f}});
+        m_one_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
         m_minus_half_l = info.add_literal(
             migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {-0.5f}});
-        m_width_l = info.add_literal(
+        m_width_max_l = info.add_literal(
             migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width - 1}});
-        m_height_l = info.add_literal(
+        m_width_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width}});
+        m_height_max_l = info.add_literal(
             migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height - 1}});
+        m_height_l = info.add_literal(
+            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height}});
 
         auto x_coords = info.add_instruction(
             make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
@@ -95,10 +129,23 @@ struct grid_sampler
         m_unnorm_x = unnormalize(info, x_coords, m_in_width);
         m_unnorm_y = unnormalize(info, y_coords, m_in_height);
 
+        if(m_padding == "reflection")
+        {
+            m_two_l = info.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {2}});
+            auto corner_start = m_align_corners ? m_zero_l : m_minus_half_l;
+            m_unnorm_x        = reflect_coordinates(
+                info, m_unnorm_x, m_align_corners ? m_width_max_l : m_width_l, corner_start);
+            m_unnorm_y = reflect_coordinates(
+                info, m_unnorm_y, m_align_corners ? m_height_max_l : m_height_l, corner_start);
+            m_unnorm_x = info.add_common_op("clip", m_unnorm_x, m_zero_l, m_width_max_l);
+            m_unnorm_y = info.add_common_op("clip", m_unnorm_y, m_zero_l, m_height_max_l);
+        }
+
         if(m_padding == "border")
         {
-            m_unnorm_x = info.add_common_op("clip", m_unnorm_x, m_zero_l, m_width_l);
-            m_unnorm_y = info.add_common_op("clip", m_unnorm_y, m_zero_l, m_height_l);
+            m_unnorm_x = info.add_common_op("clip", m_unnorm_x, m_zero_l, m_width_max_l);
+            m_unnorm_y = info.add_common_op("clip", m_unnorm_y, m_zero_l, m_height_max_l);
         }
     }
 
@@ -136,9 +183,9 @@ struct grid_sampler
     {
         static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
         auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
-        auto w_clamp         = validate ? info.add_common_op("clip", w, m_zero_l, m_width_l) : w;
-        auto h_clamp         = validate ? info.add_common_op("clip", h, m_zero_l, m_height_l) : h;
-        auto nchw = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
+        auto w_clamp = validate ? info.add_common_op("clip", w, m_zero_l, m_width_max_l) : w;
+        auto h_clamp = validate ? info.add_common_op("clip", h, m_zero_l, m_height_max_l) : h;
+        auto nchw    = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
         indices.push_back(nchw);
         if(validate)
         {
@@ -363,10 +410,6 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(contains(info.attributes, "padding_mode"))
         {
             padding_mode = info.attributes.at("padding_mode").s();
-            if(padding_mode == "reflection")
-            {
-                MIGRAPHX_THROW("PARSE_GRID_SAMPLE: reflect padding_mode is not supported");
-            }
         }
 
         const auto& grid       = args.at(1);

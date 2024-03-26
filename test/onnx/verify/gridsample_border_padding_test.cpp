@@ -29,8 +29,6 @@
 TEST_CASE(gridsample_border_padding_test)
 {
     migraphx::program p = migraphx::parse_onnx("gridsample_border_padding_test.onnx");
-    // migraphx::compile_options options;
-    // options.offload_copy = true;
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;

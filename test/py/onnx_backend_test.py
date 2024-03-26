@@ -381,7 +381,6 @@ def disabled_tests_onnx_1_11_0(backend_test):
     # errors
     # from OnnxBackendNodeModelTest
     backend_test.exclude(r'test_gridsample_bicubic_cpu')
-    backend_test.exclude(r'test_gridsample_reflection_padding_cpu')
     backend_test.exclude(r'test_identity_opt_cpu')
     backend_test.exclude(r'test_if_opt_cpu')
     backend_test.exclude(r'test_loop16_seq_none_cpu')

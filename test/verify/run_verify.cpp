@@ -184,7 +184,7 @@ void run_verify::verify(const program_info& pi) const
         migraphx::save(p, name + ".mxr");
     verify_load_save(p);
     std::vector<std::string> target_names;
-    for(const auto& tname : migraphx::get_targets())
+    for(const auto& tname : get_targets())
     {
         // TODO(varunsh): once verify tests can run, remove fpga
         if(tname == "ref" or tname == "fpga")

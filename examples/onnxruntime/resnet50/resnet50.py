@@ -263,12 +263,12 @@ def main():
 
     if flags.QPS:
         print("resnet50, Rate = {} QPS ".format(
-            format((((flags.batch) / (sum(latency[1:]) / len(latency[1:])))),
+            format((((flags.batch) / (sum(latency[0:]) / len(latency[0:])))),
                    '.2f')))
 
     else:
         print("resnet50, Averaage Execution time = {} ms".format(
-            format(sum(latency[1:]) * 1000 / len(latency[1:]), '.2f')))
+            format(sum(latency[0:]) * 1000 / len(latency[0:]), '.2f')))
 
 
 if __name__ == "__main__":

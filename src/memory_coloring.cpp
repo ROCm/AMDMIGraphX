@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/liveness.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
@@ -42,42 +43,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_MEMORY_COLORING);
 
 using instruction_set     = std::unordered_set<instruction_ref>;
 using instruction_set_map = std::unordered_map<instruction_ref, instruction_set>;
-
-// This will do liveness analysis on the module, and it will call the
-// function `f` with the instruction and the set of the other instructions
-// that are live
-template <class F>
-void liveness(const module& m, F f)
-{
-    auto implicit_deps = m.calc_implicit_deps();
-    instruction_set live_set;
-    auto rp = reverse(m);
-    for(auto rins : iterator_for(rp)) // NOLINT
-    {
-        // The base iterator is one ahead, so we need to use the previous iterator
-        auto ins = std::prev(rins.base());
-        // Add live variables
-        auto add_live_variables = [&](const auto& inputs) {
-            for(auto input : inputs)
-            {
-                auto i = instruction::get_output_alias(input);
-                // Skip if variable comes from parent
-                if(not m.has_instruction(i))
-                    continue;
-                live_set.insert(i);
-            }
-        };
-        add_live_variables(ins->inputs());
-        add_live_variables(implicit_deps[ins]);
-        // Remove last usage
-        auto it = live_set.find(ins);
-        if(it != live_set.end())
-        {
-            live_set.erase(it);
-            f(ins, live_set);
-        }
-    }
-}
 
 // This will build the conflict table or interference graph. This is
 // essentially a map from one instruction to a set of instruction that are

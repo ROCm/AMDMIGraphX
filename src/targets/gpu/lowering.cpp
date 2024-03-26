@@ -174,8 +174,21 @@ struct miopen_apply
             {
                 check_shape(s, insert_custom_op(it, attrs));
             }
+            if(attrs.contains("prefill"))
+            {
+                insert_fill(it, attrs.at("prefill"));
+            }
         }
         copy_params();
+    }
+
+    void insert_fill(instruction_ref ins, value v) const
+    {
+        instruction_ref alloc = instruction::get_output_alias(ins, true);
+        if(alloc == ins)
+            return;
+        auto fill = mod->insert_instruction(ins, make_op("hip::fill", {{"value", v}}), alloc);
+        instruction::replace_argument(ins, alloc, fill);
     }
 
     instruction_ref insert_custom_op(instruction_ref ins, const value& attrs) const

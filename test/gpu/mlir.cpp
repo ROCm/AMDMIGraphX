@@ -79,7 +79,7 @@ migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
         auto param     = mmlir.get_parameter(name);
         map_ins[param] = m.add_parameter(name, param->get_shape().as_standard());
     }
-    auto y = m.add_instructions(&mmlir, map_ins);
+    auto y = m.add_instructions(&mmlir, &map_ins);
     m.add_return(y);
     return m;
 }

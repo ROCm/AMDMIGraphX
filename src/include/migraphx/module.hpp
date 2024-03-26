@@ -50,6 +50,8 @@ struct module_impl;
 using parameter_map = std::unordered_map<std::string, argument>;
 using ins_dep_map   = std::unordered_map<instruction_ref, std::unordered_set<instruction_ref>>;
 
+struct module_with_inputs;
+
 /**
  * @brief Stores the instruction stream
  */
@@ -127,38 +129,38 @@ struct MIGRAPHX_EXPORT module
 
     std::vector<instruction_ref>
     add_instructions(const std::vector<instruction_ref>& instructions,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                     inserter insert                                              = nullptr);
+                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                     inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     add_instructions(const_module_ref m,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                     inserter insert                                              = nullptr);
+                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                     inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     add_instructions(instruction_ref start,
                      instruction_ref last,
-                     std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                     inserter insert                                              = nullptr);
+                     std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                     inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         const std::vector<instruction_ref>& instructions,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                        inserter insert                                              = nullptr);
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                        inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         const_module_ref m,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                        inserter insert                                              = nullptr);
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                        inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     insert_instructions(instruction_ref ins,
                         instruction_ref start,
                         instruction_ref last,
-                        std::unordered_map<instruction_ref, instruction_ref> map_ins = {},
-                        inserter insert                                              = nullptr);
+                        std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+                        inserter insert                                               = nullptr);
 
     template <class... Ts>
     instruction_ref add_literal(Ts&&... xs)
@@ -186,6 +188,8 @@ struct MIGRAPHX_EXPORT module
 
     instruction_ref get_parameter(std::string name) const;
 
+    std::vector<instruction_ref> get_parameters() const;
+
     void rename_parameter(instruction_ref ins, const std::string& name);
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
@@ -204,6 +208,18 @@ struct MIGRAPHX_EXPORT module
     instruction_ref find_dangling_reference() const;
 
     void finalize(std::vector<context>& contexts);
+
+    std::unordered_map<instruction_ref, instruction_ref>
+    get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
+
+    using with_inputs = module_with_inputs;
+
+    std::array<with_inputs, 2> split(const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& splits) const;
+
+    std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
+                                     const std::vector<instruction_ref>& splits1,
+                                     const std::vector<instruction_ref>& splits2) const;
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -264,6 +280,16 @@ struct MIGRAPHX_EXPORT module
                             ins_dep_map& deps) const;
 
     std::unique_ptr<module_impl> impl;
+};
+
+struct module_with_inputs
+{
+    module mod;
+    std::vector<instruction_ref> inputs;
+    void replace(instruction_ref ins, instruction_ref rep);
+    void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins);
+    void replace(const std::vector<instruction_ref>& keys,
+                 const std::vector<instruction_ref>& values);
 };
 
 inline module& get_module(module& m) { return m; }

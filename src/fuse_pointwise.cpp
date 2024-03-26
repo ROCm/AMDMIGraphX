@@ -162,7 +162,7 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
             input_map[input] = map_ins[param];
         }
     }
-    pm->replace_return(pm->insert_instructions(last, xm, map_ins));
+    pm->replace_return(pm->insert_instructions(last, xm, &map_ins));
     return inputs;
 }
 

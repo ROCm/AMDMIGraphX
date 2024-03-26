@@ -20,64 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP
 
-#include <migraphx/kernels/types.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-struct assign_none
+struct module_pass_manager;
+
+struct MIGRAPHX_EXPORT split_reduce
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x = y;
-    }
+    std::size_t split_size = 8192;
+    std::string name() const { return "split_reduce"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-struct assign_add
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        unsafeAtomicAdd(&x, T(y));
-    }
-};
-
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        T old = x;
-        T assumed;
-        do
-        {
-            assumed = old;
-            old     = atomicCAS(&x, assumed, assumed * y);
-        } while(assumed != old);
-    }
-};
-
-struct assign_max
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMax(&x, T(y));
-    }
-};
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMin(&x, T(y));
-    }
-};
-
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP

@@ -278,11 +278,10 @@ TEST_CASE(parallel_reduce_reduce2)
         auto x    = mm->add_parameter("x", s);
         auto clip = add_reduce(
             p2,
-            "main:pointwise0:main:reduce_sum0:main:pointwise3:main:pointwise1:main:reduce_sum1:"
-            "main:pointwise2:main:pointwise0:main:reduce_sum0",
+            "main:pointwise1:main:reduce_sum1:main:pointwise2:main:pointwise3:main:pointwise0:main:reduce_sum0",
             {x},
             {1},
-            [&](auto* rm, const auto& inputs, const auto& axes) {
+            [&](auto* rm, const auto& inputs, const auto&) {
                 auto sqrt =
                     add_pointwise(p2, rm, "main:pointwise0", {inputs[0]}, single_pointwise("sqrt"));
                 auto rsum1 =
@@ -299,16 +298,6 @@ TEST_CASE(parallel_reduce_reduce2)
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
                 return add_pointwise(
                     p2, rm, "main:pointwise3", {inputs[0], rsum1b, addb}, single_pointwise("clip"));
-                // auto xx = add_pointwise(
-                //     p2, rm, "main:pointwise0", {inputs[0], inputs[0]}, single_pointwise("mul"));
-                // auto rsumx  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes",
-                // axes}}),
-                //                                 inputs[0]);
-                // auto rsumxx  = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes",
-                // axes}}),
-                //                                 xx);
-                // return add_pointwise(p2, rm, "main:pointwise1", {rsumx, rsumxx},
-                // single_pointwise("add"));
             });
         mm->add_return({clip});
     }

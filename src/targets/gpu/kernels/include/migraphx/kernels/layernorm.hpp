@@ -28,23 +28,19 @@
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/print.hpp>
 
-namespace {
+namespace migraphx {
 
 template <typename T>
 struct acc_type
 {
-    typedef float type;
+    using type = float;
 };
 
 template <>
 struct acc_type<double>
 {
-    typedef double type;
+    using type = double;
 };
-
-} // namespace
-
-namespace migraphx {
 
 template <class T, index_int N, class Op>
 constexpr auto vec_reduce(const array<T, N>& a, Op op)
@@ -77,15 +73,13 @@ __device__ void generic_binary_layernorm(
         constexpr auto relements_r = vec_value_type{1.0 / relements};
         auto relements_rsqrt       = sqrt(relements_r);
 
-        auto means = r.reduce(op::sum{},
-                              make_array<vec_value_type>(vec_value_type{0}, vec_value_type{0}),
-                              [&](auto x) {
-                                  auto x_out = x * relements_r;
-                                  // dividing x by sqrt(relements) before squaring allows computing
-                                  // higher values before overflow in low precision
-                                  auto x2_sqrt = x * relements_rsqrt;
-                                  return make_array(x_out, x2_sqrt * x2_sqrt);
-                              })(input);
+        auto means = r.reduce(op::sum{}, make_array<vec_value_type>(0, 0), [&](auto x) {
+            auto x_out = x * relements_r;
+            // dividing x by sqrt(relements) before squaring allows computing
+            // higher values before overflow in low precision
+            auto x2_sqrt = x * relements_rsqrt;
+            return make_array(x_out, x2_sqrt * x2_sqrt);
+        })(input);
 
         auto mean_x            = means[0];
         auto mean_x2           = means[1];

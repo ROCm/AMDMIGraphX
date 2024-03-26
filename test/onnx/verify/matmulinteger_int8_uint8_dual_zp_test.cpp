@@ -26,15 +26,15 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(matmulinteger_uns_zp_test)
+TEST_CASE(matmulinteger_int8_uint8_dual_zp_test)
 {
-    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_zp_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("matmulinteger_int8_uint8_dual_zp_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};
-    std::vector<uint8_t> data0 = {11, 7, 3, 10, 6, 2, 9, 5, 1, 8, 4, 0};
+    migraphx::shape s0{migraphx::shape::int8_type, {4, 3}};
+    std::vector<int8_t> data0 = {-1, 5, -9, -2, 6, 10, -3, 7, -11, -4, 8, 0};
     migraphx::shape s1{migraphx::shape::uint8_type, {3, 2}};
-    std::vector<uint8_t> data1 = {1, 4, 2, 5, 3, 6};
+    std::vector<uint8_t> data1 = {128, 129, 126, 131, 124, 133};
 
     migraphx::parameter_map pp;
     pp["1"] = migraphx::argument(s0, data0.data());
@@ -43,6 +43,6 @@ TEST_CASE(matmulinteger_uns_zp_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {13, 76, 10, 64, 7, 52, 4, 40};
+    std::vector<int32_t> gold = {40, -32, -57, 46, 46, -36, -11, 10};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

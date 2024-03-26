@@ -66,11 +66,6 @@ struct scan_slice : op_name<scan_slice>
         return shape{input_shape.type(), new_lens, input_shape.strides()};
     }
 
-    auto compute_offset(const shape& s, int64_t idx) const
-    {
-        return idx * s.strides().at(axis) * s.type_size();
-    }
-
     argument compute(shape output_shape, std::vector<argument> args) const
     {
         auto input    = args[0];
@@ -84,7 +79,7 @@ struct scan_slice : op_name<scan_slice>
                            std::to_string(max_idx) + "]");
         idx = (1 - direction) * idx + direction * (max_idx - idx);
 
-        auto offset = compute_offset(input_sh, idx);
+        auto offset = idx * input_sh.strides().at(axis) * input_sh.type_size();
         return {output_shape, [=] { return input.data() + offset; }};
     }
 };

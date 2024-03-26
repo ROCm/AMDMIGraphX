@@ -1700,8 +1700,8 @@ TEST_CASE(transpose_contiguous_squeeze_unary)
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 8, 1, 5}});
         auto transpose_ins =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), x);
-        auto rsqrt    = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
-        auto sq_ins   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsqrt);
+        auto rsqrt  = m2.add_instruction(migraphx::make_op("rsqrt"), transpose_ins);
+        auto sq_ins = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), rsqrt);
         m2.add_instruction(pass_op{}, sq_ins);
     }
     EXPECT(m1 == m2);
@@ -2119,6 +2119,76 @@ TEST_CASE(reshape_reshape_dot_gemm_axis)
     };
     migraphx::module m2 = m1;
     run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(mul_transpose)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 32, 64, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 64, 32, 32}};
+    migraphx::module m1;
+    {
+        auto inp   = m1.add_parameter("input", s);
+        auto c1    = m1.add_literal(migraphx::generate_literal(s));
+        auto mul   = m1.add_instruction(migraphx::make_op("mul"), inp, c1);
+        auto trans = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+
+        auto c3  = m1.add_literal(migraphx::generate_literal(s2));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), trans, c3);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp       = m2.add_parameter("input", s);
+        auto inp_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), inp);
+        auto c1 = m2.add_literal(migraphx::generate_literal(s));
+        auto c1_trans =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), c1);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), inp_trans, c1_trans);
+        auto c3  = m2.add_literal(migraphx::generate_literal(s2));
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, c3);
+        m2.add_return({dot});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(add_transpose)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 32, 64, 64}};
+    migraphx::shape s2{migraphx::shape::float_type, {2, 64, 32, 32}};
+    migraphx::module m1;
+    {
+        auto inp   = m1.add_parameter("input", s);
+        auto c1    = m1.add_literal(migraphx::generate_literal(s));
+        auto mul   = m1.add_instruction(migraphx::make_op("add"), inp, c1);
+        auto trans = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), mul);
+
+        auto c3  = m1.add_literal(migraphx::generate_literal(s2));
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), trans, c3);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp       = m2.add_parameter("input", s);
+        auto inp_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), inp);
+        auto c1 = m2.add_literal(migraphx::generate_literal(s));
+        auto c1_trans =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), c1);
+        auto mul = m2.add_instruction(migraphx::make_op("add"), inp_trans, c1_trans);
+        auto c3  = m2.add_literal(migraphx::generate_literal(s2));
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), mul, c3);
+        m2.add_return({dot});
+    };
+
     EXPECT(m1.sort() == m2.sort());
 }
 

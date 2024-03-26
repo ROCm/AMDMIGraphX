@@ -278,7 +278,8 @@ TEST_CASE(parallel_reduce_reduce2)
         auto x    = mm->add_parameter("x", s);
         auto clip = add_reduce(
             p2,
-            "main:pointwise1:main:reduce_sum1:main:pointwise2:main:pointwise3:main:pointwise0:main:reduce_sum0",
+            "main:pointwise1:main:reduce_sum1:main:pointwise2:main:pointwise3:main:pointwise0:main:"
+            "reduce_sum0",
             {x},
             {1},
             [&](auto* rm, const auto& inputs, const auto&) {

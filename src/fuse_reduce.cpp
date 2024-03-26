@@ -224,10 +224,11 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
         auto broadcast = std::find_if(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
         if(broadcast == ins->outputs().end())
             return false;
-        auto non_broadcast = std::find_if_not(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
+        auto non_broadcast =
+            std::find_if_not(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
         if(non_broadcast == ins->outputs().end())
             return false;
-        if ((*broadcast)->outputs().size() != 1)
+        if((*broadcast)->outputs().size() != 1)
             return false;
         return (*broadcast)->outputs().front() == *non_broadcast;
     }

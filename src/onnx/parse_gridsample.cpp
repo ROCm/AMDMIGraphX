@@ -103,20 +103,16 @@ struct grid_sampler
 
     virtual void setup(const onnx_parser::node_info& info)
     {
-        m_zero_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {0.0f}});
-        m_one_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {1.0f}});
-        m_minus_half_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {-0.5f}});
-        m_width_max_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width - 1}});
-        m_width_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_width}});
-        m_height_max_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height - 1}});
-        m_height_l = info.add_literal(
-            migraphx::literal{migraphx::shape{m_input->get_shape().type()}, {m_in_height}});
+        auto type      = m_grid->get_shape().type();
+        m_zero_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
+        m_one_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+        m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.5f}});
+        m_width_max_l =
+            info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_width - 1}});
+        m_width_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_width}});
+        m_height_max_l =
+            info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_height - 1}});
+        m_height_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_height}});
 
         auto x_coords = info.add_instruction(
             make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {1}}}), m_grid);
@@ -274,6 +270,8 @@ struct nearest_sampler : grid_sampler
             samples);
         samples =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), samples);
+        samples = info.add_instruction(
+            make_op("convert", {{"target_type", m_input->get_shape().type()}}), samples);
         return samples;
     }
 };
@@ -368,13 +366,13 @@ struct linear_sampler : grid_sampler
                       [&info, &samples](auto& s) {
                           samples = info.add_instruction(make_op("add"), samples, s);
                       });
-        migraphx::shape target = migraphx::shape{migraphx::shape::int64_type,
-                                                 {m_batch, m_out_height, m_out_width, m_channel}};
-        samples                = info.add_instruction(
+        samples = info.add_instruction(
             make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}),
             samples);
         samples =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), samples);
+        samples = info.add_instruction(
+            make_op("convert", {{"target_type", m_input->get_shape().type()}}), samples);
         return samples;
     }
 };

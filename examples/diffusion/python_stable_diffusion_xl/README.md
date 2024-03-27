@@ -12,5 +12,5 @@ python txt2img.py --base-model-path /models/stable-diffusion-xl-1.0-tensorrt/sdx
 
 ## Run pipeline using Torch-MIGraphX
 ```
-python torch_migraphx/benchmark_sdxl.py
+python torch_migraphx/benchmark_sdxl_dynamo.py
 ```

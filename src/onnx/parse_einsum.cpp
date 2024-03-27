@@ -22,13 +22,15 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/common.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/common.hpp>
-#include <migraphx/stringutils.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/lexing.hpp>
+#include <migraphx/onnx/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,20 +40,20 @@ struct parse_einsum : op_parser<parse_einsum>
 {
     using int_mat = std::vector<std::vector<int>>;
 
-    struct EquationInfo
+    struct equation_info
     {
+        bool explicit_form;
         std::vector<std::string> input_terms;
         std::string output_term;
         std::map<char, int> label_count;
-        bool explicit_form;
-        std::string unique_labels;
-        size_t ellipses_ndim;
+        std::vector<std::map<char, std::vector<int>>> duplicates;
+        size_t ellipsis_ndim;
     };
 
     std::vector<op_desc> operators() const { return {{"Einsum"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
+    instruction_ref parse(const op_desc&,
+                          const onnx_parser&,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
@@ -59,13 +61,11 @@ struct parse_einsum : op_parser<parse_einsum>
             MIGRAPHX_THROW("Equation attribute is required");
         std::string equation = info.attributes.at("equation").s();
 
-        const EquationInfo eq_info = analyze_equation(equation, args);
-        auto terms                 = eq_info.input_terms;
-        terms.push_back(eq_info.output_term);
+        const equation_info eq_info = analyze_equation(equation, args);
 
-        const auto map_mat =
-            make_mapping_matrix(terms, eq_info.unique_labels, eq_info.ellipses_ndim);
-        const auto duplicates = find_duplicates(terms);
+        auto terms = eq_info.input_terms;
+        terms.push_back(eq_info.output_term);
+        const auto map_mat = make_mapping_matrix(terms, eq_info.label_count, eq_info.ellipsis_ndim);
 
         // Holds the mapping matrix representations of the two terms being processed
         // cur_pair[0] acts as the accumulator for previously processed inputs
@@ -81,8 +81,8 @@ struct parse_einsum : op_parser<parse_einsum>
             cur_op      = args[arg_idx];
             cur_pair[1] = map_mat[arg_idx];
 
-            cur_op =
-                preprocess_input(info, cur_op, duplicates[arg_idx], map_mat, arg_idx, cur_pair);
+            cur_op = preprocess_input(
+                info, cur_op, eq_info.duplicates[arg_idx], map_mat, arg_idx, cur_pair);
 
             if(last_op)
                 cur_op = process_pair(info, *last_op, cur_op, map_mat, arg_idx, cur_pair);
@@ -96,79 +96,101 @@ struct parse_einsum : op_parser<parse_einsum>
 
     // Equation Parsing
 
-    EquationInfo analyze_equation(std::string_view equation,
-                                  const std::vector<instruction_ref>& args) const
+    equation_info analyze_equation(std::string_view equation,
+                                   const std::vector<instruction_ref>& args) const
     {
-        EquationInfo eq_info = parse_equation(equation);
+        equation_info eq_info = parse_equation(equation);
 
-        eq_info.ellipses_ndim = validate_input_terms(eq_info.input_terms, args);
+        eq_info.ellipsis_ndim = validate_input_terms(eq_info.input_terms, args);
         if(not eq_info.output_term.empty())
-            validate_output_term(eq_info.output_term, eq_info.label_count, eq_info.ellipses_ndim);
+            validate_output_term(eq_info.output_term, eq_info.label_count, eq_info.ellipsis_ndim);
         else if(not eq_info.explicit_form)
-            eq_info.output_term = generate_output_term(eq_info.label_count, eq_info.ellipses_ndim);
+            eq_info.output_term = generate_output_term(eq_info.label_count, eq_info.ellipsis_ndim);
 
-        for(const auto [l, _] : eq_info.label_count)
-            eq_info.unique_labels += l;
+        eq_info.duplicates = find_duplicates(eq_info.input_terms);
 
         return eq_info;
     }
 
-    EquationInfo parse_equation(std::string_view equation) const
+    // Equation:  Input Output
+    // Input:     Term | Term ',' Input
+    // Output:    '->' TermOpt | epsilon
+    // TermOpt:   Term | epsilon
+    // Term:      Labels | LabelsOpt '...' LabelsOpt
+    // LabelsOpt: Labels | epsilon
+    // Labels:    [a-zA-Z]+
+    equation_info parse_equation(std::string_view equation) const
     {
-        EquationInfo ret;
+        equation_info ret;
+
+        std::vector<lexer> lexers;
+        lexers.push_back(lex_while(&isspace));
+        lexers.push_back(lex_while(&isalpha));
+        lexers.push_back(lex_equal("->"));
+        lexers.push_back(lex_equal("..."));
+        lexers.push_back(lex_equal(","));
+
+        auto tokens = tokenize(equation.data(), equation.data() + equation.length(), lexers);
 
         std::string term;
         bool has_ellipsis = false;
         ret.explicit_form = false;
 
-        for(int i = 0; i < equation.size(); ++i)
+        for(const auto& token : tokens)
         {
-            const char c = equation[i];
-            switch(c)
+            if(std::isspace(token.front()))
+                continue;
+
+            if(std::isalpha(token.front()))
             {
-            case ' ': break;
-            case '-':
+                term += token;
+                if(not ret.explicit_form)
+                {
+                    for(auto c : token)
+                        ++ret.label_count[c];
+                }
+            }
+            else if(token == "->")
+            {
                 if(ret.explicit_form)
                     MIGRAPHX_THROW("Einsum equation has multiple '->' symbols");
 
-                if(i + 1 >= equation.size() or equation[i + 1] != '>')
-                    MIGRAPHX_THROW("Invalid '->' in einsum equation");
+                if(term.empty())
+                    MIGRAPHX_THROW("No term specified before '->' symbol");
 
-                ++i;
                 ret.explicit_form = true;
-                [[fallthrough]];
-            case ',':
-                has_ellipsis = false;
-                ret.input_terms.emplace_back(term);
+                has_ellipsis      = false;
+                ret.input_terms.push_back(term);
                 term.clear();
-                break;
-            case '.':
+            }
+            else if(token == "...")
+            {
                 if(has_ellipsis)
                     MIGRAPHX_THROW("Ellipsis can only appear once per einsum equation term");
 
-                if(i + 2 >= equation.size() or equation[i + 1] != '.' or equation[i + 2] != '.')
-                    MIGRAPHX_THROW("Incomplete ellipsis in einsum equation " +
-                                   std::string(equation));
-
-                i += 2;
                 has_ellipsis = true;
-                term += '*';
-                break;
-            default:
-                if(std::isalpha(c) == 0)
-                    MIGRAPHX_THROW(std::string("Invalid character '") + c +
-                                   "' in einsum equation term");
+                term += "*";
+            }
+            else if(token == ",")
+            {
+                if(ret.explicit_form)
+                    MIGRAPHX_THROW("Einsum equation can't have a ',' symbol in the output");
 
-                term += c;
-                if(not ret.explicit_form)
-                    ++ret.label_count[c];
+                if(term.empty())
+                    MIGRAPHX_THROW("No term specified before ',' symbol");
+
+                has_ellipsis = false;
+                ret.input_terms.push_back(term);
+                term.clear();
             }
         }
 
         if(ret.explicit_form)
             ret.output_term = term;
-        else
+        else if(not term.empty())
             ret.input_terms.push_back(term);
+        else
+            MIGRAPHX_THROW("Last input term is missing");
 
         return ret;
     }
@@ -181,7 +203,7 @@ struct parse_einsum : op_parser<parse_einsum>
                            std::to_string(input_terms.size()) +
                            " does not match the number of inputs " + std::to_string(args.size()));
 
-        auto global_ellipses_dims = 0u;
+        auto global_ellipsis_dims = 0u;
         for(auto i = 0u; i < args.size(); ++i)
         {
             const auto& term = input_terms[i];
@@ -193,12 +215,12 @@ struct parse_einsum : op_parser<parse_einsum>
             {
                 if(l == '*')
                 {
-                    const auto ellipses_dims = rank - term.size() + 1;
-                    if(global_ellipses_dims > 0 and ellipses_dims != global_ellipses_dims)
+                    const auto ellipsis_dims = rank - term.size() + 1;
+                    if(global_ellipsis_dims > 0 and ellipsis_dims != global_ellipsis_dims)
                         MIGRAPHX_THROW("Every occurrence of ellipsis in the equation must "
                                        "represent the same number of dimensions");
-                    global_ellipses_dims = ellipses_dims;
-                    current_dim += ellipses_dims;
+                    global_ellipsis_dims = ellipsis_dims;
+                    current_dim += ellipsis_dims;
                 }
                 else
                     ++current_dim;
@@ -210,12 +232,12 @@ struct parse_einsum : op_parser<parse_einsum>
                                ") of corresponding input");
         }
 
-        return global_ellipses_dims;
+        return global_ellipsis_dims;
     }
 
     void validate_output_term(std::string_view output_term,
                               const std::map<char, int>& label_count,
-                              size_t ellipses_ndim) const
+                              size_t ellipsis_ndim) const
     {
         const auto* it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
             return not contains(label_count, l) and l != '*';
@@ -224,7 +246,7 @@ struct parse_einsum : op_parser<parse_einsum>
             MIGRAPHX_THROW("Output term contains label " + std::to_string(*it) +
                            ", which is not present in any of the input terms");
 
-        if(ellipses_ndim != 0 and not contains(output_term, "*"))
+        if(ellipsis_ndim != 0 and not contains(output_term, "*"))
             MIGRAPHX_THROW(
                 "Output term does not contain ellipsis (...) even though an input term does");
     }
@@ -265,14 +287,16 @@ struct parse_einsum : op_parser<parse_einsum>
     // | ij... |  0 |  1 | -1 | 2 | 3 |
     // +-------+----+----+----+---+---+
     int_mat make_mapping_matrix(const std::vector<std::string>& terms,
-                                std::string_view unique_labels,
-                                size_t ellipses_ndim) const
+                                const std::map<char, int>& label_count,
+                                size_t ellipsis_ndim) const
     {
         std::map<char, int> label_to_column;
-        for(auto i = 0; i < unique_labels.size(); ++i)
-            label_to_column[unique_labels[i]] = i;
 
-        int_mat map_mat = make_matrix(terms.size(), unique_labels.size() + ellipses_ndim, -1);
+        auto it = label_count.begin();
+        for(auto i = 0; i < label_count.size(); ++i)
+            label_to_column[(it++)->first] = i;
+
+        int_mat map_mat = make_matrix(terms.size(), label_count.size() + ellipsis_ndim, -1);
 
         for(auto i = 0; i < terms.size(); ++i)
         {
@@ -282,8 +306,8 @@ struct parse_einsum : op_parser<parse_einsum>
             {
                 if(l == '*')
                 {
-                    std::iota(map_mat[i].end() - ellipses_ndim, map_mat[i].end(), col_id);
-                    col_id += ellipses_ndim;
+                    std::iota(map_mat[i].end() - ellipsis_ndim, map_mat[i].end(), col_id);
+                    col_id += ellipsis_ndim;
                 }
                 else
                     map_mat[i][label_to_column[l]] = col_id++;
@@ -327,6 +351,7 @@ struct parse_einsum : op_parser<parse_einsum>
         if(not duplicates.empty())
         {
             std::vector<std::vector<int>> diag;
+            diag.reserve(duplicates.size());
             for(const auto& [_, v] : duplicates)
                 diag.push_back(v);
 
@@ -726,20 +751,16 @@ struct parse_einsum : op_parser<parse_einsum>
         return ret;
     }
 
-    template <class... Vecs>
-    std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> concat_vectors(Vecs&&... vecs) const
+    template <class Vec, class... Vecs>
+    Vec concat_vectors(Vec vec, Vecs&&... vecs) const
     {
-        size_t reserve_size = 0u;
-        ([&](auto&& vec) { reserve_size += vec.size(); }(std::forward<Vecs>(vecs)), ...);
+        size_t reserve_size = vec.size();
+        each_args([&](auto&& v) { reserve_size += v.size(); }, vecs...);
 
-        std::decay_t<std::tuple_element_t<0, std::tuple<Vecs...>>> ret;
-        ret.reserve(reserve_size);
+        vec.reserve(reserve_size);
+        each_args([&](auto&& v) { vec.insert(vec.end(), v.begin(), v.end()); }, vecs...);
 
-        ([&](auto&& vec) { ret.insert(ret.end(), vec.begin(), vec.end()); }(
-             std::forward<Vecs>(vecs)),
-         ...);
-
-        return ret;
+        return vec;
     }
 
     size_t calc_dim(const std::vector<int>& axes, const std::vector<size_t>& lens) const

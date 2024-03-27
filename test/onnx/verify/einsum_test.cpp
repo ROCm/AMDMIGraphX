@@ -27,7 +27,7 @@
 #include <onnx_test.hpp>
 #include <onnx_verify_utils.hpp>
 
-migraphx::shape make_shape(std::vector<size_t> lens)
+static migraphx::shape make_shape(std::vector<size_t> lens)
 {
     return migraphx::shape{migraphx::shape::float_type, std::move(lens)};
 }

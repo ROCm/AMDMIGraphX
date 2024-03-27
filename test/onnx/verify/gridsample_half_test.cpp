@@ -26,17 +26,16 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(gridsample_test)
+TEST_CASE(gridsample_half_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_test.onnx");
+    migraphx::program p = migraphx::parse_onnx("gridsample_half_test.onnx");
     migraphx::compile_options options;
     p.compile(migraphx::make_target("ref"));
 
-    auto input_type = migraphx::shape::float_type;
-    migraphx::shape data_shape{input_type, {1, 1, 4, 4}};
-    migraphx::shape grid_shape{input_type, {1, 6, 6, 2}};
-    std::vector<float> data = {
-        0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.};
+    migraphx::shape data_shape{migraphx::shape::half_type, {1, 1, 4, 4}};
+    migraphx::shape grid_shape{migraphx::shape::float_type, {1, 6, 6, 2}};
+    std::vector<float> tmp = {0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.};
+    std::vector<migraphx::half> data = {tmp.begin(), tmp.end()};
     std::vector<float> grid = {-1., -1.,  -0.6, -1.,  -0.2, -1.,  0.2, -1.,  0.6, -1.,  1., -1.,
                                -1., -0.6, -0.6, -0.6, -0.2, -0.6, 0.2, -0.6, 0.6, -0.6, 1., -0.6,
                                -1., -0.2, -0.6, -0.2, -0.2, -0.2, 0.2, -0.2, 0.6, -0.2, 1., -0.2,
@@ -49,13 +48,14 @@ TEST_CASE(gridsample_test)
     pp["grid"] = migraphx::argument(grid_shape, grid.data());
 
     auto result = p.eval(pp).back();
-    std::vector<float> result_vector;
+    std::vector<migraphx::half> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::vector<float> gold = {0.,   0.15, 0.55, 0.95, 1.35, 0.75, 0.6,  1.5,  2.3,
-                               3.1,  3.9,  2.1,  2.2,  4.7,  5.5,  6.3,  7.1,  3.7,
-                               3.8,  7.9,  8.7,  9.5,  10.3, 5.3,  5.4,  11.1, 11.9,
-                               12.7, 13.5, 6.9,  3.,   6.15, 6.55, 6.95, 7.35, 3.75};
+    tmp = {0.,  0.15, 0.55, 0.95, 1.35, 0.75, 0.6, 1.5,  2.3,  3.1,  3.9,  2.1,
+           2.2, 4.7,  5.5,  6.3,  7.1,  3.7,  3.8, 7.9,  8.7,  9.5,  10.3, 5.3,
+           5.4, 11.1, 11.9, 12.7, 13.5, 6.9,  3.,  6.15, 6.55, 6.95, 7.35, 3.75};
+
+    std::vector<migraphx::half> gold = {tmp.begin(), tmp.end()};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

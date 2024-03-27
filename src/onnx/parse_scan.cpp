@@ -26,6 +26,7 @@
 #include "migraphx/instruction_ref.hpp"
 #include "migraphx/iterator_for.hpp"
 #include "migraphx/module_ref.hpp"
+#include "migraphx/onnx/onnx_parser.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <ios>
@@ -45,50 +46,26 @@ struct parse_scan : op_parser<parse_scan>
 {
     std::vector<op_desc> operators() const { return {{"Scan"}}; }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        onnx_parser& parser,
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
-        // NOTE Version 8 of the operator differs to all the later versions
-        if(not contains(info.attributes, "body"))
-            MIGRAPHX_THROW("Scan: body attribute required");
+        check_for_required_attributes(info, {"body", "num_scan_inputs"});
 
-        if(not contains(info.attributes, "num_scan_inputs"))
-            MIGRAPHX_THROW("Scan: num_scan_inputs attribute required");
+        const auto& body_graph = info.attributes["body"].g();
+        auto body              = parser.prog.create_module(info.name + "_scan");
+        (void)parser.parse_graph(body, body_graph);
 
-        const auto& body = info.attributes["body"].g();
-        auto sub_mod     = parser.prog.create_module(info.name + "_scan");
-        (void)parser.parse_graph(sub_mod, body);
+        auto body_outs = body->get_returns();
+        const auto M   = info.attributes["num_scan_inputs"].i();
+        const auto N   = args.size() - M;
+        const auto K   = body_outs.size() - N;
 
-        auto sub_mod_output_shapes = sub_mod->get_output_shapes();
-        const auto M               = info.attributes["num_scan_inputs"].i();
-        const auto N               = args.size() - M;
-        const auto K               = sub_mod_output_shapes.size() - N;
-
-        // NOTE Does not apply to opset 8 version
-        if(sub_mod->get_parameter_names().size() != N + M)
+        if(body->get_parameter_names().size() != N + M)
             MIGRAPHX_THROW("Lorem ipsum");
 
-        // SCAN INPUT AXES
-        std::vector<int64_t> scan_input_axes(M, 0);
-        if(contains(info.attributes, "scan_input_axes"))
-        {
-            auto&& axes = info.attributes["scan_input_axes"].ints();
-            scan_input_axes.assign(axes.begin(), axes.end());
-
-            if(scan_input_axes.size() != M)
-                MIGRAPHX_THROW("Number of scan input axes (" + to_string(scan_input_axes.size()) +
-                               ") does not match number of scan inputs(" + to_string(M) + ")");
-
-            std::vector<int64_t> ndims;
-            ndims.reserve(M);
-            std::transform(args.begin() + N,
-                           args.end(),
-                           std::back_inserter(ndims),
-                           [](instruction_ref arg) { return arg->get_shape().ndim(); });
-            normalize_axes(scan_input_axes, ndims);
-        }
+        const auto scan_input_axes = parse_axes(info, "scan_input_axes", M, args.begin() + N, 0);
 
         size_t num_iters = args[N]->get_shape().lens()[scan_input_axes[0]];
         for(auto i = 1; i < M; ++i)
@@ -96,163 +73,115 @@ struct parse_scan : op_parser<parse_scan>
             if(args[i]->get_shape().lens()[scan_input_axes[i]] != num_iters)
                 MIGRAPHX_THROW("Lorem ipsum");
         }
-        // SCAN INPUT AXES
 
-        // SCAN INPUT DIRECTIONS
-        std::vector<int64_t> scan_input_directions(M, 0);
-        if(contains(info.attributes, "scan_input_directions"))
-        {
-            auto&& dirs = info.attributes["scan_input_directions"].ints();
-            scan_input_directions.assign(dirs.begin(), dirs.end());
+        const auto scan_input_directions = parse_dirs(info, "scan_input_directions", M);
 
-            if(scan_input_directions.size() != M)
-                MIGRAPHX_THROW("Number of scan input directions (" +
-                               to_string(scan_input_directions.size()) +
-                               ") does not match number of scan inputs(" + to_string(M) + ")");
+        const auto scan_output_axes =
+            parse_axes(info, "scan_output_axes", K, body_outs.begin() + N, 1);
 
-            if(any_of(scan_input_directions, [](auto i) { return i != 0 and i != 1; }))
-                MIGRAPHX_THROW(
-                    "Scan output directions may contain only 1s and 0s, actual values: " +
-                    to_string_range(scan_input_directions));
-        }
-        // SCAN INPUT DIRECTIONS
+        const auto scan_output_directions = parse_dirs(info, "scan_output_directions", K);
 
-        // SCAN OUTPUT AXES
-        std::vector<int64_t> scan_output_axes(K, 0);
-        if(contains(info.attributes, "scan_output_axes"))
-        {
-            auto&& axes = info.attributes["scan_output_axes"].ints();
-            scan_output_axes.assign(axes.begin(), axes.end());
+        // TODO check that alt_args shapes match body input parameter shapes
 
-            if(scan_output_axes.size() != K)
-                MIGRAPHX_THROW("Number of scan output axes (" + to_string(scan_output_axes.size()) +
-                               ") does not match number of body scan outputs(" + to_string(K) +
-                               ")");
-
-            std::vector<int64_t> ndims;
-            ndims.reserve(K);
-            std::transform(sub_mod_output_shapes.begin() + N,
-                           sub_mod_output_shapes.end(),
-                           std::back_inserter(ndims),
-                           [](const shape& sh) { return sh.ndim() + 1; });
-            normalize_axes(scan_output_axes, ndims);
-        }
-        // SCAN OUTPUT AXES
-
-        // SCAN OUTPUT DIRECTIONS
-        std::vector<int64_t> scan_output_directions(K, 0);
-        if(contains(info.attributes, "scan_output_directions"))
-        {
-            auto&& dirs = info.attributes["scan_output_directions"].ints();
-            scan_output_directions.assign(dirs.begin(), dirs.end());
-
-            if(scan_output_directions.size() != K)
-                MIGRAPHX_THROW("Number of scan output directions (" +
-                               to_string(scan_output_directions.size()) +
-                               ") does not match number of body scan outputs(" + to_string(K) +
-                               ")");
-
-            if(any_of(scan_output_directions, [](auto i) { return i != 0 and i != 1; }))
-                MIGRAPHX_THROW(
-                    "Scan output directions may contain only 1s and 0s, actual values: " +
-                    to_string_range(scan_output_directions));
-        }
-        // SCAN OUTPUT DIRECTIONS
-
-        // std::vector<instruction_ref> alt_args(args.begin(), args.begin() + N);
-        // for(int64_t i = 0; i < num_iters; ++i)
-        // {
-        //     for(auto j = 0; j < M; ++j)
-        //     {
-        //         auto dir       = scan_input_directions[j];
-        //         auto idx       = (1 - dir) * i + dir * (num_iters - 1 - i);
-        //         auto scan_axis = scan_input_axes[j];
-        //         auto slice     = info.add_instruction(
-        //             make_op("slice",
-        //                     {{"axes", {scan_axis}}, {"starts", {idx}}, {"ends", {idx + 1}}}),
-        //             args[N + j]);
-        //         alt_args.push_back(
-        //             info.add_instruction(make_op("squeeze", {{"axes", {scan_axis}}}), slice));
-        //     }
-        // }
-
-        // TODO check that alt_args shapes match sub_mod input parameter shapes
-
-        modify_body(sub_mod, args, M, N, scan_input_axes, scan_input_directions);
+        modify_body(body, args, M, N, scan_input_axes, scan_input_directions);
         auto cond_lit = info.add_literal(literal{shape{shape::bool_type}, {true}});
         args.insert(args.begin(), cond_lit);
         auto max_iter_lit = info.add_literal(literal{shape{shape::int64_type}, {num_iters}});
         args.insert(args.begin(), max_iter_lit);
 
         auto loop =
-            info.add_instruction(make_op("loop", {{"max_iterations", num_iters}}), args, {sub_mod});
+            info.add_instruction(make_op("loop", {{"max_iterations", num_iters}}), args, {body});
 
         std::vector<instruction_ref> ret;
         ret.reserve(N + K);
-        for(std::size_t i = 0; i < N + M + K; ++i)
+        for(std::size_t i = 0; i < N; ++i)
         {
-            if(i >= N and i < N + M)
-                continue;
             auto r = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), loop);
             ret.push_back(r);
         }
-        // TODO add transpose for scan outputs
+
+        for(std::size_t i = N + M; i < N + M + K; ++i)
+        {
+            auto r         = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), loop);
+            auto scan_axis = scan_output_axes[i - N - M];
+            std::vector<int64_t> perm(r->get_shape().ndim(), 0);
+            std::iota(perm.begin(), perm.end(), 0);
+            std::copy(perm.begin() + 1, perm.begin() + 1 + scan_axis, perm.begin());
+            perm[scan_axis] = 0;
+            r = info.add_instruction(make_op("transpose", {{"permutation", perm}}), r);
+            ret.push_back(r);
+        }
 
         return ret;
-
-        // auto scan = info.add_instruction(
-        //     make_op("scan",
-        //             {{"iterations", num_iters}, {"num_scan_inputs", M}, {"num_state_vars", N}}),
-        //     alt_args,
-        //     {sub_mod});
-
-        // std::vector<instruction_ref> ret;
-        // ret.reserve(N + K);
-        // for(auto i = 0; i < N; ++i)
-        // {
-        //     auto get = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), scan);
-        //     ret.push_back(get);
-        // }
-
-        // for(auto i = N; i < N + K; ++i)
-        // {
-        //     auto get       = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}),
-        //     scan); auto scan_axis = scan_output_axes[i - N]; auto usq =
-        //     info.add_instruction(make_op("unsqueeze", {{"axes", {scan_axis}}}), get);
-        //     ret.push_back(usq);
-        // }
-
-        // for(auto i = 1; i < num_iters; ++i)
-        // {
-        //     for(auto j = 0; j < K; ++j)
-        //     {
-        //         auto tuple_idx = N + i * K + j;
-        //         auto get =
-        //             info.add_instruction(make_op("get_tuple_elem", {{"index", tuple_idx}}),
-        //             scan);
-        //         auto scan_axis = scan_output_axes[j];
-        //         auto usq = info.add_instruction(make_op("unsqueeze", {{"axes", {scan_axis}}}),
-        //         get); std::vector concat_args{usq, usq}; concat_args[scan_output_directions[j]] =
-        //         ret[N + j]; auto concat =
-        //             info.add_instruction(make_op("concat", {{"axis", scan_axis}}), concat_args);
-        //         ret[N + j] = concat;
-        //     }
-        // }
-
-        // return ret;
     }
 
-    void normalize_axes(std::vector<int64_t>& axes, const std::vector<int64_t>& ndims) const
+    void check_for_required_attributes(onnx_parser::node_info& info,
+                                       std::vector<std::string> attribute_names) const
     {
-        auto normalize_axis = [=](int64_t axis, int64_t ndim) {
-            if(axis < -ndim or axis >= ndim)
-                MIGRAPHX_THROW("Axis value {" + to_string(axis) + "} out of range [" +
-                               to_string(-ndim) + ", " + to_string(ndim) + ")");
+        for(const auto& name : attribute_names)
+            if(not contains(info.attributes, name))
+                MIGRAPHX_THROW("Scan: " + name + " attribute required");
+    }
 
-            return axis < 0 ? ndim + axis : axis;
-        };
+    std::vector<int64_t> parse_vector_attribute(onnx_parser::node_info& info,
+                                                const std::string& attr_name,
+                                                size_t expected_size) const
+    {
+        if(not contains(info.attributes, attr_name))
+            return {};
 
-        std::transform(axes.begin(), axes.end(), ndims.begin(), axes.begin(), normalize_axis);
+        std::vector<int64_t> res;
+        auto&& attr = info.attributes[attr_name].ints();
+        if(attr.size() != expected_size)
+            MIGRAPHX_THROW("Scan: " + attr_name + " size is " + to_string(attr.size()) +
+                           ", should be " + to_string(expected_size));
+        res.assign(attr.begin(), attr.end());
+
+        return res;
+    }
+
+    std::vector<int64_t>
+    parse_dirs(onnx_parser::node_info& info, const std::string& name, size_t expected_size) const
+    {
+        auto dirs = parse_vector_attribute(info, name, expected_size);
+        if(dirs.empty())
+            return std::vector<int64_t>(expected_size, 0);
+
+        if(any_of(dirs, [](auto i) { return i != 0 and i != 1; }))
+            MIGRAPHX_THROW("Scan: " + name +
+                           " may contain only 1s and 0s, actual values: " + to_string_range(dirs));
+
+        return dirs;
+    }
+
+    int64_t normalize_axis(int64_t axis, int64_t rank) const
+    {
+        if(axis < -rank or axis >= rank)
+            MIGRAPHX_THROW("Axis value {" + to_string(axis) + "} out of range [" +
+                           to_string(-rank) + ", " + to_string(rank) + ")");
+
+        return axis < 0 ? rank + axis : axis;
+    }
+
+    std::vector<int64_t> parse_axes(onnx_parser::node_info& info,
+                                    const std::string& name,
+                                    size_t expected_size,
+                                    std::vector<instruction_ref>::iterator ins_begin,
+                                    size_t rank_offset) const
+    {
+        auto axes = parse_vector_attribute(info, name, expected_size);
+        if(axes.empty())
+            return std::vector<int64_t>(expected_size, 0);
+
+        std::transform(axes.begin(),
+                       axes.end(),
+                       ins_begin,
+                       axes.begin(),
+                       [&](int64_t axis, instruction_ref arg) {
+                           return normalize_axis(axis, arg->get_shape().ndim() + rank_offset);
+                       });
+
+        return axes;
     }
 
     void modify_body(module_ref mod,
@@ -314,7 +243,7 @@ struct parse_scan : op_parser<parse_scan>
         returns.insert(returns.begin() + M + 1, scan_in_params.begin(), scan_in_params.end());
         mod->replace_return(returns);
     }
-};
+}; // namespace onnx
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

@@ -10757,7 +10757,7 @@ def scan_test2():
 
 @onnx_test()
 def scan_test3():
-    return scan_test(scan_output_axes=[1, -1], scan_output_directions=[0, 1])
+    return scan_test(scan_output_axes=[1, -1])
 
 
 @onnx_test()

@@ -257,7 +257,7 @@ def main():
         print("Running samples")
 
     latency = []
-    for i in range(flags.run):
+    for i in range(flags.run + 1):  # +1 for warm-up run
         run_sample(session_fp32, categories, latency, input_batch, flags.top,
                    flags.batch)
 

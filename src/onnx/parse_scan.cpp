@@ -55,7 +55,7 @@ struct parse_scan : op_parser<parse_scan>
 
         const auto& body_graph = info.attributes["body"].g();
         auto body              = parser.prog.create_module(info.name + "_scan");
-        (void)parser.parse_graph(body, body_graph);
+        parser.parse_graph(body, body_graph);
 
         auto body_outs = body->get_returns();
         const auto M   = info.attributes["num_scan_inputs"].i();
@@ -69,10 +69,8 @@ struct parse_scan : op_parser<parse_scan>
 
         size_t num_iters = args[N]->get_shape().lens()[scan_input_axes[0]];
         for(auto i = 1; i < M; ++i)
-        {
             if(args[i]->get_shape().lens()[scan_input_axes[i]] != num_iters)
                 MIGRAPHX_THROW("Lorem ipsum");
-        }
 
         const auto scan_input_directions = parse_dirs(info, "scan_input_directions", M);
 
@@ -83,33 +81,26 @@ struct parse_scan : op_parser<parse_scan>
 
         // TODO check that alt_args shapes match body input parameter shapes
 
-        modify_body(body, args, M, N, scan_input_axes, scan_input_directions);
-        auto cond_lit = info.add_literal(literal{shape{shape::bool_type}, {true}});
-        args.insert(args.begin(), cond_lit);
-        auto max_iter_lit = info.add_literal(literal{shape{shape::int64_type}, {num_iters}});
-        args.insert(args.begin(), max_iter_lit);
+        modify_body(body, args, N, M, scan_input_axes, scan_input_directions);
 
-        auto loop =
-            info.add_instruction(make_op("loop", {{"max_iterations", num_iters}}), args, {body});
+        auto max_iter_lit = info.add_literal(literal{shape{shape::int64_type}, {num_iters}});
+        auto cond_lit     = info.add_literal(literal{shape{shape::bool_type}, {true}});
+        std::vector<instruction_ref> loop_args{max_iter_lit, cond_lit};
+        loop_args.insert(loop_args.end(), args.begin(), args.begin() + N);
+
+        auto loop = info.add_instruction(
+            make_op("loop", {{"max_iterations", num_iters}}), loop_args, {body});
 
         std::vector<instruction_ref> ret;
         ret.reserve(N + K);
-        for(std::size_t i = 0; i < N; ++i)
-        {
-            auto r = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), loop);
-            ret.push_back(r);
-        }
+        for(auto i = 0; i < N; ++i)
+            ret.push_back(info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), loop));
 
-        for(std::size_t i = N + M; i < N + M + K; ++i)
+        for(auto i = 0; i < K; ++i)
         {
-            auto r         = info.add_instruction(make_op("get_tuple_elem", {{"index", i}}), loop);
-            auto scan_axis = scan_output_axes[i - N - M];
-            std::vector<int64_t> perm(r->get_shape().ndim(), 0);
-            std::iota(perm.begin(), perm.end(), 0);
-            std::copy(perm.begin() + 1, perm.begin() + 1 + scan_axis, perm.begin());
-            perm[scan_axis] = 0;
-            r = info.add_instruction(make_op("transpose", {{"permutation", perm}}), r);
-            ret.push_back(r);
+            auto o    = info.add_instruction(make_op("get_tuple_elem", {{"index", i + N}}), loop);
+            auto perm = make_perm_for_scan_out(o->get_shape().ndim(), scan_output_axes[i]);
+            ret.push_back(info.add_instruction(make_op("transpose", {{"permutation", perm}}), o));
         }
 
         return ret;
@@ -186,64 +177,65 @@ struct parse_scan : op_parser<parse_scan>
 
     void modify_body(module_ref mod,
                      const std::vector<instruction_ref>& args,
-                     int64_t M,
                      int64_t N,
+                     int64_t M,
                      const std::vector<int64_t>& scan_input_axes,
                      const std::vector<int64_t>& scan_input_directions) const
     {
-        auto param_names  = mod->get_parameter_names();
-        auto param_shapes = mod->get_parameter_shapes();
-
-        std::unordered_map<std::string, std::vector<instruction_ref>> child_ins;
-        for(auto ins : iterator_for(*mod))
-        {
-            for(const auto& name : param_names)
-            {
-                auto param = mod->get_parameter(name);
-                if(contains(ins->inputs(), param))
-                    child_ins[name].push_back(ins);
-            }
-        }
+        std::vector<instruction_ref> params;
+        params.reserve(N + M);
+        transform(mod->get_parameter_names(),
+                  std::back_inserter(params),
+                  [&](const std::string& name) { return mod->get_parameter(name); });
 
         auto iter_param = mod->add_parameter("iter", shape{shape::int64_type});
         auto cond_param = mod->add_parameter("cond", shape{shape::bool_type});
-        for(auto i = 0; i < M; ++i)
+        std::vector<instruction_ref> new_params;
+        new_params.reserve(N);
+        for(auto i = 0; i < N; ++i)
+            new_params.push_back(
+                mod->add_parameter("state_var" + std::to_string(i), params[i]->get_shape()));
+
+        for(auto i = 0; i < params.size(); ++i)
         {
-            auto var =
-                mod->add_parameter("state_var" + std::to_string(i), param_shapes[param_names[i]]);
-            auto param = mod->get_parameter(param_names[i]);
-            for(auto ins : child_ins[param_names[i]])
-                ins->replace_argument(ins, param, var);
-            mod->remove_instruction(param);
+            for(auto ins : iterator_for(*mod))
+            {
+                if(not contains(ins->inputs(), params[i]))
+                    continue;
+
+                auto new_ins = i < N ? new_params[i] : args[i];
+                if(i >= N)
+                {
+                    auto scan_axis = scan_input_axes[i - N];
+                    auto scan_dir  = scan_input_directions[i - N];
+                    new_ins        = mod->insert_instruction(
+                        params[i],
+                        make_op("scan_slice", {{"axis", scan_axis}, {"direction", scan_dir}}),
+                        new_ins,
+                        iter_param);
+                    new_ins = mod->insert_instruction(
+                        params[i], make_op("squeeze", {{"axes", {scan_axis}}}), new_ins);
+                }
+                ins->replace_argument(ins, params[i], new_ins);
+            }
+            mod->remove_instruction(params[i]);
         }
 
-        std::vector<instruction_ref> scan_in_params;
-        scan_in_params.reserve(N);
-        for(auto i = M; i < M + N; ++i)
-        {
-            auto param = mod->get_parameter(param_names[i]);
-            auto scan_in_param =
-                mod->add_parameter("scan_in" + std::to_string(i - M), args[i]->get_shape());
-            scan_in_params.push_back(scan_in_param);
-            auto scan_axis     = scan_input_axes[i - M];
-            auto scan_dir      = scan_input_directions[i - M];
-            auto scan_in_slice = mod->insert_instruction(
-                param,
-                make_op("scan_slice", {{"axis", scan_axis}, {"direction", scan_dir}}),
-                scan_in_param,
-                iter_param);
-            scan_in_slice = mod->insert_instruction(
-                param, make_op("squeeze", {{"axes", {scan_axis}}}), scan_in_slice);
-            for(auto ins : child_ins[param_names[i]])
-                ins->replace_argument(ins, param, scan_in_slice);
-            mod->remove_instruction(param);
-        }
         auto returns = mod->get_returns();
         returns.insert(returns.begin(), cond_param);
-        returns.insert(returns.begin() + M + 1, scan_in_params.begin(), scan_in_params.end());
         mod->replace_return(returns);
     }
-}; // namespace onnx
+
+    std::vector<int64_t> make_perm_for_scan_out(int64_t rank, int64_t axis) const
+    {
+        std::vector<int64_t> perm(rank);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::copy(perm.begin() + 1, perm.begin() + 1 + axis, perm.begin());
+        perm[axis] = 0;
+
+        return perm;
+    }
+};
 
 } // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS

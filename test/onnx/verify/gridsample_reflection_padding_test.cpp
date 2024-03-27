@@ -46,12 +46,6 @@ TEST_CASE(gridsample_reflection_padding_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    for(auto& res : result_vector)
-    {
-        std::cout << res << ", ";
-    }
-    std::cout << std::endl;
-
     std::vector<float> gold = {2.5000, 0.0000, 1.7000, 2.5000, 2.5000, 1.7000, 5.0000, 2.5000};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));

@@ -52,7 +52,7 @@ inline auto lex_if(P p)
     };
 }
 
-inline auto lex_equal(std::string s)
+inline auto lex_equal(const std::string& s)
 {
     return [=](const char* start, const char* end) {
         auto n = end - start;

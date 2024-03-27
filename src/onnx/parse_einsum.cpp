@@ -138,10 +138,10 @@ struct parse_einsum : op_parser<parse_einsum>
 
         for(const auto& token : tokens)
         {
-            if(std::isspace(token.front()))
+            if(std::isspace(token.front()) != 0)
                 continue;
 
-            if(std::isalpha(token.front()))
+            if(std::isalpha(token.front()) != 0)
             {
                 term += token;
                 if(not ret.explicit_form)

@@ -173,18 +173,18 @@ struct parse_convolution : op_parser<parse_convolution>
             MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
         }
 
-        if(is_quant_conv && (w_zp->get_shape().type() != w_shape.type()))
+        if(is_quant_conv and (w_zp->get_shape().type() != w_shape.type()))
         {
             MIGRAPHX_THROW("PARSE:ConvInteger Weights and Weights Zero Point must have same type");
         }
 
         // Assign input bias on weights or data accordingly
-        if(is_quant_conv && (l0_zp != l0))
+        if(is_quant_conv and (l0_zp != l0))
         {
             l0 = info.add_common_op("sub", l0, l0_zp);
         }
 
-        if(is_quant_conv && (w_zp != weights))
+        if(is_quant_conv and (w_zp != weights))
         {
             weights = info.add_common_op("sub", weights, w_zp);
         }
@@ -192,7 +192,7 @@ struct parse_convolution : op_parser<parse_convolution>
         ret = info.add_instruction(op, l0, w_zp);
 
         // Handle Convolution case with bias to output
-        if((not is_quant_conv) && (l0_zp != l0))
+        if((not is_quant_conv) and (l0_zp != l0))
         {
             ret = info.add_bias(args, ret, 1);
         }

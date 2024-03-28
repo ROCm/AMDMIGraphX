@@ -226,7 +226,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
     }
     // create pointwise modules for excluded operators
-    create_pointwise_modules(mpm, pointwise_cnt, {"layout", "pointwise"});
+    create_pointwise_modules(mpm, pointwise_cnt, {"layout", "pointwise", "identity"});
     mpm.run_pass(dead_code_elimination{});
 }
 

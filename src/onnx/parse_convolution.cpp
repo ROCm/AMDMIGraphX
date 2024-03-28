@@ -57,8 +57,6 @@ struct parse_convolution : op_parser<parse_convolution>
 
             if(is_quant_conv)
                 ret = info.add_common_op("sub", input, args[index]);
-            else
-                ret = args[index];
         }
         return ret;
     }
@@ -177,6 +175,8 @@ struct parse_convolution : op_parser<parse_convolution>
         auto w_zp          = set_bias(weights, info, 3, is_quant_conv, args);
 
         op.from_value(values);
+
+        x_zp->debug_print();
 
         ret = info.add_instruction(op, x_zp, w_zp);
 

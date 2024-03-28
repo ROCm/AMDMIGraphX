@@ -2549,6 +2549,212 @@ def einsum_common_8_test():
 
 
 @onnx_test()
+def einsum_missing_equation_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'])
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_multiple_arrows_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj->->ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_empty_term_before_arrow_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,->ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_multiple_ellipses_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='......ii,...jj->...ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_comma_in_output_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj->i,j')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_empty_term_before_comma_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,,jj->ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_last_input_missing_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj,')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_term_input_mismatch_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj,kk->ijk')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_ellipsis_mismatch_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='...ii,...jj->...ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_rank_mismatch_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='iik,jj->ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_output_surplus_label_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='ii,jj->ijk')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_output_missing_ellipsis_negative_test():
+    x1 = helper.make_tensor_value_info('x1', TensorProto.FLOAT, [3, 3, 3])
+    x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x1', 'x2'],
+                                 outputs=['y'],
+                                 equation='...ii,...jj->ij')
+
+    return ([node], [x1, x2], [y])
+
+
+@onnx_test()
+def einsum_multiple_diagonals_negative_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 equation='iijj->ij')
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def einsum_diagonal_dim_mismatch_negative_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 equation='ii->i')
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def einsum_right_batch_diagonal_negative_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node('Einsum',
+                                 inputs=['x'],
+                                 outputs=['y'],
+                                 equation='ii...->i...')
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def elu_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3])

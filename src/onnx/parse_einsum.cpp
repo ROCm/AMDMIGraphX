@@ -42,12 +42,12 @@ struct parse_einsum : op_parser<parse_einsum>
 
     struct equation_info
     {
-        bool explicit_form;
+        bool explicit_form = false;
         std::vector<std::string> input_terms;
         std::string output_term;
         std::map<char, int> label_count;
         std::vector<std::map<char, std::vector<int>>> duplicates;
-        size_t ellipsis_ndim;
+        size_t ellipsis_ndim = 0;
     };
 
     std::vector<op_desc> operators() const { return {{"Einsum"}}; }
@@ -134,7 +134,6 @@ struct parse_einsum : op_parser<parse_einsum>
 
         std::string term;
         bool has_ellipsis = false;
-        ret.explicit_form = false;
 
         for(const auto& token : tokens)
         {

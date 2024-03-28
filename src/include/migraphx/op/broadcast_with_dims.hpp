@@ -67,7 +67,7 @@ struct broadcast_with_dims
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto s0      = args.at(0).get_shape();
+        auto s0             = args.at(0).get_shape();
         const auto& in_lens = s0.lens();
         std::vector<std::size_t> dims_input(output_shape.ndim());
         args.at(1).visit([&](auto a) { dims_input.assign(a.begin(), a.end()); });

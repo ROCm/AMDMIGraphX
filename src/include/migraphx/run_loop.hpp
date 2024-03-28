@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 
+#include "stringutils.hpp"
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
@@ -39,6 +40,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 template <class LoopModel, class T>
 argument run_loop(const LoopModel& model,
+                  const std::vector<int64_t>& scan_output_directions,
                   T& ctx,
                   std::vector<argument> args,
                   const std::vector<module_ref>& mods,
@@ -101,9 +103,13 @@ argument run_loop(const LoopModel& model,
                 auto output_index = out_param_indices[name];
                 if(output_index > dep_num)
                 {
+                    int64_t dir = scan_output_directions.empty()
+                                      ? 0
+                                      : scan_output_directions[output_index - dep_num - 1];
+                    auto idx        = (1 - dir) * iter + dir * (iter_num - 1 - iter);
                     const auto& arg = out_args.at(output_index);
-                    assert((iter + 1) * ps.bytes() <= arg.get_shape().bytes());
-                    params[name] = argument(ps, arg.data() + iter * ps.bytes());
+                    assert((idx + 1) * ps.bytes() <= arg.get_shape().bytes());
+                    params[name] = argument(ps, arg.data() + idx * ps.bytes());
                 }
                 else
                 {
@@ -123,7 +129,7 @@ argument run_loop(const LoopModel& model,
         std::copy(dep_out.begin(), dep_out.end(), out_args.begin());
 
         std::vector<argument> mod_scan_outs(mod_args.begin() + 1 + dep_num, mod_args.end());
-        model.append(mod_scan_outs, scan_outputs, iter);
+        model.append(mod_scan_outs, scan_outputs, scan_output_directions, iter, iter_num);
     }
 
     out_args.erase(out_args.begin());

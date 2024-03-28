@@ -41,12 +41,14 @@ namespace op {
 
 struct loop
 {
-    int64_t max_iterations = 10;
+    int64_t max_iterations                      = 10;
+    std::vector<int64_t> scan_output_directions = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.max_iterations, "max_iterations"));
+        return pack(f(self.max_iterations, "max_iterations"),
+                    f(self.scan_output_directions, "scan_output_directions"));
     }
 
     std::string name() const { return "loop"; }
@@ -97,7 +99,9 @@ struct loop
 
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
-                    int iter) const
+                    const std::vector<int64_t>& scan_output_dirs,
+                    int64_t iter,
+                    int64_t iter_num) const
         {
             assert(iter_state.size() == concatenated_outputs.size());
             for(auto i : range(iter_state.size()))
@@ -105,11 +109,14 @@ struct loop
                 const auto& iter_stat = iter_state.at(i);
                 const auto& scan_out  = concatenated_outputs.at(i);
 
+                auto dir = scan_output_dirs.empty() ? 0 : scan_output_dirs[i];
+                auto idx = (1 - dir) * iter + dir * (iter_num - 1 - iter);
+
                 auto* in_data        = iter_stat.data();
                 auto* out_data       = scan_out.data();
                 std::size_t out_size = iter_stat.get_shape().bytes();
-                assert((iter + 1) * out_size <= scan_out.get_shape().bytes());
-                std::copy(in_data, in_data + out_size, out_data + iter * out_size);
+                assert((idx + 1) * out_size <= scan_out.get_shape().bytes());
+                std::copy(in_data, in_data + out_size, out_data + idx * out_size);
             }
         }
 
@@ -153,7 +160,7 @@ struct loop
         cpy_args.push_back(argument(out_shape));
 
         // run loop
-        return run_loop(ref_loop{max_iterations}, ctx, cpy_args, mods, run);
+        return run_loop(ref_loop{max_iterations}, scan_output_directions, ctx, cpy_args, mods, run);
     }
 };
 

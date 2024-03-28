@@ -63,14 +63,14 @@ struct parse_scan : op_parser<parse_scan>
         const auto K   = body_outs.size() - N;
 
         if(body->get_parameter_names().size() != N + M)
-            MIGRAPHX_THROW("Lorem ipsum");
+            MIGRAPHX_THROW("Lorem ipsum 1");
 
         const auto scan_input_axes = parse_axes(info, "scan_input_axes", M, args.begin() + N, 0);
 
         size_t num_iters = args[N]->get_shape().lens()[scan_input_axes[0]];
         for(auto i = 1; i < M; ++i)
-            if(args[i]->get_shape().lens()[scan_input_axes[i]] != num_iters)
-                MIGRAPHX_THROW("Lorem ipsum");
+            if(args[N + i]->get_shape().lens()[scan_input_axes[i]] != num_iters)
+                MIGRAPHX_THROW("Lorem ipsum 2");
 
         const auto scan_input_directions = parse_dirs(info, "scan_input_directions", M);
 
@@ -88,8 +88,12 @@ struct parse_scan : op_parser<parse_scan>
         std::vector<instruction_ref> loop_args{max_iter_lit, cond_lit};
         loop_args.insert(loop_args.end(), args.begin(), args.begin() + N);
 
-        auto loop = info.add_instruction(
-            make_op("loop", {{"max_iterations", num_iters}}), loop_args, {body});
+        auto loop =
+            info.add_instruction(make_op("loop",
+                                         {{"max_iterations", num_iters},
+                                          {"scan_output_directions", scan_output_directions}}),
+                                 loop_args,
+                                 {body});
 
         std::vector<instruction_ref> ret;
         ret.reserve(N + K);

@@ -949,21 +949,22 @@ TEST_CASE(broadcast_with_dims1)
                  s0,
                  s1);
 
-TEST_CASE(broadcast_for_dot_dyn2)
-{
-    migraphx::shape s0{migraphx::shape::float_type, {{6, 12}, {4, 4}, {8, 8}}};
-    migraphx::shape s1{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {2, 10}, {8, 8}, {4, 4}}};
-    expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {6, 10}, {4, 4}, {8, 8}}},
-        migraphx::make_op("broadcast_for_dot"),
-        s0,
-        s1);
-    expect_shape(
-        migraphx::shape{migraphx::shape::float_type, {{1, 4, {1, 2, 4}}, {6, 10}, {8, 8}, {4, 4}}},
-        migraphx::make_op("broadcast_for_dot"),
-        s1,
-        s0);
-}
+    TEST_CASE(broadcast_for_dot_dyn2)
+    {
+        migraphx::shape s0{migraphx::shape::float_type, {{6, 12}, {4, 4}, {8, 8}}};
+        migraphx::shape s1{migraphx::shape::float_type,
+                           {{1, 4, {1, 2, 4}}, {2, 10}, {8, 8}, {4, 4}}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     {{1, 4, {1, 2, 4}}, {6, 10}, {4, 4}, {8, 8}}},
+                     migraphx::make_op("broadcast_for_dot"),
+                     s0,
+                     s1);
+        expect_shape(migraphx::shape{migraphx::shape::float_type,
+                                     {{1, 4, {1, 2, 4}}, {6, 10}, {8, 8}, {4, 4}}},
+                     migraphx::make_op("broadcast_for_dot"),
+                     s1,
+                     s0);
+    }
 
 TEST_CASE(flatten_shape)
 {

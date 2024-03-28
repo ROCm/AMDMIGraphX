@@ -57,13 +57,13 @@ struct parse_convolution : op_parser<parse_convolution>
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto op       = make_op(opd.op_name);
-        auto values   = op.to_value();
-        auto l0       = args[0];
-        auto weights  = args[1];
-        auto l0_shape = l0->get_shape();
-        auto w_shape  = weights->get_shape();
-        auto in_lens  = l0_shape.max_lens();
+        auto op      = make_op(opd.op_name);
+        auto values  = op.to_value();
+        auto x       = args[0];
+        auto weights = args[1];
+        auto x_shape = x->get_shape();
+        auto w_shape = weights->get_shape();
+        auto in_lens = x_shape.max_lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
@@ -102,9 +102,9 @@ struct parse_convolution : op_parser<parse_convolution>
 
             // check if image shape is dynamic
             bool image_shape_dynamic = false;
-            if(l0_shape.dynamic())
+            if(x_shape.dynamic())
             {
-                auto dyn_dims = l0_shape.dyn_dims();
+                auto dyn_dims = x_shape.dyn_dims();
                 std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](auto dyn_dim) {
                     if(not dyn_dim.is_fixed())
                     {
@@ -161,14 +161,14 @@ struct parse_convolution : op_parser<parse_convolution>
 
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
-        auto l0_zp         = set_bias(l0, 2, args);
+        auto x_zp          = set_bias(x, 2, args);
         auto w_zp          = set_bias(weights, 3, args);
         auto is_quant_conv = opd.op_name == "quant_convolution";
 
         op.from_value(values);
 
         // Check for type mismatch on parse
-        if(l0_zp->get_shape().type() != l0_shape.type())
+        if(x_zp->get_shape().type() != x_shape.type())
         {
             MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
         }
@@ -179,9 +179,9 @@ struct parse_convolution : op_parser<parse_convolution>
         }
 
         // Assign input bias on weights or data accordingly
-        if(is_quant_conv and (l0_zp != l0))
+        if(is_quant_conv and (x_zp != x))
         {
-            l0 = info.add_common_op("sub", l0, l0_zp);
+            x = info.add_common_op("sub", x, x_zp);
         }
 
         if(is_quant_conv and (w_zp != weights))
@@ -189,10 +189,10 @@ struct parse_convolution : op_parser<parse_convolution>
             weights = info.add_common_op("sub", weights, w_zp);
         }
 
-        ret = info.add_instruction(op, l0, w_zp);
+        ret = info.add_instruction(op, x, w_zp);
 
         // Handle Convolution case with bias to output
-        if((not is_quant_conv) and (l0_zp != l0))
+        if((not is_quant_conv) and (x_zp != x))
         {
             ret = info.add_bias(args, ret, 1);
         }

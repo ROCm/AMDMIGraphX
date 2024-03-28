@@ -79,26 +79,19 @@ struct grid_sampler
                                         instruction_ref size,
                                         instruction_ref corner_start) const
     {
-        // TODO: add reduce_min and if operator check
         auto index_align_corner = info.add_common_op("sub", corner_start, coords);
         index_align_corner      = info.add_common_op("abs", index_align_corner);
-        auto size_times         = info.add_instruction(
-            migraphx::make_op("convert",
-                                      {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
-            index_align_corner);
-        size_times = info.add_common_op("div", size_times, size);
-        size_times = info.add_instruction(
-            migraphx::make_op("convert",
-                              {{"target_type", migraphx::to_value(migraphx::shape::int64_type)}}),
-            size_times);
-        auto cond   = info.add_common_op("mod", size_times, m_two_l);
-        cond        = info.add_common_op("equal", cond, m_zero_l);
-        auto extra  = info.add_common_op("mul", size_times, size);
-        extra       = info.add_common_op("sub", index_align_corner, extra);
-        auto cond_a = info.add_common_op("add", extra, corner_start);
-        auto cond_b = info.add_common_op("sub", size, extra);
-        cond_b      = info.add_common_op("add", cond_b, corner_start);
-        return info.add_common_op("where", cond, cond_a, cond_b);
+        auto size_times         = info.add_common_op("floor", index_align_corner);
+        size_times              = info.add_common_op("div", size_times, size);
+        size_times              = info.add_common_op("floor", size_times);
+        auto cond               = info.add_common_op("mod", size_times, m_two_l);
+        cond                    = info.add_common_op("equal", cond, m_zero_l);
+        auto extra              = info.add_common_op("mul", size_times, size);
+        extra                   = info.add_common_op("sub", index_align_corner, extra);
+        auto cond_true          = info.add_common_op("add", extra, corner_start);
+        auto cond_false         = info.add_common_op("sub", size, extra);
+        cond_false              = info.add_common_op("add", cond_false, corner_start);
+        return info.add_common_op("where", cond, cond_true, cond_false);
     }
 
     virtual void setup(const onnx_parser::node_info& info)

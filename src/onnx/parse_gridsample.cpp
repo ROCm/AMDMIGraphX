@@ -177,7 +177,7 @@ struct grid_sampler
                         std::vector<instruction_ref>& validation,
                         bool validate = true) const
     {
-        static auto nc_shape = migraphx::shape{m_input->get_shape().type(), {2}};
+        static auto nc_shape = migraphx::shape{m_grid->get_shape().type(), {2}};
         auto nc              = info.add_literal(migraphx::literal{nc_shape, {n, c}});
         auto w_clamp = validate ? info.add_common_op("clip", w, m_zero_l, m_width_max_l) : w;
         auto h_clamp = validate ? info.add_common_op("clip", h, m_zero_l, m_height_max_l) : h;

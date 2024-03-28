@@ -37,3 +37,17 @@ TEST_CASE(expand_test)
     auto prog = optimize_onnx("expand_test.onnx");
     EXPECT(p == prog);
 }
+
+TEST_CASE(expand_dyn_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s(migraphx::shape::float_type, {3, 1, 1});
+    auto param = mm->add_parameter("x", s);
+    migraphx::shape ss(migraphx::shape::int64_type, {4});
+    auto dims = mm->add_parameter("dims", ss);
+    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), param, dims);
+
+    auto prog = optimize_onnx("expand_dyn_test.onnx");
+    EXPECT(p == prog);
+}

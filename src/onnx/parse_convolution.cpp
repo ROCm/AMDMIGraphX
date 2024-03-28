@@ -184,7 +184,7 @@ struct parse_convolution : op_parser<parse_convolution>
             MIGRAPHX_THROW("PARSE:ConvInteger Weights and Weights Zero Point must have same type");
         }
 
-        ret = info.add_instruction(op, x, w_zp);
+        ret = info.add_instruction(op, x_zp, w_zp);
 
         // Handle Convolution case with bias to output
         if((not is_quant_conv) and (x_zp != x))

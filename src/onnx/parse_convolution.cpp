@@ -43,19 +43,24 @@ struct parse_convolution : op_parser<parse_convolution>
     }
 
     static instruction_ref set_bias(const instruction_ref& input,
+                                    onnx_parser::node_info info,
                                     int index,
                                     const bool is_quant_conv,
                                     const std::vector<instruction_ref>& args)
     {
+        instruction_ref ret = input;
         if(args.size() > index)
         {
-            // Assign input bias on weights or data accordingly
+            // Check for type mismatch on parse
+            if(input->get_shape().type() != args[index]->get_shape().type())
+                MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
+
             if(is_quant_conv)
-            {
-                input = info.add_common_op("sub", input, args[index]);
-            }
+                ret = info.add_common_op("sub", input, args[index]);
+            else
+                ret = args[index];
         }
-        return input;
+        return ret;
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -168,26 +173,15 @@ struct parse_convolution : op_parser<parse_convolution>
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
         auto is_quant_conv = opd.op_name == "quant_convolution";
-        auto x_zp          = set_bias(x, 2, is_quant_conv, args);
-        auto w_zp          = set_bias(weights, 3, is_quant_conv, args);
+        auto x_zp          = set_bias(x, info, 2, is_quant_conv, args);
+        auto w_zp          = set_bias(weights, info, 3, is_quant_conv, args);
 
         op.from_value(values);
-
-        // Check for type mismatch on parse
-        if(x_zp->get_shape().type() != x_shape.type())
-        {
-            MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
-        }
-
-        if(is_quant_conv and (w_zp->get_shape().type() != w_shape.type()))
-        {
-            MIGRAPHX_THROW("PARSE:ConvInteger Weights and Weights Zero Point must have same type");
-        }
 
         ret = info.add_instruction(op, x_zp, w_zp);
 
         // Handle Convolution case with bias to output
-        if((not is_quant_conv) and (x_zp != x))
+        if((not is_quant_conv) and (args.size() > 2))
         {
             ret = info.add_bias(args, ret, 1);
         }

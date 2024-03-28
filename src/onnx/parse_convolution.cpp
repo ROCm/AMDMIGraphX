@@ -42,12 +42,18 @@ struct parse_convolution : op_parser<parse_convolution>
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
-    static instruction_ref
-    set_bias(const instruction_ref& input, int index, const std::vector<instruction_ref>& args)
+    static instruction_ref set_bias(const instruction_ref& input,
+                                    int index,
+                                    const bool is_quant_conv,
+                                    const std::vector<instruction_ref>& args)
     {
         if(args.size() > index)
         {
-            return args[index];
+            // Assign input bias on weights or data accordingly
+            if(is_quant_conv)
+            {
+                input = info.add_common_op("sub", input, args[index]);
+            }
         }
         return input;
     }
@@ -161,9 +167,9 @@ struct parse_convolution : op_parser<parse_convolution>
 
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
-        auto x_zp          = set_bias(x, 2, args);
-        auto w_zp          = set_bias(weights, 3, args);
         auto is_quant_conv = opd.op_name == "quant_convolution";
+        auto x_zp          = set_bias(x, 2, is_quant_conv, args);
+        auto w_zp          = set_bias(weights, 3, is_quant_conv, args);
 
         op.from_value(values);
 
@@ -176,17 +182,6 @@ struct parse_convolution : op_parser<parse_convolution>
         if(is_quant_conv and (w_zp->get_shape().type() != w_shape.type()))
         {
             MIGRAPHX_THROW("PARSE:ConvInteger Weights and Weights Zero Point must have same type");
-        }
-
-        // Assign input bias on weights or data accordingly
-        if(is_quant_conv and (x_zp != x))
-        {
-            x = info.add_common_op("sub", x, x_zp);
-        }
-
-        if(is_quant_conv and (w_zp != weights))
-        {
-            weights = info.add_common_op("sub", weights, w_zp);
         }
 
         ret = info.add_instruction(op, x, w_zp);

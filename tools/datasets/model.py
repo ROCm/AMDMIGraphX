@@ -4,7 +4,7 @@ from preprocess import process_image
 from optimum.exporters.onnx import main_export
 import timm
 from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
-
+import numpy as np
 
 class BaseModel(abc.ABC):
 
@@ -39,11 +39,9 @@ class SingleOptimumHFModelDownloadMixin(object):
 class EncoderDecoderOptimumHFModelDownloadMixin(object):
 
     def download(self, output_folder):
-        main_export(self.model_id, output=output_folder)
-        return [
-            f"{output_folder}/encoder_model.onnx",
-            f"{output_folder}/decoder_model.onnx"
-        ]
+        # monolith forces export into one model
+        main_export(self.model_id, output=output_folder, monolith=True)
+        return f"{output_folder}/model.onnx"
 
 
 class AutoImageProcessorHFMixin(object):
@@ -198,6 +196,18 @@ class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
 
     def __init__(self):
         self.model_id = "openai/whisper-small.en"
+
+    def preprocess(self, *args, **kwargs):
+        # result only contains encoder data, extend it with decoder
+        result = super().preprocess(*args, **kwargs)
+        decoder_start_token_id = 50257  # <|startoftranscript|>
+        eos_token_id = 50256  # "<|endoftext|>"
+        notimestamps = 50362  # <|notimestamps|>
+        sot = [decoder_start_token_id, notimestamps]
+        max_length = 448
+        result["decoder_input_ids"] = np.array(
+            [sot + [eos_token_id] * (max_length - len(sot))])
+        return result
 
     def name(self):
         return "whisper-small-en"

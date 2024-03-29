@@ -54,12 +54,12 @@ struct broadcast_with_dims
     {
         migraphx::check_shapes{inputs, *this, true}.has(2);
         // check that second input has a static shape
-        migraphx::check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
-        // output tensor rank greater of input_tensor rank or length of dims vector
-        auto input_tensor_shape = inputs.at(0);
-        auto dims_shape         = inputs.at(1);
-        size_t out_ndim         = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
-        std::size_t max_int     = std::numeric_limits<std::size_t>::max();
+        (void)migraphx::check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
+        // output tensor rank is greater of input_tensor rank or length of dims vector
+        const auto& input_tensor_shape = inputs.at(0);
+        const auto& dims_shape         = inputs.at(1);
+        size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
+        std::size_t max_int = std::numeric_limits<std::size_t>::max();
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,
                                                        shape::dynamic_dimension{0, max_int});
         return {input_tensor_shape.type(), dyn_dims};
@@ -67,8 +67,8 @@ struct broadcast_with_dims
 
     argument compute(const shape& output_shape, const std::vector<argument>& args) const
     {
-        auto s0      = args.at(0).get_shape();
-        auto in_lens = s0.lens();
+        auto s0             = args.at(0).get_shape();
+        const auto& in_lens = s0.lens();
         std::vector<std::size_t> dims_input(output_shape.ndim());
         args.at(1).visit([&](auto a) { dims_input.assign(a.begin(), a.end()); });
         auto out_lens  = compute_broadcasted_lens(in_lens, dims_input);

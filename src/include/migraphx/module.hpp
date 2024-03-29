@@ -209,14 +209,24 @@ struct MIGRAPHX_EXPORT module
 
     void finalize(std::vector<context>& contexts);
 
+    /// Create a mapping from the input instruction to the corresponding
+    /// parameter instruction. Use the `reverse` flag to reverse the lookup
+    /// to be from parameter instruction to input instread.
     std::unordered_map<instruction_ref, instruction_ref>
     get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse = false) const;
 
     using with_inputs = module_with_inputs;
 
+    /// This will split the module into two parts at the instruction splits.
+    /// Each split instruction becomes an input parameter in the second
+    /// module. As such the inputs instructions to the second module will use
+    /// the split instructions as input placeholders that can be replaced
+    /// later.
     std::array<with_inputs, 2> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits) const;
 
+    /// This will split the module in 3 parts using different split
+    /// instruction for each additional module.
     std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
@@ -286,8 +296,13 @@ struct module_with_inputs
 {
     module mod;
     std::vector<instruction_ref> inputs;
+    /// Replace the instruction in the inputs with rep
     void replace(instruction_ref ins, instruction_ref rep);
+    /// Replace the input instructions using the map_ins to lookup the replacement
     void replace(const std::unordered_map<instruction_ref, instruction_ref>& map_ins);
+
+    /// Replace the input instructions of the keys with the instructions
+    /// passed as values. Both vectors should be in the same order.
     void replace(const std::vector<instruction_ref>& keys,
                  const std::vector<instruction_ref>& values);
 };

@@ -137,7 +137,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
                                        std::size_t min_size = 1024)
 {
     std::vector<shape> result;
-    auto input_shape  = inputs.front();
+    auto input_shape         = inputs.front();
     const auto& reduce_shape = inputs[inputs.size() - 2];
     const auto& output_shape = inputs[inputs.size() - 1];
 

@@ -157,7 +157,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
     {
         if(ins->name() != "fused_reduce")
             continue;
-        auto* rm    = ins->module_inputs().front();
+        auto* rm = ins->module_inputs().front();
         if(get_reduce_size(rm) < split_size)
             continue;
         auto splits = find_split(rm);

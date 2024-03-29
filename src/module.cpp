@@ -40,6 +40,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <array>
 #include <set>
 #include <utility>
 #include <unordered_set>

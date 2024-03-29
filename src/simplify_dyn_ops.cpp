@@ -34,8 +34,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- *    Convert a Broadcast_with_dims op, which always outputs a dynamic shape,
- *    to a Multibroadcast op with a static output shape attribute.
+ *    Replace broadcast_with_dims operators with a static input tensor and a constant `dims` input
+ *    into multibroadcast op with a static output shape attribute.
  *
  */
 struct find_broadcast_with_dims_static

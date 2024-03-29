@@ -311,18 +311,16 @@ constexpr auto compute_reduce_axis()
     return make_shape(lens, get_shape_c<Input>{}.strides);
 }
 
-template<class T, class F>
+template <class T, class F>
 constexpr auto final_reduce(T x, F f)
 {
     return vec_reduce(x, f);
 }
 
-template<class T, index_int N, class F>
+template <class T, index_int N, class F>
 constexpr auto final_reduce(array<T, N> a, F f)
 {
-    return a.apply([&](auto x) {
-        return final_reduce(x, f);
-    });
+    return a.apply([&](auto x) { return final_reduce(x, f); });
 }
 
 template <class Input, index_int Axis>

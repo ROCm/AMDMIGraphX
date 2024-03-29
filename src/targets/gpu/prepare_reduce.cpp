@@ -72,38 +72,44 @@ std::vector<instruction_ref> find_reduce(module& m)
     return result;
 }
 
-std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r, const dominator_info& dom)
+std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r,
+                                                  const dominator_info& dom)
 {
     std::vector<instruction_ref> result;
     auto ir = iterator_for(r);
-    transform_if(ir.begin(), ir.end(), std::back_inserter(result), [&](auto x) {
-        return std::none_of(std::next(x), r.end(), [&](auto reduce) {
-            return dom.strictly_dominate(*x, reduce);
-        });
-    }, [](auto x) { return *x; });
+    transform_if(
+        ir.begin(),
+        ir.end(),
+        std::back_inserter(result),
+        [&](auto x) {
+            return std::none_of(std::next(x), r.end(), [&](auto reduce) {
+                return dom.strictly_dominate(*x, reduce);
+            });
+        },
+        [](auto x) { return *x; });
     return result;
 }
 
 void fuse_reductions(module& m)
 {
-    auto dom = compute_dominator(m);
+    auto dom     = compute_dominator(m);
     auto reduces = find_parallel_reduce(find_reduce(m), dom);
     if(reduces.size() < 2)
         return;
     // Only handle the same reduction operator for now
     if(std::any_of(std::next(reduces.begin()), reduces.end(), [&](auto reduce) {
-        return reduces.front()->name() != reduce->name();
-    }))
+           return reduces.front()->name() != reduce->name();
+       }))
         return;
     auto last = reduces.front();
-    auto op = last->get_operator();
+    auto op   = last->get_operator();
     std::vector<instruction_ref> inputs;
     std::transform(reduces.begin(), reduces.end(), std::back_inserter(inputs), [&](auto reduce) {
         return reduce->inputs().front();
     });
     auto preduce = m.insert_instruction(last, parallel_reduce{op}, inputs);
     int i        = 0;
-    for(auto reduce:reduces)
+    for(auto reduce : reduces)
     {
         m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
         i++;

@@ -174,7 +174,11 @@ def get_args():
 
 
 class StableDiffusionMGX():
-    def __init__(self, base_model_path, save_compiled, vae_fp32, exhaustive_tune=False):
+    def __init__(self,
+                 base_model_path,
+                 save_compiled,
+                 vae_fp32,
+                 exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
@@ -425,7 +429,8 @@ class StableDiffusionMGX():
 
     @measure
     def decode(self, latents):
-        self.tensors['vae'][self.vae_input_name].copy_(latents.to(torch.float32))
+        self.tensors['vae'][self.vae_input_name].copy_(
+            latents.to(torch.float32))
         self.vae.run(self.model_args['vae'])
         mgx.gpu_sync()
         return self.tensors['vae'][get_output_name(0)]
@@ -458,8 +463,8 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled, args.vae_fp32,
-                            args.exhaustive_tune)
+    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled,
+                            args.vae_fp32, args.exhaustive_tune)
     print("Warming up...")
     sd.warmup(5)
     print(f"Running inference")

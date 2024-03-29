@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/dom_info.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,79 +60,60 @@ MIGRAPHX_REGISTER_OP(parallel_reduce);
 
 namespace {
 
-optional<instruction_ref> get_reduce(instruction_ref ins)
+std::vector<instruction_ref> find_reduce(module& m)
 {
-    if(contains({"gpu::parallel_reduce", "reduce_mean"}, ins->name()))
-        return nullopt;
-    if(contains(ins->name(), "reduce"))
-        return ins;
-    if(ins->name() == "pointwise")
-    {
-        if(ins->inputs().size() == 1 and ins->outputs().size() == 1)
-            return get_reduce(ins->outputs().front());
-    }
-    return nullopt;
+    std::vector<instruction_ref> result;
+    auto im = iterator_for(m);
+    std::copy_if(im.begin(), im.end(), std::back_inserter(result), [](auto ins) {
+        if(contains({"gpu::parallel_reduce", "reduce_mean"}, ins->name()))
+            return false;
+        return contains(ins->name(), "reduce");
+    });
+    return result;
 }
 
-MIGRAPHX_PRED_MATCHER(split_reduce, instruction_ref ins)
+std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r, const dominator_info& dom)
 {
-    if(ins->outputs().size() < 2)
-        return false;
-    auto n = std::count_if(ins->outputs().begin(),
-                           ins->outputs().end(),
-                           [](instruction_ref output) { return get_reduce(output).has_value(); });
-    return n > 1;
+    std::vector<instruction_ref> result;
+    auto ir = iterator_for(r);
+    transform_if(ir.begin(), ir.end(), std::back_inserter(result), [&](auto x) {
+        return std::none_of(std::next(x), r.end(), [&](auto reduce) {
+            return dom.strictly_dominate(*x, reduce);
+        });
+    }, [](auto x) { return *x; });
+    return result;
 }
 
-struct find_multi_reduce
+void fuse_reductions(module& m)
 {
-    auto matcher() const { return split_reduce(); }
-
-    void apply(module& m, const match::matcher_result& r) const
+    auto dom = compute_dominator(m);
+    auto reduces = find_parallel_reduce(find_reduce(m), dom);
+    if(reduces.size() < 2)
+        return;
+    // Only handle the same reduction operator for now
+    if(std::any_of(std::next(reduces.begin()), reduces.end(), [&](auto reduce) {
+        return reduces.front()->name() != reduce->name();
+    }))
+        return;
+    auto last = reduces.front();
+    auto op = last->get_operator();
+    std::vector<instruction_ref> inputs;
+    std::transform(reduces.begin(), reduces.end(), std::back_inserter(inputs), [&](auto reduce) {
+        return reduce->inputs().front();
+    });
+    auto preduce = m.insert_instruction(last, parallel_reduce{op}, inputs);
+    int i        = 0;
+    for(auto reduce:reduces)
     {
-        auto ins = r.result;
-        std::vector<instruction_ref> reduces;
-        for(auto output : ins->outputs())
-        {
-            if(output->outputs().empty())
-                continue;
-            auto reduce = get_reduce(output);
-            if(reduce.has_value())
-                reduces.push_back(*reduce);
-        }
-
-        auto each = [&](auto start, auto last) {
-            if(std::distance(start, last) < 2)
-                return;
-            std::vector<instruction_ref> inputs;
-            std::transform(start, last, std::back_inserter(inputs), [&](auto reduce) {
-                return reduce->inputs().front();
-            });
-            auto op        = (*start)->get_operator();
-            auto insertion = std::next(ins);
-            for(auto input : inputs)
-            {
-                if(input == ins)
-                    continue;
-                m.move_instruction(input, insertion);
-            }
-            auto preduce = m.insert_instruction(insertion, parallel_reduce{op}, inputs);
-            int i        = 0;
-            std::for_each(start, last, [&](auto reduce) {
-                m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
-                i++;
-            });
-        };
-
-        group_by(reduces.begin(), reduces.end(), each, by(std::equal_to<>{}, [](instruction_ref i) {
-                     return std::make_tuple(i->name(), i->get_shape());
-                 }));
+        m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
+        i++;
     }
-};
+    m.sort();
+}
 
 } // namespace
 
-void prepare_reduce::apply(module& m) const { match::find_matches(m, find_multi_reduce{}); }
+void prepare_reduce::apply(module& m) const { fuse_reductions(m); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

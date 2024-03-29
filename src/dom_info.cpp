@@ -31,7 +31,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins2)
+bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins2) const
 {
     if(ins1 == ins2)
         return false;

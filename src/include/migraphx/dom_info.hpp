@@ -36,7 +36,7 @@ struct module;
 
 struct MIGRAPHX_EXPORT dominator_info
 {
-    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2);
+    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2) const;
 
     std::unordered_map<instruction_ref, instruction_ref> ins2idom;
 };

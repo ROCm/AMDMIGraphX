@@ -39,8 +39,8 @@ TEST_CASE(broadcast_with_dims)
     migraphx::module m0;
     {
         // the X input
-        migraphx::shape input_x{migraphx::shape::float_type, {3, 1, 1}};
-        auto inx = m0.add_parameter("x", input_x);
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+        auto inx = m0.add_parameter("x", sx);
 
         // the shape input.  Broadcast to this
         migraphx::shape dims_s{migraphx::shape::int64_type, {4}};

@@ -157,6 +157,13 @@ def get_args():
     )
 
     parser.add_argument(
+        "--vae-fp32",
+        action="store_true",
+        default=False,
+        help="Use fp32 version of VAE",
+    )
+
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -167,7 +174,7 @@ def get_args():
 
 
 class StableDiffusionMGX():
-    def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
+    def __init__(self, base_model_path, save_compiled, vae_fp32, exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
@@ -183,8 +190,14 @@ class StableDiffusionMGX():
             model_id, use_safetensors=True, subfolder="tokenizer_2")
 
         print("Load models...")
+
+        self.vae_name = "vae_fp16_fix"
+        self.vae_input_name = "input.1"
+        if vae_fp32:
+            self.vae_name = "vae"
+            self.vae_input_name = "latent_sample"
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae_fp16_fix", {"input.1": [1, 4, 128, 128]},
+            self.vae_name, {self.vae_input_name: [1, 4, 128, 128]},
             base_model_path,
             save_compiled,
             exhaustive_tune,
@@ -313,8 +326,8 @@ class StableDiffusionMGX():
         elif os.path.isfile(f"{file}.onnx"):
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
-            # if name != "vae":
-            mgx.quantize_fp16(model)
+            if name != "vae":
+                mgx.quantize_fp16(model)
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
@@ -412,7 +425,7 @@ class StableDiffusionMGX():
 
     @measure
     def decode(self, latents):
-        self.tensors['vae']['input.1'].copy_(latents.to(torch.float32))
+        self.tensors['vae'][self.vae_input_name].copy_(latents.to(torch.float32))
         self.vae.run(self.model_args['vae'])
         mgx.gpu_sync()
         return self.tensors['vae'][get_output_name(0)]
@@ -432,7 +445,7 @@ class StableDiffusionMGX():
             torch.randn((2, 1280)).to(torch.float16))
         self.tensors['unetxl']['time_ids'].copy_(
             torch.randn((2, 6)).to(torch.float16))
-        self.tensors['vae']['input.1'].copy_(
+        self.tensors['vae'][self.vae_input_name].copy_(
             torch.randn((1, 4, 128, 128)).to(torch.float32))
         for _ in range(num_runs):
             self.clip.run(self.model_args['clip'])
@@ -445,7 +458,7 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled,
+    sd = StableDiffusionMGX(args.base_model_path, args.save_compiled, args.vae_fp32,
                             args.exhaustive_tune)
     print("Warming up...")
     sd.warmup(5)

@@ -1,5 +1,6 @@
 import os
 import sys
+import pathlib
 from PIL import Image
 import time
 
@@ -109,12 +110,14 @@ class MGXSDXLPipeline:
 
     def save_compiled_models(self, path, file_type="pt"):
         for name in ["clip", "clip2", "unetxl", "vae"]:
-            file = f"{path}/{name}/model.{file_type}"
+            model_path = pathlib.Path(f"{path}/{name}")
+            model_path.mkdir(parents=True, exist_ok=True)
+            file = model_path / f"model.{file_type}"
             model_name = "vae_decoder" if name == "vae" else name
 
             print(f"Saving {model_name} model to {file}")
             if file_type == "pt":
-                torch.save(self.models[model_name], file)
+                torch.save(self.models[model_name], file, pickle_protocol=4)
             elif file_type == "mxr":
                 migraphx.save(self.models[model_name].program,
                               file,

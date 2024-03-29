@@ -37,8 +37,6 @@ inline namespace MIGRAPHX_INLINE_NS {
  *    Convert a Broadcast_with_dims op, which always outputs a dynamic shape,
  *    to a Multibroadcast op with a static output shape attribute.
  *
- *    This conversion is required to be made since runtime target ops can only output
- *    static shapes.
  */
 struct find_broadcast_with_dims_static
 {

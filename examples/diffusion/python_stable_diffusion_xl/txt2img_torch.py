@@ -244,7 +244,6 @@ class StableDiffusionMGX():
             uncond_input2 = self.tokenize(negative_prompt, True)
 
             curr_stream = torch.cuda.current_stream()
-
             start_time = time.perf_counter_ns()
             print("Creating text embeddings for prompt...")
             text_embeddings = self.get_embeddings(text_input, text_input2,
@@ -253,6 +252,7 @@ class StableDiffusionMGX():
             print("Creating text embeddings for negative prompt...")
             uncond_embeddings = self.get_embeddings(uncond_input,
                                                     uncond_input2, curr_stream)
+            curr_stream.synchronize()
             end_time = time.perf_counter_ns()
             clip_time = end_time - start_time
 
@@ -265,6 +265,7 @@ class StableDiffusionMGX():
 
             print("Apply initial noise sigma\n")
             latents = latents * self.scheduler.init_noise_sigma
+            curr_stream.synchronize()
 
             start_time = time.perf_counter_ns()
             print("Running denoising loop...")
@@ -283,15 +284,21 @@ class StableDiffusionMGX():
                 latents = self.denoise_step(text_embeds, hidden_states,
                                             latents, t, scale, time_id,
                                             curr_stream)
+            curr_stream.synchronize()
             end_time = time.perf_counter_ns()
             unet_time = end_time - start_time
 
             print("Scale denoised result...")
             latents = 1 / 0.18215 * latents
+            curr_stream.synchronize()
 
             print("Decode denoised result...")
+            curr_stream.synchronize()
+
             start_time = time.perf_counter_ns()
             image = self.decode(latents, curr_stream)
+            curr_stream.synchronize()
+
             end_time = time.perf_counter_ns()
             vae_time = end_time - start_time
 
@@ -346,7 +353,7 @@ class StableDiffusionMGX():
                               truncation=True,
                               return_tensors="pt")
 
-    @measure
+    # @measure
     def get_embeddings(self, input, input2, curr_stream):
         self.tensors['clip']['input_ids'].copy_(input.input_ids.to(
             torch.int32))
@@ -376,7 +383,7 @@ class StableDiffusionMGX():
     def save_image(pil_image, filename="output.png"):
         pil_image.save(filename)
 
-    @measure
+    # @measure
     def denoise_step_pre(self, latents, t):
         sample = self.scheduler.scale_model_input(latents, t).to(
             torch.float32).to(device="cuda")
@@ -386,7 +393,7 @@ class StableDiffusionMGX():
 
         return sample, timestep
 
-    @measure
+    # @measure
     def denoise_step_infer(self, sample, timestep, hidden_states, text_embeds,
                            time_id, curr_stream):
         self.tensors['unetxl']['sample'].copy_(sample.to(torch.float32))
@@ -402,7 +409,7 @@ class StableDiffusionMGX():
         return torch.tensor_split(self.tensors['unetxl'][get_output_name(0)],
                                   2)
 
-    @measure
+    # @measure
     def denoise_step_post(self, noise_pred_text, noise_pred_uncond, latents, t,
                           scale):
         # perform guidance
@@ -421,7 +428,7 @@ class StableDiffusionMGX():
         return self.denoise_step_post(noise_pred_text, noise_pred_uncond,
                                       latents, t, scale)
 
-    @measure
+    # @measure
     def decode(self, latents, curr_stream):
         self.tensors['vae']['input.1'].copy_(latents.to(torch.float32))
         self.vae.run_async(self.model_args['vae'], curr_stream.cuda_stream,

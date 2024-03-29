@@ -915,6 +915,7 @@ void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
     auto it = std::find(inputs.begin(), inputs.end(), ins);
     if(it == inputs.end())
         return;
+    assert((*it)->get_shape().lens() == rep->get_shape().lens());
     *it = rep;
 }
 void module_with_inputs::replace(
@@ -924,6 +925,7 @@ void module_with_inputs::replace(
     {
         if(not contains(map_ins, ins))
             continue;
+        assert(ins->get_shape().lens() == map_ins.at(ins)->get_shape().lens());
         ins = map_ins.at(ins);
     }
 }
@@ -935,6 +937,7 @@ void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
         auto it = std::find(keys.begin(), keys.end(), ins);
         if(it == keys.end())
             continue;
+        assert(ins->get_shape().lens() == values[it - keys.begin()]->get_shape().lens());
         ins = values[it - keys.begin()];
     }
 }

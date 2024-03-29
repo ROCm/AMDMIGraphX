@@ -305,6 +305,7 @@ argument get_preallocation(context& ctx, const std::string& id)
 void gpu_fill(context& ctx, const argument& dst, int value)
 {
     // TODO: Handle non-packed tensor when value is not 0
+    assert(dst.get_shape().packed() and value == 0);
     hip_async_memset(ctx, dst, value);
 }
 

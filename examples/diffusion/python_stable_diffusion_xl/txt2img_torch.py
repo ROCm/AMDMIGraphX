@@ -72,8 +72,7 @@ def get_output_name(idx):
 def allocate_torch_buffers(model):
     input_shapes = model.get_parameter_shapes()
     data_mapping = {
-        name:
-        torch.zeros(shape.lens()).to(
+        name: torch.zeros(shape.lens()).to(
             mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
         for name, shape in input_shapes.items()
     }
@@ -82,7 +81,6 @@ def allocate_torch_buffers(model):
 
 # measurement helper
 def measure(fn):
-
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -169,7 +167,6 @@ def get_args():
 
 
 class StableDiffusionMGX():
-
     def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")

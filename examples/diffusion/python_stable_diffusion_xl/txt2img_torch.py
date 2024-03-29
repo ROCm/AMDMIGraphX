@@ -50,6 +50,8 @@ torch_to_mgx_dtype_dict = {
     for (key, value) in mgx_to_torch_dtype_dict.items()
 }
 
+HIPSTREAMTYPE = 'ihipStream_t'
+
 
 def tensor_to_arg(tensor):
     return mgx.argument_from_pointer(
@@ -187,7 +189,7 @@ class StableDiffusionMGX():
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae", {"latent_sample": [1, 4, 128, 128]},
+            "vae_fp16_fix", {"input.1": [1, 4, 128, 128]},
             base_model_path,
             save_compiled,
             exhaustive_tune,
@@ -244,13 +246,15 @@ class StableDiffusionMGX():
             uncond_input = self.tokenize(negative_prompt, False)
             uncond_input2 = self.tokenize(negative_prompt, True)
 
+            curr_stream = torch.cuda.current_stream()
+
             start_time = time.perf_counter_ns()
             print("Creating text embeddings for prompt...")
-            text_embeddings = self.get_embeddings(text_input, text_input2)
+            text_embeddings = self.get_embeddings(text_input, text_input2, curr_stream)
 
             print("Creating text embeddings for negative prompt...")
             uncond_embeddings = self.get_embeddings(uncond_input,
-                                                    uncond_input2)
+                                                    uncond_input2, curr_stream)
             end_time = time.perf_counter_ns()
             clip_time = end_time - start_time
 
@@ -279,7 +283,7 @@ class StableDiffusionMGX():
             for step, t in enumerate(self.scheduler.timesteps):
                 print(f"#{step}/{len(self.scheduler.timesteps)} step")
                 latents = self.denoise_step(text_embeds, hidden_states,
-                                            latents, t, scale, time_id)
+                                            latents, t, scale, time_id, curr_stream)
             end_time = time.perf_counter_ns()
             unet_time = end_time - start_time
 
@@ -288,7 +292,7 @@ class StableDiffusionMGX():
 
             print("Decode denoised result...")
             start_time = time.perf_counter_ns()
-            image = self.decode(latents)
+            image = self.decode(latents, curr_stream)
             end_time = time.perf_counter_ns()
             vae_time = end_time - start_time
 
@@ -316,6 +320,8 @@ class StableDiffusionMGX():
         elif os.path.isfile(f"{file}.onnx"):
             print("Parsing from onnx file...")
             model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
+            # if name != "vae":
+            mgx.quantize_fp16(model)
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
@@ -342,16 +348,16 @@ class StableDiffusionMGX():
                               return_tensors="pt")
 
     @measure
-    def get_embeddings(self, input, input2):
+    def get_embeddings(self, input, input2, curr_stream):
         self.tensors['clip']['input_ids'].copy_(input.input_ids.to(
             torch.int32))
-        self.clip.run(self.model_args['clip'])
+        self.clip.run_async(self.model_args['clip'], curr_stream.cuda_stream, HIPSTREAMTYPE)
 
         self.tensors['clip2']['input_ids'].copy_(
-            input2.input_ids.to(torch.int64))
-        self.clip2.run(self.model_args['clip2'])
+            input2.input_ids.to(torch.int32))
+        self.clip2.run_async(self.model_args['clip2'], curr_stream.cuda_stream, HIPSTREAMTYPE)
 
-        mgx.gpu_sync()
+        # mgx.gpu_sync()
         clip_hidden = self.tensors['clip'][get_output_name(0)]
         clip2_hidden = self.tensors['clip2'][get_output_name(1)]
         clip2_embed = self.tensors['clip2'][get_output_name(0)]
@@ -381,7 +387,7 @@ class StableDiffusionMGX():
 
     @measure
     def denoise_step_infer(self, sample, timestep, hidden_states, text_embeds,
-                           time_id):
+                           time_id, curr_stream):
         self.tensors['unetxl']['sample'].copy_(sample.to(torch.float32))
         self.tensors['unetxl']['encoder_hidden_states'].copy_(
             hidden_states.to(torch.float16))
@@ -389,8 +395,8 @@ class StableDiffusionMGX():
         self.tensors['unetxl']['text_embeds'].copy_(
             text_embeds.to(torch.float16))
         self.tensors['unetxl']['time_ids'].copy_(time_id.to(torch.float16))
-        self.unetxl.run(self.model_args['unetxl'])
-        mgx.gpu_sync()
+        self.unetxl.run_async(self.model_args['unetxl'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+        # mgx.gpu_sync()
         return torch.tensor_split(self.tensors['unetxl'][get_output_name(0)],
                                   2)
 
@@ -406,18 +412,18 @@ class StableDiffusionMGX():
         return self.scheduler.step(noise_pred, t, latents).prev_sample
 
     def denoise_step(self, text_embeds, hidden_states, latents, t, scale,
-                     time_id):
+                     time_id, curr_stream):
         sample, timestep = self.denoise_step_pre(latents, t)
         noise_pred_text, noise_pred_uncond = self.denoise_step_infer(
-            sample, timestep, hidden_states, text_embeds, time_id)
+            sample, timestep, hidden_states, text_embeds, time_id, curr_stream)
         return self.denoise_step_post(noise_pred_text, noise_pred_uncond,
                                       latents, t, scale)
 
     @measure
-    def decode(self, latents):
-        self.tensors['vae']['latent_sample'].copy_(latents.to(torch.float32))
-        self.vae.run(self.model_args['vae'])
-        mgx.gpu_sync()
+    def decode(self, latents, curr_stream):
+        self.tensors['vae']['input.1'].copy_(latents.to(torch.float32))
+        self.vae.run_async(self.model_args['vae'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+        # mgx.gpu_sync()
         return self.tensors['vae'][get_output_name(0)]
 
     def warmup(self, num_runs):
@@ -435,14 +441,15 @@ class StableDiffusionMGX():
             torch.randn((2, 1280)).to(torch.float16))
         self.tensors['unetxl']['time_ids'].copy_(
             torch.randn((2, 6)).to(torch.float16))
-        self.tensors['vae']['latent_sample'].copy_(
+        self.tensors['vae']['input.1'].copy_(
             torch.randn((1, 4, 128, 128)).to(torch.float32))
+        curr_stream = torch.cuda.current_stream()
         for _ in range(num_runs):
-            self.clip.run(self.model_args['clip'])
-            self.clip2.run(self.model_args['clip2'])
-            self.unetxl.run(self.model_args['unetxl'])
-            self.vae.run(self.model_args['vae'])
-            mgx.gpu_sync()
+            self.clip.run_async(self.model_args['clip'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+            self.clip2.run_async(self.model_args['clip2'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+            self.unetxl.run_async(self.model_args['unetxl'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+            self.vae.run_async(self.model_args['vae'], curr_stream.cuda_stream, HIPSTREAMTYPE)
+            # mgx.gpu_sync()
 
 
 if __name__ == "__main__":

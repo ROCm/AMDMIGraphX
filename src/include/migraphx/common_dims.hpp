@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <cstdint>
+#include <functional>
 #include <numeric>
 #include <vector>
 

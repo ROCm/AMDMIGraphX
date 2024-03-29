@@ -36,7 +36,6 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
-
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -123,7 +122,6 @@ def get_args():
 
 
 class StableDiffusionMGX():
-
     def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
@@ -193,7 +191,10 @@ class StableDiffusionMGX():
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
 
-        start_time = time.perf_counter_ns()
+        hidden_states = np.concatenate(
+            (text_embeddings[0], uncond_embeddings[0])).astype(np.float16)
+        text_embeds = np.concatenate(
+            (text_embeddings[1], uncond_embeddings[1])).astype(np.float16)
         print("Running denoising loop...")
         time_id = np.array([[1024, 1024, 0, 0, 1024, 1024],
                             [1024, 1024, 0, 0, 1024, 1024]]).astype(np.float16)
@@ -317,8 +318,7 @@ class StableDiffusionMGX():
                                                   noise_pred_uncond)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(torch.from_numpy(noise_pred), t,
-                                   latents).prev_sample
+        return self.scheduler.step(noise_pred, t, latents).prev_sample
 
     def denoise_step(self, text_embeds, hidden_states, latents, t, scale,
                      time_id):

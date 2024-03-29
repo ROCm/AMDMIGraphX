@@ -21,34 +21,49 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
+#include <migraphx/eliminate_layout.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/permutation.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-void optimize_module::apply(module_pass_manager& mpm) const
+void remove_layout(module& m)
 {
-    mpm.get_module().repeat_while_changes(2, [&] {
-        // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(2, [&] {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        });
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    });
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::precompile_op")
+            continue;
+
+        auto precompile_op = ins->get_operator();
+        auto val           = precompile_op.to_value();
+
+        if(val["op"].at("name").to<std::string>() != "layout")
+        {
+            continue;
+        }
+        if(ins->get_shape() != ins->inputs().front()->get_shape())
+        {
+            continue;
+        }
+
+        m.replace_instruction(ins, ins->inputs().front());
+    }
+}
+
+void eliminate_layout::apply(module_pass_manager& mpm) const
+{
+    remove_layout(mpm.get_module());
+    mpm.run_pass(dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

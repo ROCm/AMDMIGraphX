@@ -159,3 +159,21 @@ TEST_CASE(scan_test5)
     std::vector<float> scan_out2_gold{8, 14, 20, 32, 36, 54};
     EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
 }
+
+TEST_CASE(scan_test6)
+{
+    auto [final_state, scan_out1, scan_out2] =
+        scan_test("scan_test6.onnx", make_shape({2, 3, 2}), make_shape({3, 1}));
+
+    EXPECT(final_state.get_shape() == make_shape({2, 2}));
+    std::vector<float> final_state_gold{12, 15, 30, 33};
+    EXPECT(arg_to_vec(final_state) == final_state_gold);
+
+    EXPECT(scan_out1.get_shape() == make_shape({2, 2, 3}));
+    std::vector<float> scan_out1_gold{12, 7, 3, 15, 9, 4, 30, 19, 9, 33, 21, 10};
+    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+
+    EXPECT(scan_out2.get_shape() == make_shape({2, 3}));
+    std::vector<float> scan_out2_gold{42, 26, 12, 48, 30, 14};
+    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+}

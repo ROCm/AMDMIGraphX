@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-template <class Derived, int64_t axis, int64_t direction, int64_t idx>
+template <class Derived, int64_t Axis, int64_t Direction, int64_t Idx>
 struct test_scan_slice_base : verify_program<Derived>
 {
     migraphx::program create_program() const
@@ -38,10 +38,10 @@ struct test_scan_slice_base : verify_program<Derived>
         migraphx::shape data_sh{migraphx::shape::int32_type, {2, 2, 2}};
         auto data_param = mm->add_parameter("data", data_sh);
         migraphx::shape idx_sh{migraphx::shape::int64_type, {1}};
-        auto idx_lit = mm->add_literal(migraphx::literal{idx_sh, {0}});
+        auto idx_lit = mm->add_literal(migraphx::literal{idx_sh, {Idx}});
 
         mm->add_instruction(
-            migraphx::make_op("scan_slice", {{"axis", axis}, {"direction", direction}}),
+            migraphx::make_op("scan_slice", {{"axis", Axis}, {"direction", Direction}}),
             data_param,
             idx_lit);
 

@@ -46,8 +46,10 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     compiler_replace insert(code_object_op co) const
     {
-        return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
-                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
+        return {std::vector<operation>{std::move(co)},
+                [](module& m, instruction_ref ins, const std::vector<operation>& op) {
+                    auto mlir =
+                        insert_mlir(m, ins, any_cast<code_object_op>(op.front()), ins->inputs());
                     m.replace_instruction(ins, mlir);
                 }};
     }

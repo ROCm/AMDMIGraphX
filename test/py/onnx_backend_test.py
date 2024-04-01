@@ -161,7 +161,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
         r'test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
-    backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_default_axes_cpu')
@@ -814,9 +813,7 @@ def create_backend_test(testname=None, target_device=None):
         c2.set_device(target_device)
     backend_test = MIGraphXBackendTest(c2, __name__)
 
-    if True:
-        backend_test.include(r'test_scan9_sum_cpu')
-    elif testname:
+    if testname:
         backend_test.include(testname + '.*')
     else:
         # Onnx Operator tests

@@ -85,11 +85,16 @@ struct parse_scan : op_parser<parse_scan>
             parse_axes(info, "scan_output_axes", k, body_outs.begin() + n, 1);
         const auto scan_output_directions = parse_dirs(info, "scan_output_directions", k);
 
-        // Check that scan axes sizes are the same across all scan inputs
+        // Check that scan axes lens are the same across all scan inputs
         size_t num_iters = args[n]->get_shape().lens()[scan_input_axes[0]];
         for(auto i = 1; i < m; ++i)
             if(args[n + i]->get_shape().lens()[scan_input_axes[i]] != num_iters)
-                MIGRAPHX_THROW("Lorem ipsum 1");
+                MIGRAPHX_THROW(
+                    "Scan: Lengths of scan_input_axes do not match across all scan inputs.\n"
+                    "Scan input shapes: " +
+                    to_string_range(
+                        to_shapes(std::vector<instruction_ref>(args.begin() + n, args.end()))) +
+                    "\nScan input axes: " + to_string_range(scan_input_axes));
 
         if(num_iters > parser.max_loop_iterations)
             MIGRAPHX_THROW("Scan: Number of required iterations {" + std::to_string(num_iters) +
@@ -99,10 +104,10 @@ struct parse_scan : op_parser<parse_scan>
         // Check that state variable shapes match between the Scan node and its body attribute
         for(auto i = 0; i < n; ++i)
             if(args[i]->get_shape() != body_params[i]->get_shape())
-                MIGRAPHX_THROW("Scan: State input " + std::to_string(i) + " shape " +
+                MIGRAPHX_THROW("Scan: State input " + std::to_string(i) + " shape {" +
                                to_string(args[i]->get_shape()) +
-                               " does not match corresponding body input shape " +
-                               to_string(body_params[i]->get_shape()));
+                               "} does not match corresponding body input shape {" +
+                               to_string(body_params[i]->get_shape()) + "}");
 
         // Check that the shapes of scan inputs sliced across scan input axes match the shapes of
         // the body attribute scan inputs
@@ -111,8 +116,12 @@ struct parse_scan : op_parser<parse_scan>
             auto node_shape = args[i + n]->get_shape();
             auto node_lens  = node_shape.lens();
             node_lens.erase(node_lens.begin() + scan_input_axes[i]);
-            if(body_params[i + n]->get_shape() != shape(node_shape.type(), std::move(node_lens)))
-                MIGRAPHX_THROW("Lorem ipsum 2");
+            auto slice_sh = shape(node_shape.type(), std::move(node_lens));
+            if(body_params[i + n]->get_shape() != slice_sh)
+                MIGRAPHX_THROW("Slice: Sliced scan input " + std::to_string(i) + " shape {" +
+                               to_string(slice_sh) +
+                               "} does not match corresponding body input shape {" +
+                               to_string(body_params[i + n]->get_shape()) + "}");
         }
 
         modify_body(body, args, n, m, scan_input_axes, scan_input_directions);
@@ -188,11 +197,11 @@ struct parse_scan : op_parser<parse_scan>
         return dirs;
     }
 
-    int64_t normalize_axis(int64_t axis, int64_t rank) const
+    int64_t normalize_axis(int64_t axis, int64_t rank, const std::string& attr_name) const
     {
         if(axis < -rank or axis >= rank)
-            MIGRAPHX_THROW("Axis value {" + to_string(axis) + "} out of range [" +
-                           to_string(-rank) + ", " + to_string(rank) + ")");
+            MIGRAPHX_THROW("Scan: " + attr_name + " axis value {" + to_string(axis) +
+                           "} out of range [" + to_string(-rank) + ", " + to_string(rank) + ")");
 
         return axis < 0 ? rank + axis : axis;
     }
@@ -212,7 +221,7 @@ struct parse_scan : op_parser<parse_scan>
                        ins_begin,
                        axes.begin(),
                        [&](int64_t axis, instruction_ref arg) {
-                           return normalize_axis(axis, arg->get_shape().ndim() + rank_offset);
+                           return normalize_axis(axis, arg->get_shape().ndim() + rank_offset, name);
                        });
 
         return axes;

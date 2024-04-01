@@ -73,3 +73,72 @@ TEST_CASE(scan_test)
     auto prog_gold = migraphx::parse_onnx("scan_test6.onnx");
     EXPECT(prog == prog_gold);
 }
+
+TEST_CASE(scan_invalid_input_axes_len_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_input_axes_len_test.onnx"); }, "scan_input_axes"));
+}
+
+TEST_CASE(scan_invalid_input_dirs_len_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_input_dirs_len_test.onnx"); },
+        "scan_input_directions"));
+}
+
+TEST_CASE(scan_invalid_output_axes_len_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_output_axes_len_test.onnx"); },
+        "scan_output_axes"));
+}
+
+TEST_CASE(scan_invalid_output_dirs_len_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_output_dirs_len_test.onnx"); },
+        "scan_output_directions"));
+}
+
+TEST_CASE(scan_invalid_input_axes_vals_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_input_axes_vals_test.onnx"); }, "scan_input_axes"));
+}
+
+TEST_CASE(scan_invalid_input_dirs_vals_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_input_dirs_vals_test.onnx"); },
+        "scan_input_directions"));
+}
+
+TEST_CASE(scan_invalid_output_axes_vals_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_output_axes_vals_test.onnx"); },
+        "scan_output_axes"));
+}
+
+TEST_CASE(scan_invalid_output_dirs_vals_test)
+{
+    EXPECT(test::throws<migraphx::exception>(
+        [] { migraphx::parse_onnx("scan_invalid_output_dirs_vals_test.onnx"); },
+        "scan_output_directions"));
+}
+
+TEST_CASE(scan_arg_count_mismatch_test)
+{
+    EXPECT(test::throws([] { migraphx::parse_onnx("scan_arg_count_mismatch_test.onnx"); }));
+}
+
+TEST_CASE(scan_arg_shapes_mismatch_test)
+{
+    EXPECT(test::throws([] { migraphx::parse_onnx("scan_arg_shapes_mismatch_test.onnx"); }));
+}
+
+TEST_CASE(scan_input_axes_lens_mismatch_test)
+{
+    EXPECT(test::throws([] { migraphx::parse_onnx("scan_input_axes_lens_mismatch_test.onnx"); }));
+}

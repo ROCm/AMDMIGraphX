@@ -10787,3 +10787,217 @@ def scan_test6():
                      scan_input_directions=[0, 1],
                      scan_output_directions=[1, 1],
                      scan_output_axes=[2, 1])
+
+
+def scan_negative_test(scan_input_axes=[0],
+                       scan_input_directions=[0],
+                       scan_output_axes=[0],
+                       scan_output_directions=[0]):
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in = helper.make_tensor_value_info("scan_in", TensorProto.FLOAT,
+                                            [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body", [sum_in, scan_in],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
+                                             [3, 2, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=1,
+        scan_input_axes=scan_input_axes,
+        scan_input_directions=scan_input_directions,
+        scan_output_axes=scan_output_axes,
+        scan_output_directions=scan_output_directions,
+        body=scan_body,
+    )
+
+    return ([node], [init_state, scan_ins], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_invalid_input_axes_len_test():
+    return scan_negative_test(scan_input_axes=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_input_dirs_len_test():
+    return scan_negative_test(scan_input_directions=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_output_axes_len_test():
+    return scan_negative_test(scan_output_axes=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_output_dirs_len_test():
+    return scan_negative_test(scan_output_directions=[0, 0])
+
+
+@onnx_test()
+def scan_invalid_input_axes_vals_test():
+    return scan_negative_test(scan_input_axes=[3])
+
+
+@onnx_test()
+def scan_invalid_input_dirs_vals_test():
+    return scan_negative_test(scan_input_directions=[2])
+
+
+@onnx_test()
+def scan_invalid_output_axes_vals_test():
+    return scan_negative_test(scan_output_axes=[-4])
+
+
+@onnx_test()
+def scan_invalid_output_dirs_vals_test():
+    return scan_negative_test(scan_output_directions=[-1])
+
+
+@onnx_test()
+def scan_arg_count_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body", [sum_in, scan_in1],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [2, 3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_input_axes_lens_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    scan_in2 = helper.make_tensor_value_info("scan_in2", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body",
+                                  [sum_in, scan_in1, scan_in2],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [2, 3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])
+
+
+@onnx_test()
+def scan_arg_shapes_mismatch_test():
+    sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
+    scan_in1 = helper.make_tensor_value_info("scan_in1", TensorProto.FLOAT,
+                                             [2, 2])
+    scan_in2 = helper.make_tensor_value_info("scan_in2", TensorProto.FLOAT,
+                                             [2, 2])
+    sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
+                                            [2, 2])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
+                                             [2, 2])
+    add = helper.make_node("Add",
+                           inputs=["sum_in", "scan_in1"],
+                           outputs=["sum_out"])
+    id = helper.make_node("Identity", inputs=["sum_out"], outputs=["scan_out"])
+    scan_body = helper.make_graph([add, id], "scan_body",
+                                  [sum_in, scan_in1, scan_in2],
+                                  [sum_out, scan_out])
+
+    init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
+                                               [2, 2])
+    scan_ins1 = helper.make_tensor_value_info("scan_ins1", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    scan_ins2 = helper.make_tensor_value_info("scan_ins2", TensorProto.FLOAT,
+                                              [3, 2])
+
+    final_state = helper.make_tensor_value_info("final_state",
+                                                TensorProto.FLOAT, [2, 2])
+    scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
+                                              [3, 2, 2])
+    node = helper.make_node(
+        "Scan",
+        inputs=["init_state", "scan_ins1", "scan_ins2"],
+        outputs=["final_state", "scan_outs"],
+        num_scan_inputs=2,
+        scan_input_axes=[0, 0],
+        scan_input_directions=[0, 0],
+        scan_output_axes=[0],
+        scan_output_directions=[0],
+        body=scan_body,
+    )
+    return ([node], [init_state, scan_ins1,
+                     scan_ins2], [final_state, scan_outs])

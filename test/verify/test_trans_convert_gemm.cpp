@@ -21,37 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TMP_DIR_HPP
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/config.hpp>
-#include <migraphx/filesystem.hpp>
-#include <vector>
-#include <string>
-#include <string_view>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct MIGRAPHX_EXPORT tmp_dir
+template <migraphx::shape::type_t DType>
+struct test_trans_convert_gemm : verify_program<test_trans_convert_gemm<DType>>
 {
-    fs::path path;
-    tmp_dir(std::string_view prefix = "");
-    tmp_dir(tmp_dir&&) = default;
-
-    void execute(std::string_view cmd, const std::vector<std::string>& args = {}) const;
-    void execute(const fs::path& cmd, const std::vector<std::string>& args = {}) const
+    migraphx::program create_program() const
     {
-        execute(std::string_view{cmd.string()}, args);
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a =
+            mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {2, 1920, 2, 2}});
+        auto b = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1920, 2}});
+        auto at =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), a);
+        auto atc = mm->add_instruction(migraphx::make_op("convert", {{"target_type", DType}}), at);
+        mm->add_instruction(migraphx::make_op("dot"), atc, b);
+        return p;
     }
-
-    tmp_dir(tmp_dir const&) = delete;
-    tmp_dir& operator=(tmp_dir const&) = delete;
-
-    ~tmp_dir();
+    std::string section() const { return "gemm"; }
 };
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_trans_convert_gemm<migraphx::shape::float_type>;
+template struct test_trans_convert_gemm<migraphx::shape::half_type>;
+template struct test_trans_convert_gemm<migraphx::shape::fp8e4m3fnuz_type>;

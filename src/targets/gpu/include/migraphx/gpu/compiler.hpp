@@ -45,10 +45,19 @@ struct compiler_replace
 {
     compiler_replace() = default;
 
-    compiler_replace(const operation& op) : code_object{op} {}
+    compiler_replace(const operation& op) : code_object{{op}} {}
 
     template <class F>
     compiler_replace(const operation& op, F f)
+        : code_object{{op}},
+          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
+              f(m, ins, cr.code_object.front());
+          })
+    {
+    }
+
+    template <class F>
+    compiler_replace(const std::vector<operation>& op, F f)
         : code_object{op},
           replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
               f(m, ins, cr.code_object);
@@ -56,7 +65,7 @@ struct compiler_replace
     {
     }
 
-    operation code_object = {};
+    std::vector<operation> code_object = {};
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
 
@@ -65,7 +74,13 @@ struct compiler_replace
         if(replace_fn)
             replace_fn(*this, m, ins);
         else
-            m.replace_instruction(ins, code_object, ins->inputs());
+        {
+            if(code_object.size() != 1)
+            {
+                MIGRAPHX_THROW("Provide custom replace function to insert multiple code objects\n");
+            }
+            m.replace_instruction(ins, code_object.front(), ins->inputs());
+        }
     }
 };
 

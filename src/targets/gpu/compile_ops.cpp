@@ -184,8 +184,15 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
-                           auto t = time_op(
-                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                           // Time all the code objects for a given perf config and calculate total
+                           // time e.g. in case of split-K GEMM, it may or may not support fusion.
+                           // In that case MLIR compile would return code objects for individual
+                           // GEMM and pre/post fusion code objects.
+                           auto cobjs = cr->replace.code_object;
+                           double t   = std::accumulate(
+                               cobjs.begin(), cobjs.end(), 0, [&](auto tt, const operation& op) {
+                                   return tt + time_op(*ctx, op, 20);
+                               });
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
@@ -268,7 +275,7 @@ void compile_ops::apply(module& m) const
 {
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
-    // Find all precompile opes
+    // Find all precompile ops
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")

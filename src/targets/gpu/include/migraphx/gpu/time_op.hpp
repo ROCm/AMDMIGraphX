@@ -35,6 +35,9 @@ namespace gpu {
 MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
 
+/* benchmark gpu::code_object with expected input shapes over n iterations */
+MIGRAPHX_GPU_EXPORT double time_op(context& ictx, operation op, int n = 100);
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/time_op.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
@@ -40,10 +41,8 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
     return args;
 }
 
-using milliseconds = std::chrono::duration<double, std::milli>;
 double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
-
     // TODO: Use std::ref
     migraphx::context ctx = ictx;
     auto& gctx            = any_cast<migraphx::gpu::context>(ctx);
@@ -63,6 +62,12 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     gctx.get_stream().record(stop.get());
     gctx.finish();
     return context::get_elapsed_ms(start.get(), stop.get()) / n;
+}
+
+double time_op(context& ictx, operation op, int n)
+{
+    auto inputs = any_cast<migraphx::gpu::code_object_op>(op).expected_inputs;
+    return time_op(ictx, op, inputs, n);
 }
 
 } // namespace gpu

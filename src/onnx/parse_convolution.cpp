@@ -176,8 +176,6 @@ struct parse_convolution : op_parser<parse_convolution>
 
         op.from_value(values);
 
-        x_zp->debug_print();
-
         ret = info.add_instruction(op, x_zp, w_zp);
 
         // Handle Convolution case with bias to output

@@ -18,4 +18,3 @@ struct MIGRAPHX_EXPORT fuse_pointwise_reduce
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_REDUCE_HPP
-

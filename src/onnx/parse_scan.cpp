@@ -249,10 +249,9 @@ struct parse_scan : op_parser<parse_scan>
     {
         std::vector<instruction_ref> params;
         params.reserve(n + m);
-        auto param_names = mod->get_parameter_names();
-        transform(param_names, std::back_inserter(params), [&](const std::string& name) {
-            return mod->get_parameter(name);
-        });
+        transform(mod->get_parameter_names(),
+                  std::back_inserter(params),
+                  [&](const std::string& name) { return mod->get_parameter(name); });
 
         // iteration_num, condition, and duplicate loop_state_variables are appended to parameters.
         // References to the original loop_state_variables in other instructions are then replaced
@@ -266,7 +265,8 @@ struct parse_scan : op_parser<parse_scan>
         std::vector<instruction_ref> new_params;
         new_params.reserve(n);
         for(auto i = 0; i < n; ++i)
-            new_params.push_back(mod->add_parameter(param_names[i], params[i]->get_shape()));
+            new_params.push_back(
+                mod->add_parameter("state_var" + std::to_string(i), params[i]->get_shape()));
 
         for(auto i = 0; i < params.size(); ++i)
         {

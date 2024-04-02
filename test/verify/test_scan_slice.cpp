@@ -57,6 +57,6 @@ struct test_scan_slice2 : test_scan_slice_base<test_scan_slice2, -1, 1, 1>
 {
 };
 
-struct test_scan_slice3: test_scan_slice_base<test_scan_slice2, 1, 0, 1>
+struct test_scan_slice3 : test_scan_slice_base<test_scan_slice2, 1, 0, 1>
 {
 };

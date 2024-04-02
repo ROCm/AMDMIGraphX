@@ -103,9 +103,9 @@ argument run_loop(const LoopModel& model,
                 auto output_index = out_param_indices[name];
                 if(output_index > dep_num)
                 {
-                    int64_t dir = scan_output_directions.empty()
-                                      ? 0
-                                      : scan_output_directions[output_index - dep_num - 1];
+                    int64_t dir     = scan_output_directions.empty()
+                                          ? 0
+                                          : scan_output_directions[output_index - dep_num - 1];
                     auto idx        = (1 - dir) * iter + dir * (iter_num - 1 - iter);
                     const auto& arg = out_args.at(output_index);
                     assert((idx + 1) * ps.bytes() <= arg.get_shape().bytes());

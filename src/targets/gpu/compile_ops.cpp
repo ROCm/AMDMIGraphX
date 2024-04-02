@@ -21,15 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_ops.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <functional>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 
 namespace migraphx {
@@ -188,11 +190,13 @@ struct compile_plan
                            // time e.g. in case of split-K GEMM, it may or may not support fusion.
                            // In that case MLIR compile would return code objects for individual
                            // GEMM and pre/post fusion code objects.
-                           auto cobjs = cr->replace.code_object;
-                           double t   = std::accumulate(
-                               cobjs.begin(), cobjs.end(), 0, [&](auto tt, const operation& op) {
-                                   return tt + time_op(*ctx, op, 20);
-                               });
+                           auto cobjs = cr->replace.code_objects;
+                           double t   = transform_accumulate(
+                               cobjs.begin(),
+                               cobjs.end(),
+                               0,
+                               std::plus<>{},
+                               [&](const operation& op) { return time_op(*ctx, op, 20); });
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

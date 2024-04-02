@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp

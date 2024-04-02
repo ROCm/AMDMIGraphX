@@ -152,6 +152,14 @@ def get_args():
     )
 
     parser.add_argument(
+        "--compiled-model-path",
+        type=str,
+        default=None,
+        help=
+        "Path to compiled mxr model files. If not set, it will be saved next to the onnx model.",
+    )
+
+    parser.add_argument(
         "--exhaustive-tune",
         action="store_true",
         default=False,
@@ -170,7 +178,11 @@ def get_args():
 
 class StableDiffusionMGX():
 
-    def __init__(self, base_model_path, save_compiled, exhaustive_tune=False):
+    def __init__(self,
+                 base_model_path,
+                 save_compiled,
+                 compiled_model_path,
+                 exhaustive_tune=False):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
@@ -190,18 +202,21 @@ class StableDiffusionMGX():
             "vae", {"latent_sample": [1, 4, 128, 128]},
             base_model_path,
             save_compiled,
+            compiled_model_path,
             exhaustive_tune,
             offload_copy=False)
         self.clip = StableDiffusionMGX.load_mgx_model("clip.opt.mod",
                                                       {"input_ids": [1, 77]},
                                                       base_model_path,
                                                       save_compiled,
+                                                      compiled_model_path,
                                                       exhaustive_tune,
                                                       offload_copy=False)
         self.clip2 = StableDiffusionMGX.load_mgx_model("clip2.opt.mod",
                                                        {"input_ids": [1, 77]},
                                                        base_model_path,
                                                        save_compiled,
+                                                       compiled_model_path,
                                                        exhaustive_tune,
                                                        offload_copy=False)
         self.unetxl = StableDiffusionMGX.load_mgx_model("unetxl.opt", {
@@ -213,6 +228,7 @@ class StableDiffusionMGX():
         },
                                                         base_model_path,
                                                         save_compiled,
+                                                        compiled_model_path,
                                                         exhaustive_tune,
                                                         offload_copy=False)
 
@@ -305,22 +321,27 @@ class StableDiffusionMGX():
                        shapes,
                        model_base_path,
                        save_compiled,
+                       compiled_model_path,
                        exhaustive_tune=False,
                        offload_copy=True):
-        file = f"{model_base_path}/{name}/model"
-        mxr_file = f"{file}{'_gpu' if not offload_copy else '_oc'}.mxr"
-        print(f"Loading {name} model from {file}")
+        print(f"Loading {name} model...")
+        if compiled_model_path is None:
+            compiled_model_path = model_base_path
+        onnx_file = f"{model_base_path}/{name}/model.onnx"
+        mxr_file = f"{compiled_model_path}/{name}/model{'_gpu' if not offload_copy else '_oc'}.mxr"
         if os.path.isfile(mxr_file):
-            print("Found mxr, loading it...")
+            print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
-        elif os.path.isfile(f"{file}.onnx"):
-            print("Parsing from onnx file...")
-            model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
+        elif os.path.isfile(onnx_file):
+            print(f"No mxr found at {mxr_file}")
+            print(f"Parsing from {onnx_file}")
+            model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
             if save_compiled:
-                print(f"Saving {name} model to mxr file...")
+                print(f"Saving {name} model to {mxr_file}")
+                os.makedirs(os.path.dirname(mxr_file), exist_ok=True)
                 mgx.save(model, mxr_file, format="msgpack")
         else:
             print(f"No {name} model found. Please download it and re-try.")
@@ -449,7 +470,7 @@ if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.base_model_path, args.save_compiled,
-                            args.exhaustive_tune)
+                            args.compiled_model_path, args.exhaustive_tune)
     print("Warming up...")
     sd.warmup(5)
     print(f"Running inference")

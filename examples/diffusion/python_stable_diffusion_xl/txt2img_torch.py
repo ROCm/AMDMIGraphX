@@ -192,13 +192,13 @@ class StableDiffusionMGX():
             save_compiled,
             exhaustive_tune,
             offload_copy=False)
-        self.clip = StableDiffusionMGX.load_mgx_model("clip",
+        self.clip = StableDiffusionMGX.load_mgx_model("clip.opt.mod",
                                                       {"input_ids": [1, 77]},
                                                       base_model_path,
                                                       save_compiled,
                                                       exhaustive_tune,
                                                       offload_copy=False)
-        self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
+        self.clip2 = StableDiffusionMGX.load_mgx_model("clip2.opt.mod",
                                                        {"input_ids": [1, 77]},
                                                        base_model_path,
                                                        save_compiled,
@@ -348,7 +348,7 @@ class StableDiffusionMGX():
         self.clip.run(self.model_args['clip'])
 
         self.tensors['clip2']['input_ids'].copy_(
-            input2.input_ids.to(torch.int64))
+            input2.input_ids.to(torch.int32))
         self.clip2.run(self.model_args['clip2'])
 
         mgx.gpu_sync()
@@ -424,7 +424,7 @@ class StableDiffusionMGX():
         self.tensors['clip']['input_ids'].copy_(
             torch.ones((1, 77)).to(torch.int32))
         self.tensors['clip2']['input_ids'].copy_(
-            torch.ones((1, 77)).to(torch.int64))
+            torch.ones((1, 77)).to(torch.int32))
         self.tensors['unetxl']['sample'].copy_(
             torch.randn((2, 4, 128, 128)).to(torch.float32))
         self.tensors['unetxl']['encoder_hidden_states'].copy_(

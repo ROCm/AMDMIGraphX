@@ -143,12 +143,12 @@ class StableDiffusionMGX():
         self.vae = StableDiffusionMGX.load_mgx_model(
             "vae", {"latent_sample": [1, 4, 128, 128]}, base_model_path,
             save_compiled, exhaustive_tune)
-        self.clip = StableDiffusionMGX.load_mgx_model("clip",
+        self.clip = StableDiffusionMGX.load_mgx_model("clip.opt.mod",
                                                       {"input_ids": [1, 77]},
                                                       base_model_path,
                                                       save_compiled,
                                                       exhaustive_tune)
-        self.clip2 = StableDiffusionMGX.load_mgx_model("clip2",
+        self.clip2 = StableDiffusionMGX.load_mgx_model("clip2.opt.mod",
                                                        {"input_ids": [1, 77]},
                                                        base_model_path,
                                                        save_compiled,
@@ -269,7 +269,7 @@ class StableDiffusionMGX():
         clip_hidden = np.array(
             self.clip.run({"input_ids": input.input_ids.astype(np.int32)})[0])
         clip2_out = self.clip2.run(
-            {"input_ids": input2.input_ids.astype(np.int64)})
+            {"input_ids": input2.input_ids.astype(np.int32)})
         clip2_hidden = np.array(clip2_out[1])
         clip2_embed = np.array(clip2_out[0])
         return (np.concatenate((clip_hidden, clip2_hidden),
@@ -336,7 +336,6 @@ class StableDiffusionMGX():
 
     def warmup(self, num_runs):
         input_ids = np.array(torch.ones((1, 77))).astype(np.int32)
-        input_ids2 = np.array(torch.ones((1, 77))).astype(np.int64)
         sample = np.array(torch.randn((2, 4, 128, 128))).astype(np.float32)
         hidden_states = np.array(torch.randn((2, 77, 2048))).astype(np.float16)
         timestep = np.array(torch.randn((1))).astype(np.float32)
@@ -346,7 +345,7 @@ class StableDiffusionMGX():
             (1, 4, 128, 128))).astype(np.float32)
         for _ in range(num_runs):
             self.clip.run({"input_ids": input_ids})
-            self.clip2.run({"input_ids": input_ids2})
+            self.clip2.run({"input_ids": input_ids})
             self.unetxl.run({
                 "sample": sample,
                 "encoder_hidden_states": hidden_states,

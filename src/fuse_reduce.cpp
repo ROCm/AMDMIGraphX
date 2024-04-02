@@ -39,6 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
+
 struct fused_reduce
 {
     std::vector<std::int64_t> axes{};
@@ -425,11 +427,14 @@ struct reduce_reshape : rewrite_reshapes_base
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}))
+        return;
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)
     {
-        mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

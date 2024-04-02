@@ -20,64 +20,27 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-
-#include <migraphx/kernels/types.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
 
 namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-struct assign_none
+std::string param_name(std::size_t i, const std::string& prefix)
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x = y;
-    }
-};
+    return prefix + std::to_string(i);
+}
 
-struct assign_add
+void sort_params(std::vector<instruction_ref>& params)
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        unsafeAtomicAdd(&x, T(y));
-    }
-};
+    std::sort(params.begin(), params.end(), by(std::less<>{}, [](instruction_ref ins) {
+                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+                  return param.parameter;
+              }));
+}
 
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        T old = x;
-        T assumed;
-        do
-        {
-            assumed = old;
-            old     = atomicCAS(&x, assumed, assumed * y);
-        } while(assumed != old);
-    }
-};
-
-struct assign_max
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMax(&x, T(y));
-    }
-};
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomicMin(&x, T(y));
-    }
-};
-
+} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif

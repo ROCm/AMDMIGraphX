@@ -767,9 +767,9 @@ struct find_concat_conv
             return;
 
         auto original_group = from_value<int>(conv.to_value()["group"]);
-        auto x = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), inputs);
-        auto w = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
-        conv.from_value({{"group", original_group*inputs.size()}});
+        auto x              = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), inputs);
+        auto w              = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
+        conv.from_value({{"group", original_group * inputs.size()}});
         m.replace_instruction(ins, conv, x, w);
     }
 };

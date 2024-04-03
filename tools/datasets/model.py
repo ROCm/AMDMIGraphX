@@ -6,6 +6,7 @@ import timm
 from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
 import numpy as np
 
+
 class BaseModel(abc.ABC):
 
     @classmethod
@@ -26,6 +27,21 @@ class BaseModel(abc.ABC):
     @classmethod
     @abc.abstractmethod
     def name(self):
+        pass
+
+    @classmethod
+    def is_decoder(self):
+        return False
+
+
+class DecoderModel(BaseModel):
+
+    def is_decoder(self):
+        return True
+
+    @classmethod
+    @abc.abstractmethod
+    def decode_step(self, *args, **kwargs):
         pass
 
 
@@ -190,24 +206,34 @@ class Wav2Vec2_base_960h(SingleOptimumHFModelDownloadMixin,
         return "wav2vec2-base-960h"
 
 
-# TODO enable it when encoder-decoder models work
 class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
-                     AutoFeatureExtractorHFMixin, BaseModel):
+                     AutoFeatureExtractorHFMixin, DecoderModel):
 
     def __init__(self):
         self.model_id = "openai/whisper-small.en"
 
-    def preprocess(self, *args, **kwargs):
-        # result only contains encoder data, extend it with decoder
-        result = super().preprocess(*args, **kwargs)
+        # Whisper specific part
+        # TODO get these from config
+        self.eos_token_id = 50256  # "<|endoftext|>"
         decoder_start_token_id = 50257  # <|startoftranscript|>
-        eos_token_id = 50256  # "<|endoftext|>"
         notimestamps = 50362  # <|notimestamps|>
         sot = [decoder_start_token_id, notimestamps]
         max_length = 448
-        result["decoder_input_ids"] = np.array(
-            [sot + [eos_token_id] * (max_length - len(sot))])
+        self.initial_input_ids = np.array(
+            [sot + [self.eos_token_id] * (max_length - len(sot))])
+
+    def preprocess(self, *args, **kwargs):
+        # result only contains encoder data, extend it with decoder
+        result = super().preprocess(*args, **kwargs)
+        result["decoder_input_ids"] = self.initial_input_ids
         return result
+
+    def decode_step(self, input_map, output_map):
+        timestep = np.argmax(
+            input_map["decoder_input_ids"][0] == self.eos_token_id)
+        new_token = np.argmax(output_map["logits"][0][timestep - 1])
+        input_map["decoder_input_ids"][0][timestep] = new_token
+        return new_token == self.eos_token_id
 
     def name(self):
         return "whisper-small-en"

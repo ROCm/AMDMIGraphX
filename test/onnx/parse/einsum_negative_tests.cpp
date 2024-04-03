@@ -24,24 +24,91 @@
 
 #include <onnx_test.hpp>
 
-#define NEGATIVE_TEST(NAME)                                                 \
-    TEST_CASE(NAME)                                                         \
-    {                                                                       \
-        EXPECT(test::throws([&] { migraphx::parse_onnx(#NAME ".onnx"); })); \
-    }
+TEST_CASE(einsum_missing_equation_negative_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("einsum_missing_equation_negative_test.onnx"); }));
+}
 
-NEGATIVE_TEST(einsum_missing_equation_negative_test)
-NEGATIVE_TEST(einsum_multiple_arrows_negative_test)
-NEGATIVE_TEST(einsum_empty_term_before_arrow_negative_test)
-NEGATIVE_TEST(einsum_multiple_ellipses_negative_test)
-NEGATIVE_TEST(einsum_comma_in_output_negative_test)
-NEGATIVE_TEST(einsum_empty_term_before_comma_negative_test)
-NEGATIVE_TEST(einsum_last_input_missing_negative_test)
-NEGATIVE_TEST(einsum_term_input_mismatch_negative_test)
-NEGATIVE_TEST(einsum_ellipsis_mismatch_negative_test)
-NEGATIVE_TEST(einsum_rank_mismatch_negative_test)
-NEGATIVE_TEST(einsum_output_surplus_label_negative_test)
-NEGATIVE_TEST(einsum_output_missing_ellipsis_negative_test)
-NEGATIVE_TEST(einsum_multiple_diagonals_negative_test)
-NEGATIVE_TEST(einsum_diagonal_dim_mismatch_negative_test)
-NEGATIVE_TEST(einsum_right_batch_diagonal_negative_test)
+TEST_CASE(einsum_multiple_arrows_negative_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("einsum_multiple_arrows_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_empty_term_before_arrow_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_empty_term_before_arrow_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_multiple_ellipses_negative_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("einsum_multiple_ellipses_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_comma_in_output_negative_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("einsum_comma_in_output_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_empty_term_before_comma_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_empty_term_before_comma_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_last_input_missing_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_last_input_missing_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_term_input_mismatch_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_term_input_mismatch_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_ellipsis_mismatch_negative_test)
+{
+    EXPECT(
+        test::throws([&] { migraphx::parse_onnx("einsum_ellipsis_mismatch_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_rank_mismatch_negative_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("einsum_rank_mismatch_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_output_surplus_label_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_output_surplus_label_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_output_missing_ellipsis_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_output_missing_ellipsis_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_multiple_diagonals_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_multiple_diagonals_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_diagonal_dim_mismatch_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_diagonal_dim_mismatch_negative_test.onnx"); }));
+}
+
+TEST_CASE(einsum_right_batch_diagonal_negative_test)
+{
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("einsum_right_batch_diagonal_negative_test.onnx"); }));
+}

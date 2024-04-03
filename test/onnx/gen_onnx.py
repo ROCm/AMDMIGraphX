@@ -2064,13 +2064,13 @@ def einsum_row_sum_test():
 @onnx_test()
 def einsum_matrix_vector_multiplication_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 3])
-    v = helper.make_tensor_value_info('v', TensorProto.FLOAT, [1, 3])
+    v = helper.make_tensor_value_info('v', TensorProto.FLOAT, [3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 1])
 
     node = onnx.helper.make_node('Einsum',
                                  inputs=['x', 'v'],
                                  outputs=['y'],
-                                 equation='ij,kj->ik')
+                                 equation='ij,j->i')
 
     return ([node], [x, v], [y])
 
@@ -2554,9 +2554,7 @@ def einsum_missing_equation_negative_test():
     x2 = helper.make_tensor_value_info('x2', TensorProto.FLOAT, [3, 3])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
 
-    node = onnx.helper.make_node('Einsum',
-                                 inputs=['x1', 'x2'],
-                                 outputs=['y'])
+    node = onnx.helper.make_node('Einsum', inputs=['x1', 'x2'], outputs=['y'])
 
     return ([node], [x1, x2], [y])
 

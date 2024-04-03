@@ -1,15 +1,15 @@
-	(einsum_matrix_vector_multiplication_test:–
-+
+	(einsum_matrix_vector_multiplication_test:
+)
 x
-vy"Einsum*
-equation"	ij,kj->ik (einsum_matrix_vector_multiplication_testZ
+vy"Einsum*
+equation"ij,j->i (einsum_matrix_vector_multiplication_testZ
 x
 
 
-Z
-v
-
-
+Z
+v
+
+
 b
 y
 

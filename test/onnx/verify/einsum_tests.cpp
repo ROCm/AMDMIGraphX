@@ -130,7 +130,7 @@ TEST_CASE(einsum_matrix_vector_multiplication_test)
     std::vector<float> x_data = {
         0.4834133, 0.14106742, 0.50055824, 0.91764271, 0.95528452, 0.98199955};
 
-    migraphx::shape v_shape{migraphx::shape::float_type, {1, 3}};
+    migraphx::shape v_shape{migraphx::shape::float_type, {3}};
     std::vector<float> v_data = {0.73961958, 0.53071864, 0.34152803};
 
     migraphx::parameter_map pm;
@@ -138,7 +138,7 @@ TEST_CASE(einsum_matrix_vector_multiplication_test)
     pm["v"] = migraphx::argument{v_shape, v_data.data()};
 
     auto result = p.eval(pm).back();
-    EXPECT(result.get_shape() == make_shape({2, 1}));
+    EXPECT(result.get_shape() == make_shape({2}));
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

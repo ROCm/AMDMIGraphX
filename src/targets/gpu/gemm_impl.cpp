@@ -137,6 +137,8 @@ static bool is_transposed(const shape& s)
     }
     else if(s.strides() != s.as_standard().strides())
     {
+        // If the strides are not standard, check if there's a permutation that produces those
+        // strides
         auto lens_perm = s.lens();
         std::sort(lens_perm.begin(), lens_perm.end());
         do

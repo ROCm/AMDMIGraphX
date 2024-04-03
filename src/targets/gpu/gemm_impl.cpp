@@ -129,7 +129,25 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
+static bool is_transposed(const shape& s)
+{
+    if(s.transposed())
+    {
+        return s.strides().back() != 1;
+    }
+    else if(s.strides() != s.as_standard().strides())
+    {
+        auto lens_perm = s.lens();
+        std::sort(lens_perm.begin(), lens_perm.end());
+        do
+        {
+            if(s.strides() == shape{s.type(), lens_perm}.strides())
+                return true;
+        } while(std::next_permutation(lens_perm.begin(), lens_perm.end()));
+    }
+
+    return false;
+}
 
 static rocblas_int get_batch_stride(const shape& s)
 {

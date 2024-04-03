@@ -141,16 +141,14 @@ struct copy
         migraphx::check_shapes{inputs, *this}.has(2);
         return inputs.at(1);
     }
-    migraphx::argument
-    compute(migraphx::context&, const migraphx::shape&, const std::vector<migraphx::argument>& args) const
+    migraphx::argument compute(migraphx::context&,
+                               const migraphx::shape&,
+                               const std::vector<migraphx::argument>& args) const
     {
         return args[1];
     }
 
-    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const
-    {
-        return 1;
-    }
+    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 1; }
 };
 
 template <class... Ts>
@@ -428,26 +426,26 @@ TEST_CASE(basic_nonpacked)
         migraphx::module m;
         auto a0 = m.add_instruction(
             allocate{migraphx::shape{migraphx::shape::float_type, {2, 10, 8, 8}}});
-        auto a1 = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+        auto a1 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
         auto m1 = m.add_instruction(simple_op{}, a1);
         auto l1 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}, 0}, {a0});
         auto c1 = m.add_instruction(copy{}, m1, l1);
-        auto a2 = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto a2 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto m2 = m.add_instruction(simple_op{}, a2);
         auto l2 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}, 1024}, {a0});
 
         auto c2 = m.add_instruction(copy{}, m2, l2);
-        auto a3 = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a3 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto m3 = m.add_instruction(simple_op{}, a3);
         auto l3 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}, 2560}, {a0});
         auto c3 = m.add_instruction(copy{}, m3, l3);
-        
+
         m.add_instruction(identity{}, {a0, c1, c2, c3});
         return m;
     };
@@ -464,13 +462,16 @@ TEST_CASE(basic_nonpacked)
 //     auto create_test_program = [] {
 //         migraphx::module m;
 //         auto a1 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8,
+//             8}}});
 //         auto m1 = m.add_instruction(simple_op{}, a1);
 //         auto a2 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8,
+//             8}}});
 //         auto m2 = m.add_instruction(simple_op{}, a2);
 //         auto a3 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8,
+//             8}}});
 //         auto p3          = m.add_instruction(simple_op{}, a3);
 //         std::size_t axis = 1;
 //         auto a4          = m.add_instruction(
@@ -481,13 +482,16 @@ TEST_CASE(basic_nonpacked)
 //     auto create_control_program = [] {
 //         migraphx::module m;
 //         auto a1 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8,
+//             8}}});
 //         auto m1 = m.add_instruction(simple_op{}, a1);
 //         auto a2 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8,
+//             8}}});
 //         auto m2 = m.add_instruction(simple_op{}, a2);
 //         auto a3 =
-//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+//             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8,
+//             8}}});
 //         auto p3          = m.add_instruction(simple_op{}, a3);
 //         std::size_t axis = 1;
 //         auto a4          = m.add_instruction(

@@ -119,14 +119,13 @@ void eliminate_concat::apply(module& m) const
                 std::back_inserter(allocations),
                 [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
 
-
             if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
                    return x->name() != concat_opt.allocate();
                }))
                 continue;
 
-            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(), std::prev(ins->inputs().end()));
-
+            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(),
+                                                       std::prev(ins->inputs().end()));
 
             // Need to sort the allocations, so that we know where to
             // insert the "super"-allocation
@@ -147,7 +146,8 @@ void eliminate_concat::apply(module& m) const
                 op::load op{concat_input->get_shape(), offset};
                 // m.replace_instruction(alloc, op, {super});
                 auto load_ins = m.insert_instruction(std::next(concat_input), op, {super});
-                auto copy_ins = m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), load_ins);
+                auto copy_ins =
+                    m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), load_ins);
                 copy_instructions.push_back(copy_ins);
                 offset += concat_input->get_shape().bytes();
             }

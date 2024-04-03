@@ -1562,6 +1562,23 @@ def convinteger_bias_test():
 
 
 @onnx_test()
+def convinteger_dual_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
+
+
+@onnx_test()
 def convinteger_mismatched_data_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])

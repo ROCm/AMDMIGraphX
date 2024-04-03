@@ -92,7 +92,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::half_type);
     unsupported_types.erase(shape::type_t::bool_type);
     unsupported_types.erase(shape::type_t::int8_type);
-    unsupported_types.erase(shape::type_t::uint8_type);
     unsupported_types.erase(shape::type_t::int32_type);
     unsupported_types.erase(shape::type_t::tuple_type);
     // whiltelist supported Ops for the FP8
@@ -132,7 +131,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         // workaround for rocBLAS unsupported error when using uint8 in quant_dot & quant_convolution
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::type_t::float_type, {{"quant_convolution"}, {"quant_dot"}}},
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {{"quant_convolution"}, {"quant_dot"}}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},

@@ -45,6 +45,8 @@ struct concat_optimization
 {
     /// The name of the target-dependent concat operator
     std::string name() const;
+    /// A name of the target-dependent copy operator
+    std::string copy() const;
     /// A name of the target-dependent allocate operator
     std::string allocate() const;
     /// Return the target-independent concat operator

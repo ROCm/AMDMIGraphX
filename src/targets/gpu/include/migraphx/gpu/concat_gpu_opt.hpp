@@ -34,6 +34,7 @@ namespace gpu {
 struct concat_gpu_optimization
 {
     std::string name() const { return "gpu::concat"; }
+    std::string copy() const { return "hip::copy"; }
     std::string allocate() const { return "hip::allocate"; }
     migraphx::op::concat get_concat(const migraphx::operation& op) const
     {

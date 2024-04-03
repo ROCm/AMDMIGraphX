@@ -104,6 +104,58 @@ void eliminate_concat::apply(module& m) const
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
             m.replace_instruction(ins, migraphx::make_op("identity"), args);
         }
+        else
+        {
+            // Last input should be an allocation
+            auto last = ins->inputs().back();
+            if(last->name() != concat_opt.allocate())
+                continue;
+            // Where are the allocations for the tensors to be concatenated?
+            std::vector<instruction_ref> allocations;
+
+            std::transform(
+                ins->inputs().begin(),
+                std::prev(ins->inputs().end()),
+                std::back_inserter(allocations),
+                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+
+
+            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+                   return x->name() != concat_opt.allocate();
+               }))
+                continue;
+
+            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(), std::prev(ins->inputs().end()));
+
+
+            // Need to sort the allocations, so that we know where to
+            // insert the "super"-allocation
+            auto sorted_allocations = allocations;
+            std::sort(sorted_allocations.begin(),
+                      sorted_allocations.end(),
+                      [&](instruction_ref x, instruction_ref y) {
+                          return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+                      });
+            // Move "super" allocation to the front
+            auto first = sorted_allocations.front();
+            auto super = m.move_instruction(last, first);
+
+            std::vector<instruction_ref> copy_instructions;
+            std::size_t offset = 0;
+            for(auto concat_input : concat_inputs)
+            {
+                op::load op{concat_input->get_shape(), offset};
+                // m.replace_instruction(alloc, op, {super});
+                auto load_ins = m.insert_instruction(std::next(concat_input), op, {super});
+                auto copy_ins = m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), load_ins);
+                copy_instructions.push_back(copy_ins);
+                offset += concat_input->get_shape().bytes();
+            }
+            std::vector<instruction_ref> args(copy_instructions.begin(), copy_instructions.end());
+            args.insert(copy_instructions.begin(), super);
+            // std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
+            m.replace_instruction(ins, migraphx::make_op("identity"), args);
+        }
     }
 }
 } // namespace MIGRAPHX_INLINE_NS

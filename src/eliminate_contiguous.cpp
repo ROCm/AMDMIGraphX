@@ -51,6 +51,14 @@ static bool try_compute_shape(instruction_ref ins,
             return false;
         }
 
+        // If the instruction is a gemm and any of the inputs is broadcasted, the input needs to be
+        // made contiguous
+        if(contains(ins->name(), "gemm") and
+           any_of(inputs, [](const auto& sh) { return sh.broadcasted(); }))
+        {
+            return false;
+        }
+
         // If the output shape is a standard shape, no need to try its output
         if(new_shape.standard())
         {

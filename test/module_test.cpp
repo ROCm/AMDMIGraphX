@@ -467,14 +467,14 @@ TEST_CASE(module_split2)
         auto x1 = input_m.add_parameter("x1", s);
         auto x2 = input_m.add_parameter("x2", s);
         auto x3 = input_m.add_parameter("x3", s);
-        inputs = {x1, x2, x3};
+        inputs  = {x1, x2, x3};
     }
     migraphx::module m;
     std::vector<migraphx::instruction_ref> splits;
     {
-        auto x1 = m.add_parameter("x1", s);
-        auto x2 = m.add_parameter("x2", s);
-        auto x3 = m.add_parameter("x3", s);
+        auto x1  = m.add_parameter("x1", s);
+        auto x2  = m.add_parameter("x2", s);
+        auto x3  = m.add_parameter("x3", s);
         auto add = m.add_instruction(migraphx::make_op("add"), x1, x2);
         auto mul = m.add_instruction(migraphx::make_op("mul"), add, x3);
         m.add_return({mul});
@@ -484,15 +484,15 @@ TEST_CASE(module_split2)
 
     migraphx::module m1;
     {
-        auto x1 = m1.add_parameter("x1", s);
-        auto x2 = m1.add_parameter("x2", s);
+        auto x1  = m1.add_parameter("x1", s);
+        auto x2  = m1.add_parameter("x2", s);
         auto add = m1.add_instruction(migraphx::make_op("add"), x1, x2);
         m1.add_return({add});
     }
     migraphx::module m2;
     {
-        auto x0 = m2.add_parameter("x0", s);
-        auto x1 = m2.add_parameter("x1", s);
+        auto x0  = m2.add_parameter("x0", s);
+        auto x1  = m2.add_parameter("x1", s);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x0, x1);
         m2.add_return({mul});
     }
@@ -514,17 +514,17 @@ TEST_CASE(module_split3)
     {
         auto x1 = input_m.add_parameter("x1", s);
         auto x2 = input_m.add_parameter("x2", s);
-        inputs = {x1, x2};
+        inputs  = {x1, x2};
     }
     migraphx::module m;
     std::vector<migraphx::instruction_ref> splits1;
     std::vector<migraphx::instruction_ref> splits2;
     {
-        auto x1 = m.add_parameter("x1", s);
-        auto x2 = m.add_parameter("x2", s);
-        auto mul = m.add_instruction(migraphx::make_op("mul"), x1, x2);
+        auto x1   = m.add_parameter("x1", s);
+        auto x2   = m.add_parameter("x2", s);
+        auto mul  = m.add_instruction(migraphx::make_op("mul"), x1, x2);
         auto sqrt = m.add_instruction(migraphx::make_op("sqrt"), mul);
-        auto add = m.add_instruction(migraphx::make_op("add"), sqrt, mul);
+        auto add  = m.add_instruction(migraphx::make_op("add"), sqrt, mul);
         m.add_return({add});
         splits1.push_back(mul);
         splits2.push_back(sqrt);
@@ -533,21 +533,21 @@ TEST_CASE(module_split3)
 
     migraphx::module m1;
     {
-        auto x1 = m1.add_parameter("x1", s);
-        auto x2 = m1.add_parameter("x2", s);
+        auto x1  = m1.add_parameter("x1", s);
+        auto x2  = m1.add_parameter("x2", s);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), x1, x2);
         m1.add_return({mul});
     }
     migraphx::module m2;
     {
-        auto x0 = m2.add_parameter("x0", s);
+        auto x0   = m2.add_parameter("x0", s);
         auto sqrt = m2.add_instruction(migraphx::make_op("sqrt"), x0);
         m2.add_return({sqrt});
     }
     migraphx::module m3;
     {
-        auto x0 = m3.add_parameter("x0", s);
-        auto x1 = m3.add_parameter("x1", s);
+        auto x0  = m3.add_parameter("x0", s);
+        auto x1  = m3.add_parameter("x1", s);
         auto add = m3.add_instruction(migraphx::make_op("add"), x0, x1);
         m3.add_return({add});
     }

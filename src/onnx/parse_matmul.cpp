@@ -202,9 +202,7 @@ struct parse_matmul : op_parser<parse_matmul>
             const auto ba1_type                               = ba1->get_shape().type();
 
             if(is_quant_dot and
-               (not contains(supported_types, ba0_type) or
-                not contains(supported_types, ba1_type) or not contains(supported_types, a0_type) or
-                not contains(supported_types, a1_type)))
+               (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))
             {
                 MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
             }

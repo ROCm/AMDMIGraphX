@@ -131,6 +131,23 @@ struct parse_matmul : op_parser<parse_matmul>
         return input;
     }
 
+    static void shift_input_and_bias(const onnx_parser::node_info& info,
+                                     const instruction_ref& offset_op,
+                                     const bool has_bias,
+                                     instruction_ref& input,
+                                     instruction_ref& input_bias)
+    {
+        input = add_int8_shift(info, offset_op, input);
+        if(has_bias)
+        {
+            input_bias = add_int8_shift(info, offset_op, input_bias);
+        }
+        else
+        {
+            input_bias = input;
+        }
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& /*parser*/,
                           const onnx_parser::node_info& info,
@@ -216,28 +233,12 @@ struct parse_matmul : op_parser<parse_matmul>
             // always convert uint8 to int8 to avoid rollover
             if(is_quant_dot and (a0_type == migraphx::shape::uint8_type))
             {
-                a0 = add_int8_shift(info, offset_op, a0);
-                if(has_ba0)
-                {
-                    ba0 = add_int8_shift(info, offset_op, ba0);
-                }
-                else
-                {
-                    ba0 = a0;
-                }
+                shift_input_and_bias(info, offset_op, has_ba0, a0, ba0);
             }
 
             if(is_quant_dot and (a1_type == migraphx::shape::uint8_type))
             {
-                a1 = add_int8_shift(info, offset_op, a1);
-                if(has_ba1)
-                {
-                    ba1 = add_int8_shift(info, offset_op, ba1);
-                }
-                else
-                {
-                    ba1 = a1;
-                }
+                shift_input_and_bias(info, offset_op, has_ba1, a1, ba1);
             }
 
             // subtract bias from result after conversion

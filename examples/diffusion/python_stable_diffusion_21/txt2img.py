@@ -26,7 +26,6 @@ from transformers import CLIPTokenizer
 from PIL import Image
 
 import migraphx as mgx
-import numpy as np
 import os
 import sys
 import torch
@@ -132,6 +131,63 @@ def get_args():
     return parser.parse_args()
 
 
+mgx_to_torch_dtype_dict = {
+    "bool_type": torch.bool,
+    "uint8_type": torch.uint8,
+    "int8_type": torch.int8,
+    "int16_type": torch.int16,
+    "int32_type": torch.int32,
+    "int64_type": torch.int64,
+    "float_type": torch.float32,
+    "double_type": torch.float64,
+    "half_type": torch.float16,
+}
+
+torch_to_mgx_dtype_dict = {
+    value: key
+    for (key, value) in mgx_to_torch_dtype_dict.items()
+}
+
+
+def tensor_to_arg(tensor):
+    return mgx.argument_from_pointer(
+        mgx.shape(
+            **{
+                "type": torch_to_mgx_dtype_dict[tensor.dtype],
+                "lens": list(tensor.size()),
+                "strides": list(tensor.stride())
+            }), tensor.data_ptr())
+
+
+def tensors_to_args(tensors):
+    return {name: tensor_to_arg(tensor) for name, tensor in tensors.items()}
+
+
+def get_output_name(idx):
+    return f"main:#output_{idx}"
+
+
+def copy_tensor_sync(tensor, data):
+    tensor.copy_(data)
+    torch.cuda.synchronize()
+
+
+def run_model_sync(model, args):
+    model.run(args)
+    mgx.gpu_sync()
+
+
+def allocate_torch_buffers(model):
+    input_shapes = model.get_parameter_shapes()
+    data_mapping = {
+        name:
+        torch.zeros(shape.lens()).to(
+            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
+        for name, shape in input_shapes.items()
+    }
+    return data_mapping
+
+
 class StableDiffusionMGX():
 
     def __init__(self, onnx_model_path, compiled_model_path, force_compile,
@@ -148,23 +204,54 @@ class StableDiffusionMGX():
                                                        subfolder="tokenizer")
 
         print("Load models...")
-        self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae_decoder", {"latent_sample": [1, 4, 64, 64]}, onnx_model_path,
-            compiled_model_path, force_compile, exhaustive_tune)
-        self.text_encoder = StableDiffusionMGX.load_mgx_model(
-            "text_encoder", {"input_ids": [2, 77]}, onnx_model_path,
-            compiled_model_path, force_compile, exhaustive_tune)
-        self.unet = StableDiffusionMGX.load_mgx_model(
-            "unet", {
+        self.models = {
+            "vae":
+            StableDiffusionMGX.load_mgx_model(
+                "vae_decoder", {"latent_sample": [1, 4, 64, 64]},
+                onnx_model_path,
+                compiled_model_path,
+                force_compile,
+                exhaustive_tune,
+                offload_copy=False),
+            "clip":
+            StableDiffusionMGX.load_mgx_model("text_encoder",
+                                              {"input_ids": [2, 77]},
+                                              onnx_model_path,
+                                              compiled_model_path,
+                                              force_compile,
+                                              exhaustive_tune,
+                                              offload_copy=False),
+            "unet":
+            StableDiffusionMGX.load_mgx_model("unet", {
                 "sample": [2, 4, 64, 64],
                 "encoder_hidden_states": [2, 77, 1024],
                 "timestep": [1],
-            }, onnx_model_path, compiled_model_path, force_compile,
-            exhaustive_tune)
+            },
+                                              onnx_model_path,
+                                              compiled_model_path,
+                                              force_compile,
+                                              exhaustive_tune,
+                                              offload_copy=False)
+        }
 
+        self.tensors = {
+            "clip": allocate_torch_buffers(self.models["clip"]),
+            "unet": allocate_torch_buffers(self.models["unet"]),
+            "vae": allocate_torch_buffers(self.models["vae"]),
+        }
+
+        self.model_args = {
+            "clip": tensors_to_args(self.tensors['clip']),
+            "unet": tensors_to_args(self.tensors['unet']),
+            "vae": tensors_to_args(self.tensors['vae']),
+        }
+
+    @measure
+    @torch.no_grad()
     def run(self, prompt, negative_prompt, steps, seed, scale):
+        torch.cuda.synchronize()
         # need to set this for each run
-        self.scheduler.set_timesteps(steps)
+        self.scheduler.set_timesteps(steps, device="cuda")
 
         print("Tokenizing prompts...")
         prompt_tokens = self.tokenize(prompt, negative_prompt)
@@ -175,8 +262,9 @@ class StableDiffusionMGX():
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
         )
-        latents = torch.randn((1, 4, 64, 64),
-                              generator=torch.manual_seed(seed))
+        latents = torch.randn(
+            (1, 4, 64, 64),
+            generator=torch.manual_seed(seed)).to(device="cuda")
 
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
@@ -192,6 +280,7 @@ class StableDiffusionMGX():
         print("Decode denoised result...")
         image = self.decode(latents)
 
+        torch.cuda.synchronize()
         return image
 
     @staticmethod
@@ -234,20 +323,19 @@ class StableDiffusionMGX():
                               padding="max_length",
                               max_length=self.tokenizer.model_max_length,
                               truncation=True,
-                              return_tensors="np")
+                              return_tensors="pt")
 
     @measure
     def get_embeddings(self, prompt_tokens):
-        return np.array(
-            self.text_encoder.run({
-                "input_ids":
-                prompt_tokens.input_ids.astype(np.int32)
-            })[0]).astype(np.float32)
+        copy_tensor_sync(self.tensors["clip"]["input_ids"],
+                         prompt_tokens.input_ids.to(torch.int32))
+        run_model_sync(self.models["clip"], self.model_args["clip"])
+        return self.tensors["clip"][get_output_name(0)]
 
     @staticmethod
     def convert_to_rgb_image(image):
-        image = np.clip(image / 2 + 0.5, 0, 1)
-        image = np.transpose(image, (0, 2, 3, 1))
+        image = (image / 2 + 0.5).clamp(0, 1)
+        image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
         images = (image * 255).round().astype("uint8")
         return Image.fromarray(images[0])
 
@@ -259,47 +347,50 @@ class StableDiffusionMGX():
     def denoise_step(self, text_embeddings, latents, t, scale):
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
-            latents_model_input, t).numpy().astype(np.float32)
-        timestep = np.atleast_1d(t.numpy().astype(
-            np.int64))  # convert 0D -> 1D
+            latents_model_input, t).to(torch.float32).to(device="cuda")
+        timestep = torch.atleast_1d(t.to(torch.int64)).to(
+            device="cuda")  # convert 0D -> 1D
 
-        noise_pred_text, noise_pred_uncond = np.split(
-            np.array(
-                self.unet.run({
-                    "sample": latents_model_input,
-                    "encoder_hidden_states": text_embeddings,
-                    "timestep": timestep
-                })[0]), 2)
+        copy_tensor_sync(self.tensors["unet"]["sample"], latents_model_input)
+        copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
+                         text_embeddings)
+        copy_tensor_sync(self.tensors["unet"]["timestep"], timestep)
+        run_model_sync(self.models["unet"], self.model_args['unet'])
+
+        noise_pred_text, noise_pred_uncond = torch.tensor_split(
+            self.tensors["unet"][get_output_name(0)], 2)
 
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -
                                                   noise_pred_uncond)
 
         # compute the previous noisy sample x_t -> x_t-1
-        return self.scheduler.step(torch.from_numpy(noise_pred), t,
-                                   latents).prev_sample
+        return self.scheduler.step(noise_pred, t, latents).prev_sample
 
     @measure
     def decode(self, latents):
-        return np.array(
-            self.vae.run({"latent_sample":
-                          latents.numpy().astype(np.float32)})[0])
+        copy_tensor_sync(self.tensors["vae"]["latent_sample"], latents)
+        run_model_sync(self.models["vae"], self.model_args["vae"])
+        return self.tensors["vae"][get_output_name(0)]
 
     @measure
     def warmup(self, num_runs):
-        input_ids = np.ones((2, 77), dtype=np.int32)
-        sample = np.random.randn(2, 4, 64, 64).astype(np.float32)
-        hidden_states = np.random.randn(2, 77, 1024).astype(np.float32)
-        timestep = np.atleast_1d(np.random.randn(1).astype(np.int64))
-        latent_sample = np.random.randn(1, 4, 64, 64).astype(np.float32)
+
+        copy_tensor_sync(self.tensors["clip"]["input_ids"],
+                         torch.ones((2, 77)).to(torch.int32))
+        copy_tensor_sync(self.tensors["unet"]["sample"],
+                         torch.randn((2, 4, 64, 64)).to(torch.float32))
+        copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
+                         torch.randn((2, 77, 1024)).to(torch.float32))
+        copy_tensor_sync(self.tensors["unet"]["timestep"],
+                         torch.atleast_1d(torch.randn(1).to(torch.int64)))
+        copy_tensor_sync(self.tensors["vae"]["latent_sample"],
+                         torch.randn((1, 4, 64, 64)).to(torch.float32))
+
         for _ in range(num_runs):
-            self.text_encoder.run({"input_ids": input_ids})
-            self.unet.run({
-                "sample": sample,
-                "encoder_hidden_states": hidden_states,
-                "timestep": timestep,
-            })
-            self.vae.run({"latent_sample": latent_sample})
+            run_model_sync(self.models["clip"], self.model_args["clip"])
+            run_model_sync(self.models["unet"], self.model_args["unet"])
+            run_model_sync(self.models["vae"], self.model_args["vae"])
 
 
 if __name__ == "__main__":

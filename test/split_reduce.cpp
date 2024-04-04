@@ -39,7 +39,15 @@ void run_pass(migraphx::program& p)
     migraphx::run_passes(p,
                          {migraphx::fuse_pointwise{},
                           migraphx::fuse_reduce{},
-                          migraphx::split_reduce{},
+                          migraphx::split_reduce{.split_size=8192},
+                          migraphx::dead_code_elimination{}});
+}
+
+void run_fuse_pass(migraphx::program& p)
+{
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::fuse_reduce{},
                           migraphx::dead_code_elimination{}});
 }
 
@@ -114,6 +122,26 @@ TEST_CASE(single)
         auto add = add_pointwise(p2, mm, "main:pointwise0", {x, rsumb}, single_pointwise("add"));
         mm->add_return({add});
     }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(small)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 1024}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsumb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, rsumb);
+        mm->add_return({add});
+    }
+    migraphx::program p2 = p1;
+    run_fuse_pass(p2);
+    run_pass(p1);
+
     EXPECT(p1 == p2);
 }
 

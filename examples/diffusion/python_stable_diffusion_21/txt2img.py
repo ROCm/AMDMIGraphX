@@ -164,13 +164,11 @@ class StableDiffusionMGX():
         # need to set this for each run
         self.scheduler.set_timesteps(steps)
 
-        print("Tokenizing prompt...")
-        text_input = self.tokenize(prompt)
-        print("Tokenizing negative prompt...")
-        uncond_input = self.tokenize(negative_prompt)
+        print("Tokenizing prompts...")
+        prompt_tokens = self.tokenize(prompt, negative_prompt)
 
         print("Creating text embeddings...")
-        text_embeddings = self.get_embeddings(text_input, uncond_input)
+        text_embeddings = self.get_embeddings(prompt_tokens)
 
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
@@ -229,20 +227,20 @@ class StableDiffusionMGX():
         return model
 
     @measure
-    def tokenize(self, input):
-        return self.tokenizer([input],
+    def tokenize(self, prompt, negative_prompt):
+        return self.tokenizer([prompt, negative_prompt],
                               padding="max_length",
                               max_length=self.tokenizer.model_max_length,
                               truncation=True,
                               return_tensors="np")
 
     @measure
-    def get_embeddings(self, prompt_tokens, negative_prompt_tokens):
-        input_ids = np.concatenate(
-            (prompt_tokens.input_ids.astype(np.int32),
-             negative_prompt_tokens.input_ids.astype(np.int32)))
-        return np.array(self.text_encoder.run({"input_ids": input_ids
-                                               })[0]).astype(np.float32)
+    def get_embeddings(self, prompt_tokens):
+        return np.array(
+            self.text_encoder.run({
+                "input_ids":
+                prompt_tokens.input_ids.astype(np.int32)
+            })[0]).astype(np.float32)
 
     @staticmethod
     def convert_to_rgb_image(image):

@@ -36,6 +36,7 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
+
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -49,6 +50,37 @@ def measure(fn):
 
 def get_args():
     parser = ArgumentParser()
+    # Model compile
+    parser.add_argument(
+        "--onnx-model-path",
+        type=str,
+        default="models/sd21-onnx/",
+        help="Path to onnx model files.",
+    )
+
+    parser.add_argument(
+        "--compiled-model-path",
+        type=str,
+        default=None,
+        help=
+        "Path to compiled mxr model files. If not set, it will be saved next to the onnx model.",
+    )
+
+    parser.add_argument(
+        "--force-compile",
+        action="store_true",
+        default=False,
+        help="Ignore existing .mxr files and override them",
+    )
+
+    parser.add_argument(
+        "--exhaustive-tune",
+        action="store_true",
+        default=False,
+        help="Perform exhaustive tuning when compiling onnx models",
+    )
+
+    # Runtime
     parser.add_argument(
         "-s",
         "--seed",
@@ -99,7 +131,9 @@ def get_args():
 
 
 class StableDiffusionMGX():
-    def __init__(self):
+
+    def __init__(self, onnx_model_path, compiled_model_path, force_compile,
+                 exhaustive_tune):
         model_id = "stabilityai/stable-diffusion-2-1"
         print(f"Using {model_id}")
 
@@ -113,15 +147,18 @@ class StableDiffusionMGX():
 
         print("Load models...")
         self.vae = StableDiffusionMGX.load_mgx_model(
-            "vae_decoder", {"latent_sample": [1, 4, 64, 64]})
+            "vae_decoder", {"latent_sample": [1, 4, 64, 64]}, onnx_model_path,
+            compiled_model_path, force_compile, exhaustive_tune)
         self.text_encoder = StableDiffusionMGX.load_mgx_model(
-            "text_encoder", {"input_ids": [1, 77]})
+            "text_encoder", {"input_ids": [1, 77]}, onnx_model_path,
+            compiled_model_path, force_compile, exhaustive_tune)
         self.unet = StableDiffusionMGX.load_mgx_model(
             "unet", {
                 "sample": [1, 4, 64, 64],
                 "encoder_hidden_states": [1, 77, 1024],
                 "timestep": [1],
-            })
+            }, onnx_model_path, compiled_model_path, force_compile,
+            exhaustive_tune)
 
     def run(self, prompt, negative_prompt, steps, seed, scale):
         # need to set this for each run
@@ -164,20 +201,35 @@ class StableDiffusionMGX():
 
     @staticmethod
     @measure
-    def load_mgx_model(name, shapes):
-        file = f"models/sd21-onnx/{name}/model"
-        print(f"Loading {name} model from {file}")
-        if os.path.isfile(f"{file}.mxr"):
-            print("Found mxr, loading it...")
-            model = mgx.load(f"{file}.mxr", format="msgpack")
-        elif os.path.isfile(f"{file}.onnx"):
-            print("Parsing from onnx file...")
-            model = mgx.parse_onnx(f"{file}.onnx", map_input_dims=shapes)
-            model.compile(mgx.get_target("gpu"))
-            print(f"Saving {name} model to mxr file...")
-            mgx.save(model, f"{file}.mxr", format="msgpack")
+    def load_mgx_model(name,
+                       shapes,
+                       onnx_model_path,
+                       compiled_model_path=None,
+                       force_compile=False,
+                       exhaustive_tune=False,
+                       offload_copy=True):
+        print(f"Loading {name} model...")
+        if compiled_model_path is None:
+            compiled_model_path = onnx_model_path
+        onnx_file = f"{onnx_model_path}/{name}/model.onnx"
+        mxr_file = f"{compiled_model_path}/{name}/model{'_gpu' if not offload_copy else '_oc'}.mxr"
+        if not force_compile and os.path.isfile(mxr_file):
+            print(f"Found mxr, loading it from {mxr_file}")
+            model = mgx.load(mxr_file, format="msgpack")
+        elif os.path.isfile(onnx_file):
+            print(f"No mxr found at {mxr_file}")
+            print(f"Parsing from {onnx_file}")
+            model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
+            model.compile(mgx.get_target("gpu"),
+                          exhaustive_tune=exhaustive_tune,
+                          offload_copy=offload_copy)
+            print(f"Saving {name} model to {mxr_file}")
+            os.makedirs(os.path.dirname(mxr_file), exist_ok=True)
+            mgx.save(model, mxr_file, format="msgpack")
         else:
-            print(f"No {name} model found. Please download it and re-try.")
+            print(
+                f"No {name} model found at {onnx_file} or {mxr_file}. Please download it and re-try."
+            )
             sys.exit(1)
         return model
 
@@ -247,7 +299,8 @@ class StableDiffusionMGX():
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX()
+    sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
+                            args.force_compile, args.exhaustive_tune)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
 

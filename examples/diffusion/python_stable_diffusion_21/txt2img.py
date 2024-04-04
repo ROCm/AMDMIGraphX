@@ -150,7 +150,7 @@ class StableDiffusionMGX():
             "vae_decoder", {"latent_sample": [1, 4, 64, 64]}, onnx_model_path,
             compiled_model_path, force_compile, exhaustive_tune)
         self.text_encoder = StableDiffusionMGX.load_mgx_model(
-            "text_encoder", {"input_ids": [1, 77]}, onnx_model_path,
+            "text_encoder", {"input_ids": [2, 77]}, onnx_model_path,
             compiled_model_path, force_compile, exhaustive_tune)
         self.unet = StableDiffusionMGX.load_mgx_model(
             "unet", {
@@ -166,17 +166,11 @@ class StableDiffusionMGX():
 
         print("Tokenizing prompt...")
         text_input = self.tokenize(prompt)
-
-        print("Creating text embeddings for prompt...")
-        text_embeddings = self.get_embeddings(text_input)
-
         print("Tokenizing negative prompt...")
         uncond_input = self.tokenize(negative_prompt)
 
-        print("Creating text embeddings for negative prompt...")
-        uncond_embeddings = self.get_embeddings(uncond_input)
-
-        text_embeddings = np.concatenate((text_embeddings, uncond_embeddings))
+        print("Creating text embeddings...")
+        text_embeddings = self.get_embeddings(text_input, uncond_input)
 
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
@@ -243,11 +237,12 @@ class StableDiffusionMGX():
                               return_tensors="np")
 
     @measure
-    def get_embeddings(self, input):
-        return np.array(
-            self.text_encoder.run(
-                {"input_ids":
-                 input.input_ids.astype(np.int32)})[0]).astype(np.float32)
+    def get_embeddings(self, prompt_tokens, negative_prompt_tokens):
+        input_ids = np.concatenate(
+            (prompt_tokens.input_ids.astype(np.int32),
+             negative_prompt_tokens.input_ids.astype(np.int32)))
+        return np.array(self.text_encoder.run({"input_ids": input_ids
+                                               })[0]).astype(np.float32)
 
     @staticmethod
     def convert_to_rgb_image(image):

@@ -5340,7 +5340,8 @@ def matmulinteger_int8_uint8_one_zp_test():
 def matmulinteger_int8_uint8_one_zp_zero_vec_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
-    zp1 = helper.make_tensor('3', TensorProto.INT8, [4, 3], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [4, 3],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
     node = onnx.helper.make_node(

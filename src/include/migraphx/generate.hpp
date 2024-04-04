@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,19 +36,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    if(z == 0)
-        return T(0);
-    const auto max     = 32;
-    const double range = max / 2; // NOLINT
-    double result      = double(z % max) / range;
-    result -= 1;
-    return T(result);
+    const auto max = 1ULL << (sizeof(T) * 8 - 1);
+    return T(z % max);
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = 1ULL << (sizeof(T) * 5);
+    const auto max      = 1ULL << (sizeof(T) * 8 - 1);
     const auto half_max = max / 2;
     return half_max - (z % max);
 }
@@ -58,7 +53,7 @@ template <class T,
                             not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1ULL << (sizeof(T) * 5);
+    const auto max = 1ULL << (sizeof(T) * 8 - 1);
     return z % max;
 }
 

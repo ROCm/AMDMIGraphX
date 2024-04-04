@@ -198,8 +198,6 @@ struct parse_matmul : op_parser<parse_matmul>
                                                                  migraphx::shape::int8_type};
             const auto a0_type                                = a0->get_shape().type();
             const auto a1_type                                = a1->get_shape().type();
-            const auto ba0_type                               = ba0->get_shape().type();
-            const auto ba1_type                               = ba1->get_shape().type();
 
             if(is_quant_dot and
                (not contains(supported_types, a0_type) or not contains(supported_types, a1_type)))

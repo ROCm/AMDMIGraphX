@@ -283,12 +283,29 @@ class StableDiffusionMGX():
             self.vae.run({"latent_sample":
                           latents.numpy().astype(np.float32)})[0])
 
+    @measure
+    def warmup(self, num_runs):
+        input_ids = np.ones((2, 77), dtype=np.int32)
+        sample = np.random.randn(2, 4, 64, 64).astype(np.float32)
+        hidden_states = np.random.randn(2, 77, 1024).astype(np.float32)
+        timestep = np.atleast_1d(np.random.randn(1).astype(np.int64))
+        latent_sample = np.random.randn(1, 4, 64, 64).astype(np.float32)
+        for _ in range(num_runs):
+            self.text_encoder.run({"input_ids": input_ids})
+            self.unet.run({
+                "sample": sample,
+                "encoder_hidden_states": hidden_states,
+                "timestep": timestep,
+            })
+            self.vae.run({"latent_sample": latent_sample})
+
 
 if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
                             args.force_compile, args.exhaustive_tune)
+    sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
 

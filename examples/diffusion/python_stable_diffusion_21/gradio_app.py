@@ -32,6 +32,7 @@ def main():
     # Note: This will load the models, which can take several minutes
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
                             args.force_compile, args.exhaustive_tune)
+    sd.warmup(5)
 
     def gr_wrapper(prompt, negative_prompt, steps, seed, scale):
         result = sd.run(str(prompt), str(negative_prompt), int(steps),

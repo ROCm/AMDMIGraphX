@@ -37,7 +37,7 @@ TEST_CASE(matmulinteger_dual_zp_test)
     auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
 
     // Shift uint8 input
-    auto int8_shift2 =
+    auto int8_shift =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
 
     // Shift uint8 input
@@ -45,7 +45,7 @@ TEST_CASE(matmulinteger_dual_zp_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l1);
 
     auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
-                                    int8_shift2);
+                                    int8_shift);
 
     auto input_shifted_int16 =
         mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr2);
@@ -55,9 +55,6 @@ TEST_CASE(matmulinteger_dual_zp_test)
         input_shifted_int16);
 
     // Shift uint8 zero point
-    auto int8_shift =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
-
     auto unshifted_zp_int16 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l3);
 

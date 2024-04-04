@@ -75,16 +75,14 @@ struct parse_matmul : op_parser<parse_matmul>
     // Convert to int16 prior to a shift to ensure we preserve accuracy here then
     // convert back to int8
     static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
+                                          const instruction_ref& offset_op,
                                           instruction_ref& unshifted_input)
     {
-        auto int8_shift = info.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
-
         auto unshifted_input_int16 = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}),
             unshifted_input);
 
-        auto input_shifted_int16 = info.add_common_op("add", unshifted_input_int16, int8_shift);
+        auto input_shifted_int16 = info.add_common_op("add", unshifted_input_int16, offset_op);
 
         return info.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
@@ -213,13 +211,20 @@ struct parse_matmul : op_parser<parse_matmul>
 
             if(is_quant_dot)
             {
+                instruction_ref offset_op;
+                if(a0_type == migraphx::shape::uint8_type or a1_type == migraphx::shape::uint8_type)
+                {
+                    offset_op = info.add_literal(
+                        migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+                }
+
                 // always convert uint8 to int8 to avoid rollover
                 if(a0_type == migraphx::shape::uint8_type)
                 {
-                    a0 = add_int8_shift(info, a0);
+                    a0 = add_int8_shift(info, offset_op, a0);
                     if(has_ba0)
                     {
-                        ba0 = add_int8_shift(info, ba0);
+                        ba0 = add_int8_shift(info, offset_op, ba0);
                     }
                     else
                     {
@@ -229,10 +234,10 @@ struct parse_matmul : op_parser<parse_matmul>
 
                 if(a1_type == migraphx::shape::uint8_type)
                 {
-                    a1 = add_int8_shift(info, a1);
+                    a1 = add_int8_shift(info, offset_op, a1);
                     if(has_ba1)
                     {
-                        ba1 = add_int8_shift(info, ba1);
+                        ba1 = add_int8_shift(info, offset_op, ba1);
                     }
                     else
                     {

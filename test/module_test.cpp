@@ -458,4 +458,110 @@ TEST_CASE(multiple_module_dependency)
     EXPECT((sub->validate() == sub->end()));
 }
 
+TEST_CASE(module_split2)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    migraphx::module input_m;
+    std::vector<migraphx::instruction_ref> inputs;
+    {
+        auto x1 = input_m.add_parameter("x1", s);
+        auto x2 = input_m.add_parameter("x2", s);
+        auto x3 = input_m.add_parameter("x3", s);
+        inputs = {x1, x2, x3};
+    }
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> splits;
+    {
+        auto x1 = m.add_parameter("x1", s);
+        auto x2 = m.add_parameter("x2", s);
+        auto x3 = m.add_parameter("x3", s);
+        auto add = m.add_instruction(migraphx::make_op("add"), x1, x2);
+        auto mul = m.add_instruction(migraphx::make_op("mul"), add, x3);
+        m.add_return({mul});
+        splits.push_back(add);
+    }
+    auto mods = m.split(inputs, splits);
+
+    migraphx::module m1;
+    {
+        auto x1 = m1.add_parameter("x1", s);
+        auto x2 = m1.add_parameter("x2", s);
+        auto add = m1.add_instruction(migraphx::make_op("add"), x1, x2);
+        m1.add_return({add});
+    }
+    migraphx::module m2;
+    {
+        auto x0 = m2.add_parameter("x0", s);
+        auto x1 = m2.add_parameter("x1", s);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), x0, x1);
+        m2.add_return({mul});
+    }
+    EXPECT(mods[0].mod.sort() == m1.sort());
+    EXPECT(mods[1].mod.sort() == m2.sort());
+
+    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
+    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+
+    EXPECT(bool{mods[1].inputs[0] == splits.front()});
+    EXPECT(bool{mods[1].inputs[1] == inputs[2]});
+}
+
+TEST_CASE(module_split3)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1}};
+    migraphx::module input_m;
+    std::vector<migraphx::instruction_ref> inputs;
+    {
+        auto x1 = input_m.add_parameter("x1", s);
+        auto x2 = input_m.add_parameter("x2", s);
+        inputs = {x1, x2};
+    }
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> splits1;
+    std::vector<migraphx::instruction_ref> splits2;
+    {
+        auto x1 = m.add_parameter("x1", s);
+        auto x2 = m.add_parameter("x2", s);
+        auto mul = m.add_instruction(migraphx::make_op("mul"), x1, x2);
+        auto sqrt = m.add_instruction(migraphx::make_op("sqrt"), mul);
+        auto add = m.add_instruction(migraphx::make_op("add"), sqrt, mul);
+        m.add_return({add});
+        splits1.push_back(mul);
+        splits2.push_back(sqrt);
+    }
+    auto mods = m.split(inputs, splits1, splits2);
+
+    migraphx::module m1;
+    {
+        auto x1 = m1.add_parameter("x1", s);
+        auto x2 = m1.add_parameter("x2", s);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x1, x2);
+        m1.add_return({mul});
+    }
+    migraphx::module m2;
+    {
+        auto x0 = m2.add_parameter("x0", s);
+        auto sqrt = m2.add_instruction(migraphx::make_op("sqrt"), x0);
+        m2.add_return({sqrt});
+    }
+    migraphx::module m3;
+    {
+        auto x0 = m3.add_parameter("x0", s);
+        auto x1 = m3.add_parameter("x1", s);
+        auto add = m3.add_instruction(migraphx::make_op("add"), x0, x1);
+        m3.add_return({add});
+    }
+    EXPECT(mods[0].mod.sort() == m1.sort());
+    EXPECT(mods[1].mod.sort() == m2.sort());
+    EXPECT(mods[2].mod.sort() == m3.sort());
+
+    EXPECT(bool{mods[0].inputs[0] == inputs[0]});
+    EXPECT(bool{mods[0].inputs[1] == inputs[1]});
+
+    EXPECT(bool{mods[1].inputs[0] == splits1.front()});
+
+    EXPECT(bool{mods[2].inputs[0] == splits2.front()});
+    EXPECT(bool{mods[2].inputs[1] == splits1.front()});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

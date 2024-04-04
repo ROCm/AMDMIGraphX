@@ -58,8 +58,8 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        auto target_name = make_shared_object_filename(
-            "migraphx_" + name) + "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
+        auto target_name = make_shared_object_filename("migraphx_" + name) + "." +
+                           std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

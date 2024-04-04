@@ -206,15 +206,15 @@ struct parse_matmul : op_parser<parse_matmul>
             }
 
             instruction_ref offset_op;
-            if(is_quant_dot and a0_type == migraphx::shape::uint8_type or
-               a1_type == migraphx::shape::uint8_type)
+            if(is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
+                                 (a1_type == migraphx::shape::uint8_type)))
             {
                 offset_op = info.add_literal(
                     migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
             }
 
             // always convert uint8 to int8 to avoid rollover
-            if(is_quant_dot and a0_type == migraphx::shape::uint8_type)
+            if(is_quant_dot and (a0_type == migraphx::shape::uint8_type))
             {
                 a0 = add_int8_shift(info, offset_op, a0);
                 if(has_ba0)
@@ -227,7 +227,7 @@ struct parse_matmul : op_parser<parse_matmul>
                 }
             }
 
-            if(is_quant_dot and a1_type == migraphx::shape::uint8_type)
+            if(is_quant_dot and (a1_type == migraphx::shape::uint8_type))
             {
                 a1 = add_int8_shift(info, offset_op, a1);
                 if(has_ba1)

@@ -102,7 +102,6 @@ static std::vector<instruction_ref> find_split(const_module_ref rm)
     if(reduce_ins->name() != "reduce_sum")
         return result;
     result.push_back(reduce_ins);
-    // TODO: Find instructions that are used again in the module
     return result;
 }
 

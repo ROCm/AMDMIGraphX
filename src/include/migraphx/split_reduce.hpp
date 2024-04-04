@@ -33,6 +33,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
 
+/// For large reductions that are larger than the split_size, this pass will
+/// split the fused_reduce operators so that the reduction will happen across
+/// multiple compute units gaining better occupancy for targets with many
+/// compute units. Since the reduction is split across compute units, any
+/// elementwise operators will be split into separate operators as well due to
+/// needing global synchronization.
 struct MIGRAPHX_EXPORT split_reduce
 {
     std::size_t split_size = 8192;

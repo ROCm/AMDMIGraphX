@@ -37,20 +37,20 @@ TEST_CASE(matmulinteger_one_zp_test)
 
     // Convert uint8 input 2 to int8
     auto int8_shift =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
 
-    auto unshifted_input_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l1);
+    auto unshifted_input_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
 
     auto mbr3 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
                                     int8_shift);
 
-    auto input_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr3);
+    auto input_shifted_half =
+        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr3);
 
     l1 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_int16);
+        input_shifted_half);
 
     // Handle bias offset for valid input that's already int8
     auto mb1 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), l2);

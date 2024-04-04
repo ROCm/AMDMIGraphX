@@ -37,21 +37,21 @@ TEST_CASE(matmulinteger_one_zero_zp_vec_test2)
 
     // Shift uint8 input
     auto int8_shift2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
 
     // Shift uint8 input
-    auto unshifted_input_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l0);
+    auto unshifted_input_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l0);
 
     auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}),
                                     int8_shift2);
 
-    auto input_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr2);
+    auto input_shifted_half =
+        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
 
     l0 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_int16);
+        input_shifted_half);
 
     mm->add_instruction(migraphx::make_op("quant_dot"), l0, l1);
 

@@ -38,32 +38,32 @@ TEST_CASE(matmulinteger_dual_zp_test)
 
     // Shift uint8 input
     auto int8_shift =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
 
     // Shift uint8 input
-    auto unshifted_input_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l1);
+    auto unshifted_input_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l1);
 
     auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
                                     int8_shift);
 
-    auto input_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr2);
+    auto input_shifted_half =
+        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
 
     l1 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_int16);
+        input_shifted_half);
 
     // Shift uint8 zero point
-    auto unshifted_zp_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l3);
+    auto unshifted_zp_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), l3);
 
-    auto zp_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_zp_int16, int8_shift);
+    auto zp_shifted_half =
+        mm->add_instruction(migraphx::make_op("add"), unshifted_zp_half, int8_shift);
 
     l3 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        zp_shifted_int16);
+        zp_shifted_half);
 
     // int8 input1 just simple sub of bias
     auto mbr1 =

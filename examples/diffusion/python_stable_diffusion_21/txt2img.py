@@ -42,7 +42,9 @@ def measure(fn):
         start_time = time.perf_counter_ns()
         result = fn(*args, **kwargs)
         end_time = time.perf_counter_ns()
-        print(f"Elapsed time: {(end_time - start_time) * 1e-6:.4f} ms\n")
+        print(
+            f"Elapsed time for {fn.__name__}: {(end_time - start_time) * 1e-6:.4f} ms\n"
+        )
         return result
 
     return measure_ms

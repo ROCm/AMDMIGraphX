@@ -154,8 +154,8 @@ class StableDiffusionMGX():
             compiled_model_path, force_compile, exhaustive_tune)
         self.unet = StableDiffusionMGX.load_mgx_model(
             "unet", {
-                "sample": [1, 4, 64, 64],
-                "encoder_hidden_states": [1, 77, 1024],
+                "sample": [2, 4, 64, 64],
+                "encoder_hidden_states": [2, 77, 1024],
                 "timestep": [1],
             }, onnx_model_path, compiled_model_path, force_compile,
             exhaustive_tune)
@@ -176,6 +176,8 @@ class StableDiffusionMGX():
         print("Creating text embeddings for negative prompt...")
         uncond_embeddings = self.get_embeddings(uncond_input)
 
+        text_embeddings = np.concatenate((text_embeddings, uncond_embeddings))
+
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
         )
@@ -188,8 +190,7 @@ class StableDiffusionMGX():
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
-            latents = self.denoise_step(text_embeddings, uncond_embeddings,
-                                        latents, t, scale)
+            latents = self.denoise_step(text_embeddings, latents, t, scale)
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
@@ -260,26 +261,20 @@ class StableDiffusionMGX():
         pil_image.save(filename)
 
     @measure
-    def denoise_step(self, text_embeddings, uncond_embeddings, latents, t,
-                     scale):
-        sample = self.scheduler.scale_model_input(latents,
-                                                  t).numpy().astype(np.float32)
+    def denoise_step(self, text_embeddings, latents, t, scale):
+        latents_model_input = torch.cat([latents] * 2)
+        latents_model_input = self.scheduler.scale_model_input(
+            latents_model_input, t).numpy().astype(np.float32)
         timestep = np.atleast_1d(t.numpy().astype(
             np.int64))  # convert 0D -> 1D
 
-        noise_pred_uncond = np.array(
-            self.unet.run({
-                "sample": sample,
-                "encoder_hidden_states": uncond_embeddings,
-                "timestep": timestep
-            })[0])
-
-        noise_pred_text = np.array(
-            self.unet.run({
-                "sample": sample,
-                "encoder_hidden_states": text_embeddings,
-                "timestep": timestep
-            })[0])
+        noise_pred_text, noise_pred_uncond = np.split(
+            np.array(
+                self.unet.run({
+                    "sample": latents_model_input,
+                    "encoder_hidden_states": text_embeddings,
+                    "timestep": timestep
+                })[0]), 2)
 
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -

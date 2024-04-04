@@ -193,7 +193,7 @@ struct compile_plan
                            double t   = transform_accumulate(
                                cobjs.begin(),
                                cobjs.end(),
-                               0,
+                               double{0},
                                std::plus<>{},
                                [&](const operation& op) { return time_op(*ctx, op, 20); });
                            if(trace_level > 1)

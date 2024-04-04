@@ -92,7 +92,7 @@ def get_args():
         "-o",
         "--output",
         type=str,
-        default="output.png",
+        default=None,
         help="Output name",
     )
     return parser.parse_args()
@@ -254,5 +254,5 @@ if __name__ == "__main__":
     print("Convert result to rgb image...")
     image = StableDiffusionMGX.convert_to_rgb_image(result)
     filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    StableDiffusionMGX.save_image(image, args.output)
+    StableDiffusionMGX.save_image(image, filename)
     print(f"Image saved to {filename}")

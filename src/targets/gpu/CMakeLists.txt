@@ -30,12 +30,18 @@ if(NOT GPU_TARGETS)
     endif()
     message(FATAL_ERROR ${fatal_msg})
 endif()
+
 find_package(miopen REQUIRED)
 message(STATUS "MIGraphX is using MIOpen")
 
-# rocblas
-find_package(rocblas REQUIRED)
-message(STATUS "MIGraphX build with rocBLAS")
+if(MIGRAPHX_USE_ROCBLAS)
+    # rocblas
+    find_package(rocblas REQUIRED)
+    message(STATUS "MIGraphX build with rocBLAS")
+else()
+    message(STATUS "MIGraphX build without rocBLAS")
+    message(STATUS "MIGraphX use rocMLIR GEMM")
+endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
@@ -112,6 +118,10 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
+if (MIGRAPHX_USE_ROCBLAS)
+    set(ROCBLAS_SRCS rocblas.cpp gemm_impl.cpp)
+endif()
+
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -129,7 +139,6 @@ add_library(migraphx_gpu
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
-    gemm_impl.cpp
     hip.cpp
     kernel.cpp
     lowering.cpp
@@ -147,13 +156,13 @@ add_library(migraphx_gpu
     problem_cache.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
-    rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
     target.cpp
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    ${ROCBLAS_SRCS}
     ${JIT_GPU_SRCS}
 )
 
@@ -177,23 +186,30 @@ register_migraphx_gpu_ops(hip_
     reverse
     topk
 )
+
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
     lrn
     pooling
 )
+
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
     INCLUDES migraphx/gpu/context.hpp)
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/gemm.hpp
-    OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
-    INCLUDES migraphx/gpu/context.hpp)
+
+if(MIGRAPHX_USE_ROCBLAS)
+    register_op(migraphx_gpu
+        HEADER migraphx/gpu/gemm.hpp
+        OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
+
 register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
     OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)
+
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
@@ -257,14 +273,18 @@ target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CX
 # Check miopen find mode api
 
 include(CheckLibraryExists)
+
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
-get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
-check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
-# Beta API for automated GEMM tuning
-check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
-# rocblas FP8 API
-check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
+check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+
+if(MIGRAPHX_USE_ROCBLAS)
+    get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
+    # Beta API for automated GEMM tuning
+    check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+    # rocblas FP8 API
+    check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
+endif()
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
@@ -287,21 +307,27 @@ else()
     message(STATUS "MIOpen does not have find mode api")
 endif()
 
-if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
-    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_TUNING_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
-    message(STATUS "MIGraphx is using Beta API of rocBLAS")
-else()
-    message(STATUS "rocBLAS does not have User Tuning Beta API")
+if(MIGRAPHX_USE_ROCBLAS)
+    if(HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_TUNING_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+        message(STATUS "MIGraphx is using Beta API of rocBLAS")
+    else()
+        message(STATUS "rocBLAS does not have User Tuning Beta API")
+    endif()
+
+    if(HAS_ROCBLAS_FP8_BETA_API)
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_FP8_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
+        message(STATUS "MIGraphX is using Beta API of rocBLAS for FP8 computations")
+    else()
+        message(STATUS "rocBLAS does not have Fp8 Beta API")
+    endif()
+
+
+    target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
 endif()
 
-if(HAS_ROCBLAS_FP8_BETA_API)
-    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_USE_ROCBLAS_FP8_API -DROCBLAS_BETA_FEATURES_API -DROCBLAS_NO_DEPRECATED_WARNINGS)
-    message(STATUS "MIGraphX is using Beta API of rocBLAS for FP8 computations")
-else()
-    message(STATUS "rocBLAS does not have Fp8 Beta API")
-endif()
+target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)
 
-target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen roc::rocblas)
 target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)

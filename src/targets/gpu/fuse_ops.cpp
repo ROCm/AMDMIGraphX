@@ -550,6 +550,8 @@ struct find_conv_pointwise
     }
 };
 
+
+#ifdef MIGRAPHX_USE_ROCBLAS
 struct find_gemm_pointwise
 {
     auto matcher() const
@@ -639,6 +641,7 @@ struct find_gemm_pointwise
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
 
@@ -651,7 +654,7 @@ struct find_gemm_pointwise
             gemm.beta = 1;
 
         if(not update_gemm(
-               gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+            gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
             return;
 
         auto inputs = gemm_ins->inputs();
@@ -673,8 +676,10 @@ struct find_gemm_pointwise
         inputs.push_back(ins->inputs().back());
 
         m.replace_instruction(ins, gemm, inputs);
+       
     }
 };
+ #endif
 
 struct find_contiguous_tranpose_gemm
 {
@@ -893,11 +898,13 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
-                        find_gemm_pointwise{},
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
+    #ifdef MIGRAPHX_USE_ROCBLAS
+        match::find_matches(m, find_gemm_pointwise{});
+    #endif
     match::find_matches(m, find_contiguous{});
 }
 

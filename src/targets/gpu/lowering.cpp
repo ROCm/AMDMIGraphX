@@ -47,7 +47,9 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#include <migraphx/gpu/rocblas.hpp>
+#ifdef MIGRAPHX_USE_ROCBLAS
+   #include <migraphx/gpu/rocblas.hpp>
+#endif
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
@@ -82,8 +84,9 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
-
+        #ifdef MIGRAPHX_USE_ROCBLAS
         compute_fp32 = get_compute_fp32_flag();
+        #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
@@ -227,7 +230,11 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            #ifdef MIGRAPHX_USE_ROCBLAS
+                return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            #else
+                return ins;
+            #endif   
         });
     }
 

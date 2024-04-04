@@ -39,16 +39,15 @@ void run_pass(migraphx::program& p)
     migraphx::run_passes(p,
                          {migraphx::fuse_pointwise{},
                           migraphx::fuse_reduce{},
-                          migraphx::split_reduce{.split_size=8192},
+                          migraphx::split_reduce{.split_size = 8192},
                           migraphx::dead_code_elimination{}});
 }
 
 void run_fuse_pass(migraphx::program& p)
 {
-    migraphx::run_passes(p,
-                         {migraphx::fuse_pointwise{},
-                          migraphx::fuse_reduce{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(
+        p,
+        {migraphx::fuse_pointwise{}, migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
 }
 
 bool all_instructions_are_local(const migraphx::module& m)

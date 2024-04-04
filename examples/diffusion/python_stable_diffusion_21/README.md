@@ -1,6 +1,6 @@
 # Stable Diffusion 2.1
 
-This version was tested with [rocm 5.7](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-5.7.0) revision.
+This version was tested with [rocm 6.0](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-6.0.0) revision.
 
 ## Jupyter notebook
 

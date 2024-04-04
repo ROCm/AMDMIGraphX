@@ -31,6 +31,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 std::string param_name(std::size_t i, const std::string& prefix)
 {
+    assert(i < 10);
     return prefix + std::to_string(i);
 }
 

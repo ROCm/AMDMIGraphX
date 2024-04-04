@@ -61,6 +61,12 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+if(WIN32)
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
+else()
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
+endif()
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -334,5 +340,10 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half ${PACKAGE_DEPENDS}
+    DEPENDS miopen-hip hip-rocclr hip-base half ${PACKAGE_DEPENDS}
 )
+
+if(MIGRAPHX_USE_ROCBLAS)
+    list(APPEND PACKAGE_DEPENDS PACKAGE rocblas)
+endif()
+

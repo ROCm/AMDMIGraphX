@@ -43,6 +43,6 @@ TEST_CASE(matmulinteger_int8_uint8_dual_zp_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {40, -32, -57, 46, 46, -36, -11, 10};
+    std::vector<int32_t> gold = {-984, 992, 1351, -1362, -1234, 1244, 117, -118};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

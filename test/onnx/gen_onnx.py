@@ -5337,6 +5337,40 @@ def matmulinteger_int8_uint8_one_zp_test():
 
 
 @onnx_test()
+def matmulinteger_int8_uint8_one_zp_zero_vec_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [4, 3], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_zero_vec_test2():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
+    zp1 = helper.make_tensor(
+        '3', TensorProto.UINT8, [4, 3],
+        [128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
 def matmulinteger_int8_uint8_one_zp_error_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
@@ -5358,6 +5392,23 @@ def matmulinteger_int8_uint8_dual_zp_test():
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
     zp1 = helper.make_tensor('3', TensorProto.INT8, [], [1])
     zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_dual_zero_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [0])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [128])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
     node = onnx.helper.make_node(

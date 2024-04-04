@@ -24,15 +24,13 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(matmulinteger_dual_zp_test)
+TEST_CASE(matmulinteger_one_zero_zp_vec_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto l2 = mm->add_literal(
-        migraphx::literal(migraphx::shape{migraphx::shape::int8_type, {1}, {0}}, {1}));
-    auto l3 = mm->add_literal(
-        migraphx::literal(migraphx::shape{migraphx::shape::uint8_type, {1}, {0}}, {1}));
+    mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::int8_type, {4, 3}},
+                                      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}));
     auto l0 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
     auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
 
@@ -54,33 +52,9 @@ TEST_CASE(matmulinteger_dual_zp_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
         input_shifted_int16);
 
-    // Shift uint8 zero point
-    auto int8_shift =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
+    mm->add_instruction(migraphx::make_op("quant_dot"), l0, l1);
 
-    auto unshifted_zp_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l3);
-
-    auto zp_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_zp_int16, int8_shift);
-
-    l3 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        zp_shifted_int16);
-
-    // int8 input1 just simple sub of bias
-    auto mbr1 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), l2);
-    auto sub1 = mm->add_instruction(migraphx::make_op("sub"), l0, mbr1);
-
-    //  do input 2 sub after conversion for input and zero point
-    auto mbr3 =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}), l3);
-    auto sub2 = mm->add_instruction(migraphx::make_op("sub"), l1, mbr3);
-
-    mm->add_instruction(migraphx::make_op("quant_dot"), sub1, sub2);
-
-    auto prog = optimize_onnx("matmulinteger_int8_uint8_dual_zp_test.onnx");
+    auto prog = optimize_onnx("matmulinteger_int8_uint8_one_zp_zero_vec_test.onnx");
 
     EXPECT(p == prog);
 }

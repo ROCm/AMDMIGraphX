@@ -91,11 +91,30 @@ struct parse_matmul : op_parser<parse_matmul>
             input_shifted_int16);
     }
 
-    static instruction_ref set_bias_arg(const onnx_parser::node_info& info,
-                                        const std::vector<instruction_ref>& args,
-                                        const int index,
-                                        const instruction_ref& input)
+    static bool is_symmetric_zero_point(instruction_ref zp)
     {
+        if(not zp->can_eval())
+            return false;
+
+        float check_value = 0;
+        if(zp->get_shape().type() == migraphx::shape::uint8_type)
+            check_value = 128;
+
+        bool all_zeros = false;
+        zp->eval().visit([&](auto z) {
+            all_zeros = std::all_of(
+                z.begin(), z.end(), [&](auto val) { return float_equal(val, check_value); });
+        });
+        return all_zeros;
+    }
+
+    static instruction_ref set_bias_arg(const std::vector<instruction_ref>& args,
+                                        const int index,
+                                        const instruction_ref& input,
+                                        bool& has_valid_bias)
+    {
+        has_valid_bias = false;
+
         if(args.size() > index)
         {
             instruction_ref bias_arg = args[index];
@@ -104,7 +123,12 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW("PARSE_QUANT_DOT: zero point must be the same type as data");
             }
 
-            return info.add_common_op("sub", input, bias_arg);
+            // Don't return zero point if it will cause symmetric zero point. No need to bias
+            if(is_symmetric_zero_point(bias_arg))
+                return input;
+
+            has_valid_bias = true;
+            return bias_arg;
         }
         return input;
     }
@@ -166,33 +190,70 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW("PARSE_MATMUL: Bias Args not supported for MatMul");
             }
 
-            instruction_ref ba0 = set_bias_arg(info, args, 2, a0);
-            instruction_ref ba1 = set_bias_arg(info, args, 3, a1);
+            bool has_ba0        = false;
+            bool has_ba1        = false;
+            instruction_ref ba0 = set_bias_arg(args, 2, a0, has_ba0);
+            instruction_ref ba1 = set_bias_arg(args, 3, a1, has_ba1);
 
             // Only INT8 or UINT8 type currently supported
             std::set<migraphx::shape::type_t> supported_types = {migraphx::shape::uint8_type,
                                                                  migraphx::shape::int8_type};
+            const auto a0_type                                = a0->get_shape().type();
+            const auto a1_type                                = a1->get_shape().type();
             const auto ba0_type                               = ba0->get_shape().type();
             const auto ba1_type                               = ba1->get_shape().type();
 
             if(is_quant_dot and
-               (not contains(supported_types, ba0_type) or not contains(supported_types, ba1_type)))
+               (not contains(supported_types, ba0_type) or
+                not contains(supported_types, ba1_type) or not contains(supported_types, a0_type) or
+                not contains(supported_types, a1_type)))
             {
                 MIGRAPHX_THROW("PARSE_MATMULINTEGER: Unsupported type");
             }
 
-            auto is_same_type = (ba0_type == ba1_type);
-
-            if(is_quant_dot and not is_same_type)
+            if(is_quant_dot)
             {
-                if(ba0_type == migraphx::shape::uint8_type)
-                    ba0 = add_int8_shift(info, ba0);
+                // always convert uint8 to int8 to avoid rollover
+                if(a0_type == migraphx::shape::uint8_type)
+                {
+                    a0 = add_int8_shift(info, a0);
+                    if(has_ba0)
+                    {
+                        ba0 = add_int8_shift(info, ba0);
+                    }
+                    else
+                    {
+                        ba0 = a0;
+                    }
+                }
 
-                if(ba1_type == migraphx::shape::uint8_type)
-                    ba1 = add_int8_shift(info, ba1);
+                if(a1_type == migraphx::shape::uint8_type)
+                {
+                    a1 = add_int8_shift(info, a1);
+                    if(has_ba1)
+                    {
+                        ba1 = add_int8_shift(info, ba1);
+                    }
+                    else
+                    {
+                        ba1 = a1;
+                    }
+                }
+
+                // subtract bias from result after conversion
+                if(has_ba0)
+                {
+                    ba0 = info.add_common_op("sub", a0, ba0);
+                }
+
+                if(has_ba1)
+                {
+                    ba1 = info.add_common_op("sub", a1, ba1);
+                }
             }
 
             broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+
             dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
         }
 

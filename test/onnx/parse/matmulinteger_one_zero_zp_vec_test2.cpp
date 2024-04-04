@@ -24,41 +24,38 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(matmulinteger_one_zp_test)
+TEST_CASE(matmulinteger_one_zero_zp_vec_test2)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    auto l2 = mm->add_literal(
-        migraphx::literal(migraphx::shape{migraphx::shape::int8_type, {1}, {0}}, {5}));
+    mm->add_literal(
+        migraphx::literal(migraphx::shape{migraphx::shape::uint8_type, {4, 3}},
+                          {128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128}));
+    auto l0 = mm->add_parameter("1", migraphx::shape{migraphx::shape::uint8_type, {4, 3}});
+    auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::int8_type, {3, 2}});
 
-    auto l0 = mm->add_parameter("1", migraphx::shape{migraphx::shape::int8_type, {4, 3}});
-    auto l1 = mm->add_parameter("2", migraphx::shape{migraphx::shape::uint8_type, {3, 2}});
-
-    // Convert uint8 input 2 to int8
-    auto int8_shift =
+    // Shift uint8 input
+    auto int8_shift2 =
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int16_type}, {-128}});
 
+    // Shift uint8 input
     auto unshifted_input_int16 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l1);
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int16_type}}), l0);
 
-    auto mbr3 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2}}}),
-                                    int8_shift);
+    auto mbr2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}),
+                                    int8_shift2);
 
     auto input_shifted_int16 =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr3);
+        mm->add_instruction(migraphx::make_op("add"), unshifted_input_int16, mbr2);
 
-    l1 = mm->add_instruction(
+    l0 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
         input_shifted_int16);
 
-    // Handle bias offset for valid input that's already int8
-    auto mb1 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4, 3}}}), l2);
-    auto sub = mm->add_instruction(migraphx::make_op("sub"), l0, mb1);
+    mm->add_instruction(migraphx::make_op("quant_dot"), l0, l1);
 
-    mm->add_instruction(migraphx::make_op("quant_dot"), sub, l1);
-
-    auto prog = optimize_onnx("matmulinteger_int8_uint8_one_zp_test.onnx");
+    auto prog = optimize_onnx("matmulinteger_int8_uint8_one_zp_zero_vec_test2.onnx");
 
     EXPECT(p == prog);
 }

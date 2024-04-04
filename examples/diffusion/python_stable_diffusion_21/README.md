@@ -33,7 +33,7 @@ export PYTHONPATH=/opt/rocm/lib:$PYTHONPATH
 Get models with optimum
 
 ```bash
-optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onnx
+optimum-cli export onnx --model stabilityai/stable-diffusion-2-1 models/sd21-onnx --task stable-diffusion
 ```
 *Note: `models/sd21-onnx` will be used in the scripts.*
 

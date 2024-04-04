@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/version.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

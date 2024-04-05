@@ -53,8 +53,9 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         }
         else if(ins->name() == "@return")
         {
-            assert(ins->inputs().size() == 1);
-            return_ins = ins->inputs().front();
+            names[ins] = "zreturn";
+            ss << "auto zreturn = " << g(ins, names) << ";\n";
+            return_ins = ins;
         }
         else
         {
@@ -221,6 +222,13 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                         string_literal = ins->get_literal().to_string();
                 });
                 return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+            }
+            if(ins->name() == "@return")
+            {
+                // TODO: Customize the make_tuple call
+                if(ins->inputs().size() != 1)
+                    return "make_tuple(" + join_strings(to_args(ins->inputs(), names), ", ") + ")";
+                return names.at(ins->inputs().front());
             }
             auto s = g(ins, names);
             if(impl->fresult)

@@ -160,8 +160,7 @@ static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
     while(r > min_size)
     {
         // NOLINTNEXTLINE(readability-qualified-auto)
-        auto it =
-            std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
         if(it == factors.end())
             break;
         r /= *it;

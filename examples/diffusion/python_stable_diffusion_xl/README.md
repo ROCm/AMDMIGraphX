@@ -55,6 +55,22 @@ The result should look like this:
 
 ![example_output.jpg](./example_output.jpg)
 
+## (Optional) Refiner
+
+Note: requires `Console application` to work
+
+Get models with huggingface-cli
+
+```bash
+huggingface-cli download stabilityai/stable-diffusion-xl-1.0-tensorrt sdxl-1.0-refiner/unetxl.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/6ed855ee-2d70-11ee-af8e-0242c0a80101 sdxl-1.0-refiner/unetxl.opt/6e186582-2d74-11ee-8aa7-0242c0a80102 --local-dir models/ --local-dir-use-symlinks False
+```
+
+Run the text-to-image script with the following example prompt and seed:
+
+```bash
+python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output refined_jungle_astro.jpg --refiner-onnx-model-path models/sdxl-1.0-refiner
+```
+
 ## Gradio application
 
 Note: requires `Console application` to work

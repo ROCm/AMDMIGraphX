@@ -30,15 +30,26 @@ def main():
     args = get_args()
     # Note: This will load the models, which can take several minutes
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.fp16, args.force_compile,
-                            args.exhaustive_tune)
+                            args.refiner_onnx_model_path,
+                            args.refiner_compiled_model_path, args.fp16,
+                            args.force_compile, args.exhaustive_tune)
     sd.warmup(5)
 
-    def gr_wrapper(prompt, negative_prompt, steps, seed, scale):
-        result = sd.run(str(prompt), str(negative_prompt), int(steps),
-                        int(seed), float(scale))
+    def gr_wrapper(prompt, negative_prompt, steps, seed, scale,
+                   aesthetic_score, negative_aesthetic_score):
+        result = sd.run(
+            str(prompt),
+            str(negative_prompt),
+            int(steps),
+            int(seed),
+            float(scale),
+            float(aesthetic_score),
+            float(negative_aesthetic_score),
+        )
         return StableDiffusionMGX.convert_to_rgb_image(result)
 
+    use_refiner = bool(args.refiner_onnx_model_path
+                       or args.refiner_compiled_model_path)
     demo = gr.Interface(
         gr_wrapper,
         [
@@ -50,6 +61,18 @@ def main():
             gr.Textbox(value=args.seed, label="Random seed"),
             gr.Slider(
                 1, 20, step=0.1, value=args.scale, label="Guidance scale"),
+            gr.Slider(1,
+                      20,
+                      step=0.1,
+                      value=args.refiner_aesthetic_score,
+                      label="Aesthetic score",
+                      visible=use_refiner),
+            gr.Slider(1,
+                      20,
+                      step=0.1,
+                      value=args.refiner_negative_aesthetic_score,
+                      label="Negative Aesthetic score",
+                      visible=use_refiner),
         ],
         "image",
     )

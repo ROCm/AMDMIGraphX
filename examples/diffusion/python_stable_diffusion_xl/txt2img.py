@@ -67,6 +67,21 @@ def get_args():
     )
 
     parser.add_argument(
+        "--refiner-onnx-model-path",
+        type=str,
+        default=None,
+        help="Path to onnx model files.",
+    )
+
+    parser.add_argument(
+        "--refiner-compiled-model-path",
+        type=str,
+        default=None,
+        help=
+        "Path to compiled mxr model files. If not set, it will be saved next to the refiner onnx model.",
+    )
+
+    parser.add_argument(
         "--fp16",
         choices=["all", "vae", "clip", "clip2", "unetxl"],
         nargs="+",
@@ -125,6 +140,20 @@ def get_args():
         type=float,
         default=5.0,
         help="Guidance scale",
+    )
+
+    parser.add_argument(
+        "--refiner-aesthetic-score",
+        type=float,
+        default=6.0,
+        help="aesthetic score for refiner",
+    )
+
+    parser.add_argument(
+        "--refiner-negative-aesthetic-score",
+        type=float,
+        default=2.5,
+        help="negative aesthetic score for refiner",
     )
 
     parser.add_argument(
@@ -194,7 +223,8 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path, fp16,
+    def __init__(self, onnx_model_path, compiled_model_path,
+                 refiner_onnx_model_path, refiner_compiled_model_path, fp16,
                  force_compile, exhaustive_tune):
         model_id = "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
@@ -276,9 +306,32 @@ class StableDiffusionMGX():
             "vae": tensors_to_args(self.tensors["vae"]),
         }
 
+        self.use_refiner = refiner_onnx_model_path or refiner_compiled_model_path
+        if self.use_refiner:
+            self.models["refiner_unetxl"] = StableDiffusionMGX.load_mgx_model(
+                "unetxl.opt", {
+                    "sample": [2, 4, 128, 128],
+                    "encoder_hidden_states": [2, 77, 1280],
+                    "text_embeds": [2, 1280],
+                    "time_ids": [2, 5],
+                    "timestep": [1],
+                },
+                refiner_onnx_model_path,
+                compiled_model_path=refiner_compiled_model_path,
+                use_fp16="unetxl" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False)
+
+            self.tensors["refiner_unetxl"] = allocate_torch_tensors(
+                self.models["refiner_unetxl"])
+            self.model_args["refiner_unetxl"] = tensors_to_args(
+                self.tensors["refiner_unetxl"])
+
     @measure
     @torch.no_grad()
-    def run(self, prompt, negative_prompt, steps, seed, scale):
+    def run(self, prompt, negative_prompt, steps, seed, scale,
+            refiner_aesthetic_score, refiner_negative_aesthetic_score):
         torch.cuda.synchronize()
         # need to set this for each run
         self.scheduler.set_timesteps(steps, device="cuda")
@@ -295,22 +348,51 @@ class StableDiffusionMGX():
         print(
             f"Creating random input data ({1}x{4}x{128}x{128}) (latents) with seed={seed}..."
         )
-        latents = torch.randn(
+        noise = torch.randn(
             (1, 4, 128, 128),
             generator=torch.manual_seed(seed)).to(device="cuda")
-
-        time_ids = torch.tensor([[1024, 1024, 0, 0, 1024, 1024],
-                                 [1024, 1024, 0, 0, 1024,
-                                  1024]]).to(torch.float16).to(device="cuda")
+        # input h/w crop h/w output h/w
+        time_id = [1024, 1024, 0, 0, 1024, 1024]
+        time_ids = torch.tensor([time_id,
+                                 time_id]).to(torch.float16).to(device="cuda")
 
         print("Apply initial noise sigma\n")
-        latents = latents * self.scheduler.init_noise_sigma
+        latents = noise * self.scheduler.init_noise_sigma
 
         print("Running denoising loop...")
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
-            latents = self.denoise_step(text_embeddings, hidden_states,
-                                        latents, t, scale, time_ids)
+            latents = self.denoise_step(text_embeddings,
+                                        hidden_states,
+                                        latents,
+                                        t,
+                                        scale,
+                                        time_ids,
+                                        model="unetxl")
+
+        if self.use_refiner:
+            # only use the clip2 part
+            hidden_states = hidden_states[:, :, 768:]
+            # input h/w crop h/w scores
+            time_id_pos = time_id[:4] + [refiner_aesthetic_score]
+            time_id_neg = time_id[:4] + [refiner_negative_aesthetic_score]
+            time_ids = torch.tensor([time_id_pos, time_id_neg
+                                     ]).to(torch.float16).to(device="cuda")
+            # need to set this for each run
+            self.scheduler.set_timesteps(steps, device="cuda")
+            # Add noise to latents using timesteps
+            latents = self.scheduler.add_noise(latents, noise,
+                                               self.scheduler.timesteps[:1])
+            print("Running refiner denoising loop...")
+            for step, t in enumerate(self.scheduler.timesteps):
+                print(f"#{step}/{len(self.scheduler.timesteps)} step")
+                latents = self.denoise_step(text_embeddings,
+                                            hidden_states,
+                                            latents,
+                                            t,
+                                            scale,
+                                            time_ids,
+                                            model="refiner_unetxl")
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
@@ -403,24 +485,23 @@ class StableDiffusionMGX():
 
     @measure
     def denoise_step(self, text_embeddings, hidden_states, latents, t, scale,
-                     time_ids):
+                     time_ids, model):
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
             latents_model_input, t).to(torch.float32).to(device="cuda")
         timestep = torch.atleast_1d(t.to(torch.float32)).to(
             device="cuda")  # convert 0D -> 1D
 
-        copy_tensor_sync(self.tensors["unetxl"]["sample"], latents_model_input)
-        copy_tensor_sync(self.tensors["unetxl"]["encoder_hidden_states"],
+        copy_tensor_sync(self.tensors[model]["sample"], latents_model_input)
+        copy_tensor_sync(self.tensors[model]["encoder_hidden_states"],
                          hidden_states)
-        copy_tensor_sync(self.tensors["unetxl"]["text_embeds"],
-                         text_embeddings)
-        copy_tensor_sync(self.tensors["unetxl"]["timestep"], timestep)
-        copy_tensor_sync(self.tensors["unetxl"]["time_ids"], time_ids)
-        run_model_sync(self.models["unetxl"], self.model_args["unetxl"])
+        copy_tensor_sync(self.tensors[model]["text_embeds"], text_embeddings)
+        copy_tensor_sync(self.tensors[model]["timestep"], timestep)
+        copy_tensor_sync(self.tensors[model]["time_ids"], time_ids)
+        run_model_sync(self.models[model], self.model_args[model])
 
         noise_pred_text, noise_pred_uncond = torch.tensor_split(
-            self.tensors["unetxl"][get_output_name(0)], 2)
+            self.tensors[model][get_output_name(0)], 2)
 
         # perform guidance
         noise_pred = noise_pred_uncond + scale * (noise_pred_text -
@@ -461,16 +542,34 @@ class StableDiffusionMGX():
             run_model_sync(self.models["unetxl"], self.model_args["unetxl"])
             run_model_sync(self.models["vae"], self.model_args["vae"])
 
+        if self.use_refiner:
+            copy_tensor_sync(self.tensors["refiner_unetxl"]["sample"],
+                             torch.randn((2, 4, 128, 128)).to(torch.float32))
+            copy_tensor_sync(
+                self.tensors["refiner_unetxl"]["encoder_hidden_states"],
+                torch.randn((2, 77, 1280)).to(torch.float16))
+            copy_tensor_sync(self.tensors["refiner_unetxl"]["text_embeds"],
+                             torch.randn((2, 1280)).to(torch.float16))
+            copy_tensor_sync(self.tensors["refiner_unetxl"]["time_ids"],
+                             torch.randn((2, 5)).to(torch.float16))
+            copy_tensor_sync(self.tensors["refiner_unetxl"]["timestep"],
+                             torch.randn((1)).to(torch.float32))
+            for _ in range(num_runs):
+                run_model_sync(self.models["refiner_unetxl"],
+                               self.model_args["refiner_unetxl"])
+
 
 if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.fp16, args.force_compile,
-                            args.exhaustive_tune)
+                            args.refiner_onnx_model_path,
+                            args.refiner_compiled_model_path, args.fp16,
+                            args.force_compile, args.exhaustive_tune)
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
-                    args.scale)
+                    args.scale, args.refiner_aesthetic_score,
+                    args.refiner_negative_aesthetic_score)
 
     print("Convert result to rgb image...")
     image = StableDiffusionMGX.convert_to_rgb_image(result)

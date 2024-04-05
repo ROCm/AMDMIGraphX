@@ -38,6 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 cpp_generator::function&
 cpp_generator::function::set_body(const module& m, const cpp_generator::generate_module_callback& g)
 {
+    const std::string prefix = "zz";
     std::unordered_map<migraphx::instruction_ref, std::string> names;
     std::stringstream ss;
 
@@ -53,13 +54,13 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         }
         else if(ins->name() == "@return")
         {
-            names[ins] = "zreturn";
-            ss << "auto zreturn = " << g(ins, names) << ";\n";
+            names[ins] = prefix + "return";
+            ss << "auto " << prefix << "return = " << g(ins, names) << ";\n";
             return_ins = ins;
         }
         else
         {
-            std::string n = "z" + std::to_string(names.size());
+            std::string n = prefix + std::to_string(names.size());
             names[ins]    = n;
             ss << "auto " << n << " = " << g(ins, names) << ";\n";
         }

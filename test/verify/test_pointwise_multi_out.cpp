@@ -38,9 +38,9 @@ struct test_pointwise_multi_out : verify_program<test_pointwise_multi_out>
         auto z2  = mm->add_parameter("z2", s);
         auto* pm = p.create_module("pointwise");
         {
-            auto x1  = pm->add_parameter("x1", {migraphx::shape::float_type});
-            auto x2  = pm->add_parameter("x2", {migraphx::shape::float_type});
-            auto add = pm->add_instruction(migraphx::make_op("add"), x1, x2);
+            auto x1   = pm->add_parameter("x1", {migraphx::shape::float_type});
+            auto x2   = pm->add_parameter("x2", {migraphx::shape::float_type});
+            auto add  = pm->add_instruction(migraphx::make_op("add"), x1, x2);
             auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), add);
             pm->add_return({add, sqrt});
         }

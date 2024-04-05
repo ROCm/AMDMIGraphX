@@ -464,9 +464,9 @@ TEST_CASE(module_split2)
     migraphx::module input_m;
     std::vector<migraphx::instruction_ref> inputs;
     {
-        auto x1 = input_m.add_parameter("x1", s);
-        auto x2 = input_m.add_parameter("x2", s);
-        auto x3 = input_m.add_parameter("x3", s);
+        auto x1  = input_m.add_parameter("x1", s);
+        auto x2  = input_m.add_parameter("x2", s);
+        auto x3  = input_m.add_parameter("x3", s);
         auto sx1 = input_m.add_instruction(migraphx::make_op("sqrt"), x1);
         auto sx2 = input_m.add_instruction(migraphx::make_op("sqrt"), x2);
         auto sx3 = input_m.add_instruction(migraphx::make_op("sqrt"), x3);
@@ -515,8 +515,8 @@ TEST_CASE(module_split3)
     migraphx::module input_m;
     std::vector<migraphx::instruction_ref> inputs;
     {
-        auto x1 = input_m.add_parameter("x1", s);
-        auto x2 = input_m.add_parameter("x2", s);
+        auto x1  = input_m.add_parameter("x1", s);
+        auto x2  = input_m.add_parameter("x2", s);
         auto sx1 = input_m.add_instruction(migraphx::make_op("sqrt"), x1);
         auto sx2 = input_m.add_instruction(migraphx::make_op("sqrt"), x2);
         inputs   = {sx1, sx2};

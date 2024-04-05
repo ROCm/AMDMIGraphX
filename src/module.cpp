@@ -643,7 +643,8 @@ std::vector<shape> module::get_output_shapes() const
     }
 }
 
-std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs, compute_shapes_options options) const
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
+                                          compute_shapes_options options) const
 {
     auto params = this->get_parameter_names();
     std::sort(params.begin(), params.end());
@@ -659,17 +660,18 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs, comp
         if(ins->name() == "@param")
         {
             ins_shapes[ins] =
-                adjusted_param_shapes[any_cast<builtin::param>(ins->get_operator())
-                                              .parameter];
+                adjusted_param_shapes[any_cast<builtin::param>(ins->get_operator()).parameter];
             if(options.strict_type and ins->get_shape().type() != ins_shapes[ins].type())
             {
-                MIGRAPHX_THROW(options.name +
-                    ": Mismatched type: expected " + ins->get_shape().type_string() + " but passed " + ins_shapes[ins].type_string());
+                MIGRAPHX_THROW(options.name + ": Mismatched type: expected " +
+                               ins->get_shape().type_string() + " but passed " +
+                               ins_shapes[ins].type_string());
             }
             if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
             {
-                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" + to_string_range(ins->get_shape().lens()) + "} but passed {" + 
-                    to_string_range(ins_shapes[ins].lens()) + "}");
+                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
+                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
+                               to_string_range(ins_shapes[ins].lens()) + "}");
             }
         }
         else if(ins->name() == "@literal")

@@ -31,7 +31,8 @@ def main():
     args = get_args()
     # Note: This will load the models, which can take several minutes
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.force_compile, args.exhaustive_tune)
+                            args.fp16, args.force_compile,
+                            args.exhaustive_tune)
     sd.warmup(5)
 
     def gr_wrapper(prompt, negative_prompt, steps, seed, scale):

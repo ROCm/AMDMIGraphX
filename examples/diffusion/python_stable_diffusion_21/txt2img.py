@@ -67,6 +67,13 @@ def get_args():
     )
 
     parser.add_argument(
+        "--fp16",
+        choices=["all", "vae", "clip", "unet"],
+        nargs="+",
+        help="Quantize models with fp16 precision.",
+    )
+
+    parser.add_argument(
         "--force-compile",
         action="store_true",
         default=False,
@@ -187,8 +194,8 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path, force_compile,
-                 exhaustive_tune):
+    def __init__(self, onnx_model_path, compiled_model_path, fp16,
+                 force_compile, exhaustive_tune):
         model_id = "stabilityai/stable-diffusion-2-1"
         print(f"Using {model_id}")
 
@@ -199,6 +206,10 @@ class StableDiffusionMGX():
         print("Creating CLIPTokenizer tokenizer...")
         self.tokenizer = CLIPTokenizer.from_pretrained(model_id,
                                                        subfolder="tokenizer")
+        if fp16 is None:
+            fp16 = []
+        elif "all" in fp16:
+            fp16 = ["vae", "clip", "unet"]
 
         print("Load models...")
         self.models = {
@@ -206,29 +217,33 @@ class StableDiffusionMGX():
             StableDiffusionMGX.load_mgx_model(
                 "vae_decoder", {"latent_sample": [1, 4, 64, 64]},
                 onnx_model_path,
-                compiled_model_path,
-                force_compile,
-                exhaustive_tune,
+                compiled_model_path=compiled_model_path,
+                use_fp16="vae" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
             "clip":
-            StableDiffusionMGX.load_mgx_model("text_encoder",
-                                              {"input_ids": [2, 77]},
-                                              onnx_model_path,
-                                              compiled_model_path,
-                                              force_compile,
-                                              exhaustive_tune,
-                                              offload_copy=False),
+            StableDiffusionMGX.load_mgx_model(
+                "text_encoder", {"input_ids": [2, 77]},
+                onnx_model_path,
+                compiled_model_path=compiled_model_path,
+                use_fp16="clip" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False),
             "unet":
-            StableDiffusionMGX.load_mgx_model("unet", {
-                "sample": [2, 4, 64, 64],
-                "encoder_hidden_states": [2, 77, 1024],
-                "timestep": [1],
-            },
-                                              onnx_model_path,
-                                              compiled_model_path,
-                                              force_compile,
-                                              exhaustive_tune,
-                                              offload_copy=False)
+            StableDiffusionMGX.load_mgx_model(
+                "unet", {
+                    "sample": [2, 4, 64, 64],
+                    "encoder_hidden_states": [2, 77, 1024],
+                    "timestep": [1],
+                },
+                onnx_model_path,
+                compiled_model_path=compiled_model_path,
+                use_fp16="unet" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False)
         }
 
         self.tensors = {
@@ -286,6 +301,7 @@ class StableDiffusionMGX():
                        shapes,
                        onnx_model_path,
                        compiled_model_path=None,
+                       use_fp16=False,
                        force_compile=False,
                        exhaustive_tune=False,
                        offload_copy=True):
@@ -293,7 +309,7 @@ class StableDiffusionMGX():
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
         onnx_file = f"{onnx_model_path}/{name}/model.onnx"
-        mxr_file = f"{compiled_model_path}/{name}/model{'_gpu' if not offload_copy else '_oc'}.mxr"
+        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_{'gpu' if not offload_copy else 'oc'}.mxr"
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
@@ -301,6 +317,8 @@ class StableDiffusionMGX():
             print(f"No mxr found at {mxr_file}")
             print(f"Parsing from {onnx_file}")
             model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
+            if use_fp16:
+                mgx.quantize_fp16(model)
             model.compile(mgx.get_target("gpu"),
                           exhaustive_tune=exhaustive_tune,
                           offload_copy=offload_copy)
@@ -394,7 +412,8 @@ if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.force_compile, args.exhaustive_tune)
+                            args.fp16, args.force_compile,
+                            args.exhaustive_tune)
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)

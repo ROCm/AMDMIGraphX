@@ -96,9 +96,11 @@ static std::vector<instruction_ref> find_split(const_module_ref rm)
     if(reduce_ins == rm->end())
         return result;
     // Bail if there is more than one reduce for now
+    // TODO: Support multiple reductions
     if(std::any_of(std::next(reduce_ins), rm->end(), &is_reduce))
         return result;
     // Only handle reduce_sum for now
+    // TODO: Support other reduction types
     if(reduce_ins->name() != "reduce_sum")
         return result;
     result.push_back(reduce_ins);
@@ -163,6 +165,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         if(splits.empty())
             continue;
         // Only use split reduce with float for now
+        // TODO: Support half and other data types
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
                return split->get_shape().type() == shape::float_type;
            }))

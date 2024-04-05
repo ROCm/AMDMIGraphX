@@ -35,7 +35,6 @@ from functools import wraps
 
 # measurement helper
 def measure(fn):
-
     @wraps(fn)
     def measure_ms(*args, **kwargs):
         start_time = time.perf_counter_ns()
@@ -180,8 +179,7 @@ def run_model_sync(model, args):
 def allocate_torch_tensors(model):
     input_shapes = model.get_parameter_shapes()
     data_mapping = {
-        name:
-        torch.zeros(shape.lens()).to(
+        name: torch.zeros(shape.lens()).to(
             mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
         for name, shape in input_shapes.items()
     }
@@ -189,7 +187,6 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-
     def __init__(self, onnx_model_path, compiled_model_path, force_compile,
                  exhaustive_tune):
         model_id = "stabilityai/stable-diffusion-2-1"

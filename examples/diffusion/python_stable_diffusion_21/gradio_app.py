@@ -27,7 +27,6 @@ import gradio as gr
 
 
 def main():
-    # we ignore runtime args here
     args = get_args()
     # Note: This will load the models, which can take several minutes
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
@@ -43,12 +42,14 @@ def main():
     demo = gr.Interface(
         gr_wrapper,
         [
-            gr.Textbox(value="a photograph of an astronaut riding a horse",
-                       label="Prompt"),
-            gr.Textbox(value="", label="Negative prompt (Optional)"),
-            gr.Slider(1, 100, step=1, value=20, label="Number of steps"),
-            gr.Textbox(value=13, label="Random seed"),
-            gr.Slider(1, 20, step=0.1, value=7.0, label="Guidance scale"),
+            gr.Textbox(value=args.prompt, label="Prompt"),
+            gr.Textbox(value=args.negative_prompt,
+                       label="Negative prompt (Optional)"),
+            gr.Slider(
+                1, 100, step=1, value=args.steps, label="Number of steps"),
+            gr.Textbox(value=args.seed, label="Random seed"),
+            gr.Slider(
+                1, 20, step=0.1, value=args.scale, label="Guidance scale"),
         ],
         "image",
     )

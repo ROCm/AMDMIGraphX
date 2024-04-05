@@ -61,7 +61,7 @@ pip install -r gradio_requirements.txt
 Usage
 
 ```bash
-python gradio_app.py
+python gradio_app.py -p "a photograph of an astronaut riding a horse" --seed 13
 ```
 
 This will load the models (which can take several minutes), and when the setup is ready, starts a server on `http://127.0.0.1:7860`.

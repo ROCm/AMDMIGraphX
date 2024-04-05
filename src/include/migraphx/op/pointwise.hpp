@@ -47,11 +47,12 @@ struct pointwise
         }
         if(inputs.empty())
             MIGRAPHX_THROW("pointwise should have at least one input");
-        auto* pm = mods.front();
+        auto* pm    = mods.front();
         auto pnames = pm->get_parameter_names();
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
 
-        auto result = pm->compute_shapes(inputs, {.name=name(), .strict_type = true, .strict_lens= false});
+        auto result =
+            pm->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = false});
         if(result.size() == 1)
             return result.front();
         return shape{result};
@@ -79,13 +80,14 @@ struct pointwise
                 [&](auto&& name, auto&& arg) { return std::make_pair(name, arg.element(i)); });
 
             auto results = run(pm, params);
-            assert(results.size() == output.get_sub_objects().size() or (results.size() == 1 and output.get_sub_objects().empty()));
+            assert(results.size() == output.get_sub_objects().size() or
+                   (results.size() == 1 and output.get_sub_objects().empty()));
             std::vector<argument> outputs;
             if(results.size() == 1)
                 outputs = {output.share()};
             else
                 outputs = output.share().get_sub_objects();
-            for(auto j:range(results.size()))
+            for(auto j : range(results.size()))
                 visit_all(outputs[j], results[j])([&](auto out, auto x) { out[i] = x.front(); });
         });
         return output;

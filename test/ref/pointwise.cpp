@@ -62,16 +62,16 @@ TEST_CASE(pointwise_multi_out_test)
     auto l2  = mm->add_literal(migraphx::literal{s, {1, 16, 3}});
     auto* pm = p.create_module("pointwise");
     {
-        auto x1  = pm->add_parameter("x1", {migraphx::shape::float_type});
-        auto x2  = pm->add_parameter("x2", {migraphx::shape::float_type});
-        auto add = pm->add_instruction(migraphx::make_op("add"), x1, x2);
+        auto x1   = pm->add_parameter("x1", {migraphx::shape::float_type});
+        auto x2   = pm->add_parameter("x2", {migraphx::shape::float_type});
+        auto add  = pm->add_instruction(migraphx::make_op("add"), x1, x2);
         auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), add);
         pm->add_return({add, sqrt});
     }
     mm->add_instruction(migraphx::make_op("pointwise"), {l1, l2}, {pm});
     p.compile(migraphx::make_target("ref"));
     auto results = p.eval({}).back().get_sub_objects();
-    
+
     std::vector<float> gold1 = {0, 16, 4};
     std::vector<float> gold2 = {0, 4, 2};
     EXPECT(results[0].to_vector<float>() == gold1);

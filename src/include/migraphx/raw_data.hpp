@@ -192,13 +192,11 @@ struct raw_data : raw_data_base
         return ss.str();
     }
 
-    template<class T>
+    template <class T>
     std::vector<T> to_vector() const
     {
         std::vector<T> result(static_cast<const Derived&>(*this).get_shape().elements());
-        this->visit([&](auto x) {
-            result.assign(x.begin(), x.end());
-        });
+        this->visit([&](auto x) { result.assign(x.begin(), x.end()); });
         return result;
     }
 };

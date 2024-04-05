@@ -150,7 +150,8 @@ struct mlir_op
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
 
-        auto result = mod->compute_shapes(inputs, {.name=name(), .strict_type = true, .strict_lens= true});
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
         if(result.size() == 1)
             return result.front();
         return shape{result};

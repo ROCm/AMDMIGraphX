@@ -177,7 +177,7 @@ def run_model_sync(model, args):
     mgx.gpu_sync()
 
 
-def allocate_torch_buffers(model):
+def allocate_torch_tensors(model):
     input_shapes = model.get_parameter_shapes()
     data_mapping = {
         name:
@@ -235,9 +235,9 @@ class StableDiffusionMGX():
         }
 
         self.tensors = {
-            "clip": allocate_torch_buffers(self.models["clip"]),
-            "unet": allocate_torch_buffers(self.models["unet"]),
-            "vae": allocate_torch_buffers(self.models["vae"]),
+            "clip": allocate_torch_tensors(self.models["clip"]),
+            "unet": allocate_torch_tensors(self.models["unet"]),
+            "vae": allocate_torch_tensors(self.models["vae"]),
         }
 
         self.model_args = {

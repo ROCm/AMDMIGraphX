@@ -693,7 +693,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
     }
     MIGRAPHX_THROW("No return found in the submodule");
 }
-}
+
 std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs) const
 {
     return compute_shapes(inputs, {});

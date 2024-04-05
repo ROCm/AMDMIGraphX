@@ -786,9 +786,15 @@ select_params(const std::vector<instruction_ref>& instructions,
 {
     std::vector<instruction_ref> result;
     std::vector<instruction_ref> params;
-    std::copy_if(instructions.begin(), instructions.end(), std::back_inserter(params), [&](instruction_ref ins) { return contains(param_map, ins); });
+    std::copy_if(instructions.begin(),
+                 instructions.end(),
+                 std::back_inserter(params),
+                 [&](instruction_ref ins) { return contains(param_map, ins); });
     sort_params(params);
-    std::transform(params.begin(), params.end(), std::back_inserter(result), [&](instruction_ref ins) { return param_map.at(ins); });
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(result),
+                   [&](instruction_ref ins) { return param_map.at(ins); });
     return result;
 }
 

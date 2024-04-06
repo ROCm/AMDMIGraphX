@@ -79,13 +79,14 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.kernel_name    = v.get("kernel", "kernel");
         options.set_launch_params(
             v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
-        auto src = interpolate_string(pointwise_kernel,
-                                      {{"kernel", options.kernel_name},
-                                       {"params", enum_params(options.inputs.size(), "void * private_p")},
-                                       {"args", enum_params(options.inputs.size(), "private_p")},
-                                       {"lambda", v.at("lambda").to<std::string>()},
-                                       {"transformers", make_transformer_args(vec)},
-                                       {"preamble", v.get("preamble", std::string{})}});
+        auto src =
+            interpolate_string(pointwise_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(vec)},
+                                {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);
     }
 

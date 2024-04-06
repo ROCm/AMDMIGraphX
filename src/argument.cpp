@@ -105,7 +105,7 @@ void argument::assign_buffer(std::function<char*()> d)
 std::vector<argument> flatten(const std::vector<argument>& args)
 {
     std::vector<argument> result;
-    for(const auto& arg:args)
+    for(const auto& arg : args)
     {
         if(arg.get_shape().type() == shape::tuple_type)
         {

@@ -30,22 +30,30 @@
 #include <migraphx/kernels/preload.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 #include <migraphx/kernels/args.hpp>
+#include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 
-template <class F, class T, class... Ts>
-__device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
+template <index_int N, class F, class Output, class T, class... Ts>
+__device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
 {
-    idx.global_stride(out.get_shape().elements(),
-                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
+    idx.global_stride(x.get_shape().elements(),
+                      [&](auto i) {
+                            auto r = f(x[i], xs[i]...);
+                            out([&](auto... outs) {
+                                sequence_c<N>([&](auto... is) {
+                                    swallow{(outs[i] = implicit_conversion(r[is]))...};
+                                });
+                            });
+                        });
 }
 
-template <class... Transforms>
+template <index_int N, class... Transforms>
 __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
-        auto t = transform_args(make_tensors(), rotate_last(), transforms...);
-        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
+        auto t = transform_args(make_tensors(), rotate_and_pack_last<N>(), transforms...);
+        t(ps...)([&](auto... xs) { pointwise_tensor<N>(idx, f, xs...); });
     };
 }
 

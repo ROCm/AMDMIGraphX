@@ -47,7 +47,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     auto idx = make_index();
-    pointwise(idx, ${transformers})(${lambda}, ${args});
+    pointwise<${noutputs}>(idx, ${transformers})(${lambda}, ${args});
 }
     
 }
@@ -79,6 +79,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.kernel_name    = v.get("kernel", "kernel");
         options.set_launch_params(
             v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+        auto noutputs = options.inputs.size() - inputs.size() + 1;
         auto src =
             interpolate_string(pointwise_kernel,
                                {{"kernel", options.kernel_name},
@@ -86,6 +87,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
                                 {"args", enum_params(options.inputs.size(), "private_p")},
                                 {"lambda", v.at("lambda").to<std::string>()},
                                 {"transformers", make_transformer_args(vec)},
+                                {"noutputs", std::to_string(noutputs)},
                                 {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);
     }

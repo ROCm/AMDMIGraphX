@@ -291,15 +291,41 @@ inline constexpr auto transform_args()
     return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
 
-// Rotate the first argument to the last argument
-inline constexpr auto rotate_last()
+// Rotate the last N arguments to the first N arguments
+template<index_int N>
+constexpr auto rotate_last()
 {
     return make_transform([](auto f, auto... xs) {
         return sequence_c<sizeof...(xs)>([&](auto... is) {
             constexpr auto size = sizeof...(is);
-            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+            return f(arg_c<(is + size - N) % size>()(xs...)...);
         });
     });
+}
+
+inline constexpr auto rotate_last()
+{
+    return rotate_last<1>();
+}
+
+// Pack the first N arguments
+template<index_int N>
+constexpr auto pack_first()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<N>([&](auto... is) {
+            return sequence_c<sizeof...(xs) - N>([&](auto... js) {
+                return f(pack(arg_c<is>()(xs...)...), arg_c<js>()(xs...)...);
+            });
+        });
+    });
+}
+
+// Rotate the last N arguments as the first argument packed
+template<index_int N>
+constexpr auto rotate_and_pack_last()
+{
+    return transform_args(rotate_last<N>(), pack_first<N>());
 }
 
 } // namespace migraphx

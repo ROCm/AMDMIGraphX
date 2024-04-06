@@ -292,7 +292,7 @@ inline constexpr auto transform_args()
 }
 
 // Rotate the last N arguments to the first N arguments
-template<index_int N>
+template <index_int N>
 constexpr auto rotate_last()
 {
     return make_transform([](auto f, auto... xs) {
@@ -303,26 +303,22 @@ constexpr auto rotate_last()
     });
 }
 
-inline constexpr auto rotate_last()
-{
-    return rotate_last<1>();
-}
+inline constexpr auto rotate_last() { return rotate_last<1>(); }
 
 // Pack the first N arguments
-template<index_int N>
+template <index_int N>
 constexpr auto pack_first()
 {
     return make_transform([](auto f, auto... xs) {
         return sequence_c<N>([&](auto... is) {
-            return sequence_c<sizeof...(xs) - N>([&](auto... js) {
-                return f(pack(arg_c<is>()(xs...)...), arg_c<js>()(xs...)...);
-            });
+            return sequence_c<sizeof...(xs) - N>(
+                [&](auto... js) { return f(pack(arg_c<is>()(xs...)...), arg_c<js>()(xs...)...); });
         });
     });
 }
 
 // Rotate the last N arguments as the first argument packed
-template<index_int N>
+template <index_int N>
 constexpr auto rotate_and_pack_last()
 {
     return transform_args(rotate_last<N>(), pack_first<N>());

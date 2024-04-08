@@ -40,9 +40,7 @@ __device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
     idx.global_stride(x.get_shape().elements(), [&](auto i) {
         auto r = f(x[i], xs[i]...);
         out([&](auto... outs) {
-            r([&](auto... rs) {
-                swallow{(outs[i] = implicit_conversion(rs))...};
-            });
+            r([&](auto... rs) { swallow{(outs[i] = implicit_conversion(rs))...}; });
         });
     });
 }

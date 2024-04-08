@@ -41,14 +41,14 @@ struct test_pointwise_multi_out : verify_program<test_pointwise_multi_out>
             auto x1   = pm->add_parameter("x1", {migraphx::shape::float_type});
             auto x2   = pm->add_parameter("x2", {migraphx::shape::float_type});
             auto add  = pm->add_instruction(migraphx::make_op("add"), x1, x2);
-            auto abs = pm->add_instruction(migraphx::make_op("abs"), add);
+            auto abs  = pm->add_instruction(migraphx::make_op("abs"), add);
             auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), abs);
             pm->add_return({add, sqrt});
         }
         pm->set_bypass();
         auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {z1, z2}, {pm});
-        auto e0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pw);
-        auto e1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pw);
+        auto e0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pw);
+        auto e1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pw);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), e0, e1);
         mm->add_return({sub});
         return p;

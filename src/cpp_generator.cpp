@@ -127,7 +127,7 @@ struct cpp_generator_impl
     std::function<std::string(std::string)> fmap              = nullptr;
     std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
-    bool always_return_tuple = false;
+    bool always_return_tuple                                  = false;
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 

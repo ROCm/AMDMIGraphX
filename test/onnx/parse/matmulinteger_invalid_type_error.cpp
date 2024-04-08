@@ -22,27 +22,9 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/register_target.hpp>
-#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(matmulinteger_uns_test)
+TEST_CASE(matmulinteger_type_error_test)
 {
-    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_test.onnx");
-    p.compile(migraphx::make_target("ref"));
-
-    migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};
-    std::vector<uint8_t> data0 = {11, 7, 3, 10, 6, 2, 9, 5, 1, 8, 4, 0};
-    migraphx::shape s1{migraphx::shape::uint8_type, {3, 2}};
-    std::vector<uint8_t> data1 = {1, 4, 2, 5, 3, 6};
-
-    migraphx::parameter_map pp;
-    pp["1"] = migraphx::argument(s0, data0.data());
-    pp["2"] = migraphx::argument(s1, data1.data());
-
-    auto result = p.eval(pp).back();
-    std::vector<int32_t> result_vector;
-    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {45730, 44641, 46108, 45010, 46486, 45379, 46864, 45748};
-    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+    EXPECT(test::throws([&] { migraphx::parse_onnx("matmulinteger_invalid_type_error.onnx"); }));
 }

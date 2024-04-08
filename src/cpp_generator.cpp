@@ -127,6 +127,7 @@ struct cpp_generator_impl
     std::function<std::string(std::string)> fmap              = nullptr;
     std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
+    bool always_return_tuple = false;
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
@@ -143,6 +144,8 @@ cpp_generator::~cpp_generator() noexcept = default;
 void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { impl->fmap = f; }
 
 void cpp_generator::fresult(const std::function<std::string(shape)>& f) { impl->fresult = f; }
+
+void cpp_generator::always_return_tuple(bool b) { impl->always_return_tuple = b; }
 
 void cpp_generator::add_point_op(const std::string& op_name, const std::string& code)
 {
@@ -227,7 +230,7 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
             if(ins->name() == "@return")
             {
                 // TODO: Customize the make_tuple call
-                if(ins->inputs().size() != 1)
+                if(impl->always_return_tuple or ins->inputs().size() != 1)
                     return "make_tuple(" + join_strings(to_args(ins->inputs(), names), ", ") + ")";
                 return names.at(ins->inputs().front());
             }

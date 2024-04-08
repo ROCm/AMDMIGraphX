@@ -95,6 +95,8 @@ struct MIGRAPHX_EXPORT cpp_generator
 
     void fresult(const std::function<std::string(shape)>& f);
 
+    void always_return_tuple(bool b = true);
+
     void add_point_op(const std::string& op_name, const std::string& code);
 
     std::string generate_point_op(const operation& op, const std::vector<std::string>& args);

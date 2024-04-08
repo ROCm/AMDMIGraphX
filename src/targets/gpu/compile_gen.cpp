@@ -180,12 +180,13 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
+static void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name, bool always_return_tuple = false)
 {
     module m = pm;
     run_passes(m, {rewrite_quantization{}, optimize_module{}});
     m.sort();
     cpp_generator g;
+    g.always_return_tuple(always_return_tuple);
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
     g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
@@ -205,7 +206,7 @@ void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& 
 std::string generate_pointwise(const module& pm, const std::string& name)
 {
     cpp_generator g;
-    generate_pointwise(g, pm, name);
+    generate_pointwise(g, pm, name, true);
     return g.str();
 }
 

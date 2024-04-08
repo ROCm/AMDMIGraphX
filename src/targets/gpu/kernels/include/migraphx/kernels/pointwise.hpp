@@ -34,13 +34,15 @@
 
 namespace migraphx {
 
-template <index_int N, class F, class Output, class T, class... Ts>
+template <class F, class Output, class T, class... Ts>
 __device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
 {
     idx.global_stride(x.get_shape().elements(), [&](auto i) {
         auto r = f(x[i], xs[i]...);
         out([&](auto... outs) {
-            sequence_c<N>([&](auto... is) { swallow{(outs[i] = implicit_conversion(r[is]))...}; });
+            r([&](auto... rs) {
+                swallow{(outs[i] = implicit_conversion(rs))...};
+            });
         });
     });
 }
@@ -50,7 +52,7 @@ __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
         auto t = transform_args(make_tensors(), rotate_and_pack_last<N>(), transforms...);
-        t(ps...)([&](auto... xs) { pointwise_tensor<N>(idx, f, xs...); });
+        t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
     };
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,14 +47,6 @@ static bool try_compute_shape(instruction_ref ins,
 
         // Cannot tell if a dynamic shape will need to be made contiguous
         if(new_shape.dynamic())
-        {
-            return false;
-        }
-
-        // If the instruction is a gemm and any of the inputs is broadcasted, the input needs to be
-        // made contiguous
-        if(contains(ins->name(), "gemm") and
-           any_of(inputs, [](const auto& sh) { return sh.broadcasted(); }))
         {
             return false;
         }

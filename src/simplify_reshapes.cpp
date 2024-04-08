@@ -722,7 +722,7 @@ struct find_unary_shape_transforms
         if(move_up and move_down)
         {
             if(x->name() == "@literal")
-                move_down = false;
+                move_down = false; // NOLINT(bugprone-branch-clone)
             else if(yops.empty())
                 move_up = false;
             else

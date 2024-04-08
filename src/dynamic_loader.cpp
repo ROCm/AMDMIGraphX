@@ -66,7 +66,7 @@ struct dynamic_loader_impl
         // attempt to load the library without the so version name.
         // For example, if "libmigraphx_ref.so.2010000.0" is not found,
         // try loading "libmigraphx_ref.so".
-        if(!handle)
+        if(not handle)
         {
             std::string lib_name        = p.string();
             std::string so_version_name = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";

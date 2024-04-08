@@ -58,8 +58,10 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        auto target_name = make_shared_object_filename("migraphx_" + name) + "." +
-                           std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
+        std::string so_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
+
+        // Default to loading shared libraries with so version in their name.
+        auto target_name = make_shared_object_filename("migraphx_" + name) + so_version;
         store_target_lib(dynamic_loader(target_name));
     }
     const auto it = target_map().find(name);

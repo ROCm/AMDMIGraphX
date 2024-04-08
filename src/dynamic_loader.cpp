@@ -68,17 +68,17 @@ struct dynamic_loader_impl
         // try loading "libmigraphx_ref.so".
         if(!handle)
         {
-            std::string lib_name = p.string();
+            std::string lib_name        = p.string();
             std::string so_version_name = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
 
             // Erase so_version_name from the name of the library.
             size_t pos = lib_name.find(so_version_name);
-            if (pos != std::string::npos)
+            if(pos != std::string::npos)
                 lib_name.erase(pos, so_version_name.length());
 
             // Load the library without the so version in the name.
             handle = std::shared_ptr<void>(dlopen(lib_name.c_str(), RTLD_GLOBAL | RTLD_NOW),
-                manage_deleter<decltype(&dlclose), &dlclose>{});
+                                           manage_deleter<decltype(&dlclose), &dlclose>{});
         }
         check_load_error();
     }

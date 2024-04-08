@@ -748,44 +748,6 @@ struct find_unary_shape_transforms
     }
 };
 
-// match sequence of transpose --> contiguous --> reshaper_op
-auto match_transpose_contiguous_reshaper()
-{
-    return match::name({"reshape", "squeeze", "unsqueeze"})(
-               match::used_once(),
-               match::args(
-                   match::name("contiguous")(
-                       match::used_once(), match::args(match::transpose_shape().bind("trans_ins")))
-                       .bind("cont_ins")))
-        .bind("reshaper_ins");
-};
-
-// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
-// application of this matcher moves the unary operation before the contiguous so it becomes
-// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
-// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
-// operator.
-struct find_transpose_contiguous_reshaper_unary
-{
-    auto matcher() const
-    {
-        return pointwise(match::used_once(),
-                         match::nargs(1),
-                         match::args(match_transpose_contiguous_reshaper()));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins           = r.result;
-        auto reshaper_ins  = r.instructions["reshaper_ins"];
-        auto trans_ins     = r.instructions["trans_ins"];
-        auto cont_ins      = r.instructions["cont_ins"];
-        auto unary_ins     = m.insert_instruction(cont_ins, ins->get_operator(), trans_ins);
-        // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
-    }
-};
-
 // simplifies broadcast->transpose to transpose->broadcast
 // in the case of a scalar, simply rewrite to broadcast
 // this can allow for further optimizations with find_inner_broadcast() in simplify_algebra.cpp
@@ -1071,7 +1033,6 @@ void simplify_reshapes::apply(module& m) const
                             find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},
-                            find_transpose_contiguous_reshaper_unary{},
                             find_reshape_reshape_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);

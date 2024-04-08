@@ -40,7 +40,6 @@ if(MIGRAPHX_USE_ROCBLAS)
     message(STATUS "MIGraphX build with rocBLAS")
 else()
     message(STATUS "MIGraphX build without rocBLAS")
-    message(STATUS "MIGraphX use rocMLIR GEMM")
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)

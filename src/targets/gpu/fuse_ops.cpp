@@ -654,7 +654,7 @@ struct find_gemm_pointwise
             gemm.beta = 1;
 
         if(not update_gemm(
-            gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
+                gemm, ins->module_inputs().front(), ins->inputs().front() == gemm_ins ? 0 : 1))
             return;
 
         auto inputs = gemm_ins->inputs();

@@ -312,7 +312,7 @@ constexpr auto pack_first()
     return make_transform([](auto f, auto... xs) {
         return sequence_c<N>([&](auto... is) {
             return sequence_c<sizeof...(xs) - N>(
-                [&](auto... js) { return f(pack(arg_c<is>()(xs...)...), arg_c<js>()(xs...)...); });
+                [&](auto... js) { return f(pack(arg_c<is>()(xs...)...), arg_c<js+N>()(xs...)...); });
         });
     });
 }

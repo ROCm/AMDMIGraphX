@@ -42,7 +42,7 @@ __device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
         out([&](auto... outs) {
             r([&](auto... rs) {
                 static_assert(sizeof...(outs) == sizeof...(rs));
-                swallow{(outs[i] = implicit_conversion(rs))...}; 
+                swallow{(outs[i] = implicit_conversion(rs))...};
             });
         });
     });

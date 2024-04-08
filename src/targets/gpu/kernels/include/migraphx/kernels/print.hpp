@@ -219,16 +219,14 @@ template <class Stream, class T, class... Ts>
 __device__ void unsafe_print_each(Stream s, T x, Ts... xs)
 {
     s << x;
-    each_args([&](auto xx) {
-        s << ' ' << xx;
-    }, xs...);
+    each_args([&](auto xx) { s << ' ' << xx; }, xs...);
 }
 
 template <class Stream, class... Ts>
 __device__ void print_each(Stream s, Ts... xs)
 {
     auto idx = make_index();
-    for(auto i = 0;i< idx.nglobal();i++)
+    for(auto i = 0; i < idx.nglobal(); i++)
     {
         if(i == idx.global)
             unsafe_print_each(s, xs...);

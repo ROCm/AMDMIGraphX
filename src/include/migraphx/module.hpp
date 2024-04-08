@@ -203,6 +203,7 @@ struct MIGRAPHX_EXPORT module
         std::string name = "compute_shapes";
         bool strict_type = false;
         bool strict_lens = false;
+        std::vector<std::size_t> scalar_const_out_lens = {};
     };
     std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
                                       compute_shapes_options options) const;

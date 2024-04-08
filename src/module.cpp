@@ -676,7 +676,15 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
         }
         else if(ins->name() == "@literal")
         {
-            ins_shapes[ins] = ins->get_shape();
+            if(not options.scalar_const_out_lens.empty() and ins->get_shape().scalar())
+            {
+                std::vector<std::size_t> strides(options.scalar_const_out_lens.size());
+                ins_shapes[ins] = shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
+            }
+            else
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
         }
         else
         {
@@ -685,7 +693,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
             std::transform(ins->inputs().begin(),
                            ins->inputs().end(),
                            input_shapes.begin(),
-                           [&](auto in) { return ins_shapes[in]; });
+                           [&](auto in) { return ins_shapes.at(in); });
             if(ins->name() == "@return")
                 return input_shapes;
             ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);

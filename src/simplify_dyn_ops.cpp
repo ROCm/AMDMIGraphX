@@ -34,7 +34,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
- *    Replace broadcast_with_dims operators with a static input tensor and a constant `dims` input
+ *    Convert broadcast_with_dims operators with a static input tensor and a constant `dims` input
  *    into multibroadcast op with a static output shape attribute.
  *
  */
@@ -53,8 +53,7 @@ struct find_broadcast_with_dims_static
         auto inputs = ins->inputs();
 
         // read the values of arg(1) to create input to multibroadcast
-        std::vector<size_t> sizes_vec(inputs.at(0)->get_shape().ndim());
-
+        std::vector<size_t> sizes_vec;
         inputs.at(1)->eval().visit(
             [&](auto output) { sizes_vec.assign(output.begin(), output.end()); });
 

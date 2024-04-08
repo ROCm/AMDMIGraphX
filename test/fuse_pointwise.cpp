@@ -549,4 +549,31 @@ TEST_CASE(add_reshape_add_error)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(disable_fusion_double_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        mm->add_return({add2});
+    }
+    migraphx::run_passes(p1, {migraphx::fuse_pointwise{true}, migraphx::dead_code_elimination{}});
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto z    = mm->add_parameter("z", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto add2 = add_pointwise(p2, "main:pointwise1", {add1, z}, single_pointwise("add"));
+        mm->add_return({add2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -34,8 +34,6 @@
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -208,7 +206,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     mpm.run_pass(eliminate_identity{});
     size_t pointwise_cnt = 0;
-    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
+    if(disable_fusion)
     {
         create_pointwise_modules(mpm, pointwise_cnt, {"layout"});
         mpm.run_pass(dead_code_elimination{});

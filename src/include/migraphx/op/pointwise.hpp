@@ -51,8 +51,9 @@ struct pointwise
         auto pnames = pm->get_parameter_names();
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
 
-        auto result =
-            pm->compute_shapes(inputs, {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
+        auto result = pm->compute_shapes(
+            inputs,
+            {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
         if(result.size() == 1)
             return result.front();
         return shape{result};

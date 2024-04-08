@@ -679,7 +679,8 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
             if(not options.scalar_const_out_lens.empty() and ins->get_shape().scalar())
             {
                 std::vector<std::size_t> strides(options.scalar_const_out_lens.size());
-                ins_shapes[ins] = shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
+                ins_shapes[ins] =
+                    shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
             }
             else
             {

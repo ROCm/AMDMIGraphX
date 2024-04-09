@@ -461,7 +461,7 @@ class StableDiffusionMGX():
                                         time_ids,
                                         model="unetxl")
 
-        if self.use_refiner:
+        if self.use_refiner and refiner_steps > 0:
             # only use the clip2 part
             hidden_states = hidden_states[:, :, 768:]
             # input h/w crop h/w scores

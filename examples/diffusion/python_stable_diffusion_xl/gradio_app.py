@@ -61,11 +61,11 @@ def main():
             gr.Textbox(value=args.seed, label="Random seed"),
             gr.Slider(
                 1, 20, step=0.1, value=args.scale, label="Guidance scale"),
-            gr.Slider(1,
+            gr.Slider(0,
                       100,
                       step=1,
                       value=args.refiner_steps,
-                      label="Number of refiner steps",
+                      label="Number of refiner steps. Use 0 to skip it",
                       visible=args.use_refiner),
             gr.Slider(1,
                       20,

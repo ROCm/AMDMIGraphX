@@ -74,7 +74,6 @@ target make_target(const std::string& name)
         catch(...)
         {
             // Load the library without the so version in the name.
-            std::cout << "In catch block..." << std::endl;
             store_target_lib(dynamic_loader(target_name));
         }
     }

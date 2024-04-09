@@ -75,7 +75,6 @@ struct rocblas_gemm
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.not_broadcasted();
         std::vector<shape> in_shapes(inputs);
         in_shapes.pop_back();
         // When input shapes are A, B, C the GEMM equation is  C  =  α AB+ β C   where α, β are
@@ -87,7 +86,7 @@ struct rocblas_gemm
         if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
-            check_shapes{{cmat_shape}, *this}.not_transposed();
+            check_shapes{{cmat_shape}, *this}.not_transposed().not_broadcasted();
             in_shapes.pop_back();
             blas_shape(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);

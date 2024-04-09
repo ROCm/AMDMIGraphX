@@ -29,7 +29,8 @@ import gradio as gr
 def main():
     args = get_args()
     # Note: This will load the models, which can take several minutes
-    sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
+    sd = StableDiffusionMGX(args.pipeline_type, args.onnx_model_path,
+                            args.compiled_model_path,
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
                             args.force_compile, args.exhaustive_tune)

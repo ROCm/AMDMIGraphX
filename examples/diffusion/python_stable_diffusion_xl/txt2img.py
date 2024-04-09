@@ -52,6 +52,14 @@ def get_args():
     parser = ArgumentParser()
     # Model compile
     parser.add_argument(
+        "--pipeline-type",
+        type=str,
+        choices=["sdxl", "sdxl.opt", "sdxl-turbo"],
+        required=True,
+        help="Specify pipeline type. Options: `sdxl`, `sdxl.opt`, `sdxl-turbo`",
+    )
+
+    parser.add_argument(
         "--onnx-model-path",
         type=str,
         default="models/sdxl-1.0-base/",
@@ -166,6 +174,49 @@ def get_args():
     return parser.parse_args()
 
 
+model_shapes = {
+    "clip": {
+        "input_ids": [2, 77]
+    },
+    "clip2": {
+        "input_ids": [2, 77]
+    },
+    "unetxl": {
+        "sample": [2, 4, 128, 128],
+        "encoder_hidden_states": [2, 77, 2048],
+        "text_embeds": [2, 1280],
+        "time_ids": [2, 6],
+        "timestep": [1],
+    },
+    "refiner": {
+        "sample": [2, 4, 128, 128],
+        "encoder_hidden_states": [2, 77, 1280],
+        "text_embeds": [2, 1280],
+        "time_ids": [2, 5],
+        "timestep": [1],
+    },
+    "vae": {
+        "latent_sample": [1, 4, 128, 128]
+    },
+}
+
+model_names = {
+    "sdxl": {
+        "clip": "text_encoder",
+        "clip2": "text_encoder_2",
+        "unetxl": "unet",
+        "refiner": "unet",
+        "vae": "vae_decoder",
+    },
+    "sdxl.opt": {
+        "clip": "clip.opt.mod",
+        "clip2": "clip2.opt.mod",
+        "unetxl": "unetxl.opt",
+        "refiner": "unetxl.opt",
+        "vae": "vae_decoder",
+    }
+}
+
 mgx_to_torch_dtype_dict = {
     "bool_type": torch.bool,
     "uint8_type": torch.uint8,
@@ -223,10 +274,11 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path,
+    def __init__(self, pipeline_type, onnx_model_path, compiled_model_path,
                  refiner_onnx_model_path, refiner_compiled_model_path, fp16,
                  force_compile, exhaustive_tune):
-        model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+        is_turbo = "turbo" in pipeline_type
+        model_id = "stabilityai/sdxl-turbo" if is_turbo else "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
         print("Creating EulerDiscreteScheduler scheduler")
@@ -250,7 +302,8 @@ class StableDiffusionMGX():
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                "vae_decoder", {"latent_sample": [1, 4, 128, 128]},
+                model_names[pipeline_type]["vae"],
+                model_shapes["vae"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
@@ -259,7 +312,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "clip":
             StableDiffusionMGX.load_mgx_model(
-                "clip.opt.mod", {"input_ids": [2, 77]},
+                model_names[pipeline_type]["clip"],
+                model_shapes["clip"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip" in fp16,
@@ -268,7 +322,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "clip2":
             StableDiffusionMGX.load_mgx_model(
-                "clip2.opt.mod", {"input_ids": [2, 77]},
+                model_names[pipeline_type]["clip2"],
+                model_shapes["clip2"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip2" in fp16,
@@ -277,13 +332,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "unetxl":
             StableDiffusionMGX.load_mgx_model(
-                "unetxl.opt", {
-                    "sample": [2, 4, 128, 128],
-                    "encoder_hidden_states": [2, 77, 2048],
-                    "text_embeds": [2, 1280],
-                    "time_ids": [2, 6],
-                    "timestep": [1],
-                },
+                model_names[pipeline_type]["unetxl"],
+                model_shapes["unetxl"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="unetxl" in fp16,
@@ -308,14 +358,9 @@ class StableDiffusionMGX():
 
         self.use_refiner = refiner_onnx_model_path or refiner_compiled_model_path
         if self.use_refiner:
-            self.models["refiner_unetxl"] = StableDiffusionMGX.load_mgx_model(
-                "unetxl.opt", {
-                    "sample": [2, 4, 128, 128],
-                    "encoder_hidden_states": [2, 77, 1280],
-                    "text_embeds": [2, 1280],
-                    "time_ids": [2, 5],
-                    "timestep": [1],
-                },
+            self.models["refiner"] = StableDiffusionMGX.load_mgx_model(
+                model_names[pipeline_type]["refiner"],
+                model_shapes["refiner"],
                 refiner_onnx_model_path,
                 compiled_model_path=refiner_compiled_model_path,
                 use_fp16="unetxl" in fp16,
@@ -323,10 +368,10 @@ class StableDiffusionMGX():
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False)
 
-            self.tensors["refiner_unetxl"] = allocate_torch_tensors(
-                self.models["refiner_unetxl"])
-            self.model_args["refiner_unetxl"] = tensors_to_args(
-                self.tensors["refiner_unetxl"])
+            self.tensors["refiner"] = allocate_torch_tensors(
+                self.models["refiner"])
+            self.model_args["refiner"] = tensors_to_args(
+                self.tensors["refiner"])
 
     @measure
     @torch.no_grad()
@@ -392,7 +437,7 @@ class StableDiffusionMGX():
                                             t,
                                             scale,
                                             time_ids,
-                                            model="refiner_unetxl")
+                                            model="refiner")
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
@@ -543,26 +588,26 @@ class StableDiffusionMGX():
             run_model_sync(self.models["vae"], self.model_args["vae"])
 
         if self.use_refiner:
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["sample"],
+            copy_tensor_sync(self.tensors["refiner"]["sample"],
                              torch.randn((2, 4, 128, 128)).to(torch.float32))
-            copy_tensor_sync(
-                self.tensors["refiner_unetxl"]["encoder_hidden_states"],
-                torch.randn((2, 77, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["text_embeds"],
+            copy_tensor_sync(self.tensors["refiner"]["encoder_hidden_states"],
+                             torch.randn((2, 77, 1280)).to(torch.float16))
+            copy_tensor_sync(self.tensors["refiner"]["text_embeds"],
                              torch.randn((2, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["time_ids"],
+            copy_tensor_sync(self.tensors["refiner"]["time_ids"],
                              torch.randn((2, 5)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["timestep"],
+            copy_tensor_sync(self.tensors["refiner"]["timestep"],
                              torch.randn((1)).to(torch.float32))
             for _ in range(num_runs):
-                run_model_sync(self.models["refiner_unetxl"],
-                               self.model_args["refiner_unetxl"])
+                run_model_sync(self.models["refiner"],
+                               self.model_args["refiner"])
 
 
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
+    sd = StableDiffusionMGX(args.pipeline_type, args.onnx_model_path,
+                            args.compiled_model_path,
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
                             args.force_compile, args.exhaustive_tune)

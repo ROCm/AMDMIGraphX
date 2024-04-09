@@ -54,30 +54,60 @@ void workgroup_reversal::apply(module& m) const
                 ins->name() == "gpu::precompile_op");
     });
 
+    // // Apply reversals around non-mlir gemms and convolutions
+    // for(auto i : iterator_for(precomp_instrs))
+    // {
+    //     if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
+    //         continue;
+
+    //     instruction_ref ins      = *i;
+    //     instruction_ref prev_ins = *std::prev(i);
+    //     instruction_ref next_ins = *std::next(i);
+
+    //     if(blas_names.find(ins->name()) != blas_names.end())
+    //     {
+    //         reverse_wg(m, prev_ins);
+    //         reverse_wg(m, next_ins);
+    //     }
+    // }
+
+    // // Apply reversals for remaining precompile ops
+    // for(auto i : iterator_for(precomp_instrs))
+    // {
+    //     if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
+    //         continue;
+
+    //     if(std::all_of(std::prev(i), std::next(i), [](auto ins) {
+    //            return (ins->name() == "gpu::precompile_op" and
+    //                    not from_value<bool>(ins->get_operator().to_value()["reverse"]));
+    //        }))
+    //     {
+    //         reverse_wg(m, *i);
+    //     }
+    // }
+
     // Apply reversals around non-mlir gemms and convolutions
     for(auto i : iterator_for(precomp_instrs))
     {
-        if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
+        if(i == precomp_instrs.begin())
             continue;
 
         instruction_ref ins      = *i;
         instruction_ref prev_ins = *std::prev(i);
-        instruction_ref next_ins = *std::next(i);
 
         if(blas_names.find(ins->name()) != blas_names.end())
         {
             reverse_wg(m, prev_ins);
-            reverse_wg(m, next_ins);
         }
     }
 
     // Apply reversals for remaining precompile ops
     for(auto i : iterator_for(precomp_instrs))
     {
-        if(i == precomp_instrs.begin() or i == std::prev(precomp_instrs.end()))
+        if(i == precomp_instrs.begin())
             continue;
 
-        if(std::all_of(std::prev(i), std::next(i), [](auto ins) {
+        if(std::all_of(std::prev(i), i, [](auto ins) {
                return (ins->name() == "gpu::precompile_op" and
                        not from_value<bool>(ins->get_operator().to_value()["reverse"]));
            }))

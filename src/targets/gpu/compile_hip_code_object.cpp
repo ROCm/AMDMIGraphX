@@ -193,7 +193,8 @@ operation compile_hip_code_object(const std::string& content, hip_compile_option
 
     bool is_uniform_wg = options.global % options.local == 0;
 
-    if(!is_uniform_wg and options.reverse_workgroups)
+    // if(!is_uniform_wg and options.reverse_workgroups)
+    if(!is_uniform_wg)
     {
         options.global = options.local * (options.global / options.local + 1);
         is_uniform_wg = options.global % options.local == 0;

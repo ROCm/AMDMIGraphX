@@ -26,7 +26,6 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/tmp_dir.hpp>
-#include <migraphx/version.h>
 #include <utility>
 
 #ifdef _WIN32
@@ -62,24 +61,6 @@ struct dynamic_loader_impl
                  manage_deleter<decltype(&dlclose), &dlclose>{}),
           temp(std::move(t))
     {
-        // If library with so version name is not found,
-        // attempt to load the library without the so version name.
-        // For example, if "libmigraphx_ref.so.2010000.0" is not found,
-        // try loading "libmigraphx_ref.so".
-        if(not handle)
-        {
-            std::string lib_name        = p.string();
-            std::string so_version_name = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
-
-            // Erase so_version_name from the name of the library.
-            size_t pos = lib_name.find(so_version_name);
-            if(pos != std::string::npos)
-                lib_name.erase(pos, so_version_name.length());
-
-            // Load the library without the so version in the name.
-            handle = std::shared_ptr<void>(dlopen(lib_name.c_str(), RTLD_GLOBAL | RTLD_NOW),
-                                           manage_deleter<decltype(&dlclose), &dlclose>{});
-        }
         check_load_error();
     }
 

@@ -36,9 +36,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max     = 1ULL << (sizeof(T) * 8 - 1); // unsigned
-    const double range = max / 2;
-    double result      = -1.0 + double(z % max) / range;
+    const auto max     = 1ULL << (sizeof(T) * 8 - 1);
+    const double range = max / 2.0;
+    double result      = -1.0 + (z % max) / range;
     return T(result);
     // Expected output: between -1.0 and 1.0
 }
@@ -46,9 +46,10 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = 1LL << (sizeof(T) * 8 - 2); // signed
+    const long long max = 1ULL << (sizeof(T) * 8 - 2);
     const auto half_max = max / 2;
-    return half_max - (z % max);
+    auto result         = half_max - (z % max);
+    return T(result);
     // Expected output: between -half_max and half_max
 }
 
@@ -57,9 +58,9 @@ template <class T,
                             not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1ULL << (sizeof(T) * 8 - 1); // unsigned
+    const auto max = 1ULL << (sizeof(T) * 8 - 1);
     return z % max;
-    // Expected output: between 0 and max
+    // Expected output: between 0 and max - 1
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>

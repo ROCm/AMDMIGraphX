@@ -386,9 +386,11 @@ class StableDiffusionMGX():
 
         print("Creating text embeddings...")
         hidden_states, text_embeddings = self.get_embeddings(prompt_tokens)
-        # The opt version expects fp16 inputs
+        # The opt version expects fp16 inputs, the others fp32
         hidden_states, text_embeddings = hidden_states.to(
-            torch.float16), text_embeddings.to(torch.float16)
+            self.tensors["unetxl"]
+            ["encoder_hidden_states"].dtype), text_embeddings.to(
+                self.tensors["unetxl"]["encoder_hidden_states"].dtype)
 
         print(
             f"Creating random input data ({1}x{4}x{128}x{128}) (latents) with seed={seed}..."
@@ -398,8 +400,8 @@ class StableDiffusionMGX():
             generator=torch.manual_seed(seed)).to(device="cuda")
         # input h/w crop h/w output h/w
         time_id = [1024, 1024, 0, 0, 1024, 1024]
-        time_ids = torch.tensor([time_id,
-                                 time_id]).to(torch.float16).to(device="cuda")
+        time_ids = torch.tensor([time_id, time_id]).to(
+            self.tensors["unetxl"]["time_ids"]).to(device="cuda")
 
         print("Apply initial noise sigma\n")
         latents = noise * self.scheduler.init_noise_sigma
@@ -421,8 +423,8 @@ class StableDiffusionMGX():
             # input h/w crop h/w scores
             time_id_pos = time_id[:4] + [refiner_aesthetic_score]
             time_id_neg = time_id[:4] + [refiner_negative_aesthetic_score]
-            time_ids = torch.tensor([time_id_pos, time_id_neg
-                                     ]).to(torch.float16).to(device="cuda")
+            time_ids = torch.tensor([time_id_pos, time_id_neg]).to(
+                self.tensors["refiner"]["time_ids"]).to(device="cuda")
             # need to set this for each run
             self.scheduler.set_timesteps(steps, device="cuda")
             # Add noise to latents using timesteps
@@ -502,8 +504,9 @@ class StableDiffusionMGX():
     @measure
     def get_embeddings(self, prompt_tokens):
         def _create_embedding(model, input):
-            copy_tensor_sync(self.tensors[model]["input_ids"],
-                             input.input_ids.to(torch.int32))
+            copy_tensor_sync(
+                self.tensors[model]["input_ids"],
+                input.input_ids.to(self.tensors[model]["input_ids"].dtype))
             run_model_sync(self.models[model], self.model_args[model])
 
         clip_input, clip2_input = prompt_tokens
@@ -533,9 +536,11 @@ class StableDiffusionMGX():
                      time_ids, model):
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
-            latents_model_input, t).to(torch.float32).to(device="cuda")
-        timestep = torch.atleast_1d(t.to(torch.float32)).to(
-            device="cuda")  # convert 0D -> 1D
+            latents_model_input,
+            t).to(self.tensors[model]["sample"].dtype).to(device="cuda")
+        timestep = torch.atleast_1d(t.to(
+            self.tensors[model]["timestep"].dtype)).to(
+                device="cuda")  # convert 0D -> 1D
 
         copy_tensor_sync(self.tensors[model]["sample"], latents_model_input)
         copy_tensor_sync(self.tensors[model]["encoder_hidden_states"],
@@ -563,44 +568,20 @@ class StableDiffusionMGX():
 
     @measure
     def warmup(self, num_runs):
-
-        copy_tensor_sync(self.tensors["clip"]["input_ids"],
-                         torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["clip2"]["input_ids"],
-                         torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["unetxl"]["sample"],
-                         torch.randn((2, 4, 128, 128)).to(torch.float32))
-        copy_tensor_sync(self.tensors["unetxl"]["encoder_hidden_states"],
-                         torch.randn((2, 77, 2048)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["text_embeds"],
-                         torch.randn((2, 1280)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["time_ids"],
-                         torch.randn((2, 6)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["timestep"],
-                         torch.randn((1)).to(torch.float32))
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"],
-                         torch.randn((1, 4, 128, 128)).to(torch.float32))
+        init_fn = lambda x: torch.ones if "clip" in x else torch.randn
+        for model in self.models.keys():
+            if "refiner" in model and not self.use_refiner:
+                continue
+            for tensor in self.tensors[model].values():
+                copy_tensor_sync(
+                    tensor,
+                    init_fn(model)(tensor.size()).to(tensor.dtype))
 
         for _ in range(num_runs):
-            run_model_sync(self.models["clip"], self.model_args["clip"])
-            run_model_sync(self.models["clip2"], self.model_args["clip2"])
-            run_model_sync(self.models["unetxl"], self.model_args["unetxl"])
-            run_model_sync(self.models["vae"], self.model_args["vae"])
-
-        if self.use_refiner:
-            copy_tensor_sync(self.tensors["refiner"]["sample"],
-                             torch.randn((2, 4, 128, 128)).to(torch.float32))
-            copy_tensor_sync(self.tensors["refiner"]["encoder_hidden_states"],
-                             torch.randn((2, 77, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner"]["text_embeds"],
-                             torch.randn((2, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner"]["time_ids"],
-                             torch.randn((2, 5)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner"]["timestep"],
-                             torch.randn((1)).to(torch.float32))
-            for _ in range(num_runs):
-                run_model_sync(self.models["refiner"],
-                               self.model_args["refiner"])
+            for model in self.models.keys():
+                if "refiner" in model and not self.use_refiner:
+                    continue
+                run_model_sync(self.models[model], self.model_args[model])
 
 
 if __name__ == "__main__":

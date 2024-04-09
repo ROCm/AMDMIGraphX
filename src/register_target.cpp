@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/version.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,8 +58,24 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        auto target_name = make_shared_object_filename("migraphx_" + name);
-        store_target_lib(dynamic_loader(target_name));
+        std::string so_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
+        auto target_name       = make_shared_object_filename("migraphx_" + name);
+
+        // Try to load library with so version appended to the name.
+        // If library with so version name is not found,
+        // try loading the library without the so version name appended.
+        // For example, if "libmigraphx_ref.so.2010000.0" is not found,
+        // try loading "libmigraphx_ref.so".
+        try
+        {
+            // Default to loading shared libraries with so version appended.
+            store_target_lib(dynamic_loader(target_name + so_version));
+        }
+        catch(...)
+        {
+            // Load the library without the so version in the name.
+            store_target_lib(dynamic_loader(target_name));
+        }
     }
     const auto it = target_map().find(name);
     if(it == target_map().end())

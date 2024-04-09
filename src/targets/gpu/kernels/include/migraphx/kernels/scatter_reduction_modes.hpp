@@ -32,7 +32,8 @@
 #define MIGRAPHX_ALLOW_ATOMIC_CAS 0
 #endif
 
-#define MIGRAPHX_ATOMIC_CAS_WARNING() MIGRAPHX_ASSERT(MIGRAPHX_ALLOW_ATOMIC_CAS and "Using atomicCAS is slow")
+#define MIGRAPHX_ATOMIC_CAS_WARNING() \
+    MIGRAPHX_ASSERT(MIGRAPHX_ALLOW_ATOMIC_CAS and "Using atomicCAS is slow")
 
 namespace migraphx {
 

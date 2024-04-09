@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,9 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+
+/* benchmark gpu::code_object with expected input shapes over n iterations */
+MIGRAPHX_GPU_EXPORT double time_op(context& ictx, operation op, int n = 100);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

@@ -25,6 +25,14 @@
 #define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
 
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/debug.hpp>
+
+#ifndef MIGRAPHX_ALLOW_ATOMIC_CAS
+#define MIGRAPHX_ALLOW_ATOMIC_CAS 0
+#endif
+
+#define MIGRAPHX_ATOMIC_CAS_WARNING() MIGRAPHX_ASSERT(MIGRAPHX_ALLOW_ATOMIC_CAS and "Using atomicCAS is slow")
 
 namespace migraphx {
 
@@ -42,7 +50,15 @@ struct assign_add
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        unsafeAtomicAdd(&x, T(y));
+        if constexpr(is_same<T, float>{} or is_same<T, double>{})
+        {
+            unsafeAtomicAdd(&x, T(y));
+        }
+        else
+        {
+            MIGRAPHX_ATOMIC_CAS_WARNING();
+            atomicAdd(&x, T(y));
+        }
     }
 };
 
@@ -51,13 +67,17 @@ struct assign_mul
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
+        MIGRAPHX_ATOMIC_CAS_WARNING();
         T old = x;
         T assumed;
         do
         {
             assumed = old;
             old     = atomicCAS(&x, assumed, assumed * y);
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfloat-equal"
         } while(assumed != old);
+#pragma clang diagnostic pop
     }
 };
 

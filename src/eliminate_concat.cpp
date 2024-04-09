@@ -144,16 +144,14 @@ void eliminate_concat::apply(module& m) const
             for(auto concat_input : concat_inputs)
             {
                 op::load op{concat_input->get_shape(), offset};
-                // m.replace_instruction(alloc, op, {super});
                 auto load_ins = m.insert_instruction(std::next(concat_input), op, {super});
                 auto copy_ins =
-                    m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), load_ins);
+                    m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), concat_input, load_ins);
                 copy_instructions.push_back(copy_ins);
                 offset += concat_input->get_shape().bytes();
             }
-            std::vector<instruction_ref> args(copy_instructions.begin(), copy_instructions.end());
-            args.insert(copy_instructions.begin(), super);
-            // std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
+            std::vector<instruction_ref> args{super};
+            std::copy(copy_instructions.begin(), copy_instructions.end(), std::back_inserter(args));
             m.replace_instruction(ins, migraphx::make_op("identity"), args);
         }
     }

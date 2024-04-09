@@ -29,6 +29,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/register_op.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -127,29 +128,32 @@ struct simple_op
     int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
 };
 
-struct copy
-{
-    template <class Self, class F>
-    static auto reflect(Self&, F)
+namespace migraphx {
+    struct test_copy
     {
-        return migraphx::pack();
-    }
+        template <class Self, class F>
+        static auto reflect(Self&, F)
+        {
+            return migraphx::pack();
+        }
 
-    std::string name() const { return "copy"; }
-    migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
-    {
-        migraphx::check_shapes{inputs, *this}.has(2);
-        return inputs.at(1);
-    }
-    migraphx::argument compute(migraphx::context&,
-                               const migraphx::shape&,
-                               const std::vector<migraphx::argument>& args) const
-    {
-        return args[1];
-    }
+        std::string name() const { return "copy"; }
+        migraphx::shape compute_shape(const std::vector<migraphx::shape>& inputs) const
+        {
+            migraphx::check_shapes{inputs, *this}.has(2);
+            return inputs.at(1);
+        }
+        migraphx::argument compute(migraphx::context&,
+                                const migraphx::shape&,
+                                const std::vector<migraphx::argument>& args) const
+        {
+            return args[1];
+        }
 
-    std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 1; }
-};
+        std::ptrdiff_t output_alias(const std::vector<migraphx::shape>&) const { return 1; }
+    };
+    MIGRAPHX_REGISTER_OP(test_copy);
+}
 
 template <class... Ts>
 migraphx::shape create_shape(Ts... xs)
@@ -431,20 +435,20 @@ TEST_CASE(basic_nonpacked)
         auto m1 = m.add_instruction(simple_op{}, a1);
         auto l1 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}, 0}, {a0});
-        auto c1 = m.add_instruction(copy{}, m1, l1);
+        auto c1 = m.add_instruction(migraphx::test_copy{}, m1, l1);
         auto a2 =
             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto m2 = m.add_instruction(simple_op{}, a2);
         auto l2 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}, 1024}, {a0});
 
-        auto c2 = m.add_instruction(copy{}, m2, l2);
+        auto c2 = m.add_instruction(migraphx::test_copy{}, m2, l2);
         auto a3 =
             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto m3 = m.add_instruction(simple_op{}, a3);
         auto l3 = m.add_instruction(
             load{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}, 2560}, {a0});
-        auto c3 = m.add_instruction(copy{}, m3, l3);
+        auto c3 = m.add_instruction(migraphx::test_copy{}, m3, l3);
 
         m.add_instruction(identity{}, {a0, c1, c2, c3});
         return m;

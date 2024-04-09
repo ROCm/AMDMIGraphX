@@ -61,7 +61,7 @@ huggingface-cli download stabilityai/sdxl-turbo text_encoder/model.onnx text_enc
 
 Run the text-to-image script with the following example prompt and seed:
 
-Set the `pipeline-type` based on the version of models you downloaded: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
+Set `pipeline-type` based on the version of models you downloaded: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
 
 ```bash
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output jungle_astro.jpg --pipeline-type <model-version>
@@ -86,7 +86,7 @@ huggingface-cli download stabilityai/stable-diffusion-xl-1.0-tensorrt sdxl-1.0-r
 
 Run the text-to-image script with the following example prompt and seed:
 
-Set the `pipeline-type` based on which version of models you have: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
+Set `pipeline-type` based on which version of models you have: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
 
 ```bash
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output refined_jungle_astro.jpg --pipeline-type <model-version> --use-refiner
@@ -104,7 +104,7 @@ pip install -r gradio_requirements.txt
 
 Usage
 
-Set the `pipeline-type` based on which version of models you have: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
+Set `pipeline-type` based on which version of models you have: `sdxl` for base, `sdxl-opt` for opt, `sdxl-turbo` for turbo
 
 ```bash
 python gradio_app.py -p "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --pipeline-type <model-version>

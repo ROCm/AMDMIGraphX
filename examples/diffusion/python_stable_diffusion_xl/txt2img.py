@@ -392,16 +392,17 @@ class StableDiffusionMGX():
             ["encoder_hidden_states"].dtype), text_embeddings.to(
                 self.tensors["unetxl"]["encoder_hidden_states"].dtype)
 
+        sample_size = list(self.tensors["vae"]["latent_sample"].size())
         print(
-            f"Creating random input data ({1}x{4}x{128}x{128}) (latents) with seed={seed}..."
+            f"Creating random input data {sample_size} (latents) with {seed = }..."
         )
         noise = torch.randn(
-            (1, 4, 128, 128),
-            generator=torch.manual_seed(seed)).to(device="cuda")
+            sample_size, generator=torch.manual_seed(seed)).to(device="cuda")
         # input h/w crop h/w output h/w
-        time_id = [1024, 1024, 0, 0, 1024, 1024]
+        height, width = sample_size[2:]
+        time_id = [height * 8, width * 8, 0, 0, height * 8, width * 8]
         time_ids = torch.tensor([time_id, time_id]).to(
-            self.tensors["unetxl"]["time_ids"]).to(device="cuda")
+            self.tensors["unetxl"]["time_ids"].dtype).to(device="cuda")
 
         print("Apply initial noise sigma\n")
         latents = noise * self.scheduler.init_noise_sigma
@@ -424,7 +425,7 @@ class StableDiffusionMGX():
             time_id_pos = time_id[:4] + [refiner_aesthetic_score]
             time_id_neg = time_id[:4] + [refiner_negative_aesthetic_score]
             time_ids = torch.tensor([time_id_pos, time_id_neg]).to(
-                self.tensors["refiner"]["time_ids"]).to(device="cuda")
+                self.tensors["refiner"]["time_ids"].dtype).to(device="cuda")
             # need to set this for each run
             self.scheduler.set_timesteps(steps, device="cuda")
             # Add noise to latents using timesteps

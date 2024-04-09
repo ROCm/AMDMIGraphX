@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/permutation.hpp"
 #include <rocblas/internal/rocblas-types.h>
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/rocblas.hpp>

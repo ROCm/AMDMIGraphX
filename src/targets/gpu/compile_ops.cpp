@@ -21,15 +21,16 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_ops.hpp>
-#include <migraphx/gpu/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 
 namespace migraphx {
@@ -184,8 +185,17 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
-                           auto t = time_op(
-                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                           // Time all the code objects for a given perf config and calculate total
+                           // time e.g. in case of split-K GEMM, it may or may not support fusion.
+                           // In that case MLIR compile would return code objects for individual
+                           // GEMM and pre/post fusion code objects.
+                           auto cobjs = cr->replace.code_objects;
+                           double t   = transform_accumulate(
+                               cobjs.begin(),
+                               cobjs.end(),
+                               double{0},
+                               std::plus<>{},
+                               [&](const operation& op) { return time_op(*ctx, op, 20); });
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
@@ -268,7 +278,7 @@ void compile_ops::apply(module& m) const
 {
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
-    // Find all precompile opes
+    // Find all precompile ops
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")

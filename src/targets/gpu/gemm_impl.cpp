@@ -136,7 +136,7 @@ static bool is_transposed(const shape& s)
         return s.strides().back() != 1;
     }
 
-    if(not s.broadcasted())
+    if(not s.broadcasted() and s.strides() != s.as_standard().strides())
     {
         auto perm = find_permutation(s);
         if(not std::is_sorted(perm.begin(), perm.end()))

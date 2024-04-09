@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/permutation.hpp"
 #include <rocblas/internal/rocblas-types.h>
 #include <rocblas/rocblas.h>
 #include <migraphx/gpu/rocblas.hpp>
@@ -135,17 +136,14 @@ static bool is_transposed(const shape& s)
     {
         return s.strides().back() != 1;
     }
-    else if(s.strides() != s.as_standard().strides())
+
+    if(not s.broadcasted())
     {
-        // If the strides are not standard, check if there's a permutation that produces those
-        // strides
-        auto lens_perm = s.lens();
-        std::sort(lens_perm.begin(), lens_perm.end());
-        do
+        auto perm = find_permutation(s);
+        if(not std::is_sorted(perm.begin(), perm.end()))
         {
-            if(s.strides() == shape{s.type(), lens_perm}.strides())
-                return true;
-        } while(std::next_permutation(lens_perm.begin(), lens_perm.end()));
+            return true;
+        }
     }
 
     return false;

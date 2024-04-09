@@ -54,16 +54,17 @@ def get_args():
     parser.add_argument(
         "--pipeline-type",
         type=str,
-        choices=["sdxl", "sdxl.opt", "sdxl-turbo"],
+        choices=["sdxl", "sdxl-opt", "sdxl-turbo"],
         required=True,
-        help="Specify pipeline type. Options: `sdxl`, `sdxl.opt`, `sdxl-turbo`",
+        help="Specify pipeline type. Options: `sdxl`, `sdxl-opt`, `sdxl-turbo`",
     )
 
     parser.add_argument(
         "--onnx-model-path",
         type=str,
-        default="models/sdxl-1.0-base/",
-        help="Path to onnx model files.",
+        default=None,
+        help=
+        "Path to onnx model files. Use it to override the default models/<sdxl*> path",
     )
 
     parser.add_argument(
@@ -75,10 +76,18 @@ def get_args():
     )
 
     parser.add_argument(
+        "--use-refiner",
+        action="store_true",
+        default=False,
+        help="Use the refiner model",
+    )
+
+    parser.add_argument(
         "--refiner-onnx-model-path",
         type=str,
         default=None,
-        help="Path to onnx model files.",
+        help=
+        "Path to onnx model files. Use it to override the default models/<sdxl*> path",
     )
 
     parser.add_argument(
@@ -125,6 +134,13 @@ def get_args():
         type=int,
         default=30,
         help="Number of steps",
+    )
+
+    parser.add_argument(
+        "--refiner-steps",
+        type=int,
+        default=30,
+        help="Number of refiner steps",
     )
 
     parser.add_argument(
@@ -205,16 +221,30 @@ model_names = {
         "clip": "text_encoder",
         "clip2": "text_encoder_2",
         "unetxl": "unet",
-        "refiner": "unet",
+        "refiner": "unetxl.opt",
         "vae": "vae_decoder",
     },
-    "sdxl.opt": {
+    "sdxl-opt": {
         "clip": "clip.opt.mod",
         "clip2": "clip2.opt.mod",
         "unetxl": "unetxl.opt",
         "refiner": "unetxl.opt",
         "vae": "vae_decoder",
-    }
+    },
+    "sdxl-turbo": {
+        "clip": "text_encoder",
+        "clip2": "text_encoder_2",
+        "unetxl": "unet",
+        "refiner": "unetxl.opt",
+        "vae": "vae_decoder",
+    },
+}
+
+default_model_paths = {
+    "sdxl": "models/sdxl-1.0-base",
+    "sdxl-opt": "models/sdxl-1.0-base",
+    "sdxl-turbo": "models/sdxl-turbo",
+    "refiner": "models/sdxl-1.0-refiner",
 }
 
 mgx_to_torch_dtype_dict = {
@@ -275,8 +305,22 @@ def allocate_torch_tensors(model):
 
 class StableDiffusionMGX():
     def __init__(self, pipeline_type, onnx_model_path, compiled_model_path,
-                 refiner_onnx_model_path, refiner_compiled_model_path, fp16,
-                 force_compile, exhaustive_tune):
+                 use_refiner, refiner_onnx_model_path,
+                 refiner_compiled_model_path, fp16, force_compile,
+                 exhaustive_tune):
+        if not (onnx_model_path or compiled_model_path):
+            onnx_model_path = default_model_paths[pipeline_type]
+
+        self.use_refiner = use_refiner
+        if not self.use_refiner and (refiner_onnx_model_path
+                                     or refiner_compiled_model_path):
+            print(
+                "WARN: Refiner model is provided, but was *not* enabled. Use --use-refiner to enable it."
+            )
+        if self.use_refiner and not (refiner_onnx_model_path
+                                     or refiner_compiled_model_path):
+            refiner_onnx_model_path = default_model_paths["refiner"]
+
         is_turbo = "turbo" in pipeline_type
         model_id = "stabilityai/sdxl-turbo" if is_turbo else "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
@@ -356,7 +400,6 @@ class StableDiffusionMGX():
             "vae": tensors_to_args(self.tensors["vae"]),
         }
 
-        self.use_refiner = refiner_onnx_model_path or refiner_compiled_model_path
         if self.use_refiner:
             self.models["refiner"] = StableDiffusionMGX.load_mgx_model(
                 model_names[pipeline_type]["refiner"],
@@ -375,7 +418,7 @@ class StableDiffusionMGX():
 
     @measure
     @torch.no_grad()
-    def run(self, prompt, negative_prompt, steps, seed, scale,
+    def run(self, prompt, negative_prompt, steps, seed, scale, refiner_steps,
             refiner_aesthetic_score, refiner_negative_aesthetic_score):
         torch.cuda.synchronize()
         # need to set this for each run
@@ -427,7 +470,7 @@ class StableDiffusionMGX():
             time_ids = torch.tensor([time_id_pos, time_id_neg]).to(
                 self.tensors["refiner"]["time_ids"].dtype).to(device="cuda")
             # need to set this for each run
-            self.scheduler.set_timesteps(steps, device="cuda")
+            self.scheduler.set_timesteps(refiner_steps, device="cuda")
             # Add noise to latents using timesteps
             latents = self.scheduler.add_noise(latents, noise,
                                                self.scheduler.timesteps[:1])
@@ -589,13 +632,14 @@ if __name__ == "__main__":
     args = get_args()
 
     sd = StableDiffusionMGX(args.pipeline_type, args.onnx_model_path,
-                            args.compiled_model_path,
+                            args.compiled_model_path, args.use_refiner,
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
                             args.force_compile, args.exhaustive_tune)
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
-                    args.scale, args.refiner_aesthetic_score,
+                    args.scale, args.refiner_steps,
+                    args.refiner_aesthetic_score,
                     args.refiner_negative_aesthetic_score)
 
     print("Convert result to rgb image...")

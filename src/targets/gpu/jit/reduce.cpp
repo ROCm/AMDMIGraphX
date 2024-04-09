@@ -137,7 +137,7 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
 /// {K}, then this will create a tensor of {K/N, N} where N is the number of
-/// split groups. To compute the number of split groups it finds the largets
+/// split groups. To compute the number of split groups it finds the largest
 /// divisor that can divide K to make it less than min_size.
 static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
                                        std::size_t min_size = 1024)

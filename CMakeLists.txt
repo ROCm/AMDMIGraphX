@@ -332,7 +332,7 @@ if(BUILD_ADDRESS_SANITIZER)
     set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
 else()
     set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
-+endif()
+endif()
 
 rocm_create_package(
     NAME MIGraphX

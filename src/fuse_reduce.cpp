@@ -39,6 +39,8 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
+
 struct fused_reduce
 {
     std::vector<std::int64_t> axes{};
@@ -83,23 +85,6 @@ struct fused_reduce
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
 
-static std::unordered_map<instruction_ref, instruction_ref>
-get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref sm)
-{
-    std::unordered_map<instruction_ref, instruction_ref> result;
-    auto names = sm->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    assert(names.size() == inputs.size());
-    std::transform(names.begin(),
-                   names.end(),
-                   inputs.begin(),
-                   std::inserter(result, result.end()),
-                   [&](const auto& name, auto input) {
-                       return std::make_pair(input, sm->get_parameter(name));
-                   });
-    return result;
-}
-
 static void insert_params(module_ref sm,
                           const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
@@ -119,7 +104,7 @@ static auto insert_ins_in_submodule(module_ref sm,
                                     std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     insert_params(sm, ins->inputs(), map_ins);
-    return sm->add_instructions({ins}, map_ins);
+    return sm->add_instructions({ins}, &map_ins);
 }
 
 static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
@@ -136,12 +121,12 @@ insert_module_in_submodule(module_ref sm,
                            module::inserter insert = nullptr)
 {
     insert_params(sm, inputs, map_ins);
-    auto param_map = get_ins_param_map(inputs, m);
+    auto param_map = m->get_ins_param_map(inputs);
     for(auto&& [input, param] : param_map)
     {
         map_ins[param] = map_ins.at(input);
     }
-    return sm->add_instructions(m, map_ins, std::move(insert));
+    return sm->add_instructions(m, &map_ins, std::move(insert));
 }
 
 static auto
@@ -442,11 +427,14 @@ struct reduce_reshape : rewrite_reshapes_base
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}))
+        return;
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)
     {
-        mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

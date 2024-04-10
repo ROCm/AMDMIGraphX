@@ -33,8 +33,7 @@
 #include <migraphx/eliminate_layout.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_concat.hpp>
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/fuse_reduce.hpp>
+#include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/layout_nhwc.hpp>
@@ -56,6 +55,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/workgroup_reversal.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
@@ -79,7 +79,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WORKGROUP_REVERSAL)
 #ifndef _WIN32
@@ -164,10 +164,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         enable_pass(enabled(MIGRAPHX_ENABLE_NHWC{}), layout_nhwc{}),
         optimize_module{},
-        fuse_pointwise{},
-        dead_code_elimination{},
-        enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
-        dead_code_elimination{},
+        fuse_pointwise_reduce{},
         fuse_concat{},
         dead_code_elimination{},
 #ifndef _WIN32

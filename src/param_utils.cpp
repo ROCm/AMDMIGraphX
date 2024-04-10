@@ -20,26 +20,27 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-
-#include <migraphx/config.hpp>
-#include <string>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+std::string param_name(std::size_t i, const std::string& prefix)
 {
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
+    return prefix + std::to_string(i);
+}
 
-    bool enable_rewrite_reshapes = true;
-};
+void sort_params(std::vector<instruction_ref>& params)
+{
+    std::sort(params.begin(), params.end(), by(std::less<>{}, [](instruction_ref ins) {
+                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+                  return param.parameter;
+              }));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

@@ -162,7 +162,7 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
             input_map[input] = map_ins[param];
         }
     }
-    pm->replace_return(pm->insert_instructions(last, xm, map_ins));
+    pm->replace_return(pm->insert_instructions(last, xm, &map_ins));
     return inputs;
 }
 
@@ -212,7 +212,8 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     }
     for(int i = 0; i < 8; i++)
     {
-        mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(not find_pointwise_modules(mpm.get_module()))
             break;
         mpm.run_pass(dead_code_elimination{});

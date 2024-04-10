@@ -188,10 +188,7 @@ struct grid_sampler
     static instruction_ref concat_on_first_dim(const onnx_parser::node_info& info,
                                                std::vector<instruction_ref> instructions)
     {
-        if(instructions.empty())
-            MIGRAPHX_THROW("PARSE_GRID_SAMPLE: can't concatenate empty list of instructions");
-
-        auto ret = instructions.at(0);
+        auto ret = instructions.front();
         std::for_each(
             std::next(instructions.begin()), instructions.end(), [&info, &ret](auto& ins) {
                 ret = info.add_instruction(make_op("concat", {{"axis", 0}}), ret, ins);

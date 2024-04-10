@@ -26,11 +26,108 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/op/resize.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/tensor_view.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+/**
+ * Convert a Resize op. with Nearest mode to an implementation using Gather op.
+ * From:  resize[scales={...}/sizes={...},](static, constant)
+ * To:
+ * 0 = literal{ ... } computed_indices
+ * ...
+ * 2 = reshape[dims={45}](X) 1-dimensional
+ * 3 = gather[axis=0](2,0)
+ *
+ * At the time of writing, this conversion is required for GPU targets because there
+ * is not direct a GPU implementation of the Resize operation.
+ * This matcher depends on a split_single_dyn_dim pass being run before it, which
+ * will convert any dynamic-batch input to static inputs and make this conversion possible.
+ *
+ *   At time of writing, Resize allows either 1 or 2 inputs
+ * but the 1-input case is never created by Onnx parsing.
+ */
+struct find_resize_static
+{
+
+    auto matcher() const
+    {
+        return match::name("resize")(match::nargs(2),
+                                     match::arg(0)(match::static_shape()),
+                                     match::arg(1)(match::is_constant()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins       = mr.result;
+        auto inputs    = ins->inputs();
+        auto resize_op = any_cast<op::resize>(ins->get_operator());
+
+        auto in_lens = inputs.at(0)->get_shape().lens();
+        std::vector<size_t> sizes_vec(inputs.at(0)->get_shape().ndim());
+        std::vector<float> scales_vec(inputs.at(0)->get_shape().ndim());
+        //  populate both scales and sizes for the benefit of the algorithm.
+        inputs.at(1)->eval().visit([&](auto input) {
+            using type = typename decltype(input)::value_type;
+            if constexpr(std::is_integral<type>{})
+            {
+                // read output sizes and use them to compute scales
+                sizes_vec.assign(input.begin(), input.end());
+                std::transform(
+                    input.begin(),
+                    input.end(),
+                    in_lens.begin(),
+                    scales_vec.begin(),
+                    [](auto sz, size_t in_len) { return static_cast<float>(sz) / in_len; });
+            }
+            else
+            {
+                // read scales and use them to compute output sizes
+                scales_vec.assign(input.begin(), input.end());
+                std::transform(
+                    input.begin(),
+                    input.end(),
+                    in_lens.begin(),
+                    sizes_vec.begin(),
+                    [](auto sz, size_t in_len) { return static_cast<size_t>(sz * in_len); });
+            }
+        });
+
+        auto in_s = inputs.at(0)->get_shape();
+        shape out_s{in_s.type(), sizes_vec};
+
+        std::vector<int> ind(out_s.elements());
+
+        // map out_idx to in_idx
+        auto nearest_op = op::resize::get_nearest_op(resize_op.nearest_mode);
+        auto idx_op     = op::resize::get_original_idx_op(resize_op.coordinate_transformation_mode);
+
+        shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
+            std::vector<size_t> in_idx(out_idx_v.size());
+            for(auto ii = 0; ii < in_lens.size(); ++ii)
+            {
+                auto idx_val = idx_op(in_lens[ii], sizes_vec[ii], out_idx_v[ii], scales_vec[ii]);
+                in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
+            }
+
+            ind[out_idx] = static_cast<int64_t>(in_s.index(in_idx));
+        });
+
+        // reshape input to one-dimension
+        std::vector<int64_t> rsp_lens = {static_cast<int64_t>(in_s.elements())};
+        auto reshape_op               = make_op("reshape", {{"dims", rsp_lens}});
+        auto rsp                      = m.insert_instruction(ins, reshape_op, ins->inputs().at(0));
+
+        // Add our computed indices as a literal.
+        // ins_ind is a multi dimensional index that will restore original rank
+        shape ind_s{shape::int32_type, sizes_vec};
+        auto ins_ind = m.add_literal(literal(ind_s, ind));
+        m.replace_instruction(ins, make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+    }
+};
 
 /**
  * Convert 2 input static shape broadcast/multibroadcast into 1 input version.
@@ -489,6 +586,7 @@ struct simplify_select_module_output_shape
 void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
+                        find_resize_static{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},

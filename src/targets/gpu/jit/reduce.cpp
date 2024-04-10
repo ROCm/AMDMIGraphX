@@ -245,12 +245,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce"}; }
 
+    static shape get_input_shape(const std::vector<shape>& inputs)
+    {
+        auto it = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
+            return s.elements();
+        }));
+        return *it;
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto axes           = v.at("axes").to_vector<std::size_t>();
         auto virtual_inputs = inputs;
-        virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
-        virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
+        virtual_inputs.push_back(get_reduced_shape(get_input_shape(inputs), axes));
+        virtual_inputs.push_back(get_output_shape(get_input_shape(inputs), axes));
         virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
         auto reduce_output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();

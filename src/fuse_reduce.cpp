@@ -65,18 +65,9 @@ struct fused_reduce
                return shapes.at(name).lens() == input.lens();
            }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
-        const auto& s = inputs.at(0);
-        auto lens     = s.lens();
-        if(lens != sm->get_output_shapes().front().lens())
-        {
-            for(const auto& axis : axes)
-            {
-                lens[axis] = 1;
-            }
-        }
 
         return shape::from_permutation(
-            sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
+            sm->get_output_shapes().front().type(), sm->get_output_shapes().front().lens(), find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }

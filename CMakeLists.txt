@@ -334,6 +334,12 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
+if(BUILD_ADDRESS_SANITIZER)
+    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+else()
+    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+endif()
+
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"

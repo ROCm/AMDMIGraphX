@@ -85,6 +85,36 @@ TEST_CASE(broadcast_with_dims_static1)
     EXPECT(migraphx::float_equal(output(1, 2), 11.f));
 }
 
+TEST_CASE(broadcast_with_dims_static2)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3}, {3, 1}};
+    migraphx::shape dims_shape{migraphx::shape::int64_type, {3}};
+    auto input_param = mm->add_parameter("x", input_shape);
+    auto dims_param  = mm->add_parameter("dims", dims_shape);
+    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), input_param, dims_param);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data(6);
+    std::iota(input_data.begin(), input_data.end(), 0.0);
+    std::vector<int64_t> dims_data{4, 2, 3};
+    migraphx::parameter_map params;
+    params["x"]    = migraphx::argument(input_shape, input_data.data());
+    params["dims"] = migraphx::argument(dims_shape, dims_data.data());
+    auto result    = p.eval(params).back();
+    auto output    = result.get<float>();
+    EXPECT(output.get_shape().lens() == std::vector<std::size_t>{4, 2, 3});
+    EXPECT(output.get_shape().strides() == std::vector<std::size_t>{0, 3, 1});
+    std::vector<int> results_vector;
+    result.visit([&](auto x) { results_vector.assign(x.begin(), x.end()); });
+    std::vector<float> gold = {
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0,
+        0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0,
+    };
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(broadcast_with_dims_dyn)
 {
     migraphx::program p;

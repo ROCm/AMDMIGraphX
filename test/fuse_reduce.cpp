@@ -139,12 +139,12 @@ TEST_CASE(pointwise_broadcast_reduce_reshape)
     migraphx::shape rs{migraphx::shape::float_type, {2, 1}};
     migraphx::program p1;
     {
-        auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", rs);
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", rs);
         auto sqrt  = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("sqrt"));
         auto sqrtb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sqrtb);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sqrtb);
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
         auto add = add_pointwise(p1, "main:pointwise1", {sqrtb, rsumb}, single_pointwise("add"));
@@ -154,8 +154,8 @@ TEST_CASE(pointwise_broadcast_reduce_reshape)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", rs);
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", rs);
         auto add = add_reduce(
             p2,
             "main:pointwise0:main:reduce_sum0:main:pointwise1",
@@ -166,10 +166,12 @@ TEST_CASE(pointwise_broadcast_reduce_reshape)
                     add_pointwise(p2, rm, "main:pointwise0", inputs, single_pointwise("sqrt"));
                 auto sqrtb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-                auto rsum = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sqrtb);
+                auto rsum =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sqrtb);
                 auto rsumb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
-                return add_pointwise(p2, rm, "main:pointwise1", {sqrtb, rsumb}, single_pointwise("add"));
+                return add_pointwise(
+                    p2, rm, "main:pointwise1", {sqrtb, rsumb}, single_pointwise("add"));
             });
         auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), add);
         mm->add_return({reshape});

@@ -66,8 +66,9 @@ struct fused_reduce
            }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
 
-        return shape::from_permutation(
-            sm->get_output_shapes().front().type(), sm->get_output_shapes().front().lens(), find_permutation(inputs));
+        return shape::from_permutation(sm->get_output_shapes().front().type(),
+                                       sm->get_output_shapes().front().lens(),
+                                       find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }

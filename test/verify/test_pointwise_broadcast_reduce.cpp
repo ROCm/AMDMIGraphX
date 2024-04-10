@@ -35,16 +35,16 @@ struct test_pointwise_broadcast_reduce : verify_program<test_pointwise_broadcast
         migraphx::shape s{migraphx::shape::float_type, {2, 3}};
         migraphx::shape rs{migraphx::shape::float_type, {2, 1}};
         migraphx::program p;
-        auto* mm  = p.get_main_module();
-        auto x    = mm->add_parameter("x", rs);
-        auto y    = mm->add_parameter("y", s);
+        auto* mm   = p.get_main_module();
+        auto x     = mm->add_parameter("x", rs);
+        auto y     = mm->add_parameter("y", s);
         auto sqrt  = mm->add_instruction(migraphx::make_op("sqrt"), x);
         auto sqrtb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sqrtb);
+        auto rsum  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), sqrtb);
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum);
-        auto add = mm->add_instruction(migraphx::make_op("add"), y, rsumb);
+        auto add     = mm->add_instruction(migraphx::make_op("add"), y, rsumb);
         auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), add);
         mm->add_return({reshape});
         return p;

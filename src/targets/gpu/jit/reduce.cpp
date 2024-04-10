@@ -247,9 +247,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 
     static shape get_input_shape(const std::vector<shape>& inputs)
     {
-        auto it = std::max_element(inputs.begin(), inputs.end(), by(std::less<>{}, [](const shape& s) {
-            return s.elements();
-        }));
+        auto it = std::max_element(inputs.begin(),
+                                   inputs.end(),
+                                   by(std::less<>{}, [](const shape& s) { return s.elements(); }));
         return *it;
     }
 

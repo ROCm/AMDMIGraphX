@@ -346,7 +346,7 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip hip-rocclr hip-base half ${PACKAGE_DEPENDS}
+    DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
 )
 
 if(MIGRAPHX_USE_ROCBLAS)

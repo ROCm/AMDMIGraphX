@@ -52,7 +52,7 @@ template <index_int N, class... Transforms>
 __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
-        auto t = transform_args(make_tensors(), rotate_and_pack_last<N>(), transforms...);
+        auto t = transform_args(make_tensors(), transforms..., rotate_and_pack_last<N>());
         t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
     };
 }

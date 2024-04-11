@@ -93,25 +93,25 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 void fuse_reductions(module& m)
 {
     auto dom     = compute_dominator(m);
-    auto reduces = find_parallel_reduce(find_reduce(m), dom);
-    if(reduces.size() < 2)
+    auto rs = find_parallel_reduce(find_reduce(m), dom);
+    if(rs.size() < 2)
         return;
     // Only handle the same reduction operator for now
-    if(std::any_of(std::next(reduces.begin()), reduces.end(), [&](auto reduce) {
-           return reduces.front()->name() != reduce->name();
+    if(std::any_of(std::next(rs.begin()), rs.end(), [&](auto r) {
+           return rs.front()->name() != r->name();
        }))
         return;
-    auto last = reduces.front();
+    auto last = rs.front();
     auto op   = last->get_operator();
     std::vector<instruction_ref> inputs;
-    std::transform(reduces.begin(), reduces.end(), std::back_inserter(inputs), [&](auto reduce) {
-        return reduce->inputs().front();
+    std::transform(rs.begin(), rs.end(), std::back_inserter(inputs), [&](auto r) {
+        return r->inputs().front();
     });
-    auto preduce = m.insert_instruction(last, parallel_reduce{op}, inputs);
+    auto pr = m.insert_instruction(last, parallel_reduce{op}, inputs);
     int i        = 0;
-    for(auto reduce : reduces)
+    for(auto r : rs)
     {
-        m.replace_instruction(reduce, make_op("get_tuple_elem", {{"index", i}}), preduce);
+        m.replace_instruction(r, make_op("get_tuple_elem", {{"index", i}}), pr);
         i++;
     }
     m.sort();

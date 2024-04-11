@@ -29,9 +29,11 @@
 #include <migraphx/kernels/debug.hpp>
 
 #ifndef MIGRAPHX_ALLOW_ATOMIC_CAS
+// NOLINTNEXTLINE
 #define MIGRAPHX_ALLOW_ATOMIC_CAS 0
 #endif
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_ATOMIC_CAS_WARNING() \
     MIGRAPHX_ASSERT(MIGRAPHX_ALLOW_ATOMIC_CAS and "Using atomicCAS is slow")
 

@@ -33,11 +33,19 @@ TEST_CASE(convinteger_bias_test)
     auto weights   = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
     auto data_bias = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
 
-    auto bcast_data_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
-    auto sub_data = mm->add_instruction(migraphx::make_op("sub"), data, bcast_data_bias);
+    auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), data, weights);
 
-    mm->add_instruction(migraphx::make_op("quant_convolution"), sub_data, weights);
+    auto bcast_data_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", weights->get_shape().lens()}}),
+        data_bias);
+
+    auto quant2 =
+        mm->add_instruction(migraphx::make_op("quant_convolution"), bcast_data_bias, weights);
+
+    auto bcast_quant2 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), quant2);
+
+    mm->add_instruction(migraphx::make_op("sub"), quant, bcast_quant2);
 
     auto prog = optimize_onnx("convinteger_bias_test.onnx");
     EXPECT(p == prog);

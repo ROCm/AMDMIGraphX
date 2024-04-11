@@ -33,18 +33,39 @@ TEST_CASE(convinteger_dual_bias_test)
     auto data_bias   = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
     auto weight_bias = mm->add_parameter("3", {migraphx::shape::int8_type, {1}, {1}});
 
+    auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
+
+    auto mbcast_data_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}), data_bias);
+
+    auto quant_db_w =
+        mm->add_instruction(migraphx::make_op("quant_convolution"), mbcast_data_bias, weight);
+
+    auto quant_mb_w = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), quant_db_w);
+
+    quant = mm->add_instruction(migraphx::make_op("sub"), quant, quant_mb_w);
+
+    auto mbcast_weight_bias = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), weight_bias);
+
+    auto quant_d_wb =
+        mm->add_instruction(migraphx::make_op("quant_convolution"), data, mbcast_weight_bias);
+
+    auto quant_md_wb = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), quant_d_wb);
+
+    quant = mm->add_instruction(migraphx::make_op("sub"), quant, quant_md_wb);
+
     auto bcast_data_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
-    auto sub_data = mm->add_instruction(migraphx::make_op("sub"), data, bcast_data_bias);
-
+        migraphx::make_op("broadcast", {{"out_lens", data->get_shape().lens()}}), data_bias);
     auto bcast_weight_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}),
-        weight_bias);
-    auto sub_weight = mm->add_instruction(migraphx::make_op("sub"), weight, bcast_weight_bias);
+        migraphx::make_op("broadcast", {{"out_lens", weight->get_shape().lens()}}), weight_bias);
+    auto bias_quant = mm->add_instruction(
+        migraphx::make_op("quant_convolution"), bcast_data_bias, bcast_weight_bias);
 
-    mm->add_instruction(migraphx::make_op("quant_convolution"), sub_data, sub_weight);
+    mm->add_instruction(migraphx::make_op("add"), quant, bias_quant);
 
-    mm->debug_print();
     auto prog = optimize_onnx("convinteger_dual_bias_test.onnx");
     EXPECT(p == prog);
 }

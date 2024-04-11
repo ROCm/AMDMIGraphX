@@ -42,11 +42,10 @@ struct parse_convolution : op_parser<parse_convolution>
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
-    static instruction_ref set_bias(const instruction_ref& input,
-                                    onnx_parser::node_info info,
-                                    int index,
-                                    const bool is_quant_conv,
-                                    const std::vector<instruction_ref>& args)
+    static instruction_ref get_zero_point(const instruction_ref& input,
+                                          int index,
+                                          const bool is_quant_conv,
+                                          const std::vector<instruction_ref>& args)
     {
         instruction_ref ret = input;
         if(args.size() > index)
@@ -56,9 +55,35 @@ struct parse_convolution : op_parser<parse_convolution>
                 MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
 
             if(is_quant_conv)
-                ret = info.add_common_op("sub", input, args[index]);
+                ret = args[index];
         }
         return ret;
+    }
+
+    static bool is_symmetric_zero_point(instruction_ref zp)
+    {
+        if(not zp->can_eval())
+            return false;
+
+        bool all_zeros = false;
+        zp->eval().visit([&](auto z) {
+            all_zeros =
+                std::all_of(z.begin(), z.end(), [&](auto val) { return float_equal(val, 0); });
+        });
+        return all_zeros;
+    }
+
+    static auto
+    qparam_broadcast_op(instruction_ref qparam, std::vector<std::size_t> lens, std::size_t axis)
+    {
+        if(qparam->get_shape().scalar())
+        {
+            return migraphx::make_op("multibroadcast", {{"out_lens", lens}});
+        }
+        else
+        {
+            return migraphx::make_op("broadcast", {{"out_lens", lens}, {"axis", axis}});
+        }
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -171,17 +196,52 @@ struct parse_convolution : op_parser<parse_convolution>
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
         auto is_quant_conv = opd.op_name == "quant_convolution";
-        auto x_zp          = set_bias(x, info, 2, is_quant_conv, args);
-        auto w_zp          = set_bias(weights, info, 3, is_quant_conv, args);
+        auto is_input_bias  = args.size() > 2;
+        auto is_weight_bias = args.size() > 3;
+
+        auto x_zp = get_zero_point(x, 2, is_quant_conv, args);
+        auto w_zp = get_zero_point(weights, 3, is_quant_conv, args);
 
         op.from_value(values);
 
-        ret = info.add_instruction(op, x_zp, w_zp);
+        ret = info.add_instruction(op, x, weights);
 
-        // Handle Convolution case with bias to output
-        if((not is_quant_conv) and (args.size() > 2))
+        // Handle quant_conv residuals between input/weights to avoid overflow
+        if(is_quant_conv)
         {
-            ret = info.add_bias(args, ret, 1);
+            if(not is_symmetric_zero_point(x_zp) and is_input_bias)
+            {
+                auto out_zp_1 = info.add_common_op("quant_convolution", x_zp, weights);
+                ret           = info.add_common_op("sub", ret, out_zp_1);
+            }
+
+            if(not is_symmetric_zero_point(w_zp) and is_weight_bias)
+            {
+                auto out_zp_2 = info.add_common_op("quant_convolution", x, w_zp);
+                ret           = info.add_common_op("sub", ret, out_zp_2);
+            }
+
+            if(not(is_symmetric_zero_point(x_zp) and is_symmetric_zero_point(w_zp)) and
+               is_weight_bias and is_input_bias)
+            {
+                auto x_zp_bc =
+                    info.add_instruction(qparam_broadcast_op(x_zp, x->get_shape().lens(), 0), x_zp);
+                auto w_zp_bc = info.add_instruction(
+                    qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0), w_zp);
+
+                auto out_zp_3 =
+                    info.add_instruction(migraphx::make_op("quant_convolution"), x_zp_bc, w_zp_bc);
+
+                ret = info.add_common_op("add", ret, out_zp_3);
+            }
+        }
+        else
+        {
+            if(is_input_bias)
+            {
+                // Handle Convolution case with bias to output
+                ret = info.add_bias(args, ret, 1);
+            }
         }
 
         return ret;

@@ -55,7 +55,7 @@ struct broadcast_with_dims
         migraphx::check_shapes{inputs, *this, true}.has(2);
         // check that second input has a static shape
         (void)migraphx::check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
-        // output tensor rank greater of input_tensor rank or length of dims vector
+        // output tensor rank is greater of input_tensor rank or length of dims vector
         const auto& input_tensor_shape = inputs.at(0);
         const auto& dims_shape         = inputs.at(1);
         size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));

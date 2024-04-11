@@ -50,36 +50,51 @@ struct compiler_replace
     template <class F>
     compiler_replace(const operation& op, F f)
         : code_objects{{op}},
-          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_objects.front());
-          })
+          replace_fn(
+              [=](const compiler_replace& cr,
+                  module& m,
+                  instruction_ref ins,
+                  const std::unordered_map<instruction_ref, instruction_ref>& input_rep_map) {
+                  return f(m, ins, cr.code_objects.front(), input_rep_map);
+              })
     {
     }
 
     template <class F>
     compiler_replace(const std::vector<operation>& op, F f)
         : code_objects{op},
-          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_objects);
-          })
+          replace_fn(
+              [=](const compiler_replace& cr,
+                  module& m,
+                  instruction_ref ins,
+                  const std::unordered_map<instruction_ref, instruction_ref>& input_rep_map) {
+                  return f(m, ins, cr.code_objects, input_rep_map);
+              })
     {
     }
 
     std::vector<operation> code_objects = {};
-    std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
-        nullptr;
+    std::function<instruction_ref(
+        const compiler_replace& cr,
+        module& m,
+        instruction_ref ins,
+        const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map)>
+        replace_fn = nullptr;
 
-    void replace(module& m, instruction_ref ins) const
+    instruction_ref
+    replace(module& m,
+            instruction_ref ins,
+            const std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map) const
     {
         if(replace_fn)
-            replace_fn(*this, m, ins);
+            return replace_fn(*this, m, ins, inputs_rep_map);
         else
         {
             if(code_objects.size() != 1)
             {
                 MIGRAPHX_THROW("Provide custom replace function to insert multiple code objects\n");
             }
-            m.replace_instruction(ins, code_objects.front(), ins->inputs());
+            return m.replace_instruction(ins, code_objects.front(), ins->inputs());
         }
     }
 };

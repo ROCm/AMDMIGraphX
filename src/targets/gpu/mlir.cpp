@@ -973,10 +973,10 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 
 code_object_op compile_mlir(const context& migraphx_ctx,
                             module m,
-                            const std::vector<instruction_ref>& inputs,
+                            const std::vector<shape>& in_shapes,
                             const value& solution)
 {
-    adjust_param_shapes(m, to_shapes(inputs));
+    adjust_param_shapes(m, in_shapes);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -996,7 +996,7 @@ code_object_op compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto co            = mp.compile(solution);
-    co.expected_inputs = to_shapes(inputs);
+    co.expected_inputs = in_shapes;
     co.output          = m.get_output_shapes().front();
     return co;
 }
@@ -1051,7 +1051,7 @@ void use(T&)
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
 code_object_op
-compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
+compile_mlir(const context&, module, const std::vector<shape>&, const value&)
 {
     return {};
 }

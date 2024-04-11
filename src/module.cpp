@@ -918,8 +918,11 @@ void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
 {
     auto it = std::find(inputs.begin(), inputs.end(), ins);
     if(it == inputs.end())
+    {
+        std::cout << "replacement failed\n";
         return;
-    assert((*it)->get_shape().lens() == rep->get_shape().lens());
+    }
+    assert((*it)->get_shape() == rep->get_shape());
     *it = rep;
 }
 void module_with_inputs::replace(

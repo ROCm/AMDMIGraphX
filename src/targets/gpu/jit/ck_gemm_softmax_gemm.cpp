@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "migraphx/instruction.hpp"
 #include <fstream>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
@@ -202,7 +203,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         if(not solution.is_null())
             v["tuning_value"] = solution;
         return {compile_op(ctx, shapes, v),
-                [=](module& m, instruction_ref ins2, const operation& code_object) {
+                [=](module& m, instruction_ref ins2, const operation& code_object, const std::unordered_map<instruction_ref, instruction_ref>&) {
                     if(enabled(MIGRAPHX_LOG_CK_GEMM{}))
                     {
                         std::vector<shape> gemm_shapes{
@@ -210,7 +211,7 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
                         std::cout << "gpu::ck_gemm_softmax_gemm: "
                                   << to_json_string(to_value(gemm_shapes)) << std::endl;
                     }
-                    m.replace_instruction(ins2, code_object, ins2->inputs());
+                    return m.replace_instruction(ins2, code_object, ins2->inputs());
                 }};
     }
 

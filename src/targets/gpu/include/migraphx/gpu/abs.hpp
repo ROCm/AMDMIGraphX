@@ -26,7 +26,9 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
+#ifdef MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
+#endif
 #include <migraphx/op/abs.hpp>
 
 namespace migraphx {
@@ -34,6 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
+#ifdef MIGRAPHX_USE_MIOPEN
 
 struct miopen_abs
 {
@@ -56,7 +59,7 @@ struct miopen_abs
         return shapes.size() - 1;
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

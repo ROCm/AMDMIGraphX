@@ -29,7 +29,9 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/lrn.hpp>
+#ifdef MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
+#endif
 #include <migraphx/config.hpp>
 
 #include <sstream>

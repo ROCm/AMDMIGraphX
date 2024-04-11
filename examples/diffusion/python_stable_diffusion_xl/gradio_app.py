@@ -24,6 +24,26 @@
 
 from txt2img import StableDiffusionMGX, get_args
 import gradio as gr
+import sys
+
+
+class PrintWrapper(object):
+    def __init__(self, org_handle):
+        self.org_handle = org_handle
+        self.log = ""
+
+        def wrapper_write(x):
+            self.log += x
+            return org_handle.write(x)
+
+        self.wrapper_write = wrapper_write
+
+    def __getattr__(self, attr):
+        return self.wrapper_write if attr == 'write' else getattr(
+            self.org_handle, attr)
+
+    def get_log(self):
+        return self.log
 
 
 def main():
@@ -38,50 +58,56 @@ def main():
 
     def gr_wrapper(prompt, negative_prompt, steps, seed, scale, refiner_steps,
                    aesthetic_score, negative_aesthetic_score):
-        result = sd.run(
-            str(prompt),
-            str(negative_prompt),
-            int(steps),
-            int(seed),
-            float(scale),
-            int(refiner_steps),
-            float(aesthetic_score),
-            float(negative_aesthetic_score),
-        )
-        return StableDiffusionMGX.convert_to_rgb_image(result)
+        img = None
+        try:
+            oldStdout, oldStderr = sys.stdout, sys.stderr
+            sys.stdout, sys.stderr = PrintWrapper(sys.stdout), PrintWrapper(
+                sys.stderr)
+            result = sd.run(
+                str(prompt),
+                str(negative_prompt),
+                int(steps),
+                int(seed),
+                float(scale),
+                int(refiner_steps),
+                float(aesthetic_score),
+                float(negative_aesthetic_score),
+            )
+            img = StableDiffusionMGX.convert_to_rgb_image(result)
+        finally:
+            log = ''.join([sys.stdout.get_log(), sys.stderr.get_log()])
+            sys.stdout, sys.stderr = oldStdout, oldStderr
+        return img, log
 
-    demo = gr.Interface(
-        gr_wrapper,
-        [
-            gr.Textbox(value=args.prompt, label="Prompt"),
-            gr.Textbox(value=args.negative_prompt,
-                       label="Negative prompt (Optional)"),
-            gr.Slider(
-                1, 100, step=1, value=args.steps, label="Number of steps"),
-            gr.Textbox(value=args.seed, label="Random seed"),
-            gr.Slider(
-                1, 20, step=0.1, value=args.scale, label="Guidance scale"),
-            gr.Slider(0,
-                      100,
-                      step=1,
-                      value=args.refiner_steps,
-                      label="Number of refiner steps. (Use 0 to skip it)",
-                      visible=args.use_refiner),
-            gr.Slider(1,
-                      20,
-                      step=0.1,
-                      value=args.refiner_aesthetic_score,
-                      label="Aesthetic score (Refiner)",
-                      visible=args.use_refiner),
-            gr.Slider(1,
-                      20,
-                      step=0.1,
-                      value=args.refiner_negative_aesthetic_score,
-                      label="Negative Aesthetic score (Refiner)",
-                      visible=args.use_refiner),
-        ],
+    demo = gr.Interface(gr_wrapper, [
+        gr.Textbox(value=args.prompt, label="Prompt"),
+        gr.Textbox(value=args.negative_prompt,
+                   label="Negative prompt (Optional)"),
+        gr.Slider(1, 100, step=1, value=args.steps, label="Number of steps"),
+        gr.Textbox(value=args.seed, label="Random seed"),
+        gr.Slider(1, 20, step=0.1, value=args.scale, label="Guidance scale"),
+        gr.Slider(0,
+                  100,
+                  step=1,
+                  value=args.refiner_steps,
+                  label="Number of refiner steps. (Use 0 to skip it)",
+                  visible=args.use_refiner),
+        gr.Slider(1,
+                  20,
+                  step=0.1,
+                  value=args.refiner_aesthetic_score,
+                  label="Aesthetic score (Refiner)",
+                  visible=args.use_refiner),
+        gr.Slider(1,
+                  20,
+                  step=0.1,
+                  value=args.refiner_negative_aesthetic_score,
+                  label="Negative Aesthetic score (Refiner)",
+                  visible=args.use_refiner),
+    ], [
         "image",
-    )
+        gr.Textbox(placeholder="Output log of the run", label="Output log")
+    ])
     demo.launch()
 
 

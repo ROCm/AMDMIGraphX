@@ -973,7 +973,7 @@ TEST_CASE(broadcast_with_dims2)
     shape s1{migraphx::shape::int64_type, {4}};
     std::size_t max_int = std::numeric_limits<std::size_t>::max();
     std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
-    expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
+    expect_shape(shape{migraphx::shape::float_type, dyn_dims},
                  migraphx::make_op("broadcast_with_dims"),
                  s0,
                  s1);

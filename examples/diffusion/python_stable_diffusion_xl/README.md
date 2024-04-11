@@ -81,7 +81,14 @@ Get models with huggingface-cli
 Note: Only the opt version provides an onnx model, but can be used for all 3 version (`sdxl`, `sdxl-opt`, `sdxl-turbo`)
 
 ```bash
-huggingface-cli download stabilityai/stable-diffusion-xl-1.0-tensorrt sdxl-1.0-refiner/unetxl.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/6ed855ee-2d70-11ee-af8e-0242c0a80101 sdxl-1.0-refiner/unetxl.opt/6e186582-2d74-11ee-8aa7-0242c0a80102 --local-dir models/ --local-dir-use-symlinks False
+huggingface-cli download stabilityai/stable-diffusion-xl-1.0-tensorrt sdxl-1.0-refiner/clip2.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/6ed855ee-2d70-11ee-af8e-0242c0a80101 sdxl-1.0-refiner/unetxl.opt/6e186582-2d74-11ee-8aa7-0242c0a80102 --local-dir models/ --local-dir-use-symlinks False
+```
+
+Convert CLIP2 model to expose "hidden_state" as output.
+
+```bash
+# clip2.opt
+python clip_modifier.py -i models/sdxl-1.0-refiner/clip2.opt/model.onnx -o models/sdxl-1.0-refiner/clip2.opt.mod/model.onnx
 ```
 
 Run the text-to-image script with the following example prompt and seed:

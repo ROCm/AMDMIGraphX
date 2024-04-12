@@ -113,6 +113,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
+// TODO: Return copy of appended module
 static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
                                                             instruction_ref output)
 {
@@ -184,9 +185,8 @@ static bool find_pointwise_modules(module& m)
         auto input = *it;
 
         auto new_inputs = append_pointwise_module(input, ins);
-        m.replace_instruction(input, input->get_operator(), new_inputs, input->module_inputs());
-        m.replace_instruction(ins, input);
-        m.move_instruction(input, ins);
+        // TODO: Use a different module
+        m.replace_instruction(ins, input->get_operator(), new_inputs, ins->module_inputs());
 
         changed = true;
     }

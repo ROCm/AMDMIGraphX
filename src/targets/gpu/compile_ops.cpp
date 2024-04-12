@@ -139,7 +139,7 @@ struct compile_plan
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    to_string(problem));
                 results.resize(solutions.size());
-                for(auto i : range(solutions.size()))
+                for(auto i : range(1))
                 {
                     auto solution = solutions[i];
                     insert_compiles(compiles, solution, i);

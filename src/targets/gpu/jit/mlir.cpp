@@ -53,6 +53,11 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             input_args.pop_back();
             auto mod2                = smod->split(input_args, {gemm_ins});
+            std::cout << "=====mod0===========\n";
+            mod2[0].mod.debug_print();
+            std::cout << "==========mod1=======\n";
+            mod2[1].mod.debug_print();
+            std::cout << "===========\n";
             auto dot_mlir_inputs = to_shapes(mod2[0].inputs);
             dot_mlir_inputs.push_back(mod2[0].mod.get_output_shapes().front());
             auto cop1        = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
@@ -92,11 +97,11 @@ struct mlir_compiler : compiler<mlir_compiler>
                     const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) {
                     auto dot_inputs = mods[0].inputs;
                     auto dot_mod_out_shape = mods[0].mod.get_output_shapes().front();
-                    if(dot_mod_out_shape == ins->inputs().back()->get_shape())
-                    {
-                        dot_inputs.push_back(ins->inputs().back());
-                    }
-                    else
+                    // if(dot_mod_out_shape == ins->inputs().back()->get_shape())
+                    // {
+                    //     dot_inputs.push_back(ins->inputs().back());
+                    // }
+                    // else
                     {
                         auto dot_alloc = m.insert_instruction(
                             ins,

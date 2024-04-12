@@ -113,11 +113,10 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static module::with_inputs append_pointwise_module(instruction_ref ins,
-                                                            instruction_ref output)
+static module::with_inputs append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
     assert(contains(output->inputs(), ins));
-    module pm = *ins->module_inputs().at(0);
+    module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
 
     auto last = std::prev(pm.end());
@@ -184,7 +183,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm)
         auto input = *it;
 
         auto fused = append_pointwise_module(input, ins);
-        auto name = fused.mod.name();
+        auto name  = fused.mod.name();
         mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
         auto new_pm = mpm.create_module(name, std::move(fused.mod));
         mpm.get_module().replace_instruction(ins, input->get_operator(), fused.inputs, {new_pm});

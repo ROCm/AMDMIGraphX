@@ -1,6 +1,7 @@
 from .base import *
-
+import numpy as np
 from transformers import AutoFeatureExtractor
+
 
 class AutoFeatureExtractorHFMixin(object):
 
@@ -21,20 +22,18 @@ class AutoFeatureExtractorHFMixin(object):
 
 class Wav2Vec2_base_960h(SingleOptimumHFModelDownloadMixin,
                          AutoFeatureExtractorHFMixin, BaseModel):
+    @property
+    def model_id(self):
+        return "facebook/wav2vec2-base-960h"
 
-    def __init__(self):
-        self.model_id = "facebook/wav2vec2-base-960h"
-
+    @property
     def name(self):
         return "wav2vec2-base-960h"
 
 
 class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
                      AutoFeatureExtractorHFMixin, DecoderModel):
-
     def __init__(self):
-        self.model_id = "openai/whisper-small.en"
-
         # Whisper specific part
         # TODO get these from config
         self.eos_token_id = 50256  # "<|endoftext|>"
@@ -44,6 +43,14 @@ class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
         max_length = 448
         self.initial_input_ids = np.array(
             [sot + [self.eos_token_id] * (max_length - len(sot))])
+
+    @property
+    def model_id(self):
+        return "openai/whisper-small.en"
+
+    @property
+    def name(self):
+        return "whisper-small-en"
 
     def preprocess(self, *args, **kwargs):
         # result only contains encoder data, extend it with decoder
@@ -57,6 +64,3 @@ class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
         new_token = np.argmax(output_map["logits"][0][timestep - 1])
         input_map["decoder_input_ids"][0][timestep] = new_token
         return new_token == self.eos_token_id
-
-    def name(self):
-        return "whisper-small-en"

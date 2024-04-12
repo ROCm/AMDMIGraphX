@@ -1,3 +1,1 @@
-from .imagenet import *
-from .librispeech import *
-from .squad import *
+__all__ = ["imagenet", "librispeech", "squad"]

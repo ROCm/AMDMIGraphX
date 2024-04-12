@@ -1,7 +1,12 @@
-from sample_generator.dataset import ImageNet2012Val, SQuAD_HF, LibriSpeechASR
-from sample_generator.model import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large  #for imagenet
-from sample_generator.model import DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2  # for squad
-from sample_generator.model import Wav2Vec2_base_960h, WhisperSmallEn  # for librispeech
+# datasets
+from sample_generator.dataset.imagenet import ImageNet2012Val
+from sample_generator.dataset.librispeech import LibriSpeechASR
+from sample_generator.dataset.squad import SQuAD_HF
+
+# models
+from sample_generator.model.image import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large  #for imagenet
+from sample_generator.model.text import DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2  # for squad
+from sample_generator.model.audio import Wav2Vec2_base_960h, WhisperSmallEn  # for librispeech
 from sample_generator.generator import generate_test_dataset
 
 model_dataset_pairs = [{

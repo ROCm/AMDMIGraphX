@@ -4,10 +4,14 @@ from ..utils import download
 
 
 class BaseModel(abc.ABC):
-
-    @classmethod
+    @property
     @abc.abstractmethod
-    def __init__(self):
+    def model_id(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def name(self):
         pass
 
     @classmethod
@@ -21,17 +25,11 @@ class BaseModel(abc.ABC):
         pass
 
     @classmethod
-    @abc.abstractmethod
-    def name(self):
-        pass
-
-    @classmethod
     def is_decoder(self):
         return False
 
 
 class DecoderModel(BaseModel):
-
     def is_decoder(self):
         return True
 
@@ -41,25 +39,26 @@ class DecoderModel(BaseModel):
         pass
 
 
-class SingleURLDownloadMixin(object):
-
+class SingleModelDownloadMixin(object):
     def download(self, output_folder):
         filepath = f"{output_folder}/model.onnx"
-        print(f"Download model from {self.url} to {filepath}")
-        download(self.url, filepath)
+        print(f"Download model from {self.model_id} to {filepath}")
+        download(self.model_id, filepath)
         return filepath
 
 
 class SingleOptimumHFModelDownloadMixin(object):
-
     def download(self, output_folder):
+        filepath = f"{output_folder}/model.onnx"
+        print(f"Download model from {self.model_id} to {filepath}")
         main_export(self.model_id, output=output_folder)
-        return f"{output_folder}/model.onnx"
+        return filepath
 
 
 class EncoderDecoderOptimumHFModelDownloadMixin(object):
-
     def download(self, output_folder):
+        filepath = f"{output_folder}/model.onnx"
+        print(f"Download model from {self.model_id} to {filepath}")
         # monolith forces export into one model
         main_export(self.model_id, output=output_folder, monolith=True)
-        return f"{output_folder}/model.onnx"
+        return filepath

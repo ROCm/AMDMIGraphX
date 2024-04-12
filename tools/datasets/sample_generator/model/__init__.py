@@ -1,3 +1,1 @@
-import audio
-import image
-import text
+__all__ = ["audio", "image", "text"]

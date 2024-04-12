@@ -1,8 +1,8 @@
 from .base import BaseDataset, ValidationDatasetHFIteratorMixin
 from datasets import load_dataset
 
-class SQuADTransformMixin(object):
 
+class SQuADTransformMixin(object):
     def transform(self, inputs, data, prepocess_fn):
         result = prepocess_fn(data["question"],
                               data["context"],
@@ -14,9 +14,17 @@ class SQuADTransformMixin(object):
 
 
 class SQuADv1_1(SQuADTransformMixin, BaseDataset):
-
-    def __init__(self):
+    @property
+    def url(self):
         self.url = "https://raw.githubusercontent.com/rajpurkar/SQuAD-explorer/master/dataset/dev-v1.1.json"
+
+    @property
+    def split(self):
+        return "validation"
+
+    @property
+    def name(self):
+        return "squad-v1.1"
 
     def __iter__(self):
         print(f"Load dataset from {self.url}")
@@ -35,15 +43,17 @@ class SQuADv1_1(SQuADTransformMixin, BaseDataset):
     def __next__(self):
         return next(self.dataset)
 
-    def name(self):
-        return "squad-v1.1"
-
 
 class SQuAD_HF(ValidationDatasetHFIteratorMixin, SQuADTransformMixin,
                BaseDataset):
+    @property
+    def url(self):
+        return "squad"
 
-    def __init__(self):
-        self.url = "squad"
+    @property
+    def split(self):
+        return "validation"
 
+    @property
     def name(self):
         return "squad-hf"

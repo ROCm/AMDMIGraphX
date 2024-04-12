@@ -10,7 +10,7 @@ def generate_test_dataset(model,
                           sample_limit=None,
                           decode_limit=None):
     if not output_path:
-        output_path = f"{dataset.name()}/{model.name()}"
+        output_path = f"{dataset.name}/{model.name}"
     folder_name_prefix = f"{output_path}/test_data_set"
     input_pb_name = "input_{}.pb"
     output_pb_name = "output_{}.pb"

@@ -3,10 +3,19 @@ from datasets import load_dataset
 
 
 class BaseDataset(abc.ABC):
-
-    @classmethod
+    @property
     @abc.abstractmethod
-    def __init__(self):
+    def url(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def split(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def name(self):
         pass
 
     @classmethod
@@ -24,16 +33,8 @@ class BaseDataset(abc.ABC):
     def transform(self, *args, **kwargs):
         pass
 
-    @classmethod
-    @abc.abstractmethod
-    def name(self):
-        pass
-
 
 class ValidationDatasetHFIteratorMixin(object):
-
-    split = "validation"
-
     def __iter__(self):
         print(f"Load dataset from {self.url} using {self.split} split")
         self.dataset = iter(

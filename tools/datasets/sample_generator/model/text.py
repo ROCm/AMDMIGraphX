@@ -2,6 +2,7 @@ from .base import *
 
 from transformers import AutoTokenizer
 
+
 class AutoTokenizerHFMixin(object):
 
     _processor = None
@@ -23,28 +24,31 @@ class AutoTokenizerHFMixin(object):
 
 class DistilBERT_base_cased_distilled_SQuAD(SingleOptimumHFModelDownloadMixin,
                                             AutoTokenizerHFMixin, BaseModel):
+    @property
+    def model_id(self):
+        return "distilbert/distilbert-base-cased-distilled-squad"
 
-    def __init__(self):
-        self.model_id = "distilbert/distilbert-base-cased-distilled-squad"
-
+    @property
     def name(self):
         return "distilbert-base-cased-distilled-squad"
 
 
 class RobertaBaseSquad2(SingleOptimumHFModelDownloadMixin,
                         AutoTokenizerHFMixin, BaseModel):
+    @property
+    def model_id(self):
+        return "deepset/roberta-base-squad2"
 
-    def __init__(self):
-        self.model_id = "deepset/roberta-base-squad2"
-
+    @property
     def name(self):
         return "roberta-base-squad2"
 
 
 class GPTJ(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin, BaseModel):
+    @property
+    def model_id(self):
+        return "EleutherAI/gpt-j-6b"
 
-    def __init__(self):
-        self.model_id = "EleutherAI/gpt-j-6b"
-
+    @property
     def name(self):
         return "gpt-j"

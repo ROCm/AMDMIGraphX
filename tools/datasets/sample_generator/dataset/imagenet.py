@@ -1,17 +1,26 @@
 from .base import BaseDataset
 from datasets import load_dataset
 
-class ImageNet2012Val(BaseDataset):
 
-    def __init__(self):
-        self.url = "https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar"
+class ImageNet2012Val(BaseDataset):
+    @property
+    def url(self):
+        return "https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar"
+
+    @property
+    def split(self):
+        return "val"
+
+    @property
+    def name(self):
+        return "imagenet-2012-val"
 
     def __iter__(self):
         print(f"Load dataset from {self.url}")
         self.dataset = iter(
             load_dataset("webdataset",
-                         data_files={"val": self.url},
-                         split="val",
+                         data_files={self.split: self.url},
+                         split=self.split,
                          streaming=True))
         return self.dataset
 
@@ -23,6 +32,3 @@ class ImageNet2012Val(BaseDataset):
         img_data = prepocess_fn(data["jpeg"])
         assert (img_data.shape == (1, 3, 224, 224))
         return {inputs[0]: img_data}
-
-    def name(self):
-        return "imagenet-2012-val"

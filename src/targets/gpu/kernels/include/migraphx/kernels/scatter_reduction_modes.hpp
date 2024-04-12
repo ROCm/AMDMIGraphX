@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,17 +25,6 @@
 #define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
 
 #include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/type_traits.hpp>
-#include <migraphx/kernels/debug.hpp>
-
-#ifndef MIGRAPHX_ALLOW_ATOMIC_CAS
-// NOLINTNEXTLINE
-#define MIGRAPHX_ALLOW_ATOMIC_CAS 0
-#endif
-
-// NOLINTNEXTLINE
-#define MIGRAPHX_ATOMIC_CAS_WARNING() \
-    MIGRAPHX_ASSERT(MIGRAPHX_ALLOW_ATOMIC_CAS and "Using atomicCAS is slow")
 
 namespace migraphx {
 
@@ -53,24 +42,7 @@ struct assign_add
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        if constexpr(is_same<T, float>{} or is_same<T, double>{})
-        {
-            unsafeAtomicAdd(&x, T(y));
-        }
-        else
-        {
-            MIGRAPHX_ATOMIC_CAS_WARNING();
-            atomicAdd(&x, T(y));
-        }
-        if constexpr(is_same<T, float>{} or is_same<T, double>{})
-        {
-            unsafeAtomicAdd(&x, T(y));
-        }
-        else
-        {
-            MIGRAPHX_ATOMIC_CAS_WARNING();
-            atomicAdd(&x, T(y));
-        }
+        atomicAdd(&x, y);
     }
 };
 
@@ -79,20 +51,13 @@ struct assign_mul
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        MIGRAPHX_ATOMIC_CAS_WARNING();
-        MIGRAPHX_ATOMIC_CAS_WARNING();
         T old = x;
         T assumed;
         do
         {
             assumed = old;
             old     = atomicCAS(&x, assumed, assumed * y);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfloat-equal"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wfloat-equal"
         } while(assumed != old);
-#pragma clang diagnostic pop
     }
 };
 
@@ -101,8 +66,7 @@ struct assign_max
     template <typename T, typename U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        atomicMax(&x, T(y));
-        atomicMax(&x, T(y));
+        atomicMax(&x, y);
     }
 };
 
@@ -111,8 +75,7 @@ struct assign_min
     template <typename T, typename U>
     MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
     {
-        atomicMin(&x, T(y));
-        atomicMin(&x, T(y));
+        atomicMin(&x, y);
     }
 };
 

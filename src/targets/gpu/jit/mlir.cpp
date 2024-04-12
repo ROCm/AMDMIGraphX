@@ -48,16 +48,21 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return i.name() == "dot" or i.name() == "quant_dot";
         });
-        if(gemm_ins != smod->end() and smod->get_returns().front()->inputs().front() != gemm_ins)
+        if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2)
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
             auto mod2                = smod->split(input_args, {gemm_ins});
             auto dot_mlir_inputs = to_shapes(mod2[0].inputs);
             dot_mlir_inputs.push_back(mod2[0].mod.get_output_shapes().front());
-            migraphx::operation cop1 = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
+            auto cop1        = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
+            auto pw_inputs   = mod2[1].inputs;
+            auto dot_ins_idx = std::distance(
+                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_ins), pw_inputs.begin());
             auto pw_shapes = to_shapes(mod2[1].inputs);
+            pw_shapes[dot_ins_idx] = cop1.output;
             pw_shapes.push_back(mod2[1].mod.get_output_shapes().front());
+            assert(pw_shapes.back() == ins->get_shape());
             auto cop2 = compile_pointwise(ctx, pw_shapes, &mod2[1].mod);
             std::vector<operation> cops = {cop1, cop2};
             return insert(cops, mod2, gemm_ins);

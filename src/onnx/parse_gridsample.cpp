@@ -487,12 +487,43 @@ struct bicubic_sampler : grid_sampler
         }
     }
 
+    instruction_ref compute_weights(const onnx_parser::node_info& info,
+                                    std::vector<instruction_ref>& weight_indices,
+                                    const std::array<instruction_ref, 4>& weights,
+                                    const std::vector<size_t>& out_lens, size_t gather_dim)
+    {
+        auto weight_indices_t = concat_on_first_dim(info, weight_indices);
+        weight_indices_t      = info.add_instruction(
+            make_op(
+                "reshape",
+                {{"dims", {weight_indices_t->get_shape().elements() / gather_dim, gather_dim}}}),
+            weight_indices_t);
+        std::array<instruction_ref, 4> corner_weights;
+        dfor(corner_weights.size())([&](auto corner) {
+            corner_weights.at(corner) =
+                info.add_instruction(make_op("gathernd"), weights[corner], weight_indices_t);
+            corner_weights.at(corner) = info.add_instruction(
+                make_op("reshape",
+                        {{"dims", {corner_weights.at(corner)->get_shape().elements(), 1}}}),
+                corner_weights.at(corner));
+        });
+        auto weights_t = std::accumulate(
+            std::next(corner_weights.begin()),
+            corner_weights.end(),
+            corner_weights.front(),
+            [&info](auto& acc, auto& ins) {
+                return info.add_instruction(make_op("concat", {{"axis", 1}}), acc, ins);
+            });
+        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), weights_t);
+    }
+
     instruction_ref sample(const onnx_parser::node_info& info)
     {
         std::vector<instruction_ref> indices;
         std::vector<instruction_ref> validation;
-        std::vector<instruction_ref> x_weights;
         std::vector<instruction_ref> y_weights;
+        std::vector<instruction_ref> x_weight_indices;
+        std::vector<instruction_ref> y_weight_indices;
 
         const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
@@ -502,26 +533,19 @@ struct bicubic_sampler : grid_sampler
             auto x2  = info.add_instruction(make_op("gathernd"), m_x_corners[2], nhw);
             auto x3  = info.add_instruction(make_op("gathernd"), m_x_corners[3], nhw);
 
-            auto w0 = info.add_instruction(make_op("gathernd"), m_x_weights[0], nhw);
-            auto w1 = info.add_instruction(make_op("gathernd"), m_x_weights[1], nhw);
-            auto w2 = info.add_instruction(make_op("gathernd"), m_x_weights[2], nhw);
-            auto w3 = info.add_instruction(make_op("gathernd"), m_x_weights[3], nhw);
+            x_weight_indices.insert(x_weight_indices.end(), {nhw, nhw, nhw, nhw});
+            y_weight_indices.push_back(nhw);
 
-            dfor(m_y_corners.size())([&](auto corner) {
-                x_weights.push_back(w0);
-                x_weights.push_back(w1);
-                x_weights.push_back(w2);
-                x_weights.push_back(w3);
-                auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
-                y_weights.push_back(
-                    info.add_instruction(make_op("gathernd"), m_y_weights[corner], nhw));
-                dfor(m_channel)([&](auto c) {
-                    update_indices(info, y, x0, n, c, indices, validation);
-                    update_indices(info, y, x1, n, c, indices, validation);
-                    update_indices(info, y, x2, n, c, indices, validation);
-                    update_indices(info, y, x3, n, c, indices, validation);
+            dfor(m_y_corners.size())(
+                [&](auto corner) {
+                    auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
+                    dfor(m_channel)([&](auto c) {
+                        update_indices(info, y, x0, n, c, indices, validation);
+                        update_indices(info, y, x1, n, c, indices, validation);
+                        update_indices(info, y, x2, n, c, indices, validation);
+                        update_indices(info, y, x3, n, c, indices, validation);
+                    });
                 });
-            });
         });
 
         auto indices_t = concat_on_first_dim(info, indices);
@@ -531,7 +555,7 @@ struct bicubic_sampler : grid_sampler
         auto validation_t = concat_on_first_dim(info, validation);
         samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
 
-        auto x_weights_t = concat_on_first_dim(info, x_weights);
+        auto x_weights_t = compute_weights(info, x_weight_indices, m_x_weights, samples->get_shape().lens(), nhw_shape.elements());
         auto weighted_samples = info.add_common_op("mul", samples, x_weights_t);
         weighted_samples = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_samples->get_shape().elements() / 4, 4}}}),
@@ -540,7 +564,7 @@ struct bicubic_sampler : grid_sampler
         auto coefficients = info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_samples);
         coefficients = info.add_instruction(make_op("squeeze", {{"axes", {1}}}), coefficients);
 
-        auto y_weights_t           = concat_on_first_dim(info, y_weights);
+        auto y_weights_t = compute_weights(info, y_weight_indices, m_y_weights, coefficients->get_shape().lens(), nhw_shape.elements());
         auto weighted_coefficients = info.add_common_op("mul", coefficients, y_weights_t);
         weighted_coefficients = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_coefficients->get_shape().elements() / 4, 4}}}),

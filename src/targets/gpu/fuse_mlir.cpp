@@ -51,7 +51,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
  * will decide by itself which operations to delegate to MLIR. The variable is
  * intended to be primarily used by rocMLIR developers.
  */
+#ifdef MIGRAPHX_USE_ROCBLAS
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_USE_SPECIFIC_OPS);
+#endif
 
 bool mlir_enabled()
 {
@@ -79,11 +81,23 @@ static bool is_negated_op(const std::string& s)
     return contains({'!', '~'}, s[0]);
 }
 
+#ifndef MIGRAPHX_USE_ROCBLAS
+const std::vector<std::string>& get_default_options()
+{
+    static std::vector<std::string> default_options{"dot", "convolution", "fused"};
+    return default_options;
+}
+#endif
+
 template <class Action>
 static std::vector<std::string> get_usage()
 {
-    static const auto options =
-        split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
+    #ifdef MIGRAPHX_USE_ROCBLAS
+        static const auto options =
+            split_string(string_value_of(MIGRAPHX_MLIR_USE_SPECIFIC_OPS{}, ""), ',');
+    #else
+        static const auto options = get_default_options();
+    #endif
     static const bool enabled = std::is_same<Action, requested>{};
     std::vector<std::string> result;
     auto remove_not_symbol = [&](const std::string& s) {

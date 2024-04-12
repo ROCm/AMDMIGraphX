@@ -1,4 +1,5 @@
 import abc
+import os
 from optimum.exporters.onnx import main_export
 from ..utils import download
 
@@ -40,25 +41,28 @@ class DecoderModel(BaseModel):
 
 
 class SingleModelDownloadMixin(object):
-    def download(self, output_folder):
+    def download(self, output_folder, force=False):
         filepath = f"{output_folder}/model.onnx"
-        print(f"Download model from {self.model_id} to {filepath}")
-        download(self.model_id, filepath)
+        if force or not os.path.isfile(filepath):
+            print(f"Download model from {self.model_id} to {filepath}")
+            download(self.model_id, filepath)
         return filepath
 
 
 class SingleOptimumHFModelDownloadMixin(object):
-    def download(self, output_folder):
+    def download(self, output_folder, force=False):
         filepath = f"{output_folder}/model.onnx"
-        print(f"Download model from {self.model_id} to {filepath}")
-        main_export(self.model_id, output=output_folder)
+        if force or not os.path.isfile(filepath):
+            print(f"Download model from {self.model_id} to {filepath}")
+            main_export(self.model_id, output=output_folder)
         return filepath
 
 
 class EncoderDecoderOptimumHFModelDownloadMixin(object):
-    def download(self, output_folder):
+    def download(self, output_folder, force=False):
         filepath = f"{output_folder}/model.onnx"
-        print(f"Download model from {self.model_id} to {filepath}")
-        # monolith forces export into one model
-        main_export(self.model_id, output=output_folder, monolith=True)
+        if force or not os.path.isfile(filepath):
+            print(f"Download model from {self.model_id} to {filepath}")
+            # monolith forces export into one model
+            main_export(self.model_id, output=output_folder, monolith=True)
         return filepath

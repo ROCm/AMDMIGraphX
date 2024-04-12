@@ -46,7 +46,7 @@ struct test_pointwise_multi_out : verify_program<test_pointwise_multi_out>
             pm->add_return({add, sqrt});
         }
         pm->set_bypass();
-        auto pw = mm->add_instruction(migraphx::make_op("pointwise"), {z1, z2}, {pm});
+        auto pw  = mm->add_instruction(migraphx::make_op("pointwise"), {z1, z2}, {pm});
         auto e0  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), pw);
         auto e1  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), pw);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), e0, e1);

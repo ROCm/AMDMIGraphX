@@ -37,6 +37,9 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
+
+MIGRAPHX_GPU_EXPORT bool isModuleFusible(const module& m, const value& solution);
+
 MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& migraphx_ctx,
                                                 module m,
                                                 const std::vector<shape>& in_shapes,

@@ -92,7 +92,8 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return i.name() == "dot" or i.name() == "quant_dot";
         });
-        if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2)
+        if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and
+           not isModuleFusible(*smod, solution))
         {
             auto input_args = ins->inputs();
             input_args.pop_back();

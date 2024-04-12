@@ -945,6 +945,13 @@ struct mlir_program
     std::string sym_name;
 };
 
+bool isModuleFusible(const module& m, const value& solution)
+{
+    mlir_program mp;
+    mp.parse(m);
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+}
+
 std::string dump_mlir(const module& m)
 {
     mlir_program mp;

@@ -21,13 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/instruction.hpp"
 #include <fstream>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
-
+#include <migraphx/instruction.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/gpu/ck.hpp>

@@ -15,9 +15,13 @@ class BaseModel(abc.ABC):
     def name(self):
         pass
 
+    @property
+    def task(self):
+        return "auto"
+
     @classmethod
     @abc.abstractmethod
-    def download(self, output_folder):
+    def get_model(self, folder, force_download):
         pass
 
     @classmethod
@@ -41,28 +45,31 @@ class DecoderModel(BaseModel):
 
 
 class SingleModelDownloadMixin(object):
-    def download(self, output_folder, force=False):
+    def get_model(self, output_folder, force_download=False):
         filepath = f"{output_folder}/model.onnx"
-        if force or not os.path.isfile(filepath):
+        if force_download or not os.path.isfile(filepath):
             print(f"Download model from {self.model_id} to {filepath}")
             download(self.model_id, filepath)
         return filepath
 
 
 class SingleOptimumHFModelDownloadMixin(object):
-    def download(self, output_folder, force=False):
-        filepath = f"{output_folder}/model.onnx"
-        if force or not os.path.isfile(filepath):
+    def get_model(self, folder, force_download=False):
+        filepath = f"{folder}/model.onnx"
+        if force_download or not os.path.isfile(filepath):
             print(f"Download model from {self.model_id} to {filepath}")
-            main_export(self.model_id, output=output_folder)
+            main_export(self.model_id, output=folder, task=self.task)
         return filepath
 
 
 class EncoderDecoderOptimumHFModelDownloadMixin(object):
-    def download(self, output_folder, force=False):
-        filepath = f"{output_folder}/model.onnx"
-        if force or not os.path.isfile(filepath):
+    def get_model(self, folder, force_download=False):
+        filepath = f"{folder}/model.onnx"
+        if force_download or not os.path.isfile(filepath):
             print(f"Download model from {self.model_id} to {filepath}")
             # monolith forces export into one model
-            main_export(self.model_id, output=output_folder, monolith=True)
+            main_export(self.model_id,
+                        output=folder,
+                        monolith=True,
+                        task=self.task)
         return filepath

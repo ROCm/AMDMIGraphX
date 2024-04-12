@@ -16,7 +16,7 @@ def generate_test_dataset(model,
     output_pb_name = "output_{}.pb"
 
     # Model
-    model_path = model.download(output_path)
+    model_path = model.get_model(output_path)
     inputs, outputs = get_model_io(model_path)
 
     sess = ort.InferenceSession(model_path)

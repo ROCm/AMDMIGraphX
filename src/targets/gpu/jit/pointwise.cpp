@@ -105,7 +105,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         {
             assert(not ins->module_inputs().empty());
             auto* pm           = ins->module_inputs().front();
-            auto pf            = generate_pointwise(*pm, "inner_pointwise");
+            auto pf            = generate_pointwise(*pm, "inner_pointwise", true);
             std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
             auto kernel_name   = generate_name_from_ops(*pm, "kernel");
             return compile_op(ctx,

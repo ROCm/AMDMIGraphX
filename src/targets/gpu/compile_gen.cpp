@@ -206,10 +206,10 @@ static void generate_pointwise(cpp_generator& gg,
                            .set_generic_types(m)
                            .set_name(name));
 }
-std::string generate_pointwise(const module& pm, const std::string& name)
+std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {
     cpp_generator g;
-    generate_pointwise(g, pm, name, true);
+    generate_pointwise(g, pm, name, always_return_tuple);
     return g.str();
 }
 

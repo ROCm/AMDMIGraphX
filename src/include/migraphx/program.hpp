@@ -152,6 +152,7 @@ struct MIGRAPHX_EXPORT program
     std::unordered_multimap<module_ref, module_ref> get_module_tree();
 
     void remove_module(const std::string& name);
+    void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
     private:

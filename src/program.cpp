@@ -1202,6 +1202,17 @@ void program::remove_module(const std::string& name)
     impl->modules.erase(name);
 }
 
+void program::rename_module(const std::string& old_name, const std::string& new_name)
+{
+    assert(old_name != new_name);
+    assert(contains(impl->modules, old_name));
+    assert(not contains(impl->modules, new_name));
+    auto node = impl->modules.extract(old_name);
+    node.key() = new_name;
+    node.mapped().set_name(new_name);
+    impl->modules.insert(std::move(node));
+}
+
 void program::remove_unused_modules()
 {
     std::vector<module*> unused;

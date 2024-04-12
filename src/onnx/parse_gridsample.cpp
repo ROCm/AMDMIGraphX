@@ -77,6 +77,8 @@ struct grid_sampler
         m_nc_shape     = migraphx::shape{type, {1, 2}};
         m_zero_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
         m_one_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+        m_two_l =
+            info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {2}});
         m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.5f}});
         m_width_max_l =
             info.add_literal(migraphx::literal{migraphx::shape{type}, {m_in_width - 1}});
@@ -98,8 +100,6 @@ struct grid_sampler
 
         if(m_padding == "reflection")
         {
-            m_two_l = info.add_literal(
-                migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {2}});
             auto corner_start = m_align_corners ? m_zero_l : m_minus_half_l;
             m_unnorm_x        = reflect_coordinates(
                 info, m_unnorm_x, m_align_corners ? m_width_max_l : m_width_l, corner_start);
@@ -381,6 +381,187 @@ struct linear_sampler : grid_sampler
     }
 };
 
+struct bicubic_sampler : grid_sampler
+{
+    instruction_ref m_a_l;
+    instruction_ref m_aplus2_l;
+    instruction_ref m_aplus3_l;
+    instruction_ref m_4a_l;
+    instruction_ref m_5a_l;
+    instruction_ref m_8a_l;
+    std::array<instruction_ref, 4> m_x_weights;
+    std::array<instruction_ref, 4> m_y_weights;
+    std::array<instruction_ref, 4> m_x_corners;
+    std::array<instruction_ref, 4> m_y_corners;
+
+    instruction_ref cubic_weight_1(const onnx_parser::node_info& info, const instruction_ref& ins)
+    {
+        //((A + 2) * fraction - (A + 3)) * fraction * fraction + 1
+        auto mul_1 = info.add_common_op("mul", m_aplus2_l, ins);
+        auto sub   = info.add_common_op("sub", mul_1, m_aplus3_l);
+        auto mul_2 = info.add_common_op("mul", sub, ins);
+        auto mul_3 = info.add_common_op("mul", mul_2, ins);
+        return info.add_common_op("add", mul_3, m_one_l);
+    }
+
+    instruction_ref cubic_weight_2(const onnx_parser::node_info& info, const instruction_ref& ins)
+    {
+        // ((A * fraction - 5 * A) * fraction + 8 * A) * fraction - (4 * A)
+        auto mul_1 = info.add_common_op("mul", m_a_l, ins);
+        auto sub_1 = info.add_common_op("sub", mul_1, m_5a_l);
+        auto mul_2 = info.add_common_op("mul", sub_1, ins);
+        auto add   = info.add_common_op("add", mul_2, m_8a_l);
+        auto mul_3 = info.add_common_op("mul", add, ins);
+        return info.add_common_op("sub", mul_3, m_4a_l);
+    }
+
+    bicubic_sampler(const instruction_ref& input,
+                    const instruction_ref& grid,
+                    bool align,
+                    std::string&& padding,
+                    const onnx_parser::node_info& info)
+        : grid_sampler(input, grid, align, std::move(padding), info)
+    {
+        auto type  = m_grid->get_shape().type();
+        m_a_l      = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
+        m_aplus2_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
+        m_aplus3_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
+        m_4a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.0}});
+        m_5a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.75}});
+        m_8a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-6.0}});
+        auto floor_x = info.add_common_op("floor", m_unnorm_x);
+        auto floor_y = info.add_common_op("floor", m_unnorm_y);
+        auto fract_x   = info.add_common_op("sub", m_unnorm_x, floor_x);
+        auto fract_y   = info.add_common_op("sub", m_unnorm_y, floor_y);
+
+        m_x_weights[0] = cubic_weight_2(info, info.add_common_op("add", fract_x, m_one_l));
+        m_x_weights[1] = cubic_weight_1(info, fract_x);
+        m_x_weights[2] = cubic_weight_1(info, info.add_common_op("sub", m_one_l, fract_x));
+        m_x_weights[3] = cubic_weight_2(info, info.add_common_op("sub", m_two_l, fract_x));
+        
+        m_y_weights[0] = cubic_weight_2(info, info.add_common_op("add", fract_y, m_one_l));
+        m_y_weights[1] = cubic_weight_1(info, fract_y);
+        m_y_weights[2] = cubic_weight_1(info, info.add_common_op("sub", m_one_l, fract_y));
+        m_y_weights[3] = cubic_weight_2(info, info.add_common_op("sub", m_two_l, fract_y));
+
+        m_x_corners[0] = info.add_common_op("sub", floor_x, m_one_l);
+        m_x_corners[1] = floor_x;
+        m_x_corners[2] = info.add_common_op("add", floor_x, m_one_l);
+        m_x_corners[3] = info.add_common_op("add", floor_x, m_two_l);
+
+        m_y_corners[0] = info.add_common_op("sub", floor_y, m_one_l);
+        m_y_corners[1] = floor_y;
+        m_y_corners[2] = info.add_common_op("add", floor_y, m_one_l);
+        m_y_corners[3] = info.add_common_op("add", floor_y, m_two_l);
+
+        if(m_padding == "reflection")
+        {
+            auto corner_start = m_align_corners ? m_zero_l : m_minus_half_l;
+            dfor(m_x_corners.size())([&](auto corner) {
+                m_x_corners[corner] =
+                    reflect_coordinates(info,
+                                        m_x_corners[corner],
+                                        m_align_corners ? m_width_max_l : m_width_l,
+                                        corner_start);
+                m_x_corners[corner] =
+                    info.add_common_op("clip", m_x_corners[corner], m_zero_l, m_width_max_l);
+
+                m_y_corners[corner] =
+                    reflect_coordinates(info,
+                                        m_y_corners[corner],
+                                        m_align_corners ? m_height_max_l : m_height_l,
+                                        corner_start);
+                m_y_corners[corner] =
+                    info.add_common_op("clip", m_y_corners[corner], m_zero_l, m_height_max_l);
+            });
+        }
+
+        if(m_padding == "border")
+        {
+            dfor(m_x_corners.size())([&](auto corner) {
+                m_x_corners[corner] =
+                    info.add_common_op("clip", m_x_corners[corner], m_zero_l, m_width_max_l);
+                m_y_corners[corner] =
+                    info.add_common_op("clip", m_y_corners[corner], m_zero_l, m_height_max_l);
+            });
+        }
+    }
+
+    instruction_ref sample(const onnx_parser::node_info& info)
+    {
+        std::vector<instruction_ref> indices;
+        std::vector<instruction_ref> validation;
+        std::vector<instruction_ref> x_weights;
+        std::vector<instruction_ref> y_weights;
+
+        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+        dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
+            auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
+            auto x0  = info.add_instruction(make_op("gathernd"), m_x_corners[0], nhw);
+            auto x1  = info.add_instruction(make_op("gathernd"), m_x_corners[1], nhw);
+            auto x2  = info.add_instruction(make_op("gathernd"), m_x_corners[2], nhw);
+            auto x3  = info.add_instruction(make_op("gathernd"), m_x_corners[3], nhw);
+
+            auto w0 = info.add_instruction(make_op("gathernd"), m_x_weights[0], nhw);
+            auto w1 = info.add_instruction(make_op("gathernd"), m_x_weights[1], nhw);
+            auto w2 = info.add_instruction(make_op("gathernd"), m_x_weights[2], nhw);
+            auto w3 = info.add_instruction(make_op("gathernd"), m_x_weights[3], nhw);
+
+            dfor(m_y_corners.size())([&](auto corner) {
+                x_weights.push_back(w0);
+                x_weights.push_back(w1);
+                x_weights.push_back(w2);
+                x_weights.push_back(w3);
+                auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
+                y_weights.push_back(
+                    info.add_instruction(make_op("gathernd"), m_y_weights[corner], nhw));
+                dfor(m_channel)([&](auto c) {
+                    update_indices(info, y, x0, n, c, indices, validation);
+                    update_indices(info, y, x1, n, c, indices, validation);
+                    update_indices(info, y, x2, n, c, indices, validation);
+                    update_indices(info, y, x3, n, c, indices, validation);
+                });
+            });
+        });
+
+        auto indices_t = concat_on_first_dim(info, indices);
+        indices_t      = info.add_instruction(
+            make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);
+        auto samples      = info.add_instruction(make_op("gathernd"), m_input, indices_t);
+        auto validation_t = concat_on_first_dim(info, validation);
+        samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
+
+        auto x_weights_t = concat_on_first_dim(info, x_weights);
+        auto weighted_samples = info.add_common_op("mul", samples, x_weights_t);
+        weighted_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {weighted_samples->get_shape().elements() / 4, 4}}}),
+            weighted_samples);
+
+        auto coefficients = info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_samples);
+        coefficients = info.add_instruction(make_op("squeeze", {{"axes", {1}}}), coefficients);
+
+        auto y_weights_t           = concat_on_first_dim(info, y_weights);
+        auto weighted_coefficients = info.add_common_op("mul", coefficients, y_weights_t);
+        weighted_coefficients = info.add_instruction(
+            make_op("reshape", {{"dims", {weighted_coefficients->get_shape().elements() / 4, 4}}}),
+            weighted_coefficients);
+
+        auto res =
+            info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_coefficients);
+        auto expected_shape = migraphx::shape{
+            migraphx::shape::int64_type, {m_batch, m_out_height, m_out_width, m_channel}};
+
+        res = info.add_instruction(
+            make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}),
+            res);
+        res     = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), res);
+        res     = info.add_instruction(
+            make_op("convert", {{"target_type", m_input->get_shape().type()}}), res);
+
+        return res;
+    }
+};
+
 struct parse_gridsample : op_parser<parse_gridsample>
 {
     std::vector<op_desc> operators() const { return {{"GridSample"}}; }
@@ -402,11 +583,6 @@ struct parse_gridsample : op_parser<parse_gridsample>
         if(contains(info.attributes, "mode"))
         {
             mode = info.attributes.at("mode").s();
-            // Note: can be cubic or bicubic depending on the onnx version
-            if(contains(mode, "cubic"))
-            {
-                MIGRAPHX_THROW("PARSE_GRID_SAMPLE: cubic mode is not supported");
-            }
         }
 
         if(contains(info.attributes, "padding_mode"))
@@ -435,8 +611,11 @@ struct parse_gridsample : op_parser<parse_gridsample>
         return (mode == "nearest")
                    ? nearest_sampler(x, grid, align_corners, std::move(padding_mode), info)
                          .sample(info)
-                   : linear_sampler(x, grid, align_corners, std::move(padding_mode), info)
-                         .sample(info);
+                   : ((mode == "linear")
+                          ? linear_sampler(x, grid, align_corners, std::move(padding_mode), info)
+                                .sample(info)
+                          : bicubic_sampler(x, grid, align_corners, std::move(padding_mode), info)
+                                .sample(info));
     }
 };
 

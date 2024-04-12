@@ -487,8 +487,8 @@ struct bicubic_sampler : grid_sampler
         }
     }
 
-    instruction_ref compute_weights(const onnx_parser::node_info& info,
-                                    std::vector<instruction_ref>& weight_indices,
+    static instruction_ref compute_weights(const onnx_parser::node_info& info,
+                                    const std::vector<instruction_ref>& weight_indices,
                                     const std::array<instruction_ref, 4>& weights,
                                     const std::vector<size_t>& out_lens,
                                     size_t gather_dim)

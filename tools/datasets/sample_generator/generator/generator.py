@@ -1,7 +1,7 @@
 import os
 import onnxruntime as ort
 
-from utils import get_model_io, numpy_to_pb
+from ..utils import get_model_io, numpy_to_pb
 
 
 def generate_test_dataset(model, dataset, output_path=None, sample_limit=None, decode_limit=None):

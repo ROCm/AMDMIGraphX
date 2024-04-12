@@ -1,10 +1,11 @@
 import abc
-from utils import download
-from preprocess import process_image
 from optimum.exporters.onnx import main_export
 import timm
 from transformers import AutoTokenizer, AutoImageProcessor, AutoFeatureExtractor
 import numpy as np
+
+from ..utils import download
+from .preprocess import process_image
 
 
 class BaseModel(abc.ABC):

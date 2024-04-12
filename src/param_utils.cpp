@@ -20,44 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/module_ref.hpp>
-#include <migraphx/tracer.hpp>
-#include <vector>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager
+std::string param_name(std::size_t i, const std::string& prefix)
 {
-    module_pass_manager()                                  = default;
-    module_pass_manager(const module_pass_manager&)        = delete;
-    virtual module& get_module()                           = 0;
-    virtual module* create_module(const std::string& name) = 0;
-    virtual module* create_module(const std::string& name, module m) = 0;
-    virtual module* get_common_parent()                    = 0;
-    virtual module* get_root_module()                      = 0;
-    virtual void run_pass(const pass& p)                   = 0;
+    assert(i < 10);
+    return prefix + std::to_string(i);
+}
 
-    protected:
-    virtual ~module_pass_manager() {}
-};
-
-MIGRAPHX_EXPORT void run_passes(program& prog,
-                                module_ref root_mod,
-                                const std::vector<pass>& passes,
-                                tracer trace = tracer{});
-MIGRAPHX_EXPORT void
-run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
-MIGRAPHX_EXPORT void
-run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
+void sort_params(std::vector<instruction_ref>& params)
+{
+    std::sort(params.begin(), params.end(), by(std::less<>{}, [](instruction_ref ins) {
+                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+                  return param.parameter;
+              }));
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

@@ -376,7 +376,7 @@ fold_pointwise_mod(instruction_ref pm_ins,
                            pm->get_parameter(name),
                            parent_mod->add_parameter(name, input->get_shape().as_standard()));
                    });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, param_map);
+    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
 }
 
 // Whitelist supported fusion options, including imposing type constraints

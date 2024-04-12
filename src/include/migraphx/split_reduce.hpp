@@ -20,44 +20,32 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_PASS_MANAGER_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/module_ref.hpp>
-#include <migraphx/tracer.hpp>
-#include <vector>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager
+struct module_pass_manager;
+
+/// For large reductions that are larger than the split_size, this pass will
+/// split the fused_reduce operators so that the reduction will happen across
+/// multiple compute units gaining better occupancy for targets with many
+/// compute units. Since the reduction is split across compute units, any
+/// elementwise operators will be split into separate operators as well due to
+/// needing global synchronization.
+struct MIGRAPHX_EXPORT split_reduce
 {
-    module_pass_manager()                                  = default;
-    module_pass_manager(const module_pass_manager&)        = delete;
-    virtual module& get_module()                           = 0;
-    virtual module* create_module(const std::string& name) = 0;
-    virtual module* create_module(const std::string& name, module m) = 0;
-    virtual module* get_common_parent()                    = 0;
-    virtual module* get_root_module()                      = 0;
-    virtual void run_pass(const pass& p)                   = 0;
-
-    protected:
-    virtual ~module_pass_manager() {}
+    std::size_t split_size = 8192;
+    std::string name() const { return "split_reduce"; }
+    void apply(module_pass_manager& mpm) const;
 };
-
-MIGRAPHX_EXPORT void run_passes(program& prog,
-                                module_ref root_mod,
-                                const std::vector<pass>& passes,
-                                tracer trace = tracer{});
-MIGRAPHX_EXPORT void
-run_passes(module& mod, const std::vector<pass>& passes, tracer trace = tracer{});
-MIGRAPHX_EXPORT void
-run_passes(program& prog, const std::vector<pass>& passes, tracer trace = tracer{});
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SPLIT_REDUCE_HPP

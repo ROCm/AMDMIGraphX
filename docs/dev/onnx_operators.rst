@@ -317,7 +317,10 @@ Operator Support Matrix
 |                          |           | FP8, FP16,      |                              |
 |                          |           | FP32, FP64      |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| GridSample               | 👷        | 👷              |                              |
+| GridSample               | ✅        | UINT32, UINT64, | ``bicubic``                  |
+|                          |           | INT32, INT64,   | mode not supported,          |
+|                          |           | FP16, FP32      | `5-D inputs`                 |
+|                          |           | FP64            | not supported                |
 +--------------------------+-----------+-----------------+------------------------------+
 | GroupNormalization       | ✅        | FP8, FP16,      | ``stash_type``               |
 |                          |           | FP32, FP64      | not supported                |

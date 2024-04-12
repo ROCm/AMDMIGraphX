@@ -53,6 +53,35 @@ void eliminate_concat::apply(module& m) const
                       arg->outputs().size() > 1;
            }))
             continue;
+
+        // Last input should be an allocation
+        auto last = ins->inputs().back();
+        if(last->name() != concat_opt.allocate())
+            continue;
+        // Where are the allocations for the tensors to be concatenated?
+        std::vector<instruction_ref> allocations;
+
+        std::transform(
+            ins->inputs().begin(),
+            std::prev(ins->inputs().end()),
+            std::back_inserter(allocations),
+            [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+
+        if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+                return x->name() != concat_opt.allocate();
+            }))
+            continue;
+
+        // Need to sort the allocations, so that we know where to
+        // insert the "super"-allocation
+        auto sorted_allocations = allocations;
+        std::sort(sorted_allocations.begin(),
+                    sorted_allocations.end(),
+                    [&](instruction_ref x, instruction_ref y) {
+                        return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+                    });
+        
+
         // We can only do this optimization when concat axis is either the leftmost
         // axis OR the sizes to the left of this axis are all equal to 1
         // Since we've already checked that the non-axis dimensions are identical
@@ -63,35 +92,10 @@ void eliminate_concat::apply(module& m) const
         if(axis_index == 0 or
            std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
         {
-            // Last input should be an allocation
-            auto last = ins->inputs().back();
-            if(last->name() != concat_opt.allocate())
-                continue;
-            // Where are the allocations for the tensors to be concatenated?
-            std::vector<instruction_ref> allocations;
-
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
-
-            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
-                   return x->name() != concat_opt.allocate();
-               }))
-                continue;
-
-            // Need to sort the allocations, so that we know where to
-            // insert the "super"-allocation
-            auto sorted_allocations = allocations;
-            std::sort(sorted_allocations.begin(),
-                      sorted_allocations.end(),
-                      [&](instruction_ref x, instruction_ref y) {
-                          return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-                      });
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();
             auto super = m.move_instruction(last, first);
+            
             // Replace each allocation with a load
             std::size_t offset = 0;
             for(auto alloc : allocations)
@@ -106,38 +110,12 @@ void eliminate_concat::apply(module& m) const
         }
         else
         {
-            // Last input should be an allocation
-            auto last = ins->inputs().back();
-            if(last->name() != concat_opt.allocate())
-                continue;
-            // Where are the allocations for the tensors to be concatenated?
-            std::vector<instruction_ref> allocations;
-
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
-
-            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
-                   return x->name() != concat_opt.allocate();
-               }))
-                continue;
-
-            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(),
-                                                       std::prev(ins->inputs().end()));
-
-            // Need to sort the allocations, so that we know where to
-            // insert the "super"-allocation
-            auto sorted_allocations = allocations;
-            std::sort(sorted_allocations.begin(),
-                      sorted_allocations.end(),
-                      [&](instruction_ref x, instruction_ref y) {
-                          return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-                      });
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();
             auto super = m.move_instruction(last, first);
+
+            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(),
+                                                       std::prev(ins->inputs().end()));
 
             std::vector<instruction_ref> copy_instructions;
             std::size_t offset = 0;

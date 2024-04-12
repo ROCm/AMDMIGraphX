@@ -211,8 +211,20 @@ TEST_CASE(negative_axis1)
         m.add_instruction(concat(axis), m1, m2, a3);
         return m;
     };
-    auto create_control_program = create_test_program;
-
+    auto create_control_program = [] {
+        migraphx::module m;
+        auto a0          = m.add_instruction(allocate{create_shape(4, 2)});
+        auto a1          = m.add_instruction(allocate{create_shape(2, 2)});
+        auto m1          = m.add_instruction(simple_op{}, a1);
+        auto l1          = m.add_instruction(load{create_shape(2, 2), 0}, a0);
+        auto c1          = m.add_instruction(migraphx::test_copy{}, m1, l1);
+        auto a2          = m.add_instruction(allocate{create_shape(2, 2)});
+        auto m2          = m.add_instruction(simple_op{}, a2);
+        auto l2          = m.add_instruction(load{create_shape(2, 2), 16}, a0);
+        auto c2          = m.add_instruction(migraphx::test_copy{}, m2, l2);
+        m.add_instruction(identity{}, a0, c1, c2);
+        return m;
+    };
     auto m1 = create_test_program();
     auto m2 = create_control_program();
     run_pass(m1);

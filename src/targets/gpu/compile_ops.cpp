@@ -139,7 +139,7 @@ struct compile_plan
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    to_string(problem));
                 results.resize(solutions.size());
-                for(auto i : range(1))
+                for(auto i : range(solutions.size()))
                 {
                     auto solution = solutions[i];
                     insert_compiles(compiles, solution, i);
@@ -259,10 +259,7 @@ struct compile_manager
         {
             cp.add_compiles(compiles);
         }
-        for(auto i : range(compiles.size()))
-        {
-            compiles[i]();
-        };
+        par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
         // Replace and/or benchmark
         for(const auto& cp : cps)

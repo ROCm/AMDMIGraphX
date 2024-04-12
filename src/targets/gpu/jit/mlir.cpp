@@ -22,6 +22,10 @@
  * THE SOFTWARE.
  */
 
+#include <iterator>
+#include <migraphx/builtin.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/gpu/compiler.hpp>
@@ -33,6 +37,46 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+static migraphx::module create_pointwise_module(migraphx::module_ref in_mod)
+{
+    migraphx::module m;
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+    for(const auto i : iterator_for(*in_mod))
+    {
+        if(i->name() == "@param")
+        {
+            ins_map[i] = m.add_parameter(any_cast<builtin::param>(i->get_operator()).parameter,
+                                         shape{i->get_shape().type()});
+        }
+        else if(i->name() == "@literal")
+        {
+            ins_map[i] = m.add_literal(i->get_literal());
+        }
+        else if(i->name() == "multibroadcast" and i->inputs().front()->name() == "@literal")
+        {
+            ins_map[i] = ins_map[i->inputs().front()];
+        }
+        else
+        {
+            std::vector<instruction_ref> inputs;
+            inputs.resize(i->inputs().size());
+            std::transform(i->inputs().begin(),
+                           i->inputs().end(),
+                           inputs.begin(),
+                           [&](const auto input) { return ins_map[input]; });
+            if(i->name() == "@return")
+            {
+                m.add_return(inputs);
+            }
+            else
+            {
+                ins_map[i] = m.add_instruction(i->get_operator(), inputs);
+            }
+        }
+    }
+    return m;
+}
 
 struct mlir_compiler : compiler<mlir_compiler>
 {
@@ -52,12 +96,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
-            auto mod2                = smod->split(input_args, {gemm_ins});
-            std::cout << "=====mod0===========\n";
-            mod2[0].mod.debug_print();
-            std::cout << "==========mod1=======\n";
-            mod2[1].mod.debug_print();
-            std::cout << "===========\n";
+            auto mod2            = smod->split(input_args, {gemm_ins});
             auto dot_mlir_inputs = to_shapes(mod2[0].inputs);
             dot_mlir_inputs.push_back(mod2[0].mod.get_output_shapes().front());
             auto cop1        = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
@@ -68,7 +107,8 @@ struct mlir_compiler : compiler<mlir_compiler>
             pw_shapes[dot_ins_idx] = cop1.output;
             pw_shapes.push_back(mod2[1].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
-            auto cop2 = compile_pointwise(ctx, pw_shapes, &mod2[1].mod);
+            auto pw_mod                 = create_pointwise_module(&mod2[1].mod);
+            auto cop2                   = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<operation> cops = {cop1, cop2};
             return insert(cops, mod2, gemm_ins);
         }
@@ -97,18 +137,12 @@ struct mlir_compiler : compiler<mlir_compiler>
                     const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) {
                     auto dot_inputs = mods[0].inputs;
                     auto dot_mod_out_shape = mods[0].mod.get_output_shapes().front();
-                    // if(dot_mod_out_shape == ins->inputs().back()->get_shape())
-                    // {
-                    //     dot_inputs.push_back(ins->inputs().back());
-                    // }
-                    // else
-                    {
-                        auto dot_alloc = m.insert_instruction(
-                            ins,
-                            migraphx::make_op("hip::allocate",
-                                              {{"shape", to_value(dot_mod_out_shape)}}));
-                        dot_inputs.push_back(dot_alloc);
-                    }
+                    auto dot_alloc         = m.insert_instruction(
+                        ins,
+                        migraphx::make_op("hip::allocate",
+                                          {{"shape", to_value(dot_mod_out_shape)}}));
+                    dot_inputs.push_back(dot_alloc);
+                    
                     std::vector<instruction_ref> dot_inputs_updated;
                     std::transform(dot_inputs.begin(),
                                    dot_inputs.end(),

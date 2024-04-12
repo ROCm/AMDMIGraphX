@@ -72,7 +72,8 @@ std::string make_transformer_args(Ts... xs)
     return make_transformer_args({xs.str()...});
 }
 
-std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
+std::string
+generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
 std::string generate_reduce(module m, const std::string& name);
 

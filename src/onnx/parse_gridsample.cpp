@@ -422,23 +422,23 @@ struct bicubic_sampler : grid_sampler
                     const onnx_parser::node_info& info)
         : grid_sampler(input, grid, align, std::move(padding), info)
     {
-        auto type  = m_grid->get_shape().type();
-        m_a_l      = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
-        m_aplus2_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
-        m_aplus3_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
-        m_4a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.0}});
-        m_5a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.75}});
-        m_8a_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {-6.0}});
+        auto type    = m_grid->get_shape().type();
+        m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
+        m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
+        m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
+        m_4a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.0}});
+        m_5a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-3.75}});
+        m_8a_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {-6.0}});
         auto floor_x = info.add_common_op("floor", m_unnorm_x);
         auto floor_y = info.add_common_op("floor", m_unnorm_y);
-        auto fract_x   = info.add_common_op("sub", m_unnorm_x, floor_x);
-        auto fract_y   = info.add_common_op("sub", m_unnorm_y, floor_y);
+        auto fract_x = info.add_common_op("sub", m_unnorm_x, floor_x);
+        auto fract_y = info.add_common_op("sub", m_unnorm_y, floor_y);
 
         m_x_weights[0] = cubic_weight_2(info, info.add_common_op("add", fract_x, m_one_l));
         m_x_weights[1] = cubic_weight_1(info, fract_x);
         m_x_weights[2] = cubic_weight_1(info, info.add_common_op("sub", m_one_l, fract_x));
         m_x_weights[3] = cubic_weight_2(info, info.add_common_op("sub", m_two_l, fract_x));
-        
+
         m_y_weights[0] = cubic_weight_2(info, info.add_common_op("add", fract_y, m_one_l));
         m_y_weights[1] = cubic_weight_1(info, fract_y);
         m_y_weights[2] = cubic_weight_1(info, info.add_common_op("sub", m_one_l, fract_y));
@@ -490,7 +490,8 @@ struct bicubic_sampler : grid_sampler
     instruction_ref compute_weights(const onnx_parser::node_info& info,
                                     std::vector<instruction_ref>& weight_indices,
                                     const std::array<instruction_ref, 4>& weights,
-                                    const std::vector<size_t>& out_lens, size_t gather_dim)
+                                    const std::vector<size_t>& out_lens,
+                                    size_t gather_dim)
     {
         auto weight_indices_t = concat_on_first_dim(info, weight_indices);
         weight_indices_t      = info.add_instruction(
@@ -536,16 +537,15 @@ struct bicubic_sampler : grid_sampler
             x_weight_indices.insert(x_weight_indices.end(), {nhw, nhw, nhw, nhw});
             y_weight_indices.push_back(nhw);
 
-            dfor(m_y_corners.size())(
-                [&](auto corner) {
-                    auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
-                    dfor(m_channel)([&](auto c) {
-                        update_indices(info, y, x0, n, c, indices, validation);
-                        update_indices(info, y, x1, n, c, indices, validation);
-                        update_indices(info, y, x2, n, c, indices, validation);
-                        update_indices(info, y, x3, n, c, indices, validation);
-                    });
+            dfor(m_y_corners.size())([&](auto corner) {
+                auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
+                dfor(m_channel)([&](auto c) {
+                    update_indices(info, y, x0, n, c, indices, validation);
+                    update_indices(info, y, x1, n, c, indices, validation);
+                    update_indices(info, y, x2, n, c, indices, validation);
+                    update_indices(info, y, x3, n, c, indices, validation);
                 });
+            });
         });
 
         auto indices_t = concat_on_first_dim(info, indices);
@@ -555,31 +555,36 @@ struct bicubic_sampler : grid_sampler
         auto validation_t = concat_on_first_dim(info, validation);
         samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
 
-        auto x_weights_t = compute_weights(info, x_weight_indices, m_x_weights, samples->get_shape().lens(), nhw_shape.elements());
+        auto x_weights_t = compute_weights(
+            info, x_weight_indices, m_x_weights, samples->get_shape().lens(), nhw_shape.elements());
         auto weighted_samples = info.add_common_op("mul", samples, x_weights_t);
-        weighted_samples = info.add_instruction(
+        weighted_samples      = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_samples->get_shape().elements() / 4, 4}}}),
             weighted_samples);
 
-        auto coefficients = info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_samples);
+        auto coefficients =
+            info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_samples);
         coefficients = info.add_instruction(make_op("squeeze", {{"axes", {1}}}), coefficients);
 
-        auto y_weights_t = compute_weights(info, y_weight_indices, m_y_weights, coefficients->get_shape().lens(), nhw_shape.elements());
+        auto y_weights_t           = compute_weights(info,
+                                           y_weight_indices,
+                                           m_y_weights,
+                                           coefficients->get_shape().lens(),
+                                           nhw_shape.elements());
         auto weighted_coefficients = info.add_common_op("mul", coefficients, y_weights_t);
-        weighted_coefficients = info.add_instruction(
+        weighted_coefficients      = info.add_instruction(
             make_op("reshape", {{"dims", {weighted_coefficients->get_shape().elements() / 4, 4}}}),
             weighted_coefficients);
 
         auto res =
             info.add_instruction(make_op("reduce_sum", {{"axes", {1}}}), weighted_coefficients);
-        auto expected_shape = migraphx::shape{
-            migraphx::shape::int64_type, {m_batch, m_out_height, m_out_width, m_channel}};
+        auto expected_shape = migraphx::shape{migraphx::shape::int64_type,
+                                              {m_batch, m_out_height, m_out_width, m_channel}};
 
         res = info.add_instruction(
-            make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}),
-            res);
-        res     = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), res);
-        res     = info.add_instruction(
+            make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}), res);
+        res = info.add_instruction(make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), res);
+        res = info.add_instruction(
             make_op("convert", {{"target_type", m_input->get_shape().type()}}), res);
 
         return res;

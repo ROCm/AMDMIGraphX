@@ -47,20 +47,7 @@ TEST_CASE(gridsample_bicubic_align_corners_1_additional_1_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::cout << "Result:" << std::endl;
-    for(auto r: result_vector)
-    {
-        std::cout << r << ",";
-    }
-    std::cout << std::endl;
     std::vector<float> gold = {
         0.304001, 1.128750, 2.266270, 3.144844, 4.531500, 2.455360, 4.599819, 4.000000};
-    std::cout << "Gold:" << std::endl;
-    for(auto r : gold)
-    {
-        std::cout << r << ",";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

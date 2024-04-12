@@ -259,7 +259,10 @@ struct compile_manager
         {
             cp.add_compiles(compiles);
         }
-        par_compile(compiles.size(), [&](auto i) { compiles[i](); });
+        for(auto i : range(compiles.size()))
+        {
+            compiles[i]();
+        };
 
         // Replace and/or benchmark
         for(const auto& cp : cps)

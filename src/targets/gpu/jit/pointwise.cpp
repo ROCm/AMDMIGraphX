@@ -96,10 +96,10 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     {
         if(contains({"layout", "contiguous"}, op.name()))
         {
-            return compile_op(
-                ctx,
-                to_shapes(ins->inputs()),
-                {{"lambda", "[](auto x) { return make_tuple(x); }"}, {"kernel", op.name() + "_kernel"}});
+            return compile_op(ctx,
+                              to_shapes(ins->inputs()),
+                              {{"lambda", "[](auto x) { return make_tuple(x); }"},
+                               {"kernel", op.name() + "_kernel"}});
         }
         else
         {

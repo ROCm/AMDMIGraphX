@@ -34,7 +34,7 @@ namespace tuple_detail {
 template <class T, index_int N>
 struct element_storage
 {
-    /* [[no_unique_address]] */ T element;
+    [[no_unique_address]] T element;
 };
 
 template <index_int N, class T>

@@ -117,9 +117,9 @@ TEST_CASE(double_add_without_return)
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
         add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-            });
+            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+        });
     }
     EXPECT(p1.sort() == p2.sort());
 }

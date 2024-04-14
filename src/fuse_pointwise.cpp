@@ -185,7 +185,7 @@ static bool find_pointwise_modules(module_pass_manager& mpm)
         auto fused = append_pointwise_module(input, ins);
         auto name  = fused.mod.name();
         mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
-        auto new_pm = mpm.create_module(name, std::move(fused.mod));
+        auto* new_pm = mpm.create_module(name, std::move(fused.mod));
         mpm.get_module().replace_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
 
         changed = true;

@@ -1,0 +1,77 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "WinBase",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+            "CMAKE_C_COMPILER": "$env{ROCM_INSTALL_DIR}/rocm/bin/clang.exe",
+            "CMAKE_CXX_COMPILER": "$env{ROCM_INSTALL_DIR}/rocm/bin/clang++.exe",
+            "CMAKE_INSTALL_PREFIX": "$env{ROCM_INSTALL_DIR}/AMDMIGraphX/${presetName}",
+            "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocm;$env{ROCM_INSTALL_DIR}/MIOpen/${presetName};$env{ROCM_INSTALL_DIR}/rocMLIR/${presetName};$env{ROCM_INSTALL_DIR}/comgr/${presetName};$env{ROCM_INSTALL_DIR}/composable_kernel/${presetName}MIGraphX;${sourceDir}/depend/${presetName}",
+            "GPU_TARGETS": "$env{GPU_TARGETS}",
+            "MIGRAPHX_ENABLE_PYTHON": "OFF",
+            "MIGRAPHX_ENABLE_CPU": "ON",
+            "MIGRAPHX_USE_HIPRTC": "ON",
+            "MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS": "ON"
+          },
+          "environment": {
+            //"MIGRAPHX_MLIR_USE_SPECIFIC_OPS": {"dot":"convolution":"fused"},
+            //"MIGRAPHX_ENABLE_EXTRA_MLIR": "ON"
+          }
+        },
+        {
+            "name": "WinRelease",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX Release (Windows)",
+            "description": "AMDMIGraphX Release with Ninja generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "WinDebug",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX Debug (Windows)",
+            "description": "AMDMIGraphX Debug with Ninja generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "WinRelease",
+            "configurePreset": "WinRelease"
+        },
+        {
+            "name": "WinDebug",
+            "configurePreset": "WinDebug"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "WinRelease",
+            "configurePreset": "WinRelease",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            }
+        },
+        {
+            "name": "WinDebug",
+            "configurePreset": "WinDebug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            }
+        }
+    ]
+}

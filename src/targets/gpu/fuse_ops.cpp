@@ -898,13 +898,14 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
+                        #ifdef MIGRAPHX_USE_ROCBLAS
+                           find_gemm_pointwise{},
+                        #endif
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},
                         find_commutative_broadcast{});
-    #ifdef MIGRAPHX_USE_ROCBLAS
-        match::find_matches(m, find_gemm_pointwise{});
-    #endif
+    
     match::find_matches(m, find_contiguous{});
 }
 

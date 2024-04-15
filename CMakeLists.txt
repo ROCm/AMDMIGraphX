@@ -340,6 +340,10 @@ else()
     set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
 endif()
 
+if(MIGRAPHX_USE_ROCBLAS)
+    list(APPEND PACKAGE_DEPENDS PACKAGE rocblas)
+endif()
+
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
@@ -349,7 +353,4 @@ rocm_create_package(
     DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
 )
 
-if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS PACKAGE rocblas)
-endif()
 

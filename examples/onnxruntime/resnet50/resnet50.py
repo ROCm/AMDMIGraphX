@@ -116,7 +116,7 @@ def run_sample(session,
                verbose=False):
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
-    io_binding.bind_output('output')
+    io_binding.bind_output('output', 'cuda')
     start = time.time()
     session.run_with_iobinding(io_binding)
     latency.append(time.time() - start)

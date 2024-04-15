@@ -74,7 +74,7 @@ struct grid_sampler
         m_out_height   = g_lens.at(1);
         m_out_width    = g_lens.at(2);
         auto type      = m_grid->get_shape().type();
-        m_nc_shape     = migraphx::shape{type, {2}};
+        m_nc_shape     = migraphx::shape{type, {1, 2}};
         m_zero_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
         m_one_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
         m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.5f}});
@@ -159,29 +159,6 @@ struct grid_sampler
         return unnorm;
     }
 
-    void update_indices(const onnx_parser::node_info& info,
-                        const instruction_ref& h,
-                        const instruction_ref& w,
-                        size_t n,
-                        size_t c,
-                        std::vector<instruction_ref>& indices,
-                        std::vector<instruction_ref>& validation,
-                        bool validate = true) const
-    {
-        auto nc      = info.add_literal(migraphx::literal{m_nc_shape, {n, c}});
-        auto w_clamp = validate ? info.add_common_op("clip", w, m_zero_l, m_width_max_l) : w;
-        auto h_clamp = validate ? info.add_common_op("clip", h, m_zero_l, m_height_max_l) : h;
-        auto nchw    = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
-        indices.push_back(nchw);
-        if(validate)
-        {
-            auto h_valid = info.add_common_op("equal", h, h_clamp);
-            auto w_valid = info.add_common_op("equal", w, w_clamp);
-            auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
-            validation.push_back(valid);
-        }
-    }
-
     static instruction_ref concat_on_first_dim(const onnx_parser::node_info& info,
                                                std::vector<instruction_ref> instructions)
     {
@@ -215,28 +192,50 @@ struct nearest_sampler : grid_sampler
 
     instruction_ref sample(const onnx_parser::node_info& info)
     {
-        std::vector<instruction_ref> indices;
-        std::vector<instruction_ref> validation;
-        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+        std::vector<instruction_ref> hw_indices;
+        std::vector<instruction_ref> nc_values;
+        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {1, 3}};
         bool validate               = not has_border_padding();
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
             auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-            auto h_t = info.add_instruction(make_op("gathernd"), m_round_y, nhw);
-            auto w_t = info.add_instruction(make_op("gathernd"), m_round_x, nhw);
             for(size_t c = 0; c < m_channel; c++)
             {
-                update_indices(info, h_t, w_t, n, c, indices, validation, validate);
+                hw_indices.push_back(nhw);
+                nc_values.push_back(info.add_literal(migraphx::literal{m_nc_shape, {n, c}}));
             }
         });
 
-        auto indices_t = concat_on_first_dim(info, indices);
-        indices_t      = info.add_instruction(
-            make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);
+        auto hw_indices_t = concat_on_first_dim(info, hw_indices);
+        auto h_samples    = info.add_instruction(make_op("gathernd"), m_round_y, hw_indices_t);
+        auto w_samples    = info.add_instruction(make_op("gathernd"), m_round_x, hw_indices_t);
+
+        instruction_ref validation;
+        if(validate)
+        {
+            auto h_clip  = info.add_common_op("clip", h_samples, m_zero_l, m_height_max_l);
+            auto w_clip  = info.add_common_op("clip", w_samples, m_zero_l, m_width_max_l);
+            auto h_valid = info.add_common_op("equal", h_samples, h_clip);
+            auto w_valid = info.add_common_op("equal", w_samples, w_clip);
+            validation   = info.add_common_op("logical_and", h_valid, w_valid);
+            h_samples    = h_clip;
+            w_samples    = w_clip;
+        }
+
+        auto nc   = concat_on_first_dim(info, nc_values);
+        h_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {h_samples->get_shape().elements(), 1}}}), h_samples);
+
+        w_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {w_samples->get_shape().elements(), 1}}}), w_samples);
+
+        auto indices_t =
+            info.add_instruction(make_op("concat", {{"axis", 1}}), h_samples, w_samples);
+        indices_t = info.add_instruction(make_op("concat", {{"axis", 1}}), nc, indices_t);
+
         auto samples = info.add_instruction(make_op("gathernd"), m_input, indices_t);
         if(validate)
         {
-            auto validation_t = concat_on_first_dim(info, validation);
-            samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
+            samples = info.add_common_op("where", validation, samples, m_zero_l);
         }
 
         samples = info.add_instruction(
@@ -281,46 +280,77 @@ struct linear_sampler : grid_sampler
 
     instruction_ref sample(const onnx_parser::node_info& info)
     {
-        std::array<std::vector<instruction_ref>, 4> indices_all;
-        std::array<std::vector<instruction_ref>, 4> validation_all;
         std::vector<instruction_ref> weight_indices;
+        std::vector<instruction_ref> xy_indices;
+        std::vector<instruction_ref> nc_values;
 
-        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
+        const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {1, 3}};
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
             auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
-            auto y0  = info.add_instruction(make_op("gathernd"), m_floor_y, nhw);
-            auto x0  = info.add_instruction(make_op("gathernd"), m_floor_x, nhw);
-            auto y1  = info.add_instruction(make_op("gathernd"), m_ceil_y, nhw);
-            auto x1  = info.add_instruction(make_op("gathernd"), m_ceil_x, nhw);
             weight_indices.push_back(nhw);
             for(size_t c = 0; c < m_channel; c++)
             {
-                update_indices(info, y0, x0, n, c, indices_all.at(0), validation_all.at(0));
-                update_indices(info, y0, x1, n, c, indices_all.at(1), validation_all.at(1));
-                update_indices(info, y1, x0, n, c, indices_all.at(2), validation_all.at(2));
-                update_indices(info, y1, x1, n, c, indices_all.at(3), validation_all.at(3));
+                xy_indices.push_back(nhw);
+                nc_values.push_back(info.add_literal(migraphx::literal{m_nc_shape, {n, c}}));
             }
         });
+
+        auto xy_indices_t = concat_on_first_dim(info, xy_indices);
+        auto y0_samples   = info.add_instruction(make_op("gathernd"), m_floor_y, xy_indices_t);
+        auto x0_samples   = info.add_instruction(make_op("gathernd"), m_floor_x, xy_indices_t);
+        auto y1_samples   = info.add_instruction(make_op("gathernd"), m_ceil_y, xy_indices_t);
+        auto x1_samples   = info.add_instruction(make_op("gathernd"), m_ceil_x, xy_indices_t);
+
+        auto validate_samples = [&](auto& samples, auto& max) {
+            auto clip       = info.add_common_op("clip", samples, m_zero_l, max);
+            auto validation = info.add_common_op("equal", samples, clip);
+            samples         = clip;
+            return validation;
+        };
+
+        auto y0_validation = validate_samples(y0_samples, m_height_max_l);
+        auto x0_validation = validate_samples(x0_samples, m_width_max_l);
+        auto y1_validation = validate_samples(y1_samples, m_height_max_l);
+        auto x1_validation = validate_samples(x1_samples, m_width_max_l);
+
+        y0_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {y0_samples->get_shape().elements(), 1}}}), y0_samples);
+        x0_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {x0_samples->get_shape().elements(), 1}}}), x0_samples);
+        y1_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {y1_samples->get_shape().elements(), 1}}}), y1_samples);
+        x1_samples = info.add_instruction(
+            make_op("reshape", {{"dims", {x1_samples->get_shape().elements(), 1}}}), x1_samples);
+
+        auto nc = concat_on_first_dim(info, nc_values);
+
+        auto make_corner_indices = [&](auto& x, auto& y) {
+            auto hw = info.add_instruction(make_op("concat", {{"axis", 1}}), y, x);
+            return info.add_instruction(make_op("concat", {{"axis", 1}}), nc, hw);
+        };
+        std::array<instruction_ref, 4> corner_indices{make_corner_indices(x0_samples, y0_samples),
+                                                      make_corner_indices(x1_samples, y0_samples),
+                                                      make_corner_indices(x0_samples, y1_samples),
+                                                      make_corner_indices(x1_samples, y1_samples)};
+
+        std::array<instruction_ref, 4> corner_validations{
+            info.add_common_op("logical_and", x0_validation, y0_validation),
+            info.add_common_op("logical_and", x1_validation, y0_validation),
+            info.add_common_op("logical_and", x0_validation, y1_validation),
+            info.add_common_op("logical_and", x1_validation, y1_validation)};
 
         std::vector<instruction_ref> weighted_corners;
         auto weight_index_t = concat_on_first_dim(info, weight_indices);
         weight_index_t      = info.add_instruction(
             make_op("reshape", {{"dims", {weight_indices.size(), 3}}}), weight_index_t);
-        for(auto i = 0; i < 4; ++i)
-        {
-            auto indices    = indices_all.at(i);
-            auto validation = validation_all.at(i);
-            auto indices_t  = concat_on_first_dim(info, indices);
-            indices_t       = info.add_instruction(
-                make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}),
-                indices_t);
-            auto samples      = info.add_instruction(make_op("gathernd"), m_input, indices_t);
-            auto validation_t = concat_on_first_dim(info, validation);
-            samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
-            auto weights =
-                info.add_instruction(make_op("gathernd"), m_corner_weights.at(i), weight_index_t);
+        dfor(4)([&](auto corner) {
+            auto indices = corner_indices.at(corner);
+            auto samples = info.add_instruction(make_op("gathernd"), m_input, indices);
+            samples = info.add_common_op("where", corner_validations.at(corner), samples, m_zero_l);
+            auto weights = info.add_instruction(
+                make_op("gathernd"), m_corner_weights.at(corner), weight_index_t);
             weighted_corners.push_back(info.add_instruction(make_op("mul"), samples, weights));
-        }
+        });
 
         auto samples = weighted_corners.at(0);
         std::for_each(std::next(weighted_corners.begin()),

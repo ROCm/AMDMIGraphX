@@ -64,7 +64,7 @@ template <class T>
 constexpr bool is_aligned(const void* ptr)
 {
     auto iptr = bit_cast<uintptr_t>(ptr);
-    return (iptr % alignof(T)) != 0;
+    return (iptr % alignof(T)) == 0;
 }
 
 __device__ inline void builtin_assign(half& x, half y, op::sum)

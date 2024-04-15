@@ -58,6 +58,7 @@ using uint64_t = std::uint64_t;
 #endif // MIGRAPHX_USE_HIPRTC
 using index_int = uint32_t;
 using diff_int  = int32_t;
+using uintptr_t = uint64_t;
 
 static_assert(sizeof(int8_t) == 1, "int8_t must be 1 bytes");
 static_assert(sizeof(uint8_t) == 1, "uint8_t must be 1 bytes");

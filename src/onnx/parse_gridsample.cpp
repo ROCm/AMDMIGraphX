@@ -394,27 +394,6 @@ struct bicubic_sampler : grid_sampler
     std::array<instruction_ref, 4> m_x_corners;
     std::array<instruction_ref, 4> m_y_corners;
 
-    instruction_ref cubic_weight_1(const onnx_parser::node_info& info, const instruction_ref& ins)
-    {
-        //((A + 2) * fraction - (A + 3)) * fraction * fraction + 1
-        auto mul_1 = info.add_common_op("mul", m_aplus2_l, ins);
-        auto sub   = info.add_common_op("sub", mul_1, m_aplus3_l);
-        auto mul_2 = info.add_common_op("mul", sub, ins);
-        auto mul_3 = info.add_common_op("mul", mul_2, ins);
-        return info.add_common_op("add", mul_3, m_one_l);
-    }
-
-    instruction_ref cubic_weight_2(const onnx_parser::node_info& info, const instruction_ref& ins)
-    {
-        // ((A * fraction - 5 * A) * fraction + 8 * A) * fraction - (4 * A)
-        auto mul_1 = info.add_common_op("mul", m_a_l, ins);
-        auto sub_1 = info.add_common_op("sub", mul_1, m_5a_l);
-        auto mul_2 = info.add_common_op("mul", sub_1, ins);
-        auto add   = info.add_common_op("add", mul_2, m_8a_l);
-        auto mul_3 = info.add_common_op("mul", add, ins);
-        return info.add_common_op("sub", mul_3, m_4a_l);
-    }
-
     bicubic_sampler(const instruction_ref& input,
                     const instruction_ref& grid,
                     bool align,
@@ -487,11 +466,34 @@ struct bicubic_sampler : grid_sampler
         }
     }
 
+    instruction_ref cubic_weight_1(const onnx_parser::node_info& info,
+                                   const instruction_ref& ins) const
+    {
+        //((A + 2) * fraction - (A + 3)) * fraction * fraction + 1
+        auto mul_1 = info.add_common_op("mul", m_aplus2_l, ins);
+        auto sub   = info.add_common_op("sub", mul_1, m_aplus3_l);
+        auto mul_2 = info.add_common_op("mul", sub, ins);
+        auto mul_3 = info.add_common_op("mul", mul_2, ins);
+        return info.add_common_op("add", mul_3, m_one_l);
+    }
+
+    instruction_ref cubic_weight_2(const onnx_parser::node_info& info,
+                                   const instruction_ref& ins) const
+    {
+        // ((A * fraction - 5 * A) * fraction + 8 * A) * fraction - (4 * A)
+        auto mul_1 = info.add_common_op("mul", m_a_l, ins);
+        auto sub_1 = info.add_common_op("sub", mul_1, m_5a_l);
+        auto mul_2 = info.add_common_op("mul", sub_1, ins);
+        auto add   = info.add_common_op("add", mul_2, m_8a_l);
+        auto mul_3 = info.add_common_op("mul", add, ins);
+        return info.add_common_op("sub", mul_3, m_4a_l);
+    }
+
     static instruction_ref compute_weights(const onnx_parser::node_info& info,
-                                    const std::vector<instruction_ref>& weight_indices,
-                                    const std::array<instruction_ref, 4>& weights,
-                                    const std::vector<size_t>& out_lens,
-                                    size_t gather_dim)
+                                           const std::vector<instruction_ref>& weight_indices,
+                                           const std::array<instruction_ref, 4>& weights,
+                                           const std::vector<size_t>& out_lens,
+                                           size_t gather_dim)
     {
         auto weight_indices_t = concat_on_first_dim(info, weight_indices);
         weight_indices_t      = info.add_instruction(

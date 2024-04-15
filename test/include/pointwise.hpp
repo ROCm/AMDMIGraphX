@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,6 +65,11 @@ migraphx::instruction_ref add_pointwise(migraphx::program& p,
                                         F f)
 {
     return add_pointwise(p, p.get_main_module(), name, inputs, f);
+}
+
+inline auto noop_pointwise()
+{
+    return [=](auto*, const auto& inputs) { return inputs; };
 }
 
 inline auto single_pointwise(const std::string& name)

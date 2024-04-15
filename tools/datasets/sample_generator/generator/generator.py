@@ -25,7 +25,7 @@ def generate_test_dataset(model,
     for idx, data in enumerate(dataset):
         input_data_map = dataset.transform(inputs, data, model.preprocess)
         is_eos, decode_idx = False, 0
-        while not is_eos and not (decode_limit and decode_limit < decode_idx):
+        while not is_eos and not (decode_limit and decode_limit <= decode_idx):
             folder_name = f"{folder_name_prefix}_{test_idx}"
             os.makedirs(folder_name, exist_ok=True)
             for input_idx, (input_name,
@@ -50,5 +50,5 @@ def generate_test_dataset(model,
             test_idx += 1
             decode_idx += 1
 
-        if sample_limit and sample_limit < idx:
+        if sample_limit and sample_limit - 1 <= idx:
             break

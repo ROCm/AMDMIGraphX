@@ -246,11 +246,17 @@ class StableDiffusionMGX():
         elif "all" in fp16:
             fp16 = ["vae", "clip", "clip2", "unetxl"]
 
+        self.vae_name = "vae_decoder"
+        self.vae_input_name = "latent_sample"
+        if "vae" in fp16:
+            self.vae_name = "vae_fp16_fix"
+            self.vae_input_name = "input.1"
+
         print("Load models...")
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                "vae_decoder", {"latent_sample": [1, 4, 128, 128]},
+                self.vae_name, {self.vae_input_name: [1, 4, 128, 128]},
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
@@ -512,7 +518,7 @@ class StableDiffusionMGX():
 
     @measure
     def decode(self, latents):
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"], latents)
+        copy_tensor_sync(self.tensors["vae"][self.vae_input_name], latents)
         run_model_sync(self.models["vae"], self.model_args["vae"])
         return self.tensors["vae"][get_output_name(0)]
 
@@ -533,7 +539,7 @@ class StableDiffusionMGX():
                          torch.randn((2, 6)).to(torch.float16))
         copy_tensor_sync(self.tensors["unetxl"]["timestep"],
                          torch.randn((1)).to(torch.float32))
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"],
+        copy_tensor_sync(self.tensors["vae"][self.vae_input_name],
                          torch.randn((1, 4, 128, 128)).to(torch.float32))
 
         for _ in range(num_runs):

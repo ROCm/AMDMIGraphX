@@ -16,7 +16,7 @@ class AutoImageProcessorHFMixin(object):
         return self._processor
 
     def preprocess(self, image_data):
-        return self.processor(image_data, return_tensors="np")['pixel_values']
+        return self.processor(image_data, return_tensors="np")
 
 
 class ResNet50_v1(SingleModelDownloadMixin, BaseModel):
@@ -30,7 +30,9 @@ class ResNet50_v1(SingleModelDownloadMixin, BaseModel):
 
     def preprocess(self, image_data):
         IMAGENET_MEANS = [123.68, 116.78, 103.94]  # RGB
-        return process_image(image_data, means=IMAGENET_MEANS)
+        return {
+            "input_tensor:0": process_image(image_data, means=IMAGENET_MEANS)
+        }
 
 
 class ResNet50_v1_5(SingleOptimumHFModelDownloadMixin,
@@ -71,7 +73,10 @@ class TIMM_MobileNetv3_large(SingleOptimumHFModelDownloadMixin, BaseModel):
         return "timm-mobilenetv3-large"
 
     def preprocess(self, image_data):
-        return self.processor(image_data).unsqueeze(0).cpu().detach().numpy()
+        return {
+            "pixel_values":
+            self.processor(image_data).unsqueeze(0).cpu().detach().numpy()
+        }
 
 
 # TODO enable it when BiT is supported by optimum

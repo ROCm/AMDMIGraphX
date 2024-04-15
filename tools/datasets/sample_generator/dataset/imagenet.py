@@ -28,7 +28,8 @@ class ImageNet2012Val(BaseDataset):
         return next(self.dataset)
 
     def transform(self, inputs, data, prepocess_fn):
-        assert len(inputs) == 1
-        img_data = prepocess_fn(data["jpeg"])
-        assert (img_data.shape == (1, 3, 224, 224))
-        return {inputs[0]: img_data}
+        result = prepocess_fn(data["jpeg"])
+        inputs, keys = sorted(inputs), sorted(list(result.keys()))
+        assert inputs == keys, f"{inputs = } == {keys = }"
+        # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
+        return dict(result)

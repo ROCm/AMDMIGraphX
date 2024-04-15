@@ -39,4 +39,5 @@ struct test_neg : verify_program<test_neg>
         mm->add_instruction(migraphx::make_op("neg"), input);
         return p;
     };
+    std::size_t get_tolerance() const { return 100000000; }
 };

@@ -637,10 +637,10 @@ struct parse_gridsample : op_parser<parse_gridsample>
             MIGRAPHX_THROW("PARSE_GRID_SAMPLE: only 4-D inputs are supported");
         }
 
-        return (mode == "nearest")
+        return contains(mode, "nearest")
                    ? nearest_sampler(x, grid, align_corners, std::move(padding_mode), info)
                          .sample(info)
-                   : ((mode == "linear")
+                   : (contains(mode, "linear")
                           ? linear_sampler(x, grid, align_corners, std::move(padding_mode), info)
                                 .sample(info)
                           : bicubic_sampler(x, grid, align_corners, std::move(padding_mode), info)

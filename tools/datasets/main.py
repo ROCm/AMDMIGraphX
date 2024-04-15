@@ -7,13 +7,15 @@ from sample_generator.dataset.squad import SQuAD_HF
 from sample_generator.model.image import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large  #for imagenet
 from sample_generator.model.text import DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2, GPTJ  # for squad
 from sample_generator.model.audio import Wav2Vec2_base_960h, WhisperSmallEn  # for librispeech
+from sample_generator.model.hybrid import ClipVitLargePatch14
+
 from sample_generator.generator import generate_test_dataset
 
 model_dataset_pairs = [{
     "dataset":
     ImageNet2012Val,
     "models":
-    [ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large]
+    [ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large, ClipVitLargePatch14]
 }, {
     "dataset":
     SQuAD_HF,

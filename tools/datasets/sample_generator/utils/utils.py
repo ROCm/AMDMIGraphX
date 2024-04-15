@@ -46,3 +46,9 @@ def download(url, filename, quiet=False):
             f.write(data)
     if not quiet:
         progress_bar.close()
+
+
+def get_imagenet_classes():
+    url = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
+    response = requests.get(url)
+    return response.text.split("\n")

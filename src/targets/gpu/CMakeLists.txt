@@ -279,10 +279,13 @@ check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCAT
 
 if(MIGRAPHX_USE_ROCBLAS)
     get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_ROCBLAS=1)
     # Beta API for automated GEMM tuning
     check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
     # rocblas FP8 API
     check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
+else()
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")

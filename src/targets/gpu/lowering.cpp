@@ -47,7 +47,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
    #include <migraphx/gpu/rocblas.hpp>
 #endif
 #include <migraphx/gpu/compiler.hpp>
@@ -84,7 +84,7 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
-        #ifdef MIGRAPHX_USE_ROCBLAS
+        #if MIGRAPHX_USE_ROCBLAS
         compute_fp32 = get_compute_fp32_flag();
         #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
@@ -107,7 +107,7 @@ struct miopen_apply
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
-        #ifdef MIGRAPHX_USE_ROCBLAS
+        #if MIGRAPHX_USE_ROCBLAS
             add_gemm_op<op::dot>("dot");
             add_gemm_op<op::quant_dot>("quant_dot");
         #endif
@@ -237,7 +237,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-    #ifdef MIGRAPHX_USE_ROCBLAS
+    #if MIGRAPHX_USE_ROCBLAS
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {

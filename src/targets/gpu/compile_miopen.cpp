@@ -29,7 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/op/identity.hpp>
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
     #include <migraphx/gpu/rocblas.hpp>
 #endif
 

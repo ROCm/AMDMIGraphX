@@ -27,8 +27,8 @@
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#ifdef MIGRAPHX_USE_ROCBLAS
-    #include <migraphx/gpu/rocblas.hpp>
+#if MIGRAPHX_USE_ROCBLAS
+#include <migraphx/gpu/rocblas.hpp>
 #endif
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
@@ -109,7 +109,7 @@ struct hip_device
             assert(mihandle.get() != nullptr);
             return mihandle.get();
         }
-        #ifdef MIGRAPHX_USE_ROCBLAS
+        #if MIGRAPHX_USE_ROCBLAS
             auto get_rocblas()
             {
                 setup();
@@ -150,7 +150,7 @@ struct hip_device
         std::size_t id                      = 0;
         shared<hip_stream_ptr> s            = nullptr;
         shared<miopen_handle> mihandle      = nullptr;
-        #ifdef MIGRAPHX_USE_ROCBLAS
+        #if MIGRAPHX_USE_ROCBLAS
             shared<rocblas_handle_ptr> rbhandle = nullptr;
         #endif
     };
@@ -351,3 +351,4 @@ inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v
 } // namespace migraphx
 
 #endif
+

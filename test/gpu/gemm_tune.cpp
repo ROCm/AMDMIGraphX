@@ -47,7 +47,7 @@ void run_lowering(migraphx::program& p, bool offload_copy = false)
         {migraphx::auto_contiguous{}, migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
 /**
  * Tests the automatic GEMM tuning feature.  In the finalize() method of the gemm op,
  * rocBLAS API functions are called to quickly benchmark all the GEMM solutions

@@ -25,14 +25,14 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/config.hpp>
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
 #include <rocblas/rocblas.h>
 #endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
 
 using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
 

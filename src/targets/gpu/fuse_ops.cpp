@@ -551,7 +551,7 @@ struct find_conv_pointwise
 };
 
 
-#ifdef MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS
 struct find_gemm_pointwise
 {
     auto matcher() const
@@ -898,7 +898,7 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
     match::find_matches(m,
-                        #ifdef MIGRAPHX_USE_ROCBLAS
+                        #if MIGRAPHX_USE_ROCBLAS
                            find_gemm_pointwise{},
                         #endif
                         find_layernorm_pointwise{},

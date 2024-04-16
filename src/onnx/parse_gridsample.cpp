@@ -555,14 +555,12 @@ struct bicubic_sampler : grid_sampler
             x_weight_indices.insert(x_weight_indices.end(), {nhw, nhw, nhw, nhw});
             y_weight_indices.push_back(nhw);
 
-            dfor(m_y_corners.size())([&](auto corner) {
+            dfor(m_channel, m_y_corners.size())([&](auto c, auto corner) {
                 auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
-                dfor(m_channel)([&](auto c) {
-                    update_indices(info, y, x0, n, c, indices, validation);
-                    update_indices(info, y, x1, n, c, indices, validation);
-                    update_indices(info, y, x2, n, c, indices, validation);
-                    update_indices(info, y, x3, n, c, indices, validation);
-                });
+                update_indices(info, y, x0, n, c, indices, validation);
+                update_indices(info, y, x1, n, c, indices, validation);
+                update_indices(info, y, x2, n, c, indices, validation);
+                update_indices(info, y, x3, n, c, indices, validation);
             });
         });
 

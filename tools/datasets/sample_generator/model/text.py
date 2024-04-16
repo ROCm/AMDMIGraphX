@@ -126,3 +126,45 @@ class T5_base(EncoderDecoderOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
         input_map["decoder_input_ids"][0][timestep] = new_token
         input_map["attention_mask"][0][timestep] = 1
         return new_token == self.processor.eos_token_id
+
+
+class Gemma_2b_it(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
+                  DecoderModel):
+    @property
+    def model_id(self):
+        return "google/gemma-2b-it"
+
+    @property
+    def task(self):
+        # override to ignore "with-past"
+        return "text-generation"
+
+    @property
+    def name(self):
+        return "gemma-2b-it"
+
+    def preprocess(self, *args, **kwargs):
+        # swap squad's default "question - answer" order
+        new_args, new_kwargs = list(args), kwargs
+        new_args[0], new_args[1] = new_args[1], new_args[0]
+        new_kwargs["truncation"] = "only_first"
+        result = super().preprocess(*new_args, **new_kwargs)
+        # Note: padding-side is left, pos ids will be 1,1,1,...,0,1,2,3,...
+        result["position_ids"] = np.cumsum(result["attention_mask"][0], -1) - 1
+        result["position_ids"][:np.argmax(result["position_ids"] == 0)] = 1
+        result["position_ids"] = result["position_ids"][np.newaxis]
+        return result
+
+    def decode_step(self, input_map, output_map):
+        # The result is in the last logits
+        new_token = np.argmax(output_map["logits"][0][-1])
+        # Move everything left 1 step
+        input_map["input_ids"][0] = np.roll(input_map["input_ids"][0], -1)
+        input_map["input_ids"][0][-1] = new_token
+        input_map["attention_mask"][0] = np.roll(
+            input_map["attention_mask"][0], -1)
+        input_map["attention_mask"][0][-1] = 1
+        input_map["position_ids"][0] = np.roll(input_map["position_ids"][0],
+                                               -1)
+        input_map["position_ids"][0][-1] += input_map["position_ids"][0][-2]
+        return new_token == self.processor.eos_token_id

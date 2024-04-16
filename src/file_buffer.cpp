@@ -57,12 +57,12 @@ T generic_read_file(const fs::path& filename, size_t offset = 0, size_t nbytes =
 
 std::vector<char> read_buffer(const fs::path& filename, size_t offset, size_t nbytes)
 {
-    return generic_read_file<std::vector<char>>(filename, offset, nbytes);
+    return generic_read_file<std::vector<char>>("./" + filename, offset, nbytes);
 }
 
 std::string read_string(const fs::path& filename)
 {
-    return generic_read_file<std::string>(filename);
+    return generic_read_file<std::string>("./" + filename);
 }
 
 void write_buffer(const fs::path& filename, const char* buffer, std::size_t size)

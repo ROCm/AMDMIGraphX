@@ -55,7 +55,7 @@ class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
     def preprocess(self, *args, **kwargs):
         # result only contains encoder data, extend it with decoder
         result = super().preprocess(*args, **kwargs)
-        result["decoder_input_ids"] = self.initial_input_ids
+        result["decoder_input_ids"] = np.copy(self.initial_input_ids)
         return result
 
     def decode_step(self, input_map, output_map):

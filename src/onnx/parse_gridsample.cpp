@@ -437,33 +437,30 @@ struct bicubic_sampler : grid_sampler
         if(m_padding == "reflection")
         {
             auto corner_start = m_align_corners ? m_zero_l : m_minus_half_l;
-            dfor(m_x_corners.size())([&](auto corner) {
-                m_x_corners[corner] =
-                    reflect_coordinates(info,
-                                        m_x_corners[corner],
-                                        m_align_corners ? m_width_max_l : m_width_l,
-                                        corner_start);
-                m_x_corners[corner] =
-                    info.add_common_op("clip", m_x_corners[corner], m_zero_l, m_width_max_l);
-
-                m_y_corners[corner] =
-                    reflect_coordinates(info,
-                                        m_y_corners[corner],
-                                        m_align_corners ? m_height_max_l : m_height_l,
-                                        corner_start);
-                m_y_corners[corner] =
-                    info.add_common_op("clip", m_y_corners[corner], m_zero_l, m_height_max_l);
-            });
+            std::transform(
+                m_x_corners.begin(), m_x_corners.end(), m_x_corners.begin(), [&](auto& corner) {
+                    auto tmp = reflect_coordinates(
+                        info, corner, m_align_corners ? m_width_max_l : m_width_l, corner_start);
+                    return info.add_common_op("clip", tmp, m_zero_l, m_width_max_l);
+                });
+            std::transform(
+                m_y_corners.begin(), m_y_corners.end(), m_y_corners.begin(), [&](auto& corner) {
+                    auto tmp = reflect_coordinates(
+                        info, corner, m_align_corners ? m_height_max_l : m_height_l, corner_start);
+                    return info.add_common_op("clip", tmp, m_zero_l, m_height_max_l);
+                });
         }
 
         if(m_padding == "border")
         {
-            dfor(m_x_corners.size())([&](auto corner) {
-                m_x_corners[corner] =
-                    info.add_common_op("clip", m_x_corners[corner], m_zero_l, m_width_max_l);
-                m_y_corners[corner] =
-                    info.add_common_op("clip", m_y_corners[corner], m_zero_l, m_height_max_l);
-            });
+            std::transform(
+                m_x_corners.begin(), m_x_corners.end(), m_x_corners.begin(), [&](auto& corner) {
+                    return info.add_common_op("clip", corner, m_zero_l, m_width_max_l);
+                });
+            std::transform(
+                m_y_corners.begin(), m_y_corners.end(), m_y_corners.begin(), [&](auto& corner) {
+                    return info.add_common_op("clip", corner, m_zero_l, m_height_max_l);
+                });
         }
     }
 
@@ -522,13 +519,12 @@ struct bicubic_sampler : grid_sampler
                 {{"dims", {weight_indices_t->get_shape().elements() / gather_dim, gather_dim}}}),
             weight_indices_t);
         std::array<instruction_ref, 4> corner_weights;
-        dfor(corner_weights.size())([&](auto corner) {
-            corner_weights.at(corner) =
-                info.add_instruction(make_op("gathernd"), weights[corner], weight_indices_t);
-            corner_weights.at(corner) = info.add_instruction(
-                make_op("reshape",
-                        {{"dims", {corner_weights.at(corner)->get_shape().elements(), 1}}}),
-                corner_weights.at(corner));
+        std::transform(weights.cbegin(), weights.cend(), corner_weights.begin(), [&](auto& corner) {
+            auto corner_weight =
+                info.add_instruction(make_op("gathernd"), corner, weight_indices_t);
+            return info.add_instruction(
+                make_op("reshape", {{"dims", {corner_weight->get_shape().elements(), 1}}}),
+                corner_weight);
         });
         auto weights_t = std::accumulate(
             std::next(corner_weights.begin()),

@@ -57,8 +57,8 @@ void eliminate_concat::apply(module& m) const
         int num_uses = 0;
         for(auto input : ins->inputs())
         {
-            if( input->outputs().size() > 1 )
-                num_uses++; 
+            if(input->outputs().size() > 1)
+                num_uses++;
         }
 
         if(num_uses > 1)
@@ -99,8 +99,9 @@ void eliminate_concat::apply(module& m) const
         auto lens              = ins->inputs().front()->get_shape().lens();
         auto concat_op         = concat_opt.get_concat(ins->get_operator());
         std::size_t axis_index = tune_axis(lens.size(), concat_op.axis, concat_op.name());
-        if(num_uses == 0 and (axis_index == 0 or
-           std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; })))
+        if(num_uses == 0 and
+           (axis_index == 0 or
+            std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; })))
         {
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();

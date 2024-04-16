@@ -487,16 +487,16 @@ TEST_CASE(basic_multiuse)
             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto p3          = m.add_instruction(identity{}, m2, a3);
         std::size_t axis = 1;
-        auto a4          = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a4 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto m3 = m.add_instruction(concat(axis), m1, m2, a4);
         m.add_instruction(identity{}, p3, m3);
         return m;
     };
     auto create_control_program = [] {
         migraphx::module m;
-        auto a0 = m.add_instruction(
-            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a0 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
         auto a1 =
             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
         auto m1 = m.add_instruction(simple_op{}, a1);
@@ -513,7 +513,7 @@ TEST_CASE(basic_multiuse)
         auto a3 =
             m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
         auto m3 = m.add_instruction(identity{}, m2, a3);
-        
+
         auto m4 = m.add_instruction(identity{}, {a0, c1, c2});
         m.add_instruction(identity{}, m3, m4);
         return m;

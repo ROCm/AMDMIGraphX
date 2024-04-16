@@ -34,10 +34,10 @@ struct test_gemm_multibroadcast : verify_program<test_gemm_multibroadcast<DType>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 2}});
+        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1025}});
         auto b   = mm->add_parameter("b", migraphx::shape{DType, {2, 1, 2}});
-        auto bb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2}}}), b);
+        auto bb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1025, 2}}}), b);
         mm->add_instruction(migraphx::make_op("dot"), a, bb);
         return p;
     }

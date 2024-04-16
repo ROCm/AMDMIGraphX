@@ -16,7 +16,11 @@ def generate_test_dataset(model,
     output_pb_name = "output_{}.pb"
 
     # Model
-    model_path = model.get_model(output_path)
+    try:
+        model_path = model.get_model(output_path)
+    except Exception as e:
+        print(f"Something went wrong:\n{e}\nSkipping model...")
+        return
     inputs, outputs = get_model_io(model_path)
 
     sess = ort.InferenceSession(model_path)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -463,6 +463,59 @@ TEST_CASE(basic_nonpacked)
         auto c3 = m.add_instruction(migraphx::test_copy{}, m3, l3);
 
         m.add_instruction(identity{}, {a0, c1, c2, c3});
+        return m;
+    };
+
+    auto m1 = create_test_program();
+    auto m2 = create_control_program();
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(basic_multiuse)
+{
+    auto create_test_program = [] {
+        migraphx::module m;
+        auto a1 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+        auto m1 = m.add_instruction(simple_op{}, a1);
+        auto a2 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto m2 = m.add_instruction(simple_op{}, a2);
+        auto a3 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto p3          = m.add_instruction(identity{}, m2, a3);
+        std::size_t axis = 1;
+        auto a4          = m.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto m3 = m.add_instruction(concat(axis), m1, m2, a4);
+        m.add_instruction(identity{}, p3, m3);
+        return m;
+    };
+    auto create_control_program = [] {
+        migraphx::module m;
+        auto a0 = m.add_instruction(
+            allocate{migraphx::shape{migraphx::shape::float_type, {2, 5, 8, 8}}});
+        auto a1 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}});
+        auto m1 = m.add_instruction(simple_op{}, a1);
+        auto l1 = m.add_instruction(
+            load{migraphx::shape{migraphx::shape::float_type, {2, 2, 8, 8}}, 0}, {a0});
+        auto c1 = m.add_instruction(migraphx::test_copy{}, m1, l1);
+        auto a2 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto m2 = m.add_instruction(simple_op{}, a2);
+        auto l2 = m.add_instruction(
+            load{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}, 1024}, {a0});
+
+        auto c2 = m.add_instruction(migraphx::test_copy{}, m2, l2);
+        auto a3 =
+            m.add_instruction(allocate{migraphx::shape{migraphx::shape::float_type, {2, 3, 8, 8}}});
+        auto m3 = m.add_instruction(identity{}, m2, a3);
+        
+        auto m4 = m.add_instruction(identity{}, {a0, c1, c2});
+        m.add_instruction(identity{}, m3, m4);
         return m;
     };
 

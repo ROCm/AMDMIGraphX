@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,9 +49,19 @@ void eliminate_concat::apply(module& m) const
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto arg) {
                return arg->name().front() == '@' or
                       (arg->get_operator().is_context_free() and
-                       not contains({"concat", "identity"}, arg->name())) or
-                      arg->outputs().size() > 1;
+                       not contains({"concat", "identity"}, arg->name()));
            }))
+            continue;
+
+        // check if only one input has multiple uses
+        int num_uses = 0;
+        for(auto input : ins->inputs())
+        {
+            if( input->outputs().size() > 1 )
+                num_uses++; 
+        }
+
+        if(num_uses > 1)
             continue;
 
         // Last input should be an allocation
@@ -89,8 +99,8 @@ void eliminate_concat::apply(module& m) const
         auto lens              = ins->inputs().front()->get_shape().lens();
         auto concat_op         = concat_opt.get_concat(ins->get_operator());
         std::size_t axis_index = tune_axis(lens.size(), concat_op.axis, concat_op.name());
-        if(axis_index == 0 or
-           std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
+        if(num_uses == 0 and (axis_index == 0 or
+           std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; })))
         {
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();

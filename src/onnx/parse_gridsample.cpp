@@ -402,6 +402,7 @@ struct bicubic_sampler : grid_sampler
         : grid_sampler(input, grid, align, std::move(padding), info)
     {
         auto type    = m_grid->get_shape().type();
+        m_nc_shape   = migraphx::shape{type, {2}};
         m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
         m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
         m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
@@ -464,6 +465,25 @@ struct bicubic_sampler : grid_sampler
                     info.add_common_op("clip", m_y_corners[corner], m_zero_l, m_height_max_l);
             });
         }
+    }
+
+    void update_indices(const onnx_parser::node_info& info,
+                        const instruction_ref& h,
+                        const instruction_ref& w,
+                        size_t n,
+                        size_t c,
+                        std::vector<instruction_ref>& indices,
+                        std::vector<instruction_ref>& validation) const
+    {
+        auto nc      = info.add_literal(migraphx::literal{m_nc_shape, {n, c}});
+        auto w_clamp = info.add_common_op("clip", w, m_zero_l, m_width_max_l);
+        auto h_clamp = info.add_common_op("clip", h, m_zero_l, m_height_max_l);
+        auto nchw    = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
+        indices.push_back(nchw);
+        auto h_valid = info.add_common_op("equal", h, h_clamp);
+        auto w_valid = info.add_common_op("equal", w, w_clamp);
+        auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
+        validation.push_back(valid);
     }
 
     instruction_ref cubic_weight_1(const onnx_parser::node_info& info,

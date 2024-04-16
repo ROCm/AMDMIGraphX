@@ -402,7 +402,6 @@ struct bicubic_sampler : grid_sampler
         : grid_sampler(input, grid, align, std::move(padding), info)
     {
         auto type    = m_grid->get_shape().type();
-        m_nc_shape   = migraphx::shape{type, {2}};
         m_a_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.75}});
         m_aplus2_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.25}});
         m_aplus3_l   = info.add_literal(migraphx::literal{migraphx::shape{type}, {2.25}});
@@ -464,25 +463,6 @@ struct bicubic_sampler : grid_sampler
         }
     }
 
-    void update_indices(const onnx_parser::node_info& info,
-                        const instruction_ref& h,
-                        const instruction_ref& w,
-                        size_t n,
-                        size_t c,
-                        std::vector<instruction_ref>& indices,
-                        std::vector<instruction_ref>& validation) const
-    {
-        auto nc      = info.add_literal(migraphx::literal{m_nc_shape, {n, c}});
-        auto w_clamp = info.add_common_op("clip", w, m_zero_l, m_width_max_l);
-        auto h_clamp = info.add_common_op("clip", h, m_zero_l, m_height_max_l);
-        auto nchw    = info.add_instruction(make_op("concat", {{"axis", 0}}), nc, h_clamp, w_clamp);
-        indices.push_back(nchw);
-        auto h_valid = info.add_common_op("equal", h, h_clamp);
-        auto w_valid = info.add_common_op("equal", w, w_clamp);
-        auto valid   = info.add_common_op("logical_and", h_valid, w_valid);
-        validation.push_back(valid);
-    }
-
     instruction_ref cubic_weight_1(const onnx_parser::node_info& info,
                                    const instruction_ref& ins) const
     {
@@ -538,12 +518,12 @@ struct bicubic_sampler : grid_sampler
 
     instruction_ref sample(const onnx_parser::node_info& info)
     {
-        std::vector<instruction_ref> indices;
-        std::vector<instruction_ref> validation;
-        std::vector<instruction_ref> y_weights;
         std::vector<instruction_ref> x_weight_indices;
         std::vector<instruction_ref> y_weight_indices;
 
+        std::vector<instruction_ref> inner_y_indices;
+        std::vector<instruction_ref> inner_x_indices;
+        std::vector<instruction_ref> nc_values;
         const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
             auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
@@ -557,18 +537,40 @@ struct bicubic_sampler : grid_sampler
 
             dfor(m_channel, m_y_corners.size())([&](auto c, auto corner) {
                 auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
-                update_indices(info, y, x0, n, c, indices, validation);
-                update_indices(info, y, x1, n, c, indices, validation);
-                update_indices(info, y, x2, n, c, indices, validation);
-                update_indices(info, y, x3, n, c, indices, validation);
+                inner_y_indices.insert(inner_y_indices.end(), {y, y, y, y});
+                inner_x_indices.insert(inner_x_indices.end(), {x0, x1, x2, x3});
+
+                auto nc = info.add_literal(migraphx::literal{m_nc_shape, {n, c}});
+                nc_values.insert(nc_values.end(), {nc, nc, nc, nc});
             });
         });
 
-        auto indices_t = concat_on_first_dim(info, indices);
-        indices_t      = info.add_instruction(
-            make_op("reshape", {{"dims", {indices_t->get_shape().elements() / 4, 4}}}), indices_t);
+        auto inner_y_t = concat_on_first_dim(info, inner_y_indices);
+        auto inner_x_t = concat_on_first_dim(info, inner_x_indices);
+
+        auto validate_index = [&](auto& index, auto& max) {
+            auto clip       = info.add_common_op("clip", index, m_zero_l, max);
+            auto validation = info.add_common_op("equal", index, clip);
+            index           = clip;
+            return validation;
+        };
+
+        auto y_validation = validate_index(inner_y_t, m_height_max_l);
+        auto x_validation = validate_index(inner_x_t, m_width_max_l);
+
+        inner_y_t = info.add_instruction(
+            make_op("reshape", {{"dims", {inner_y_t->get_shape().elements(), 1}}}), inner_y_t);
+        inner_x_t = info.add_instruction(
+            make_op("reshape", {{"dims", {inner_x_t->get_shape().elements(), 1}}}), inner_x_t);
+
+        auto nc_t = concat_on_first_dim(info, nc_values);
+
+        auto indices_t =
+            info.add_instruction(make_op("concat", {{"axis", 1}}), inner_y_t, inner_x_t);
+        indices_t = info.add_instruction(make_op("concat", {{"axis", 1}}), nc_t, indices_t);
+
         auto samples      = info.add_instruction(make_op("gathernd"), m_input, indices_t);
-        auto validation_t = concat_on_first_dim(info, validation);
+        auto validation_t = info.add_common_op("logical_and", y_validation, x_validation);
         samples           = info.add_common_op("where", validation_t, samples, m_zero_l);
 
         auto x_weights_t = compute_weights(

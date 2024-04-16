@@ -55,7 +55,7 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         else if(ins->name() == "@return")
         {
             names[ins] = prefix + "return";
-            ss << "auto " << prefix << "return = " << g(ins, names) << ";\n";
+            ss << "auto " << names[ins] << " = " << g(ins, names) << ";\n";
             return_ins = ins;
         }
         else

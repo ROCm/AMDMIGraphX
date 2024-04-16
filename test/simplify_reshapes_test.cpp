@@ -1649,14 +1649,14 @@ TEST_CASE(pointwise_reshape_unary_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 2, 2, 2, 5, 5}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s1);
-        auto y = m1.add_parameter("y", s1);
-        auto z = m1.add_parameter("z", s2);
+        auto x   = m1.add_parameter("x", s1);
+        auto y   = m1.add_parameter("y", s1);
+        auto z   = m1.add_parameter("z", s2);
         auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
         auto reshape_ins =
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), mul);
-        auto relu      = m1.add_instruction(migraphx::make_op("relu"), reshape_ins);
-        auto pw = m1.add_instruction(migraphx::make_op("add"), z, relu);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), reshape_ins);
+        auto pw   = m1.add_instruction(migraphx::make_op("add"), z, relu);
         m1.add_instruction(pass_op{}, pw);
     }
     migraphx::module m2 = m1;
@@ -1670,7 +1670,7 @@ TEST_CASE(literal_reshape_unary_transpose_pointwise)
     auto s2 = migraphx::shape{migraphx::shape::float_type, {2, 2, 5, 2, 5, 2}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s2);
+        auto x   = m1.add_parameter("x", s2);
         auto one = m1.add_literal(migraphx::generate_literal(s1));
         auto reshape_ins =
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), one);
@@ -1683,9 +1683,9 @@ TEST_CASE(literal_reshape_unary_transpose_pointwise)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", s2);
-        auto one = m2.add_literal(migraphx::generate_literal(s1));
-        auto relu      = m2.add_instruction(migraphx::make_op("relu"), one);
+        auto x    = m2.add_parameter("x", s2);
+        auto one  = m2.add_literal(migraphx::generate_literal(s1));
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), one);
         auto reshape_ins =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), relu);
         auto transpose = m2.add_instruction(

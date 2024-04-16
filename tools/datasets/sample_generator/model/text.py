@@ -88,3 +88,41 @@ class GPTJ(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
         input_map["input_ids"][0][timestep] = new_token
         input_map["attention_mask"][0][timestep] = 1
         return new_token == self.processor.eos_token_id
+
+
+class T5_base(EncoderDecoderOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
+              DecoderModel):
+    def __init__(self):
+        max_length = 384  # default for squad
+        # Note: no real start token, it requires the pad token
+        self.initial_input_ids = np.array(
+            [[self.processor.pad_token_id] + [self.processor.eos_token_id] *
+             (max_length - 1)])
+
+    @property
+    def model_id(self):
+        return "google-t5/t5-base"
+
+    @property
+    def task(self):
+        # override to ignore "with-past"
+        return "text2text-generation"
+
+    @property
+    def name(self):
+        return "t5-base"
+
+    def preprocess(self, *args, **kwargs):
+        # only use squad's question
+        new_args = ["translate English to French:", args[0]]
+        result = super().preprocess(*new_args, **kwargs)
+        result["decoder_input_ids"] = np.copy(self.initial_input_ids)
+        return result
+
+    def decode_step(self, input_map, output_map):
+        timestep = np.argmax(
+            input_map["decoder_input_ids"][0] == self.processor.eos_token_id)
+        new_token = np.argmax(output_map["logits"][0][timestep - 1])
+        input_map["decoder_input_ids"][0][timestep] = new_token
+        input_map["attention_mask"][0][timestep] = 1
+        return new_token == self.processor.eos_token_id

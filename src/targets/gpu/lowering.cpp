@@ -46,14 +46,16 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
+#endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -402,7 +404,7 @@ void lowering::apply(module_pass_manager& mpm) const
 {
     miopen_apply{&mpm.get_module(), &mpm, this}.apply();
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

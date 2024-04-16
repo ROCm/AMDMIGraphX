@@ -56,7 +56,9 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/compile_miopen.hpp>
+#endif
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/concat_gpu_opt.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -102,8 +104,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         unsupported_fp8_ops.insert("dot");
         unsupported_fp8_ops.insert("quant_dot");
     }
+    #if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");
+    #endif
     if(not gpu::gfx_has_fp8_intrinsics())
     {
         unsupported_fp8_ops.insert("convolution");
@@ -175,8 +179,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
+        #if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},
         dead_code_elimination{},
+        #endif
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

@@ -27,7 +27,9 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
+#endif
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>
@@ -52,7 +54,7 @@ inline shape reshape_if_1d(const shape& input)
     }
     return new_shape;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 template <class Op>
 struct miopen_convolution
 {
@@ -341,7 +343,7 @@ struct miopen_convolution
         return shapes.size() - 1;
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

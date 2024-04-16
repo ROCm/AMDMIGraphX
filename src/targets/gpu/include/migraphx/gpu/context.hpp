@@ -26,8 +26,10 @@
 
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
-#ifdef MIGRAPHX_USE_MIOPEN
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
+#else
+#include <hip/hip_runtime.h>
 #endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -93,7 +95,7 @@ struct hip_device
             return nullptr;
         }
 
-        #ifdef MIGRAPHX_USE_MIOPEN
+        #if MIGRAPHX_USE_MIOPEN
         auto create_miopen_handle()
         {
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
@@ -150,7 +152,7 @@ struct hip_device
         private:
         std::size_t id                      = 0;
         shared<hip_stream_ptr> s            = nullptr;
-        #ifdef MIGRAPHX_USE_MIOPEN
+        #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle      = nullptr;
         #endif
         shared<rocblas_handle_ptr> rbhandle = nullptr;

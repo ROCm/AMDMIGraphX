@@ -36,7 +36,7 @@ struct context;
 struct operation;
 
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 struct compile_miopen
 {
     context* ctx = nullptr;
@@ -44,7 +44,7 @@ struct compile_miopen
     void apply(module& m) const;
     std::size_t compile(operation& op, instruction_ref ins) const;
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

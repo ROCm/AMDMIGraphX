@@ -27,7 +27,9 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/op/nonzero.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

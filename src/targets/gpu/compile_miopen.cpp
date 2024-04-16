@@ -21,7 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/compile_miopen.hpp>
+#endif
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -34,7 +36,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_op
 {
     operation op = op::identity{};
@@ -84,7 +86,7 @@ void compile_miopen::apply(module& m) const
         m.replace_instruction(ins, op, inputs);
     }
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

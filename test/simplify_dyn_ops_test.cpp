@@ -34,6 +34,56 @@ void run_pass(migraphx::module& m)
     migraphx::run_passes(m, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
 }
 
+TEST_CASE(broadcast_with_dims)
+{
+    migraphx::module m0;
+    {
+        // the X input
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+        auto inx = m0.add_parameter("x", sx);
+
+        // the shape input.  Broadcast to this
+        migraphx::shape dims_s{migraphx::shape::int64_type, {4}};
+        std::vector<size_t> dims = {2, 3, 4, 5};
+        auto out_dims            = m0.add_literal(migraphx::literal{dims_s, dims});
+
+        auto r = m0.add_instruction(migraphx::make_op("broadcast_with_dims"), inx, out_dims);
+        m0.add_return({r});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
+        auto inx = m1.add_parameter("x", sx);
+
+        auto r = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4, 5}}}), inx);
+        m1.add_return({r});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(broadcast_with_dims_invalid)
+{
+    migraphx::module m0;
+    {
+        // X input shape is not broadcastable to given shape
+        migraphx::shape sx{migraphx::shape::float_type, {3, 1, 2}};
+        auto inx = m0.add_parameter("x", sx);
+
+        // the shape input.  Broadcast to this
+        migraphx::shape dims_s{migraphx::shape::int64_type, {4}};
+        std::vector<size_t> dims = {2, 3, 4, 5};
+        auto out_dims            = m0.add_literal(migraphx::literal{dims_s, dims});
+
+        auto r = m0.add_instruction(migraphx::make_op("broadcast_with_dims"), inx, out_dims);
+        m0.add_return({r});
+    }
+    // replacement will be rejected by multibroadcast operation
+    EXPECT(test::throws([&] { run_pass(m0); }));
+}
+
 TEST_CASE(resize)
 {
     migraphx::module m0;

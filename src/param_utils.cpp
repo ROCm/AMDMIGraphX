@@ -20,45 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/checks.hpp>
-#include <migraphx/ranges.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/common.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/builtin.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
 
-struct parse_expand : op_parser<parse_expand>
+std::string param_name(std::size_t i, const std::string& prefix)
 {
-    std::vector<op_desc> operators() const { return {{"Expand"}}; }
+    assert(i < 10);
+    return prefix + std::to_string(i);
+}
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto in_lens             = args[0]->get_shape().lens();
-        migraphx::argument arg_s = args[1]->eval();
-        if(arg_s.empty())
-        {
-            // variable dims input
-            return info.add_instruction(make_op("broadcast_with_dims"), args[0], args[1]);
-        }
-        else
-        {
-            std::vector<std::size_t> dims;
-            arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-            auto out_lens = compute_broadcasted_lens(in_lens, dims);
-            return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
-                                        args[0]);
-        }
-    }
-};
+void sort_params(std::vector<instruction_ref>& params)
+{
+    std::sort(params.begin(), params.end(), by(std::less<>{}, [](instruction_ref ins) {
+                  const auto& param = any_cast<const builtin::param&>(ins->get_operator());
+                  return param.parameter;
+              }));
+}
 
-} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

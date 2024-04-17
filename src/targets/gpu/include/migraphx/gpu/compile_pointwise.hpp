@@ -37,7 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape> in_shapes, const_module_ref pm);
+compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

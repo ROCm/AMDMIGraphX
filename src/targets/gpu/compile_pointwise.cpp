@@ -40,9 +40,9 @@ compile_pointwise(context& ctx, const std::vector<migraphx::shape> in_shapes, co
     std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
     auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
     return gpu::compile_op("pointwise",
-                      ctx,
-                      in_shapes,
-                      {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+                           ctx,
+                           in_shapes,
+                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
 }
 
 } // namespace gpu

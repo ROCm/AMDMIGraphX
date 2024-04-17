@@ -94,7 +94,7 @@ OutputIt par_transform(
 }
 
 template <class InputIt, class UnaryFunction>
-void par_for_each(InputIt first, InputIt last, UnaryFunction f)
+void par_for_each(InputIt first, InputIt last, size_t min_grain, UnaryFunction f)
 {
 #if MIGRAPHX_HAS_EXECUTORS
     // Propagate the exception
@@ -102,7 +102,7 @@ void par_for_each(InputIt first, InputIt last, UnaryFunction f)
     std::for_each(std::execution::par, first, last, ex.collect(std::move(f)));
     ex.throw_if_exception();
 #else
-    simple_par_for(last - first, [&](auto i) { f(first[i]); });
+    simple_par_for(last - first, min_grain, [&](auto i) { f(first[i]); });
 #endif
 }
 

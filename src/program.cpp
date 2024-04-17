@@ -523,6 +523,14 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, trace);
 }
 
+std::vector<argument> generic_eval(const program& p,
+                                   std::vector<context>& ctx,
+                                   std::unordered_map<std::string, argument> params)
+{
+    const module* mm = p.get_main_module();
+    return generic_eval(mm, ctx, params, {}, [](auto&&, auto f) { return f(); });
+}
+
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;

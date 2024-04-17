@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/program.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/context.hpp>
@@ -52,6 +53,34 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     auto start = context::create_event_for_timing();
     auto stop  = context::create_event_for_timing();
     auto run   = [&] { op.compute(ctx, output, args); };
+    run();
+    gctx.get_stream().record(start.get());
+    for(auto i : range(n))
+    {
+        (void)i;
+        run();
+    }
+    gctx.get_stream().record(stop.get());
+    gctx.finish();
+    return context::get_elapsed_ms(start.get(), stop.get()) / n;
+}
+
+double time_program(context& ictx, migraphx::program p, int n)
+{
+    std::vector<migraphx::context> ctx_vec = {ictx};
+    auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
+    auto* mm                               = p.get_main_module();
+    mm->finalize(ctx_vec);
+    auto in_shapes = p.get_parameter_shapes();
+    std::unordered_map<std::string, migraphx::argument> param_map;
+    unsigned long seed = 0;
+    for(const auto& [name, shape] : in_shapes)
+    {
+        param_map[name] = to_gpu(generate_argument(shape, seed++));
+    }
+    auto run   = [&] { generic_eval(p, ctx_vec, param_map); };
+    auto start = context::create_event_for_timing();
+    auto stop  = context::create_event_for_timing();
     run();
     gctx.get_stream().record(start.get());
     for(auto i : range(n))

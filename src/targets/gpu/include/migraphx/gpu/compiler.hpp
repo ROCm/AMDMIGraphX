@@ -84,7 +84,7 @@ struct compiler_replace
     instruction_ref
     replace(module& m,
             instruction_ref ins,
-            const std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map) const
+            const std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map = {}) const
     {
         if(replace_fn)
             return replace_fn(*this, m, ins, inputs_rep_map);

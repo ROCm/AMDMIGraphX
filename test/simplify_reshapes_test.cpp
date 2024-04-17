@@ -1643,6 +1643,21 @@ TEST_CASE(reshape_unary_transpose)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(reshape_unary_last)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 8, 5, 5}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 2, 5, 5}}}), x);
+        m1.add_instruction(migraphx::make_op("relu"), reshape_ins);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(pointwise_reshape_unary_pointwise)
 {
     auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 8, 5, 5}};

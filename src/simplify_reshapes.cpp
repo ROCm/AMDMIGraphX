@@ -686,6 +686,8 @@ struct find_unary_shape_transforms
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins    = mr.result;
+        if(ins->outputs().empty())
+            return;
         auto input  = ins->inputs().front();
         auto output = ins->outputs().front();
 

@@ -30,7 +30,6 @@ if(NOT GPU_TARGETS)
     endif()
     message(FATAL_ERROR ${fatal_msg})
 endif()
-
 find_package(miopen REQUIRED)
 message(STATUS "MIGraphX is using MIOpen")
 
@@ -185,30 +184,25 @@ register_migraphx_gpu_ops(hip_
     reverse
     topk
 )
-
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
     lrn
     pooling
 )
-
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
     INCLUDES migraphx/gpu/context.hpp)
-
 if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
-
 register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
     OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)
-
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
@@ -272,20 +266,19 @@ target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CX
 # Check miopen find mode api
 
 include(CheckLibraryExists)
-
 get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
 check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
 
 if(MIGRAPHX_USE_ROCBLAS)
     get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
-    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_ROCBLAS=1)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=1)
     # Beta API for automated GEMM tuning
     check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)
     # rocblas FP8 API
     check_library_exists(roc::rocblas "rocblas_gemm_strided_batched_ex3" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_FP8_BETA_API)
 else()
-    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_ROCBLAS=0)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")

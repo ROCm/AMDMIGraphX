@@ -352,5 +352,3 @@ rocm_create_package(
     PTH
     DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
 )
-
-

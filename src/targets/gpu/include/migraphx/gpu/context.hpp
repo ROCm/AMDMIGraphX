@@ -109,16 +109,16 @@ struct hip_device
             assert(mihandle.get() != nullptr);
             return mihandle.get();
         }
-        #if MIGRAPHX_USE_ROCBLAS
-            auto get_rocblas()
-            {
-                setup();
-                if(rbhandle == nullptr)
-                    rbhandle = create_rocblas_handle_ptr(get());
-                assert(rbhandle.get() != nullptr);
-                return rbhandle.get();
-            }
-        #endif
+#if MIGRAPHX_USE_ROCBLAS
+        auto get_rocblas()
+        {
+            setup();
+            if(rbhandle == nullptr)
+                rbhandle = create_rocblas_handle_ptr(get());
+            assert(rbhandle.get() != nullptr);
+            return rbhandle.get();
+        }
+#endif
 
         void wait() const
         {
@@ -147,12 +147,12 @@ struct hip_device
         }
 
         private:
-        std::size_t id                      = 0;
-        shared<hip_stream_ptr> s            = nullptr;
-        shared<miopen_handle> mihandle      = nullptr;
-        #if MIGRAPHX_USE_ROCBLAS
-            shared<rocblas_handle_ptr> rbhandle = nullptr;
-        #endif
+        std::size_t id                 = 0;
+        shared<hip_stream_ptr> s       = nullptr;
+        shared<miopen_handle> mihandle = nullptr;
+#if MIGRAPHX_USE_ROCBLAS
+        shared<rocblas_handle_ptr> rbhandle = nullptr;
+#endif
     };
 
     void add_stream() { streams.emplace_back(device_id); }
@@ -351,4 +351,3 @@ inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v
 } // namespace migraphx
 
 #endif
-

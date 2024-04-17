@@ -685,7 +685,7 @@ struct find_unary_shape_transforms
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins    = mr.result;
+        auto ins = mr.result;
         if(ins->outputs().empty())
             return;
         auto input  = ins->inputs().front();
@@ -709,13 +709,13 @@ struct find_unary_shape_transforms
         std::reverse(xops.begin(), xops.end());
 
         std::vector<operation> yops;
-        auto y = output;
+        auto y              = output;
         auto last_transform = m.end();
         while(is_shape_transform(y) and y->outputs().size() == 1)
         {
             yops.push_back(y->get_operator());
             last_transform = y;
-            y = y->outputs().front();
+            y              = y->outputs().front();
         }
 
         bool move_up   = can_fuse_unary(x);

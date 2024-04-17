@@ -39,8 +39,8 @@ constexpr T normalize(unsigned long z)
     const auto max     = 1ULL << (sizeof(T) * 8 - 1);
     const double range = max / 2.0;
     double result      = -1.0 + (z % max) / range;
-    return T(result);
     // Expected output: between -1.0 and 1.0
+    return T(result);
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
@@ -49,8 +49,8 @@ constexpr T normalize(unsigned long z)
     const long long max = 1ULL << (sizeof(T) * 8 - 2);
     const auto half_max = max / 2;
     auto result         = half_max - (z % max);
-    return T(result);
     // Expected output: between -half_max and half_max
+    return T(result);
 }
 
 template <class T,
@@ -59,15 +59,15 @@ template <class T,
 constexpr T normalize(unsigned long z)
 {
     const auto max = 1ULL << (sizeof(T) * 8 - 1);
-    return z % max;
     // Expected output: between 0 and max - 1
+    return z % max;
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>
 constexpr bool normalize(unsigned long z)
 {
-    return static_cast<bool>(z % 2);
     // Expected output: 0 or 1
+    return static_cast<bool>(z % 2);
 }
 
 template <class T>

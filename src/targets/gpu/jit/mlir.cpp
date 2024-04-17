@@ -100,37 +100,54 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto mod2            = smod->split(input_args, {gemm_ins});
             auto dot_mlir_inputs = to_shapes(mod2[0].inputs);
             dot_mlir_inputs.push_back(mod2[0].mod.get_output_shapes().front());
-            auto cop1        = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
+            mlir_code_object cop1 = compile_mlir(ctx, mod2[0].mod, dot_mlir_inputs, solution);
             auto pw_inputs   = mod2[1].inputs;
             auto dot_ins_idx = std::distance(
                 std::find(pw_inputs.begin(), pw_inputs.end(), gemm_ins), pw_inputs.begin());
             auto pw_shapes = to_shapes(mod2[1].inputs);
-            pw_shapes[dot_ins_idx] = cop1.output;
+            pw_shapes[dot_ins_idx] = cop1.cop.output;
             pw_shapes.push_back(mod2[1].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
             auto pw_mod                 = create_pointwise_module(&mod2[1].mod);
             auto cop2                   = compile_pointwise(ctx, pw_shapes, &pw_mod);
-            std::vector<operation> cops = {cop1, cop2};
+            std::vector<mlir_code_object> cops = {cop1,
+                                                  mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod2, gemm_ins);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
 
-    compiler_replace insert(code_object_op cobj) const
+    compiler_replace insert(mlir_code_object mco) const
     {
-        return {std::vector<operation>{std::move(cobj)},
-                [](module& m,
-                   instruction_ref ins,
-                   const std::vector<operation>& ops,
-                   const std::unordered_map<instruction_ref, instruction_ref>&) {
-                    auto mlir =
-                        insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), ins->inputs());
+        return {std::vector<operation>{mco.cop},
+                [=](module& m,
+                    instruction_ref ins,
+                    const std::vector<operation>& ops,
+                    const std::unordered_map<instruction_ref, instruction_ref>&) {
+                    std::vector<instruction_ref> inputs = ins->inputs();
+                    if(not mco.prefill_indices.empty())
+                    {
+                        for(const auto i : range(mco.prefill_indices.size()))
+                        {
+                            auto prefilled_ins = m.insert_instruction(
+                                ins,
+                                migraphx::make_op("hip::fill", {{"value", mco.prefill_values[i]}}),
+                                inputs[mco.prefill_indices[i]]);
+                            replace(inputs, inputs[mco.prefill_indices[i]], prefilled_ins);
+                        }
+                    }
+                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);
                     return m.replace_instruction(ins, mlir);
                 }};
     }
 
-    compiler_replace insert(std::vector<operation> cobjs, std::array<module_with_inputs, 2> mods, instruction_ref split_ins) const
+    compiler_replace insert(std::vector<mlir_code_object> mcos,
+                            std::array<module_with_inputs, 2> mods,
+                            instruction_ref split_ins) const
     {
+        std::vector<operation> cobjs(mcos.size());
+        std::transform(
+            mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
         return {std::move(cobjs),
                 [=](module& m,
                     instruction_ref ins,
@@ -143,7 +160,20 @@ struct mlir_compiler : compiler<mlir_compiler>
                         migraphx::make_op("hip::allocate",
                                           {{"shape", to_value(dot_mod_out_shape)}}));
                     dot_inputs.push_back(dot_alloc);
-                    
+                    if(not mcos[0].prefill_indices.empty())
+                    {
+                        for(const auto i : range(mcos[0].prefill_indices.size()))
+                        {
+                            auto prefilled_ins = m.insert_instruction(
+                                ins,
+                                migraphx::make_op("hip::fill",
+                                                  {{"value", mcos[0].prefill_values[i]}}),
+                                dot_inputs[mcos[0].prefill_indices[i]]);
+                            replace(
+                                dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
+                        }
+                    }
+
                     std::vector<instruction_ref> dot_inputs_updated;
                     std::transform(dot_inputs.begin(),
                                    dot_inputs.end(),

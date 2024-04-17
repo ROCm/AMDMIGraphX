@@ -32,7 +32,8 @@ TEST_CASE(convinteger_bias_test)
     auto data      = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
     auto weights   = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
     auto data_bias = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
-
+     
+    mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
     auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), data, weights);
 
     auto bcast_data_bias = mm->add_instruction(

@@ -30,6 +30,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,9 +43,21 @@ struct parse_convolution : op_parser<parse_convolution>
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
+    static float get_symmetric_value(instruction_ref& input)
+    {
+        float symmetric_value = 0;
+        //adjust symmetric zero point value for uint8 types
+        if(input->get_shape().type() == migraphx::shape::uint8_type)
+        {
+            symmetric_value = 128;
+        }
+        return symmetric_value;
+    }
+
     static instruction_ref get_zero_point(const instruction_ref& input,
                                           int index,
                                           const bool is_quant_conv,
+                                          onnx_parser::node_info& info,
                                           const std::vector<instruction_ref>& args)
     {
         instruction_ref ret = input;
@@ -55,8 +68,19 @@ struct parse_convolution : op_parser<parse_convolution>
                 MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
 
             if(is_quant_conv)
+            {
                 ret = args[index];
+            }
         }
+        else    
+        {
+            if (is_quant_conv)
+            { 
+                float symmetric_value = get_symmetric_value(ret);
+                ret = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
+            }
+        }
+
         return ret;
     }
 
@@ -65,10 +89,12 @@ struct parse_convolution : op_parser<parse_convolution>
         if(not zp->can_eval())
             return false;
 
+        float symmetric_value = get_symmetric_value(zp);
+
         bool all_zeros = false;
         zp->eval().visit([&](auto z) {
             all_zeros =
-                std::all_of(z.begin(), z.end(), [&](auto val) { return float_equal(val, 0); });
+                std::all_of(z.begin(), z.end(), [&](auto val) { return float_equal(val, symmetric_value); });
         });
         return all_zeros;
     }
@@ -91,25 +117,22 @@ struct parse_convolution : op_parser<parse_convolution>
                                              const instruction_ref& weights,
                                              const instruction_ref& x_zp,
                                              const instruction_ref& w_zp,
-                                             bool is_input_bias,
-                                             bool is_weight_bias,
                                              onnx_parser::node_info& info)
     {
         instruction_ref ret = input;
-        if(not is_symmetric_zero_point(x_zp) and is_input_bias)
+        if(not is_symmetric_zero_point(x_zp))
         {
             auto out_zp_1 = info.add_common_op("quant_convolution", x_zp, weights);
             ret           = info.add_common_op("sub", ret, out_zp_1);
         }
 
-        if(not is_symmetric_zero_point(w_zp) and is_weight_bias)
+        if(not is_symmetric_zero_point(w_zp))
         {
             auto out_zp_2 = info.add_common_op("quant_convolution", x, w_zp);
             ret           = info.add_common_op("sub", ret, out_zp_2);
         }
 
-        if(not(is_symmetric_zero_point(x_zp) and is_symmetric_zero_point(w_zp)) and
-           is_weight_bias and is_input_bias)
+        if(not (is_symmetric_zero_point(x_zp)) and not (is_symmetric_zero_point(w_zp)))
         {
             auto x_zp_bc =
                 info.add_instruction(qparam_broadcast_op(x_zp, x->get_shape().lens(), 0), x_zp);
@@ -234,11 +257,9 @@ struct parse_convolution : op_parser<parse_convolution>
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
         auto is_quant_conv  = opd.op_name == "quant_convolution";
-        auto is_input_bias  = args.size() > 2;
-        auto is_weight_bias = args.size() > 3;
 
-        auto x_zp = get_zero_point(x, 2, is_quant_conv, args);
-        auto w_zp = get_zero_point(weights, 3, is_quant_conv, args);
+        auto x_zp = get_zero_point(x, 2, is_quant_conv, info, args);
+        auto w_zp = get_zero_point(weights, 3, is_quant_conv, info, args);
 
         op.from_value(values);
 
@@ -247,16 +268,12 @@ struct parse_convolution : op_parser<parse_convolution>
         // Handle quant_conv residuals between input/weights to avoid overflow
         if(is_quant_conv)
         {
-            ret =
-                handle_quant_bias(ret, x, weights, x_zp, w_zp, is_input_bias, is_weight_bias, info);
+            ret = handle_quant_bias(ret, x, weights, x_zp, w_zp, info);
         }
         else
         {
-            if(is_input_bias)
-            {
-                // Handle Convolution case with bias to output
-                ret = info.add_bias(args, ret, 1);
-            }
+            // Handle Convolution case with bias to output
+            ret = info.add_bias(args, ret, 1);
         }
 
         return ret;

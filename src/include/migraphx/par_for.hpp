@@ -31,17 +31,16 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class F>
-void par_for(std::size_t n, std::size_t min_grain, F f)
+void par_for(std::size_t n, F f)
 {
     using iterator = basic_iota_iterator<id, std::size_t>;
-    par_for_each(iterator{0, {}}, iterator{n, {}}, min_grain, f);
+    par_for_each(iterator{0, {}}, iterator{n, {}}, f);
 }
 
 template <class F>
-void par_for(std::size_t n, F f)
+void par_for(std::size_t n, std::size_t min_grain, F f)
 {
-    std::size_t min_grain = 8;
-    par_for(n, min_grain, f);
+    simple_par_for(n, min_grain, f);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

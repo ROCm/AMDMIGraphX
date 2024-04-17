@@ -46,6 +46,21 @@ TEST_CASE(gridsample_bicubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
+    std::cout << "result:" << std::endl;
+    for(auto r : result_vector)
+    {
+        std::cout << r << ",";
+    }
+    std::cout << std::endl;
+
     std::vector<float> gold = {-0.1406, 0.3828, 1.7556, 2.9688, 2.9688, 1.7556, 5.1445, 1.3906};
+
+    std::cout << "gold:" << std::endl;
+    for(auto g : gold)
+    {
+        std::cout << g << ",";
+    }
+    std::cout << std::endl;
+
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

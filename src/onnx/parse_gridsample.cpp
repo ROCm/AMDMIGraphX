@@ -171,6 +171,19 @@ struct grid_sampler
             });
     }
 
+    static instruction_ref concat_on_dim(const onnx_parser::node_info& info,
+                                               std::array<instruction_ref, 4> instructions,
+                                               int64_t dim)
+    {
+        return std::accumulate(
+            std::next(instructions.begin()),
+            instructions.end(),
+            instructions.front(),
+            [&info, &dim](auto& ret, auto& ins) {
+                return info.add_instruction(make_op("concat", {{"axis", dim}}), ret, ins);
+            });
+    }
+
     inline bool has_border_padding() const { return m_padding == "border"; }
 };
 
@@ -521,9 +534,9 @@ struct bicubic_sampler : grid_sampler
         std::vector<instruction_ref> x_weight_indices;
         std::vector<instruction_ref> y_weight_indices;
 
-        std::vector<instruction_ref> inner_y_indices;
         std::vector<instruction_ref> inner_x_indices;
         std::vector<instruction_ref> nc_values;
+        std::vector<instruction_ref> ys;
         const static auto nhw_shape = migraphx::shape{migraphx::shape::int64_type, {3}};
         dfor(m_batch, m_out_height, m_out_width)([&](auto n, auto h, auto w) {
             auto nhw = info.add_literal(migraphx::literal{nhw_shape, {n, h, w}});
@@ -535,9 +548,8 @@ struct bicubic_sampler : grid_sampler
             x_weight_indices.insert(x_weight_indices.end(), {nhw, nhw, nhw, nhw});
             y_weight_indices.push_back(nhw);
 
-            dfor(m_channel, m_y_corners.size())([&](auto c, auto corner) {
-                auto y = info.add_instruction(make_op("gathernd"), m_y_corners[corner], nhw);
-                inner_y_indices.insert(inner_y_indices.end(), {y, y, y, y});
+            dfor(m_channel, m_y_corners.size())([&](auto c, auto) {
+                ys.push_back(nhw);
                 inner_x_indices.insert(inner_x_indices.end(), {x0, x1, x2, x3});
 
                 auto nc = info.add_literal(migraphx::literal{m_nc_shape, {n, c}});
@@ -545,7 +557,28 @@ struct bicubic_sampler : grid_sampler
             });
         });
 
-        auto inner_y_t = concat_on_first_dim(info, inner_y_indices);
+        auto inner_y_indices = concat_on_first_dim(info, ys);
+        inner_y_indices      = info.add_instruction(
+            make_op("reshape",
+                         {{"dims",
+                           {inner_y_indices->get_shape().elements() / nhw_shape.elements(),
+                            nhw_shape.elements()}}}),
+            inner_y_indices);
+        std::array<instruction_ref, 4> inner_y_samples;
+        std::transform(
+            m_y_corners.begin(), m_y_corners.end(), inner_y_samples.begin(), [&](auto corner) {
+                auto sample = info.add_instruction(make_op("gathernd"), corner, inner_y_indices);
+                return info.add_instruction(
+                    make_op("reshape", {{"dims", {sample->get_shape().elements(), 1}}}), sample);
+            });
+
+        auto inner_y_t = concat_on_dim(info, inner_y_samples, 1);
+        auto elements  = inner_y_t->get_shape().elements();
+        inner_y_t = info.add_instruction(make_op("reshape", {{"dims", {elements / 16, 4, 4}}}), inner_y_t);
+        inner_y_t =
+            info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), inner_y_t);
+        inner_y_t = info.add_instruction(make_op("reshape", {{"dims", {elements}}}), inner_y_t);
+
         auto inner_x_t = concat_on_first_dim(info, inner_x_indices);
 
         auto validate_index = [&](auto& index, auto& max) {

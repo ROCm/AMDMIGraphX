@@ -183,12 +183,14 @@ register_migraphx_gpu_ops(hip_
     reverse
     topk
 )
+if (MIGRAPHX_USE_MIOPEN)
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
     lrn
     pooling
 )
+endif()
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
@@ -268,11 +270,11 @@ include(CheckLibraryExists)
 get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
 if (MIGRAPHX_USE_MIOPEN)
     get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
-    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_MIOPEN=1)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_MIOPEN=1)
     check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
     check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
 else()
-target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_MIOPEN=0)
+target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_MIOPEN=0)
 endif()
 # Beta API for automated GEMM tuning
 check_library_exists(roc::rocblas "rocblas_gemm_ex_get_solutions" "${ROCBLAS_LOCATION}" HAS_ROCBLAS_TUNING_BETA_FEATURE_API)

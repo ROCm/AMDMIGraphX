@@ -172,7 +172,7 @@ const std::unordered_set<std::string>& get_supported_archs()
         "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
     return supported_archs;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -180,7 +180,6 @@ MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
            s.strides()[1] != 0 and s.strides()[2] == 0 and s.strides()[3] == 0;
 }
 
-#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
@@ -897,10 +896,10 @@ void fuse_ops::apply(module& m) const
 {
     match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{});
     run_passes(m, {dead_code_elimination{}});
-    #if MIGRAPHX_USE_MIOPEN
+#if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
-    #endif
+#endif
     match::find_matches(m,
                         find_gemm_pointwise{},
                         find_layernorm_pointwise{},

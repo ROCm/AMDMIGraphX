@@ -55,7 +55,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-#if MIGRAPHX_USE_MIOPEN
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -412,12 +411,11 @@ struct miopen_apply
         });
     }
 };
-
 void lowering::apply(module_pass_manager& mpm) const
 {
     miopen_apply{&mpm.get_module(), &mpm, this}.apply();
 }
-#endif
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

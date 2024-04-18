@@ -1095,7 +1095,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_unary_shape_transforms{},
                             find_reshape_reshape_dot{});
-                            // find_scalar_multibroadcast_reshape_or_transpose{});
+        // find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

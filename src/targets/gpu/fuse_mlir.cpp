@@ -627,9 +627,7 @@ struct find_pointwise_mlir
         auto inputs = pw->inputs();
         inputs.insert(inputs.end(), ins->inputs().begin(), ins->inputs().end());
 
-        mpm.get_module().replace_instruction(
-            ins, ins->get_operator(), inputs, {m});
-
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs, {m});
     }
 };
 

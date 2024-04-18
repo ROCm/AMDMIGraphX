@@ -624,7 +624,7 @@ struct find_pointwise_mlir
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
         m->set_bypass();
-        auto rins = m->fuse(*pm, pw->inputs(), &map_ins).front();
+        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins).front();
         map_ins[pw] = rins;
 
         auto ret = m->fuse(*mm, ins->inputs(), &map_ins);

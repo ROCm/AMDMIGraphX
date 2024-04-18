@@ -22,32 +22,28 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(expand_test)
+template <migraphx::shape::type_t DType>
+struct test_gemm_transposeb_detect : verify_program<test_gemm_transposeb_detect<DType>>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s(migraphx::shape::float_type, {3, 1, 1});
-    auto param = mm->add_parameter("x", s);
-    migraphx::shape ss(migraphx::shape::int32_type, {4});
-    mm->add_literal(migraphx::literal(ss, {2, 3, 4, 5}));
-    mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4, 5}}}), param);
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1}});
+        auto b   = mm->add_parameter("b", migraphx::shape{DType, {2, 2, 1}});
+        auto bt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), b);
+        mm->add_instruction(migraphx::make_op("dot"), a, bt);
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};
 
-    auto prog = optimize_onnx("expand_test.onnx");
-    EXPECT(p == prog);
-}
-
-TEST_CASE(expand_dyn_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s(migraphx::shape::float_type, {3, 1, 1});
-    auto param = mm->add_parameter("x", s);
-    migraphx::shape ss(migraphx::shape::int64_type, {4});
-    auto dims = mm->add_parameter("dims", ss);
-    mm->add_instruction(migraphx::make_op("broadcast_with_dims"), param, dims);
-
-    auto prog = optimize_onnx("expand_dyn_test.onnx");
-    EXPECT(p == prog);
-}
+template struct test_gemm_transposeb_detect<migraphx::shape::float_type>;
+template struct test_gemm_transposeb_detect<migraphx::shape::half_type>;
+template struct test_gemm_transposeb_detect<migraphx::shape::fp8e4m3fnuz_type>;

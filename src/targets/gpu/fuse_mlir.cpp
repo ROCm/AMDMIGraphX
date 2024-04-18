@@ -616,6 +616,20 @@ struct find_pointwise_mlir
     {
         auto ins = r.result;
         auto pw  = r.instructions["pointwise"];
+
+        auto* mm = ins->module_inputs().front();
+        auto* pm = pw->module_inputs().front();
+
+        module_ref m = mpm.create_module(pm->name() + ":" + mm->name(), *pm);
+        m->fuse(*mm, ins->inputs());
+
+        // TODO: Use find_inputs
+        auto inputs = pw->inputs();
+        inputs.insert(inputs.end(), ins->inputs().begin(), ins->inputs().end());
+
+        mpm.get_module().replace_instruction(
+            ins, ins->get_operator(), inputs, {m});
+
     }
 };
 

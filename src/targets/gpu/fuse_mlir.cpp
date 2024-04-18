@@ -604,6 +604,22 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+struct find_pointwise_mlir
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](match::name("pointwise")(match::used_once()).bind("pointwise")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto pw = r.instructions["pointwise"];
+
+        
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR

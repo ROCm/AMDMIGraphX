@@ -25,13 +25,13 @@ jobs:
           #cd $GITHUB_WORKSPACE
           #pwd
           #cat requirements.txt
-          #ls -l requirements.txt
-          #chmod 777 requirements.txt
+          ls -l requirements.txt
+          chmod 777 requirements.txt
           #ls -l requirements.txt
           #sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           #awk '{sub(/ROCmSoftwarePlatform\/rocMLIR@[^[:space:]]+/, "ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }}",$0); print}' requirements.txt > temp_file && mv temp_file requirements.txt
           #ls -l requirements.txt
-          cat requirements.txt
+          #cat requirements.txt
 
       - name: action_replace
         uses: Nambers/ReplaceStringInFile@v1.3

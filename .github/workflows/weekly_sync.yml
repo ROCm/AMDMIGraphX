@@ -26,7 +26,7 @@ jobs:
           ls -l requirements.txt
           chmod 644 requirements.txt
           ls -l requirements.txt
-          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
+          #sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           #awk '{sub(/ROCmSoftwarePlatform\/rocMLIR@[^[:space:]]+/, "ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }}",$0); print}' requirements.txt > temp_file && mv temp_file requirements.txt
           #ls -l requirements.txt
           cat requirements.txt
@@ -34,6 +34,9 @@ jobs:
           echo $last_line
           sed -i '$d' requirements.txt
           cat requirements.txt
+          updated=$(echo $last_line | sed -E 's/(ROCmSoftwarePlatform\/rocMLIR@)[^[:space:]]+/\1'"updated_string"'/')
+          echo "+++++++++++++++++++"
+          echo $updated
           
 
       #- name: action_replace

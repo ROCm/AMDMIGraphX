@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
 #define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
 
+#include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/operation.hpp>
@@ -34,6 +35,8 @@ namespace gpu {
 
 MIGRAPHX_GPU_EXPORT double
 time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
+
+MIGRAPHX_GPU_EXPORT double time_program(context& ictx, migraphx::program p, int n = 100);
 
 /* benchmark gpu::code_object with expected input shapes over n iterations */
 MIGRAPHX_GPU_EXPORT double time_op(context& ictx, operation op, int n = 100);

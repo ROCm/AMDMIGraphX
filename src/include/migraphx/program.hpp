@@ -51,6 +51,10 @@ struct program_impl;
 
 struct marker;
 
+std::vector<argument> generic_eval(const migraphx::program& p,
+                                   std::vector<context>& ctx,
+                                   std::unordered_map<std::string, argument> params);
+
 /**
  * @brief Stores the instruction stream
  */
@@ -79,7 +83,6 @@ struct MIGRAPHX_EXPORT program
 
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
-
     void finish() const;
 
     std::size_t size() const;

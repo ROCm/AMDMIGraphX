@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -620,13 +621,16 @@ struct find_pointwise_mlir
         auto* mm = ins->module_inputs().front();
         auto* pm = pw->module_inputs().front();
 
-        module_ref m = mpm.create_module(pm->name() + ":" + mm->name(), *pm);
-        m->fuse(*mm, ins->inputs());
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
+        m->set_bypass();
+        auto rins = m->fuse(*pm, pw->inputs(), &map_ins).front();
+        map_ins[pw] = rins;
 
-        // TODO: Use find_inputs
-        auto inputs = pw->inputs();
-        inputs.insert(inputs.end(), ins->inputs().begin(), ins->inputs().end());
+        auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
+        m->add_return({ret});
 
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
         mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs, {m});
     }
 };
@@ -666,6 +670,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+
+    match::find_matches(mpm, find_pointwise_mlir{});
 #else
     (void)mpm;
 #endif

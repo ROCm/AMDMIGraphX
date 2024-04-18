@@ -33,6 +33,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
+#include <migraphx/param_utils.hpp>
 #include <iterator>
 #include <map>
 
@@ -91,32 +92,6 @@ insert_module_in_submodule(module_ref sm,
 {
     assert(ins->module_inputs().size() == 1);
     return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins, std::move(insert));
-}
-
-static std::vector<instruction_ref>
-find_inputs(const_module_ref sm,
-            const module& parent,
-            const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
-{
-    std::vector<instruction_ref> result;
-    std::map<std::string, instruction_ref> names;
-    for(auto&& [input, param] : map_ins)
-    {
-        if(not sm->has_instruction(param))
-            continue;
-        if(param->name() != "@param")
-            continue;
-        if(not parent.has_instruction(input))
-            continue;
-        auto v      = param->get_operator().to_value();
-        auto name   = v.at("parameter").to<std::string>();
-        names[name] = input;
-    }
-    std::transform(names.begin(), names.end(), std::back_inserter(result), [](const auto& p) {
-        return p.second;
-    });
-    assert(result.size() == sm->get_parameter_shapes().size());
-    return result;
 }
 
 static void create_reduce_modules(module_pass_manager& mpm)
@@ -193,7 +168,7 @@ struct find_pointwise_reduce
         // Insert fused_reduce
         rm->add_return(insert_module_in_submodule(rm, reduce, &map_ins));
 
-        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
     }
 };
@@ -234,7 +209,7 @@ struct find_reduce_pointwise
         auto out = rm->fuse({pw}, &map_ins);
         rm->replace_return(out);
 
-        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
         mpm.get_module().replace_instruction(pw, reduce->get_operator(), new_inputs, {rm});
     }
 };
@@ -278,7 +253,7 @@ struct find_reduce_reduce
         auto out = insert_module_in_submodule(rm, reduce1, &map_ins);
         rm->replace_return(out);
 
-        auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
+        auto new_inputs = find_inputs(map_ins, &mpm.get_module(), rm);
         mpm.get_module().replace_instruction(reduce1, reduce1->get_operator(), new_inputs, {rm});
     }
 };

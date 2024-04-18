@@ -82,7 +82,8 @@ TEST_CASE(broadcast_transpose)
     migraphx::module m2;
     {
         auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
-        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 2, 3}}}), l);
+        auto b  = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 2, 3}}}), l);
         m2.add_return({b});
     }
 
@@ -105,7 +106,8 @@ TEST_CASE(broadcast_transpose_opt)
     migraphx::module m2;
     {
         auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
-        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {3, 2, 5}}}), l);
+        auto b  = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {3, 2, 5}}}), l);
         m2.add_return({b});
     }
 

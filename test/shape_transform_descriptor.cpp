@@ -188,8 +188,8 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
                    make_op("reshape", {{"dims", {1, 112, 56, 56}}}),
                }) == ops{
                          make_op("reshape", {{"dims", {1, 4, 28, 56, 56}}}),
-                        make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}),
-                        make_op("reshape", {{"dims", {1, 112, 56, 56}}}),
+                         make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}),
+                         make_op("reshape", {{"dims", {1, 112, 56, 56}}}),
                      });
 }
 

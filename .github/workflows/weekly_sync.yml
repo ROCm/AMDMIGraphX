@@ -17,8 +17,6 @@ jobs:
         run: echo rocmlirsha="$(git ls-remote https://github.com/ROCm/rocMLIR.git develop | awk '{print $1}')" >> $GITHUB_ENV
 
       - uses: actions/checkout@v4.1.1
-        with: 
-          ref: develop
         
       - name: update_file
         run:  |
@@ -26,27 +24,27 @@ jobs:
           #pwd
           #cat requirements.txt
           ls -l requirements.txt
-          chmod 777 requirements.txt
+          #chmod 777 requirements.txt
           #ls -l requirements.txt
-          #sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
+          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           #awk '{sub(/ROCmSoftwarePlatform\/rocMLIR@[^[:space:]]+/, "ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }}",$0); print}' requirements.txt > temp_file && mv temp_file requirements.txt
           #ls -l requirements.txt
           #cat requirements.txt
 
-      - name: action_replace
-        uses: Nambers/ReplaceStringInFile@v1.3
-        with:
-          path: ${{ github.workspace }}/requirements.txt
-    # The regex of old string, which should be replaced
-          oldString: ROCmSoftwarePlatform/rocMLIR@(/S+)  
-    # Replace old string to this string
-          newString: ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }} 
-    # Print out file content after replacement
-          showFileContent: true
+      #- name: action_replace
+      #  uses: Nambers/ReplaceStringInFile@v1.3
+      #  with:
+      #    path: ${{ github.workspace }}/requirements.txt
+          # The regex of old string, which should be replaced
+      #    oldString: ROCmSoftwarePlatform/rocMLIR@(/S+)  
+          # Replace old string to this string
+      #    newString: ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }} 
+          # Print out file content after replacement
+      #    showFileContent: true
 
 
       - name: Make changes to pull request
-        uses: peter-evans/create-pull-request@v4.1.1
+        uses: peter-evans/create-pull-request@v6.0.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update rocMLIR main ${{ env.rocmlirsha }}

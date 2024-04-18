@@ -59,7 +59,7 @@ double time_loop(migraphx::gpu::context& gctx, int n, F f)
     return context::get_elapsed_ms(start.get(), stop.get()) / n;
 }
 
-double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+double time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
     // TODO: Use std::ref
     migraphx::context ctx = ictx;
@@ -71,13 +71,13 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     return time_loop(gctx, n, run);
 }
 
-double time_op(context& ictx, operation op, int n)
+double time_op(const context& ictx, operation op, int n)
 {
     auto inputs = any_cast<migraphx::gpu::code_object_op>(op).expected_inputs;
     return time_op(ictx, op, inputs, n);
 }
 
-double time_program(context& ictx, migraphx::program p, int n)
+double time_program(const context& ictx, migraphx::program p, int n)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());

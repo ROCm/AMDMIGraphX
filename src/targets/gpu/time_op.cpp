@@ -77,7 +77,7 @@ double time_op(const context& ictx, operation op, int n)
     return time_op(ictx, op, inputs, n);
 }
 
-double time_program(const context& ictx, migraphx::program p, int n)
+double time_program(const context& ictx, program p, int n)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());

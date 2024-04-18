@@ -55,6 +55,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -86,27 +87,30 @@ struct miopen_apply
 
         compute_fp32 = get_compute_fp32_flag();
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
-
-        add_generic_op("contiguous");
+        
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
-        add_extend_op("lrn");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
-        add_extend_op("pooling");
         add_extend_op("prefix_scan_sum");
         add_extend_op("reverse");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
-
+        
+#if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
+        add_extend_op("lrn");
+        add_extend_op("pooling");
+        add_generic_op("contiguous");
+#endif
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
+        
         add_if_op();
         add_loop_op();
         add_neg_op();
@@ -244,7 +248,7 @@ struct miopen_apply
             return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }
-
+    #if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -258,7 +262,7 @@ struct miopen_apply
                                             output);
         });
     }
-
+    #endif
     // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
     // the fields Since it doesn't have fields its default constructed
 

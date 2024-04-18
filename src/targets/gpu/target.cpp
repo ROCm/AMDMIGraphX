@@ -183,10 +183,10 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_concat{concat_gpu_optimization{}},
         dead_code_elimination{},
-        #if MIGRAPHX_USE_MIOPEN
+#if MIGRAPHX_USE_MIOPEN
         compile_miopen{&gctx},
         dead_code_elimination{},
-        #endif
+#endif
         dead_code_elimination{},
         fuse_ops{&ctx, options.fast_math},
         dead_code_elimination{},

@@ -190,6 +190,10 @@ register_migraphx_gpu_ops(miopen_
     lrn
     pooling
 )
+else()
+register_migraphx_gpu_ops(miopen_
+    contiguous
+)
 endif()
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp

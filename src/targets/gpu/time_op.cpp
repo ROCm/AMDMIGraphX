@@ -43,7 +43,8 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
 }
 
 template <class F>
-double time_loop(migraphx::gpu::context& gctx, int n, F f) {
+double time_loop(migraphx::gpu::context& gctx, int n, F f)
+{
     auto start = context::create_event_for_timing();
     auto stop  = context::create_event_for_timing();
     f();
@@ -66,8 +67,8 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
-    auto run   = [&] { op.compute(ctx, output, args); };
-    return time_loop(gctx, n, run); 
+    auto run  = [&] { op.compute(ctx, output, args); };
+    return time_loop(gctx, n, run);
 }
 
 double time_op(context& ictx, operation op, int n)
@@ -89,11 +90,9 @@ double time_program(context& ictx, migraphx::program p, int n)
     {
         param_map[name] = to_gpu(generate_argument(shape, seed++));
     }
-    auto run   = [&] { p.eval_with_context(ctx_vec, param_map); };
-    return time_loop(gctx, n, run); 
+    auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
+    return time_loop(gctx, n, run);
 }
-
-
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

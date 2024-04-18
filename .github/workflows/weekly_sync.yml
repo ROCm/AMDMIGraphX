@@ -28,7 +28,7 @@ jobs:
           ls -l requirements.txt
           chmod 777 requirements.txt
           ls -l requirements.txt
-          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" $GITHUB_WORKSPACE/requirements.txt
+          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           cat requirements.txt
 
       - name: Make changes to pull request

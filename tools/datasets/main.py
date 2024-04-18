@@ -5,7 +5,8 @@ from sample_generator.dataset.squad import SQuAD_HF
 
 # models
 from sample_generator.model.image import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large  #for imagenet
-from sample_generator.model.text import DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2, GPTJ, Llama2_7b_chat_hf, T5_base, Gemma_2b_it  # for squad
+from sample_generator.model.text import BERT_large_uncased, DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2  # for squad
+from sample_generator.model.text import GPTJ, Llama2_7b_chat_hf, T5_base, Gemma_2b_it
 from sample_generator.model.audio import Wav2Vec2_base_960h, WhisperSmallEn  # for librispeech
 from sample_generator.model.hybrid import ClipVitLargePatch14
 
@@ -22,8 +23,8 @@ model_dataset_pairs = [{
     "dataset":
     SQuAD_HF,
     "models": [
-        DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2, GPTJ,
-        T5_base, Gemma_2b_it, Llama2_7b_chat_hf
+        BERT_large_uncased, DistilBERT_base_cased_distilled_SQuAD,
+        RobertaBaseSquad2, GPTJ, T5_base, Gemma_2b_it, Llama2_7b_chat_hf
     ]
 }, {
     "dataset": LibriSpeechASR,

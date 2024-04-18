@@ -54,6 +54,28 @@ class TextGenerationDecoderOnlyMixin(object):
         return new_token == self.processor.eos_token_id
 
 
+class BERT_large_uncased(SingleOptimumHFModelDownloadMixin,
+                         AutoTokenizerHFMixin, BaseModel):
+    @property
+    def model_id(self):
+        return "google-bert/bert-large-uncased"
+
+    @property
+    def name(self):
+        return "bert-large-uncased"
+
+    def preprocess(self, *args, **kwargs):
+        # use squad's question for masking
+        question, context = args
+        # replace first word with [MASK]
+        masked_question = question.replace(question[:question.index(' ')],
+                                           '[MASK]', 1)
+        # swap question-answer order
+        new_args = [context, masked_question]
+        result = super().preprocess(*new_args, **kwargs)
+        return result
+
+
 class DistilBERT_base_cased_distilled_SQuAD(SingleOptimumHFModelDownloadMixin,
                                             AutoTokenizerHFMixin, BaseModel):
     @property

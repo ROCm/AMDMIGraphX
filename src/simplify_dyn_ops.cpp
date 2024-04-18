@@ -34,6 +34,35 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /**
+ *    Convert broadcast_with_dims operators with a static input tensor and a constant `dims` input
+ *    into multibroadcast op with a static output shape attribute.
+ *
+ */
+struct find_broadcast_with_dims_static
+{
+    auto matcher() const
+    {
+        return match::name("broadcast_with_dims")(match::nargs(2),
+                                                  match::arg(0)(match::static_shape()),
+                                                  match::arg(1)(match::is_constant()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+
+        // read the values of arg(1) to create input to multibroadcast
+        std::vector<size_t> sizes_vec;
+        inputs.at(1)->eval().visit(
+            [&](auto output) { sizes_vec.assign(output.begin(), output.end()); });
+
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", sizes_vec}}), inputs.at(0));
+    }
+};
+
+/**
  * Convert a Resize op. with Nearest mode to an implementation using Gather op.
  * From:  resize[scales={...}/sizes={...},](static, constant)
  * To:
@@ -586,6 +615,7 @@ struct simplify_select_module_output_shape
 void simplify_dyn_ops::apply(module& m) const
 {
     match::find_matches(m,
+                        find_broadcast_with_dims_static{},
                         find_resize_static{},
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},

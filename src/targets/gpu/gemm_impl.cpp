@@ -129,7 +129,21 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
+static bool is_transposed(const shape& s)
+{
+    if(s.transposed())
+    {
+        return s.strides().back() != 1;
+    }
+
+    if(not s.broadcasted() and s.strides() != s.as_standard().strides())
+    {
+        auto perm = find_permutation(s);
+        return not std::is_sorted(perm.begin(), perm.end());
+    }
+
+    return false;
+}
 
 static rocblas_int get_batch_stride(const shape& s)
 {

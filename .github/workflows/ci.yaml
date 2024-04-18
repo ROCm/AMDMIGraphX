@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.11.0
+        uses: styfle/cancel-workflow-action@0.12.1
         with:
           access_token: ${{ github.token }}
 
@@ -121,7 +121,7 @@ jobs:
     - uses: actions/checkout@v4.1.1
 
     - name: Restore cache files for tidy
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4
       id: tidy_restore
       with:
         path: tidy-cache
@@ -157,7 +157,7 @@ jobs:
         gh actions-cache delete ${{ steps.tidy_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for tidy
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: tidy-cache
@@ -176,7 +176,7 @@ jobs:
 
     - name: Restore cache files for cppcheck
       id: cppcheck_restore
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: cppcheck-cache
         key: cppcheck-cache-1-${{ hashFiles('tools/cppcheck/rules.xml', 'tools/cppcheck/migraphx.py', 'CMakeLists.txt') }}-${{ github.ref }}
@@ -207,7 +207,7 @@ jobs:
         gh actions-cache delete ${{ steps.cppcheck_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for cppcheck
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: cppcheck-cache
@@ -258,7 +258,7 @@ jobs:
         fetch-depth: 0
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -297,7 +297,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -321,7 +321,7 @@ jobs:
 
     - uses: actions/checkout@v4.1.1
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5.1.0
       with:
         python-version: 3.8
     - name: Install pyflakes
@@ -352,7 +352,7 @@ jobs:
 
     - uses: actions/checkout@v4.1.1
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5.1.0
       with:
         python-version: 3.8
     - name: run License Check
@@ -399,13 +399,13 @@ jobs:
 
     - uses: actions/checkout@v4.1.1
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5.1.0
       with:
         python-version: 3.7
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v3
+      uses: actions/cache@v4.0.2
       id: deps_cache
       with:
         # This path is specific to Ubuntu
@@ -418,7 +418,7 @@ jobs:
       run: rbuild prepare -d cget -s gh
 
     - name: Restore cache files for ccache
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4
       id: ccache_restore
       with:
         path: ${{ github.workspace }}/ccache
@@ -456,7 +456,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: ${{ github.workspace }}/ccache
@@ -512,14 +512,14 @@ jobs:
 
     - uses: actions/checkout@v4.1.1
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5.1.0
       with:
         python-version: 3.7
 
     - name: Cache dependencies
       # Ignore the failure of a step and avoid terminating the job.
       continue-on-error: true
-      uses: actions/cache@v3
+      uses: actions/cache@v4.0.2
       with:
         # This path is specific to Ubuntu
         path: ${{ github.workspace }}/cget
@@ -537,7 +537,7 @@ jobs:
 
     - name: Restore cache files for ccache
       id: ccache_restore_fpga
-      uses: actions/cache/restore@v3 
+      uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/ccache
         key: ${{ matrix.os }}-${{ matrix.configuration }}-ccache-${{ github.ref }}
@@ -575,7 +575,7 @@ jobs:
         gh actions-cache delete ${{ steps.ccache_restore_fpga.outputs.cache-matched-key }} --confirm
 
     - name: Save cache files for ccache
-      uses: actions/cache/save@v3 
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: ${{ github.workspace }}/ccache

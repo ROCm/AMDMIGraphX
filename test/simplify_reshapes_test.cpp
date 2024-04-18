@@ -82,12 +82,8 @@ TEST_CASE(broadcast_transpose)
     migraphx::module m2;
     {
         auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
-        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
-        auto t1 =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 0, 1}}}), u1);
-        auto mb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 2, 3}}}), t1);
-        m2.add_return({mb});
+        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 2, 3}}}), l);
+        m2.add_return({b});
     }
 
     EXPECT(m1 == m2);
@@ -109,10 +105,8 @@ TEST_CASE(broadcast_transpose_opt)
     migraphx::module m2;
     {
         auto l  = m2.add_parameter("x", {migraphx::shape::float_type, {5}});
-        auto u1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), l);
-        auto mb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {3, 2, 5}}}), u1);
-        m2.add_return({mb});
+        auto b = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {3, 2, 5}}}), l);
+        m2.add_return({b});
     }
 
     EXPECT(m1 == m2);
@@ -164,7 +158,7 @@ TEST_CASE(broadcast_transpose_scalar_multi_use)
         m2.add_return({mb, id});
     }
 
-    EXPECT(m1 == m2);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(double_contig)

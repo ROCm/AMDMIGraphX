@@ -181,6 +181,21 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_none)
 TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
 {
     EXPECT(migraphx::optimize_shape_transforms(
+               {1, 112, 56, 56},
+               {
+                   make_op("reshape", {{"dims", {1, 4, 28, 56, 56}}}),
+                   make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}),
+                   make_op("reshape", {{"dims", {1, 112, 56, 56}}}),
+               }) == ops{
+                         make_op("reshape", {{"dims", {1, 4, 28, 56, 56}}}),
+                        make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}),
+                        make_op("reshape", {{"dims", {1, 112, 56, 56}}}),
+                     });
+}
+
+TEST_CASE(optimize_reshape_transpose_reshape_to_same)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
                {6, 5, 2},
                {
                    make_op("reshape", {{"dims", {2, 3, 5, 2}}}),

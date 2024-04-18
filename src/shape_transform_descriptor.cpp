@@ -28,7 +28,7 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return it;
 }
 
-static void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
+void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
 {
     for(const auto& s : subs)
     {
@@ -40,7 +40,7 @@ static void debug_print(const std::vector<dimension::sub>& subs, bool new_line =
     if(new_line)
         std::cout << std::endl;
 }
-static void debug_print(const std::vector<dimension>& dims)
+void debug_print(const std::vector<dimension>& dims)
 {
     for(const auto& d : dims)
     {

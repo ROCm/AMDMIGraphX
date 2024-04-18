@@ -191,7 +191,7 @@ struct compile_plan
                            on that which would insert all the compiled code objects, prefills etc.
                            necessary to run candidate code object
                            */
-                           migraphx::program bench_prog;
+                           program bench_prog;
                            auto* bench_mm = bench_prog.get_main_module();
                            std::vector<instruction_ref> bench_ins_inputs;
 

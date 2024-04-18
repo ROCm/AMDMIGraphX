@@ -608,15 +608,14 @@ struct find_pointwise_mlir
 {
     auto matcher() const
     {
-        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](match::name("pointwise")(match::used_once()).bind("pointwise")));
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
+            match::name("pointwise")(match::used_once()).bind("pointwise")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto pw = r.instructions["pointwise"];
-
-        
+        auto pw  = r.instructions["pointwise"];
     }
 };
 

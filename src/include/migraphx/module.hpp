@@ -231,15 +231,16 @@ struct MIGRAPHX_EXPORT module
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
 
-    std::vector<instruction_ref> fuse(
-                                    const std::vector<instruction_ref>& inss,
-                                    std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr, inserter insert = nullptr);
+    std::vector<instruction_ref>
+    fuse(const std::vector<instruction_ref>& inss,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
 
     std::vector<instruction_ref>
     fuse(const module& m,
-                               const std::vector<instruction_ref>& inputs,
-                               std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-                               inserter insert = nullptr);
+         const std::vector<instruction_ref>& inputs,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;

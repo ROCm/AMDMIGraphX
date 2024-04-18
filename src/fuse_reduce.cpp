@@ -87,7 +87,7 @@ static auto
 insert_module_in_submodule(module_ref sm,
                            instruction_ref ins,
                            std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
-                           module::inserter insert = nullptr)
+                           module::inserter insert                                       = nullptr)
 {
     assert(ins->module_inputs().size() == 1);
     return sm->fuse(*ins->module_inputs().front(), ins->inputs(), map_ins, std::move(insert));
@@ -318,13 +318,13 @@ struct reduce_reshape : rewrite_reshapes_base
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
         sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
-                                           if(contains(sop.name(), "reduce"))
-                                               return make_op(sop.name(), {{"axes", axes}});
-                                           if(sop.name() == "multibroadcast")
-                                               return make_op("multibroadcast", {{"out_lens", dims}});
-                                           assert(sop.name() == "pointwise");
-                                           return sop;
-                                       }));
+            if(contains(sop.name(), "reduce"))
+                return make_op(sop.name(), {{"axes", axes}});
+            if(sop.name() == "multibroadcast")
+                return make_op("multibroadcast", {{"out_lens", dims}});
+            assert(sop.name() == "pointwise");
+            return sop;
+        }));
         return mpm.get_module().insert_instruction(ins, fused_reduce{axes}, inputs, {sm});
     }
 

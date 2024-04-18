@@ -923,22 +923,22 @@ static void insert_params(module& m,
     {
         if(contains(map_ins, input))
             continue;
-        map_ins[input] =
-            m.add_parameter(param_name(n++), input->get_shape().as_standard());
+        map_ins[input] = m.add_parameter(param_name(n++), input->get_shape().as_standard());
     }
 }
 
-std::vector<instruction_ref> module::fuse(
-                                    const std::vector<instruction_ref>& inss,
-                                    std::unordered_map<instruction_ref, instruction_ref>* map_ins, module::inserter insert)
+std::vector<instruction_ref>
+module::fuse(const std::vector<instruction_ref>& inss,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(not map_ins)
         map_ins = &default_map_ins;
     std::vector<instruction_ref> inputs;
-    for(auto ins:inss)
+    for(auto ins : inss)
     {
-        for(auto input:ins->inputs())
+        for(auto input : ins->inputs())
         {
             if(contains(inss, input))
                 continue;
@@ -952,11 +952,10 @@ std::vector<instruction_ref> module::fuse(
 }
 
 std::vector<instruction_ref>
-    module::fuse(
-                               const module& m,
-                               const std::vector<instruction_ref>& inputs,
-                               std::unordered_map<instruction_ref, instruction_ref>* map_ins,
-                               module::inserter insert)
+module::fuse(const module& m,
+             const std::vector<instruction_ref>& inputs,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
     if(not map_ins)

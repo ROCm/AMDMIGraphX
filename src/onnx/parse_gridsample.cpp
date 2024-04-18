@@ -65,18 +65,18 @@ struct grid_sampler
                  const onnx_parser::node_info& info)
         : m_padding(std::move(padding)), m_align_corners(align), m_input(input), m_grid(grid)
     {
-        auto i_lens    = input->get_shape().lens();
-        m_batch        = i_lens.at(0);
-        m_channel      = i_lens.at(1);
-        m_in_height    = i_lens.at(2);
-        m_in_width     = i_lens.at(3);
-        auto g_lens    = grid->get_shape().lens();
-        m_out_height   = g_lens.at(1);
-        m_out_width    = g_lens.at(2);
-        auto type      = m_grid->get_shape().type();
-        m_nc_shape     = migraphx::shape{type, {1, 2}};
-        m_zero_l       = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
-        m_one_l        = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
+        auto i_lens  = input->get_shape().lens();
+        m_batch      = i_lens.at(0);
+        m_channel    = i_lens.at(1);
+        m_in_height  = i_lens.at(2);
+        m_in_width   = i_lens.at(3);
+        auto g_lens  = grid->get_shape().lens();
+        m_out_height = g_lens.at(1);
+        m_out_width  = g_lens.at(2);
+        auto type    = m_grid->get_shape().type();
+        m_nc_shape   = migraphx::shape{type, {1, 2}};
+        m_zero_l     = info.add_literal(migraphx::literal{migraphx::shape{type}, {0.0f}});
+        m_one_l      = info.add_literal(migraphx::literal{migraphx::shape{type}, {1.0f}});
         m_two_l =
             info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type}, {2}});
         m_minus_half_l = info.add_literal(migraphx::literal{migraphx::shape{type}, {-0.5f}});
@@ -172,8 +172,8 @@ struct grid_sampler
     }
 
     static instruction_ref concat_on_dim(const onnx_parser::node_info& info,
-                                               std::array<instruction_ref, 4> instructions,
-                                               int64_t dim)
+                                         std::array<instruction_ref, 4> instructions,
+                                         int64_t dim)
     {
         return std::accumulate(
             std::next(instructions.begin()),
@@ -567,7 +567,8 @@ struct bicubic_sampler : grid_sampler
 
         auto inner_y_t = concat_on_dim(info, inner_y_samples, 1);
         auto elements  = inner_y_t->get_shape().elements();
-        inner_y_t = info.add_instruction(make_op("reshape", {{"dims", {elements / 16, 4, 4}}}), inner_y_t);
+        inner_y_t =
+            info.add_instruction(make_op("reshape", {{"dims", {elements / 16, 4, 4}}}), inner_y_t);
         inner_y_t =
             info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1}}}), inner_y_t);
         inner_y_t = info.add_instruction(make_op("reshape", {{"dims", {elements}}}), inner_y_t);
@@ -581,7 +582,8 @@ struct bicubic_sampler : grid_sampler
             });
 
         auto inner_x_t = concat_on_dim(info, inner_x_samples, 1);
-        inner_x_t = info.add_instruction(make_op("reshape", {{"dims", {inner_x_t->get_shape().elements()}}}), inner_x_t);
+        inner_x_t      = info.add_instruction(
+            make_op("reshape", {{"dims", {inner_x_t->get_shape().elements()}}}), inner_x_t);
 
         auto validate_index = [&](auto& index, auto& max) {
             auto clip       = info.add_common_op("clip", index, m_zero_l, max);

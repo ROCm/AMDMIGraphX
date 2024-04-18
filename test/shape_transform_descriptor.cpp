@@ -178,7 +178,7 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_none)
                }) == ops{});
 }
 
-TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
+TEST_CASE(optimize_reshape_transpose_reshape_to_same)
 {
     EXPECT(migraphx::optimize_shape_transforms(
                {1, 112, 56, 56},
@@ -193,7 +193,7 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
                      });
 }
 
-TEST_CASE(optimize_reshape_transpose_reshape_to_same)
+TEST_CASE(optimize_reshape_transpose_reshape_to_transpose)
 {
     EXPECT(migraphx::optimize_shape_transforms(
                {6, 5, 2},

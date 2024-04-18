@@ -258,7 +258,7 @@ void dimension::simplify()
                                                    return false;
                                                auto a1 = d1.axis.back();
                                                auto a2 = d2.axis.back();
-                                               return (std::max(a1, a2) - std::min(a1, a2)) == 1;
+                                               return a2 > a1 and (std::max(a1, a2) - std::min(a1, a2)) == 1;
                                            }),
                         subdimensions.end());
 }

@@ -24,7 +24,7 @@ jobs:
         run:  sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" requirements.txt
 
       - name: Make changes to pull request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v4.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Update rocMLIR main ${{ env.rocmlirsha }}

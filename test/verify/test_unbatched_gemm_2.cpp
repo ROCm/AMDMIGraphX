@@ -45,6 +45,7 @@ struct test_unbatched_gemm_2 : verify_program<test_unbatched_gemm_2<DType>>
         mm->add_instruction(migraphx::make_op("dot"), l1, l2);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_unbatched_gemm_2<migraphx::shape::float_type>;

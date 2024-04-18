@@ -1,3 +1,4 @@
+
 /*
  * The MIT License (MIT)
  *
@@ -702,42 +703,108 @@ struct find_reshape_cont
     }
 };
 
-// match sequence of transpose --> contiguous --> reshaper_op
-auto match_transpose_contiguous_reshaper()
+struct find_unary_shape_transforms
 {
-    return match::name({"reshape", "squeeze", "unsqueeze"})(
-               match::used_once(),
-               match::args(
-                   match::name("contiguous")(
-                       match::used_once(), match::args(match::transpose_shape().bind("trans_ins")))
-                       .bind("cont_ins")))
-        .bind("reshaper_ins");
-};
-
-// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
-// application of this matcher moves the unary operation before the contiguous so it becomes
-// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
-// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
-// operator.
-struct find_transpose_contiguous_reshaper_unary
-{
+    static const auto& shape_transforms()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "transpose",
+            "broadcast",
+            "multibroadcast",
+        };
+        return names;
+    }
     auto matcher() const
     {
-        return pointwise(match::used_once(),
-                         match::nargs(1),
-                         match::args(match_transpose_contiguous_reshaper()));
+        auto output_not_pointwise =
+            match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto input_has_shape_transform =
+            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+        return match::pointwise(
+            match::used_once(), input_has_shape_transform, output_not_pointwise);
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    static bool is_shape_transform(instruction_ref ins)
     {
-        auto ins           = r.result;
-        auto reshaper_ins  = r.instructions["reshaper_ins"];
-        auto trans_ins     = r.instructions["trans_ins"];
-        auto cont_ins      = r.instructions["cont_ins"];
-        auto unary_op_name = ins->get_operator().name();
-        auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
-        // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
+        return ins->inputs().size() == 1 and
+               (contains(shape_transforms(), ins->name()) or ins->name() == "contiguous");
+    }
+
+    static bool can_fuse_unary(instruction_ref ins)
+    {
+        return ins->name() == "@literal" or
+               ins->get_operator().attributes().contains("pointwise") or
+               contains(ins->name(), "reduce");
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        if(ins->outputs().empty())
+            return;
+        auto input  = ins->inputs().front();
+        auto output = ins->outputs().front();
+
+        auto insert_ops = [&](const auto& ops, instruction_ref z) {
+            for(const auto& op : ops)
+            {
+                z = m.insert_instruction(ins, op, z);
+            }
+            return z;
+        };
+
+        std::vector<operation> xops;
+        auto x = input;
+        while(is_shape_transform(x))
+        {
+            xops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        std::reverse(xops.begin(), xops.end());
+
+        std::vector<operation> yops;
+        auto y              = output;
+        auto last_transform = m.end();
+        while(is_shape_transform(y) and y->outputs().size() == 1)
+        {
+            yops.push_back(y->get_operator());
+            last_transform = y;
+            y              = y->outputs().front();
+        }
+
+        bool move_up   = can_fuse_unary(x);
+        bool move_down = can_fuse_unary(y);
+
+        if(move_up and move_down)
+        {
+            if(x->name() == "@literal")
+                move_down = false; // NOLINT(bugprone-branch-clone)
+            else if(yops.empty())
+                move_up = false;
+            else
+                move_down = false;
+        }
+        else if(not move_up and not move_down)
+        {
+            if(not yops.empty())
+                move_up = true;
+        }
+
+        if(move_up)
+        {
+            auto z = m.insert_instruction(ins, ins->get_operator(), x);
+            z      = insert_ops(xops, z);
+            m.replace_instruction(ins, z);
+        }
+        else if(move_down and not yops.empty())
+        {
+            auto z = insert_ops(yops, input);
+            m.replace_instruction(last_transform, ins->get_operator(), z);
+        }
     }
 };
 
@@ -1026,9 +1093,9 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             // find_broadcast_transpose{},
                             find_slice_transpose{},
-                            find_transpose_contiguous_reshaper_unary{},
+                            find_unary_shape_transforms{},
                             find_reshape_reshape_dot{});
-        // find_scalar_multibroadcast_reshape_or_transpose{});
+                            // find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

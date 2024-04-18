@@ -2,12 +2,33 @@
 # These comments will also be removed.
 root: index
 subtrees:
-  - numbered: False
+  - entries:
+    - file: what-is-migraphx
+    
+  - caption: Reference
     entries:
-    - file: py_user_guide
-    - file: cpp_user_guide
-    - file: driver
-    - file: contributor_guide
+    - file: reference/cpp
+    - file: reference/py
+    - file: migraphx-driver
+      subtrees:
+        - entries:
+          - file: reference/driver-options
+
+  - caption:  Contribution
+    entries:
+    - file: dev/contributing-to-migraphx
+      subtrees:
+        - entries:
+          - file: dev/data
+          - file: dev/operators
+          - file: dev/program
+          - file: dev/targets
+          - file: dev/quantization
+          - file: dev/pass
+          - file: dev/matchers
+          - file: dev/tools
+          - file: dev/env_vars            
+  
   - caption: About
     entries:
     - file: license

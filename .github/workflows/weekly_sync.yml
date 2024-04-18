@@ -19,7 +19,9 @@ jobs:
       - uses: actions/checkout@v4.1.1
         with: 
           ref: develop
-
+      - name: where
+        run: pwd
+        
       - name: update_file
         run:  sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" requirements.txt
 

@@ -89,7 +89,7 @@ double time_program(context& ictx, migraphx::program p, int n)
     {
         param_map[name] = to_gpu(generate_argument(shape, seed++));
     }
-    auto run   = [&] { generic_eval(p, ctx_vec, param_map); };
+    auto run   = [&] { p.eval_with_context(ctx_vec, param_map); };
     return time_loop(gctx, n, run); 
 }
 

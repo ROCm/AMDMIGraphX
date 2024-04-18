@@ -15,12 +15,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 using dimension = shape_transform_descriptor::dimension;
 
-template <class Range>
-static auto elements(const Range& r)
-{
-    return std::accumulate(r.begin(), r.end(), std::size_t{1}, std::multiplies<>{});
-}
-
 template <class Iterator, class Projection>
 static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Projection proj)
 {

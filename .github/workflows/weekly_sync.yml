@@ -26,6 +26,8 @@ jobs:
           #pwd
           #cat requirements.txt
           ls -l requirements.txt
+          chmod 777 requirements.txt
+          ls -l requirements.txt
           sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" $GITHUB_WORKSPACE/requirements.txt
           cat requirements.txt
 

@@ -22,10 +22,10 @@ jobs:
         
       - name: update_file
         run:  |
-          cd $GITHUB_WORKSPACE
-          pwd
+          #cd $GITHUB_WORKSPACE
+          #pwd
           #cat requirements.txt
-          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" requirements.txt
+          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@.* -DBUILD_FAT_LIBROCKCOMPILER=On/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }} -DBUILD_FAT_LIBROCKCOMPILER=On/g" $GITHUB_WORKSPACE/requirements.txt
           cat requirements.txt
 
       - name: Make changes to pull request

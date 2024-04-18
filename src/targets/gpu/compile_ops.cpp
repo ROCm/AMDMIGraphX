@@ -189,7 +189,7 @@ struct compile_plan
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run that instruction
+                           necessary to run candidate code object
                            */
                            migraphx::program bench_prog;
                            auto* bench_mm = bench_prog.get_main_module();

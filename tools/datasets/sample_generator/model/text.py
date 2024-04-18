@@ -90,6 +90,49 @@ class GPTJ(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
         return new_token == self.processor.eos_token_id
 
 
+class Llama2_7b_chat_hf(SingleOptimumHFModelDownloadMixin,
+                        AutoTokenizerHFMixin, DecoderModel):
+    def __init__(self):
+        # no pad token by default
+        self.processor.pad_token = self.processor.eos_token
+
+    @property
+    def model_id(self):
+        return "meta-llama/Llama-2-7b-chat-hf"
+
+    @property
+    def task(self):
+        # override to ignore "with-past"
+        return "text-generation"
+
+    @property
+    def name(self):
+        return "llama2-7b-chat-hf"
+
+    def preprocess(self, *args, **kwargs):
+        # swap squad's default "question - answer" order
+        new_args, new_kwargs = list(args), kwargs
+        new_args[0], new_args[1] = new_args[1], new_args[0]
+        new_kwargs["truncation"] = "only_first"
+        result = super().preprocess(*new_args, **new_kwargs)
+
+        # result only contains "input_ids" and "attention_mask", extend it with "position_ids"
+        result["position_ids"] = np.arange(0,
+                                           len(result["input_ids"][0]),
+                                           dtype=np.int64)
+        result["position_ids"] = result["position_ids"][np.newaxis]
+        return result
+
+    def decode_step(self, input_map, output_map):
+        timestep = np.argmax(
+            input_map["input_ids"][0] == self.processor.eos_token_id)
+        new_token = np.argmax(output_map["logits"][0][timestep - 1])
+        input_map["input_ids"][0][timestep] = new_token
+        input_map["attention_mask"][0][timestep] = 1
+        print(self.processor.decode(input_map["input_ids"][0]))
+        return new_token == self.processor.eos_token_id
+
+
 class T5_base(EncoderDecoderOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
               DecoderModel):
     def __init__(self):

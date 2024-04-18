@@ -43,10 +43,10 @@ struct parse_convolution : op_parser<parse_convolution>
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
-    static float get_symmetric_value(instruction_ref& input)
+    static float get_symmetric_value(const instruction_ref& input)
     {
         float symmetric_value = 0;
-        //adjust symmetric zero point value for uint8 types
+        // adjust symmetric zero point value for uint8 types
         if(input->get_shape().type() == migraphx::shape::uint8_type)
         {
             symmetric_value = 128;
@@ -72,12 +72,13 @@ struct parse_convolution : op_parser<parse_convolution>
                 ret = args[index];
             }
         }
-        else    
+        else
         {
             if (is_quant_conv)
-            { 
+            {
                 float symmetric_value = get_symmetric_value(ret);
-                ret = info.add_literal(migraphx::literal{migraphx::shape{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
+                ret                   = info.add_literal(migraphx::literal{
+                    migraphx::shape{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
             }
         }
 
@@ -93,8 +94,8 @@ struct parse_convolution : op_parser<parse_convolution>
 
         bool all_zeros = false;
         zp->eval().visit([&](auto z) {
-            all_zeros =
-                std::all_of(z.begin(), z.end(), [&](auto val) { return float_equal(val, symmetric_value); });
+            all_zeros = std::all_of(
+                z.begin(), z.end(), [&](auto val) { return float_equal(val, symmetric_value); });
         });
         return all_zeros;
     }
@@ -132,7 +133,7 @@ struct parse_convolution : op_parser<parse_convolution>
             ret           = info.add_common_op("sub", ret, out_zp_2);
         }
 
-        if(not (is_symmetric_zero_point(x_zp)) and not (is_symmetric_zero_point(w_zp)))
+        if(not(is_symmetric_zero_point(x_zp)) and not(is_symmetric_zero_point(w_zp)))
         {
             auto x_zp_bc =
                 info.add_instruction(qparam_broadcast_op(x_zp, x->get_shape().lens(), 0), x_zp);
@@ -256,7 +257,7 @@ struct parse_convolution : op_parser<parse_convolution>
 
         instruction_ref ret;
         // parse a_zero_point and b_zero_point values
-        auto is_quant_conv  = opd.op_name == "quant_convolution";
+        auto is_quant_conv = opd.op_name == "quant_convolution";
 
         auto x_zp = get_zero_point(x, 2, is_quant_conv, info, args);
         auto w_zp = get_zero_point(weights, 3, is_quant_conv, info, args);

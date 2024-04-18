@@ -30,6 +30,8 @@ jobs:
           #awk '{sub(/ROCmSoftwarePlatform\/rocMLIR@[^[:space:]]+/, "ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }}",$0); print}' requirements.txt > temp_file && mv temp_file requirements.txt
           #ls -l requirements.txt
           cat requirements.txt
+          echo "Test line" >> requirements.txt
+          cat requirements.txt
 
       #- name: action_replace
       #  uses: Nambers/ReplaceStringInFile@v1.3

@@ -2289,6 +2289,26 @@ TEST_CASE(onehot0)
     expect_shape(output, migraphx::make_op("onehot"), indices, depth, values);
 }
 
+TEST_CASE(onehot1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2}, {3, 3}, {0, max_val}}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
+}
+
+TEST_CASE(onehot2)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{0, max_val}, {2, 2}, {3, 3}}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", -3}}), indices, depth, values);
+}
+
 TEST_CASE(onehot_dyn_indices)
 {
     migraphx::shape indices{migraphx::shape::int64_type, {{1, 4}, {2, 2}, {3, 3}}};
@@ -2297,6 +2317,22 @@ TEST_CASE(onehot_dyn_indices)
     std::size_t max_val = std::numeric_limits<std::size_t>::max();
     migraphx::shape output{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {0, max_val}, {3, 3}}};
     expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_out_of_range0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 3}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_out_of_range1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
 }
 
 TEST_CASE(pack_int4)

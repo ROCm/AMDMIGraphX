@@ -37,19 +37,19 @@ namespace op {
 
 /**
  * Produces a one-hot tensor.
- * Called with `axis` attribute that defaults to the last axis
+ * Called with `axis` attribute that defaults to the last output axis
  * `onehot(indices, depth, values)`;
  * `onehot(indices, values)`;
  * `indicies` as a N rank tensor of indices where value is `on_value`
  * `depth` scalar with the number of classes for the one-hot dimension
  * `values` `[off_value, on_value]`
  * `axis` which axis to add the one-hot dimension to
- * For axis=0 and rank(indices) = 2:
+ * For axis = 0 and rank(indices) = 2:
  * output is A[indicies[j, k], j, k] = on_value; A[i, j, k] = off_value otherwise
  */
 struct onehot
 {
-    // note this will be automatically normalized when calling normalize_compute_shape
+    // cannot use normalize_attribute here since rank(output_shape) = rank(indices) + 1
     int64_t axis = -1;
 
     template <class Self, class F>
@@ -58,16 +58,9 @@ struct onehot
         return pack(f(self.axis, "axis"));
     }
 
-    value attributes() const
-    {
-        value normalize_axes   = value::object{};
-        normalize_axes["axes"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize_axes}};
-    }
-
     std::string name() const { return "onehot"; }
 
-    shape normalize_compute_shape(const std::vector<shape>& inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this, true}.has(3);
         // `depth` and `values` should have static shape
@@ -76,7 +69,14 @@ struct onehot
         shape values_shape        = inputs[2];
         auto output_dds           = indices_shape.to_dynamic().dyn_dims();
         std::size_t max_val       = std::numeric_limits<std::size_t>::max();
-        output_dds.insert(output_dds.begin() + this->axis, shape::dynamic_dimension{0, max_val});
+        auto normalized_axis =
+            (this->axis < 0) ? this->axis + indices_shape.ndim() + 1 : this->axis;
+        if(normalized_axis > indices_shape.ndim())
+        {
+            MIGRAPHX_THROW("ONEHOT: axis is out of range");
+        }
+        output_dds.insert(output_dds.begin() + normalized_axis,
+                          shape::dynamic_dimension{0, max_val});
         return {values_shape.type(), output_dds};
     }
 
@@ -85,25 +85,34 @@ struct onehot
         auto indices_shape = args[0].get_shape();
         int64_t depth;
         args[1].visit([&](auto d) { depth = d(0); });
+        if(depth < 0)
+        {
+            MIGRAPHX_THROW("ONEHOT: negative depth value");
+        }
         auto output_lens = indices_shape.lens();
-        output_lens.insert(output_lens.begin() + this->axis, depth);
+        auto normalized_axis = (axis < 0) ? axis + indices_shape.ndim() + 1 : axis;
+        output_lens.insert(output_lens.begin() + normalized_axis, depth);
         shape output_shape{args[2].get_shape().type(), output_lens};
 
         argument result{output_shape};
         visit_all(result, args[2])([&](auto output, auto values) {
             auto off_value = values(0);
             auto on_value  = values(1);
-            par_for(output_shape.elements(), [&](auto i) { output(i) = off_value; });
+            // fill result with off_value
+            par_for(output_shape.elements(), [&](auto i) { output[i] = off_value; });
             args[0].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx = idx;
+                    std::vector<std::size_t> out_idx = idx;
                     auto index   = indices(idx.begin(), idx.end());
-                    // normalize negative indexes, will fail if index is not within [-depth,
-                    // depth-1]
+                    // normalize negative indices
                     index = (index < 0) ? index + depth : index;
-                    out_idx.insert(out_idx.begin() + this->axis, index);
-                    output(out_idx.begin(), out_idx.end()) = on_value;
+                    // no on_value if index is out of range
+                    if(index < depth)
+                    {
+                        out_idx.insert(out_idx.begin() + normalized_axis, index);
+                        output(out_idx.begin(), out_idx.end()) = on_value;
+                    }
                 });
             });
         });

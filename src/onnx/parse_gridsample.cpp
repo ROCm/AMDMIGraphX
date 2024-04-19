@@ -339,25 +339,37 @@ struct linear_sampler : grid_sampler
             info.add_common_op("logical_and", x0_validation, y1_validation),
             info.add_common_op("logical_and", x1_validation, y1_validation)};
 
-        std::vector<instruction_ref> weighted_corners;
+        std::array<instruction_ref, 4> corner_samples;
         auto weight_index_t = concat_on_first_dim(info, weight_indices);
         weight_index_t      = info.add_instruction(
             make_op("reshape", {{"dims", {weight_indices.size(), 3}}}), weight_index_t);
-        dfor(4)([&](auto corner) {
-            auto indices = corner_indices.at(corner);
-            auto samples = info.add_instruction(make_op("gathernd"), m_input, indices);
-            samples = info.add_common_op("where", corner_validations.at(corner), samples, m_zero_l);
-            auto weights = info.add_instruction(
-                make_op("gathernd"), m_corner_weights.at(corner), weight_index_t);
-            weighted_corners.push_back(info.add_instruction(make_op("mul"), samples, weights));
-        });
 
-        auto samples = weighted_corners.at(0);
-        std::for_each(std::next(weighted_corners.begin()),
-                      weighted_corners.end(),
-                      [&info, &samples](auto& s) {
-                          samples = info.add_instruction(make_op("add"), samples, s);
-                      });
+        std::transform(corner_indices.begin(),
+                       corner_indices.end(),
+                       corner_validations.begin(),
+                       corner_samples.begin(),
+                       [&](const auto& indices, const auto& validations) {
+                           auto samples =
+                               info.add_instruction(make_op("gathernd"), m_input, indices);
+                           return info.add_common_op("where", validations, samples, m_zero_l);
+                       });
+
+        std::transform(corner_samples.begin(),
+                       corner_samples.end(),
+                       m_corner_weights.begin(),
+                       corner_samples.begin(),
+                       [&](const auto& samples, const auto& weights) {
+                           auto weights_t =
+                               info.add_instruction(make_op("gathernd"), weights, weight_index_t);
+                           return info.add_instruction(make_op("mul"), samples, weights_t);
+                       });
+
+        auto samples = std::accumulate(
+            std::next(corner_samples.begin()),
+            corner_samples.end(),
+            corner_samples.front(),
+            [&](auto acc, auto s) { return info.add_instruction(make_op("add"), acc, s); });
+
         samples = info.add_instruction(
             make_op("reshape", {{"dims", {m_batch, m_out_height, m_out_width, m_channel}}}),
             samples);

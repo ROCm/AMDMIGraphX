@@ -451,6 +451,29 @@ struct find_static_broadcast_for_dot
 };
 
 /**
+ * Simplify onehot instructions with static shape `indices` input and
+ * a compile-time constant `depth` input.
+ * From:
+ * onehot(static_shape_arg, constant_arg, values)
+ * To:
+ * A = literal(shape = onehot_output_shape)
+ * B = fill(A, off_value);
+ * C = literal(lens = indices_lens, value = on_value, strides = broadcasted scalar)
+ * D = scatter(B, indices, C)
+ */
+struct find_static_onehot
+{
+    auto matcher() const
+    {
+        return match::name("onehot")(match::arg(0)(match::static_shape()),
+                                     match::arg(1)(match::is_constant()),
+                                     match::arg(2)(match::static_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const { auto onehot_ins = mr.result; }
+};
+
+/**
  * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
  * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
  * This version ignores dynamic_dimension opt values.

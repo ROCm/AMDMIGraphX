@@ -46,6 +46,8 @@ namespace op {
  * `axis` which axis to add the one-hot dimension to
  * For axis = 0 and rank(indices) = 2:
  * output is A[indicies[j, k], j, k] = on_value; A[i, j, k] = off_value otherwise
+ * Can be simplified to others operators when `indices` has a static shape and
+ * `depth` is constant at compile-time.
  */
 struct onehot
 {

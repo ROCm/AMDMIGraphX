@@ -195,7 +195,8 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-member-init
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
-        -cppcoreguidelines-pro-type-vararg
+	-cppcoreguidelines-pro-type-vararg
+	-cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor
         -cppcoreguidelines-avoid-capture-default-when-capturing-this
@@ -208,6 +209,7 @@ rocm_enable_clang_tidy(
         -misc-no-recursion
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
+	-modernize-type-traits
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override

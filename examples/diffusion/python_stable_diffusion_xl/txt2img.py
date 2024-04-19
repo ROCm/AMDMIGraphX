@@ -225,18 +225,21 @@ model_names = {
         "clip2": "text_encoder_2",
         "unetxl": "unet",
         "vae": "vae_decoder",
+        "vae-fp16": "vae_decoder_fp16_fix",
     },
     "sdxl-opt": {
         "clip": "clip.opt.mod",
         "clip2": "clip2.opt.mod",
         "unetxl": "unetxl.opt",
         "vae": "vae_decoder",
+        "vae-fp16": "vae_decoder_fp16_fix",
     },
     "sdxl-turbo": {
         "clip": "text_encoder",
         "clip2": "text_encoder_2",
         "unetxl": "unet",
         "vae": "vae_decoder",
+        "vae-fp16": "vae_decoder_fp16_fix",
     },
     "refiner": {
         "clip2": "clip2.opt.mod",
@@ -348,12 +351,12 @@ class StableDiffusionMGX():
                 "vae", "clip", "clip2", "unetxl", "refiner_clip2",
                 "refiner_unetxl"
             ]
-
+        vae_name = "vae" + "-fp16" if "vae" in fp16 else ""
         print("Load models...")
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                model_names[pipeline_type]["vae"],
+                model_names[pipeline_type][vae_name],
                 model_shapes["vae"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,

@@ -51,6 +51,12 @@ python clip_modifier.py -i models/sdxl-1.0-base/clip.opt/model.onnx -o models/sd
 python clip_modifier.py -i models/sdxl-1.0-base/clip2.opt/model.onnx -o models/sdxl-1.0-base/clip2.opt.mod/model.onnx
 ```
 
+Download vae-fp16-fix version model.
+
+```bash
+python download_vae_decoder_fp16.py
+```
+
 ### Turbo version
 
 ```bash

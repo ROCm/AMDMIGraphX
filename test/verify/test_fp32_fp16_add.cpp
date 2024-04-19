@@ -45,5 +45,7 @@ struct test_fp32_fp16_add : verify_program<test_fp32_fp16_add>
 
         return p;
     };
-    std::size_t get_tolerance() const { return 80000; }
+
+    // tolerance adjusted due to mixed precision
+    std::size_t get_tolerance() const { return 8000; }
 };

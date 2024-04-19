@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,10 +34,9 @@ struct test_neg : verify_program<test_neg>
         migraphx::program p;
         auto* mm = p.get_main_module();
 
-        migraphx::shape s{migraphx::shape::double_type, {2, 3, 4, 6}};
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 6}};
         auto input = mm->add_parameter("x", s);
         mm->add_instruction(migraphx::make_op("neg"), input);
         return p;
     };
-    std::size_t get_tolerance() const { return 100000000; }
 };

@@ -44,5 +44,7 @@ struct test_fp32_fp16_ladd : verify_program<test_fp32_fp16_ladd>
         migraphx::quantize_fp16(p, {"add"});
         return p;
     };
+
+    // tolerance adjusted due to mixed precision
     std::size_t get_tolerance() const { return 8000; }
 };

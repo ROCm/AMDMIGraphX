@@ -30,7 +30,7 @@ namespace cpu {
 
 struct dnnl_layernorm : dnnl_op<dnnl_layernorm, dnnl::layer_normalization_forward>
 {
-    float epsilon = 1e-12f;
+    float epsilon = 1e-5f;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

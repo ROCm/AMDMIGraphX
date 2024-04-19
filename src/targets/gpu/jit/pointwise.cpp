@@ -21,12 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/reduce_dims.hpp>
+#include <migraphx/gpu/compile_pointwise.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -101,13 +102,8 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
         {
             assert(not ins->module_inputs().empty());
-            auto* pm           = ins->module_inputs().front();
-            auto pf            = generate_pointwise(*pm, "inner_pointwise");
-            std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-            auto kernel_name   = generate_name_from_ops(*pm, "kernel");
-            return compile_op(ctx,
-                              to_shapes(ins->inputs()),
-                              {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+            const_module_ref pm = ins->module_inputs().front();
+            return compile_pointwise(ctx, to_shapes(ins->inputs()), pm);
         }
     }
 };

@@ -21,27 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-
-#include <migraphx/program.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/gpu/compile_pointwise.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/gpu/compiler.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
-
-MIGRAPHX_GPU_EXPORT double time_program(const context& ictx, program p, int n = 100);
-
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx, operation op, int n = 100);
+operation
+compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
+{
+    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise");
+    std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
+    auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
+    return gpu::compile_op("pointwise",
+                           ctx,
+                           in_shapes,
+                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP

@@ -27,3 +27,5 @@ accelerate
 diffusers
 transformers
 huggingface-cli
+-i https://test.pypi.org/simple
+hip-python

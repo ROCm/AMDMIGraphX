@@ -106,6 +106,24 @@ void argument::assign_buffer(std::function<char*()> d)
     })(s);
 }
 
+std::vector<argument> flatten(const std::vector<argument>& args)
+{
+    std::vector<argument> result;
+    for(const auto& arg : args)
+    {
+        if(arg.get_shape().type() == shape::tuple_type)
+        {
+            auto subs = flatten(arg.get_sub_objects());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(arg);
+        }
+    }
+    return result;
+}
+
 std::vector<shape> to_shapes(const std::vector<argument>& args)
 {
     std::vector<shape> shapes;

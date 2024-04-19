@@ -21,27 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
 
-#include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/module_ref.hpp>
 #include <migraphx/operation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
-
-MIGRAPHX_GPU_EXPORT double time_program(const context& ictx, program p, int n = 100);
-
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx, operation op, int n = 100);
+operation
+compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP

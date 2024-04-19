@@ -4,7 +4,6 @@ import os
 
 
 class VAEDecoder(torch.nn.Module):
-
     def __init__(self, vae):
         super().__init__()
         self.vae = vae

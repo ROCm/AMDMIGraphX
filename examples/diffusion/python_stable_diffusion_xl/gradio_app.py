@@ -109,6 +109,7 @@ def main():
         gr.Textbox(placeholder="Output log of the run", label="Output log")
     ])
     demo.launch()
+    sd.cleanup()
 
 
 if __name__ == "__main__":

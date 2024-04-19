@@ -450,13 +450,19 @@ struct bicubic_sampler : grid_sampler
         {
             auto corner_start = m_align_corners ? m_zero_l : m_minus_half_l;
             std::transform(
-                m_x_corners.begin(), m_x_corners.end(), m_x_corners.begin(), [&](auto& corner) {
+                m_x_corners.begin(),
+                m_x_corners.end(),
+                m_x_corners.begin(),
+                [&](const auto& corner) {
                     auto tmp = reflect_coordinates(
                         info, corner, m_align_corners ? m_width_max_l : m_width_l, corner_start);
                     return info.add_common_op("clip", tmp, m_zero_l, m_width_max_l);
                 });
             std::transform(
-                m_y_corners.begin(), m_y_corners.end(), m_y_corners.begin(), [&](auto& corner) {
+                m_y_corners.begin(),
+                m_y_corners.end(),
+                m_y_corners.begin(),
+                [&](const auto& corner) {
                     auto tmp = reflect_coordinates(
                         info, corner, m_align_corners ? m_height_max_l : m_height_l, corner_start);
                     return info.add_common_op("clip", tmp, m_zero_l, m_height_max_l);

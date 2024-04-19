@@ -43,6 +43,36 @@ struct parse_convolution : op_parser<parse_convolution>
         return {{"Conv", "convolution"}, {"ConvInteger", "quant_convolution"}};
     }
 
+    // Convert to half prior to a shift to ensure we preserve accuracy here then
+    // convert back to int8
+    static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
+                                          const instruction_ref& offset_op,
+                                          instruction_ref& unshifted_input)
+    {
+        auto unshifted_input_half = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+            unshifted_input);
+
+        auto input_shifted_half = info.add_common_op("add", unshifted_input_half, offset_op);
+
+        return info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+            input_shifted_half);
+    }
+
+    static void shift_input_and_bias(const onnx_parser::node_info& info,
+                                     const instruction_ref& offset_op,
+                                     const bool has_bias,
+                                     instruction_ref& input,
+                                     instruction_ref& input_bias)
+    {
+        input = add_int8_shift(info, offset_op, input);
+        if(has_bias)
+        {
+            input_bias = add_int8_shift(info, offset_op, input_bias);
+        }
+    }
+
     static float get_symmetric_value(const instruction_ref& input)
     {
         float symmetric_value = 0;
@@ -74,7 +104,7 @@ struct parse_convolution : op_parser<parse_convolution>
         }
         else
         {
-            if (is_quant_conv)
+            if(is_quant_conv)
             {
                 float symmetric_value = get_symmetric_value(ret);
                 ret                   = info.add_literal(migraphx::literal{
@@ -263,6 +293,29 @@ struct parse_convolution : op_parser<parse_convolution>
         auto w_zp = get_zero_point(weights, 3, is_quant_conv, info, args);
 
         op.from_value(values);
+
+        auto input_type  = x->get_shape().type();
+        auto weight_type = weights->get_shape().type();
+
+        // Handle uint8 bias and input shifts
+        instruction_ref offset_op;
+        if(is_quant_conv and ((input_type == migraphx::shape::uint8_type) or
+                              (weight_type == migraphx::shape::uint8_type)))
+        {
+            offset_op = info.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
+        }
+
+        if(input_type == migraphx::shape::uint8_type)
+        {
+            shift_input_and_bias(info, offset_op, (not is_symmetric_zero_point(x_zp)), x, x_zp);
+        }
+
+        if(weight_type == migraphx::shape::uint8_type)
+        {
+            shift_input_and_bias(
+                info, offset_op, (not is_symmetric_zero_point(w_zp)), weights, w_zp);
+        }
 
         ret = info.add_instruction(op, x, weights);
 

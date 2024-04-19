@@ -203,6 +203,7 @@ rocm_enable_clang_tidy(
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+	-misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
         -modernize-concat-nested-namespaces

@@ -41,8 +41,7 @@ if [[ ("${ID}" == "sles") ]]; then
     python3-devel \
     python3-pip \
     rocblas-devel \
-    rocm-cmake \
-    rocm-llvm-dev
+    rocm-cmake
 else
   # Need pip3 and Python headers to build dependencies
   apt update && apt install -y \

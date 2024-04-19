@@ -80,6 +80,8 @@ struct MIGRAPHX_EXPORT program
     std::vector<argument> eval(parameter_map params,
                                execution_environment exec_env = execution_environment{}) const;
 
+    std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
+
     void finish() const;
 
     std::size_t size() const;

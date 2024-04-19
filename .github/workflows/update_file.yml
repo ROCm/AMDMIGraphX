@@ -21,7 +21,7 @@ jobs:
         run: |
           pwd
           ls -l requirements.txt
-          sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
+          sed -i "s/ROCm\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           ls -l requirements.txt
           cat requirements.txt
       

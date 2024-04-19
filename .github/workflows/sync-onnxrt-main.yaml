@@ -1,9 +1,10 @@
 name: Onnxruntime main weekly sync
 
 on:
-  schedule:
-    - cron: '07 17 * * 5'
-
+  #schedule:
+  #  - cron: '07 17 * * 5'
+  workflow_dispatch:
+  
 jobs:
   createPullRequest:
     name: Update and create pull request

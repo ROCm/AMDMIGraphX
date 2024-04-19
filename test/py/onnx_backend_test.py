@@ -130,11 +130,9 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_resize_downsample_scales_linear_align_corners_cpu')
     backend_test.exclude(r'test_resize_downsample_scales_linear_cpu')
-    backend_test.exclude(r'test_resize_downsample_scales_nearest_cpu')
     backend_test.exclude(r'test_resize_downsample_sizes_cubic_cpu')
     backend_test.exclude(
         r'test_resize_downsample_sizes_linear_pytorch_half_pixel_cpu')
-    backend_test.exclude(r'test_resize_downsample_sizes_nearest_cpu')
     backend_test.exclude(r'test_resize_tf_crop_and_resize_cpu')
     backend_test.exclude(
         r'test_resize_upsample_scales_cubic_A_n0p5_exclude_outside_cpu')
@@ -145,26 +143,15 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(
         r'test_resize_upsample_scales_linear_align_corners_cpu')
     backend_test.exclude(r'test_resize_upsample_scales_linear_cpu')
-    backend_test.exclude(r'test_resize_upsample_scales_nearest_cpu')
     backend_test.exclude(r'test_resize_upsample_sizes_cubic_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_ceil_half_pixel_cpu')
-    backend_test.exclude(r'test_resize_upsample_sizes_nearest_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_floor_align_corners_cpu')
-    backend_test.exclude(
-        r'test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
     backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
-    backend_test.exclude(r'test_slice_default_axes_cpu')
-    backend_test.exclude(r'test_slice_default_steps_cpu')
     backend_test.exclude(r'test_slice_end_out_of_bounds_cpu')
     backend_test.exclude(r'test_slice_neg_cpu')
     backend_test.exclude(r'test_slice_neg_steps_cpu')
-    backend_test.exclude(r'test_slice_negative_axes_cpu')
     backend_test.exclude(r'test_slice_start_out_of_bounds_cpu')
     backend_test.exclude(
         r'test_strnormalizer_export_monday_casesensintive_lower_cpu')
@@ -189,11 +176,8 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_top_k_cpu')
     backend_test.exclude(r'test_top_k_negative_axis_cpu')
     backend_test.exclude(r'test_top_k_smallest_cpu')
-    backend_test.exclude(r'test_unique_not_sorted_without_axis_cpu')
     backend_test.exclude(r'test_unique_sorted_with_axis_3d_cpu')
-    backend_test.exclude(r'test_unique_sorted_with_axis_cpu')
     backend_test.exclude(r'test_unique_sorted_with_negative_axis_cpu')
-    backend_test.exclude(r'test_unique_sorted_without_axis_cpu')
     backend_test.exclude(r'test_upsample_nearest_cpu')
 
     # from OnnxBackendPyTorchConvertedModelTest
@@ -664,6 +648,10 @@ def disabled_tests_dynamic_shape(backend_test):
     # range
     backend_test.exclude(r'test_range_float_type_positive_delta_cpu')
     backend_test.exclude(r'test_range_int32_type_negative_delta_cpu')
+    # slice
+    backend_test.exclude(r'test_slice_default_axes_cpu')
+    backend_test.exclude(r'test_slice_default_steps_cpu')
+    backend_test.exclude(r'test_slice_negative_axes_cpu')
     # split
     backend_test.exclude(r'test_split_variable_parts_1d_opset13_cpu')
     backend_test.exclude(r'test_split_variable_parts_1d_opset18_cpu')
@@ -684,9 +672,24 @@ def disabled_tests_dynamic_shape(backend_test):
     backend_test.exclude(r'test_unsqueeze_three_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_two_axes_cpu')
     backend_test.exclude(r'test_unsqueeze_unsorted_axes_cpu')
+    # unique
+    backend_test.exclude(r'test_unique_not_sorted_without_axis_cpu')
+    backend_test.exclude(r'test_unique_sorted_with_axis_cpu')
+    backend_test.exclude(r'test_unique_sorted_without_axis_cpu')
     # tile
     backend_test.exclude(r'test_tile_cpu')
     backend_test.exclude(r'test_tile_precomputed_cpu')
+    # resize
+    backend_test.exclude(r'test_resize_upsample_scales_nearest_cpu')
+    backend_test.exclude(r'test_resize_downsample_scales_nearest_cpu')
+    backend_test.exclude(r'test_resize_upsample_sizes_nearest_cpu')
+    backend_test.exclude(r'test_resize_downsample_sizes_nearest_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_floor_align_corners_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_round_prefer_ceil_asymmetric_cpu')
+    backend_test.exclude(
+        r'test_resize_upsample_sizes_nearest_ceil_half_pixel_cpu')
     # reshape
     backend_test.exclude(r'test_reshape_allowzero_reordered_cpu')
     backend_test.exclude(r'test_reshape_extended_dims_cpu')

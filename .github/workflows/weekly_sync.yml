@@ -20,25 +20,8 @@ jobs:
         
       - name: update_file
         run:  |
-          #cd $GITHUB_WORKSPACE
-          #pwd
-          #cat requirements.txt
-          #ls -l requirements.txt
-          #chmod 644 requirements.txt
-          #ls -l requirements.txt
-          #sed -i "s/ROCmSoftwarePlatform\/rocMLIR@[^ ]*/ROCmSoftwarePlatform\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
-          awk '{sub(/ROCmSoftwarePlatform\/rocMLIR@[^[:space:]]+/, "ROCmSoftwarePlatform/rocMLIR@${{ env.rocmlirsha }}",$0); print}' requirements.txt > temp_file
-          cat temp_file
-          mv temp_file requirements.txt
-          #ls -l requirements.txt
-          #cat requirements.txt
-          #last_line=$(tail -n 1 requirements.txt)
-          #echo $last_line
-          #sed -i '$d' requirements.txt
+          sed -i "s/ROCm\/rocMLIR@[^ ]*/ROCm\/rocMLIR@${{ env.rocmlirsha }}/g" requirements.txt
           cat requirements.txt
-          #updated=$(echo $last_line | sed -E 's/(ROCmSoftwarePlatform\/rocMLIR@)[^[:space:]]+/\1'"updated_string"'/')
-          #echo "+++++++++++++++++++"
-          #echo $updated
           
 
       #- name: action_replace

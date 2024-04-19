@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -149,7 +150,7 @@ struct mlir_op
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
 
-        auto type = mod->get_output_shapes().front().type();
+        auto type       = mod->get_output_shapes().front().type();
         auto mod_params = mod->get_parameter_names();
         std::sort(mod_params.begin(), mod_params.end());
         std::unordered_map<instruction_ref, shape> mod_ins_shapes;
@@ -276,6 +277,10 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(mode != mlir_mode::fast)
             return true;
+        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
+        // for it.
+        if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
+            return false;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
         // auto m = a.lens()[a.lens().size() - 2];
@@ -357,7 +362,7 @@ fold_pointwise_mod(instruction_ref pm_ins,
                            pm->get_parameter(name),
                            parent_mod->add_parameter(name, input->get_shape().as_standard()));
                    });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, param_map);
+    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
 }
 
 // Whitelist supported fusion options, including imposing type constraints
@@ -524,15 +529,17 @@ struct find_mlir_standalone_attention_op
         static size_t counter  = 0;
         module_ref mm          = mpm.create_module("mlir_" + std::to_string(counter++));
         auto gemm_softmax_gemm = r.instructions["gemm_softmax_gemm"];
-        std::vector<instruction_ref> inputs;
         mm->set_bypass();
 
-        std::unordered_map<instruction_ref, instruction_ref> ins_map;
-        auto gemm0_inputs = gemm_softmax_gemm->inputs();
-        gemm0_inputs.pop_back();
+        auto orig_inputs = gemm_softmax_gemm->inputs();
+
+        std::vector<instruction_ref> gemm0_inputs = {orig_inputs[0], orig_inputs[1]};
         auto [gemm0, top_gemm0_inputs] =
             fuse_input_ops_and_gemm_based_op(mm, gemm0_inputs, make_op("dot"));
+
+        std::vector<instruction_ref> inputs;
         inputs.insert(inputs.begin(), top_gemm0_inputs.begin(), top_gemm0_inputs.end());
+
         // handle scale
         auto v = gemm_softmax_gemm->get_operator().to_value();
         assert(v.contains("scale"));
@@ -542,10 +549,20 @@ struct find_mlir_standalone_attention_op
             make_op("multibroadcast", {{"out_lens", gemm0->get_shape().lens()}}), scale_lit);
         auto scaled_gemm0 = mm->add_instruction(make_op("mul"), gemm0, scale_lit_mbcast);
 
+        std::optional<instruction_ref> bias{nullopt};
+        if(orig_inputs.size() == 4)
+        {
+            auto bias_input = orig_inputs[2];
+            instruction_ref bias_param =
+                mm->add_parameter("y_bias", bias_input->get_shape().as_standard());
+            bias = mm->add_instruction(make_op("add"), scaled_gemm0, bias_param);
+            inputs.push_back(bias_input);
+        }
+
         auto softmax = mm->add_instruction(
-            make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}), scaled_gemm0);
-        auto [old_upper_v, upper_v_op_stream] =
-            get_fusable_input_op_stream(gemm_softmax_gemm->inputs()[2]);
+            make_op("softmax", {{"axis", gemm0->get_shape().lens().size() - 1}}),
+            bias ? bias.value() : scaled_gemm0);
+        auto [old_upper_v, upper_v_op_stream] = get_fusable_input_op_stream(orig_inputs.back());
         instruction_ref new_upper_v =
             mm->add_parameter("z", old_upper_v->get_shape().as_standard());
         for(const auto& op : reverse(upper_v_op_stream))
@@ -553,7 +570,10 @@ struct find_mlir_standalone_attention_op
             new_upper_v = mm->add_instruction(op, {new_upper_v});
         }
         inputs.push_back(old_upper_v);
-        auto gemm1                 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
+
+        auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
+
+        std::unordered_map<instruction_ref, instruction_ref> ins_map;
         ins_map[gemm_softmax_gemm] = gemm1;
         auto ins_to_replace        = gemm1;
         auto ins_to_be_replaced    = gemm_softmax_gemm;
@@ -567,6 +587,7 @@ struct find_mlir_standalone_attention_op
             ins_to_be_replaced = r.instructions["trailing_pm"];
         }
         mm->add_return({ins_to_replace});
+
         mpm.get_module().replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
     }

@@ -1220,12 +1220,13 @@ TEST_CASE(optimize_resize)
         auto inx                  = m.add_parameter("X", sx);
         std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
         auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
-        auto mbx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
+        auto mbx  = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), mbx);
-        auto rmbb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
-        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
+        auto rmb  = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), mbx);
+        auto rmbb = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
+        auto r = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
         m.add_return({r});
 
         return m;
@@ -1544,10 +1545,9 @@ TEST_CASE(reshape_cont)
 
         auto inx = m.add_parameter("x", sx);
         auto iny = m.add_parameter("y", sy);
-        auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
-        auto mb_inx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto rsp = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
+        auto mb_inx = m.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
         auto r = m.add_instruction(migraphx::make_op("add"), mb_inx, iny);
         m.add_return({r});
 
@@ -1571,8 +1571,8 @@ TEST_CASE(reshape_input_non_std)
         auto std_inx = m1.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
             m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
-        auto ty =
-            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
+        auto ty = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
         auto r = m1.add_instruction(migraphx::make_op("add"), rsp, ty);
         m1.add_return({r});
     }
@@ -1582,12 +1582,11 @@ TEST_CASE(reshape_input_non_std)
     {
         auto inx = m2.add_parameter("x", sx);
         auto iny = m2.add_parameter("y", sy);
-        auto rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
-        auto mb_inx =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
-        auto ty =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
+        auto mb_inx = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto ty = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
         auto r = m2.add_instruction(migraphx::make_op("add"), mb_inx, ty);
         m2.add_return({r});
     }
@@ -1622,10 +1621,9 @@ TEST_CASE(reshape_cont_nonpw)
 
         auto inx = m2.add_parameter("x", sx);
         auto iny = m2.add_parameter("y", sy);
-        auto rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
-        auto mb_inx =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
+        auto mb_inx = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
         auto r = m2.add_instruction(migraphx::make_op("convolution"), mb_inx, iny);
         m2.add_return({r});
     }

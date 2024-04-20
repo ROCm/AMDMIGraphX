@@ -653,14 +653,11 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
-        auto contiguous = match::skip(match::name("contiguous"))(match::none_of(match::standard_shape()).bind("input"));
+        auto contiguous = match::skip(match::name("contiguous"))(
+            match::none_of(match::standard_shape()).bind("input"));
         auto reshape_contiguous = match::name("reshape")(match::args(contiguous));
         return match::pointwise(
-            match::nargs(2),
-            match::either_arg(0, 1)(
-                reshape_contiguous
-                    .bind("rsp"),
-                match::any()));
+            match::nargs(2), match::either_arg(0, 1)(reshape_contiguous.bind("rsp"), match::any()));
     }
 
     void apply(module& m, const match::matcher_result& r) const

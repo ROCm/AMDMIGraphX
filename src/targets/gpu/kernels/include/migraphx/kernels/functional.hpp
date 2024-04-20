@@ -180,6 +180,14 @@ constexpr void each_args(F)
 {
 }
 
+template <class F, class... Ts>
+constexpr void each_args_unpack(F f, Ts&&... xs)
+{
+    each_args([&](auto&& p) {
+        p(f);
+    }, static_cast<Ts&&>(xs)...);
+}
+
 template <class F, class T>
 constexpr auto fold_impl(F&&, T&& x)
 {

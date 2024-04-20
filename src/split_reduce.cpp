@@ -103,15 +103,19 @@ static std::vector<instruction_ref> get_alive(const_module_ref rm,
 {
     std::vector<instruction_ref> result;
     bool stop = false;
-    liveness(*rm, [&](auto ins, const auto& live_set) {
+    liveness(*rm, [&](auto rins, const auto& live_set) {
         if(stop)
             return;
+        if(rins == rm->begin())
+            return;
+        // We want to know what instructions are live after the split instruction
+        auto ins = std::prev(rins);
         if(not contains(splits, ins))
             return;
         std::copy_if(live_set.begin(),
                      live_set.end(),
                      std::back_inserter(result),
-                     [](instruction_ref live) { return live->name() != "@param"; });
+                     [&](instruction_ref live) { return live->name() != "@param" and not contains(splits, live); });
         stop = true;
     });
     return result;

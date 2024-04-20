@@ -739,16 +739,18 @@ __device__ void fused_reduce(Output output_pack, Assign assign, F f)
         auto result_tuple = f(r, out_idx);
         output_pack([&](auto... outputs) {
             result_tuple([&](auto... results) {
-                each_args_unpack([&](auto output, auto result) {
-                    if constexpr(reduce::is_inner_storage<decltype(result)>{})
-                    {
-                        r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
-                    }
-                    else
-                    {
-                        r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
-                    }
-                }, pack(outputs, results)...);
+                each_args_unpack(
+                    [&](auto output, auto result) {
+                        if constexpr(reduce::is_inner_storage<decltype(result)>{})
+                        {
+                            r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+                        }
+                        else
+                        {
+                            r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+                        }
+                    },
+                    pack(outputs, results)...);
             });
         });
     });

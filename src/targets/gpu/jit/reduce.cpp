@@ -312,8 +312,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     {
         auto assign         = v.get("assign", "assign_none");
         auto axes           = v.at("axes").to_vector<std::size_t>();
-        auto finputs = flatten(inputs);
-        auto noutputs = finputs.size() - inputs.size() + 1;
+        auto finputs        = flatten(inputs);
+        auto noutputs       = finputs.size() - inputs.size() + 1;
         auto virtual_inputs = finputs;
         virtual_inputs.push_back(get_reduced_shape(finputs.front(), axes));
         virtual_inputs.push_back(get_output_shape(finputs.front(), axes));

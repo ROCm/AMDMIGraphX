@@ -115,7 +115,9 @@ static std::vector<instruction_ref> get_alive(const_module_ref rm,
         std::copy_if(live_set.begin(),
                      live_set.end(),
                      std::back_inserter(result),
-                     [&](instruction_ref live) { return live->name() != "@param" and not contains(splits, live); });
+                     [&](instruction_ref live) {
+                         return live->name() != "@param" and not contains(splits, live);
+                     });
         stop = true;
     });
     return result;

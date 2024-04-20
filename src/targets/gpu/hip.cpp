@@ -312,7 +312,7 @@ void gpu_fill(context& ctx, const argument& dst, int value)
     }
     else
     {
-        for(auto arg:dst.get_sub_objects())
+        for(auto arg : dst.get_sub_objects())
             gpu_fill(ctx, arg, value);
     }
 }

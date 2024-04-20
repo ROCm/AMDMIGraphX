@@ -286,8 +286,7 @@ TEST_CASE(reshape_transpose)
     auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 28, 56, 56}}}), x);
     auto t =
         m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3, 4}}}), r1);
-    auto ct = m.add_instruction(migraphx::make_op("contiguous"), t);
-    auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 112, 56, 56}}}), ct);
+    auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 112, 56, 56}}}), t);
     m.add_return({r2});
     EXPECT(m.get_output_shapes().back() == s);
     auto n = std::distance(m.begin(), m.end());
@@ -1220,13 +1219,13 @@ TEST_CASE(optimize_resize)
         migraphx::module m;
         auto inx                  = m.add_parameter("X", sx);
         std::vector<int64_t> dims = {1, 1, 2, 1, 2, 1};
-        auto rspx = m.add_instruction(migraphx::make_op("reshape", {{"dims", dims}}), inx);
-        std::vector<int64_t> mb_dims = {1, 2, 2, 2, 2, 3};
+        auto rspx = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3, 5}}}), inx);
         auto mbx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_dims}}), rspx);
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 2, 2, 2, 3}}}), rspx);
         std::vector<int64_t> orig_dims = {1, 2, 4, 6};
-        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", orig_dims}}), mbx);
-        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmb);
+        auto rmb = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 6}}}), mbx);
+        auto rmbb = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 6}}}), rmb);
+        auto r   = m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), rmbb);
         m.add_return({r});
 
         return m;
@@ -1545,71 +1544,93 @@ TEST_CASE(reshape_cont)
 
         auto inx = m.add_parameter("x", sx);
         auto iny = m.add_parameter("y", sy);
+        auto rsp =
+            m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
         auto mb_inx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
-        auto rsp_iny = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), iny);
-        auto sum     = m.add_instruction(migraphx::make_op("add"), mb_inx, rsp_iny);
-        auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), sum);
+            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto r = m.add_instruction(migraphx::make_op("add"), mb_inx, iny);
         m.add_return({r});
 
         return m;
     };
+    auto m2 = create_opt_module();
 
-    EXPECT(m1 == create_opt_module());
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(reshape_input_non_std)
 {
-    auto create_module = [] {
-        migraphx::module m;
-        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
-        migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
-
-        auto inx = m.add_parameter("x", sx);
-        auto iny = m.add_parameter("y", sy);
+    migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+    migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
+    migraphx::module m1;
+    {
+        auto inx = m1.add_parameter("x", sx);
+        auto iny = m1.add_parameter("y", sy);
         auto mb_inx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
-        auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
+        auto std_inx = m1.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
         auto ty =
-            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
-        auto r = m.add_instruction(migraphx::make_op("add"), rsp, ty);
-        m.add_return({r});
-
-        return m;
-    };
-
-    auto m1 = create_module();
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
+        auto r = m1.add_instruction(migraphx::make_op("add"), rsp, ty);
+        m1.add_return({r});
+    }
     run_pass(m1);
 
-    EXPECT(m1 == create_module());
+    migraphx::module m2;
+    {
+        auto inx = m2.add_parameter("x", sx);
+        auto iny = m2.add_parameter("y", sy);
+        auto rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
+        auto mb_inx =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto ty =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), iny);
+        auto r = m2.add_instruction(migraphx::make_op("add"), mb_inx, ty);
+        m2.add_return({r});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(reshape_cont_nonpw)
 {
-    auto create_module = [] {
-        migraphx::module m;
+    migraphx::module m1;
+    {
         migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
         migraphx::shape sy{migraphx::shape::float_type, {2, 2, 2, 6}};
 
-        auto inx = m.add_parameter("x", sx);
-        auto iny = m.add_parameter("y", sy);
+        auto inx = m1.add_parameter("x", sx);
+        auto iny = m1.add_parameter("y", sy);
         auto mb_inx =
-            m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
-        auto std_inx = m.add_instruction(migraphx::make_op("contiguous"), mb_inx);
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 6}}}), inx);
+        auto std_inx = m1.add_instruction(migraphx::make_op("contiguous"), mb_inx);
         auto rsp =
-            m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
-        auto r = m.add_instruction(migraphx::make_op("convolution"), rsp, iny);
-        m.add_return({r});
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 6}}}), std_inx);
+        auto r = m1.add_instruction(migraphx::make_op("convolution"), rsp, iny);
+        m1.add_return({r});
+    }
 
-        return m;
-    };
-
-    auto m1 = create_module();
     run_pass(m1);
 
-    EXPECT(m1 == create_module());
+    migraphx::module m2;
+    {
+        migraphx::shape sx{migraphx::shape::float_type, {1, 4, 1}};
+        migraphx::shape sy{migraphx::shape::float_type, {2, 2, 2, 6}};
+
+        auto inx = m2.add_parameter("x", sx);
+        auto iny = m2.add_parameter("y", sy);
+        auto rsp =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 2, 1}}}), inx);
+        auto mb_inx =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 6}}}), rsp);
+        auto r = m2.add_instruction(migraphx::make_op("convolution"), mb_inx, iny);
+        m2.add_return({r});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(reshape_unary_transpose)
@@ -1842,9 +1863,8 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 6}}}), x);
         auto y_trans =
             m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
-        auto y_cont = m1.add_instruction(migraphx::make_op("contiguous"), y_trans);
         auto y_rsp =
-            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_cont);
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), y_trans);
         auto r = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
         m1.add_return({r});
     }

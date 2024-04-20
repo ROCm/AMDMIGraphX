@@ -653,10 +653,12 @@ struct find_reshape_cont
 {
     auto matcher() const
     {
+        auto contiguous = match::skip(match::name("contiguous"))(match::none_of(match::standard_shape()).bind("input"));
+        auto reshape_contiguous = match::name("reshape")(match::args(contiguous));
         return match::pointwise(
             match::nargs(2),
             match::either_arg(0, 1)(
-                match::name("reshape")(match::args(match::name("contiguous").bind("cont")))
+                reshape_contiguous
                     .bind("rsp"),
                 match::any()));
     }
@@ -664,10 +666,9 @@ struct find_reshape_cont
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins      = r.result;
-        auto ins_cont = r.instructions["cont"];
+        auto cont_input = r.instructions["input"];
         auto in_ins   = r.instructions["rsp"];
 
-        auto cont_input = ins_cont->inputs().front();
         auto lens       = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
@@ -1081,9 +1082,9 @@ void simplify_reshapes::apply(module& m) const
                             find_where_op{},
                             find_resize{},
                             find_nop_reshapes{},
+                            find_reshape_cont{},
                             find_nested_shape_transforms{},
                             // find_reshaper{},
-                            find_reshape_cont{},
                             // find_transpose{},
                             find_concat_slice{},
                             find_concat_transpose{},

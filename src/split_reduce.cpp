@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/split_reduce.hpp>
+#include <migraphx/dom_info.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
@@ -62,25 +63,13 @@ struct split_fused_reduce
             MIGRAPHX_THROW("Only one output supported");
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
-        std::sort(names.begin(), names.end());
-        auto shapes = sm->get_parameter_shapes();
-        // Check dimension matches for each input
-        if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
-           }))
-            MIGRAPHX_THROW("Dimenstion does not match the submodule.");
-        const auto& s = inputs.at(0);
-        auto lens     = s.lens();
-        if(lens != sm->get_output_shapes().front().lens())
-        {
-            for(const auto& axis : axes)
-            {
-                lens[axis] = 1;
-            }
-        }
 
-        return shape::from_permutation(
-            sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
+        auto result = sm->compute_shapes(
+            inputs,
+            {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 
     std::string name() const { return "split_fused_reduce"; }
@@ -92,18 +81,21 @@ static bool is_reduce(const instruction& ins) { return contains(ins.name(), "red
 static std::vector<instruction_ref> find_split(const_module_ref rm)
 {
     std::vector<instruction_ref> result;
-    auto reduce_ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
-    if(reduce_ins == rm->end())
-        return result;
-    // Bail if there is more than one reduce for now
-    // TODO: Support multiple reductions
-    if(std::any_of(std::next(reduce_ins), rm->end(), &is_reduce))
-        return result;
+    copy_if(iterator_for(*rm), std::back_inserter(result), [](auto ins){ return is_reduce(*ins); });
+    // if(result.size() > 2)
+    if(result.size() > 1)
+        return {};
     // Only handle reduce_sum for now
     // TODO: Support other reduction types
-    if(reduce_ins->name() != "reduce_sum")
+    if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) { return ins->name() == "reduce_sum"; }))
+        return {};
+    if(result.size() < 2)
         return result;
-    result.push_back(reduce_ins);
+    dominator_info dom = compute_dominator(*rm);
+    if(dom.strictly_dominate(result[0], result[1]))
+        return {};
+    if(dom.strictly_dominate(result[1], result[0]))
+        return {};
     return result;
 }
 

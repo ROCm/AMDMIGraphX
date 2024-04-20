@@ -21,44 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/onnx/checks.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/common.hpp>
-#include <migraphx/make_op.hpp>
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/gpu/context.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/operation.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
 
-struct parse_expand : op_parser<parse_expand>
-{
-    std::vector<op_desc> operators() const { return {{"Expand"}}; }
+namespace gpu {
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& /*parser*/,
-                          const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
-    {
-        auto in_lens             = args[0]->get_shape().lens();
-        migraphx::argument arg_s = args[1]->eval();
-        if(arg_s.empty())
-        {
-            // variable dims input
-            return info.add_instruction(make_op("broadcast_with_dims"), args[0], args[1]);
-        }
-        else
-        {
-            std::vector<std::size_t> dims;
-            arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
-            auto out_lens = compute_broadcasted_lens(in_lens, dims);
-            return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
-                                        args[0]);
-        }
-    }
-};
+operation
+compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm);
 
-} // namespace onnx
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP

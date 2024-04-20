@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <iterator>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,11 +34,13 @@
 #include <migraphx/iterator.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <array>
 #include <set>
 #include <utility>
 #include <unordered_set>
@@ -204,7 +207,7 @@ static std::vector<instruction_ref>
 insert_generic_instructions_impl(module& m,
                                  instruction_ref ins,
                                  Range&& instructions,
-                                 std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                                 std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                                  Inserter insert)
 {
     assert(m.has_instruction(ins) or is_end(ins, m.end()));
@@ -261,20 +264,16 @@ static std::vector<instruction_ref>
 insert_generic_instructions(module& m,
                             instruction_ref ins,
                             Range&& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            std::unordered_map<instruction_ref, instruction_ref>& map_ins,
                             module::inserter insert)
 {
     if(insert == nullptr)
-        return insert_generic_instructions_impl(m,
-                                                ins,
-                                                static_cast<Range&&>(instructions),
-                                                std::move(map_ins),
-                                                [](module& mm, auto&&... xs) {
-                                                    return mm.insert_instruction(
-                                                        std::forward<decltype(xs)>(xs)...);
-                                                });
+        return insert_generic_instructions_impl(
+            m, ins, static_cast<Range&&>(instructions), map_ins, [](module& mm, auto&&... xs) {
+                return mm.insert_instruction(std::forward<decltype(xs)>(xs)...);
+            });
     return insert_generic_instructions_impl(
-        m, ins, static_cast<Range&&>(instructions), std::move(map_ins), insert);
+        m, ins, static_cast<Range&&>(instructions), map_ins, insert);
 }
 
 instruction_ref module::add_instruction(const operation& op, std::vector<instruction_ref> args)
@@ -423,61 +422,71 @@ instruction_ref module::move_instructions(instruction_ref src, instruction_ref d
 
 std::vector<instruction_ref>
 module::add_instructions(const std::vector<instruction_ref>& instructions,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(
-        this->end(), instructions, std::move(map_ins), std::move(insert));
+    return this->insert_instructions(this->end(), instructions, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(const_module_ref m,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(this->end(), m, std::move(map_ins), std::move(insert));
+    return this->insert_instructions(this->end(), m, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::add_instructions(instruction_ref start,
                          instruction_ref last,
-                         std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                         std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                          module::inserter insert)
 {
-    return this->insert_instructions(
-        this->end(), start, last, std::move(map_ins), std::move(insert));
+    return this->insert_instructions(this->end(), start, last, map_ins, std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const std::vector<instruction_ref>& instructions,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                             module::inserter insert)
 {
-    return insert_generic_instructions(
-        *this, ins, instructions, std::move(map_ins), std::move(insert));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       instructions,
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             const_module_ref m,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                             module::inserter insert)
 {
-    return insert_generic_instructions(
-        *this, ins, iterator_for(*m), std::move(map_ins), std::move(insert));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(*m),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 std::vector<instruction_ref>
 module::insert_instructions(instruction_ref ins,
                             instruction_ref start,
                             instruction_ref last,
-                            std::unordered_map<instruction_ref, instruction_ref> map_ins,
+                            std::unordered_map<instruction_ref, instruction_ref>* map_ins,
                             module::inserter insert)
 {
     auto r = range(start, last);
-    return insert_generic_instructions(
-        *this, ins, iterator_for(r), std::move(map_ins), std::move(insert));
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    return insert_generic_instructions(*this,
+                                       ins,
+                                       iterator_for(r),
+                                       map_ins == nullptr ? default_map_ins : *map_ins,
+                                       std::move(insert));
 }
 
 instruction_ref module::add_literal(literal l) { return insert_literal(begin(), std::move(l)); }
@@ -519,6 +528,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
+    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -587,6 +597,16 @@ instruction_ref module::get_parameter(std::string name) const
         return ins;
     else
         return this->end();
+}
+
+std::vector<instruction_ref> module::get_parameters() const
+{
+    std::vector<instruction_ref> result;
+    auto refs = iterator_for(*this);
+    std::copy_if(refs.begin(), refs.end(), std::back_inserter(result), [&](instruction_ref ins) {
+        return ins->name() == "@param";
+    });
+    return result;
 }
 
 void module::rename_parameter(instruction_ref ins, const std::string& name)
@@ -730,6 +750,200 @@ void module::finalize(std::vector<context>& contexts)
     if(ins != end())
         std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
                   << std::endl;
+}
+
+std::unordered_map<instruction_ref, instruction_ref>
+module::get_ins_param_map(const std::vector<instruction_ref>& inputs, bool reverse) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> result;
+    auto params = this->get_parameters();
+    assert(params.size() == inputs.size());
+    sort_params(params);
+    if(reverse)
+    {
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(param, input); });
+    }
+    else
+    {
+        std::transform(
+            params.begin(),
+            params.end(),
+            inputs.begin(),
+            std::inserter(result, result.end()),
+            [&](instruction_ref param, auto input) { return std::make_pair(input, param); });
+    }
+    return result;
+}
+
+static std::vector<instruction_ref>
+select_params(const std::vector<instruction_ref>& instructions,
+              const std::unordered_map<instruction_ref, instruction_ref>& param_map)
+{
+    std::vector<instruction_ref> result;
+    std::vector<instruction_ref> params;
+    std::copy_if(instructions.begin(),
+                 instructions.end(),
+                 std::back_inserter(params),
+                 [&](instruction_ref ins) { return contains(param_map, ins); });
+    sort_params(params);
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(result),
+                   [&](instruction_ref ins) { return param_map.at(ins); });
+    return result;
+}
+
+static std::array<module::with_inputs, 2>
+generic_split(const module& m,
+              const std::vector<instruction_ref>& args,
+              const std::vector<instruction_ref>& splits,
+              std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr)
+{
+    std::unordered_map<instruction_ref, instruction_ref> param_map =
+        m.get_ins_param_map(args, true);
+
+    std::unordered_set<instruction_ref> selected_instructions;
+    fix([&](auto self, const std::vector<instruction_ref>& inputs) {
+        for(auto input : inputs)
+        {
+            if(contains(selected_instructions, input))
+                continue;
+            selected_instructions.insert(input);
+            self(input->inputs());
+        }
+    })(splits);
+
+    std::vector<instruction_ref> instructions1;
+    // TODO: copy_if
+    for(auto ins : iterator_for(m))
+    {
+        if(not contains(selected_instructions, ins))
+            continue;
+        instructions1.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs1 = select_params(instructions1, param_map);
+    module m1;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins1;
+    m1.add_instructions(instructions1, &map_ins1);
+    std::vector<instruction_ref> outputs;
+    std::transform(splits.begin(),
+                   splits.end(),
+                   std::back_inserter(outputs),
+                   [&](instruction_ref ins) { return map_ins1.at(ins); });
+    m1.add_return(outputs);
+
+    std::vector<instruction_ref> instructions2;
+    for(auto ins : iterator_for(m))
+    {
+        if(contains(selected_instructions, ins))
+            continue;
+        // Input params can be used in both modules
+        std::vector<instruction_ref> input_params;
+        std::copy_if(ins->inputs().begin(),
+                     ins->inputs().end(),
+                     std::back_inserter(input_params),
+                     [&](instruction_ref input) {
+                         if(input->name() != "@param")
+                             return false;
+                         return not contains(instructions2, input);
+                     });
+        instructions2.insert(instructions2.end(), input_params.begin(), input_params.end());
+        instructions2.push_back(ins);
+    }
+
+    std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
+    inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
+    module m2;
+    std::size_t n = 0;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins2;
+    for(auto ins : splits)
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "@param")
+            continue;
+        if(not contains(instructions2, ins))
+            continue;
+        map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
+    }
+    auto r = m2.add_instructions(instructions2, &map_ins2);
+    m2.add_return(r);
+    if(map_ins != nullptr)
+        *map_ins = map_ins2;
+    return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
+}
+
+std::array<module::with_inputs, 2> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits) const
+{
+    return generic_split(*this, args, splits);
+}
+
+std::array<module::with_inputs, 3> module::split(const std::vector<instruction_ref>& args,
+                                                 const std::vector<instruction_ref>& splits1,
+                                                 const std::vector<instruction_ref>& splits2) const
+{
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    auto mods1 = generic_split(*this, args, splits1, &map_ins);
+
+    assert(all_of(mods1[0].inputs, [&](auto ins) { return contains(args, ins); }));
+    assert(all_of(mods1[1].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+
+    std::vector<instruction_ref> new_splits2;
+    std::transform(splits2.begin(), splits2.end(), std::back_inserter(new_splits2), [&](auto ins) {
+        return map_ins.at(ins);
+    });
+
+    auto mods2 = mods1[1].mod.split(mods1[1].inputs, new_splits2);
+    // Replace new splits with old splits
+    mods2[1].replace(new_splits2, splits2);
+
+    assert(all_of(mods2[0].inputs,
+                  [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    assert(all_of(mods2[1].inputs, [&](auto ins) {
+        return contains(args, ins) or contains(splits1, ins) or contains(splits2, ins);
+    }));
+
+    return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
+}
+
+void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)
+{
+    auto it = std::find(inputs.begin(), inputs.end(), ins);
+    if(it == inputs.end())
+        return;
+    assert((*it)->get_shape().lens() == rep->get_shape().lens());
+    *it = rep;
+}
+void module_with_inputs::replace(
+    const std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    for(auto& ins : inputs)
+    {
+        if(not contains(map_ins, ins))
+            continue;
+        assert(ins->get_shape().lens() == map_ins.at(ins)->get_shape().lens());
+        ins = map_ins.at(ins);
+    }
+}
+void module_with_inputs::replace(const std::vector<instruction_ref>& keys,
+                                 const std::vector<instruction_ref>& values)
+{
+    for(auto& ins : inputs)
+    {
+        auto it = std::find(keys.begin(), keys.end(), ins);
+        if(it == keys.end())
+            continue;
+        assert(ins->get_shape().lens() == values[it - keys.begin()]->get_shape().lens());
+        ins = values[it - keys.begin()];
+    }
 }
 
 void module::debug_print() const { std::cout << *this << std::endl; }

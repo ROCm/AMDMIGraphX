@@ -59,13 +59,12 @@ struct split_fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        if(sm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("Only one output supported");
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
 
-        auto result =
-            sm->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        auto result = sm->compute_shapes(
+            inputs,
+            {.name = name(), .strict_type = true, .strict_lens = true});
         if(result.size() == 1)
             return result.front();
         return shape{result};
@@ -80,16 +79,12 @@ static bool is_reduce(const instruction& ins) { return contains(ins.name(), "red
 static std::vector<instruction_ref> find_split(const_module_ref rm)
 {
     std::vector<instruction_ref> result;
-    copy_if(
-        iterator_for(*rm), std::back_inserter(result), [](auto ins) { return is_reduce(*ins); });
-    // if(result.size() > 2)
-    if(result.size() > 1)
+    copy_if(iterator_for(*rm), std::back_inserter(result), [](auto ins){ return is_reduce(*ins); });
+    if(result.size() > 2)
         return {};
     // Only handle reduce_sum for now
     // TODO: Support other reduction types
-    if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) {
-           return ins->name() == "reduce_sum";
-       }))
+    if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) { return ins->name() == "reduce_sum"; }))
         return {};
     if(result.size() < 2)
         return result;
@@ -193,7 +188,19 @@ void split_reduce::apply(module_pass_manager& mpm) const
             mods[0].inputs,
             {splitm});
 
-        mods[1].replace(splits.front(), split_reduce);
+        std::vector<instruction_ref> split_reduce_each;
+        if(splits.size() == 1)
+        {
+            split_reduce_each = {split_reduce};
+        }
+        else
+        {
+            transform(range(splits.size()), std::back_inserter(split_reduce_each), [&](auto i) {
+                return mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), split_reduce);
+            });
+        }
+
+        mods[1].replace(splits, split_reduce_each);
         auto replaced = insert_module_inline(mpm.get_module(), ins, mods[1]);
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());

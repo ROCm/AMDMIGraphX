@@ -215,6 +215,7 @@ rocm_enable_clang_tidy(
         -modernize-use-override
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
+	-performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -readability-braces-around-statements
         -readability-convert-member-functions-to-static

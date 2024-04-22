@@ -230,10 +230,12 @@ struct compile_plan
         return *results[i];
     }
 
-    void replace(module& m) const
+    instruction_ref
+    replace(module& m,
+            const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) const
     {
         const auto& cr = benchmark();
-        cr.replace.replace(m, cr.ins);
+        return cr.replace.replace(m, cr.ins, inputs_rep_map);
     }
 };
 
@@ -252,6 +254,7 @@ struct compile_manager
 {
     std::vector<compile_plan> cps;
     bool exhaustive = false;
+    std::unordered_map<instruction_ref, instruction_ref> input_rep_map;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -278,7 +281,8 @@ struct compile_manager
         {
             if(cp.results.empty())
                 continue;
-            cp.replace(m);
+            auto rep              = cp.replace(m, input_rep_map);
+            input_rep_map[cp.ins] = rep;
         }
 
         // Remove compile_plan already executed

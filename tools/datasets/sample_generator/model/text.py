@@ -54,8 +54,8 @@ class TextGenerationDecoderOnlyMixin(object):
         return new_token == self.processor.eos_token_id
 
 
-class BERT_large_uncased(SingleOptimumHFModelDownloadMixin,
-                         AutoTokenizerHFMixin, BaseModel):
+class BERT_large_uncased(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
+                         BaseModel):
     @property
     def model_id(self):
         return "google-bert/bert-large-uncased"
@@ -76,7 +76,7 @@ class BERT_large_uncased(SingleOptimumHFModelDownloadMixin,
         return result
 
 
-class DistilBERT_base_cased_distilled_SQuAD(SingleOptimumHFModelDownloadMixin,
+class DistilBERT_base_cased_distilled_SQuAD(OptimumHFModelDownloadMixin,
                                             AutoTokenizerHFMixin, BaseModel):
     @property
     def model_id(self):
@@ -87,8 +87,8 @@ class DistilBERT_base_cased_distilled_SQuAD(SingleOptimumHFModelDownloadMixin,
         return "distilbert-base-cased-distilled-squad"
 
 
-class RobertaBaseSquad2(SingleOptimumHFModelDownloadMixin,
-                        AutoTokenizerHFMixin, BaseModel):
+class RobertaBaseSquad2(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
+                        BaseModel):
     @property
     def model_id(self):
         return "deepset/roberta-base-squad2"
@@ -99,7 +99,7 @@ class RobertaBaseSquad2(SingleOptimumHFModelDownloadMixin,
 
 
 # Note: the inheritance order here important
-class GPTJ(SingleOptimumHFModelDownloadMixin, TextGenerationDecoderOnlyMixin,
+class GPTJ(OptimumHFModelDownloadMixin, TextGenerationDecoderOnlyMixin,
            AutoTokenizerHFMixin, DecoderModel):
     @property
     def model_id(self):
@@ -116,7 +116,7 @@ class GPTJ(SingleOptimumHFModelDownloadMixin, TextGenerationDecoderOnlyMixin,
 
 
 # Note: the inheritance order here important
-class Llama2_7b_chat_hf(SingleOptimumHFModelDownloadMixin,
+class Llama2_7b_chat_hf(OptimumHFModelDownloadMixin,
                         TextGenerationDecoderOnlyMixin, AutoTokenizerHFMixin,
                         DecoderModel):
     @property
@@ -133,8 +133,7 @@ class Llama2_7b_chat_hf(SingleOptimumHFModelDownloadMixin,
         return "llama2-7b-chat-hf"
 
 
-class T5_base(EncoderDecoderOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
-              DecoderModel):
+class T5_base(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin, DecoderModel):
     def __init__(self):
         max_length = 384  # default for squad
         # Note: no real start token, it requires the pad token
@@ -171,7 +170,7 @@ class T5_base(EncoderDecoderOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
         return new_token == self.processor.eos_token_id
 
 
-class Gemma_2b_it(SingleOptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
+class Gemma_2b_it(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
                   DecoderModel):
     @property
     def model_id(self):

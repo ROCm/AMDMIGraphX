@@ -49,23 +49,14 @@ class SingleModelDownloadMixin(object):
         return filepath
 
 
-class SingleOptimumHFModelDownloadMixin(object):
+class OptimumHFModelDownloadMixin(object):
     def get_model(self, folder, force_download=False):
         filepath = f"{folder}/model.onnx"
         if force_download or not os.path.isfile(filepath):
             print(f"Download model from {self.model_id} to {filepath}")
-            main_export(self.model_id, output=folder, task=self.task)
-        return filepath
-
-
-class EncoderDecoderOptimumHFModelDownloadMixin(object):
-    def get_model(self, folder, force_download=False):
-        filepath = f"{folder}/model.onnx"
-        if force_download or not os.path.isfile(filepath):
-            print(f"Download model from {self.model_id} to {filepath}")
-            # monolith forces export into one model
-            main_export(self.model_id,
-                        output=folder,
-                        monolith=True,
-                        task=self.task)
+            main_export(
+                self.model_id,
+                output=folder,
+                monolith=True,  # forces export into one model
+                task=self.task)
         return filepath

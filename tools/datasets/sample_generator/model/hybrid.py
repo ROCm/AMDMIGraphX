@@ -21,8 +21,8 @@ class AutoProcessorHFMixin(object):
                               return_tensors="np")
 
 
-class ClipVitLargePatch14(SingleOptimumHFModelDownloadMixin,
-                          AutoProcessorHFMixin, BaseModel):
+class ClipVitLargePatch14(OptimumHFModelDownloadMixin, AutoProcessorHFMixin,
+                          BaseModel):
     def __init__(self):
         import random
         random.seed(42)

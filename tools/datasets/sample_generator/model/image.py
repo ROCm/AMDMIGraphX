@@ -35,8 +35,8 @@ class ResNet50_v1(SingleModelDownloadMixin, BaseModel):
         }
 
 
-class ResNet50_v1_5(SingleOptimumHFModelDownloadMixin,
-                    AutoImageProcessorHFMixin, BaseModel):
+class ResNet50_v1_5(OptimumHFModelDownloadMixin, AutoImageProcessorHFMixin,
+                    BaseModel):
     @property
     def model_id(self):
         return "microsoft/resnet-50"
@@ -46,7 +46,7 @@ class ResNet50_v1_5(SingleOptimumHFModelDownloadMixin,
         return "resnet50_v1.5"
 
 
-class VitBasePatch16_224(SingleOptimumHFModelDownloadMixin,
+class VitBasePatch16_224(OptimumHFModelDownloadMixin,
                          AutoImageProcessorHFMixin, BaseModel):
     @property
     def model_id(self):
@@ -57,7 +57,7 @@ class VitBasePatch16_224(SingleOptimumHFModelDownloadMixin,
         return "vit-base-patch16-224"
 
 
-class TIMM_MobileNetv3_large(SingleOptimumHFModelDownloadMixin, BaseModel):
+class TIMM_MobileNetv3_large(OptimumHFModelDownloadMixin, BaseModel):
     def __init__(self):
         data_config = timm.data.resolve_model_data_config(
             timm.create_model(self.model_id, pretrained=True))
@@ -80,8 +80,7 @@ class TIMM_MobileNetv3_large(SingleOptimumHFModelDownloadMixin, BaseModel):
 
 
 # TODO enable it when BiT is supported by optimum
-class Bit50(SingleOptimumHFModelDownloadMixin, AutoImageProcessorHFMixin,
-            BaseModel):
+class Bit50(OptimumHFModelDownloadMixin, AutoImageProcessorHFMixin, BaseModel):
     @property
     def model_id(self):
         return "google/bit-50"

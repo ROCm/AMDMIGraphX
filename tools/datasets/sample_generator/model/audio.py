@@ -20,7 +20,7 @@ class AutoFeatureExtractorHFMixin(object):
                               return_tensors="np")
 
 
-class Wav2Vec2_base_960h(SingleOptimumHFModelDownloadMixin,
+class Wav2Vec2_base_960h(OptimumHFModelDownloadMixin,
                          AutoFeatureExtractorHFMixin, BaseModel):
     @property
     def model_id(self):
@@ -31,8 +31,8 @@ class Wav2Vec2_base_960h(SingleOptimumHFModelDownloadMixin,
         return "wav2vec2-base-960h"
 
 
-class WhisperSmallEn(EncoderDecoderOptimumHFModelDownloadMixin,
-                     AutoFeatureExtractorHFMixin, DecoderModel):
+class WhisperSmallEn(OptimumHFModelDownloadMixin, AutoFeatureExtractorHFMixin,
+                     DecoderModel):
     def __init__(self):
         # Whisper specific part
         # TODO get these from config

@@ -84,8 +84,8 @@ void propagate_constant::apply(module& m) const
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     std::vector<argument> literals(const_instrs_vec.size());
-    int n = 1;
-#ifndef ParallelSTL_FOUND
+    std::size_t n = 1;
+#if !MIGRAPHX_HAS_EXECUTORS
     n = std::max<std::size_t>(
         std::ceil(static_cast<double>(1024) / std::thread::hardware_concurrency()), 1);
 #endif

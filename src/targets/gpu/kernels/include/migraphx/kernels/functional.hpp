@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -291,15 +291,38 @@ inline constexpr auto transform_args()
     return make_transform([](auto f, auto... xs) { return f(xs...); });
 }
 
-// Rotate the first argument to the last argument
-inline constexpr auto rotate_last()
+// Rotate the last N arguments to the first N arguments
+template <index_int N>
+constexpr auto rotate_last()
 {
     return make_transform([](auto f, auto... xs) {
         return sequence_c<sizeof...(xs)>([&](auto... is) {
             constexpr auto size = sizeof...(is);
-            return f(arg_c<(is + size - 1) % size>()(xs...)...);
+            return f(arg_c<(is + size - N) % size>()(xs...)...);
         });
     });
+}
+
+inline constexpr auto rotate_last() { return rotate_last<1>(); }
+
+// Pack the first N arguments
+template <index_int N>
+constexpr auto pack_first()
+{
+    return make_transform([](auto f, auto... xs) {
+        return sequence_c<N>([&](auto... is) {
+            return sequence_c<sizeof...(xs) - N>([&](auto... js) {
+                return f(pack(arg_c<is>()(xs...)...), arg_c<js + N>()(xs...)...);
+            });
+        });
+    });
+}
+
+// Rotate the last N arguments as the first argument packed
+template <index_int N>
+constexpr auto rotate_and_pack_last()
+{
+    return transform_args(rotate_last<N>(), pack_first<N>());
 }
 
 } // namespace migraphx

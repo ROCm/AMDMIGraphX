@@ -1,3 +1,5 @@
+-f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.0/
+torch == 2.1.1
 datasets
 numpy
 onnx

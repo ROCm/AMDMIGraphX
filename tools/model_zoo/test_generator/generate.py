@@ -153,7 +153,7 @@ def main(image_model_names='all',
                                   sample_limit=sample_limit,
                                   decode_limit=decode_limit)
     print(
-        f'Use this to test MIGraphX with the result:\npython ../../test_runner.py <generated_dataset_path>'
+        f'Use this to test MIGraphX with the result:\n./test_models.sh {output_folder_prefix}'
     )
 
 

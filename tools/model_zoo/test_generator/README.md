@@ -18,13 +18,13 @@ apt install libsndfile1
 ## Usage
 
 ```bash
-usage: main.py [-h]
-               [--image {all,none,...}]
-               [--text {all,none,...}]
-               [--audio {all,none,...}]
-               [--output-folder-prefix OUTPUT_FOLDER_PREFIX]
-               [--sample-limit SAMPLE_LIMIT]
-               [--decode-limit DECODE_LIMIT]
+usage: generate.py [-h]
+                   [--image {all,none,...}]
+                   [--text {all,none,...}]
+                   [--audio {all,none,...}]
+                   [--output-folder-prefix OUTPUT_FOLDER_PREFIX]
+                   [--sample-limit SAMPLE_LIMIT]
+                   [--decode-limit DECODE_LIMIT]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -44,12 +44,12 @@ optional arguments:
 
 Note: Some models require permission to access, use `huggingface-cli login`
 
-To run everything:
+To generate everything:
 ```bash
-python main.py
+python generate.py
 ```
 
-To run a subset of the supported models:
+To generate a subset of the supported models:
 - `none` to skip it
 - `all` for every models
 - <name> list supported model names
@@ -100,4 +100,4 @@ The 3 most common usecase are handled:
 
 To add a new, e.g. Video, create a new python file in dataset, and inherit a new class from Base.
 
-The [main](./main.py) part will need further updating to include the dataset.
+The [generate](./generate.py) part will need further updating to include the dataset.

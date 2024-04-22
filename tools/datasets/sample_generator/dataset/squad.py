@@ -16,7 +16,7 @@ class SQuADTransformMixin(object):
 class SQuADv1_1(SQuADTransformMixin, BaseDataset):
     @property
     def url(self):
-        self.url = "https://raw.githubusercontent.com/rajpurkar/SQuAD-explorer/master/dataset/dev-v1.1.json"
+        return "https://raw.githubusercontent.com/rajpurkar/SQuAD-explorer/master/dataset/dev-v1.1.json"
 
     @property
     def split(self):

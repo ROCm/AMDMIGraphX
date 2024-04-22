@@ -58,6 +58,16 @@ To generate a subset of the supported models:
 ptython --image resnet50_v1.5 clip-vit-large-patch14 --text none --audio none
 ```
 
+## Test models
+
+`test_models.sh` will run all downloaded models on the `generated` samples. The result will be in `logs`.
+
+```bash
+./test_models.sh generated/
+```
+
+Note: `generated` is the default output folder, make sure to match `--output-folder-prefix` name
+
 ## Adding more models
 
 To add mode models, first choose the proper place:

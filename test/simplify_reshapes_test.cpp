@@ -1895,7 +1895,8 @@ TEST_CASE(transpose_unsqueeze_concat)
             [&](migraphx::instruction_ref arg) {
                 return m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
             });
-        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
         m1.add_return({concat});
     }
     run_pass(m1);
@@ -1915,8 +1916,10 @@ TEST_CASE(transpose_unsqueeze_concat)
             [&](migraphx::instruction_ref arg) {
                 return m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
             });
-        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
-        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
+        auto concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        auto transpose = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
         m2.add_return({transpose});
     }
     EXPECT(m1 == m2);
@@ -2133,7 +2136,8 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), transpose);
         auto transpose2 = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), slice2);
-        auto squeeze2   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), transpose2);
+        auto squeeze2 =
+            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), transpose2);
         auto slice3 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), transpose);
         auto squeeze3 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice3);

@@ -46,6 +46,10 @@ constexpr T normalize(unsigned long z)
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
+    // Range of max is limited to 24 bits, for a 32 bit output.
+    // To avoid any overflow to some later integer-multiply with an 8 bit number.
+    // In reality, the overflow in integer multiply shouldn't be an issue;
+    // For comparing results, in verify mode, Overflow(s) are even lesser relevant.
     const long long max = 1ULL << (sizeof(T) * 6 - 1);
     const auto half_max = max / 2;
     auto result         = half_max - (z % max);

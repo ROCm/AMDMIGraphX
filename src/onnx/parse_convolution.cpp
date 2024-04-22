@@ -84,6 +84,21 @@ struct parse_convolution : op_parser<parse_convolution>
         return symmetric_value;
     }
 
+    static instruction_ref gen_symmetric_literal(const instruction_ref& input,
+                                                 const bool is_quant_conv,
+                                                 onnx_parser::node_info& info)
+    {
+        instruction_ref ret = input;
+        if(is_quant_conv)
+        {
+            float symmetric_value = get_symmetric_value(input);
+            ret                   = info.add_literal(migraphx::literal{
+                migraphx::shape{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
+        }
+
+        return ret;
+    }
+
     static instruction_ref get_zero_point(const instruction_ref& input,
                                           int index,
                                           const bool is_quant_conv,
@@ -97,19 +112,17 @@ struct parse_convolution : op_parser<parse_convolution>
             if(input->get_shape().type() != args[index]->get_shape().type())
                 MIGRAPHX_THROW("PARSE:Conv Data and Data Zero Point must have same type");
 
-            if(is_quant_conv)
+            ret = args[index];
+            if(is_symmetric_zero_point(ret))
             {
-                ret = args[index];
+                std::cout << "Hit symmetric input" << std::endl;
+                ret = gen_symmetric_literal(ret, is_quant_conv, info);
             }
+            ret->debug_print();
         }
         else
         {
-            if(is_quant_conv)
-            {
-                float symmetric_value = get_symmetric_value(ret);
-                ret                   = info.add_literal(migraphx::literal{
-                    migraphx::shape{input->get_shape().type(), {1}, {0}}, {symmetric_value}});
-            }
+            ret = gen_symmetric_literal(ret, is_quant_conv, info);
         }
 
         return ret;

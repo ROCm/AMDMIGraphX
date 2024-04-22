@@ -28,8 +28,8 @@ TEST_CASE(convinteger_no_bias)
 {
     migraphx::program p;
     auto* mm    = p.get_main_module();
-    auto data   = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
-    auto weight = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto data   = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto weight = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 2, 2}});
     mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
     mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
 

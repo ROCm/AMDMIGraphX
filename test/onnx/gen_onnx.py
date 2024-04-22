@@ -1547,9 +1547,9 @@ def conv_relu_maxpool_x2_test():
 
 @onnx_test()
 def convinteger_no_bias_test():
-    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
-    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
-    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 2, 28, 28])
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
+    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 1, 4, 4])
 
     node = onnx.helper.make_node('ConvInteger',
                                  inputs=['0', '1'],
@@ -1593,11 +1593,11 @@ def convinteger_bias_test():
 
 @onnx_test()
 def convinteger_dual_bias_test():
-    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
-    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
     z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
     w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
-    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 2, 28, 28])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 1, 4, 4])
 
     node = onnx.helper.make_node('ConvInteger',
                                  inputs=['0', '1', '2', '3'],

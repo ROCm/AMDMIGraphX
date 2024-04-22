@@ -28,8 +28,8 @@ TEST_CASE(convinteger_dual_bias_test)
 {
     migraphx::program p;
     auto* mm         = p.get_main_module();
-    auto data        = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
-    auto weight      = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto data        = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto weight      = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 2, 2}});
     auto data_bias   = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
     auto weight_bias = mm->add_parameter("3", {migraphx::shape::int8_type, {1}, {1}});
 

@@ -196,6 +196,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
 	-cppcoreguidelines-pro-type-vararg
+	-cppcoreguidelines-misleading-capture-default-by-value
 	-cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-virtual-class-destructor

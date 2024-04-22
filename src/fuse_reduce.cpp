@@ -189,9 +189,7 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
-                   .bind("broadcast"))
-        .bind("final_broadcast");
+        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once()).bind("broadcast")).bind("final_broadcast");
 }
 
 template <class... Ms>
@@ -221,6 +219,7 @@ struct find_pointwise_reduce
         auto reduce = r.result;
         auto input  = r.instructions["pointwise"];
 
+
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
         auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
@@ -234,7 +233,7 @@ struct find_pointwise_reduce
         if(contains(r.instructions, "broadcast"))
         {
             auto broadcast     = r.instructions["broadcast"];
-            auto fbroadcast    = r.instructions["final_broadcast"];
+            auto fbroadcast     = r.instructions["final_broadcast"];
             map_ins[broadcast] = insert_ins_in_submodule(rm, broadcast, map_ins).front();
             if(fbroadcast != broadcast)
                 map_ins[fbroadcast] = map_ins[broadcast];

@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -185,17 +186,29 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
-                           // Time all the code objects for a given perf config and calculate total
-                           // time e.g. in case of split-K GEMM, it may or may not support fusion.
-                           // In that case MLIR compile would return code objects for individual
-                           // GEMM and pre/post fusion code objects.
-                           auto cobjs = cr->replace.code_objects;
-                           double t   = transform_accumulate(
-                               cobjs.begin(),
-                               cobjs.end(),
-                               double{0},
-                               std::plus<>{},
-                               [&](const operation& op) { return time_op(*ctx, op, 20); });
+                           /*
+                           create a small program with insturction being compiled and call "replace"
+                           on that which would insert all the compiled code objects, prefills etc.
+                           necessary to run candidate code object
+                           */
+                           program bench_prog;
+                           auto* bench_mm = bench_prog.get_main_module();
+                           std::vector<instruction_ref> bench_ins_inputs;
+
+                           std::transform(cr->ins->inputs().begin(),
+                                          cr->ins->inputs().end(),
+                                          std::back_inserter(bench_ins_inputs),
+                                          [&](const auto& arg) {
+                                              return bench_mm->add_parameter(
+                                                  std::to_string(bench_ins_inputs.size()),
+                                                  arg->get_shape());
+                                          });
+                           auto bench_ins = bench_mm->add_instruction(
+                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
+                           cr->replace.replace(*bench_mm, bench_ins);
+                           // do dead code elimination by directly removing instruction
+                           bench_mm->remove_instruction(bench_ins);
+                           auto t = time_program(*ctx, bench_prog, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

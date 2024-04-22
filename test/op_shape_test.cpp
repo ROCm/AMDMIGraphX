@@ -942,6 +942,43 @@ TEST_CASE(broadcast_for_dot_dyn2)
         s0);
 }
 
+TEST_CASE(broadcast_with_dims0)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {2, 4}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(
+        shape{shape::float_type, dyn_dims}, migraphx::make_op("broadcast_with_dims"), s0, s1);
+}
+
+TEST_CASE(broadcast_with_dims1)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::int32_type, {1, 2, 4}};
+    shape s1{migraphx::shape::int64_type, {1}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
+}
+
+TEST_CASE(broadcast_with_dims2)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {{1, 4}, {2, 2}, {4, 4}}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::float_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
+}
+
 TEST_CASE(flatten_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 4, 6, 8}};
@@ -2427,6 +2464,20 @@ TEST_CASE(pointwise_no_output)
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
+TEST_CASE(pointwise_strict_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x = pm.add_parameter("x", s.with_type(migraphx::shape::half_type));
+        pm.add_return({x});
+    }
+    auto x = mm->add_parameter("x", s);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
 TEST_CASE(pooling_shape0)

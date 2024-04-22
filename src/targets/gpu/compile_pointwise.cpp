@@ -34,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
+compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, bool reverse_wg, const_module_ref pm)
 {
     auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
     std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
@@ -42,7 +42,7 @@ compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, c
     return gpu::compile_op("pointwise",
                            ctx,
                            in_shapes,
-                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}, {"reverse", reverse_wg}});
 }
 
 } // namespace gpu

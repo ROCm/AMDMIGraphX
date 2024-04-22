@@ -106,7 +106,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         else
         {
             assert(not ins->module_inputs().empty());
-            auto reverse = from_value<bool>(ins->get_operator().to_value()["reverse"]);
+            auto reverse =ins->get_operator().to_value().get("reverse", false);
             const_module_ref pm = ins->module_inputs().front();
             return compile_pointwise(ctx, to_shapes(ins->inputs()), reverse, pm);
         }

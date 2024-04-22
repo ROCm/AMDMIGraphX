@@ -214,7 +214,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     {
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
-        if(not find_pointwise_modules(mpm.get_module()))
+        if(not find_pointwise_modules(mpm))
             break;
         mpm.run_pass(dead_code_elimination{});
     }

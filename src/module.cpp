@@ -691,16 +691,6 @@ std::vector<instruction_ref> module::get_parameters() const
     return result;
 }
 
-std::vector<instruction_ref> module::get_parameters() const
-{
-    std::vector<instruction_ref> result;
-    auto refs = iterator_for(*this);
-    std::copy_if(refs.begin(), refs.end(), std::back_inserter(result), [&](instruction_ref ins) {
-        return ins->name() == "@param";
-    });
-    return result;
-}
-
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
     impl->changed.notify();

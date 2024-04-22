@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_pointwise.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/module.hpp>
-#include <migraphx/instruction.hpp>
+
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
+template <migraphx::shape::type_t DType>
+struct test_gemm_multibroadcast : verify_program<test_gemm_multibroadcast<DType>>
 {
-    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
-    std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-    auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
-    return gpu::compile_op("pointwise",
-                           ctx,
-                           in_shapes,
-                           {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1025}});
+        auto b   = mm->add_parameter("b", migraphx::shape{DType, {2, 1, 2}});
+        auto bb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1025, 2}}}), b);
+        mm->add_instruction(migraphx::make_op("dot"), a, bb);
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_gemm_multibroadcast<migraphx::shape::float_type>;
+template struct test_gemm_multibroadcast<migraphx::shape::half_type>;
+template struct test_gemm_multibroadcast<migraphx::shape::fp8e4m3fnuz_type>;

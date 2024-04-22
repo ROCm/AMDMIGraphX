@@ -1895,11 +1895,30 @@ TEST_CASE(transpose_unsqueeze_concat)
             [&](migraphx::instruction_ref arg) {
                 return m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
             });
-        m1.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        m1.add_return({concat});
     }
-    // TODO: This could be simplified to a single transpose after concat
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto l0 = m2.add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        auto l1 = m2.add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        auto l2 = m2.add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+        std::vector<migraphx::instruction_ref> args{l0, l1, l2};
+        std::vector<migraphx::instruction_ref> unsqueezed_args;
+        int64_t axis = 1;
+
+        std::transform(
+            args.begin(),
+            args.end(),
+            std::back_inserter(unsqueezed_args),
+            [&](migraphx::instruction_ref arg) {
+                return m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
+            });
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", axis}}), unsqueezed_args);
+        auto transpose = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
+        m2.add_return({transpose});
+    }
     EXPECT(m1 == m2);
 }
 
@@ -1965,7 +1984,7 @@ TEST_CASE(transpose_slice_unsqueeze)
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {4, 1024, 96, 64}});
         auto unsq =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {12}}}), x);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 1024, 12, 8, 64}}}), x);
         auto transpose = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 4, 1}}}), unsq);
         auto slice1 = m2.add_instruction(
@@ -2065,7 +2084,7 @@ TEST_CASE(transpose_slice_non_packed_axis)
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
         auto unsqueeze =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {3}}}), x);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 384, 3, 12, 64}}}), x);
         auto transpose = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), unsqueeze);
         auto slice = m2.add_instruction(
@@ -2104,7 +2123,7 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
     {
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {2, 384, 36, 64}});
         auto unsqueeze =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {3}}}), x);
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 384, 3, 12, 64}}}), x);
         auto transpose = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1, 4}}}), unsqueeze);
         auto slice1 = m2.add_instruction(
@@ -2112,13 +2131,13 @@ TEST_CASE(transpose_slice_non_packed_multi_axis)
         auto squeeze1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice1);
         auto slice2   = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), transpose);
-        auto squeeze2   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice2);
         auto transpose2 = m2.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), squeeze2);
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), slice2);
+        auto squeeze2   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), transpose2);
         auto slice3 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), transpose);
         auto squeeze3 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), slice3);
-        m2.add_return({squeeze1, transpose2, squeeze3});
+        m2.add_return({squeeze1, squeeze2, squeeze3});
     }
     EXPECT(m1.sort() == m2.sort());
 }

@@ -21,29 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
-#define MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
 
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+template <migraphx::shape::type_t DType>
+struct test_gemm_multibroadcast : verify_program<test_gemm_multibroadcast<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto a   = mm->add_parameter("a", migraphx::shape{DType, {2, 2, 1025}});
+        auto b   = mm->add_parameter("b", migraphx::shape{DType, {2, 1, 2}});
+        auto bb  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 1025, 2}}}), b);
+        mm->add_instruction(migraphx::make_op("dot"), a, bb);
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};
 
-MIGRAPHX_GPU_EXPORT double
-time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n = 100);
-
-MIGRAPHX_GPU_EXPORT double time_program(const context& ictx, program p, int n = 100);
-
-MIGRAPHX_GPU_EXPORT double time_program(context& ictx, migraphx::program p, int n = 100);
-
-/* benchmark gpu::code_object with expected input shapes over n iterations */
-MIGRAPHX_GPU_EXPORT double time_op(const context& ictx, operation op, int n = 100);
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_DRIVER_PERF_HPP
+template struct test_gemm_multibroadcast<migraphx::shape::float_type>;
+template struct test_gemm_multibroadcast<migraphx::shape::half_type>;
+template struct test_gemm_multibroadcast<migraphx::shape::fp8e4m3fnuz_type>;

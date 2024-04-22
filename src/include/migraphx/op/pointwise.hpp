@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,23 +45,18 @@ struct pointwise
         {
             MIGRAPHX_THROW("should have one submodule.");
         }
-        auto* pm = mods.front();
-        if(pm->get_output_shapes().size() != 1)
-            MIGRAPHX_THROW("pointwise should have only one output.");
         if(inputs.empty())
             MIGRAPHX_THROW("pointwise should have at least one input");
+        auto* pm    = mods.front();
         auto pnames = pm->get_parameter_names();
-        std::sort(pnames.begin(), pnames.end());
         check_shapes{inputs, *this}.has(pnames.size()).same_dims();
 
-        auto type = pm->get_output_shapes().front().type();
-
-        // Scalar output if all inputs are scalar
-        if(inputs.front().elements() == 1 and
-           all_of(inputs, [](const auto& s) { return s.scalar(); }))
-            return shape{type};
-
-        return shape::from_permutation(type, inputs.front().lens(), find_permutation(inputs));
+        auto result = pm->compute_shapes(
+            inputs,
+            {.name = name(), .strict_type = true, .scalar_const_out_lens = inputs.front().lens()});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 
     argument compute(const shape& output_shape,
@@ -75,7 +70,7 @@ struct pointwise
         auto pnames = pm->get_parameter_names();
         std::sort(pnames.begin(), pnames.end());
 
-        par_for(output_shape.elements(), [&](auto i) {
+        par_for(args[0].get_shape().elements(), [&](auto i) {
             std::unordered_map<std::string, argument> params;
 
             std::transform(
@@ -86,8 +81,15 @@ struct pointwise
                 [&](auto&& name, auto&& arg) { return std::make_pair(name, arg.element(i)); });
 
             auto results = run(pm, params);
-            assert(results.size() == 1);
-            visit_all(output, results.front())([&](auto out, auto x) { out[i] = x.front(); });
+            assert(results.size() == output.get_sub_objects().size() or
+                   (results.size() == 1 and output.get_sub_objects().empty()));
+            std::vector<argument> outputs;
+            if(results.size() == 1)
+                outputs = {output.share()};
+            else
+                outputs = output.share().get_sub_objects();
+            for(auto j : range(results.size()))
+                visit_all(outputs[j], results[j])([&](auto out, auto x) { out[i] = x.front(); });
         });
         return output;
     }

@@ -42,7 +42,24 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes, unsig
     return args;
 }
 
-double time_op(context& ictx, operation op, const std::vector<shape>& inputs, int n)
+template <class F>
+double time_loop(migraphx::gpu::context& gctx, int n, F f)
+{
+    auto start = context::create_event_for_timing();
+    auto stop  = context::create_event_for_timing();
+    f();
+    gctx.get_stream().record(start.get());
+    for(auto i : range(n))
+    {
+        (void)i;
+        f();
+    }
+    gctx.get_stream().record(stop.get());
+    gctx.finish();
+    return context::get_elapsed_ms(start.get(), stop.get()) / n;
+}
+
+double time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n)
 {
     // TODO: Use std::ref
     migraphx::context ctx = ictx;
@@ -50,22 +67,17 @@ double time_op(context& ictx, operation op, const std::vector<shape>& inputs, in
     auto output           = op.compute_shape(inputs);
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
-    auto start = context::create_event_for_timing();
-    auto stop  = context::create_event_for_timing();
-    auto run   = [&] { op.compute(ctx, output, args); };
-    run();
-    gctx.get_stream().record(start.get());
-    for(auto i : range(n))
-    {
-        (void)i;
-        run();
-    }
-    gctx.get_stream().record(stop.get());
-    gctx.finish();
-    return context::get_elapsed_ms(start.get(), stop.get()) / n;
+    auto run  = [&] { op.compute(ctx, output, args); };
+    return time_loop(gctx, n, run);
 }
 
-double time_program(context& ictx, migraphx::program p, int n)
+double time_op(const context& ictx, operation op, int n)
+{
+    auto inputs = any_cast<migraphx::gpu::code_object_op>(op).expected_inputs;
+    return time_op(ictx, op, inputs, n);
+}
+
+double time_program(const context& ictx, program p, int n)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
@@ -78,25 +90,8 @@ double time_program(context& ictx, migraphx::program p, int n)
     {
         param_map[name] = to_gpu(generate_argument(shape, seed++));
     }
-    auto run   = [&] { generic_eval(p, ctx_vec, param_map); };
-    auto start = context::create_event_for_timing();
-    auto stop  = context::create_event_for_timing();
-    run();
-    gctx.get_stream().record(start.get());
-    for(auto i : range(n))
-    {
-        (void)i;
-        run();
-    }
-    gctx.get_stream().record(stop.get());
-    gctx.finish();
-    return context::get_elapsed_ms(start.get(), stop.get()) / n;
-}
-
-double time_op(context& ictx, operation op, int n)
-{
-    auto inputs = any_cast<migraphx::gpu::code_object_op>(op).expected_inputs;
-    return time_op(ictx, op, inputs, n);
+    auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
+    return time_loop(gctx, n, run);
 }
 
 } // namespace gpu

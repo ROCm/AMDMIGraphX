@@ -189,16 +189,20 @@ struct compile_plan
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
-                           necessary to run that instruction
+                           necessary to run candidate code object
                            */
-                           migraphx::program bench_prog;
+                           program bench_prog;
                            auto* bench_mm = bench_prog.get_main_module();
                            std::vector<instruction_ref> bench_ins_inputs;
-                           for(auto&& arg : cr->ins->inputs())
-                           {
-                               bench_ins_inputs.push_back(bench_mm->add_parameter(
-                                   std::to_string(bench_ins_inputs.size()), arg->get_shape()));
-                           }
+
+                           std::transform(cr->ins->inputs().begin(),
+                                          cr->ins->inputs().end(),
+                                          std::back_inserter(bench_ins_inputs),
+                                          [&](const auto& arg) {
+                                              return bench_mm->add_parameter(
+                                                  std::to_string(bench_ins_inputs.size()),
+                                                  arg->get_shape());
+                                          });
                            auto bench_ins = bench_mm->add_instruction(
                                cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
                            cr->replace.replace(*bench_mm, bench_ins);

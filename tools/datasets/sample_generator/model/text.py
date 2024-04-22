@@ -60,8 +60,8 @@ class BERT_large_uncased(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
     def model_id(self):
         return "google-bert/bert-large-uncased"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "bert-large-uncased"
 
     def preprocess(self, *args, **kwargs):
@@ -82,8 +82,8 @@ class DistilBERT_base_cased_distilled_SQuAD(OptimumHFModelDownloadMixin,
     def model_id(self):
         return "distilbert/distilbert-base-cased-distilled-squad"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "distilbert-base-cased-distilled-squad"
 
 
@@ -93,8 +93,8 @@ class RobertaBaseSquad2(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
     def model_id(self):
         return "deepset/roberta-base-squad2"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "roberta-base-squad2"
 
 
@@ -110,8 +110,8 @@ class GPTJ(OptimumHFModelDownloadMixin, TextGenerationDecoderOnlyMixin,
         # override to ignore "with-past"
         return "text-generation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "gpt-j"
 
 
@@ -128,8 +128,8 @@ class Llama2_7b_chat_hf(OptimumHFModelDownloadMixin,
         # override to ignore "with-past"
         return "text-generation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "llama2-7b-chat-hf"
 
 
@@ -150,8 +150,8 @@ class T5_base(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin, DecoderModel):
         # override to ignore "with-past"
         return "text2text-generation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "t5-base"
 
     def preprocess(self, *args, **kwargs):
@@ -181,8 +181,8 @@ class Gemma_2b_it(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin,
         # override to ignore "with-past"
         return "text-generation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "gemma-2b-it"
 
     def preprocess(self, *args, **kwargs):

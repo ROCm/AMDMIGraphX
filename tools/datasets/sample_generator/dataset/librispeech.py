@@ -10,8 +10,8 @@ class LibriSpeechASR(ValidationDatasetHFIteratorMixin, BaseDataset):
     def split(self):
         return "validation.clean"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "librispeech-asr"
 
     def transform(self, inputs, data, prepocess_fn):

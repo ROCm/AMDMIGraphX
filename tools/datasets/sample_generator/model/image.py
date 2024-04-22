@@ -24,8 +24,8 @@ class ResNet50_v1(SingleModelDownloadMixin, BaseModel):
     def model_id(self):
         return f"https://zenodo.org/record/2592612/files/resnet50_v1.onnx"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "resnet50_v1"
 
     def preprocess(self, image_data):
@@ -41,8 +41,8 @@ class ResNet50_v1_5(OptimumHFModelDownloadMixin, AutoImageProcessorHFMixin,
     def model_id(self):
         return "microsoft/resnet-50"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "resnet50_v1.5"
 
 
@@ -52,8 +52,8 @@ class VitBasePatch16_224(OptimumHFModelDownloadMixin,
     def model_id(self):
         return "google/vit-base-patch16-224"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "vit-base-patch16-224"
 
 
@@ -68,8 +68,8 @@ class TIMM_MobileNetv3_large(OptimumHFModelDownloadMixin, BaseModel):
     def model_id(self):
         return "timm/mobilenetv3_large_100.ra_in1k"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "timm-mobilenetv3-large"
 
     def preprocess(self, image_data):
@@ -85,6 +85,6 @@ class Bit50(OptimumHFModelDownloadMixin, AutoImageProcessorHFMixin, BaseModel):
     def model_id(self):
         return "google/bit-50"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "bit-50"

@@ -33,8 +33,8 @@ class ClipVitLargePatch14(OptimumHFModelDownloadMixin, AutoProcessorHFMixin,
     def model_id(self):
         return "openai/clip-vit-large-patch14"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "clip-vit-large-patch14"
 
     def preprocess(self, *args, **kwargs):

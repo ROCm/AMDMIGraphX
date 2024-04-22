@@ -10,9 +10,9 @@ class BaseModel(abc.ABC):
     def model_id(self):
         pass
 
-    @property
+    @staticmethod
     @abc.abstractmethod
-    def name(self):
+    def name():
         pass
 
     @property

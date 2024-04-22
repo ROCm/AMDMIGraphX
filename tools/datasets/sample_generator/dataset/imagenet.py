@@ -11,8 +11,8 @@ class ImageNet2012Val(BaseDataset):
     def split(self):
         return "val"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "imagenet-2012-val"
 
     def __iter__(self):

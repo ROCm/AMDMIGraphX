@@ -22,8 +22,8 @@ class SQuADv1_1(SQuADTransformMixin, BaseDataset):
     def split(self):
         return "validation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "squad-v1.1"
 
     def __iter__(self):
@@ -54,6 +54,6 @@ class SQuAD_HF(ValidationDatasetHFIteratorMixin, SQuADTransformMixin,
     def split(self):
         return "validation"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "squad-hf"

@@ -26,8 +26,8 @@ class Wav2Vec2_base_960h(OptimumHFModelDownloadMixin,
     def model_id(self):
         return "facebook/wav2vec2-base-960h"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "wav2vec2-base-960h"
 
 
@@ -48,8 +48,8 @@ class WhisperSmallEn(OptimumHFModelDownloadMixin, AutoFeatureExtractorHFMixin,
     def model_id(self):
         return "openai/whisper-small.en"
 
-    @property
-    def name(self):
+    @staticmethod
+    def name():
         return "whisper-small-en"
 
     def preprocess(self, *args, **kwargs):

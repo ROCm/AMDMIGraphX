@@ -13,9 +13,9 @@ class BaseDataset(abc.ABC):
     def split(self):
         pass
 
-    @property
+    @staticmethod
     @abc.abstractmethod
-    def name(self):
+    def name():
         pass
 
     @abc.abstractmethod

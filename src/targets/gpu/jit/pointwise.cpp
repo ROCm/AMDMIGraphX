@@ -21,12 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/reduce_dims.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-#include <migraphx/reduce_dims.hpp>
+#include <migraphx/gpu/compile_pointwise.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params}) 
 {
     auto idx = make_index();
-    pointwise(idx, ${transformers})(${lambda}, ${args});
+    pointwise<${noutputs}>(idx, ${transformers})(${lambda}, ${args});
 }
     
 }
@@ -70,22 +71,25 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = inputs;
+        options.inputs         = flatten(inputs);
         options.output         = inputs.back();
-        options.virtual_inputs = reduce_dims(normalize_permutation(inputs));
+        options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");
         auto axis              = find_fast_axis(options.virtual_inputs);
         auto vec               = vectorize::elements(ctx, axis, options.virtual_inputs);
         options.kernel_name    = v.get("kernel", "kernel");
         options.set_launch_params(
-            v, compute_global_for(ctx, options.output.elements() / vec.size, 256));
-        auto src = interpolate_string(pointwise_kernel,
-                                      {{"kernel", options.kernel_name},
-                                       {"params", enum_params(inputs.size(), "void * private_p")},
-                                       {"args", enum_params(inputs.size(), "private_p")},
-                                       {"lambda", v.at("lambda").to<std::string>()},
-                                       {"transformers", make_transformer_args(vec)},
-                                       {"preamble", v.get("preamble", std::string{})}});
+            v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));
+        auto noutputs = options.inputs.size() - inputs.size() + 1;
+        auto src =
+            interpolate_string(pointwise_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(vec)},
+                                {"noutputs", std::to_string(noutputs)},
+                                {"preamble", v.get("preamble", std::string{})}});
         return compile_hip_code_object(src, options);
     }
 
@@ -93,21 +97,16 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     {
         if(contains({"layout", "contiguous"}, op.name()))
         {
-            return compile_op(
-                ctx,
-                to_shapes(ins->inputs()),
-                {{"lambda", "[](auto x) { return x; }"}, {"kernel", op.name() + "_kernel"}});
+            return compile_op(ctx,
+                              to_shapes(ins->inputs()),
+                              {{"lambda", "[](auto x) { return make_tuple(x); }"},
+                               {"kernel", op.name() + "_kernel"}});
         }
         else
         {
             assert(not ins->module_inputs().empty());
-            auto* pm           = ins->module_inputs().front();
-            auto pf            = generate_pointwise(*pm, "inner_pointwise");
-            std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
-            auto kernel_name   = generate_name_from_ops(*pm, "kernel");
-            return compile_op(ctx,
-                              to_shapes(ins->inputs()),
-                              {{"lambda", lambda}, {"preamble", pf}, {"kernel", kernel_name}});
+            const_module_ref pm = ins->module_inputs().front();
+            return compile_pointwise(ctx, to_shapes(ins->inputs()), pm);
         }
     }
 };

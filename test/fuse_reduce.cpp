@@ -338,10 +338,10 @@ TEST_CASE(pointwise_reduce_broadcast_contiguous)
         auto sqrt  = add_pointwise(p1, "main:pointwise0", {rsum1}, single_pointwise("sqrt"));
         auto sqrtb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-        auto sqrtbc  = mm->add_instruction(migraphx::make_op("contiguous"), sqrtb);
-        auto add1  = add_pointwise(p1, "main:pointwise1", {sqrtbc, x}, single_pointwise("add"));
-        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add1);
-        auto add2  = add_pointwise(p1, "main:pointwise2", {rsum2, rsum1}, single_pointwise("add"));
+        auto sqrtbc = mm->add_instruction(migraphx::make_op("contiguous"), sqrtb);
+        auto add1   = add_pointwise(p1, "main:pointwise1", {sqrtbc, x}, single_pointwise("add"));
+        auto rsum2  = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), add1);
+        auto add2   = add_pointwise(p1, "main:pointwise2", {rsum2, rsum1}, single_pointwise("add"));
         mm->add_return({add2});
     }
     run_pass(p1);
@@ -429,8 +429,8 @@ TEST_CASE(reduce_reduce_broadcast_contiguous)
         auto rsum1 = add_reduce(p1, "test:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
         auto rsumb = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
-        auto rsumbc  = mm->add_instruction(migraphx::make_op("contiguous"), rsumb);
-        auto add = add_reduce(
+        auto rsumbc = mm->add_instruction(migraphx::make_op("contiguous"), rsumb);
+        auto add    = add_reduce(
             p1,
             "test:reduce_sum1",
             {rsumbc, x},

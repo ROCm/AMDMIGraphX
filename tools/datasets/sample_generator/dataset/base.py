@@ -18,17 +18,14 @@ class BaseDataset(abc.ABC):
     def name(self):
         pass
 
-    @classmethod
     @abc.abstractmethod
     def __iter__(self):
         pass
 
-    @classmethod
     @abc.abstractmethod
     def __next__(self):
         pass
 
-    @classmethod
     @abc.abstractmethod
     def transform(self, *args, **kwargs):
         pass

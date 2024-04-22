@@ -19,17 +19,14 @@ class BaseModel(abc.ABC):
     def task(self):
         return "auto"
 
-    @classmethod
     @abc.abstractmethod
     def get_model(self, folder, force_download):
         pass
 
-    @classmethod
     @abc.abstractmethod
     def preprocess(self, *args, **kwargs):
         pass
 
-    @classmethod
     def is_decoder(self):
         return False
 
@@ -38,7 +35,6 @@ class DecoderModel(BaseModel):
     def is_decoder(self):
         return True
 
-    @classmethod
     @abc.abstractmethod
     def decode_step(self, *args, **kwargs):
         pass

@@ -51,10 +51,6 @@ struct program_impl;
 
 struct marker;
 
-std::vector<argument> generic_eval(const migraphx::program& p,
-                                   std::vector<context>& ctx,
-                                   std::unordered_map<std::string, argument> params);
-
 /**
  * @brief Stores the instruction stream
  */

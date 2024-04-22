@@ -1,6 +1,8 @@
-# Test Dataset Generator
+# Test Generator with Datasets
 
-## Setup
+Helper module to generate real samples from datasets for specific models.
+
+## Prerequisites
 
 ```bash
 python3 -m venv .venv
@@ -39,6 +41,8 @@ optional arguments:
   --decode-limit DECODE_LIMIT
                         Max number of sum-samples generated for decoder models. Use 0 to ignore it. (Only for decoder models)
 ```
+
+Note: Some models require permission to access, use `huggingface-cli login`
 
 To run everything:
 ```bash

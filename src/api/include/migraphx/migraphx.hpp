@@ -34,6 +34,7 @@
 #include <exception>
 #include <array>
 #include <vector>
+#include <string_view>
 #include <cassert>
 #include <iostream>
 
@@ -63,37 +64,52 @@ struct rank<0>
 };
 
 template <class PrivateMigraphTypeNameProbe>
-std::string compute_type_name()
+constexpr std::string_view compute_type_name()
 {
-    std::string name;
+    using namespace std::string_view_literals;
+
 #if defined(_MSC_VER) && !defined(__clang__)
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
+    constexpr auto struct_name = "struct "sv;
+    constexpr auto class_name = "class "sv;
+    constexpr auto function_name = "compute_type_name<"sv;
+    constexpr auto parameter_name = "(void)"sv;
+
+    constexpr std::string_view name{__FUNCSIG__};
+
+    auto begin = name.find(function_name) + function_name.length();
+    auto length = name.find_last_of(parameter_name) - parameter_name.length() - begin;
+
+    auto result = name.substr(begin, length);
+    begin = result.find(class_name);
+    if(begin == 0)
+        return result.substr(class_name.length());
+    begin = result.find(struct_name);
+    if(begin == 0)
+        return result.substr(struct_name.length());
+    return result;
 #else
-    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
+    const auto parameter_name = "PrivateMigraphTypeNameProbe ="sv;
 
-    name = __PRETTY_FUNCTION__;
+    constexpr std::string_view name{__PRETTY_FUNCTION__};
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
+    auto begin  = name.find(parameter_name) + parameter_name.length();
 #if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    return name.substr(begin, length);
 #endif
-    return name;
 }
 
 template <class T>
-const std::string& get_type_name()
+constexpr std::string_view get_type_name()
 {
-    static const std::string name = compute_type_name<T>();
-    return name;
+    return compute_type_name<T>();
 }
 
 template <class T>
-const std::string& get_type_name(const T&)
+constexpr std::string_view get_type_name(const T&)
 {
     return get_type_name<T>();
 }
@@ -1195,7 +1211,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
              this->get_handle_ptr(),
              pparams.get_handle_ptr(),
              s,
-             get_type_name<Stream>().c_str());
+             std::string{get_type_name<Stream>()}.c_str());
         return arguments(pout, own{});
     }
 
@@ -1513,7 +1529,7 @@ struct experimental_custom_op : interface_base<MIGRAPHX_HANDLE_BASE(experimental
     {
         this->make_interface(&migraphx_experimental_custom_op_create,
                              obj,
-                             get_type_name(obj).c_str(),
+                             std::string{get_type_name(obj)}.c_str(),
                              obj.name().c_str());
         MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute_shape);
         MIGRAPHX_INTERFACE_LIFT(1, T, experimental_custom_op, compute);

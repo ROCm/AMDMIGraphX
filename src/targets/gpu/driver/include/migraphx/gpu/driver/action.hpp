@@ -37,7 +37,7 @@ namespace driver {
 using action_function = std::function<void(const parser&, const value&)>;
 
 action_function get_action(const std::string& name);
-void register_action(const std::string& name, const action_function& a);
+void register_action(std::string_view name, const action_function& a);
 
 struct auto_register_action
 {

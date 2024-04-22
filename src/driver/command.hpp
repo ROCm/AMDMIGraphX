@@ -51,13 +51,13 @@ inline auto& get_commands()
 template <class T>
 std::string compute_command_name()
 {
-    static const std::string& tname = get_type_name<T>();
-    auto name                       = tname.substr(tname.rfind("::") + 2);
+    auto type = get_type_name<T>();
+    auto name = type.substr(type.rfind("::") + 2);
     if(ends_with(name, "_command"))
         name = name.substr(0, name.size() - 8);
     if(ends_with(name, "_cmd"))
         name = name.substr(0, name.size() - 4);
-    return name;
+    return std::string{name};
 }
 
 template <class T>

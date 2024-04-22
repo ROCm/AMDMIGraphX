@@ -73,7 +73,7 @@ struct any_ptr
     std::string_view name        = "";
 
     template <class T>
-    static const std::string& get_name()
+    constexpr std::string_view get_name() const
     {
         return get_type_name<std::remove_cv_t<std::remove_pointer_t<T>>>();
     }

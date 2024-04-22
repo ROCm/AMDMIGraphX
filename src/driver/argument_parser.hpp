@@ -121,7 +121,11 @@ inline std::string colorize(color c, const std::string& s)
 template <class T>
 struct type_name
 {
-    static const std::string& apply() { return migraphx::get_type_name<T>(); }
+    static const std::string& apply()
+    {
+        static const std::string name{migraphx::get_type_name<T>()};
+        return name;
+    }
 };
 
 template <>

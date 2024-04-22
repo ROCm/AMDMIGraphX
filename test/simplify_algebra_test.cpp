@@ -669,6 +669,34 @@ TEST_CASE(simplify_inner_broadcast_different_broadcasts)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_inner_broadcast_different_broadcasts_diff_axis)
+{
+    auto b  = migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 64, 112, 112}}});
+    auto mb = migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 112, 112}}});
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 64}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {64, 1, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(mb, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 64}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {64, 1, 1}});
+        auto xs   = m2.add_instruction(migraphx::make_op("squeeze"), x);
+        auto ys   = m2.add_instruction(migraphx::make_op("squeeze"), y);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), xs, ys);
+        auto sumb = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 64, 112, 112}}}), sum);
+        m2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_inner_broadcast_no_common_axis)
 {
     auto b = migraphx::make_op("multibroadcast", {{"out_lens", {1, 5, 10}}});

@@ -143,7 +143,8 @@ struct parse_convolution : op_parser<parse_convolution>
         }
     }
 
-    static instruction_ref handle_quant_bias(const instruction_ref& input,
+    static instruction_ref handle_quant_bias(const operation& op,
+                                             const instruction_ref& input,
                                              const instruction_ref& x,
                                              const instruction_ref& weights,
                                              const instruction_ref& x_zp,
@@ -153,13 +154,13 @@ struct parse_convolution : op_parser<parse_convolution>
         instruction_ref ret = input;
         if(not is_symmetric_zero_point(x_zp))
         {
-            auto out_zp_1 = info.add_common_op("quant_convolution", x_zp, weights);
+            auto out_zp_1 = info.add_common_op(op.name(), x_zp, weights);
             ret           = info.add_common_op("sub", ret, out_zp_1);
         }
 
         if(not is_symmetric_zero_point(w_zp))
         {
-            auto out_zp_2 = info.add_common_op("quant_convolution", x, w_zp);
+            auto out_zp_2 = info.add_common_op(op.name(), x, w_zp);
             ret           = info.add_common_op("sub", ret, out_zp_2);
         }
 
@@ -170,8 +171,7 @@ struct parse_convolution : op_parser<parse_convolution>
             auto w_zp_bc = info.add_instruction(
                 qparam_broadcast_op(w_zp, weights->get_shape().lens(), 0), w_zp);
 
-            auto out_zp_3 =
-                info.add_instruction(migraphx::make_op("quant_convolution"), x_zp_bc, w_zp_bc);
+            auto out_zp_3 = info.add_instruction(op, x_zp_bc, w_zp_bc);
 
             ret = info.add_common_op("add", ret, out_zp_3);
         }
@@ -322,7 +322,7 @@ struct parse_convolution : op_parser<parse_convolution>
         // Handle quant_conv residuals between input/weights to avoid overflow
         if(is_quant_conv)
         {
-            ret = handle_quant_bias(ret, x, weights, x_zp, w_zp, info);
+            ret = handle_quant_bias(op, ret, x, weights, x_zp, w_zp, info);
         }
         else
         {

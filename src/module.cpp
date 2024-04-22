@@ -610,6 +610,7 @@ instruction_ref module::insert_parameter(instruction_ref ins, std::string name, 
 instruction_ref module::replace_return(std::vector<instruction_ref> args)
 {
     impl->changed.notify();
+    assert(std::all_of(args.begin(), args.end(), [&](auto ins) { return has_instruction(ins); }));
     auto last = std::prev(this->end());
     // If there is no return then add a return
     if(last->name() != "@return")
@@ -690,6 +691,16 @@ std::vector<instruction_ref> module::get_parameters() const
     return result;
 }
 
+std::vector<instruction_ref> module::get_parameters() const
+{
+    std::vector<instruction_ref> result;
+    auto refs = iterator_for(*this);
+    std::copy_if(refs.begin(), refs.end(), std::back_inserter(result), [&](instruction_ref ins) {
+        return ins->name() == "@param";
+    });
+    return result;
+}
+
 void module::rename_parameter(instruction_ref ins, const std::string& name)
 {
     impl->changed.notify();
@@ -743,6 +754,71 @@ std::vector<shape> module::get_output_shapes() const
     {
         return {last_ins.get_shape()};
     }
+}
+
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
+                                          compute_shapes_options options) const
+{
+    auto params = this->get_parameter_names();
+    std::sort(params.begin(), params.end());
+    std::unordered_map<instruction_ref, shape> ins_shapes;
+    std::unordered_map<std::string, shape> adjusted_param_shapes;
+    std::transform(inputs.begin(),
+                   inputs.end(),
+                   params.begin(),
+                   std::inserter(adjusted_param_shapes, adjusted_param_shapes.end()),
+                   [](auto ps, auto name) { return std::make_pair(name, ps); });
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            ins_shapes[ins] =
+                adjusted_param_shapes[any_cast<builtin::param>(ins->get_operator()).parameter];
+            if(options.strict_type and ins->get_shape().type() != ins_shapes[ins].type())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched type: expected " +
+                               ins->get_shape().type_string() + " but passed " +
+                               ins_shapes[ins].type_string());
+            }
+            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
+                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
+                               to_string_range(ins_shapes[ins].lens()) + "}");
+            }
+        }
+        else if(ins->name() == "@literal")
+        {
+            if(not options.scalar_const_out_lens.empty() and ins->get_shape().scalar())
+            {
+                std::vector<std::size_t> strides(options.scalar_const_out_lens.size());
+                ins_shapes[ins] =
+                    shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
+            }
+            else
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
+        }
+        else
+        {
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes.at(in); });
+            if(ins->name() == "@return")
+                return input_shapes;
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+        }
+    }
+    MIGRAPHX_THROW("No return found in the submodule");
+}
+
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs) const
+{
+    return compute_shapes(inputs, {});
 }
 
 std::vector<instruction_ref> module::get_returns() const
@@ -867,13 +943,16 @@ select_params(const std::vector<instruction_ref>& instructions,
               const std::unordered_map<instruction_ref, instruction_ref>& param_map)
 {
     std::vector<instruction_ref> result;
-    transform_if(
-        instructions.begin(),
-        instructions.end(),
-        std::back_inserter(result),
-        [&](instruction_ref ins) { return contains(param_map, ins); },
-        [&](instruction_ref ins) { return param_map.at(ins); });
-    sort_params(result);
+    std::vector<instruction_ref> params;
+    std::copy_if(instructions.begin(),
+                 instructions.end(),
+                 std::back_inserter(params),
+                 [&](instruction_ref ins) { return contains(param_map, ins); });
+    sort_params(params);
+    std::transform(params.begin(),
+                   params.end(),
+                   std::back_inserter(result),
+                   [&](instruction_ref ins) { return param_map.at(ins); });
     return result;
 }
 

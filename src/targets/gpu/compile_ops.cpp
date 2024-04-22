@@ -21,15 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/compile_ops.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/compile_ops.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 
 namespace migraphx {
@@ -186,8 +188,29 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
-                           auto t = time_op(
-                               *ctx, cr->replace.code_object, to_shapes(cr->ins->inputs()), 20);
+                           /*
+                           create a small program with insturction being compiled and call "replace"
+                           on that which would insert all the compiled code objects, prefills etc.
+                           necessary to run candidate code object
+                           */
+                           program bench_prog;
+                           auto* bench_mm = bench_prog.get_main_module();
+                           std::vector<instruction_ref> bench_ins_inputs;
+
+                           std::transform(cr->ins->inputs().begin(),
+                                          cr->ins->inputs().end(),
+                                          std::back_inserter(bench_ins_inputs),
+                                          [&](const auto& arg) {
+                                              return bench_mm->add_parameter(
+                                                  std::to_string(bench_ins_inputs.size()),
+                                                  arg->get_shape());
+                                          });
+                           auto bench_ins = bench_mm->add_instruction(
+                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
+                           cr->replace.replace(*bench_mm, bench_ins);
+                           // do dead code elimination by directly removing instruction
+                           bench_mm->remove_instruction(bench_ins);
+                           auto t = time_program(*ctx, bench_prog, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
@@ -270,7 +293,7 @@ void compile_ops::apply(module& m) const
 {
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
-    // Find all precompile opes
+    // Find all precompile ops
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "gpu::precompile_op")

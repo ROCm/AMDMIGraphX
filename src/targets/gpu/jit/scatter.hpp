@@ -49,9 +49,7 @@ struct scatter_compiler : compiler<Derived>
         options.kernel_name        = derived().get_kernel_name(op);
         options.virtual_inputs     = inputs;
         options.reverse_workgroups = from_value<bool>(ins->get_operator().to_value()["reverse"]);
-        // The compiler protests the inequality comparison in assign_mul when pertaining to floating
-        // point, despite it making sense in the context. Thus the warning removal.
-        options.emplace_param("-Wno-float-equal");
+        options.emplace_param("-DMIGRAPHX_ALLOW_ATOMIC_CAS=1");
 
         const auto src = derived().make_interpolated_string(op);
         return prepend_copy_data_to_output(compile_hip_code_object(src, options));

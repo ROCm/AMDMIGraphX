@@ -36,18 +36,18 @@ constexpr std::string_view compute_type_name()
     using namespace std::string_view_literals;
 
 #if defined(_MSC_VER) && !defined(__clang__)
-    constexpr auto struct_name = "struct "sv;
-    constexpr auto class_name = "class "sv;
-    constexpr auto function_name = "compute_type_name<"sv;
+    constexpr auto struct_name    = "struct "sv;
+    constexpr auto class_name     = "class "sv;
+    constexpr auto function_name  = "compute_type_name<"sv;
     constexpr auto parameter_name = "(void)"sv;
 
     constexpr std::string_view name{__FUNCSIG__};
 
-    auto begin = name.find(function_name) + function_name.length();
+    auto begin  = name.find(function_name) + function_name.length();
     auto length = name.find_last_of(parameter_name) - parameter_name.length() - begin;
 
     auto result = name.substr(begin, length);
-    begin = result.find(class_name);
+    begin       = result.find(class_name);
     if(begin == 0)
         return result.substr(class_name.length());
     begin = result.find(struct_name);

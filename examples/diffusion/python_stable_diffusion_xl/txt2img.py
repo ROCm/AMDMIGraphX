@@ -52,10 +52,19 @@ def get_args():
     parser = ArgumentParser()
     # Model compile
     parser.add_argument(
+        "--pipeline-type",
+        type=str,
+        choices=["sdxl", "sdxl-opt", "sdxl-turbo"],
+        required=True,
+        help="Specify pipeline type. Options: `sdxl`, `sdxl-opt`, `sdxl-turbo`",
+    )
+
+    parser.add_argument(
         "--onnx-model-path",
         type=str,
-        default="models/sdxl-1.0-base/",
-        help="Path to onnx model files.",
+        default=None,
+        help=
+        "Path to onnx model files. Use it to override the default models/<sdxl*> path",
     )
 
     parser.add_argument(
@@ -67,10 +76,18 @@ def get_args():
     )
 
     parser.add_argument(
+        "--use-refiner",
+        action="store_true",
+        default=False,
+        help="Use the refiner model",
+    )
+
+    parser.add_argument(
         "--refiner-onnx-model-path",
         type=str,
         default=None,
-        help="Path to onnx model files.",
+        help=
+        "Path to onnx model files. Use it to override the default models/<sdxl*> path",
     )
 
     parser.add_argument(
@@ -83,7 +100,10 @@ def get_args():
 
     parser.add_argument(
         "--fp16",
-        choices=["all", "vae", "clip", "clip2", "unetxl"],
+        choices=[
+            "all", "vae", "clip", "clip2", "unetxl", "refiner_clip2",
+            "refiner_unetxl"
+        ],
         nargs="+",
         help="Quantize models with fp16 precision.",
     )
@@ -117,6 +137,13 @@ def get_args():
         type=int,
         default=30,
         help="Number of steps",
+    )
+
+    parser.add_argument(
+        "--refiner-steps",
+        type=int,
+        default=30,
+        help="Number of refiner steps",
     )
 
     parser.add_argument(
@@ -166,6 +193,64 @@ def get_args():
     return parser.parse_args()
 
 
+model_shapes = {
+    "clip": {
+        "input_ids": [2, 77]
+    },
+    "clip2": {
+        "input_ids": [2, 77]
+    },
+    "unetxl": {
+        "sample": [2, 4, 128, 128],
+        "encoder_hidden_states": [2, 77, 2048],
+        "text_embeds": [2, 1280],
+        "time_ids": [2, 6],
+        "timestep": [1],
+    },
+    "refiner_unetxl": {
+        "sample": [2, 4, 128, 128],
+        "encoder_hidden_states": [2, 77, 1280],
+        "text_embeds": [2, 1280],
+        "time_ids": [2, 5],
+        "timestep": [1],
+    },
+    "vae": {
+        "latent_sample": [1, 4, 128, 128]
+    },
+}
+
+model_names = {
+    "sdxl": {
+        "clip": "text_encoder",
+        "clip2": "text_encoder_2",
+        "unetxl": "unet",
+        "vae": "vae_decoder",
+    },
+    "sdxl-opt": {
+        "clip": "clip.opt.mod",
+        "clip2": "clip2.opt.mod",
+        "unetxl": "unetxl.opt",
+        "vae": "vae_decoder",
+    },
+    "sdxl-turbo": {
+        "clip": "text_encoder",
+        "clip2": "text_encoder_2",
+        "unetxl": "unet",
+        "vae": "vae_decoder",
+    },
+    "refiner": {
+        "clip2": "clip2.opt.mod",
+        "unetxl": "unetxl.opt",
+    },
+}
+
+default_model_paths = {
+    "sdxl": "models/sdxl-1.0-base",
+    "sdxl-opt": "models/sdxl-1.0-base",
+    "sdxl-turbo": "models/sdxl-turbo",
+    "refiner": "models/sdxl-1.0-refiner",
+}
+
 mgx_to_torch_dtype_dict = {
     "bool_type": torch.bool,
     "uint8_type": torch.uint8,
@@ -203,7 +288,7 @@ def get_output_name(idx):
 
 
 def copy_tensor_sync(tensor, data):
-    tensor.copy_(data)
+    tensor.copy_(data.to(tensor.dtype))
     torch.cuda.synchronize()
 
 
@@ -223,10 +308,25 @@ def allocate_torch_tensors(model):
 
 
 class StableDiffusionMGX():
-    def __init__(self, onnx_model_path, compiled_model_path,
-                 refiner_onnx_model_path, refiner_compiled_model_path, fp16,
-                 force_compile, exhaustive_tune):
-        model_id = "stabilityai/stable-diffusion-xl-base-1.0"
+    def __init__(self, pipeline_type, onnx_model_path, compiled_model_path,
+                 use_refiner, refiner_onnx_model_path,
+                 refiner_compiled_model_path, fp16, force_compile,
+                 exhaustive_tune):
+        if not (onnx_model_path or compiled_model_path):
+            onnx_model_path = default_model_paths[pipeline_type]
+
+        self.use_refiner = use_refiner
+        if not self.use_refiner and (refiner_onnx_model_path
+                                     or refiner_compiled_model_path):
+            print(
+                "WARN: Refiner model is provided, but was *not* enabled. Use --use-refiner to enable it."
+            )
+        if self.use_refiner and not (refiner_onnx_model_path
+                                     or refiner_compiled_model_path):
+            refiner_onnx_model_path = default_model_paths["refiner"]
+
+        is_turbo = "turbo" in pipeline_type
+        model_id = "stabilityai/sdxl-turbo" if is_turbo else "stabilityai/stable-diffusion-xl-base-1.0"
         print(f"Using {model_id}")
 
         print("Creating EulerDiscreteScheduler scheduler")
@@ -244,19 +344,21 @@ class StableDiffusionMGX():
         if fp16 is None:
             fp16 = []
         elif "all" in fp16:
-            fp16 = ["vae", "clip", "clip2", "unetxl"]
+            fp16 = [
+                "vae", "clip", "clip2", "unetxl", "refiner_clip2",
+                "refiner_unetxl"
+            ]
 
-        self.vae_name = "vae_decoder"
-        self.vae_input_name = "latent_sample"
         if "vae" in fp16:
-            self.vae_name = "vae_fp16_fix"
-            self.vae_input_name = "input.1"
+            model_names[pipeline_type]["vae"] = "vae_decoder_fp16_fix"
+            
 
         print("Load models...")
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                self.vae_name, {self.vae_input_name: [1, 4, 128, 128]},
+                model_names[pipeline_type]["vae"],
+                model_shapes["vae"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
@@ -265,7 +367,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "clip":
             StableDiffusionMGX.load_mgx_model(
-                "clip.opt.mod", {"input_ids": [2, 77]},
+                model_names[pipeline_type]["clip"],
+                model_shapes["clip"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip" in fp16,
@@ -274,7 +377,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "clip2":
             StableDiffusionMGX.load_mgx_model(
-                "clip2.opt.mod", {"input_ids": [2, 77]},
+                model_names[pipeline_type]["clip2"],
+                model_shapes["clip2"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="clip2" in fp16,
@@ -283,13 +387,8 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "unetxl":
             StableDiffusionMGX.load_mgx_model(
-                "unetxl.opt", {
-                    "sample": [2, 4, 128, 128],
-                    "encoder_hidden_states": [2, 77, 2048],
-                    "text_embeds": [2, 1280],
-                    "time_ids": [2, 6],
-                    "timestep": [1],
-                },
+                model_names[pipeline_type]["unetxl"],
+                model_shapes["unetxl"],
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="unetxl" in fp16,
@@ -312,31 +411,40 @@ class StableDiffusionMGX():
             "vae": tensors_to_args(self.tensors["vae"]),
         }
 
-        self.use_refiner = refiner_onnx_model_path or refiner_compiled_model_path
         if self.use_refiner:
-            self.models["refiner_unetxl"] = StableDiffusionMGX.load_mgx_model(
-                "unetxl.opt", {
-                    "sample": [2, 4, 128, 128],
-                    "encoder_hidden_states": [2, 77, 1280],
-                    "text_embeds": [2, 1280],
-                    "time_ids": [2, 5],
-                    "timestep": [1],
-                },
+            # Note: there is no clip for refiner, only clip2
+            self.models["refiner_clip2"] = StableDiffusionMGX.load_mgx_model(
+                model_names["refiner"]["clip2"],
+                model_shapes["clip2"],
                 refiner_onnx_model_path,
                 compiled_model_path=refiner_compiled_model_path,
-                use_fp16="unetxl" in fp16,
+                use_fp16="refiner_clip2" in fp16,
+                force_compile=force_compile,
+                exhaustive_tune=exhaustive_tune,
+                offload_copy=False)
+            self.models["refiner_unetxl"] = StableDiffusionMGX.load_mgx_model(
+                model_names["refiner"]["unetxl"],
+                model_shapes[
+                    "refiner_unetxl"],  # this differ from the original unetxl
+                refiner_onnx_model_path,
+                compiled_model_path=refiner_compiled_model_path,
+                use_fp16="refiner_unetxl" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False)
 
+            self.tensors["refiner_clip2"] = allocate_torch_tensors(
+                self.models["refiner_clip2"])
             self.tensors["refiner_unetxl"] = allocate_torch_tensors(
                 self.models["refiner_unetxl"])
+            self.model_args["refiner_clip2"] = tensors_to_args(
+                self.tensors["refiner_clip2"])
             self.model_args["refiner_unetxl"] = tensors_to_args(
                 self.tensors["refiner_unetxl"])
 
     @measure
     @torch.no_grad()
-    def run(self, prompt, negative_prompt, steps, seed, scale,
+    def run(self, prompt, negative_prompt, steps, seed, scale, refiner_steps,
             refiner_aesthetic_score, refiner_negative_aesthetic_score):
         torch.cuda.synchronize()
         # need to set this for each run
@@ -347,20 +455,17 @@ class StableDiffusionMGX():
 
         print("Creating text embeddings...")
         hidden_states, text_embeddings = self.get_embeddings(prompt_tokens)
-        # The opt version expects fp16 inputs
-        hidden_states, text_embeddings = hidden_states.to(
-            torch.float16), text_embeddings.to(torch.float16)
 
+        sample_size = list(self.tensors["vae"]["latent_sample"].size())
         print(
-            f"Creating random input data ({1}x{4}x{128}x{128}) (latents) with seed={seed}..."
+            f"Creating random input data {sample_size} (latents) with {seed = }..."
         )
         noise = torch.randn(
-            (1, 4, 128, 128),
-            generator=torch.manual_seed(seed)).to(device="cuda")
+            sample_size, generator=torch.manual_seed(seed)).to(device="cuda")
         # input h/w crop h/w output h/w
-        time_id = [1024, 1024, 0, 0, 1024, 1024]
-        time_ids = torch.tensor([time_id,
-                                 time_id]).to(torch.float16).to(device="cuda")
+        height, width = sample_size[2:]
+        time_id = [height * 8, width * 8, 0, 0, height * 8, width * 8]
+        time_ids = torch.tensor([time_id, time_id]).to(device="cuda")
 
         print("Apply initial noise sigma\n")
         latents = noise * self.scheduler.init_noise_sigma
@@ -376,16 +481,16 @@ class StableDiffusionMGX():
                                         time_ids,
                                         model="unetxl")
 
-        if self.use_refiner:
-            # only use the clip2 part
-            hidden_states = hidden_states[:, :, 768:]
+        if self.use_refiner and refiner_steps > 0:
+            hidden_states, text_embeddings = self.get_embeddings(
+                prompt_tokens, is_refiner=True)
             # input h/w crop h/w scores
             time_id_pos = time_id[:4] + [refiner_aesthetic_score]
             time_id_neg = time_id[:4] + [refiner_negative_aesthetic_score]
-            time_ids = torch.tensor([time_id_pos, time_id_neg
-                                     ]).to(torch.float16).to(device="cuda")
+            time_ids = torch.tensor([time_id_pos,
+                                     time_id_neg]).to(device="cuda")
             # need to set this for each run
-            self.scheduler.set_timesteps(steps, device="cuda")
+            self.scheduler.set_timesteps(refiner_steps, device="cuda")
             # Add noise to latents using timesteps
             latents = self.scheduler.add_noise(latents, noise,
                                                self.scheduler.timesteps[:1])
@@ -461,21 +566,23 @@ class StableDiffusionMGX():
         return (tokens, tokens2)
 
     @measure
-    def get_embeddings(self, prompt_tokens):
+    def get_embeddings(self, prompt_tokens, is_refiner=False):
         def _create_embedding(model, input):
-            copy_tensor_sync(self.tensors[model]["input_ids"],
-                             input.input_ids.to(torch.int32))
+            copy_tensor_sync(self.tensors[model]["input_ids"], input.input_ids)
             run_model_sync(self.models[model], self.model_args[model])
 
         clip_input, clip2_input = prompt_tokens
-        _create_embedding("clip", clip_input)
-        _create_embedding("clip2", clip2_input)
+        clip, clip2 = "clip", ("refiner_" if is_refiner else "") + "clip2"
+        if not is_refiner:
+            _create_embedding(clip, clip_input)
+        _create_embedding(clip2, clip2_input)
 
         hidden_states = torch.concatenate(
-            (self.tensors["clip"][get_output_name(0)],
-             self.tensors["clip2"][get_output_name(1)]),
-            axis=2)
-        text_embeds = self.tensors["clip2"][get_output_name(0)]
+            (self.tensors[clip][get_output_name(0)],
+             self.tensors[clip2][get_output_name(1)]),
+            axis=2) if not is_refiner else self.tensors[clip2][get_output_name(
+                1)]
+        text_embeds = self.tensors[clip2][get_output_name(0)]
         return (hidden_states, text_embeds)
 
     @staticmethod
@@ -494,9 +601,8 @@ class StableDiffusionMGX():
                      time_ids, model):
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
-            latents_model_input, t).to(torch.float32).to(device="cuda")
-        timestep = torch.atleast_1d(t.to(torch.float32)).to(
-            device="cuda")  # convert 0D -> 1D
+            latents_model_input, t).to(device="cuda")
+        timestep = torch.atleast_1d(t.to(device="cuda"))  # convert 0D -> 1D
 
         copy_tensor_sync(self.tensors[model]["sample"], latents_model_input)
         copy_tensor_sync(self.tensors[model]["encoder_hidden_states"],
@@ -518,63 +624,34 @@ class StableDiffusionMGX():
 
     @measure
     def decode(self, latents):
-        copy_tensor_sync(self.tensors["vae"][self.vae_input_name], latents)
+        copy_tensor_sync(self.tensors["vae"]["latent_sample"], latents)
         run_model_sync(self.models["vae"], self.model_args["vae"])
         return self.tensors["vae"][get_output_name(0)]
 
     @measure
     def warmup(self, num_runs):
-
-        copy_tensor_sync(self.tensors["clip"]["input_ids"],
-                         torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["clip2"]["input_ids"],
-                         torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["unetxl"]["sample"],
-                         torch.randn((2, 4, 128, 128)).to(torch.float32))
-        copy_tensor_sync(self.tensors["unetxl"]["encoder_hidden_states"],
-                         torch.randn((2, 77, 2048)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["text_embeds"],
-                         torch.randn((2, 1280)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["time_ids"],
-                         torch.randn((2, 6)).to(torch.float16))
-        copy_tensor_sync(self.tensors["unetxl"]["timestep"],
-                         torch.randn((1)).to(torch.float32))
-        copy_tensor_sync(self.tensors["vae"][self.vae_input_name],
-                         torch.randn((1, 4, 128, 128)).to(torch.float32))
+        init_fn = lambda x: torch.ones if "clip" in x else torch.randn
+        for model in self.models.keys():
+            for tensor in self.tensors[model].values():
+                copy_tensor_sync(tensor, init_fn(model)(tensor.size()))
 
         for _ in range(num_runs):
-            run_model_sync(self.models["clip"], self.model_args["clip"])
-            run_model_sync(self.models["clip2"], self.model_args["clip2"])
-            run_model_sync(self.models["unetxl"], self.model_args["unetxl"])
-            run_model_sync(self.models["vae"], self.model_args["vae"])
-
-        if self.use_refiner:
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["sample"],
-                             torch.randn((2, 4, 128, 128)).to(torch.float32))
-            copy_tensor_sync(
-                self.tensors["refiner_unetxl"]["encoder_hidden_states"],
-                torch.randn((2, 77, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["text_embeds"],
-                             torch.randn((2, 1280)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["time_ids"],
-                             torch.randn((2, 5)).to(torch.float16))
-            copy_tensor_sync(self.tensors["refiner_unetxl"]["timestep"],
-                             torch.randn((1)).to(torch.float32))
-            for _ in range(num_runs):
-                run_model_sync(self.models["refiner_unetxl"],
-                               self.model_args["refiner_unetxl"])
+            for model in self.models.keys():
+                run_model_sync(self.models[model], self.model_args[model])
 
 
 if __name__ == "__main__":
     args = get_args()
 
-    sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
+    sd = StableDiffusionMGX(args.pipeline_type, args.onnx_model_path,
+                            args.compiled_model_path, args.use_refiner,
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
                             args.force_compile, args.exhaustive_tune)
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
-                    args.scale, args.refiner_aesthetic_score,
+                    args.scale, args.refiner_steps,
+                    args.refiner_aesthetic_score,
                     args.refiner_negative_aesthetic_score)
 
     print("Convert result to rgb image...")

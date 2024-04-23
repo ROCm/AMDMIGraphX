@@ -109,6 +109,8 @@ Quantizing the StabilityAI VAE model produces NaNs in the output, so we need to 
 python vae_fp16.py
 ```
 
+Note: by default, the path being saved to is `models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx`. This can be changed by passing in `--output=<sdxl-directory>/vae_decoder_fp16_fix/model.onnx`.
+
 Run the same text-to-image script as before, except add `--fp6=all` to the command. For example:
 
 ```bash

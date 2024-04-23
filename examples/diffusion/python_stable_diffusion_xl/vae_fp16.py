@@ -51,7 +51,6 @@ class VAEDecoder(torch.nn.Module):
 def export_vae_fp16(output_path):
     vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix")
     vae.eval()
-    # output = "models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     torch.onnx.export(VAEDecoder(vae),
                       torch.randn(1, 4, 128, 128),

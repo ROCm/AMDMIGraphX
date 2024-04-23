@@ -107,6 +107,10 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
+.. envvar:: MIGRAPHX_ENABLE_SPLIT_REDUCE
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable split_reduce.
+
 .. envvar:: MIGRAPHX_ENABLE_NHWC
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

@@ -140,7 +140,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
                 map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
             }
-            auto outputs = submod->add_instructions(mm, map_ins);
+            auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});
             submodules.push_back(submod);
         }

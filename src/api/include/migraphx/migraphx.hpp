@@ -64,7 +64,7 @@ struct rank<0>
 };
 
 template <class PrivateMigraphTypeNameProbe>
-constexpr std::string_view compute_type_name()
+std::string compute_type_name()
 {
     using namespace std::string_view_literals;
 
@@ -72,18 +72,21 @@ constexpr std::string_view compute_type_name()
     auto struct_name    = "struct "sv;
     auto class_name     = "class "sv;
     auto function_name  = "compute_type_name<"sv;
-    auto parameter_name = "(void)"sv;
+    auto parameter_name = ">(void)"sv;
+    auto cdecl_name     = "__cdecl"sv;
 
-    std::string_view name{__FUNCSIG__};
+    std::string name{__FUNCSIG__};
 
     auto begin  = name.find(function_name) + function_name.length();
-    auto length = name.find_last_of(parameter_name) - parameter_name.length() - begin;
+    auto length = name.find(parameter_name) - begin;
     name        = name.substr(begin, length);
-
     if(name.find(class_name) == 0)
-        return name.substr(class_name.length());
-    if(result.find(struct_name) == 0)
-        return result.substr(struct_name.length());
+        name = name.substr(class_name.length());
+    else if(name.find(struct_name) == 0)
+        name = name.substr(struct_name.length());
+    begin = name.find(cdecl_name);
+    if(begin != std::string::npos)
+        name.erase(begin, cdecl_name.length());
     return name;
 #else
     auto parameter_name = "PrivateMigraphTypeNameProbe ="sv;
@@ -96,7 +99,7 @@ constexpr std::string_view compute_type_name()
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    return name.substr(begin, length);
+    return std::string{name.substr(begin, length)};
 #endif
 }
 

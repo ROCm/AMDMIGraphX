@@ -351,7 +351,6 @@ class StableDiffusionMGX():
 
         if "vae" in fp16:
             model_names[pipeline_type]["vae"] = "vae_decoder_fp16_fix"
-            
 
         print("Load models...")
         self.models = {

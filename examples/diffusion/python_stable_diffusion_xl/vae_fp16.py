@@ -25,6 +25,7 @@ from diffusers import AutoencoderKL
 import os
 import torch
 
+
 def argparser():
     parser = ArgumentParser()
     parser.add_argument(
@@ -32,8 +33,11 @@ def argparser():
         "--output_path",
         type=str,
         default="models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx",
-        help="Path to save the onnx model. Use it to override the default models/<sdxl*> path.")
+        help=
+        "Path to save the onnx model. Use it to override the default models/<sdxl*> path."
+    )
     return parser.parse_args()
+
 
 class VAEDecoder(torch.nn.Module):
     def __init__(self, vae):
@@ -43,17 +47,18 @@ class VAEDecoder(torch.nn.Module):
     def forward(self, latent_sample):
         return self.vae.decode(latent_sample)
 
+
 def export_vae_fp16(output_path):
     vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix")
     vae.eval()
     # output = "models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     torch.onnx.export(VAEDecoder(vae),
-                    torch.randn(1, 4, 128, 128),
-                    output_path,
-                    export_params=True,
-                    do_constant_folding=True,
-                    input_names=['latent_sample'])
+                      torch.randn(1, 4, 128, 128),
+                      output_path,
+                      export_params=True,
+                      do_constant_folding=True,
+                      input_names=['latent_sample'])
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@
 
 // #define MIGRAPHX_DISABLE_OMP
 #include <cmath>
+#include <cassert>
 #include <migraphx/config.hpp>
 #ifdef MIGRAPHX_DISABLE_OMP
 #include <migraphx/par_for.hpp>
@@ -69,7 +70,7 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
         std::size_t work = 0;
         std::generate(threads.begin(), threads.end(), [=, &work] {
             auto result =
-                joinable_thread([=]() mutable { f(work, std::min(n, work + grainsize)); });
+                joinable_thread([=]() mutable { assert(work < n); f(work, std::min(n, work + grainsize)); });
             work += grainsize;
             return result;
         });
@@ -91,10 +92,11 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
     else
     {
         std::size_t grainsize = std::ceil(static_cast<double>(n) / threadsize);
-#pragma omp parallel for num_threads(threadsize) schedule(static, 1) private(grainsize, n)
+#pragma omp parallel for num_threads(threadsize) schedule(static, 1)
         for(std::size_t tid = 0; tid < threadsize; tid++)
         {
             std::size_t work = tid * grainsize;
+            assert(work < n);
             f(work, std::min(n, work + grainsize));
         }
     }

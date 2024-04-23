@@ -116,7 +116,7 @@ python vae_fp16.py
 > [!NOTE]
 > By default, the path being saved to is `models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx`. This can be changed by passing in `--output=<sdxl-directory>/vae_decoder_fp16_fix/model.onnx`.
 
-Run the same text-to-image script as before, except add `--fp6=all` to the command. For example:
+Run the same text-to-image script as before, except add `--fp16=all` to the command. For example:
 
 ```bash
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output jungle_astro.jpg --pipeline-type <model-version> --fp16=all

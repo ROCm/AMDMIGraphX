@@ -67,7 +67,7 @@ Set `pipeline-type` based on the version of models you downloaded: `sdxl` for ba
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output jungle_astro.jpg --pipeline-type <model-version>
 ```
 > [!NOTE]
-> The first run will compile the models and cache them to make subsequent runs faster.*
+> The first run will compile the models and cache them to make subsequent runs faster.
 
 The result should look like this:
 

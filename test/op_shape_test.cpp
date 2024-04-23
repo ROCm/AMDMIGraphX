@@ -2466,6 +2466,20 @@ TEST_CASE(pointwise_no_output)
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
 }
 
+TEST_CASE(pointwise_strict_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x = pm.add_parameter("x", s.with_type(migraphx::shape::half_type));
+        pm.add_return({x});
+    }
+    auto x = mm->add_parameter("x", s);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
+}
+
 TEST_CASE(pooling_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 3, 3, 3}};

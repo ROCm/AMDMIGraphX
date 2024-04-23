@@ -36,7 +36,7 @@ namespace gpu {
 operation
 compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm)
 {
-    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise");
+    auto pf            = gen::generate_pointwise(*pm, "inner_pointwise", true);
     std::string lambda = "MIGRAPHX_LIFT(inner_pointwise)";
     auto kernel_name   = gen::generate_name_from_ops(*pm, "kernel");
     return gpu::compile_op("pointwise",

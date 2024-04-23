@@ -43,19 +43,19 @@ struct oper
     {
         using namespace std::string_view_literals;
 
-        constexpr auto name = get_type_name<Derived>();
+        const std::string& name = get_type_name<Derived>();
         // search the namespace gpu (::gpu::)
         auto pos_ns = name.find("::gpu::");
-        if(pos_ns != std::string_view::npos)
+        if(pos_ns != std::string::npos)
         {
             auto pos_name = name.find("hip_", pos_ns + "::gpu::"sv.length());
-            if(pos_name != std::string_view::npos)
+            if(pos_name != std::string::npos)
             {
                 return "gpu::" + name.substr(pos_name + 4);
             }
             else
             {
-                return std::string{name.substr(pos_ns + 2)};
+                return name.substr(pos_ns + 2);
             }
         }
         return "unknown_operator_name";

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,13 +51,13 @@ inline auto& get_commands()
 template <class T>
 std::string compute_command_name()
 {
-    auto type = get_type_name<T>();
-    auto name = type.substr(type.rfind("::") + 2);
+    static const std::string& tname = get_type_name<T>();
+    auto name                       = tname.substr(tname.rfind("::") + 2);
     if(ends_with(name, "_command"))
         name = name.substr(0, name.size() - 8);
     if(ends_with(name, "_cmd"))
         name = name.substr(0, name.size() - 4);
-    return std::string{name};
+    return name;
 }
 
 template <class T>

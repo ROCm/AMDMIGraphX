@@ -50,7 +50,7 @@ struct register_verify_program_action
     {
         T x;
         program_info pi;
-        const auto test_type_name                     = migraphx::get_type_name<T>();
+        const std::string& test_type_name             = migraphx::get_type_name<T>();
         const auto& split_name                        = migraphx::split_string(test_type_name, ':');
         std::vector<std::string> name_without_version = {};
         // test_type_name could contain internal namespace name with version_x_y_z i.e.

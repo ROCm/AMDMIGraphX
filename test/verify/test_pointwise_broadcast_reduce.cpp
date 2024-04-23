@@ -32,8 +32,8 @@ struct test_pointwise_broadcast_reduce : verify_program<test_pointwise_broadcast
 {
     migraphx::program create_program() const
     {
-        migraphx::shape s{migraphx::shape::half_type, {2, 32, 384}};
-        migraphx::shape rs{migraphx::shape::half_type, {2, 1, 1}};
+        migraphx::shape s{migraphx::shape::float_type, {2, 32, 384}};
+        migraphx::shape rs{migraphx::shape::float_type, {2, 1, 1}};
         migraphx::program p;
         auto* mm   = p.get_main_module();
         auto x     = mm->add_parameter("x", rs);

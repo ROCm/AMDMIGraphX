@@ -45,7 +45,7 @@ constexpr std::string_view compute_type_name()
 
     auto begin  = name.find(function_name) + function_name.length();
     auto length = name.find_last_of(parameter_name) - parameter_name.length() - begin;
-    name = name.substr(begin, length);
+    name        = name.substr(begin, length);
 
     if(name.find(class_name) == 0)
         return name.substr(class_name.length());

@@ -77,6 +77,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    param_utils.cpp
     pass.cpp
     pass_manager.cpp
     permutation.cpp
@@ -94,6 +95,7 @@ add_library(migraphx
     replace_allocate.cpp
     rewrite_reduce.cpp
     simplify_qdq.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp
@@ -140,6 +142,7 @@ register_migraphx_ops(
     atan
     broadcast
     broadcast_for_dot
+    broadcast_with_dims
     capture
     ceil
     clip
@@ -256,6 +259,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_int4
     unsqueeze
     where
 )
@@ -344,6 +348,8 @@ endif()
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
+
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

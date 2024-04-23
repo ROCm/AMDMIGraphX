@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -116,12 +116,10 @@ TEST_CASE(double_add_without_return)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-            });
-        mm->add_instruction(migraphx::make_op("identity"), fadd);
+        add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+        });
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -376,6 +374,47 @@ TEST_CASE(add_reshape_add)
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto reshape =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), add1);
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), reshape, z);
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s1);
+        auto z   = mm->add_parameter("z", s2);
+        auto x2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x);
+        auto y2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
+        auto z2  = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), z);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x2, y2, z2}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), fadd);
+        mm->add_return({reshape});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(add_contiguous_reshape_add)
+{
+    auto s1 =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {3, 10, 16}, {0, 2, 1});
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {3, 40, 2, 2}};
+    auto s3 = migraphx::shape{migraphx::shape::float_type, {3, 10, 4, 2, 2}};
+    migraphx::program p1;
+    {
+        auto* mm        = p1.get_main_module();
+        auto x          = mm->add_parameter("x", s1);
+        auto y          = mm->add_parameter("y", s1);
+        auto z          = mm->add_parameter("z", s2);
+        auto add1       = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto contiguous = mm->add_instruction(migraphx::make_op("contiguous"), add1);
+        auto reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), contiguous);
         auto add2 = mm->add_instruction(migraphx::make_op("add"), reshape, z);
         mm->add_return({add2});
     }

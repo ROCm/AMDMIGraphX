@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,8 +46,10 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     compiler_replace insert(code_object_op co) const
     {
-        return {std::move(co), [](module& m, instruction_ref ins, const operation& op) {
-                    auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(op), ins->inputs());
+        return {std::vector<operation>{std::move(co)},
+                [](module& m, instruction_ref ins, const std::vector<operation>& op) {
+                    auto mlir =
+                        insert_mlir(m, ins, any_cast<code_object_op>(op.front()), ins->inputs());
                     m.replace_instruction(ins, mlir);
                 }};
     }

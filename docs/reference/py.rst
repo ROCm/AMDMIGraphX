@@ -314,6 +314,13 @@ program
     :type ins_names: list[str]
 
 
+.. py:function:: autocast_fp8(prog)
+
+    Auto-convert FP8 parameters and return values to Float for an MIGraphX program.
+
+    :param program prog: Program to auto-convert parameters/return values.
+
+
 op
 --
 .. py::class:: op(name, kwargs)

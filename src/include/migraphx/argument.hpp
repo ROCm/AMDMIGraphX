@@ -117,7 +117,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     data_t m_data{};
 };
 
-std::vector<argument> flatten(const std::vector<argument>& args);
+MIGRAPHX_EXPORT std::vector<argument> flatten(const std::vector<argument>& args);
 
 MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<argument>& args);
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const argument& a);

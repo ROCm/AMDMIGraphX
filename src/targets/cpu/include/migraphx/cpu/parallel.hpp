@@ -69,8 +69,10 @@ void parallel_for_impl(std::size_t n, std::size_t threadsize, F f)
 
         std::size_t work = 0;
         std::generate(threads.begin(), threads.end(), [=, &work] {
-            auto result =
-                joinable_thread([=]() mutable { assert(work < n); f(work, std::min(n, work + grainsize)); });
+            auto result = joinable_thread([=]() mutable {
+                assert(work < n);
+                f(work, std::min(n, work + grainsize));
+            });
             work += grainsize;
             return result;
         });

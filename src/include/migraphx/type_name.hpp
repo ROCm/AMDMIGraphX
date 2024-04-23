@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,24 +33,41 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
-    std::string name;
+    using namespace std::string_view_literals;
+
 #if defined(_MSC_VER) && !defined(__clang__)
-    name = typeid(PrivateMigraphTypeNameProbe).name();
-    name = name.substr(7);
+    auto struct_name    = "struct "sv;
+    auto class_name     = "class "sv;
+    auto function_name  = "compute_type_name<"sv;
+    auto parameter_name = ">(void)"sv;
+    auto cdecl_name     = "__cdecl"sv;
+
+    std::string name{__FUNCSIG__};
+
+    auto begin  = name.find(function_name) + function_name.length();
+    auto length = name.find(parameter_name) - begin;
+    name        = name.substr(begin, length);
+    if(name.find(class_name) == 0)
+        name = name.substr(class_name.length());
+    else if(name.find(struct_name) == 0)
+        name = name.substr(struct_name.length());
+    begin = name.find(cdecl_name);
+    if(begin != std::string::npos)
+        name.erase(begin, cdecl_name.length());
+    return name;
 #else
-    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
+    auto parameter_name = "PrivateMigraphTypeNameProbe ="sv;
 
-    name = __PRETTY_FUNCTION__;
+    std::string_view name{__PRETTY_FUNCTION__};
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
+    auto begin  = name.find(parameter_name) + parameter_name.length();
 #if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    return std::string{name.substr(begin, length)};
 #endif
-    return name;
 }
 
 template <class T>

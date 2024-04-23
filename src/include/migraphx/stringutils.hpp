@@ -62,7 +62,7 @@ replace_string(std::string subject, const std::string& search, const std::string
     return subject;
 }
 
-inline bool ends_with(std::string_view value, const std::string& suffix)
+inline bool ends_with(const std::string& value, const std::string& suffix)
 {
     if(suffix.size() > value.size())
         return false;
@@ -83,11 +83,10 @@ inline std::string join_strings(Strings strings, const std::string& delim)
     });
 }
 
-template <class StringLike>
-inline std::vector<std::string> split_string(StringLike s, char delim)
+inline std::vector<std::string> split_string(const std::string& s, char delim)
 {
     std::vector<std::string> elems;
-    std::stringstream ss(std::string{s} + delim);
+    std::stringstream ss(s + delim);
     std::string item;
     while(std::getline(ss, item, delim))
     {

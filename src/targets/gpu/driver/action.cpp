@@ -42,10 +42,7 @@ action_function get_action(const std::string& name)
     return action_map().at(name);
 }
 
-void register_action(std::string_view name, const action_function& a)
-{
-    action_map().emplace(name, a);
-}
+void register_action(const std::string& name, const action_function& a) { action_map()[name] = a; }
 
 } // namespace driver
 } // namespace gpu

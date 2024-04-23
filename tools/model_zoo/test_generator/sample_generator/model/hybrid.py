@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-from .base import *
+from .base import BaseModel, OptimumHFModelDownloadMixin
 from ..utils import get_imagenet_classes
 from transformers import AutoProcessor
 

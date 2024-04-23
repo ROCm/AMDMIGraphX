@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-from .base import *
+from .base import BaseModel, SingleModelDownloadMixin, OptimumHFModelDownloadMixin
 from .preprocess import process_image
 
 from transformers import AutoImageProcessor
@@ -46,7 +46,7 @@ class AutoImageProcessorHFMixin(object):
 class ResNet50_v1(SingleModelDownloadMixin, BaseModel):
     @property
     def model_id(self):
-        return f"https://zenodo.org/record/2592612/files/resnet50_v1.onnx"
+        return "https://zenodo.org/record/2592612/files/resnet50_v1.onnx"
 
     @staticmethod
     def name():

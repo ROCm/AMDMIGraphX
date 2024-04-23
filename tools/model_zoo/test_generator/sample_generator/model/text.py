@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-from .base import *
+from .base import BaseModel, DecoderModel, OptimumHFModelDownloadMixin
 import numpy as np
 from transformers import AutoTokenizer
 

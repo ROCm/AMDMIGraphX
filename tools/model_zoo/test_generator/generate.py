@@ -36,7 +36,7 @@ from sample_generator.dataset.squad import SQuAD_HF
 # models
 from sample_generator.model.image import ResNet50_v1, ResNet50_v1_5, VitBasePatch16_224, TIMM_MobileNetv3_large
 from sample_generator.model.text import BERT_large_uncased, DistilBERT_base_cased_distilled_SQuAD, RobertaBaseSquad2
-from sample_generator.model.text import GPTJ, Llama2_7b_chat_hf, T5_base, Gemma_2b_it
+from sample_generator.model.text import GPTJ, Llama2_7b_chat_hf, Llama3_8b_instruct, T5_base, Gemma_2b_it
 from sample_generator.model.audio import Wav2Vec2_base_960h, WhisperSmallEn
 from sample_generator.model.hybrid import ClipVitLargePatch14
 
@@ -61,6 +61,7 @@ squad_models = (
     T5_base,
     Gemma_2b_it,
     Llama2_7b_chat_hf,
+    Llama3_8b_instruct,
 )
 
 librispeech_models = (Wav2Vec2_base_960h, WhisperSmallEn)

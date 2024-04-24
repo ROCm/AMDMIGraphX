@@ -157,6 +157,24 @@ class Llama2_7b_chat_hf(OptimumHFModelDownloadMixin,
         return "llama2-7b-chat-hf"
 
 
+# Note: the inheritance order here important
+class Llama3_8b_instruct(OptimumHFModelDownloadMixin,
+                         TextGenerationDecoderOnlyMixin, AutoTokenizerHFMixin,
+                         DecoderModel):
+    @property
+    def model_id(self):
+        return "meta-llama/Meta-Llama-3-8B-Instruct"
+
+    @property
+    def task(self):
+        # override to ignore "with-past"
+        return "text-generation"
+
+    @staticmethod
+    def name():
+        return "llama3-8b-instruct"
+
+
 class T5_base(OptimumHFModelDownloadMixin, AutoTokenizerHFMixin, DecoderModel):
     def __init__(self):
         max_length = 384  # default for squad

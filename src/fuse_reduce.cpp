@@ -67,40 +67,15 @@ struct fused_reduce
                return shapes.at(name).lens() == input.lens();
            }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
-        const auto& s = inputs.at(0);
-        auto lens     = s.lens();
-        if(lens != sm->get_output_shapes().front().lens())
-        {
-            for(const auto& axis : axes)
-            {
-                lens[axis] = 1;
-            }
-        }
 
-        return shape::from_permutation(
-            sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
+        return shape::from_permutation(sm->get_output_shapes().front().type(),
+                                       sm->get_output_shapes().front().lens(),
+                                       find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
-
-static std::unordered_map<instruction_ref, instruction_ref>
-get_ins_param_map(const std::vector<instruction_ref>& inputs, const_module_ref sm)
-{
-    std::unordered_map<instruction_ref, instruction_ref> result;
-    auto names = sm->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    assert(names.size() == inputs.size());
-    std::transform(names.begin(),
-                   names.end(),
-                   inputs.begin(),
-                   std::inserter(result, result.end()),
-                   [&](const auto& name, auto input) {
-                       return std::make_pair(input, sm->get_parameter(name));
-                   });
-    return result;
-}
 
 static void insert_params(module_ref sm,
                           const std::vector<instruction_ref>& inputs,
@@ -121,7 +96,7 @@ static auto insert_ins_in_submodule(module_ref sm,
                                     std::unordered_map<instruction_ref, instruction_ref>& map_ins)
 {
     insert_params(sm, ins->inputs(), map_ins);
-    return sm->add_instructions({ins}, map_ins);
+    return sm->add_instructions({ins}, &map_ins);
 }
 
 static auto insert_ins_in_submodule(module_ref sm, instruction_ref ins)
@@ -138,12 +113,12 @@ insert_module_in_submodule(module_ref sm,
                            module::inserter insert = nullptr)
 {
     insert_params(sm, inputs, map_ins);
-    auto param_map = get_ins_param_map(inputs, m);
+    auto param_map = m->get_ins_param_map(inputs);
     for(auto&& [input, param] : param_map)
     {
         map_ins[param] = map_ins.at(input);
     }
-    return sm->add_instructions(m, map_ins, std::move(insert));
+    return sm->add_instructions(m, &map_ins, std::move(insert));
 }
 
 static auto
@@ -216,7 +191,9 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once()).bind("broadcast"));
+               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+                   .bind("broadcast"))
+        .bind("final_broadcast");
 }
 
 template <class... Ms>
@@ -259,7 +236,10 @@ struct find_pointwise_reduce
         if(contains(r.instructions, "broadcast"))
         {
             auto broadcast     = r.instructions["broadcast"];
+            auto fbroadcast    = r.instructions["final_broadcast"];
             map_ins[broadcast] = insert_ins_in_submodule(rm, broadcast, map_ins).front();
+            if(fbroadcast != broadcast)
+                map_ins[fbroadcast] = map_ins[broadcast];
         }
 
         // Insert fused_reduce

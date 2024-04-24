@@ -22,29 +22,27 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
-
-#include <migraphx/config.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
-#include <unordered_map>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-
-struct MIGRAPHX_EXPORT dominator_info
+struct test_reduce_mean_variance : verify_program<test_reduce_mean_variance>
 {
-    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2) const;
-
-    std::unordered_map<instruction_ref, instruction_ref> ins2idom;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {1, 32, 128}};
+        auto x        = mm->add_parameter("x", s);
+        auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        auto x2       = mm->add_instruction(migraphx::make_op("mul"), x, x);
+        auto mean_x2  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x2);
+        auto mean_2   = mm->add_instruction(migraphx::make_op("mul"), mean, mean);
+        auto variance = mm->add_instruction(migraphx::make_op("sub"), mean_x2, mean_2);
+        auto add      = mm->add_instruction(migraphx::make_op("add"), mean, variance);
+        mm->add_return({add});
+        return p;
+    };
 };
-
-MIGRAPHX_EXPORT dominator_info compute_dominator(const module& m);
-// MIGRAPHX_EXPORT dominator_info compute_dominator_naive(const module& m);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

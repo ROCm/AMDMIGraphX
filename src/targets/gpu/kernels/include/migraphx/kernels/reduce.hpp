@@ -313,6 +313,18 @@ constexpr auto compute_reduce_axis()
     return make_shape(lens, get_shape_c<Input>{}.strides);
 }
 
+template <class T, class F>
+constexpr auto final_reduce(T x, F f)
+{
+    return vec_reduce(x, f);
+}
+
+template <class T, index_int N, class F>
+constexpr auto final_reduce(array<T, N> a, F f)
+{
+    return a.apply([&](auto x) { return final_reduce(x, f); });
+}
+
 template <class Input, index_int Axis>
 using with_axis = decltype(compute_reduce_axis<Input, Axis>());
 
@@ -456,7 +468,7 @@ struct block
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -513,7 +525,7 @@ struct block_large
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, index_int{n}, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -586,7 +598,7 @@ struct subwave
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 

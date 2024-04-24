@@ -96,7 +96,7 @@ TEST_CASE(reduce_mean_large)
     EXPECT(all_of(reduces, [](migraphx::instruction_ref ins) {
         auto axes = ins->get_operator().to_value()["axes"].template to_vector<int64_t>();
         return axes.size() == 1 and axes[0] == -1 and
-               ins->get_shape().type() == migraphx::version_1::shape::float_type;
+               ins->get_shape().type() == migraphx::shape::float_type;
     }));
 }
 

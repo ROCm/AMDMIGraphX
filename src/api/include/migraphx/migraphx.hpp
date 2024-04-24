@@ -34,7 +34,6 @@
 #include <exception>
 #include <array>
 #include <vector>
-#include <string_view>
 #include <cassert>
 #include <iostream>
 
@@ -66,41 +65,40 @@ struct rank<0>
 template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
-    using namespace std::string_view_literals;
-
+    std::string name;
 #if defined(_MSC_VER) && !defined(__clang__)
-    auto struct_name    = "struct "sv;
-    auto class_name     = "class "sv;
-    auto function_name  = "compute_type_name<"sv;
-    auto parameter_name = ">(void)"sv;
-    auto cdecl_name     = "__cdecl"sv;
+    const char struct_name[]    = "struct ";
+    const char class_name[]     = "class ";
+    const char function_name[]  = "compute_type_name<";
+    const char parameter_name[] = ">(void)";
+    const char cdecl_name[]     = "__cdecl";
 
-    std::string name{__FUNCSIG__};
+    name = __FUNCSIG__;
 
-    auto begin  = name.find(function_name) + function_name.length();
+    auto begin  = name.find(function_name) + sizeof(function_name);
     auto length = name.find(parameter_name) - begin;
     name        = name.substr(begin, length);
     if(name.find(class_name) == 0)
-        name = name.substr(class_name.length());
+        name = name.substr(sizeof(class_name));
     else if(name.find(struct_name) == 0)
-        name = name.substr(struct_name.length());
+        name = name.substr(sizeof(struct_name));
     begin = name.find(cdecl_name);
     if(begin != std::string::npos)
-        name.erase(begin, cdecl_name.length());
-    return name;
+        name.erase(begin, sizeof(cdecl_name));
 #else
-    auto parameter_name = "PrivateMigraphTypeNameProbe ="sv;
+    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 
-    std::string_view name{__PRETTY_FUNCTION__};
+    name = __PRETTY_FUNCTION__;
 
-    auto begin  = name.find(parameter_name) + parameter_name.length();
+    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
 #if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    return std::string{name.substr(begin, length)};
+    name        = name.substr(begin, length);
 #endif
+    return name;
 }
 
 template <class T>

@@ -317,9 +317,9 @@ TEST_CASE(parallel_reduce_reduce_broadcast_contiguous)
         auto rsum1b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
         auto rsum1bc = mm->add_instruction(migraphx::make_op("contiguous"), rsum1b);
-        auto relu  = add_pointwise(p1, "main:pointwise1", {x}, single_pointwise("relu"));
-        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
-        auto add   = add_pointwise(p1, "main:pointwise2", {rsum1, rsum2}, single_pointwise("add"));
+        auto relu    = add_pointwise(p1, "main:pointwise1", {x}, single_pointwise("relu"));
+        auto rsum2   = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), relu);
+        auto add = add_pointwise(p1, "main:pointwise2", {rsum1, rsum2}, single_pointwise("add"));
         auto addb =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
         auto clip =

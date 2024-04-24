@@ -77,6 +77,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    param_utils.cpp
     pass.cpp
     pass_manager.cpp
     permutation.cpp
@@ -95,6 +96,7 @@ add_library(migraphx
     replace_allocate.cpp
     rewrite_reduce.cpp
     simplify_qdq.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp
@@ -141,6 +143,7 @@ register_migraphx_ops(
     atan
     broadcast
     broadcast_for_dot
+    broadcast_with_dims
     capture
     ceil
     clip

@@ -428,6 +428,9 @@ struct MIGRAPHX_EXPORT shape
     std::shared_ptr<const shape_impl> impl;
 };
 
+/// Flatten subshapes to a single vector of non-tuple type of shapes
+MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
+
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);
 

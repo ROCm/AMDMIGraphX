@@ -27,6 +27,8 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/array.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -131,6 +133,67 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     return wavefront_size;
 }
 
+/// This will adjust the input shapes so a partial reduction is done per workgroup.
+/// This is done by splitting the reduction axis so each split group becomes
+/// part of the batch. So if we want to do a split redution of a tensor
+/// {K}, then this will create a tensor of {K/N, N} where N is the number of
+/// split groups. To compute the number of split groups it finds the largest
+/// divisor that can divide K to make it less than min_size.
+static std::vector<shape> split_reduce(const std::vector<shape>& inputs,
+                                       std::size_t min_size = 1024)
+{
+    std::vector<shape> result;
+    auto input_shape         = inputs.front();
+    const auto& reduce_shape = inputs[inputs.size() - 2];
+    const auto& output_shape = inputs[inputs.size() - 1];
+
+    auto is          = range(reduce_shape.lens().size());
+    using array_type = std::array<std::size_t, 2>;
+    auto initial     = array_type{std::numeric_limits<std::size_t>::max(),
+                              std::numeric_limits<std::size_t>::max()};
+    auto faxis       = transform_accumulate(
+        is.begin(), is.end(), initial, MIGRAPHX_LIFT(std::min), [&](auto i) -> array_type {
+            if(input_shape.lens()[i] == output_shape.lens()[i])
+                return initial;
+            return {input_shape.strides()[i], std::size_t(i)};
+        })[1];
+
+    assert(faxis < reduce_shape.lens().size());
+
+    std::size_t n = 1;
+    auto r        = input_shape.lens()[faxis];
+    auto factors  = make_array(2, 3, 5, 7, 11);
+    while(r > min_size)
+    {
+        // NOLINTNEXTLINE(readability-qualified-auto)
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        if(it == factors.end())
+            break;
+        r /= *it;
+        n *= *it;
+    }
+    assert(n != 1);
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](const shape& s) -> shape {
+            auto lens    = s.lens();
+            auto strides = s.strides();
+
+            lens.push_back(n);
+            if(lens[faxis] == 1)
+            {
+                strides.push_back(0);
+            }
+            else
+            {
+                lens[faxis] /= n;
+                strides.push_back(strides[faxis] * lens[faxis]);
+            }
+
+            return {s.type(), lens, strides};
+        });
+    return reduce_dims(normalize_permutation(result));
+}
+
 struct simple_reduce_compiler : compiler<simple_reduce_compiler>
 {
     std::vector<std::string> names() const
@@ -231,7 +294,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
-        fused_reduce<reduce::${algo}, ${reduced}>(y, partial(${lambda})(xs...));
+        fused_reduce<reduce::${algo}, ${reduced}>(y, ${assign}{}, partial(${lambda})(xs...));
     });
 }
     
@@ -243,15 +306,26 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
-    std::vector<std::string> names() const { return {"fused_reduce"}; }
+    std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
+
+    static shape get_input_shape(const std::vector<shape>& inputs)
+    {
+        auto it = std::max_element(inputs.begin(),
+                                   inputs.end(),
+                                   by(std::less<>{}, [](const shape& s) { return s.elements(); }));
+        return *it;
+    }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        auto assign         = v.get("assign", "assign_none");
         auto axes           = v.at("axes").to_vector<std::size_t>();
         auto virtual_inputs = inputs;
-        virtual_inputs.push_back(get_reduced_shape(inputs.front(), axes));
-        virtual_inputs.push_back(get_output_shape(inputs.front(), axes));
+        virtual_inputs.push_back(get_reduced_shape(get_input_shape(inputs), axes));
+        virtual_inputs.push_back(get_output_shape(get_input_shape(inputs), axes));
         virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
+        if(assign != "assign_none")
+            virtual_inputs = split_reduce(virtual_inputs);
         auto reduce_output_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
         auto reduction_shape = virtual_inputs.back();
@@ -301,13 +375,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-             {"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
-             {"algo", algo},
-             {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-             {"lambda", v.at("lambda").to<std::string>()},
-             {"transformers", make_transformer_args(vec)},
-             {"preamble", v.get("preamble", std::string{})}});
+                        {"params", enum_params(inputs.size(), "void * private_p")},
+                        {"args", enum_params(inputs.size(), "private_p")},
+                        {"assign", assign},
+                        {"algo", algo},
+                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+                        {"lambda", v.at("lambda").to<std::string>()},
+                        {"transformers", make_transformer_args(vec)},
+                        {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);
     }

@@ -124,6 +124,7 @@ add_library(migraphx_gpu
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_miopen.cpp
+    compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
     fuse_ck.cpp

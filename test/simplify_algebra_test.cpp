@@ -635,7 +635,8 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
         auto yb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), x, yb);
-        auto sumb = m2.add_instruction(b, sum);
+        auto sumu = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), sum);
+        auto sumb = m2.add_instruction(b, sumu);
         m2.add_instruction(pass_op{}, sumb);
     }
     EXPECT(m1 == m2);
@@ -660,9 +661,8 @@ TEST_CASE(simplify_inner_broadcast_different_broadcasts)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {24}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {24, 1, 1}});
-        auto xs   = m2.add_instruction(migraphx::make_op("squeeze"), x);
-        auto ys   = m2.add_instruction(migraphx::make_op("squeeze"), y);
-        auto sum  = m2.add_instruction(migraphx::make_op("add"), xs, ys);
+        auto ys   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), y);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), x, ys);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
     }
@@ -688,8 +688,8 @@ TEST_CASE(simplify_inner_broadcast_different_broadcasts_diff_axis)
     {
         auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 64}});
         auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {64, 1, 1}});
-        auto xs   = m2.add_instruction(migraphx::make_op("squeeze"), x);
-        auto ys   = m2.add_instruction(migraphx::make_op("squeeze"), y);
+        auto xs   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), x);
+        auto ys   = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1, 2}}}), y);
         auto sum  = m2.add_instruction(migraphx::make_op("add"), xs, ys);
         auto sumb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 64, 112, 112}}}), sum);

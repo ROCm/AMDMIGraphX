@@ -189,6 +189,17 @@ static void create_reduce_modules(module_pass_manager& mpm)
 }
 
 namespace {
+
+instruction_ref get_broadcast_output(instruction_ref broadcast)
+{
+    if(broadcast->outputs().size() != 1)
+        return broadcast;
+    auto output = broadcast->outputs().front();
+    if(output->name() == "contiguous")
+        return get_broadcast_output(output);
+    return output;
+}
+
 MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
 {
     if(ins->outputs().size() == 1)
@@ -205,9 +216,8 @@ MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
             std::find_if_not(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
         if(non_broadcast == ins->outputs().end())
             return false;
-        if((*broadcast)->outputs().size() != 1)
-            return false;
-        return (*broadcast)->outputs().front() == *non_broadcast;
+        auto output = get_broadcast_output(*broadcast);
+        return output == *non_broadcast;
     }
 
     return false;

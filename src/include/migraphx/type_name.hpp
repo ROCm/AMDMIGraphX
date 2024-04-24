@@ -46,9 +46,9 @@ std::string compute_type_name()
     auto begin  = name.find(function_name) + sizeof(function_name);
     auto length = name.find(parameter_name) - begin;
     name        = name.substr(begin, length);
-    if(name.find(class_name) == 0)
+    if(name.find(class_name) == 0)       // NOLINT
         name = name.substr(sizeof(class_name));
-    else if(name.find(struct_name) == 0)
+    else if(name.find(struct_name) == 0) // NOLINT
         name = name.substr(sizeof(struct_name));
     begin = name.find(cdecl_name);
     if(begin != std::string::npos)

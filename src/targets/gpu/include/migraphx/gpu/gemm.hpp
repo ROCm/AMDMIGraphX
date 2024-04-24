@@ -40,8 +40,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-shape transpose_batch(const shape& s, unsigned trans_batch);
-void blas_shape(const shape& s);
+MIGRAPHX_GPU_EXPORT shape transpose_batch(const shape& s, unsigned trans_batch);
+MIGRAPHX_GPU_EXPORT void blas_shape(const shape& s);
 
 template <class Op>
 struct rocblas_gemm
@@ -52,7 +52,6 @@ struct rocblas_gemm
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
     int32_t solution_idx = 0;
-
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -158,9 +157,7 @@ struct rocblas_gemm
 #endif
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

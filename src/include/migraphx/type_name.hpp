@@ -24,8 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 
-#include <string>
 #include <migraphx/config.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,9 +46,9 @@ std::string compute_type_name()
     auto begin  = name.find(function_name) + sizeof(function_name);
     auto length = name.find(parameter_name) - begin;
     name        = name.substr(begin, length);
-    if(name.find(class_name) == 0)
+    if(starts_with(class_name))
         name = name.substr(sizeof(class_name));
-    else if(name.find(struct_name) == 0)
+    else if(starts_with(struct_name))
         name = name.substr(sizeof(struct_name));
     begin = name.find(cdecl_name);
     if(begin != std::string::npos)

@@ -486,10 +486,7 @@ struct find_inner_broadcast
 {
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }
 
-    static auto get_input_shape(instruction_ref ins)
-    {
-        return ins->inputs().front()->get_shape();
-    }
+    static auto get_input_shape(instruction_ref ins) { return ins->inputs().front()->get_shape(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -505,29 +502,28 @@ struct find_inner_broadcast
 
         // All inputs should have less elements
         if(not all_of(broadcasts, [&](instruction_ref broadcast) {
-            auto input = broadcast->inputs().front();
+               auto input = broadcast->inputs().front();
                return input->get_shape().elements() < ins->get_shape().elements();
            }))
             return;
-        const bool same_broadcasts = std::all_of(broadcasts.begin()+1, broadcasts.end(), [&](instruction_ref broadcast) {
-            const auto& first = broadcasts.front();
-            if(broadcast->get_operator() != first->get_operator())
-                return false;
-            auto s1 = get_input_shape(broadcast);
-            auto s2 = get_input_shape(first);
-            if(s1.elements() == 1 or s2.elements() == 1)
-                return true;
-            return s1.lens() == s2.lens();
-        });
+        const bool same_broadcasts =
+            std::all_of(broadcasts.begin() + 1, broadcasts.end(), [&](instruction_ref broadcast) {
+                const auto& first = broadcasts.front();
+                if(broadcast->get_operator() != first->get_operator())
+                    return false;
+                auto s1 = get_input_shape(broadcast);
+                auto s2 = get_input_shape(first);
+                if(s1.elements() == 1 or s2.elements() == 1)
+                    return true;
+                return s1.lens() == s2.lens();
+            });
         if(same_broadcasts)
         {
             std::vector<instruction_ref> inputs;
             std::transform(broadcasts.begin(),
-                       broadcasts.end(),
-                       std::back_inserter(inputs),
-                       [&](instruction_ref broadcast) {
-                           return broadcast->inputs().front();
-                       });
+                           broadcasts.end(),
+                           std::back_inserter(inputs),
+                           [&](instruction_ref broadcast) { return broadcast->inputs().front(); });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
             m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
         }
@@ -536,12 +532,12 @@ struct find_inner_broadcast
             auto ndim = ins->get_shape().ndim();
             std::vector<std::int64_t> iaxes;
             std::vector<std::int64_t> axes;
-            for(auto axis:range(ndim))
+            for(auto axis : range(ndim))
             {
                 if(std::all_of(broadcasts.begin(), broadcasts.end(), [&](instruction_ref i) {
-                    auto s = i->get_shape();
-                    return s.lens()[axis] == 1 or s.strides()[axis] == 0;
-                }))
+                       auto s = i->get_shape();
+                       return s.lens()[axis] == 1 or s.strides()[axis] == 0;
+                   }))
                 {
                     axes.push_back(axis);
                 }
@@ -553,46 +549,58 @@ struct find_inner_broadcast
             if(iaxes.size() == ndim)
                 return;
             std::vector<instruction_ref> inputs;
-            std::transform(broadcasts.begin(),
-                           broadcasts.end(),
-                           std::back_inserter(inputs),
-                           [&](instruction_ref broadcast) {
-                               auto input = broadcast->inputs().front();
-                               auto s = input->get_shape();
-                               
-                               if(s.elements() == 1)
-                               {
-                                if(s.lens().size() > 1)
-                                    return m.insert_instruction(broadcast, make_op("squeeze"), input);
-                                return input;
-                               }
+            std::transform(
+                broadcasts.begin(),
+                broadcasts.end(),
+                std::back_inserter(inputs),
+                [&](instruction_ref broadcast) {
+                    auto input = broadcast->inputs().front();
+                    auto s     = input->get_shape();
 
-                               std::int64_t shift = ndim - s.ndim();
-                               if(broadcast->name() == "broadcast")
-                                    shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();
-                                std::vector<std::int64_t> sq_axes;
-                                for(auto axis:axes)
-                                {
-                                    auto iaxis = axis - shift;
-                                    if(iaxis < 0)
-                                        continue;
-                                    if(iaxis >= s.ndim())
-                                        continue;
-                                    sq_axes.push_back(iaxis);
-                                }
-                                if(not sq_axes.empty())
-                                    return m.insert_instruction(broadcast, make_op("squeeze", {{"axes", sq_axes}}), input);
-                               return input;
-                           });
+                    if(s.elements() == 1)
+                    {
+                        if(s.lens().size() > 1)
+                            return m.insert_instruction(broadcast, make_op("squeeze"), input);
+                        return input;
+                    }
+
+                    std::int64_t shift = ndim - s.ndim();
+                    if(broadcast->name() == "broadcast")
+                        shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();
+                    std::vector<std::int64_t> sq_axes;
+                    for(auto axis : axes)
+                    {
+                        auto iaxis = axis - shift;
+                        if(iaxis < 0)
+                            continue;
+                        if(iaxis >= s.ndim())
+                            continue;
+                        sq_axes.push_back(iaxis);
+                    }
+                    if(not sq_axes.empty())
+                        return m.insert_instruction(
+                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), input);
+                    return input;
+                });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
             if(iaxes.size() == 1)
             {
-                m.replace_instruction(ins, make_op("broadcast", {{"axis", iaxes.front()}, {"out_lens", ins->get_shape().lens()}}), op);
+                m.replace_instruction(
+                    ins,
+                    make_op("broadcast",
+                            {{"axis", iaxes.front()}, {"out_lens", ins->get_shape().lens()}}),
+                    op);
             }
             else
             {
-                auto unsqueeze = op->get_shape().elements() == 1 ? op : m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op);
-                m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), unsqueeze);
+                auto unsqueeze =
+                    op->get_shape().elements() == 1
+                        ? op
+                        : m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op);
+                m.replace_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),
+                    unsqueeze);
             }
         }
     }

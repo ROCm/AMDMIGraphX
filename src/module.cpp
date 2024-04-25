@@ -939,7 +939,7 @@ generic_split(const module& m,
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);
     m2.add_return(r);
-    if(map_ins != nullptr) 
+    if(map_ins != nullptr)
         *map_ins = map_ins2;
     return {{{std::move(m1), std::move(inputs1)}, {std::move(m2), std::move(inputs2)}}};
 }

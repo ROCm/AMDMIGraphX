@@ -35,218 +35,218 @@ migraphx::program resnet50(unsigned batch) // NOLINT(readability-function-size)
     migraphx::module_ref mmain = p.get_main_module();
     auto x_main_module_0       = mmain->add_literal(migraphx::abs(
         migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 0)));
-    auto x_main_module_1       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 1)));
-    auto x_main_module_2       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 2)));
-    auto x_main_module_3       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 3)));
-    auto x_main_module_4       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 4)));
-    auto x_main_module_5       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 5)));
-    auto x_main_module_6       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 6)));
-    auto x_main_module_7       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 7)));
-    auto x_main_module_8       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 8)));
-    auto x_main_module_9       = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 9)));
-    auto x_main_module_10      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 10)));
-    auto x_main_module_11      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 11)));
-    auto x_main_module_12      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 12)));
-    auto x_main_module_13      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 13)));
-    auto x_main_module_14      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 14)));
-    auto x_main_module_15      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 15)));
-    auto x_main_module_16      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 16)));
-    auto x_main_module_17      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 17)));
-    auto x_main_module_18      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 18)));
-    auto x_main_module_19      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 19)));
-    auto x_main_module_20      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 20)));
-    auto x_main_module_21      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 21)));
-    auto x_main_module_22      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 22)));
-    auto x_main_module_23      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 23)));
-    auto x_main_module_24      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 24)));
-    auto x_main_module_25      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 25)));
-    auto x_main_module_26      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 26)));
-    auto x_main_module_27      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 27)));
-    auto x_main_module_28      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 28)));
-    auto x_main_module_29      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 29)));
-    auto x_main_module_30      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 30)));
-    auto x_main_module_31      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 31)));
-    auto x_main_module_32      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 32)));
-    auto x_main_module_33      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 33)));
-    auto x_main_module_34      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 34)));
-    auto x_main_module_35      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 35)));
-    auto x_main_module_36      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 36)));
-    auto x_main_module_37      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 37)));
-    auto x_main_module_38      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 38)));
-    auto x_main_module_39      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 39)));
-    auto x_main_module_40      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 40)));
-    auto x_main_module_41      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 41)));
-    auto x_main_module_42      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 42)));
-    auto x_main_module_43      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 43)));
-    auto x_main_module_44      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 44)));
-    auto x_main_module_45      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 45)));
-    auto x_main_module_46      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 46)));
-    auto x_main_module_47      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 47)));
-    auto x_main_module_48      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 48)));
-    auto x_main_module_49      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 49)));
-    auto x_main_module_50      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 50)));
-    auto x_main_module_51      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 51)));
-    auto x_main_module_52      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 52)));
-    auto x_main_module_53      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 53)));
-    auto x_main_module_54      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 54)));
-    auto x_main_module_55      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 55)));
-    auto x_main_module_56      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 56)));
-    auto x_main_module_57      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 57)));
-    auto x_main_module_58      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 58)));
-    auto x_main_module_59      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 59)));
-    auto x_main_module_60      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 60)));
-    auto x_main_module_61      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 61)));
-    auto x_main_module_62      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 62)));
-    auto x_main_module_63      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 63)));
-    auto x_main_module_64      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 64)));
-    auto x_main_module_65      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 65)));
-    auto x_main_module_66      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 66)));
-    auto x_main_module_67      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 67)));
-    auto x_main_module_68      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 68)));
-    auto x_main_module_69      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 69)));
-    auto x_main_module_70      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 70)));
-    auto x_main_module_71      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 71)));
-    auto x_main_module_72      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 72)));
-    auto x_main_module_73      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 73)));
-    auto x_main_module_74      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 74)));
-    auto x_main_module_75      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 75)));
-    auto x_main_module_76      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 76)));
-    auto x_main_module_77      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 77)));
-    auto x_main_module_78      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 78)));
-    auto x_main_module_79      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 79)));
-    auto x_main_module_80      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 80)));
-    auto x_main_module_81      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 81)));
-    auto x_main_module_82      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 82)));
-    auto x_main_module_83      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 83)));
-    auto x_main_module_84      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 84)));
-    auto x_main_module_85      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 85)));
-    auto x_main_module_86      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 86)));
-    auto x_main_module_87      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 87)));
-    auto x_main_module_88      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 88)));
-    auto x_main_module_89      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 89)));
-    auto x_main_module_90      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 90)));
-    auto x_main_module_91      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 91)));
-    auto x_main_module_92      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 92)));
-    auto x_main_module_93      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 93)));
-    auto x_main_module_94      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 94)));
-    auto x_main_module_95      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 95)));
-    auto x_main_module_96      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 96)));
-    auto x_main_module_97      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 97)));
-    auto x_main_module_98      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 98)));
-    auto x_main_module_99      = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 99)));
-    auto x_main_module_100     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 100)));
-    auto x_main_module_101     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 101)));
-    auto x_main_module_102     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 102)));
-    auto x_main_module_103     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 103)));
-    auto x_main_module_104     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 104)));
-    auto x_main_module_105     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 105)));
-    auto x_main_module_106     = mmain->add_literal(migraphx::abs(
-        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {1}}, 106)));
+    auto x_main_module_1       = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_2 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_3 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_4 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_5 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_6 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_7 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_8 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_9 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_10 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_11 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_12 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_13 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_14 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_15 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_16 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_17 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_18 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_19 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_20 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_21 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_22 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_23 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_24 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_25 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_26 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_27 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_28 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_29 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_30 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_31 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_32 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_33 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_34 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_35 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_36 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_37 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_38 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_39 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_40 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_41 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_42 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_43 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_44 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_45 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_46 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_47 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_48 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_49 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_50 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_51 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_52 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_53 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_54 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_55 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_56 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_57 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_58 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_59 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_60 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_61 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_62 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_63 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_64 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_65 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_66 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_67 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_68 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_69 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_70 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_71 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_72 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_73 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_74 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_75 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_76 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_77 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_78 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_79 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_80 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_81 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_82 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_83 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_84 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_85 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_86 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_87 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_88 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_89 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_90 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_91 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_92 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_93 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_94 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_95 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_96 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_97 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_98 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_99 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_100 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_101 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_102 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_103 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_104 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
+    auto x_main_module_105 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1e-5}});
+    auto x_main_module_106 = mmain->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {0.5}});
     auto x_0                   = mmain->add_parameter(
         "0", migraphx::shape{migraphx::shape::float_type, {batch, 3, 224, 224}});
     auto x_main_module_108 = mmain->add_literal(

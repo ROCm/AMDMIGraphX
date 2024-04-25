@@ -960,6 +960,12 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
     assert(all_of(mods1[0].inputs, [&](auto ins) { return contains(args, ins); }));
     assert(all_of(mods1[1].inputs,
                   [&](auto ins) { return contains(args, ins) or contains(splits1, ins); }));
+    std::cout << "Split3:\n";
+    this->debug_print();
+    std::cout << "splits1:\n";
+    this->debug_print(splits1);
+    std::cout << "splits2:\n";
+    this->debug_print(splits2);
 
     std::vector<instruction_ref> new_splits2;
     std::transform(splits2.begin(), splits2.end(), std::back_inserter(new_splits2), [&](auto ins) {

@@ -59,16 +59,24 @@ bool all_instructions_are_local(const migraphx::module& m)
     });
 }
 
+void auto_add_return(migraphx::module_ref m, migraphx::instruction_ref ins)
+{
+    m->add_return({ins});
+}
+
+void auto_add_return(migraphx::module_ref m, std::vector<migraphx::instruction_ref> inss)
+{
+    m->add_return(inss);
+}
+
 template <class F>
-migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const std::vector<int64_t>& axes,
-                                     const std::string& assign,
-                                     F f)
+migraphx::module_ref add_reduce_module(migraphx::program& p,
+                                       const std::string& name,
+                                       std::vector<migraphx::instruction_ref> inputs,
+                                       const std::vector<int64_t>& axes,
+                                       F f)
 {
     auto* rm = p.create_module(name);
-    auto* mm = p.get_main_module();
     rm->set_bypass();
     std::vector<migraphx::instruction_ref> params;
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
@@ -77,8 +85,33 @@ migraphx::instruction_ref add_reduce(migraphx::program& p,
             migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
     });
     auto r = f(rm, params, axes);
-    rm->add_return({r});
+    auto_add_return(rm, r);
     EXPECT(all_instructions_are_local(*rm));
+    return rm;
+}
+
+template <class F>
+migraphx::instruction_ref add_reduce(migraphx::program& p,
+                                     const std::string& name,
+                                     std::vector<migraphx::instruction_ref> inputs,
+                                     const std::vector<int64_t>& axes,
+                                     F f)
+{
+    auto* mm = p.get_main_module();
+    auto rm  = add_reduce_module(p, name, inputs, axes, f);
+    return mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", axes}}), inputs, {rm});
+}
+
+template <class F>
+migraphx::instruction_ref add_reduce(migraphx::program& p,
+                                     const std::string& name,
+                                     std::vector<migraphx::instruction_ref> inputs,
+                                     const std::vector<int64_t>& axes,
+                                     const std::string& assign,
+                                     F f)
+{
+    auto* mm = p.get_main_module();
+    auto rm  = add_reduce_module(p, name, inputs, axes, f);
     return mm->add_instruction(
         migraphx::make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign}}),
         inputs,
@@ -221,6 +254,72 @@ TEST_CASE(sequence_reduces)
     run_fuse_pass(p2);
     run_pass(p1);
 
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(double_split_live)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p1, "fuse_reduce0", {x}, {2}, [&](auto* rm, const auto& inputs, const auto& axes) {
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto sqrt =
+                    add_pointwise(p1, rm, "main:pointwise0", {rsum1}, single_pointwise("sqrt"));
+                auto sqrtb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
+                auto mul = add_pointwise(
+                    p1, rm, "main:pointwise1", {inputs[0], inputs[0]}, single_pointwise("mul"));
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+                auto add = add_pointwise(
+                    p1, rm, "main:pointwise2", {rsum2, sqrt}, single_pointwise("add"));
+                auto addb = rm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
+                return add_pointwise(
+                    p1, rm, "main:pointwise3", {addb, sqrtb}, single_pointwise("mul"));
+            });
+        mm->add_return({rsum});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto x     = mm->add_parameter("x", s);
+        auto rsums = add_reduce(
+            p2,
+            "fuse_reduce0_split",
+            {x},
+            {2},
+            "assign_add",
+            [&](auto* rm,
+                const auto& inputs,
+                const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto mul   = add_pointwise(
+                    p2, rm, "main:pointwise1", {inputs[0], inputs[0]}, single_pointwise("mul"));
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
+                return {rsum1, rsum2};
+            });
+        auto rsum1 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rsums);
+        auto rsum2 =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rsums);
+        auto sqrt  = add_pointwise(p2, "main:pointwise0", {rsum1}, single_pointwise("sqrt"));
+        auto sqrtb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
+        auto add = add_pointwise(p2, "main:pointwise2", {rsum2, sqrt}, single_pointwise("add"));
+        auto addb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
+        auto mul = add_pointwise(p2, "main:pointwise3", {addb, sqrtb}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
     EXPECT(p1 == p2);
 }
 

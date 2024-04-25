@@ -75,16 +75,16 @@ std::string compute_type_name()
 
     name = __FUNCSIG__;
 
-    auto begin  = name.find(function_name) + sizeof(function_name);
+    auto begin  = name.find(function_name) + sizeof(function_name) - 1;
     auto length = name.find(parameter_name) - begin;
     name        = name.substr(begin, length);
     if(name.find(class_name) == 0)
-        name = name.substr(sizeof(class_name));
+        name = name.substr(sizeof(class_name) - 1);
     else if(name.find(struct_name) == 0)
-        name = name.substr(sizeof(struct_name));
+        name = name.substr(sizeof(struct_name) - 1);
     begin = name.find(cdecl_name);
     if(begin != std::string::npos)
-        name.erase(begin, sizeof(cdecl_name));
+        name.erase(begin, sizeof(cdecl_name) - 1);
 #else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 

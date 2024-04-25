@@ -40,6 +40,7 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -671,7 +672,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
 
-    match::find_matches(mpm, find_pointwise_mlir{});
+    if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+        match::find_matches(mpm, find_pointwise_mlir{});
 #else
     (void)mpm;
 #endif

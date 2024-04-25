@@ -75,53 +75,73 @@ MIGRAPHX_REGISTER_OP(split_fused_reduce);
 
 static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
-static std::vector<instruction_ref> find_split(const_module_ref rm)
-{
-    std::vector<instruction_ref> result;
-    copy_if(
-        iterator_for(*rm), std::back_inserter(result), [](auto ins) { return is_reduce(*ins); });
-    if(result.size() > 2)
-        return {};
-    // Only handle reduce_sum for now
-    // TODO: Support other reduction types
-    if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) {
-           return ins->name() == "reduce_sum";
-       }))
-        return {};
-    if(result.size() < 2)
-        return result;
-    dominator_info dom = compute_dominator(*rm);
-    if(dom.strictly_dominate(result[0], result[1]))
-        return {};
-    if(dom.strictly_dominate(result[1], result[0]))
-        return {};
-    return result;
+namespace {
+    struct splitter
+    {
+        const_module_ref rm;
+        bool strictly_dominate(instruction_ref a, instruction_ref b)
+        {
+            if(not dom.has_value())
+                dom = compute_dominator(*rm);
+            return dom->strictly_dominate(a, b);
+        }
+
+        std::vector<instruction_ref> find_splits()
+        {
+            std::vector<instruction_ref> result;
+            copy_if(
+                iterator_for(*rm), std::back_inserter(result), [](auto ins) { return is_reduce(*ins); });
+            if(result.size() > 2)
+                return {};
+            // Only handle reduce_sum for now
+            // TODO: Support other reduction types
+            if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) {
+                   return ins->name() == "reduce_sum";
+               }))
+                return {};
+            if(result.size() < 2)
+                return result;
+            if(this->strictly_dominate(result[0], result[1]))
+                return {};
+            if(this->strictly_dominate(result[1], result[0]))
+                return {};
+            return result;
+        }
+
+        std::vector<instruction_ref> find_alive(const std::vector<instruction_ref>& splits)
+        {
+            std::vector<instruction_ref> result;
+            bool stop = false;
+            liveness(*rm, [&](auto rins, const auto& live_set) {
+                if(stop)
+                    return;
+                if(rins == rm->begin())
+                    return;
+                // We want to know what instructions are live after the split instruction
+                auto ins = std::prev(rins);
+                if(not contains(splits, ins))
+                    return;
+                std::copy_if(live_set.begin(),
+                             live_set.end(),
+                             std::back_inserter(result),
+                             [&](instruction_ref live) {
+                                if(live->name() == "@param")
+                                    return false;
+                                if(contains(splits, live))
+                                    return false;
+                                if(splits.size() > 1 and none_of(splits, [&](instruction_ref split) { return this->strictly_dominate(live, split); }))
+                                    return false;
+                                return true;
+                             });
+                stop = true;
+            });
+            return result;
+        }
+
+        std::optional<dominator_info> dom = std::nullopt;
+    };
 }
 
-static std::vector<instruction_ref> get_alive(const_module_ref rm,
-                                              const std::vector<instruction_ref>& splits)
-{
-    std::vector<instruction_ref> result;
-    bool stop = false;
-    liveness(*rm, [&](auto rins, const auto& live_set) {
-        if(stop)
-            return;
-        if(rins == rm->begin())
-            return;
-        // We want to know what instructions are live after the split instruction
-        auto ins = std::prev(rins);
-        if(not contains(splits, ins))
-            return;
-        std::copy_if(live_set.begin(),
-                     live_set.end(),
-                     std::back_inserter(result),
-                     [&](instruction_ref live) {
-                         return live->name() != "@param" and not contains(splits, live);
-                     });
-        stop = true;
-    });
-    return result;
-}
 
 static std::string assign_op(const std::vector<instruction_ref>& splits)
 {
@@ -158,7 +178,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto* rm = ins->module_inputs().front();
         if(get_reduce_size(rm) < split_size)
             continue;
-        auto splits = find_split(rm);
+        splitter s{rm};
+        auto splits = s.find_splits();
         if(splits.empty())
             continue;
         // Only use split reduce with float for now
@@ -170,7 +191,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 
-        auto alive = get_alive(rm, splits);
+        auto alive = s.find_alive(splits);
 
         std::array<module::with_inputs, 2> mods;
         if(not alive.empty())

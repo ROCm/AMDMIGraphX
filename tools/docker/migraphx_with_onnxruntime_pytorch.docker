@@ -17,6 +17,7 @@ RUN apt install -y migraphx
 RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1/onnxruntime_rocm-inference-1.17.0-cp310-cp310-linux_x86_64.whl
 
 #Pieces for pytorch
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1/pytorch_triton_rocm-2.1.0%2Brocm6.1.4d510c3a44-cp310-cp310-linux_x86_64.whl
 RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1/torch-2.1.2+rocm6.1-cp310-cp310-linux_x86_64.whl
 RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1/torchvision-0.16.1+rocm6.1-cp310-cp310-linux_x86_64.whl
 

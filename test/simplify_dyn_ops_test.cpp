@@ -336,7 +336,7 @@ TEST_CASE(const_slice_3input_axes_only)
 
     migraphx::module m1;
     {
-        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        MIGX only s migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
         auto input     = m1.add_parameter("data", s);
         auto slice_ins = m1.add_instruction(
             migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
@@ -675,6 +675,19 @@ TEST_CASE(static_broadcast_for_dot)
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 8, 10}}}), literal_ins);
         auto dot_ins = m1.add_instruction(migraphx::make_op("dot"), input, multibroadcast_ins);
         m1.add_return({dot_ins});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(static_onehot)
+{
+    migraphx::module m0;
+    {
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
     }
     EXPECT(m0 == m1);
 }

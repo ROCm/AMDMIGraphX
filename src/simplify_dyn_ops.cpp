@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/onehot.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
@@ -456,21 +457,64 @@ struct find_static_broadcast_for_dot
  * From:
  * onehot(static_shape_arg, constant_arg, values)
  * To:
- * A = literal(shape = onehot_output_shape)
- * B = fill(A, off_value);
- * C = literal(lens = indices_lens, value = on_value, strides = broadcasted scalar)
- * D = scatter(B, indices, C)
+ * A = literal(shape = onehot_output_shape, value = 0)
+ * B = literal(lens = indices_lens, strides = broadcasted scalar, value = 1)
+ * C = scatter(A, indices, B)
+ * D = slice(values) starts = 0, ends = 1 // off_value
+ * E = slice(values) starts = 1, ends = 2 // on_value
+ * F = sub(E, D)
+ * G = mul(F, C);
+ * H = add(G, D);
+ *
+ * NOTE: It might be cleaner to use some form of `fill` instead of
+ * (on_value - off_value) * mask + off_value when we have `fill` working
+ * on the GPU.
  */
 struct find_static_onehot
 {
     auto matcher() const
     {
-        return match::name("onehot")(match::arg(0)(match::static_shape()),
+        return match::name("onehot")(match::arg(0)(match::static_shape().bind("indices")),
                                      match::arg(1)(match::is_constant()),
-                                     match::arg(2)(match::static_shape()));
+                                     match::arg(2)(match::static_shape().bind("values")));
     }
 
-    void apply(module& m, const match::matcher_result& mr) const { auto onehot_ins = mr.result; }
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto onehot_ins           = mr.result;
+        auto onehot_op            = any_cast<op::onehot>(onehot_ins->get_operator());
+        shape onehot_output_shape = onehot_ins->get_shape();
+        std::vector<float> zeros(onehot_output_shape.elements(), 0);
+        auto zeros_lit      = m.add_literal(literal(onehot_output_shape, zeros));
+        auto indices_ins    = mr.instructions["indices"];
+        shape indices_shape = indices_ins->get_shape();
+        // make a scalar shape with lens = indices_shape.lens()
+        shape scalar_broadcast_shape{indices_shape.type(),
+                                     indices_shape.lens(),
+                                     std::vector<std::size_t>(indices_shape.ndim(), 0)};
+        auto ones_lit   = m.add_literal(literal(scalar_broadcast_shape, {1}));
+        auto mask       = m.insert_instruction(onehot_ins,
+                                         make_op("scatter_none", {{"axis", onehot_op.axis}}),
+                                         zeros_lit,
+                                         indices_ins,
+                                         ones_lit);
+        auto values_ins = mr.instructions["values"];
+        auto off_val =
+            m.insert_instruction(onehot_ins,
+                                 make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                                 values_ins);
+        auto on_val =
+            m.insert_instruction(onehot_ins,
+                                 make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                                 values_ins);
+        auto diff_val      = m.insert_instruction(onehot_ins, make_op("sub"), on_val, off_val);
+        auto mul_diff_mask = insert_common_op(m, onehot_ins, make_op("mul"), {diff_val, mask});
+        auto mb_off_val    = m.insert_instruction(
+            onehot_ins,
+            make_op("multibroadcast", {{"output_lens", onehot_output_shape.lens()}}),
+            off_val);
+        m.replace_instruction(onehot_ins, make_op("add"), mb_off_val, mul_diff_mask);
+    }
 };
 
 /**

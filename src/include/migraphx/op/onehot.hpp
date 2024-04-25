@@ -68,7 +68,7 @@ struct onehot
         // `depth` and `values` should have static shape
         (void)check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
         const auto& indices_shape = inputs[0];
-        shape values_shape        = inputs[2];
+        const auto& values_shape  = inputs[2];
         auto output_dds           = indices_shape.to_dynamic().dyn_dims();
         std::size_t max_val       = std::numeric_limits<std::size_t>::max();
         auto normalized_axis =

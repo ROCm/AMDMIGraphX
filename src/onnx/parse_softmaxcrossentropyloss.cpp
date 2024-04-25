@@ -140,7 +140,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
         {
-            td::set<std::string> supported_modes = {"mean", "none", "sum"};
+            std::set<std::string> supported_modes = {"mean", "none", "sum"};
 
             reduction = parser.parse_value(info.attributes.at("reduction")).at<std::string>();
             if(not contains(supported_modes, reduction))
@@ -151,14 +151,15 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
-        ignore_index = info.add_literal(
-            migraphx::literal(migraphx::shape(migraphx::shape::int_type, {1}, {0}), {-1}));
+        auto ignore_index =
+            info.add_literal(migraphx::literal(migraphx::shape(shape::int32_type, {1}, {0}), {-1}));
         bool has_ignore_index = contains(info.attributes, "ignore_index");
         if(has_ignore_index)
         {
-            ignore_index_val = parser.parse_value(info.attributes.at("ignore_index")).at<int>();
-            ignore_index     = info.add_literal(migraphx::literal(
-                migraphx::shape(migraphx::shape::int_type, {1}, {0}), {ignore_index_val}));
+            auto ignore_index_val =
+                parser.parse_value(info.attributes.at("ignore_index")).at<int>();
+            ignore_index = info.add_literal(migraphx::literal(
+                migraphx::shape(migraphx::shape::int32_type, {1}, {0}), {ignore_index_val}));
         }
 
         // Get Inputs
@@ -174,8 +175,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
         else
         { // if weights isn't given, treat input as equal scaling for each class labels
-            std::vector<scores->get_shape().type()> ones_vec(scores->get_shape().elements(), 1), ;
-            weights = info.add_literal(migraphx::literal(scores.get_shape(), ones_vec));
+            std::vector<float> ones_vec(scores->get_shape().elements(), 1);
+            weights = info.add_literal(migraphx::literal(scores->get_shape(), ones_vec));
         }
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
@@ -188,7 +189,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             info.add_instruction(make_op(opd.op_name,
                                          {{"has_ignore_index", has_ignore_index},
                                           {"weighted", has_weights},
-                                          {"mode", mode}}),
+                                          {"mode", reduction}}),
                                  log_sm_scores,
                                  labels,
                                  weights,
@@ -212,11 +213,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
         else if(reduction == "sum" or has_weights)
         {
-            auto loss_tensor = info.add_instruction(make_op("reduce_sum"), loss_tensor);
+            loss_tensor = info.add_instruction(make_op("reduce_sum"), loss_tensor);
             if(reduction == "mean")
             {
-                auto reduce_weights = info.add_instruction(make_op("reduce_sum"), weight_tensor);
-                loss_tensor = info.add_instructions(make_op("div"), loss_tensor, reduced_weights);
+                auto reduced_weights = info.add_instruction(make_op("reduce_sum"), weight_tensor);
+                loss_tensor = info.add_instruction(make_op("div"), loss_tensor, reduced_weights);
             }
         }
 

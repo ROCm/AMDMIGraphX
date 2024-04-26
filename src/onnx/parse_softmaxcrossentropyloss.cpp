@@ -175,7 +175,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
         else
         { // if weights isn't given, treat input as equal scaling for each class labels
-            std::vector<float> ones_vec(scores->get_shape().elements(), 1);
+            std::vector<float> ones_vec(scores->get_shape().lens().at(1), 1);
             weights = info.add_literal(migraphx::literal(scores->get_shape(), ones_vec));
         }
 
@@ -183,6 +183,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // loss calculation
         auto softmax_scores = info.add_instruction(migraphx::make_op("softmax"), scores);
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
+        auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
         // Returns tuple of two outputs (loss_tensor, weights)
         auto tuple_loss_tensor =
@@ -190,7 +191,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                          {{"has_ignore_index", has_ignore_index},
                                           {"weighted", has_weights},
                                           {"mode", reduction}}),
-                                 log_sm_scores,
+                                 neg_lsm_scores,
                                  labels,
                                  weights,
                                  ignore_index);

@@ -52,8 +52,8 @@ TEST_CASE(broadcast_transpose_inner_broadcast)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
-        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {1}, {0}});
+        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {1}, {0}});
+        auto y   = m2.add_parameter("y", {migraphx::shape::float_type, {1}, {0}});
         auto mul = m2.add_instruction(migraphx::make_op("mul"), y, x);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 2}}}), mul);
@@ -82,15 +82,14 @@ TEST_CASE(broadcast_transpose_inner_broadcast_generic)
     run_pass(m1);
     migraphx::module m2;
     {
-        auto x        = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
-        auto y        = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
+        auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
+        auto y         = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
         auto unsqueeze = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 1}}}), y);
         auto transpose = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), unsqueeze);
-        auto squeeze = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", {0}}}), transpose);
-        auto mb1 = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {5, 10}}}), squeeze);
+        auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), transpose);
+        auto mb1 = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5, 10}}}),
+                                      squeeze);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, mb1);
         auto mb2 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 5, 10}}}), mul);

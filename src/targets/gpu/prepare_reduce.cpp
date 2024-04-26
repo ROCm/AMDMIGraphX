@@ -92,8 +92,8 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 
 void fuse_reductions(module& m)
 {
-    auto dom     = compute_dominator(m);
-    auto rs      = find_parallel_reduce(find_reduce(m), dom);
+    auto dom = compute_dominator(m);
+    auto rs  = find_parallel_reduce(find_reduce(m), dom);
     if(rs.size() < 2)
         return;
     // Only handle the same reduction operator for now
@@ -107,8 +107,8 @@ void fuse_reductions(module& m)
     std::transform(rs.begin(), rs.end(), std::back_inserter(inputs), [&](auto r) {
         return r->inputs().front();
     });
-    auto pr      = m.insert_instruction(last, parallel_reduce{op}, inputs);
-    int i        = 0;
+    auto pr = m.insert_instruction(last, parallel_reduce{op}, inputs);
+    int i   = 0;
     for(auto r : rs)
     {
         m.replace_instruction(r, make_op("get_tuple_elem", {{"index", i}}), pr);

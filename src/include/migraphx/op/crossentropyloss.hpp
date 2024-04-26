@@ -28,6 +28,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/par_dfor.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -83,7 +84,7 @@ struct crossentropyloss
         }
 
         // Output of loss tensor and rearranged weights should have the same shape as input labels
-        std::vector<migraphx::shape> output_shapes{log_scores, weights};
+        std::vector<migraphx::shape> output_shapes{label, weights};
 
         return shape{output_shapes};
     }
@@ -102,8 +103,27 @@ struct crossentropyloss
         auto label_shape      = labels.get_shape();
         auto weight_shape     = weights.get_shape();
 
-        int batch_size  = log_scores_shape.lens().at(0);
+        // int batch_size  = log_scores_shape.lens().at(0);
         int num_classes = log_scores_shape.lens().at(1);
+
+        visit_all(result, weight_vec, log_scores_input, labels, weights)(
+            [&](auto output, auto weight, auto data, auto label, auto in_weight) {
+                par_dfor(num_classes)([&](int class) {
+                    int c = label[class];
+
+                    weight[c] = in_weight[c];
+                    output[c] = 0;
+
+                    if(self.has_ignore_index && c != ignore_index)
+                    {
+                        output[c] = data[class];
+                        if(self.weighted)
+                        {
+                            output[c] *= weight[c];
+                        }
+                    }
+                });
+            });
 
         std::vector<argument> output_vec{result, weight_vec};
         argument output_result;

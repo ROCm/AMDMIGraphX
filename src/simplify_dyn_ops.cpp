@@ -474,31 +474,37 @@ struct find_static_onehot
 {
     auto matcher() const
     {
-        return match::name("onehot")(match::arg(0)(match::static_shape().bind("indices")),
+        return match::name("onehot")(match::arg(0)(match::static_shape()),
                                      match::arg(1)(match::is_constant()),
-                                     match::arg(2)(match::static_shape().bind("values")));
+                                     match::arg(2)(match::static_shape()));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto onehot_ins           = mr.result;
+        auto onehot_inputs = onehot_ins->inputs();
         auto onehot_op            = any_cast<op::onehot>(onehot_ins->get_operator());
-        shape onehot_output_shape = onehot_ins->get_shape();
-        std::vector<float> zeros(onehot_output_shape.elements(), 0);
-        auto zeros_lit      = m.add_literal(literal(onehot_output_shape, zeros));
-        auto indices_ins    = mr.instructions["indices"];
+        auto indices_ins    = onehot_inputs[0];
         shape indices_shape = indices_ins->get_shape();
+        auto depth_ins = onehot_inputs[1];
+        auto values_ins = onehot_inputs[2];
+        shape values_shape = values_ins->get_shape();
+        std::vector<std::size_t> static_output_lens = indices_shape.lens();
+        auto normalized_axis = (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
+        depth_ins->eval().visit([&](auto d){
+            static_output_lens.insert(static_output_lens.begin() + normalized_axis, d[0]);
+        });
+        shape output_shape{values_shape.type(), static_output_lens};
+        std::vector<float> zeros(output_shape.elements(), 0);
+        auto zeros_lit      = m.add_literal(literal(output_shape, zeros));
         // make a scalar shape with lens = indices_shape.lens()
-        shape scalar_broadcast_shape{indices_shape.type(),
-                                     indices_shape.lens(),
-                                     std::vector<std::size_t>(indices_shape.ndim(), 0)};
-        auto ones_lit   = m.add_literal(literal(scalar_broadcast_shape, {1}));
+        auto ones_lit   = m.add_literal(literal(shape{values_shape.type(), {1}, {0}}, {1}));
+        auto mb_ones    = m.insert_instruction(onehot_ins, migraphx::make_op("multibroadcast", {{"out_lens", indices_shape.lens()}}), ones_lit);
         auto mask       = m.insert_instruction(onehot_ins,
-                                         make_op("scatter_none", {{"axis", onehot_op.axis}}),
+                                         make_op("scatter_none", {{"axis", normalized_axis}}),
                                          zeros_lit,
                                          indices_ins,
-                                         ones_lit);
-        auto values_ins = mr.instructions["values"];
+                                         mb_ones);
         auto off_val =
             m.insert_instruction(onehot_ins,
                                  make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
@@ -511,7 +517,7 @@ struct find_static_onehot
         auto mul_diff_mask = insert_common_op(m, onehot_ins, make_op("mul"), {diff_val, mask});
         auto mb_off_val    = m.insert_instruction(
             onehot_ins,
-            make_op("multibroadcast", {{"output_lens", onehot_output_shape.lens()}}),
+            make_op("multibroadcast", {{"out_lens", output_shape.lens()}}),
             off_val);
         m.replace_instruction(onehot_ins, make_op("add"), mb_off_val, mul_diff_mask);
     }
@@ -661,7 +667,8 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_3in_slice{},
                         find_const_4in_slice{},
                         find_const_alloc_fill{},
-                        find_static_broadcast_for_dot{});
+                        find_static_broadcast_for_dot{},
+                        find_static_onehot{});
     match::find_matches(m, simplify_select_module_output_shape{});
 }
 

@@ -164,3 +164,8 @@ TEST_CASE(onehot_neg_depth_error)
     params["values"]                  = migraphx::argument(values_s, values_data.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
+
+TEST_CASE(onehot_simplify_test)
+{
+
+}

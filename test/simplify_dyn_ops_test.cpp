@@ -24,6 +24,7 @@
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
@@ -336,7 +337,7 @@ TEST_CASE(const_slice_3input_axes_only)
 
     migraphx::module m1;
     {
-        MIGX only s migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
+        migraphx::shape s{migraphx::shape::float_type, {6, 4, 4}};
         auto input     = m1.add_parameter("data", s);
         auto slice_ins = m1.add_instruction(
             migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"axes", {0}}}), input);
@@ -683,12 +684,64 @@ TEST_CASE(static_onehot)
 {
     migraphx::module m0;
     {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m0.add_parameter("indices", inds_s);
+        auto depth_lit    = m0.add_literal(migraphx::literal{depth_s, {3}});
+        auto values_param = m0.add_parameter("values", values_s);
+        auto onehot_ins   = m0.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
+        m0.add_return({onehot_ins});
     }
     run_pass(m0);
 
     migraphx::module m1;
     {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m1.add_parameter("indices", inds_s);
+        auto values_param = m1.add_parameter("values", values_s);
+        migraphx::shape output_shape{migraphx::shape::float_type, {4, 3}};
+        std::vector<float> zeros(output_shape.elements(), 0);
+        auto zeros_lit      = m1.add_literal(migraphx::literal(output_shape, zeros));
+        auto ones_lit   = m1.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1}));
+        auto mb_ones    = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", inds_s.lens()}}), ones_lit);
+        auto mask       = m1.add_instruction(migraphx::make_op("scatter_none", {{"axis", 1}}),
+                                            zeros_lit,
+                                            inds_param,
+                                            mb_ones);
+        auto off_val =
+            m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                               values_param);
+        auto on_val =
+            m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                               values_param);
+        auto diff_val      = m1.add_instruction(migraphx::make_op("sub"), on_val, off_val);
+        auto mul_diff_mask = add_common_op(m1, migraphx::make_op("mul"), {diff_val, mask});
+        auto ret = add_common_op(m1, migraphx::make_op("add"), {off_val, mul_diff_mask});
+        m1.add_return({ret});
     }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(onehot_cannot_simplify)
+{
+    migraphx::module m0;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m0.add_parameter("indices", inds_s);
+        auto depth_param  = m0.add_parameter("depth", depth_s);
+        auto values_param = m0.add_parameter("values", values_s);
+        auto onehot_ins   = m0.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_param, values_param);
+        m0.add_return({onehot_ins});
+    }
+    migraphx::module m1 = m0;
+    run_pass(m0);
     EXPECT(m0 == m1);
 }
 

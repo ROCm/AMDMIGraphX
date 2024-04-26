@@ -488,6 +488,20 @@ struct find_inner_broadcast
 
     static auto get_input_shape(instruction_ref ins) { return ins->inputs().front()->get_shape(); }
 
+    static bool is_unsqueeze_needed_for_multibroadcast(const shape& input, const shape& output)
+    {
+        if(input.elements() == 1)
+            return false;
+        auto shift = output.ndim() - input.ndim();
+        if (shift == 0)
+            return false;
+        if(std::equal(input.lens().begin(), input.lens().end(), output.lens().begin() + shift, output.lens().end()))
+        {
+            return std::all_of(output.lens().begin(), output.lens().begin() + shift, [](auto x) { return x == 1; });
+        }
+        return true;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins        = r.result;
@@ -530,6 +544,7 @@ struct find_inner_broadcast
         else
         {
             auto ndim = ins->get_shape().ndim();
+            std::vector<std::size_t> idims;
             std::vector<std::int64_t> iaxes;
             std::vector<std::int64_t> axes;
             for(auto axis : range(ndim))
@@ -544,6 +559,7 @@ struct find_inner_broadcast
                 else
                 {
                     iaxes.push_back(axis);
+                    idims.push_back(ins->get_shape().lens()[axis]);
                 }
             }
             if(iaxes.size() == ndim)
@@ -577,10 +593,16 @@ struct find_inner_broadcast
                             continue;
                         sq_axes.push_back(iaxis);
                     }
+                    instruction_ref result = input;
                     if(not sq_axes.empty())
-                        return m.insert_instruction(
-                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), input);
-                    return input;
+                        result = m.insert_instruction(
+                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);
+                    if(result->get_shape().ndim() < iaxes.size())
+                    {
+                        auto start_axis = std::find_if(iaxes.begin(), iaxes.end(), [&](auto x) { return x >= shift; }) - iaxes.begin();
+                        result = m.insert_instruction(broadcast, make_op("broadcast", {{"axis", start_axis}, {"out_lens", idims}}), result);
+                    }
+                    return result;
                 });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
             if(iaxes.size() == 1)
@@ -594,9 +616,9 @@ struct find_inner_broadcast
             else
             {
                 auto unsqueeze =
-                    op->get_shape().elements() == 1
-                        ? op
-                        : m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op);
+                    is_unsqueeze_needed_for_multibroadcast(op->get_shape(), ins->get_shape())
+                        ? m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op)
+                        : op;
                 m.replace_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),

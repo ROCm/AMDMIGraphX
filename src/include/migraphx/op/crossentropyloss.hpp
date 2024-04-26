@@ -42,58 +42,72 @@ struct crossentropyloss
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.ignore_index, "has_ignore_index"),
+        return pack(f(self.has_ignore_index, "has_ignore_index"),
                     f(self.weighted, "weighted"),
                     f(self.mode, "mode"));
     }
 
-    std::string name() const { return "crossentropyloss"; }
-
     value attributes() const { return {{"has_ignore_index", "weighted", "mode"}}; }
 
-    shape normalize_compute_shape(std::vector<shape> inputs) const
+    std::string name() const { return "crossentropyloss"; }
+
+    migraphx::shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(4);
 
-        auto log_scores_input = inputs.at(0);
-        auto labels           = inputs.at(1);
+        auto log_scores   = inputs[0];
+        auto label        = inputs[1];
+        auto weights      = inputs[2];
+        auto ignore_index = inputs[3];
 
-        auto log_scores_shape = log_scores_input->get_shape();
-        auto label_shape      = labels->get_shape();
+        if(not ignore_index.scalar())
+        {
+            MIGRAPHX_THROW("crossentropyloss: Ignore index must be scalar shape");
+        }
 
-        if(log_scores_shape.lens()[0] != label_shape.lens()[0])
+        if(log_scores.lens()[0] != label.lens()[0])
         {
             MIGRAPHX_THROW("crossentropyloss: Score and Labels must identical batch size inputs");
         }
 
-        if(log_scores_shape.ndims() - 1 != label_shape.ndims())
+        if(log_scores.ndim() <= label.ndim())
         {
             MIGRAPHX_THROW(
                 "crossentropyloss: Score and Labels must contain identical K-Dimensions");
         }
 
-        auto weights      = inputs.at(2);
-        auto ignore_index = inputs.at(3);
-        check_shape{ignore_index.get_shape()}.scalar();
+        if(weights.lens()[0] != log_scores.lens()[1])
+        {
+            MIGRAPHX_THROW(
+                "Invalid weight vector shape. Weight must contain weight for each class");
+        }
 
-        // Need to compute additional output for W vector for weighted mean reduction
-        if(self.weighted and self.mode == "mean") {}
+        // Output of loss tensor and rearranged weights should have the same shape as input labels
+        std::vector<migraphx::shape> output_shapes{log_scores, weights};
 
-        // Output of loss tensor should have the same shape as input labels, output weight vector as
-        // well
-        std::vector<size_t> output_lens{log_scores_input->get_shape().lens()};
-        if(self.mode)
-
-            return output_lens;
+        return shape{output_shapes};
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        argument result{output_shape.sub_shapes().at(0)};
+        argument weight_vec{output_shape.sub_shapes().at(1)};
 
-        int batch_size  = log_scores_shape.lens()[0];
-        int num_classes = log_scores_shape.lens()[1];
+        auto log_scores_input = args.at(0);
+        auto labels           = args.at(1);
+        auto weights          = args.at(2);
+        auto ignore_index     = args.at(3);
 
-        argument result { output_shape }
+        auto log_scores_shape = log_scores_input.get_shape();
+        auto label_shape      = labels.get_shape();
+        auto weight_shape     = weights.get_shape();
+
+        int batch_size  = log_scores_shape.lens().at(0);
+        int num_classes = log_scores_shape.lens().at(1);
+
+        std::vector<argument> output_vec{result, weight_vec};
+        argument output_result;
+        return output_result;
     }
 };
 

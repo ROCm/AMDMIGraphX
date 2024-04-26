@@ -493,11 +493,16 @@ struct find_inner_broadcast
         if(input.elements() == 1)
             return false;
         auto shift = output.ndim() - input.ndim();
-        if (shift == 0)
+        if(shift == 0)
             return false;
-        if(std::equal(input.lens().begin(), input.lens().end(), output.lens().begin() + shift, output.lens().end()))
+        if(std::equal(input.lens().begin(),
+                      input.lens().end(),
+                      output.lens().begin() + shift,
+                      output.lens().end()))
         {
-            return std::all_of(output.lens().begin(), output.lens().begin() + shift, [](auto x) { return x == 1; });
+            return std::all_of(output.lens().begin(), output.lens().begin() + shift, [](auto x) {
+                return x == 1;
+            });
         }
         return true;
     }
@@ -599,8 +604,14 @@ struct find_inner_broadcast
                             broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);
                     if(result->get_shape().ndim() < iaxes.size())
                     {
-                        auto start_axis = std::find_if(iaxes.begin(), iaxes.end(), [&](auto x) { return x >= shift; }) - iaxes.begin();
-                        result = m.insert_instruction(broadcast, make_op("broadcast", {{"axis", start_axis}, {"out_lens", idims}}), result);
+                        auto start_axis = std::find_if(iaxes.begin(),
+                                                       iaxes.end(),
+                                                       [&](auto x) { return x >= shift; }) -
+                                          iaxes.begin();
+                        result = m.insert_instruction(
+                            broadcast,
+                            make_op("broadcast", {{"axis", start_axis}, {"out_lens", idims}}),
+                            result);
                     }
                     return result;
                 });

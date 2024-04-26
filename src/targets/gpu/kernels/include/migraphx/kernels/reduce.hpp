@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -742,18 +743,18 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     });
 }
 
-template <class Algo, class Reduced, class Output, class F>
-__device__ void fused_reduce(Output output, F f)
+template <class Algo, class Reduced, class Output, class Assign, class F>
+__device__ void fused_reduce(Output output, Assign assign, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
         auto result = f(r, out_idx);
         if constexpr(reduce::is_inner_storage<decltype(result)>{})
         {
-            r.inner([&](auto& y, auto x) { y = x; })(output, result);
+            r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
         }
         else
         {
-            r.outer([&] { output[out_idx] = implicit_conversion(result); });
+            r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
         }
     });
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     std::transform(einputs.begin(), einputs.end(), einputs.begin(), [](const shape& s) {
         return s.normalize_standard();
     });
-    if(einputs != inputs)
+    if(einputs != flatten(inputs))
         MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
                        to_string_range(inputs) + "]");
     return output;
@@ -48,9 +48,10 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    std::vector<void*> kargs(args.size());
+    auto fargs = flatten(args);
+    std::vector<void*> kargs(fargs.size());
     std::transform(
-        args.begin(), args.end(), kargs.begin(), [](const argument& a) { return a.data(); });
+        fargs.begin(), fargs.end(), kargs.begin(), [](const argument& a) { return a.data(); });
     auto [start, stop] = ctx.get_perf_events();
     k.launch(ctx.get_stream().get(), global, local, std::move(kargs), start, stop);
     return args[get_output_arg(args.size())];

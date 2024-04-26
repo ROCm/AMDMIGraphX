@@ -66,18 +66,10 @@ struct fused_reduce
                return shapes.at(name).lens() == input.lens();
            }))
             MIGRAPHX_THROW("Dimenstion does not match the submodule.");
-        const auto& s = inputs.at(0);
-        auto lens     = s.lens();
-        if(lens != sm->get_output_shapes().front().lens())
-        {
-            for(const auto& axis : axes)
-            {
-                lens[axis] = 1;
-            }
-        }
 
-        return shape::from_permutation(
-            sm->get_output_shapes().front().type(), lens, find_permutation(inputs));
+        return shape::from_permutation(sm->get_output_shapes().front().type(),
+                                       sm->get_output_shapes().front().lens(),
+                                       find_permutation(inputs));
     }
 
     std::string name() const { return "fused_reduce"; }
@@ -119,7 +111,9 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-        match::name("multibroadcast")(match::arg(0)(ms...), match::used_once()).bind("broadcast"));
+               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+                   .bind("broadcast"))
+        .bind("final_broadcast");
 }
 
 template <class... Ms>
@@ -162,7 +156,10 @@ struct find_pointwise_reduce
         if(contains(r.instructions, "broadcast"))
         {
             auto broadcast     = r.instructions["broadcast"];
+            auto fbroadcast    = r.instructions["final_broadcast"];
             map_ins[broadcast] = rm->fuse({broadcast}, &map_ins).front();
+            if(fbroadcast != broadcast)
+                map_ins[fbroadcast] = map_ins[broadcast];
         }
 
         // Insert fused_reduce

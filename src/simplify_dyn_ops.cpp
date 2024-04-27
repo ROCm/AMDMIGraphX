@@ -482,28 +482,34 @@ struct find_static_onehot
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto onehot_ins           = mr.result;
-        auto onehot_inputs = onehot_ins->inputs();
+        auto onehot_inputs        = onehot_ins->inputs();
         auto onehot_op            = any_cast<op::onehot>(onehot_ins->get_operator());
-        auto indices_ins    = onehot_inputs[0];
+        auto indices_ins          = onehot_inputs[0];
         shape indices_shape = indices_ins->get_shape();
-        auto depth_ins = onehot_inputs[1];
-        auto values_ins = onehot_inputs[2];
-        shape values_shape = values_ins->get_shape();
+        auto depth_ins            = onehot_inputs[1];
+        auto values_ins           = onehot_inputs[2];
+        shape values_shape        = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
-        auto normalized_axis = (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
-        depth_ins->eval().visit([&](auto d){
+        auto normalized_axis =
+            (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
+        depth_ins->eval().visit([&](auto d) {
             static_output_lens.insert(static_output_lens.begin() + normalized_axis, d[0]);
         });
         shape output_shape{values_shape.type(), static_output_lens};
         std::vector<float> zeros(output_shape.elements(), 0);
         auto zeros_lit      = m.add_literal(literal(output_shape, zeros));
-        // make a scalar shape with lens = indices_shape.lens()
-        auto ones_lit   = m.add_literal(literal(shape{values_shape.type(), {1}, {0}}, {1}));
-        auto mb_ones    = m.insert_instruction(onehot_ins, migraphx::make_op("multibroadcast", {{"out_lens", indices_shape.lens()}}), ones_lit);
-        auto mask       = m.insert_instruction(onehot_ins,
+        auto unsqueeze_inds = m.insert_instruction(
+            onehot_ins, migraphx::make_op("unsqueeze", {{"axes", {normalized_axis}}}), indices_ins);
+        // broadcast the one scalar to the correct shape
+        auto ones_lit = m.add_literal(literal(shape{values_shape.type(), {1}, {0}}, {1}));
+        auto mb_ones  = m.insert_instruction(
+            onehot_ins,
+            migraphx::make_op("multibroadcast", {{"out_lens", unsqueeze_inds->get_shape().lens()}}),
+            ones_lit);
+        auto mask = m.insert_instruction(onehot_ins,
                                          make_op("scatter_none", {{"axis", normalized_axis}}),
                                          zeros_lit,
-                                         indices_ins,
+                                         unsqueeze_inds,
                                          mb_ones);
         auto off_val =
             m.insert_instruction(onehot_ins,
@@ -516,9 +522,7 @@ struct find_static_onehot
         auto diff_val      = m.insert_instruction(onehot_ins, make_op("sub"), on_val, off_val);
         auto mul_diff_mask = insert_common_op(m, onehot_ins, make_op("mul"), {diff_val, mask});
         auto mb_off_val    = m.insert_instruction(
-            onehot_ins,
-            make_op("multibroadcast", {{"out_lens", output_shape.lens()}}),
-            off_val);
+            onehot_ins, make_op("multibroadcast", {{"out_lens", output_shape.lens()}}), off_val);
         m.replace_instruction(onehot_ins, make_op("add"), mb_off_val, mul_diff_mask);
     }
 };

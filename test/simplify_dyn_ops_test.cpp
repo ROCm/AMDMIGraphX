@@ -705,22 +705,24 @@ TEST_CASE(static_onehot)
         auto values_param = m1.add_parameter("values", values_s);
         migraphx::shape output_shape{migraphx::shape::float_type, {4, 3}};
         std::vector<float> zeros(output_shape.elements(), 0);
-        auto zeros_lit      = m1.add_literal(migraphx::literal(output_shape, zeros));
-        auto ones_lit   = m1.add_literal(migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1}));
-        auto mb_ones    = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", inds_s.lens()}}), ones_lit);
-        auto mask       = m1.add_instruction(migraphx::make_op("scatter_none", {{"axis", 1}}),
-                                            zeros_lit,
-                                            inds_param,
-                                            mb_ones);
-        auto off_val =
-            m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
-                               values_param);
-        auto on_val =
-            m1.add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
-                               values_param);
+        auto zeros_lit = m1.add_literal(migraphx::literal(output_shape, zeros));
+        auto unsqueeze_inds =
+            m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), inds_param);
+        auto ones_lit = m1.add_literal(
+            migraphx::literal(migraphx::shape{migraphx::shape::float_type, {1}, {0}}, {1}));
+        auto mb_ones = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1}}}), ones_lit);
+        auto mask = m1.add_instruction(
+            migraphx::make_op("scatter_none", {{"axis", 1}}), zeros_lit, unsqueeze_inds, mb_ones);
+        auto off_val = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+            values_param);
+        auto on_val = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+            values_param);
         auto diff_val      = m1.add_instruction(migraphx::make_op("sub"), on_val, off_val);
         auto mul_diff_mask = add_common_op(m1, migraphx::make_op("mul"), {diff_val, mask});
-        auto ret = add_common_op(m1, migraphx::make_op("add"), {off_val, mul_diff_mask});
+        auto ret           = add_common_op(m1, migraphx::make_op("add"), {off_val, mul_diff_mask});
         m1.add_return({ret});
     }
     EXPECT(m0 == m1);

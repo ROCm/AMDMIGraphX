@@ -20,31 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-
-#ifndef MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DOM_INFO_HPP
+#ifndef MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
+#define MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction.hpp>
-#include <unordered_map>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module;
 
-struct MIGRAPHX_EXPORT dominator_info
-{
-    bool strictly_dominate(instruction_ref ins1, instruction_ref ins2) const;
+namespace gpu {
 
-    std::unordered_map<instruction_ref, instruction_ref> ins2idom;
+struct prepare_reduce
+{
+    std::string name() const { return "gpu::prepare_reduce"; }
+    void apply(module& m) const;
 };
 
-MIGRAPHX_EXPORT dominator_info compute_dominator(module& m);
-// MIGRAPHX_EXPORT dominator_info compute_dominator_naive(const module& m);
-
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP

@@ -89,8 +89,7 @@ void quantize_8bits(program& prog,
         auto max_abs                = std::max(std::fabs(max_val), std::fabs(min_val));
         max_abs_vals->at(ins_index) = std::max(max_abs_vals->at(ins_index), max_abs);
         // if all values are 0, no need to do scaling
-        if(float_equal(max_abs_vals->at(ins_index), 0.0f) or
-           std::isinf(max_abs_vals->at(ins_index)))
+        if(float_equal(max_abs_vals->at(ins_index), 0.0f))
         {
             param_pair.first = 1.0f;
         }

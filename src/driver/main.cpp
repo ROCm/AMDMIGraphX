@@ -396,7 +396,7 @@ struct loader
         std::ofstream fs;
         if(not output.empty())
         {
-            fs.open(output);
+            fs.open(output, std::ios::binary);
             os = &fs;
         }
 

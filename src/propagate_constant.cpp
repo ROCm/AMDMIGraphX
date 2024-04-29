@@ -28,6 +28,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/simple_par_for.hpp>
 #include <migraphx/env.hpp>
+#include <thread>
 #include <unordered_set>
 
 namespace migraphx {
@@ -83,7 +84,12 @@ void propagate_constant::apply(module& m) const
     // Compute literals in parallel
     std::vector<instruction_ref> const_instrs_vec{const_instrs.begin(), const_instrs.end()};
     std::vector<argument> literals(const_instrs_vec.size());
-    simple_par_for(const_instrs_vec.size(), 1, [&](const auto i) {
+    std::size_t grainsize = 1;
+#if !MIGRAPHX_HAS_EXECUTORS
+    std::size_t n = std::max<std::size_t>(2048 / std::thread::hardware_concurrency(), 1);
+    grainsize     = const_instrs_vec.size() / n;
+#endif
+    simple_par_for(const_instrs_vec.size(), grainsize, [&](const auto i) {
         literals[i] = const_instrs_vec[i]->eval();
     });
 

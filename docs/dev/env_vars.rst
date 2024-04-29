@@ -107,6 +107,10 @@ Disables the ``schedule`` pass.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Disables the ``fuse_reduce`` pass.
 
+.. envvar:: MIGRAPHX_ENABLE_SPLIT_REDUCE
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable split_reduce.
+
 .. envvar:: MIGRAPHX_ENABLE_NHWC
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
@@ -126,6 +130,11 @@ Disables use of the rocMLIR library.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Uses ``hip_copy_to_gpu`` with a new ``literal`` instruction rather than using ``hip_copy_literal{}``.
+
+.. envvar:: MIGRAPHX_DISABLE_LAYERNORM_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Disables layrnorm fusion.
 
 Compilation traces
 ----------------------

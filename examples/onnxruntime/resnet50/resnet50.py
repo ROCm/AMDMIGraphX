@@ -116,7 +116,7 @@ def run_sample(session,
                verbose=False):
     io_binding = session.io_binding()
     io_binding.bind_cpu_input('input', inputs.cpu().detach().numpy())
-    io_binding.bind_output('output')
+    io_binding.bind_output('output', 'cuda')
     start = time.time()
     session.run_with_iobinding(io_binding)
     latency.append(time.time() - start)
@@ -253,7 +253,7 @@ def main():
     latency = []
     if flags.verbose:
         print("Running samples")
-    for i in range(flags.run):
+    for i in range(flags.run + 1):  # +1 for warm-up run
         run_sample(session_fp32, categories, latency, input_batch, flags.top,
                    flags.batch)
 

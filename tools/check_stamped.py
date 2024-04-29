@@ -118,7 +118,8 @@ def main(branch) -> None:
 
     # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
     subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet".format(branch),
+        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet"
+        .format(branch),
         shell=True,
         stdout=subprocess.PIPE)
 
@@ -169,8 +170,8 @@ def main(branch) -> None:
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("branch")
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     main(args.branch)

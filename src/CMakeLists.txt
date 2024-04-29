@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -77,6 +78,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    param_utils.cpp
     pass.cpp
     pass_manager.cpp
     permutation.cpp
@@ -95,6 +97,7 @@ add_library(migraphx
     rewrite_reduce.cpp
     simplify_qdq.cpp
     simplify_dynamicquantizelinear.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp
@@ -141,6 +144,7 @@ register_migraphx_ops(
     atan
     broadcast
     broadcast_for_dot
+    broadcast_with_dims
     capture
     ceil
     clip

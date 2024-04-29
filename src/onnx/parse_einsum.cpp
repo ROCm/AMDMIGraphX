@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
@@ -259,9 +260,13 @@ struct parse_einsum : op_parser<parse_einsum>
                                      size_t ellipsis_ndim) const
     {
         std::string output_term = ellipsis_ndim == 0 ? "" : "*";
-        for(const auto [label, count] : label_count)
-            if(count == 1)
-                output_term += label;
+        output_term             = transform_accumulate(
+            label_count.begin(), label_count.end(), output_term, std::plus<>(), [](const auto& p) {
+                if(p.second == 1)
+                    return std::string{p.first};
+                else
+                    return std::string{};
+            });
 
         return output_term;
     }
@@ -351,8 +356,10 @@ struct parse_einsum : op_parser<parse_einsum>
         {
             std::vector<std::vector<int>> diag;
             diag.reserve(duplicates.size());
-            for(const auto& [_, v] : duplicates)
-                diag.push_back(v);
+            std::transform(duplicates.begin(),
+                           duplicates.end(),
+                           std::back_inserter(diag),
+                           [](const auto& d) { return d.second; });
 
             op = gather_diagonal(info, cur_pair, op, diag);
         }
@@ -421,12 +428,13 @@ struct parse_einsum : op_parser<parse_einsum>
             migraphx::make_op("gathernd", {{"batch_dims", batch_axes.size()}}), op, indices_arg);
 
         // compute output row
-        for(auto& r : cur_pair[1])
-            if(contains(axes, r))
-                r = first_axis;
+        std::replace_if(
+            cur_pair[1].begin(),
+            cur_pair[1].end(),
+            [&](auto r) { return contains(axes, r); },
+            first_axis);
 
-        std::vector<int> to_remove(axes.begin() + 1, axes.end());
-        for(auto t : to_remove)
+        for(auto t : range(axes.begin() + 1, axes.end()))
         {
             std::transform(cur_pair[1].begin(),
                            cur_pair[1].end(),
@@ -479,9 +487,10 @@ struct parse_einsum : op_parser<parse_einsum>
         }
 
         // Permute the inputs so batch_axes are outermost axes and sum_axes are innermost axes
-        auto perm = concat_vectors(batch_axes, left_only, right_only, sum_axes);
-        op1       = apply_transpose_op(info, op1, perm, cur_pair[0]);
-        op2       = apply_transpose_op(info, op2, perm, cur_pair[1]);
+        auto&& perm = concat_vectors(batch_axes, left_only, right_only, sum_axes);
+        std::vector<int64_t> perm64(perm.begin(), perm.end());
+        op1 = apply_transpose_op(info, op1, perm64, cur_pair[0]);
+        op2 = apply_transpose_op(info, op2, perm64, cur_pair[1]);
 
         auto new_batch_axes = arange(0, batch_axes.size());
         auto new_sum_axes   = arange(perm.size() - sum_axes.size(), perm.size());
@@ -491,11 +500,7 @@ struct parse_einsum : op_parser<parse_einsum>
 
         auto op = batch_dot(info, cur_pair, op1, op2, new_batch_axes, new_sum_axes);
 
-        auto perm_cpy = perm;
-        for(auto i = 0; i < perm.size(); ++i)
-            perm[perm_cpy[i]] = i;
-
-        return apply_transpose_op(info, op, perm, cur_pair[1]);
+        return apply_transpose_op(info, op, invert_permutation(perm64), cur_pair[1]);
     }
 
     instruction_ref batch_dot(const onnx_parser::node_info& info,
@@ -581,7 +586,7 @@ struct parse_einsum : op_parser<parse_einsum>
         std::sort(
             perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
 
-        std::vector<int> new_perm(cur_pair[1].size());
+        std::vector<int64_t> new_perm(cur_pair[1].size());
         std::iota(new_perm.begin(), new_perm.end(), 0);
 
         for(auto i = 0, p = 0; i < cur_pair[1].size(); ++i)
@@ -614,7 +619,7 @@ struct parse_einsum : op_parser<parse_einsum>
         std::sort(
             perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
 
-        std::vector<int> new_perm(cur_pair[1].size());
+        std::vector<int64_t> new_perm(cur_pair[1].size());
         std::iota(new_perm.begin(), new_perm.end(), 0);
 
         for(auto i = 0, p = 0; i < row_output.size(); ++i)
@@ -640,12 +645,12 @@ struct parse_einsum : op_parser<parse_einsum>
 
     instruction_ref apply_transpose_op(const onnx_parser::node_info& info,
                                        instruction_ref op,
-                                       const std::vector<int>& perm,
+                                       const std::vector<int64_t>& perm,
                                        std::vector<int>& row) const
     {
         op = info.add_instruction(make_op("transpose", {{"permutation", perm}}), op);
         // compute output row
-        row = reorder_dims(row, {perm.begin(), perm.end()});
+        row = reorder_dims(row, perm);
 
         return op;
     }

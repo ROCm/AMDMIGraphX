@@ -21,43 +21,51 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_LEXING_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_LEXING_HPP
 
-#include <functional>
-#include <string>
-#include <vector>
-#include <migraphx/errors.hpp>
+#include <migraphx/lexing.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-using lexer = std::function<const char*(const char* start, const char* end)>;
-
-template <class P>
-inline auto lex_while(P p)
+std::function<const char*(const char*, const char*)> lex_equal(const std::string& s)
 {
     return [=](const char* start, const char* end) {
-        return std::find_if(start, end, [&](char c) { return not p(c); });
-    };
-}
-
-template <class P>
-inline auto lex_if(P p)
-{
-    return [=](const char* start, const char*) {
-        if(p(*start))
-            return start + 1;
+        auto n = end - start;
+        if(n < s.size())
+            return start;
+        if(std::equal(start, start + s.size(), s.data()))
+            return start + s.size();
         return start;
     };
 }
 
-MIGRAPHX_EXPORT std::function<const char*(const char*, const char*)> lex_equal(const std::string&);
+std::vector<std::string_view>
+tokenize(const char* start, const char* end, const std::vector<lexer>& lexers)
+{
+    std::vector<std::string_view> result;
+    while(start != end)
+    {
+        bool error = true;
+        for(const auto& l : lexers)
+        {
+            const auto* next = l(start, end);
+            if(next != start)
+            {
+                result.emplace_back(start, next - start);
+                start = next;
+                error = false;
+                break;
+            }
+        }
 
-MIGRAPHX_EXPORT std::vector<std::string_view>
-tokenize(const char*, const char*, const std::vector<lexer>&);
+        if(error)
+        {
+            MIGRAPHX_THROW("TOKENIZE: no token found!");
+        }
+    }
+
+    return result;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

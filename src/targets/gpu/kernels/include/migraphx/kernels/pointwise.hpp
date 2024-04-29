@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,21 +30,29 @@
 #include <migraphx/kernels/preload.hpp>
 #include <migraphx/kernels/vectorize.hpp>
 #include <migraphx/kernels/args.hpp>
+#include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 
-template <class F, class T, class... Ts>
-__device__ void pointwise_tensor(index idx, F f, T out, Ts... xs)
+template <class F, class Output, class T, class... Ts>
+__device__ void pointwise_tensor(index idx, F f, Output out, T x, Ts... xs)
 {
-    idx.global_stride(out.get_shape().elements(),
-                      [&](auto i) { out[i] = implicit_conversion(f(xs[i]...)); });
+    idx.global_stride(x.get_shape().elements(), [&](auto i) {
+        auto r = f(x[i], xs[i]...);
+        out([&](auto... outs) {
+            r([&](auto... rs) {
+                static_assert(sizeof...(outs) == sizeof...(rs));
+                swallow{(outs[i] = implicit_conversion(rs))...};
+            });
+        });
+    });
 }
 
-template <class... Transforms>
+template <index_int N, class... Transforms>
 __device__ auto pointwise(index idx, Transforms... transforms)
 {
     return [=](auto f, auto*... ps) {
-        auto t = transform_args(make_tensors(), rotate_last(), transforms...);
+        auto t = transform_args(make_tensors(), transforms..., rotate_and_pack_last<N>());
         t(ps...)([&](auto... xs) { pointwise_tensor(idx, f, xs...); });
     };
 }

@@ -338,7 +338,7 @@ jobs:
     runs-on: ubuntu-20.04
 
     env:
-      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      BASE_BRANCH: ${{ GITHUB_BASE_REF }}
 
     steps:
     - name: Free space
@@ -359,7 +359,7 @@ jobs:
       with:
         python-version: 3.8
     - name: run License Check
-      run: python3 tools/check_stamped.py $BRANCH_NAME
+      run: python3 tools/check_stamped.py ${{ BASE_BRANCH }}
 
   linux:
 

@@ -682,7 +682,7 @@ struct run_cmd : command<run_cmd>
 struct perf : command<perf>
 {
     compiler c;
-    unsigned n = 100;
+    unsigned n    = 100;
     bool detailed = false;
     void parse(argument_parser& ap)
     {

@@ -337,9 +337,6 @@ jobs:
   licensing:
     runs-on: ubuntu-20.04
 
-    env:
-      BASE_BRANCH: ${{ GITHUB_BASE_REF }}
-
     steps:
     - name: Free space
       uses: jlumbroso/free-disk-space@main
@@ -359,7 +356,7 @@ jobs:
       with:
         python-version: 3.8
     - name: run License Check
-      run: python3 tools/check_stamped.py ${{ BASE_BRANCH }}
+      run: python3 tools/check_stamped.py ${{ GITHUB_BASE_REF }}
 
   linux:
 

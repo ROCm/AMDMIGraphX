@@ -569,17 +569,17 @@ TEST_CASE(module_split_2_dot_ins)
     migraphx::module mod_1;
     {
         // expected input args are {dot_ins, sx4, sx3, sx2, sx1}
-        auto m1_x0 = mod_1.add_parameter("x0", s1);
-        auto m1_x1 = mod_1.add_parameter("x1", s1);
-        auto m1_x2 = mod_1.add_parameter("x2", s1);
-        auto m1_x3 = mod_1.add_parameter("x3", s1);
-        auto m1_x4 = mod_1.add_parameter("x4", s1);
+        auto mod_1_x0 = mod_1.add_parameter("x0", s1);
+        auto mod_1_x1 = mod_1.add_parameter("x1", s1);
+        auto mod_1_x2 = mod_1.add_parameter("x2", s1);
+        auto mod_1_x3 = mod_1.add_parameter("x3", s1);
+        auto mod_1_x4 = mod_1.add_parameter("x4", s1);
         // m1_add = add(x4, m1_dot)  --> add(sx1, m1_dot)
-        auto m1_add = mod_1.add_instruction(migraphx::make_op("add"), m1_x4, m1_x0);
+        auto m1_add = mod_1.add_instruction(migraphx::make_op("add"), mod_1_x4, mod_1_x0);
         // m1_add_2 = add(x3, x2) --> add(sx2, sx3)
-        auto m1_add_2 = mod_1.add_instruction(migraphx::make_op("add"), m1_x3, m1_x2);
+        auto m1_add_2 = mod_1.add_instruction(migraphx::make_op("add"), mod_1_x3, mod_1_x2);
         // m1_sub = sub(x1, m1_relu_2) --> sub(sx4, m1_add_2)
-        auto m1_sub = mod_1.add_instruction(migraphx::make_op("sub"), m1_x1, m1_add_2);
+        auto m1_sub = mod_1.add_instruction(migraphx::make_op("sub"), mod_1_x1, m1_add_2);
         // m1_mul = mul(m1_sub, m1_add)
         auto m1_mul = mod_1.add_instruction(migraphx::make_op("mul"), m1_sub, m1_add);
         mod_1.add_return({m1_mul});

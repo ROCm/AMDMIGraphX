@@ -131,12 +131,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return {{"SoftmaxCrossEntropyLoss", "crossentropyloss"}};
     }
 
-    instruction_ref parse(const op_desc& opd,
-                          const onnx_parser& parser,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+    std::vector<instruction_ref> parse(const op_desc& opd,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
     {
-        // default in Onnx spec is mean setting
+        // Get and handle attributes
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
         {
@@ -162,9 +162,22 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::shape(migraphx::shape::int32_type, {1}, {0}), {ignore_index_val}));
         }
 
-        // Get Inputs
+        // Get and validate Inputs
         auto scores = args.at(0);
         auto labels = args.at(1);
+        auto scores_shape = scores->get_shape();
+        auto label_shape = labels->get_shape();
+
+        if(scores_shape.lens()[0] != label_shape.lens()[0])
+        {
+            MIGRAPHX_THROW("crossentropyloss: Score and Labels must identical batch size inputs");
+        }
+
+        if(scores_shape.ndim() <= label_shape.ndim())
+        {
+            MIGRAPHX_THROW(
+                "crossentropyloss: Score and Labels must contain identical K-Dimensions");
+        }
 
         // Get optional input weights (Used for mean reduction)
         instruction_ref weights;
@@ -175,8 +188,16 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
         else
         { // if weights isn't given, treat input as equal scaling for each class labels
-            std::vector<float> ones_vec(scores->get_shape().lens().at(1), 1);
-            weights = info.add_literal(migraphx::literal(scores->get_shape(), ones_vec));
+            std::vector<float> ones_vec(scores_shape.lens().at(1), 1);
+            weights = info.add_literal(migraphx::literal(scores_shape, ones_vec));
+        }
+
+        auto weights_shape = weights->get_shape();
+
+        if(weights_shape.lens()[0] != scores_shape.lens()[1])
+        {
+            MIGRAPHX_THROW(
+                "Invalid weight vector shape. Weight must contain weight for each class");
         }
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
@@ -222,7 +243,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
         }
 
-        return loss_tensor;
+        return {loss_tensor, log_sm_scores};
     }
 };
 

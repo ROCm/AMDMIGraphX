@@ -52,40 +52,40 @@ namespace gpu {
  * @param beta .
  * @param compute_fp32 .
  */
-MIGRAPHX_GPU_EXPORT void gemm_compute(context& ctx,
-                                      const shape& output_shape,
-                                      const std::vector<argument>& args,
-                                      float alpha,
-                                      float beta,
-                                      bool compute_fp32,
-                                      int32_t solution_idx);
+void gemm_compute(context& ctx,
+                  const shape& output_shape,
+                  const std::vector<argument>& args,
+                  float alpha,
+                  float beta,
+                  bool compute_fp32,
+                  int32_t solution_idx);
 
-MIGRAPHX_GPU_EXPORT void gemm_compute(context& ctx,
-                                      const shape& output_shape,
-                                      const std::vector<argument>& args,
-                                      int32_t alpha,
-                                      int32_t beta,
-                                      bool compute_fp32,
-                                      int32_t solution_idx);
+void gemm_compute(context& ctx,
+                  const shape& output_shape,
+                  const std::vector<argument>& args,
+                  int32_t alpha,
+                  int32_t beta,
+                  bool compute_fp32,
+                  int32_t solution_idx);
 
-MIGRAPHX_GPU_EXPORT int32_t gemm_finalize(context& ctx,
-                                          const shape& output_shape,
-                                          const std::vector<shape>& input_shapes,
-                                          float alpha,
-                                          float beta,
-                                          bool compute_fp32);
+int32_t gemm_finalize(context& ctx,
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes,
+                      float alpha,
+                      float beta,
+                      bool compute_fp32);
 
-MIGRAPHX_GPU_EXPORT int32_t gemm_finalize(context& ctx,
-                                          const shape& output_shape,
-                                          const std::vector<shape>& input_shapes,
-                                          int32_t alpha,
-                                          int32_t beta,
-                                          bool compute_fp32,
-                                          int32_t solution_idx);
+int32_t gemm_finalize(context& ctx,
+                      const shape& output_shape,
+                      const std::vector<shape>& input_shapes,
+                      int32_t alpha,
+                      int32_t beta,
+                      bool compute_fp32,
+                      int32_t solution_idx);
 
-MIGRAPHX_GPU_EXPORT int32_t gemm_default_solution(context& ctx,
-                                                  const shape& output_shape,
-                                                  const std::vector<shape>& input_shapes);
+int32_t gemm_default_solution(context& ctx,
+                              const shape& output_shape,
+                              const std::vector<shape>& input_shapes);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

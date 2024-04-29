@@ -26,10 +26,8 @@ add_executable(driver
     main.cpp
     verify.cpp
     passes.cpp
+    models.cpp
     perf.cpp
-    resnet50.cpp
-    inceptionv3.cpp
-    alexnet.cpp
     marker_roctx.cpp
 )
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)

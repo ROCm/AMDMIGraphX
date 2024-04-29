@@ -509,7 +509,7 @@ TEST_CASE(module_split2)
     EXPECT(bool{mods[1].inputs[1] == inputs[2]});
 }
 
-TEST_CASE(module_split_2_fix)
+TEST_CASE(module_split_2_dot_ins)
 {
     std::vector<migraphx::instruction_ref> inputs;
     std::vector<migraphx::instruction_ref> mod_0_expected_inputs;

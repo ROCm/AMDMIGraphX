@@ -24,6 +24,7 @@
 #include <migraphx/fuse_reduce.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
@@ -38,6 +39,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 
 struct fused_reduce
 {
@@ -185,6 +188,41 @@ static void create_reduce_modules(module_pass_manager& mpm)
     }
 }
 
+namespace {
+
+instruction_ref get_broadcast_output(instruction_ref broadcast)
+{
+    if(broadcast->outputs().size() != 1)
+        return broadcast;
+    auto output = broadcast->outputs().front();
+    if(output->name() == "contiguous")
+        return get_broadcast_output(output);
+    return output;
+}
+
+MIGRAPHX_PRED_MATCHER(used_once_except_broadcast, instruction_ref ins)
+{
+    if(ins->outputs().size() == 1)
+        return true;
+    if(ins->outputs().size() == 2)
+    {
+        auto is_broadcast = [](instruction_ref output) {
+            return contains(output->name(), "broadcast");
+        };
+        auto broadcast = std::find_if(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
+        if(broadcast == ins->outputs().end())
+            return false;
+        auto non_broadcast =
+            std::find_if_not(ins->outputs().begin(), ins->outputs().end(), is_broadcast);
+        if(non_broadcast == ins->outputs().end())
+            return false;
+        auto output = get_broadcast_output(*broadcast);
+        return output == *non_broadcast;
+    }
+
+    return false;
+}
+} // namespace
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
@@ -202,10 +240,16 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
-    auto match_op                 = match::name(op)(match::used_once()).bind(name);
+    auto match_op                 = match::name(op)(used_once_except_broadcast()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
     return match::any_of(match_op_input, broadcast_match_op_input);
+}
+
+static void finalize_reduce_module(module_ref m)
+{
+    eliminate_common_subexpression{}.apply(*m);
+    dead_code_elimination{}.apply(*m);
 }
 
 namespace {
@@ -242,6 +286,7 @@ struct find_pointwise_reduce
 
         // Insert fused_reduce
         rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
@@ -283,6 +328,7 @@ struct find_reduce_pointwise
 
         auto out = insert_ins_in_submodule(rm, pw, map_ins);
         rm->replace_return(out);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(pw, reduce->get_operator(), new_inputs, {rm});
@@ -327,6 +373,7 @@ struct find_reduce_reduce
 
         auto out = insert_module_in_submodule(rm, reduce1, map_ins);
         rm->replace_return(out);
+        finalize_reduce_module(rm);
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce1, reduce1->get_operator(), new_inputs, {rm});
@@ -396,11 +443,14 @@ struct reduce_reshape : rewrite_reshapes_base
 
 void fuse_reduce::apply(module_pass_manager& mpm) const
 {
+    if(enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}))
+        return;
     create_reduce_modules(mpm);
     mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 4; i++)
     {
-        mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<reduce_reshape>{});
         match::find_matches(
             mpm, find_reduce_pointwise{}, find_pointwise_reduce{}, find_reduce_reduce{});
         mpm.run_pass(dead_code_elimination{});

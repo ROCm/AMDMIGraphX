@@ -105,19 +105,20 @@ struct crossentropyloss
 
         // int batch_size  = log_scores_shape.lens().at(0);
         int num_classes = log_scores_shape.lens().at(1);
+        int ignore_value = *(ignore_index.data());
 
         visit_all(result, weight_vec, log_scores_input, labels, weights)(
             [&](auto output, auto weight, auto data, auto label, auto in_weight) {
-                par_dfor(num_classes)([&](int class) {
-                    int c = label[class];
+                par_dfor(num_classes)([&](int out_class) {
+                    int c = label[out_class];
 
                     weight[c] = in_weight[c];
                     output[c] = 0;
 
-                    if(self.has_ignore_index && c != ignore_index)
+                    if(has_ignore_index && c != ignore_value)
                     {
-                        output[c] = data[class];
-                        if(self.weighted)
+                        output[c] = data[out_class];
+                        if(weighted)
                         {
                             output[c] *= weight[c];
                         }

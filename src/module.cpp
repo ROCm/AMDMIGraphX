@@ -922,8 +922,7 @@ generic_split(const module& m,
         instructions2.push_back(ins);
     }
 
-    std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
-    inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
+    std::vector<instruction_ref> inputs2 = splits;
     module m2;
     std::size_t n = 0;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
@@ -935,6 +934,7 @@ generic_split(const module& m,
             continue;
         if(not contains(instructions2, ins))
             continue;
+        inputs2.push_back(param_map.at(ins));
         map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);

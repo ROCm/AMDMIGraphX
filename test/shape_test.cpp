@@ -232,8 +232,8 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
 TEST_CASE(dynamic_dimension_intersection)
 {
     using migraphx::shape;
-    auto a = shape::dynamic_dimension{2, 5, {2, 5}};
-    auto b = shape::dynamic_dimension{3, 4};
+    auto a   = shape::dynamic_dimension{2, 5, {2, 5}};
+    auto b   = shape::dynamic_dimension{3, 4};
     auto aib = a.intersection(b);
     auto bia = b.intersection(a);
     EXPECT(aib.has_value());

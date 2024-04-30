@@ -948,7 +948,7 @@ struct mlir_program
     std::string sym_name;
 };
 
-bool isModuleFusible(const module& m, const value& solution)
+bool is_module_fusible(const module& m, const value& solution)
 {
     mlir_program mp;
     mp.parse(m);
@@ -1012,17 +1012,17 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     co.output          = m.get_output_shapes().front();
     mlir_code_object mco;
     mco.cop               = co;
-    size_t numPrefillArgs = mlirGetNumPrefillArgs(mp.mmodule.get());
-    if(numPrefillArgs > 0)
+    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    if(num_prefill_args > 0)
     {
-        std::vector<size_t> prefillIndices(numPrefillArgs);
-        std::vector<MlirAttribute> prefill_mlir_values(numPrefillArgs);
+        std::vector<size_t> prefill_indices(num_prefill_args);
+        std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
         mlirGetPrefillArgsInfo(
-            mp.mmodule.get(), prefillIndices.data(), prefill_mlir_values.data(), numPrefillArgs);
-        std::vector<value> prefillValues(prefill_mlir_values.size());
+            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
+        std::vector<value> prefill_values(prefill_mlir_values.size());
         std::transform(prefill_mlir_values.begin(),
                        prefill_mlir_values.end(),
-                       prefillValues.begin(),
+                       prefill_values.begin(),
                        [](const auto& v) {
                            // mlir sets fill attribute as float but migx hip::fill operator only
                            // supports integer type.
@@ -1030,8 +1030,8 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                            double dv = mlirFloatAttrGetValueDouble(v);
                            return static_cast<int>(dv);
                        });
-        mco.prefill_indices = prefillIndices;
-        mco.prefill_values  = prefillValues;
+        mco.prefill_indices = prefill_indices;
+        mco.prefill_values  = prefill_values;
     }
     return mco;
 }

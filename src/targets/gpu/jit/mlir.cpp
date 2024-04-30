@@ -95,7 +95,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
         // allow fused module
         if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and
-           not isModuleFusible(*smod, solution))
+           not is_module_fusible(*smod, solution))
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
@@ -119,7 +119,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
 
-    compiler_replace insert(mlir_code_object mco) const
+    compiler_replace insert(const mlir_code_object& mco) const
     {
         return {std::vector<operation>{mco.cop},
                 [=](module& m,
@@ -143,15 +143,15 @@ struct mlir_compiler : compiler<mlir_compiler>
                 }};
     }
 
-    compiler_replace insert(std::vector<mlir_code_object> mcos,
-                            std::array<module_with_inputs, 2> mods,
+    compiler_replace insert(const std::vector<mlir_code_object>& mcos,
+                            const std::array<module_with_inputs, 2>& mods,
                             instruction_ref split_ins) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
         return {
-            std::move(cobjs),
+            cobjs,
             [=](module& m,
                 instruction_ref ins,
                 const std::vector<operation>& ops,

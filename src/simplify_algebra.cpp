@@ -482,6 +482,10 @@ struct find_double_add_lit_broadcast
     }
 };
 
+
+/// Find elementswise operators that have all broadcast inputs. It then
+/// rewrites the elementwise to do the computation on the non-broadcasted
+/// axes, and then broadcast that result.
 struct find_inner_broadcast
 {
     auto matcher() const { return pointwise(match::all_of[match::inputs()](match::broadcast())); }

@@ -22,4 +22,4 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-__all__ = ["audio", "image", "text", "hybrid"]
+__all__ = ["audio", "image", "text", "hybrid", "diffusion"]

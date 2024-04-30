@@ -35,9 +35,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
-    python3.8 \
-    python3.8-dev \
-    python3.8-distutils \
+    libpython3.8 \
     wget \
     rocm-device-libs \
     hip-base \

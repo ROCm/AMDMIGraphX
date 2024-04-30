@@ -168,37 +168,60 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto scores_shape = scores->get_shape();
         auto label_shape = labels->get_shape();
 
+        if(scores_shape.ndim() < 2)
+        {
+            MIGRAPHX_THROW("crossentropyloss: Scores must be two or more dimensions [batch, "
+                           "class_size, D1...Dk]");
+        }
+
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
             MIGRAPHX_THROW("crossentropyloss: Score and Labels must identical batch size inputs");
         }
 
-        if(scores_shape.ndim() <= label_shape.ndim())
+        if(scores_shape.ndim() - 1 <= label_shape.ndim())
         {
             MIGRAPHX_THROW(
                 "crossentropyloss: Score and Labels must contain identical K-Dimensions");
         }
 
+        bool is_k_dim  = (scores_shape.ndim() > 3);
+        int batch_size = scores_shape.lens().at(0);
+        int class_size = scores_shape.lens().at(1);
+
         // Get optional input weights (Used for mean reduction)
         instruction_ref weights;
+        instruction_ref weight_tensor;
         bool has_weights = (args.size() > 2);
         if(has_weights)
         {
             weights = args.at(2);
-        }
-        else
-        { // if weights isn't given, treat input as equal scaling for each class labels
-            std::vector<float> ones_vec(scores_shape.lens().at(1), 1);
-            weights = info.add_literal(migraphx::literal(scores_shape, ones_vec));
+            auto weights_shape = weights->get_shape();
+
+            if(weights_shape.lens()[0] != scores_shape.lens()[1])
+            {
+                MIGRAPHX_THROW(
+                    "Invalid weight vector shape. Weight must contain weight for each class");
+            }
+
+            weight_tensor =
+                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
+
+            // adjust weights based on ignore index is that's set
+            if(has_ignore_index)
+            {
+                // TODO handle case with where
+                // weight_tensor = info.add_common_op("where", weight_tensor, ignore_index);
+            }
         }
 
-        auto weights_shape = weights->get_shape();
-
-        if(weights_shape.lens()[0] != scores_shape.lens()[1])
+        if(is_k_dim)
         {
-            MIGRAPHX_THROW(
-                "Invalid weight vector shape. Weight must contain weight for each class");
+            scores = info.add_instruction(
+                migraphx::make_op("reshape", {{"dims", {batch_size, class_size, -1}}}), scores);
         }
+
+        int D = scores_shape.lens().at(2);
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
         // loss calculation
@@ -206,40 +229,32 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        // Returns tuple of two outputs (loss_tensor, weights)
-        auto tuple_loss_tensor =
-            info.add_instruction(make_op(opd.op_name,
-                                         {{"has_ignore_index", has_ignore_index},
-                                          {"weighted", has_weights},
-                                          {"mode", reduction}}),
-                                 neg_lsm_scores,
-                                 labels,
-                                 weights,
-                                 ignore_index);
+        auto loss_tensor = info.add_instruction(
+            migraphx::make_op("gather", {{"axis", 1}}), neg_lsm_scores, labels);
 
-        auto loss_tensor =
-            info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), tuple_loss_tensor);
-        auto weight_tensor =
-            info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), tuple_loss_tensor);
-
-        if(reduction == "none" and (loss_tensor->get_shape().lens() != scores->get_shape().lens()))
+        if(is_k_dim)
         {
-            MIGRAPHX_THROW("Invalid loss tensor shape");
+            loss_tensor = info.add_instruction(
+                migraphx::make_op("reshape", {{"dims", label_shape.lens()}}), loss_tensor);
         }
 
         // Add reduction step after we're generated crossentropyloss tensor and rearragned weight
         // scaling tensor
         if(reduction == "mean" and not has_weights)
         {
-            loss_tensor = info.add_instruction(make_op("reduce_mean"), loss_tensor);
+            loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean"), loss_tensor);
         }
         else if(reduction == "sum" or has_weights)
         {
-            loss_tensor = info.add_instruction(make_op("reduce_sum"), loss_tensor);
+            loss_tensor =
+                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
+            loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum"), loss_tensor);
             if(reduction == "mean")
             {
-                auto reduced_weights = info.add_instruction(make_op("reduce_sum"), weight_tensor);
-                loss_tensor = info.add_instruction(make_op("div"), loss_tensor, reduced_weights);
+                auto reduced_weights =
+                    info.add_instruction(migraphx::make_op("reduce_sum"), weight_tensor);
+                loss_tensor =
+                    info.add_instruction(migraphx::make_op("div"), loss_tensor, reduced_weights);
             }
         }
 

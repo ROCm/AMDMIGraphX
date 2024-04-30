@@ -458,13 +458,11 @@ struct find_static_broadcast_for_dot
  * onehot(static_shape_arg, constant_arg, values)
  * To:
  * A = literal(shape = onehot_output_shape, value = 0)
- * B = literal(lens = indices_lens, strides = broadcasted scalar, value = 1)
- * C = scatter(A, indices, B)
- * D = slice(values) starts = 0, ends = 1 // off_value
- * E = slice(values) starts = 1, ends = 2 // on_value
- * F = sub(E, D)
- * G = mul(F, C);
- * H = add(G, D);
+ * B = unsqueeze(literal(lens = indices_lens, strides = broadcasted scalar, value = 1), axis=onehot_axis)
+ * C = scatter(A, unsqueeze(indices, axis=onehot_axis), B)
+ * diff = on_value - off_value
+ * D = mul(diff, C);
+ * return = add(D, off_value);
  *
  * NOTE: It might be cleaner to use some form of `fill` instead of
  * (on_value - off_value) * mask + off_value when we have `fill` working
@@ -507,7 +505,10 @@ struct find_static_onehot
             migraphx::make_op("multibroadcast", {{"out_lens", unsqueeze_inds->get_shape().lens()}}),
             ones_lit);
         auto mask = m.insert_instruction(onehot_ins,
-                                         make_op("scatter_none", {{"axis", normalized_axis}}),
+                                         make_op("scatter_none", {
+                                             {"axis", normalized_axis},
+                                             {"skip_out_of_bounds", true}
+                                         }),
                                          zeros_lit,
                                          unsqueeze_inds,
                                          mb_ones);

@@ -344,6 +344,8 @@ auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode
     return results_vector;
 }
 
+auto scatter_elements
+
 TEST_CASE(scatter_elements_add_axis_0_3x3_duplicate_index_test)
 {
     const auto results            = scatter_elements_3x3_duplicate_index_test("add");

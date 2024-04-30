@@ -110,7 +110,7 @@ struct onehot
                     // normalize negative indices
                     index = (index < 0) ? index + depth : index;
                     // no on_value if index is out of range
-                    if(index < depth)
+                    if(index >= 0 and index < depth)
                     {
                         out_idx.insert(out_idx.begin() + normalized_axis, index);
                         output(out_idx.begin(), out_idx.end()) = on_value;

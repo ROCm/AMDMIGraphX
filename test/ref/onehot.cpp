@@ -49,7 +49,7 @@ TEST_CASE(onehot0)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
-    std::vector<int64_t> indices_data = {0, 2, -1, 5};
+    std::vector<int64_t> indices_data = {0, -8, -1, 5};
     std::vector<int64_t> depth_data   = {3};
     std::vector<float> values_data    = {0.0, 5.0};
     params["indices"]                 = migraphx::argument(inds_s, indices_data.data());
@@ -60,7 +60,7 @@ TEST_CASE(onehot0)
     std::vector<float> gold =
     {
         5.0, 0.0, 0.0,
-        0.0, 0.0, 5.0,
+        0.0, 0.0, 0.0,
         0.0, 0.0, 5.0,
         0.0, 0.0, 0.0
     };
@@ -86,7 +86,6 @@ TEST_CASE(onehot1)
 
     migraphx::parameter_map params;
     std::vector<int64_t> indices_data = {0, 2, 1, -1};
-    std::vector<int64_t> depth_data   = {3};
     std::vector<float> values_data    = {0.0, 1.0};
     params["indices"]                 = migraphx::argument(inds_s, indices_data.data());
     params["values"]                  = migraphx::argument(values_s, values_data.data());
@@ -182,14 +181,12 @@ TEST_CASE(onehot_simplify_test0)
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", 0}}), inds_param, depth_lit, values_param);
     migraphx::run_passes(p,
-                         {migraphx::split_single_dyn_dim{},
-                          migraphx::simplify_dyn_ops{},
+                         {migraphx::simplify_dyn_ops{},
                           migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
     std::vector<int64_t> indices_data = {0, 2, 1, -1};
-    std::vector<int64_t> depth_data   = {3};
     std::vector<float> values_data    = {0.0, 1.0};
     params["indices"]                 = migraphx::argument(inds_s, indices_data.data());
     params["values"]                  = migraphx::argument(values_s, values_data.data());
@@ -225,8 +222,7 @@ TEST_CASE(onehot_simplify_test1)
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
     migraphx::run_passes(p,
-                         {migraphx::split_single_dyn_dim{},
-                          migraphx::simplify_dyn_ops{},
+                         {migraphx::simplify_dyn_ops{},
                           migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
@@ -255,21 +251,20 @@ TEST_CASE(onehot_simplify_test2)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
-    migraphx::shape depth_s{migraphx::shape::int64_type, {1}};
+    migraphx::shape depth_s{migraphx::shape::int64_type, {1}, {0}};
     migraphx::shape values_s{migraphx::shape::float_type, {2}};
     auto inds_param   = mm->add_parameter("indices", inds_s);
-    auto depth_lit    = mm->add_literal(migraphx::literal{depth_s, {3}});
+    auto depth_lit  = mm->add_literal(migraphx::literal{depth_s, {3}});
     auto values_param = mm->add_parameter("values", values_s);
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
     migraphx::run_passes(p,
-                         {migraphx::split_single_dyn_dim{},
-                          migraphx::simplify_dyn_ops{},
+                         {migraphx::simplify_dyn_ops{},
                           migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
-    std::vector<int64_t> indices_data = {0, 2, -1, 5};
+    std::vector<int64_t> indices_data = {0, -8, -1, 5};
     std::vector<float> values_data    = {0.0, 5.0};
     params["indices"]                 = migraphx::argument(inds_s, indices_data.data());
     params["values"]                  = migraphx::argument(values_s, values_data.data());
@@ -278,7 +273,7 @@ TEST_CASE(onehot_simplify_test2)
     std::vector<float> gold =
     {
         5.0, 0.0, 0.0,
-        0.0, 0.0, 5.0,
+        0.0, 0.0, 0.0,
         0.0, 0.0, 5.0,
         0.0, 0.0, 0.0
     };

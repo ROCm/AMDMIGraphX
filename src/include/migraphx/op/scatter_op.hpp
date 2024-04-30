@@ -47,11 +47,16 @@ template <typename Derived>
 struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
+    // skip scattering indicies that are out of bounds
+    bool skip_out_of_bounds = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(
+            f(self.axis, "axis"),
+            f(self.skip_out_of_bounds, "skip_out_of_bounds")
+        );
     }
 
     value attributes() const
@@ -89,15 +94,34 @@ struct scatter_op : op_name<Derived>
                     // which handles nonstandard shapes correctly
                     auto index = indices(idx.begin(), idx.end());
 
-                    // normalize negative indexes (may be redundant after using
-                    // normalize_compute_shape())
+                    // this addition doesn't necessarily make index positive if index was out of bounds
                     index         = (index < 0) ? index + axis_dim_size : index;
+                    if(skip_out_of_bounds and index < 0)
+                    {
+                        return;
+                    }
+                    else
+                    {
+                        assert(index >= 0);
+                    }
                     out_idx[axis] = index;
-
+                    // skip index out of bounds if attribute on, else assert
+                    if(skip_out_of_bounds)
+                    {
+                        if(not output_shape.check_within_bounds(out_idx))
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        assert(output_shape.check_within_bounds(out_idx));
+                    }
                     // look up the appropriate locations in output, using idx and out_idx.
                     // call reduction() method of derived struct to copy and reduce that element
                     derived().reduction()(output(out_idx.begin(), out_idx.end()),
                                           update(idx.begin(), idx.end()));
+                    return;
                 });
             });
         });

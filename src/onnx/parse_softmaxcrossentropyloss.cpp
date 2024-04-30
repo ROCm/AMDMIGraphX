@@ -152,14 +152,14 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         // ignore_index is optional attribute, assign this as a scalar literal input to the op
         auto ignore_index =
-            info.add_literal(migraphx::literal(migraphx::shape(shape::int32_type, {1}, {0}), {-1}));
+            info.add_literal(migraphx::literal(migraphx::shape(shape::int64_type, {1}, {0}), {-1}));
         bool has_ignore_index = contains(info.attributes, "ignore_index");
         if(has_ignore_index)
         {
             auto ignore_index_val =
-                parser.parse_value(info.attributes.at("ignore_index")).at<int>();
+                parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
             ignore_index = info.add_literal(migraphx::literal(
-                migraphx::shape(migraphx::shape::int32_type, {1}, {0}), {ignore_index_val}));
+                migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {ignore_index_val}));
         }
 
         // Get and validate Inputs

@@ -646,10 +646,11 @@ TEST_CASE(simplify_inner_broadcast_different_dims_broadcasted)
     auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 768}}});
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 768}});
-        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 768}});
-        auto xb  = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), x);
-        auto xbb  = m1.add_instruction(b, xb);
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 768}});
+        auto y = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 768}});
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), x);
+        auto xbb = m1.add_instruction(b, xb);
         auto yb  = m1.add_instruction(b, y);
         auto sum = m1.add_instruction(migraphx::make_op("add"), xbb, yb);
         m1.add_instruction(pass_op{}, sum);
@@ -658,9 +659,9 @@ TEST_CASE(simplify_inner_broadcast_different_dims_broadcasted)
 
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 768}});
-        auto y   = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 768}});
-        auto sum = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 768}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 768}});
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), x, y);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
     }
@@ -672,10 +673,11 @@ TEST_CASE(simplify_inner_broadcast_different_dims_broadcasted_scalar)
     auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 384}}});
     migraphx::module m1;
     {
-        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 384}});
-        auto xb  = m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1}}}), x);
-        auto xbb  = m1.add_instruction(b, xb);
+        auto x = m1.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 384}});
+        auto xb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1}}}), x);
+        auto xbb = m1.add_instruction(b, xb);
         auto yb  = m1.add_instruction(b, y);
         auto sum = m1.add_instruction(migraphx::make_op("add"), xbb, yb);
         m1.add_instruction(pass_op{}, sum);
@@ -684,10 +686,11 @@ TEST_CASE(simplify_inner_broadcast_different_dims_broadcasted_scalar)
 
     migraphx::module m2;
     {
-        auto x   = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
-        auto y   = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 384}});
-        auto xb  = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), x);
-        auto sum = m2.add_instruction(migraphx::make_op("add"), xb, y);
+        auto x = m2.add_parameter("x", {migraphx::shape::int32_type, {1}});
+        auto y = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 384}});
+        auto xb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 384}}}), x);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), xb, y);
         auto sumb = m2.add_instruction(b, sum);
         m2.add_instruction(pass_op{}, sumb);
     }

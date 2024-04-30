@@ -491,7 +491,7 @@ struct find_inner_broadcast
 
     static auto get_non_broadcast_input(instruction_ref ins)
     {
-        if (ins->inputs().size() != 1)
+        if(ins->inputs().size() != 1)
             return ins;
         auto input = ins->inputs().front();
         if(contains(input->name(), "broadcast"))
@@ -518,7 +518,8 @@ struct find_inner_broadcast
         return true;
     }
 
-    static instruction_ref insert_scalar_squeeze(module& m, instruction_ref broadcast, instruction_ref input)
+    static instruction_ref
+    insert_scalar_squeeze(module& m, instruction_ref broadcast, instruction_ref input)
     {
         if(input->get_shape().lens().size() > 1)
             return m.insert_instruction(broadcast, make_op("squeeze"), input);
@@ -544,9 +545,10 @@ struct find_inner_broadcast
            }))
             return;
         // Find first broadcast that is not a scalar
-        auto first = std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
-            return not broadcast->get_shape().scalar();
-        });
+        auto first =
+            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
+                return not broadcast->get_shape().scalar();
+            });
         // Try to see if we can do a simple case that just applies the op to
         // the inputs of the broadcasts, and then just put that same
         // broadcast after the op. For this case we need each of the
@@ -569,20 +571,19 @@ struct find_inner_broadcast
                            broadcasts.end(),
                            std::back_inserter(inputs),
                            [&](instruction_ref broadcast) {
-
-                            auto input = get_non_broadcast_input(broadcast); 
-                            if(input->get_shape().elements() == 1)
-                                return insert_scalar_squeeze(m, broadcast, input);
-                            return input;
-                        });
+                               auto input = get_non_broadcast_input(broadcast);
+                               if(input->get_shape().elements() == 1)
+                                   return insert_scalar_squeeze(m, broadcast, input);
+                               return input;
+                           });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
             m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
         }
         // Skip if any input to the broadcasted is already broadcasts as the
         // below algorithm may no be able to handle such case.
-        else if (std::none_of(broadcasts.begin(), broadcasts.end(), [](instruction_ref broadcast) {
-            return broadcast->inputs().front()->get_shape().broadcasted();
-        }))
+        else if(std::none_of(broadcasts.begin(), broadcasts.end(), [](instruction_ref broadcast) {
+                    return broadcast->inputs().front()->get_shape().broadcasted();
+                }))
         {
             auto ndim = ins->get_shape().ndim();
             std::vector<std::size_t> idims;

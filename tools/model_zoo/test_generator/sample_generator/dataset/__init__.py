@@ -22,4 +22,4 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-__all__ = ["imagenet", "librispeech", "squad"]
+__all__ = ["imagenet", "librispeech", "prompts", "squad"]

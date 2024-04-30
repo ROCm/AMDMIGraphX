@@ -25,6 +25,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <mlir-c/Dialect/RockEnums.h>
 #include <ostream>
 
 #ifdef MIGRAPHX_MLIR
@@ -813,7 +814,8 @@ struct mlir_program
     {
         tuning_config tc;
         run_high_level_pipeline();
-        auto tuning_mode = RocmlirTuningParamSetKindFull;
+        auto tuning_mode =
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};

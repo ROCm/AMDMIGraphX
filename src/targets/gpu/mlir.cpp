@@ -1011,7 +1011,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     co.expected_inputs = in_shapes;
     co.output          = m.get_output_shapes().front();
     mlir_code_object mco;
-    mco.cop               = co;
+    mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
     if(num_prefill_args > 0)
     {

@@ -131,7 +131,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         return {{"SoftmaxCrossEntropyLoss", "crossentropyloss"}};
     }
 
-    std::vector<instruction_ref> parse(const op_desc& opd,
+    std::vector<instruction_ref> parse(const op_desc& /*opd */,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
@@ -170,19 +170,36 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         if(scores_shape.ndim() < 2)
         {
-            MIGRAPHX_THROW("crossentropyloss: Scores must be two or more dimensions [batch, "
+            MIGRAPHX_THROW("softmaxcrossentropyloss: Scores must be two or more dimensions [batch, "
                            "class_size, D1...Dk]");
+        }
+
+        std::set<migraphx::shape::type_t> supported_label_types = {migraphx::shape::int32_type,
+                                                                   migraphx::shape::int64_type};
+        if(not contains(supported_label_types, label_shape.type()))
+        {
+            MIGRAPHX_THROW("softmaxcrossentropyloss: Label must be either int32 or int64 type");
+        }
+
+        // TODO: Update this operator when we get bfloat16 support
+        std::set<migraphx::shape::type_t> supported_score_weight_types = {
+            migraphx::shape::half_type, migraphx::shape::float_type, migraphx::shape::double_type};
+        if(not contains(supported_score_weight_types, scores_shape.type()))
+        {
+            MIGRAPHX_THROW(
+                "softmaxcrossentropyloss: Score must be either half, float, or double type");
         }
 
         if(scores_shape.lens()[0] != label_shape.lens()[0])
         {
-            MIGRAPHX_THROW("crossentropyloss: Score and Labels must identical batch size inputs");
+            MIGRAPHX_THROW(
+                "softmaxcrossentropyloss: Score and Labels must identical batch size inputs");
         }
 
         if(scores_shape.ndim() - 1 <= label_shape.ndim())
         {
             MIGRAPHX_THROW(
-                "crossentropyloss: Score and Labels must contain identical K-Dimensions");
+                "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
         }
 
         bool is_k_dim  = (scores_shape.ndim() > 3);
@@ -200,8 +217,20 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
             if(weights_shape.lens()[0] != scores_shape.lens()[1])
             {
+                MIGRAPHX_THROW("softmaxcrossentropyloss: Invalid weight vector shape. Weight must "
+                               "contain weight for each class");
+            }
+
+            if(not contains(supported_score_weight_types, weights_shape.type()))
+            {
                 MIGRAPHX_THROW(
-                    "Invalid weight vector shape. Weight must contain weight for each class");
+                    "softmaxcrossentropyloss: weight must be either half, float, or double type");
+            }
+
+            if(weights_shape.type() != scores_shape.type())
+            {
+                MIGRAPHX_THROW(
+                    "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
             }
 
             weight_tensor =
@@ -220,8 +249,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             scores = info.add_instruction(
                 migraphx::make_op("reshape", {{"dims", {batch_size, class_size, -1}}}), scores);
         }
-
-        int D = scores_shape.lens().at(2);
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
         // loss calculation

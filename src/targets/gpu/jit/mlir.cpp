@@ -104,14 +104,14 @@ struct mlir_compiler : compiler<mlir_compiler>
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_inputs        = mod_splits[1].inputs;
-            auto dot_ins_idx = std::distance(
+            auto dot_ins_idx      = std::distance(
                 std::find(pw_inputs.begin(), pw_inputs.end(), gemm_ins), pw_inputs.begin());
             auto pw_shapes         = to_shapes(mod_splits[1].inputs);
             pw_shapes[dot_ins_idx] = cop1.cop.output;
             pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
             auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
-            auto cop2                   = compile_pointwise(ctx, pw_shapes, &pw_mod);
+            auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
             return insert(cops, mod_splits, gemm_ins);
@@ -150,69 +150,65 @@ struct mlir_compiler : compiler<mlir_compiler>
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
-        return {std::move(cobjs),
-                [=](module& m,
-                    instruction_ref ins,
-                    const std::vector<operation>& ops,
-                    const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) {
-                    auto dot_inputs = mods[0].inputs;
-                    auto dot_mod_out_shape = mods[0].mod.get_output_shapes().front();
-                    auto dot_alloc         = m.insert_instruction(
-                        ins,
-                        migraphx::make_op("hip::allocate",
-                                          {{"shape", to_value(dot_mod_out_shape)}}));
-                    dot_inputs.push_back(dot_alloc);
-                    if(not mcos[0].prefill_indices.empty())
+        return {
+            std::move(cobjs),
+            [=](module& m,
+                instruction_ref ins,
+                const std::vector<operation>& ops,
+                const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) {
+                auto dot_inputs        = mods[0].inputs;
+                auto dot_mod_out_shape = mods[0].mod.get_output_shapes().front();
+                auto dot_alloc         = m.insert_instruction(
+                    ins,
+                    migraphx::make_op("hip::allocate", {{"shape", to_value(dot_mod_out_shape)}}));
+                dot_inputs.push_back(dot_alloc);
+                if(not mcos[0].prefill_indices.empty())
+                {
+                    for(const auto i : range(mcos[0].prefill_indices.size()))
                     {
-                        for(const auto i : range(mcos[0].prefill_indices.size()))
-                        {
-                            auto prefilled_ins = m.insert_instruction(
-                                ins,
-                                migraphx::make_op("hip::fill",
-                                                  {{"value", mcos[0].prefill_values[i]}}),
-                                dot_inputs[mcos[0].prefill_indices[i]]);
-                            replace(
-                                dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
-                        }
+                        auto prefilled_ins = m.insert_instruction(
+                            ins,
+                            migraphx::make_op("hip::fill", {{"value", mcos[0].prefill_values[i]}}),
+                            dot_inputs[mcos[0].prefill_indices[i]]);
+                        replace(dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
                     }
+                }
 
-                    std::vector<instruction_ref> dot_inputs_updated;
-                    std::transform(dot_inputs.begin(),
-                                   dot_inputs.end(),
-                                   std::back_inserter(dot_inputs_updated),
-                                   [&](const auto& i) {
-                                       if(inputs_rep_map.find(i) != inputs_rep_map.end())
-                                       {
-                                           assert(inputs_rep_map.at(i)->get_shape() ==
-                                                  i->get_shape());
-                                           return inputs_rep_map.at(i);
-                                       }
-                                       return i;
-                                   });
-                    auto mlir =
-                        insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
-                    assert(contains(mods[1].inputs, split_ins));
-                    auto pwm = mods[1];
-                    pwm.replace(split_ins, mlir);
-                    auto pw_inputs = pwm.inputs;
-                    pw_inputs.push_back(ins->inputs().back());
-                    std::vector<instruction_ref> pw_inputs_updated;
-                    std::transform(pw_inputs.begin(),
-                                   pw_inputs.end(),
-                                   std::back_inserter(pw_inputs_updated),
-                                   [&](const auto& i) {
-                                       if(inputs_rep_map.find(i) != inputs_rep_map.end())
-                                       {
-                                           assert(inputs_rep_map.at(i)->get_shape() ==
-                                                  i->get_shape());
-                                           return inputs_rep_map.at(i);
-                                       }
-                                       return i;
-                                   });
-                    auto pw_ins =
-                        insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
-                    return m.replace_instruction(ins, pw_ins);
-                }};
+                std::vector<instruction_ref> dot_inputs_updated;
+                std::transform(dot_inputs.begin(),
+                               dot_inputs.end(),
+                               std::back_inserter(dot_inputs_updated),
+                               [&](const auto& i) {
+                                   if(inputs_rep_map.find(i) != inputs_rep_map.end())
+                                   {
+                                       assert(inputs_rep_map.at(i)->get_shape() == i->get_shape());
+                                       return inputs_rep_map.at(i);
+                                   }
+                                   return i;
+                               });
+                auto mlir =
+                    insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
+                assert(contains(mods[1].inputs, split_ins));
+                auto pwm = mods[1];
+                pwm.replace(split_ins, mlir);
+                auto pw_inputs = pwm.inputs;
+                pw_inputs.push_back(ins->inputs().back());
+                std::vector<instruction_ref> pw_inputs_updated;
+                std::transform(pw_inputs.begin(),
+                               pw_inputs.end(),
+                               std::back_inserter(pw_inputs_updated),
+                               [&](const auto& i) {
+                                   if(inputs_rep_map.find(i) != inputs_rep_map.end())
+                                   {
+                                       assert(inputs_rep_map.at(i)->get_shape() == i->get_shape());
+                                       return inputs_rep_map.at(i);
+                                   }
+                                   return i;
+                               });
+                auto pw_ins =
+                    insert_mlir(m, ins, any_cast<code_object_op>(ops[1]), pw_inputs_updated);
+                return m.replace_instruction(ins, pw_ins);
+            }};
     }
 
     optional<tuning_config> get_tuning_config(const context& ctx,

@@ -1024,8 +1024,11 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                        prefill_mlir_values.end(),
                        prefillValues.begin(),
                        [](const auto& v) {
+                           // mlir sets fill attribute as float but migx hip::fill operator only
+                           // supports integer type.
+                           // TODO: Need to add checks that it is indeed an integer.
                            double dv = mlirFloatAttrGetValueDouble(v);
-                           return int{static_cast<int>(dv)};
+                           return static_cast<int>(dv);
                        });
         mco.prefill_indices = prefillIndices;
         mco.prefill_values  = prefillValues;

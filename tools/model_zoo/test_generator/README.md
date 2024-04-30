@@ -55,7 +55,7 @@ To generate a subset of the supported models:
 - <name> list supported model names
 
 ```bash
-ptython --image resnet50_v1.5 clip-vit-large-patch14 --text none --audio none
+python generate.py --image resnet50_v1.5 clip-vit-large-patch14 --text none --audio none
 ```
 
 ## Test models
@@ -100,6 +100,8 @@ Provide 2 mandatory fields:
 - `name`: unique name for model
 
 To add a more complex model (e.g. Decoder), check [text](./sample_generator/model/text.py).
+
+The [generate](./generate.py) part will need further updating to include the model.
 
 ## Adding more datasets
 

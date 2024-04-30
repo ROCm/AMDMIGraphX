@@ -594,7 +594,9 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu}});
+                            {"num_cu", num_cu},
+                            // TODO: Fix mis-spelling after rocMLIR fixes it
+                            {"enable_splik_for_tuning", true}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

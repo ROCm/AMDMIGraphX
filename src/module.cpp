@@ -934,7 +934,7 @@ generic_split(const module& m,
             continue;
         if(not contains(instructions2, ins))
             continue;
-        inputs2.push_back(param_map[ins]);
+        inputs2.push_back(param_map.at(ins));
         map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);

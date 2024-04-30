@@ -54,6 +54,9 @@ class BaseModel(abc.ABC):
     def is_decoder(self):
         return False
 
+    def is_diffuser(self):
+        return False
+
 
 class DecoderModel(BaseModel):
     def is_decoder(self):
@@ -61,6 +64,27 @@ class DecoderModel(BaseModel):
 
     @abc.abstractmethod
     def decode_step(self, *args, **kwargs):
+        pass
+
+
+class DiffusionModel(BaseModel):
+    def is_diffuser(self):
+        return True
+
+    @abc.abstractmethod
+    def get_models(self, folder, models, force_download):
+        pass
+
+    @abc.abstractmethod
+    def text_preprocess(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def image_preprocess(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def scheduler(self, *args, **kwargs):
         pass
 
 

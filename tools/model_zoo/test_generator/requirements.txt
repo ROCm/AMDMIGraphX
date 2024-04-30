@@ -35,6 +35,7 @@ Pillow
 opencv-python-headless
 onnxruntime
 transformers
+diffusers
 timm
 soundfile
 librosa

@@ -22,6 +22,6 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-from .generator import generate_test_dataset
+from .generator import generate_test_dataset, generate_diffusion_data
 
-__all__ = ["generate_test_dataset"]
+__all__ = ["generate_test_dataset", "generate_diffusion_data"]

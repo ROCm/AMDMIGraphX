@@ -40,10 +40,10 @@ struct gemm_add : verify_program<gemm_add<DType>>
         migraphx::shape m3_shape{DType, {1, 2, 320}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
-        // auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        // mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3);
         return p;
     }
     std::string section() const { return "gemm"; }

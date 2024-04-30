@@ -567,6 +567,8 @@ struct parse_einsum : op_parser<parse_einsum>
         return transpose_squeeze(info, cur_pair, op, map_mat.back());
     }
 
+    // Expands the input dimensions to match the number of unique labels in the entire equation.
+    // Then permutes the labels so they are in alphabetical order.
     instruction_ref unsqueeze_transpose(const onnx_parser::node_info& info,
                                         int_mat& cur_pair,
                                         instruction_ref op) const
@@ -576,22 +578,24 @@ struct parse_einsum : op_parser<parse_einsum>
 
         for(auto i = 0; i < cur_pair[1].size(); ++i)
         {
-            if(cur_pair[1][i] == -1)
+            if(cur_pair[1][i] == -1) // unsqueeze the dimensions corresponding to the missing labels
                 unsq_axes.push_back(i);
-            else
+            else // permute the rest
                 perm.push_back({cur_pair[1][i], i});
         }
         auto unsqueeze = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
 
+        // sort the permutation alphabetically
         std::sort(
             perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
 
+        // calculate a permutation that keeps the unsqueezed dims at the same position while
+        // permuting the rest
         std::vector<int64_t> new_perm(cur_pair[1].size());
         std::iota(new_perm.begin(), new_perm.end(), 0);
-
         for(auto i = 0, p = 0; i < cur_pair[1].size(); ++i)
         {
-            if(cur_pair[1][i] == -1)
+            if(cur_pair[1][i] == -1) // unsqueezed dimensions are not permuted
                 continue;
 
             new_perm[std::get<1>(perm[p++])] = i;
@@ -600,6 +604,7 @@ struct parse_einsum : op_parser<parse_einsum>
         return apply_transpose_op(info, unsqueeze, new_perm, cur_pair[1]);
     }
 
+    // Reverts the effects of unsqueeze_transpose (adjusts the output so it fits the equation)
     instruction_ref transpose_squeeze(const onnx_parser::node_info& info,
                                       int_mat& cur_pair,
                                       instruction_ref op,

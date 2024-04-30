@@ -52,10 +52,11 @@ inline auto lex_if(P p)
     };
 }
 
-MIGRAPHX_EXPORT std::function<const char*(const char*, const char*)> lex_equal(const std::string&);
+MIGRAPHX_EXPORT std::function<const char*(const char*, const char*)>
+lex_equal(const std::string& s);
 
 MIGRAPHX_EXPORT std::vector<std::string_view>
-tokenize(const char*, const char*, const std::vector<lexer>&);
+tokenize(const char* start, const char* end, const std::vector<lexer>& lexers);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

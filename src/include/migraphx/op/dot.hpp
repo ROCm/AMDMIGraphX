@@ -57,7 +57,9 @@ struct dot
             auto s1 = b.to_dynamic();
             std::vector<shape::dynamic_dimension> out_dyn_dims;
 
-            // check outer dynamic dimensions are compatible
+            // Check outer dynamic dimensions are compatible.
+            // Must allow for intersection because of how simplify_dyn_ops
+            // simplifies each broadcast_for_dot individually.
             bool same_outers = std::equal(s0.dyn_dims().begin(),
                                           s0.dyn_dims().end() - 2,
                                           s1.dyn_dims().begin(),

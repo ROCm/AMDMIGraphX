@@ -41,7 +41,6 @@ struct parse_expand : op_parser<parse_expand>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        auto in_lens             = args[0]->get_shape().lens();
         migraphx::argument arg_s = args[1]->eval();
         if(arg_s.empty())
         {
@@ -50,6 +49,7 @@ struct parse_expand : op_parser<parse_expand>
         }
         else
         {
+            auto in_lens = args[0]->get_shape().lens();
             std::vector<std::size_t> dims;
             arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
             auto out_lens = compute_broadcasted_lens(in_lens, dims);

@@ -154,6 +154,7 @@ register_migraphx_ops(
     convolution_backwards
     cosh
     cos
+    crossentropyloss
     dequantizelinear
     dimensions_of
     div

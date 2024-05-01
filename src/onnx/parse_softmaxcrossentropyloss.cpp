@@ -136,7 +136,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                        const onnx_parser::node_info& info,
                                        const std::vector<instruction_ref>& args) const
     {
-        // Get and handle attributes
+        // default in Onnx spec is mean setting
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
         {
@@ -162,7 +162,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {ignore_index_val}));
         }
 
-        // Get and validate Inputs
+        // Get Inputs
         auto scores = args.at(0);
         auto labels = args.at(1);
         auto scores_shape = scores->get_shape();
@@ -285,7 +285,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
         }
 
-        return {loss_tensor, log_sm_scores};
+        return loss_tensor;
     }
 };
 

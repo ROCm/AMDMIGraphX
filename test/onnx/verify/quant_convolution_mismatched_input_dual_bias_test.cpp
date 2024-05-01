@@ -81,7 +81,6 @@ TEST_CASE(quant_convolution_mismatched_inputs_dual_zero_bias_test)
 
 TEST_CASE(quant_convolution_mismatched_inputs_dual_non_zero_bias_test)
 {
-    // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearMul
     migraphx::program p = migraphx::parse_onnx("convinteger_mismatched_inputs_dual_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 

@@ -560,9 +560,12 @@ struct find_inner_broadcast
         {
 
             // Scalars can have different ndim, so find the largest ndim input
-            auto max_broadcast = *std::max_element(broadcasts.begin(), broadcasts.end(), by(std::less<>{}, [](instruction_ref broadcast) {
-                return get_non_broadcast_input(broadcast)->get_shape().ndim();
-            }));
+            auto max_broadcast =
+                *std::max_element(broadcasts.begin(),
+                                  broadcasts.end(),
+                                  by(std::less<>{}, [](instruction_ref broadcast) {
+                                      return get_non_broadcast_input(broadcast)->get_shape().ndim();
+                                  }));
             auto max_ndim = max_broadcast->get_shape().ndim();
             std::vector<instruction_ref> inputs;
             std::transform(broadcasts.begin(),
@@ -570,10 +573,11 @@ struct find_inner_broadcast
                            std::back_inserter(inputs),
                            [&](instruction_ref broadcast) {
                                auto input = get_non_broadcast_input(broadcast);
-                               auto s = input->get_shape();
+                               auto s     = input->get_shape();
                                // If scalar doesnt match the other input dims then add a squeeze
                                if(s.elements() == 1 and s.ndim() > 1 and s.ndim() != max_ndim)
-                                   return m.insert_instruction(broadcast, make_op("squeeze"), input);
+                                   return m.insert_instruction(
+                                       broadcast, make_op("squeeze"), input);
                                return input;
                            });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
@@ -630,7 +634,7 @@ struct find_inner_broadcast
                     // Find how the axes are shifted from the broadcast
                     std::int64_t shift = ndim - s.ndim();
                     if(broadcast->name() == "broadcast")
-                        shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();                    
+                        shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();
                     // Compute the squeeze axes to be used by taking the inner
                     // axes and shifting to what the axes will be on the
                     // input
@@ -647,7 +651,7 @@ struct find_inner_broadcast
                     instruction_ref result = input;
                     if(not sq_axes.empty())
                         result = m.insert_instruction(
-                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);                    
+                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);
                     // If the number of dimension are still smaller the number
                     // of inner axes, then we need to insert a broadcast to
                     // have the same dimensions for all inputs/

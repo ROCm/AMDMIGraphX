@@ -105,13 +105,13 @@ struct onehot
             args[0].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    std::vector<std::size_t> out_idx = idx;
                     auto index   = indices(idx.begin(), idx.end());
                     // normalize negative indices
                     index = (index < 0) ? index + depth : index;
                     // no on_value if index is out of range
                     if(index >= 0 and index < depth)
                     {
+                        std::vector<std::size_t> out_idx = idx;
                         out_idx.insert(out_idx.begin() + normalized_axis, index);
                         output(out_idx.begin(), out_idx.end()) = on_value;
                     }

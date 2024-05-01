@@ -115,10 +115,8 @@ struct parse_convolution : op_parser<parse_convolution>
             ret = args[index];
             if(is_symmetric_zero_point(ret))
             {
-                std::cout << "Hit symmetric input" << std::endl;
                 ret = gen_symmetric_literal(ret, is_quant_conv, info);
             }
-            ret->debug_print();
         }
         else
         {

@@ -560,12 +560,9 @@ struct find_inner_broadcast
         {
 
             // Scalars can have different ndim, so find the largest ndim input
-            auto max_broadcast =
-                *std::max_element(broadcasts.begin(),
-                                  broadcasts.end(),
-                                  by(std::less<>{}, [](instruction_ref broadcast) {
-                                      return get_non_broadcast_input(broadcast)->get_shape().ndim();
-                                  }));
+            auto max_broadcast = *std::max_element(broadcasts.begin(), broadcasts.end(), by(std::less<>{}, [](instruction_ref broadcast) {
+                return get_non_broadcast_input(broadcast)->get_shape().ndim();
+            }));
             auto max_ndim = max_broadcast->get_shape().ndim();
             std::vector<instruction_ref> inputs;
             std::transform(broadcasts.begin(),
@@ -573,11 +570,10 @@ struct find_inner_broadcast
                            std::back_inserter(inputs),
                            [&](instruction_ref broadcast) {
                                auto input = get_non_broadcast_input(broadcast);
-                               auto s     = input->get_shape();
+                               auto s = input->get_shape();
                                // If scalar doesnt match the other input dims then add a squeeze
                                if(s.elements() == 1 and s.ndim() > 1 and s.ndim() != max_ndim)
-                                   return m.insert_instruction(
-                                       broadcast, make_op("squeeze"), input);
+                                   return m.insert_instruction(broadcast, make_op("squeeze"), input);
                                return input;
                            });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
@@ -590,6 +586,8 @@ struct find_inner_broadcast
                 }))
         {
             auto ndim = ins->get_shape().ndim();
+            // Compute the inner dimensions and axes that the computation will
+            // use. Also compute the axes that will be broadcasted
             std::vector<std::size_t> idims;
             std::vector<std::int64_t> iaxes;
             std::vector<std::int64_t> axes;
@@ -608,6 +606,8 @@ struct find_inner_broadcast
                     idims.push_back(ins->get_shape().lens()[axis]);
                 }
             }
+            // If the inner axes are the same as the original operator then
+            // there is no reason to do this transformation.
             if(iaxes.size() == ndim)
                 return;
             std::vector<instruction_ref> inputs;
@@ -619,6 +619,7 @@ struct find_inner_broadcast
                     auto input = broadcast->inputs().front();
                     auto s     = input->get_shape();
 
+                    // If its a single element then just return that as an input
                     if(s.elements() == 1)
                     {
                         if(s.lens().size() > 1)
@@ -626,9 +627,13 @@ struct find_inner_broadcast
                         return input;
                     }
 
+                    // Find how the axes are shifted from the broadcast
                     std::int64_t shift = ndim - s.ndim();
                     if(broadcast->name() == "broadcast")
-                        shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();
+                        shift = broadcast->get_operator().to_value()["axis"].to<int64_t>();                    
+                    // Compute the squeeze axes to be used by taking the inner
+                    // axes and shifting to what the axes will be on the
+                    // input
                     std::vector<std::int64_t> sq_axes;
                     for(auto axis : axes)
                     {
@@ -642,9 +647,13 @@ struct find_inner_broadcast
                     instruction_ref result = input;
                     if(not sq_axes.empty())
                         result = m.insert_instruction(
-                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);
+                            broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);                    
+                    // If the number of dimension are still smaller the number
+                    // of inner axes, then we need to insert a broadcast to
+                    // have the same dimensions for all inputs/
                     if(result->get_shape().ndim() < iaxes.size())
                     {
+                        // We find the first inner axis that can be mapped to the input
                         auto start_axis = std::find_if(iaxes.begin(),
                                                        iaxes.end(),
                                                        [&](auto x) { return x >= shift; }) -

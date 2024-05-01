@@ -641,6 +641,33 @@ TEST_CASE(simplify_inner_broadcast_different_dims)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_inner_broadcast_different_dims_single_element)
+{
+    auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4, 5}}});
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1}});
+        auto y   = m1.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto xb  = m1.add_instruction(b, x);
+        auto yb  = m1.add_instruction(b, y);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), xb, yb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x    = m2.add_parameter("x", {migraphx::shape::int32_type, {1, 1, 1}});
+        auto y    = m2.add_parameter("y", {migraphx::shape::int32_type, {1, 1, 1, 1}});
+        auto xs  = m2.add_instruction(migraphx::make_op("squeeze"), x);
+        auto xb  = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 1, 1, 1}}}), xs);
+        auto sum  = m2.add_instruction(migraphx::make_op("add"), xb, y);
+        auto sumb = m2.add_instruction(b, sum);
+        m2.add_instruction(pass_op{}, sumb);
+    }
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_inner_broadcast_different_dims_broadcasted)
 {
     auto b = migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 768}}});

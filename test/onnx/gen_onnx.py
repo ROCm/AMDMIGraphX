@@ -11230,14 +11230,14 @@ def softmax_dyn_test():
 def softmaxcrossentropyloss_score_dim_err_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
         inputs=["0", "1"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels], [loss])
 
@@ -11246,14 +11246,14 @@ def softmaxcrossentropyloss_score_dim_err_test():
 def softmaxcrossentropyloss_score_label_mismatch_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [1])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
         inputs=["0", "1"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels], [loss])
 
@@ -11262,14 +11262,14 @@ def softmaxcrossentropyloss_score_label_mismatch_test():
 def softmaxcrossentropyloss_score_label_wrong_k_dims_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [2, 4, 2])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [2])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
         inputs=["0", "1"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels], [loss])
 
@@ -11278,7 +11278,7 @@ def softmaxcrossentropyloss_score_label_wrong_k_dims_test():
 def softmaxcrossentropyloss_weight_wrong_dims_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     weight = helper.make_tensor_value_info('3', TensorProto.FLOAT, [2])
 
     node = onnx.helper.make_node(
@@ -11286,7 +11286,7 @@ def softmaxcrossentropyloss_weight_wrong_dims_test():
         inputs=["0", "1", "3"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels, weight], [loss])
 
@@ -11294,8 +11294,8 @@ def softmaxcrossentropyloss_weight_wrong_dims_test():
 @onnx_test()
 def softmaxcrossentropyloss_label_wrong_type_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
-    labels = helper.make_tensor_value_info('1', TensorProto.INT8,  [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT8, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     weight = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
 
     node = onnx.helper.make_node(
@@ -11303,7 +11303,7 @@ def softmaxcrossentropyloss_label_wrong_type_test():
         inputs=["0", "1", "3"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels, weight], [loss])
 
@@ -11311,15 +11311,15 @@ def softmaxcrossentropyloss_label_wrong_type_test():
 @onnx_test()
 def softmaxcrossentropyloss_scores_wrong_type_test():
     scores = helper.make_tensor_value_info('0', TensorProto.INT32, [4, 4])
-    labels = helper.make_tensor_value_info('1', TensorProto.INT32,  [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
 
     node = onnx.helper.make_node(
         "SoftmaxCrossEntropyLoss",
         inputs=["0", "1"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels], [loss])
 
@@ -11327,8 +11327,8 @@ def softmaxcrossentropyloss_scores_wrong_type_test():
 @onnx_test()
 def softmaxcrossentropyloss_weight_wrong_type_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
-    labels = helper.make_tensor_value_info('1', TensorProto.INT32,  [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     weight = helper.make_tensor_value_info('3', TensorProto.INT16, [4])
 
     node = onnx.helper.make_node(
@@ -11336,7 +11336,7 @@ def softmaxcrossentropyloss_weight_wrong_type_test():
         inputs=["0", "1", "3"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels, weight], [loss])
 
@@ -11344,8 +11344,8 @@ def softmaxcrossentropyloss_weight_wrong_type_test():
 @onnx_test()
 def softmaxcrossentropyloss_weight_score_mismatch_valid_type_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
-    labels = helper.make_tensor_value_info('1', TensorProto.INT32,  [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     weight = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
 
     node = onnx.helper.make_node(
@@ -11353,7 +11353,7 @@ def softmaxcrossentropyloss_weight_score_mismatch_valid_type_test():
         inputs=["0", "1", "3"],
         outputs=["2"],
         reduction="none",
-        )
+    )
 
     return ([node], [scores, labels, weight], [loss])
 
@@ -11361,8 +11361,8 @@ def softmaxcrossentropyloss_weight_score_mismatch_valid_type_test():
 @onnx_test()
 def softmaxcrossentropyloss_invalid_reduction_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
-    labels = helper.make_tensor_value_info('1', TensorProto.INT32,  [4])
-    loss   = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
     weight = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
 
     node = onnx.helper.make_node(
@@ -11370,9 +11370,180 @@ def softmaxcrossentropyloss_invalid_reduction_test():
         inputs=["0", "1", "3"],
         outputs=["2"],
         reduction="BadReductionName",
-        )
+    )
 
     return ([node], [scores, labels, weight], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_sum_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="sum",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_double_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_mean_reduction_half_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16, [4, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels], [loss])
 
 
 @onnx_test()

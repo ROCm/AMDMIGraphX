@@ -126,10 +126,7 @@ namespace onnx {
 
 struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 {
-    std::vector<op_desc> operators() const
-    {
-        return {{"SoftmaxCrossEntropyLoss", "crossentropyloss"}};
-    }
+    std::vector<op_desc> operators() const { return {{"SoftmaxCrossEntropyLoss"}}; }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd */,
                                        const onnx_parser& parser,
@@ -142,7 +139,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         {
             std::set<std::string> supported_modes = {"mean", "none", "sum"};
 
-            reduction = parser.parse_value(info.attributes.at("reduction")).at<std::string>();
+            reduction = info.attributes.at("reduction").s();
             if(not contains(supported_modes, reduction))
             {
                 MIGRAPHX_THROW("Invalid reduction mode: " + reduction +
@@ -196,15 +193,15 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 "softmaxcrossentropyloss: Score and Labels must identical batch size inputs");
         }
 
-        if(scores_shape.ndim() - 1 <= label_shape.ndim())
+        if((scores_shape.ndim() - 1) != label_shape.ndim())
         {
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score and Labels must contain identical K-Dimensions");
         }
 
         bool is_k_dim  = (scores_shape.ndim() > 3);
-        int batch_size = scores_shape.lens().at(0);
-        int class_size = scores_shape.lens().at(1);
+        size_t batch_size = scores_shape.lens().at(0);
+        size_t class_size = scores_shape.lens().at(1);
 
         // Get optional input weights (Used for mean reduction)
         instruction_ref weights;
@@ -269,17 +266,24 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // scaling tensor
         if(reduction == "mean" and not has_weights)
         {
-            loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean"), loss_tensor);
+            loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}),
+                                               loss_tensor);
         }
         else if(reduction == "sum" or has_weights)
         {
+            if(has_weights)
+            {
+                loss_tensor =
+                    info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
+            }
+
             loss_tensor =
-                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
-            loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum"), loss_tensor);
+                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), loss_tensor);
+
             if(reduction == "mean")
             {
-                auto reduced_weights =
-                    info.add_instruction(migraphx::make_op("reduce_sum"), weight_tensor);
+                auto reduced_weights = info.add_instruction(
+                    migraphx::make_op("reduce_sum", {{"axes", {1}}}), weight_tensor);
                 loss_tensor =
                     info.add_instruction(migraphx::make_op("div"), loss_tensor, reduced_weights);
             }

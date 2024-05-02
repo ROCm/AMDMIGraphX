@@ -87,7 +87,10 @@ struct parse_split : op_parser<parse_split>
                     args[0],
                     info.add_instruction(make_op("mul"),
                                          chunk_size,
-                                         info.add_literal(literal{int64_scalar_shape, {n}}))));
+                                         info.add_literal(literal{int64_scalar_shape, {n}})),
+                    info.add_instruction(make_op("mul"),
+                                         chunk_size,
+                                         info.add_literal(literal{int64_scalar_shape, {n + 1}}))));
             }
             // last slice: slice(input, starts = {n * chunk_size}); ends = max_int, axes =
             // {tuned_axis}

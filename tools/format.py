@@ -23,7 +23,7 @@
 #####################################################################################
 import os, shlex, shutil, argparse, subprocess
 
-CLANG_FORMAT_PATH = '/usr/bin'
+CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
 EXCLUDE_FILES = ['requirements.in']
 

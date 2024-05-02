@@ -50,7 +50,7 @@ struct parse_split : op_parser<parse_split>
         }
 
         const auto& input_shape = args[0]->get_shape();
-        int64_t tuned_axis = tune_axis(input_shape.ndim(), axis, opd.op_name);
+        int64_t tuned_axis      = tune_axis(input_shape.ndim(), axis, opd.op_name);
         if(input_shape.dynamic())
         {
             if(contains(info.attributes, "split"))
@@ -66,40 +66,39 @@ struct parse_split : op_parser<parse_split>
             std::size_t num_outputs = info.num_outputs;
 
             // Must do the splitting at runtime. Doing shape calculations in the graph
-            auto split_dim = info.add_instruction(make_op("dimensions_of", {{"start", tuned_axis}, {"end", tuned_axis + 1}}), args[0]);
+            auto split_dim = info.add_instruction(
+                make_op("dimensions_of", {{"start", tuned_axis}, {"end", tuned_axis + 1}}),
+                args[0]);
             shape int64_scalar_shape{shape::int64_type, {1}, {0}};
             auto num_outputs_lit = info.add_literal(literal{int64_scalar_shape, {num_outputs}});
-            auto num_outputs_minus_1_lit = info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}});
+            auto num_outputs_minus_1_lit =
+                info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}});
             // (A + (B - 1)) / B == ceil(A/B)
-            auto chunk_size = info.add_instruction(make_op("div"),
-                    info.add_instruction(make_op("add"), split_dim, num_outputs_minus_1_lit),
-                    num_outputs_lit);
+            auto chunk_size = info.add_instruction(
+                make_op("div"),
+                info.add_instruction(make_op("add"), split_dim, num_outputs_minus_1_lit),
+                num_outputs_lit);
             for(int n = 0; n < num_outputs - 1; ++n)
             {
-                // slice(input, starts = {n * chunk_size}, ends = {(n+1) * chunk_size}); axes = {tuned_axis}
+                // slice(input, starts = {n * chunk_size}, ends = {(n+1) * chunk_size}); axes =
+                // {tuned_axis}
                 ret_ins.push_back(info.add_instruction(
                     make_op("slice", {{"axes", {tuned_axis}}}),
                     args[0],
-                    info.add_instruction(
-                        make_op("mul"),
-                        chunk_size,
-                        info.add_literal(literal{int64_scalar_shape, {n}})
-                    )
-                ));
+                    info.add_instruction(make_op("mul"),
+                                         chunk_size,
+                                         info.add_literal(literal{int64_scalar_shape, {n}}))));
             }
-            // last slice: slice(input, starts = {n * chunk_size}); ends = max_int, axes = {tuned_axis}
+            // last slice: slice(input, starts = {n * chunk_size}); ends = max_int, axes =
+            // {tuned_axis}
             ret_ins.push_back(info.add_instruction(
                 make_op("slice",
-                        {{"axes", {tuned_axis}},
-                        {"ends", {std::numeric_limits<int64_t>::max()}}}
-                ),
+                        {{"axes", {tuned_axis}}, {"ends", {std::numeric_limits<int64_t>::max()}}}),
                 args[0],
                 info.add_instruction(
                     make_op("mul"),
                     chunk_size,
-                    info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}})
-                )
-            ));
+                    info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}}))));
             return ret_ins;
         }
         else
@@ -155,7 +154,8 @@ struct parse_split : op_parser<parse_split>
                 MIGRAPHX_THROW(
                     "PARSE_SPLIT: sum of split attribute unequal to dim size of axis! tuned axis:" +
                     std::to_string(lens[tuned_axis]) + " Output " + to_string_range(vec_splits) +
-                    " Rank " + std::to_string(input_shape.ndim()) + " Len outs " + to_string_range(lens));
+                    " Rank " + std::to_string(input_shape.ndim()) + " Len outs " +
+                    to_string_range(lens));
             }
 
             std::vector<instruction_ref> ret_ins;
@@ -163,7 +163,8 @@ struct parse_split : op_parser<parse_split>
             for(auto sl : vec_splits)
             {
                 ret_ins.push_back(info.add_instruction(
-                    make_op("slice", {{"axes", {axis}}, {"starts", {start}}, {"ends", {start + sl}}}),
+                    make_op("slice",
+                            {{"axes", {axis}}, {"starts", {start}}, {"ends", {start + sl}}}),
                     args[0]));
                 start += sl;
             }

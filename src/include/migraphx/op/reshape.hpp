@@ -68,82 +68,70 @@ struct reshape
     shape dyn_1arg_compute_shape(shape s0) const
     {
         auto input_dyn_dims = s0.dyn_dims();
-        // track number of fixed elements in the input and the attribute 
-        std::size_t num_dims_ele = 1;
-        std::size_t num_dd_ele   = 1;
-        for(std::size_t i = 0; i < input_dyn_dims.size(); ++i)
-        {
-            if(input_dyn_dims[i].is_fixed())
-            {
-                num_dims_ele *= dims[i];
-                num_dd_ele *= input_dyn_dims[i].min;
-            }
-        }
-        if(num_dims_ele != num_dd_ele)
-        {
-            MIGRAPHX_THROW("Reshape: Number of fixed elements must match the corresponding number of elements in the `dims` attribute. Input: " +
-                           std::to_string(num_dd_ele) + " Output: " + std::to_string(num_dims_ele));
-        }
         bool has_negative_dim_attr = false;
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        std::transform(dims.cbegin(),
-                       dims.cend(),
-                       input_dyn_dims.cbegin(),
-                       output_dyn_dims.begin(),
-                       [&](int64_t dim, auto dyn_dim) {
-                           if(dim == 0)
-                           {
-                                return dyn_dim;
-                           }
-                           else if(dim == -1)
-                           {
-                               has_negative_dim_attr = true;
-                                // will replace in next step
-                               return shape::dynamic_dimension{1, 1};
-                           }
-                           else
-                           {
-                               std::size_t u_dim = static_cast<std::size_t>(dim);
-                               return shape::dynamic_dimension{u_dim, u_dim};
-                           }
-                       });
+        for(int i = 0; i < dims.size(); ++i)
+        {
+            int64_t d = dims.at(i);
+            if(d == 0)
+            {
+                output_dyn_dims.at(i) = input_dyn_dims.at(i);
+            }
+            else if(d == -1)
+            {
+                has_negative_dim_attr = true;
+                output_dyn_dims.at(i) = {1, 1};
+            }
+            std::size_t u_dim = d;
+            output_dyn_dims.at(i) = {u_dim, u_dim};
+        }
+
         if(has_negative_dim_attr)
         {
             // comparing the -1 dimension against the other dimensions
-            auto neg_dim_num = std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+            auto neg_dim_num = std::distance(this->dims.begin(),
+                                             std::find(this->dims.begin(), this->dims.end(), -1));
 
             // unsigned int wraparound check, false = no wraparound
-            auto uint_wraparound_check = [](std::size_t a, std::size_t b)
-            {
+            auto uint_wraparound_check = [](std::size_t a, std::size_t b) {
                 std::size_t c = a * b;
                 return a != 0 and c / a != b;
             };
-            
+
             std::size_t min_cur_elements = 1;
             std::size_t max_cur_elements = 1;
-            std::size_t max_val = std::numeric_limits<std::size_t>::max();
+            std::size_t max_val          = std::numeric_limits<std::size_t>::max();
             for(const auto& dd : output_dyn_dims)
             {
-                min_cur_elements = uint_wraparound_check(min_cur_elements, dd.min) ? max_val : min_cur_elements * dd.min;
-                max_cur_elements = uint_wraparound_check(max_cur_elements, dd.max) ? max_val : max_cur_elements * dd.max;
+                min_cur_elements = uint_wraparound_check(min_cur_elements, dd.min)
+                                       ? max_val
+                                       : min_cur_elements * dd.min;
+                max_cur_elements = uint_wraparound_check(max_cur_elements, dd.max)
+                                       ? max_val
+                                       : max_cur_elements * dd.max;
             }
             std::size_t min_input_elements = 1;
             std::size_t max_input_elements = 1;
             for(const auto& dd : input_dyn_dims)
             {
-                min_input_elements = uint_wraparound_check(min_input_elements, dd.min) ? max_val : min_input_elements * dd.min;
-                max_input_elements = uint_wraparound_check(max_input_elements, dd.max) ? max_val : max_input_elements * dd.max;
+                min_input_elements = uint_wraparound_check(min_input_elements, dd.min)
+                                         ? max_val
+                                         : min_input_elements * dd.min;
+                max_input_elements = uint_wraparound_check(max_input_elements, dd.max)
+                                         ? max_val
+                                         : max_input_elements * dd.max;
             }
-            
+
             // maximum dimensions should never accumulate to zero
             assert(max_cur_elements != 0);
 
             // handle division by zero
             std::size_t min_dim = min_cur_elements == 0 ? 0 : min_input_elements / min_cur_elements;
             // handle maximum value
-            std::size_t max_dim = max_cur_elements == max_val ? max_val : max_input_elements / max_cur_elements;
-            shape::dynamic_dimension x_dd = {min_dim, max_dim};
+            std::size_t max_dim =
+                max_cur_elements == max_val ? max_val : max_input_elements / max_cur_elements;
+            shape::dynamic_dimension x_dd   = {min_dim, max_dim};
             output_dyn_dims.at(neg_dim_num) = x_dd;
         }
         return {s0.type(), output_dyn_dims};
@@ -200,7 +188,7 @@ struct reshape
         {
             if(s0.dynamic())
             {
-                return dyn_1arg_compute_shape(s0, n_neg_dims);
+                return dyn_1arg_compute_shape(s0);
             }
             else
             {

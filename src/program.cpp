@@ -1080,7 +1080,14 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 const module* program::get_module(const std::string& name) const { return &impl->modules.at(name); }
 
 module* program::create_module(const std::string& name)
-{
+{ std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%debug in program.cpp, name is " << name << std::endl;
+if(name=="main:pointwise10:main:reduce_sum3:main:pointwise15:main:pointwise11:main:reduce_max2:main:pointwise13")
+  std::cout << "hello\n";
+            for(auto it = impl->modules.begin(); it != impl->modules.end(); it++)
+            {   
+                std::cout << it->first << ": \n";
+            }
+
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);

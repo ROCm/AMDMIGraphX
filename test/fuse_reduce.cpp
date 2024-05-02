@@ -86,6 +86,7 @@ TEST_CASE(single)
         auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), y);
         mm->add_return({rsum1, rsum2});
+        // mm->debug_print();
     }
     run_pass(p1);
     migraphx::program p2;
@@ -95,6 +96,7 @@ TEST_CASE(single)
         auto y     = mm->add_parameter("y", s);
         auto rsum1 = add_reduce(p2, "main:reduce_sum0", {x}, {1}, single_reduce("reduce_sum"));
         auto rsum2 = add_reduce(p2, "main:reduce_sum1", {y}, {1}, single_reduce("reduce_sum"));
+        // mm->debug_print();
         mm->add_return({rsum1, rsum2});
     }
     EXPECT(p1 == p2);
@@ -133,6 +135,28 @@ TEST_CASE(pointwise_reduce)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(scalar)
+{
+        migraphx::shape sdot{migraphx::shape::half_type, {80, 204, 204}};
+        migraphx::shape scalar{migraphx::shape::double_type, {1}, {0}};
+    migraphx::program p1;
+    {
+        auto* mm   = p1.get_main_module();
+        auto x     = mm->add_parameter("x", scalar);
+        auto zap  = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("sqrt"));
+        auto pow = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", sdot.lens()}}), zap);
+        auto bip = mm->add_instruction(   migraphx::make_op("reduce_sum", {{"axes", {1,2}}}), pow);
+        auto sqrtbc = mm->add_instruction(migraphx::make_op("contiguous"), bip);
+
+        mm->add_return({sqrtbc});
+        // mm->debug_print();
+    }
+std::cout << "Module built, now run pass: \n";
+    run_pass(p1);
+    // p1.debug_print();
+}
+
 TEST_CASE(pointwise_broadcast_reduce_reshape)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -150,6 +174,7 @@ TEST_CASE(pointwise_broadcast_reduce_reshape)
         auto add = add_pointwise(p1, "main:pointwise1", {sqrtb, rsumb}, single_pointwise("add"));
         auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), add);
         mm->add_return({reshape});
+        // mm->debug_print();
     }
     run_pass(p1);
     migraphx::program p2;
@@ -175,6 +200,7 @@ TEST_CASE(pointwise_broadcast_reduce_reshape)
             });
         auto reshape = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {6}}}), add);
         mm->add_return({reshape});
+        // mm->debug_print();
     }
     EXPECT(p1 == p2);
 }

@@ -31,6 +31,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
@@ -64,7 +65,7 @@ struct fused_reduce
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
                return shapes.at(name).lens() == input.lens();
            }))
-            MIGRAPHX_THROW("Dimenstion does not match the submodule.");
+            MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),
@@ -202,6 +203,7 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
+    // TODO:  how to filter out inputs that aren't broadcastable with each other (eg. scalar)?
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
@@ -213,19 +215,38 @@ struct find_pointwise_reduce
 {
     auto matcher() const
     {
+        // fused_reduce instruction with pointwise inputs.
         return match::name("fused_reduce")(match_broadcastable_input("pointwise", "pointwise"));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+static int icount=0;
+std::printf("debug count for find_pointwise_reduce %d \n", ++icount)        ;
+        //  r.debug_print();
         auto reduce = r.result;
         auto input  = r.instructions["pointwise"];
 
+       
+        // TODO:  why does this sometimes happen?  Is it because I created a module and didn't populate it?
+        if( input->module_inputs().size() == 0)
+            return;
+        std::cout << "matched!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ";
+        if(contains(r.instructions, "broadcast"))
+        {        std::printf("  dims  %d, %d, %d, %d\n",  r.instructions["broadcast"]->get_shape().ndim(), r.instructions["final_broadcast"]->get_shape().ndim(), input->get_shape().ndim());
+            if(  r.instructions["broadcast"]->get_shape().ndim() != input->get_shape().ndim() 
+            or r.instructions["final_broadcast"]->get_shape().ndim())
+                return;
+        }
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
+
+// TODO: why would the same name have already been added?
+// std::string debugme = (pm->name() + ":" + old_rm->name());
+// if(contains(mpm->prog, debugme))
+//     return;
         auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
-
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Insert pointwise
         auto rins      = insert_ins_in_submodule(rm, input, map_ins).front();
@@ -244,7 +265,16 @@ struct find_pointwise_reduce
         rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
-        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+
+// TODO:  What to do if the input has an incompatible shape?  This code skips it, but 
+// seems to lead to corrupted pass manager list because rm has already been added to mpm.    
+        if(rm->get_output_shapes().front().ndim() != new_inputs[0]->get_shape().ndim())
+            std::cout << " false match; input has a different ndim ..................................... \n"; 
+        else
+        {
+            std::cout << " replacing instruction ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,, \n"; 
+            mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
+        }
     }
 };
 

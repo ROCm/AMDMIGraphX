@@ -227,24 +227,18 @@ std::printf("debug count for find_pointwise_reduce %d \n", ++icount)        ;
         auto reduce = r.result;
         auto input  = r.instructions["pointwise"];
 
-       
-        // TODO:  why does this sometimes happen?  Is it because I created a module and didn't populate it?
-        if( input->module_inputs().size() == 0)
-            return;
         std::cout << "matched!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ";
+        // A broadcast with output shape's rank not matching input wouldn't work.
         if(contains(r.instructions, "broadcast"))
-        {        std::printf("  dims  %d, %d, %d, %d\n",  r.instructions["broadcast"]->get_shape().ndim(), r.instructions["final_broadcast"]->get_shape().ndim(), input->get_shape().ndim());
+        {          
+            std::printf("  dims  %d, %d, %d, %d\n",  r.instructions["broadcast"]->get_shape().ndim(), r.instructions   ["final_broadcast"]->get_shape().ndim(), input->get_shape().ndim());
             if(  r.instructions["broadcast"]->get_shape().ndim() != input->get_shape().ndim() 
-            or r.instructions["final_broadcast"]->get_shape().ndim())
+            or r.instructions["final_broadcast"]->get_shape().ndim() != input->get_shape().ndim())
                 return;
         }
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 
-// TODO: why would the same name have already been added?
-// std::string debugme = (pm->name() + ":" + old_rm->name());
-// if(contains(mpm->prog, debugme))
-//     return;
         auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
@@ -265,17 +259,9 @@ std::printf("debug count for find_pointwise_reduce %d \n", ++icount)        ;
         rm->add_return(insert_module_in_submodule(rm, reduce, map_ins));
 
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
-
-// TODO:  What to do if the input has an incompatible shape?  This code skips it, but 
-// seems to lead to corrupted pass manager list because rm has already been added to mpm.    
-        if(rm->get_output_shapes().front().ndim() != new_inputs[0]->get_shape().ndim())
-            std::cout << " false match; input has a different ndim ..................................... \n"; 
-        else
-        {
-            std::cout << " replacing instruction ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,, \n"; 
-            mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
-        }
+        mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
     }
+}
 };
 
 struct find_reduce_pointwise

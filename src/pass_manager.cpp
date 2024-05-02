@@ -96,7 +96,6 @@ struct module_pm : module_pass_manager
     virtual module* create_module(const std::string& name) override
     {
         assert(prog);
-        std::cout << "!!!!!!!!!!!!!!!!!!!!!!!Debug:  name is " << name << std::endl;
         return prog->create_module(name);
     }
 

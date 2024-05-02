@@ -198,6 +198,7 @@ register_migraphx_ops(
     neg
     nonmaxsuppression
     nonzero
+    onehot
     outline
     pack_int4
     pad

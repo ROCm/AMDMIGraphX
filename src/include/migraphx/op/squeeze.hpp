@@ -62,7 +62,11 @@ struct squeeze
             // Allow for any dynamic_dimension that intersects with {1, 1}.
             // Assuming that the shape at run-time will be compatible.
             if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return not input_shape.dyn_dims().at(axis).intersection(shape::dynamic_dimension{1, 1}).has_value(); ;
+                   return not input_shape.dyn_dims()
+                                  .at(axis)
+                                  .intersection(shape::dynamic_dimension{1, 1})
+                                  .has_value();
+                   ;
                }))
             {
                 MIGRAPHX_THROW(

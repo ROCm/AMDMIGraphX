@@ -144,12 +144,17 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
             submod->add_return({outputs});
             submodules.push_back(submod);
         }
+
+        // NEW sort parameters by name for consistency (vs. parameter order attr)
+        std::sort(param_names.begin(), param_names.end());
+
         // redirect to select_module operator and return
         std::vector<instruction_ref> sm_inputs;
         std::transform(param_names.cbegin(),
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
                        [&](auto pn) { return mm->get_parameter(pn); });
+        
         auto output_shapes       = mm->get_output_shapes();
         migraphx::shape out_attr = migraphx::shape{output_shapes};
         auto sm_ins              = mm->add_instruction(

@@ -59,13 +59,6 @@ struct squeeze
         auto input_shape = inputs[0];
         if(input_shape.dynamic())
         {
-            if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return input_shape.dyn_dims()[axis] != 1;
-               }))
-            {
-                MIGRAPHX_THROW(
-                    "SQUEEZE: dynamic axis dimension should be equal to {1, 1, 0} or {1, 1, 1}");
-            }
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             if(axes.empty())
             {

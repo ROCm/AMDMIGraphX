@@ -159,20 +159,6 @@ struct parse_convolution : op_parser<parse_convolution>
         return ret;
     }
 
-    static void handle_quant_inputs(const bool is_quant_conv,
-                                    instruction_ref& input,
-                                    instruction_ref& weights,
-                                    instruction_ref& input_zp,
-                                    instruction_ref& weight_zp,
-                                    onnx_parser::node_info& info)
-    {
-        if(not is_quant_conv)
-            return;
-
-        auto input_type  = input->get_shape().type();
-        auto weight_type = weights->get_shape().type();
-    }
-
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
@@ -288,8 +274,6 @@ struct parse_convolution : op_parser<parse_convolution>
         auto w_zp = get_zero_point(weights, 3, is_quant_conv, info, args);
 
         op.from_value(values);
-
-        handle_quant_inputs(is_quant_conv, x, weights, x_zp, w_zp, info);
 
         ret = info.add_instruction(op, x, weights);
 

@@ -127,16 +127,13 @@ struct mlir_compiler : compiler<mlir_compiler>
                     const std::vector<operation>& ops,
                     const std::unordered_map<instruction_ref, instruction_ref>&) {
                     std::vector<instruction_ref> inputs = ins->inputs();
-                    if(not mco.prefill_indices.empty())
+                    for(const auto i : range(mco.prefill_indices.size()))
                     {
-                        for(const auto i : range(mco.prefill_indices.size()))
-                        {
-                            auto prefilled_ins = m.insert_instruction(
-                                ins,
-                                migraphx::make_op("hip::fill", {{"value", mco.prefill_values[i]}}),
-                                inputs[mco.prefill_indices[i]]);
-                            replace(inputs, inputs[mco.prefill_indices[i]], prefilled_ins);
-                        }
+                        auto prefilled_ins = m.insert_instruction(
+                            ins,
+                            migraphx::make_op("hip::fill", {{"value", mco.prefill_values[i]}}),
+                            inputs[mco.prefill_indices[i]]);
+                        replace(inputs, inputs[mco.prefill_indices[i]], prefilled_ins);
                     }
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);
                     return m.replace_instruction(ins, mlir);
@@ -169,7 +166,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                         migraphx::make_op("hip::fill", {{"value", mcos[0].prefill_values[i]}}),
                         dot_inputs[mcos[0].prefill_indices[i]]);
                     replace(dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
-                    }
+                }
 
                 std::vector<instruction_ref> dot_inputs_updated;
                 std::transform(dot_inputs.begin(),

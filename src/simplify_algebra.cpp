@@ -674,7 +674,7 @@ struct find_inner_broadcast
         // the inputs of the broadcasts, and then just put that same
         // broadcast after the op. For this case we need each of the
         // broadcasts to be the same and the inputs to have the same dimesion
-        // (oe be scalar).
+        // (or be scalar).
         const bool same_broadcasts =
             std::all_of(first, broadcasts.end(), [&](instruction_ref broadcast) {
                 if(broadcast->get_operator() != (*first)->get_operator())
@@ -689,8 +689,8 @@ struct find_inner_broadcast
         {
             apply_same_broadcasts(m, ins);
         }
-        // Skip if any input to the broadcasted is already broadcasts as the
-        // below algorithm may no be able to handle such case.
+        // Skip if any input to the broadcasted inputs is already broadcasted
+        // as the below algorithm may not be able to handle such case.
         else if(std::none_of(broadcasts.begin(), broadcasts.end(), [](instruction_ref broadcast) {
                     return broadcast->inputs().front()->get_shape().broadcasted();
                 }))

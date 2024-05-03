@@ -11736,6 +11736,72 @@ def softmaxcrossentropyloss_2d_mean_reduction_half_weighted_test():
 
 
 @onnx_test()
+def softmaxcrossentropyloss_kd_mean_reduction_half_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT16,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT16, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.DOUBLE, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_kd_no_reduction_weighted_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT,
+                                           [4, 4, 2, 2])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 2, 2])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.DOUBLE, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="mean",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
 def softsign_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [5])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])

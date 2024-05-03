@@ -162,17 +162,14 @@ struct mlir_compiler : compiler<mlir_compiler>
                     ins,
                     migraphx::make_op("hip::allocate", {{"shape", to_value(dot_mod_out_shape)}}));
                 dot_inputs.push_back(dot_alloc);
-                if(not mcos[0].prefill_indices.empty())
+                for(const auto i : range(mcos[0].prefill_indices.size()))
                 {
-                    for(const auto i : range(mcos[0].prefill_indices.size()))
-                    {
-                        auto prefilled_ins = m.insert_instruction(
-                            ins,
-                            migraphx::make_op("hip::fill", {{"value", mcos[0].prefill_values[i]}}),
-                            dot_inputs[mcos[0].prefill_indices[i]]);
-                        replace(dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
+                    auto prefilled_ins = m.insert_instruction(
+                        ins,
+                        migraphx::make_op("hip::fill", {{"value", mcos[0].prefill_values[i]}}),
+                        dot_inputs[mcos[0].prefill_indices[i]]);
+                    replace(dot_inputs, dot_inputs[mcos[0].prefill_indices[i]], prefilled_ins);
                     }
-                }
 
                 std::vector<instruction_ref> dot_inputs_updated;
                 std::transform(dot_inputs.begin(),

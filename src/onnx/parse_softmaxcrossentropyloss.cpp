@@ -243,8 +243,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         if(is_k_dim)
         {
+            auto lens = label_shape.lens();
+            size_t d =
+                std::accumulate(lens.rbegin(), lens.rend() - 1, 1, std::multiplies<size_t>());
             scores = info.add_instruction(
-                migraphx::make_op("reshape", {{"dims", {batch_size, class_size, -1}}}), scores);
+                migraphx::make_op("reshape", {{"dims", {batch_size, class_size, d}}}), scores);
         }
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy

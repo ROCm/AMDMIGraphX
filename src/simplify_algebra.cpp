@@ -522,60 +522,58 @@ struct find_inner_broadcast
     {
         const auto& broadcasts = ins->inputs();
         // Scalars can have different ndim, so find the largest ndim input
-            auto max_broadcast =
-                *std::max_element(broadcasts.begin(),
-                                  broadcasts.end(),
-                                  by(std::less<>{}, [](instruction_ref broadcast) {
-                                      return get_non_broadcast_input(broadcast)->get_shape().ndim();
-                                  }));
-            auto max_ndim = max_broadcast->get_shape().ndim();
-            std::vector<instruction_ref> inputs;
-            std::transform(broadcasts.begin(),
-                           broadcasts.end(),
-                           std::back_inserter(inputs),
-                           [&](instruction_ref broadcast) {
-                               auto input = get_non_broadcast_input(broadcast);
-                               auto s     = input->get_shape();
-                               // If scalar doesnt match the other input dims then add a squeeze
-                               if(s.elements() == 1 and s.ndim() > 1 and s.ndim() != max_ndim)
-                                   return m.insert_instruction(
-                                       broadcast, make_op("squeeze"), input);
-                               return input;
-                           });
-            auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-            m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        auto max_broadcast = *std::max_element(
+            broadcasts.begin(), broadcasts.end(), by(std::less<>{}, [](instruction_ref broadcast) {
+                return get_non_broadcast_input(broadcast)->get_shape().ndim();
+            }));
+        auto max_ndim = max_broadcast->get_shape().ndim();
+        std::vector<instruction_ref> inputs;
+        std::transform(broadcasts.begin(),
+                       broadcasts.end(),
+                       std::back_inserter(inputs),
+                       [&](instruction_ref broadcast) {
+                           auto input = get_non_broadcast_input(broadcast);
+                           auto s     = input->get_shape();
+                           // If scalar doesnt match the other input dims then add a squeeze
+                           if(s.elements() == 1 and s.ndim() > 1 and s.ndim() != max_ndim)
+                               return m.insert_instruction(broadcast, make_op("squeeze"), input);
+                           return input;
+                       });
+        auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
     }
 
     void apply_diff_broadcasts(module& m, instruction_ref ins) const
     {
         const auto& broadcasts = ins->inputs();
-        auto ndim = ins->get_shape().ndim();
-            // Compute the inner dimensions and axes that the computation will
-            // use. Also compute the axes that will be broadcasted
-            std::vector<std::size_t> idims;
-            std::vector<std::int64_t> iaxes;
-            std::vector<std::int64_t> axes;
-            for(auto axis : range(ndim))
+        auto ndim              = ins->get_shape().ndim();
+        // Compute the inner dimensions and axes that the computation will
+        // use. Also compute the axes that will be broadcasted
+        std::vector<std::size_t> idims;
+        std::vector<std::int64_t> iaxes;
+        std::vector<std::int64_t> axes;
+        for(auto axis : range(ndim))
+        {
+            if(std::all_of(broadcasts.begin(), broadcasts.end(), [&](instruction_ref i) {
+                   auto s = i->get_shape();
+                   return s.lens()[axis] == 1 or s.strides()[axis] == 0;
+               }))
             {
-                if(std::all_of(broadcasts.begin(), broadcasts.end(), [&](instruction_ref i) {
-                       auto s = i->get_shape();
-                       return s.lens()[axis] == 1 or s.strides()[axis] == 0;
-                   }))
-                {
-                    axes.push_back(axis);
-                }
-                else
-                {
-                    iaxes.push_back(axis);
-                    idims.push_back(ins->get_shape().lens()[axis]);
-                }
+                axes.push_back(axis);
             }
-            // If the inner axes are the same as the original operator then
-            // there is no reason to do this transformation.
-            if(iaxes.size() == ndim)
-                return;
-            std::vector<instruction_ref> inputs;
-            std::transform(
+            else
+            {
+                iaxes.push_back(axis);
+                idims.push_back(ins->get_shape().lens()[axis]);
+            }
+        }
+        // If the inner axes are the same as the original operator then
+        // there is no reason to do this transformation.
+        if(iaxes.size() == ndim)
+            return;
+        std::vector<instruction_ref> inputs;
+        std::
+            transform(
                 broadcasts.begin(),
                 broadcasts.end(),
                 std::back_inserter(inputs),
@@ -629,31 +627,29 @@ struct find_inner_broadcast
                     }
                     return result;
                 });
-            auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-            if(iaxes.size() == 1)
-            {
-                m.replace_instruction(
-                    ins,
-                    make_op("broadcast",
-                            {{"axis", iaxes.front()}, {"out_lens", ins->get_shape().lens()}}),
-                    op);
-            }
-            else
-            {
-                auto unsqueeze =
-                    is_unsqueeze_needed_for_multibroadcast(op->get_shape(), ins->get_shape())
-                        ? m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op)
-                        : op;
-                m.replace_instruction(
-                    ins,
-                    make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),
-                    unsqueeze);
-            }
+        auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
+        if(iaxes.size() == 1)
+        {
+            m.replace_instruction(
+                ins,
+                make_op("broadcast",
+                        {{"axis", iaxes.front()}, {"out_lens", ins->get_shape().lens()}}),
+                op);
+        }
+        else
+        {
+            auto unsqueeze =
+                is_unsqueeze_needed_for_multibroadcast(op->get_shape(), ins->get_shape())
+                    ? m.insert_instruction(ins, make_op("unsqueeze", {{"axes", axes}}), op)
+                    : op;
+            m.replace_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}), unsqueeze);
+        }
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins        = r.result;
+        auto ins               = r.result;
         const auto& broadcasts = ins->inputs();
         if(broadcasts.empty())
             return;
@@ -692,7 +688,6 @@ struct find_inner_broadcast
         if(same_broadcasts)
         {
             apply_same_broadcasts(m, ins);
-            
         }
         // Skip if any input to the broadcasted is already broadcasts as the
         // below algorithm may no be able to handle such case.

@@ -517,49 +517,11 @@ struct find_inner_broadcast
         }
         return true;
     }
-
-    void apply(module& m, const match::matcher_result& r) const
+    // Simple case
+    void apply_same_broadcasts(module& m, instruction_ref ins) const
     {
-        auto ins        = r.result;
-        auto broadcasts = ins->inputs();
-        if(broadcasts.empty())
-            return;
-        // Skip if different data types are used
-        if(any_of(broadcasts, [&](auto i) {
-               return i->get_shape().type() != broadcasts.front()->get_shape().type();
-           }))
-            return;
-
-        // All inputs should have less elements
-        if(not all_of(broadcasts, [&](instruction_ref broadcast) {
-               auto input = broadcast->inputs().front();
-               return input->get_shape().elements() < ins->get_shape().elements();
-           }))
-            return;
-        // Find first broadcast that is not a scalar
-        auto first =
-            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
-                return not broadcast->get_shape().scalar();
-            });
-        // Try to see if we can do a simple case that just applies the op to
-        // the inputs of the broadcasts, and then just put that same
-        // broadcast after the op. For this case we need each of the
-        // broadcasts to be the same and the inputs to have the same dimesion
-        // (oe be scalar).
-        const bool same_broadcasts =
-            std::all_of(first, broadcasts.end(), [&](instruction_ref broadcast) {
-                if(broadcast->get_operator() != (*first)->get_operator())
-                    return false;
-                auto s1 = get_non_broadcast_input(broadcast)->get_shape();
-                auto s2 = get_non_broadcast_input(*first)->get_shape();
-                if(s1.elements() == 1)
-                    return true;
-                return s1.lens() == s2.lens();
-            });
-        if(same_broadcasts)
-        {
-
-            // Scalars can have different ndim, so find the largest ndim input
+        const auto& broadcasts = ins->inputs();
+        // Scalars can have different ndim, so find the largest ndim input
             auto max_broadcast =
                 *std::max_element(broadcasts.begin(),
                                   broadcasts.end(),
@@ -582,14 +544,12 @@ struct find_inner_broadcast
                            });
             auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
             m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
-        }
-        // Skip if any input to the broadcasted is already broadcasts as the
-        // below algorithm may no be able to handle such case.
-        else if(std::none_of(broadcasts.begin(), broadcasts.end(), [](instruction_ref broadcast) {
-                    return broadcast->inputs().front()->get_shape().broadcasted();
-                }))
-        {
-            auto ndim = ins->get_shape().ndim();
+    }
+
+    void apply_diff_broadcasts(module& m, instruction_ref ins) const
+    {
+        const auto& broadcasts = ins->inputs();
+        auto ndim = ins->get_shape().ndim();
             // Compute the inner dimensions and axes that the computation will
             // use. Also compute the axes that will be broadcasted
             std::vector<std::size_t> idims;
@@ -652,9 +612,9 @@ struct find_inner_broadcast
                     if(not sq_axes.empty())
                         result = m.insert_instruction(
                             broadcast, make_op("squeeze", {{"axes", sq_axes}}), result);
-                    // If the number of dimension are still smaller the number
-                    // of inner axes, then we need to insert a broadcast to
-                    // have the same dimensions for all inputs/
+                    // If the number of dimension are still smaller than the
+                    // number of inner axes, then we need to insert a
+                    // broadcast to have the same dimensions for all inputs.
                     if(result->get_shape().ndim() < iaxes.size())
                     {
                         // We find the first inner axis that can be mapped to the input
@@ -689,6 +649,58 @@ struct find_inner_broadcast
                     make_op("multibroadcast", {{"out_lens", ins->get_shape().lens()}}),
                     unsqueeze);
             }
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins        = r.result;
+        const auto& broadcasts = ins->inputs();
+        if(broadcasts.empty())
+            return;
+        // Skip if different data types are used
+        if(any_of(broadcasts, [&](auto i) {
+               return i->get_shape().type() != broadcasts.front()->get_shape().type();
+           }))
+            return;
+
+        // All inputs should have less elements
+        if(not all_of(broadcasts, [&](instruction_ref broadcast) {
+               auto input = broadcast->inputs().front();
+               return input->get_shape().elements() < ins->get_shape().elements();
+           }))
+            return;
+        // Find first broadcast that is not a scalar
+        auto first =
+            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
+                return not broadcast->get_shape().scalar();
+            });
+        // Try to see if we can do a simple case that just applies the op to
+        // the inputs of the broadcasts, and then just put that same
+        // broadcast after the op. For this case we need each of the
+        // broadcasts to be the same and the inputs to have the same dimesion
+        // (oe be scalar).
+        const bool same_broadcasts =
+            std::all_of(first, broadcasts.end(), [&](instruction_ref broadcast) {
+                if(broadcast->get_operator() != (*first)->get_operator())
+                    return false;
+                auto s1 = get_non_broadcast_input(broadcast)->get_shape();
+                auto s2 = get_non_broadcast_input(*first)->get_shape();
+                if(s1.elements() == 1)
+                    return true;
+                return s1.lens() == s2.lens();
+            });
+        if(same_broadcasts)
+        {
+            apply_same_broadcasts(m, ins);
+            
+        }
+        // Skip if any input to the broadcasted is already broadcasts as the
+        // below algorithm may no be able to handle such case.
+        else if(std::none_of(broadcasts.begin(), broadcasts.end(), [](instruction_ref broadcast) {
+                    return broadcast->inputs().front()->get_shape().broadcasted();
+                }))
+        {
+            apply_diff_broadcasts(m, ins);
         }
     }
 };

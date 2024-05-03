@@ -35,25 +35,6 @@ TEST_CASE(convinteger_no_bias_mismatched_data_inputs_test)
     mm->add_literal(
         migraphx::literal{migraphx::shape{weight->get_shape().type(), {1}, {0}}, {128}});
 
-    // shift uint8 input
-    auto int8_shift2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-
-    // shift uint8 input
-    auto unshifted_input_half = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), weight);
-
-    auto mbr2 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}),
-        int8_shift2);
-
-    auto input_shifted_half =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
-
-    weight = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_half);
-
     mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
 
     auto prog = optimize_onnx("convinteger_mismatched_input_types_test.onnx");

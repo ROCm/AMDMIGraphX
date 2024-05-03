@@ -34,38 +34,6 @@ TEST_CASE(convinteger_no_bias_uint8)
     mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {128}});
     mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {128}});
 
-    // Shift uint8 input
-    auto int8_shift2 =
-        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-
-    // Shift uint8 input
-    auto unshifted_input_half = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), data);
-
-    auto mbr2 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 32, 32}}}), int8_shift2);
-
-    auto input_shifted_half =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
-
-    data = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        input_shifted_half);
-
-    // Shift uint8 weights
-    auto unshifted_weights_half = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), weights);
-
-    auto mbr3 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 5, 5}}}), int8_shift2);
-
-    auto weights_shifted_half =
-        mm->add_instruction(migraphx::make_op("add"), unshifted_weights_half, mbr3);
-
-    weights = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-        weights_shifted_half);
-
     mm->add_instruction(migraphx::make_op("quant_convolution"), data, weights);
 
     auto prog = optimize_onnx("convinteger_no_bias_uint8_test.onnx");

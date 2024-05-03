@@ -333,7 +333,7 @@ struct matcher_result
         void debug_print() const
         {
             for(auto it = ins_map.begin(); it != ins_map.end(); it++)
-            {   
+            {
                 std::cout << it->first << ": \n";
                 it->second->debug_print();
             }
@@ -343,7 +343,7 @@ struct matcher_result
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
 
-    void debug_print() const 
+    void debug_print() const
     {
         std::cout << "matcher_container: \n  instructions:";
         instructions.debug_print();

@@ -221,19 +221,15 @@ struct find_pointwise_reduce
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-static int icount=0;
-std::printf("debug count for find_pointwise_reduce %d \n", ++icount)        ;
-        //  r.debug_print();
         auto reduce = r.result;
         auto input  = r.instructions["pointwise"];
 
-        std::cout << "matched!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ";
         // A broadcast with output shape's rank not matching input wouldn't work.
+        // TODO:  can the same error happen in find_reduce_reduce or find_reduce_pointwise?
         if(contains(r.instructions, "broadcast"))
-        {          
-            std::printf("  dims  %d, %d, %d, %d\n",  r.instructions["broadcast"]->get_shape().ndim(), r.instructions   ["final_broadcast"]->get_shape().ndim(), input->get_shape().ndim());
-            if(  r.instructions["broadcast"]->get_shape().ndim() != input->get_shape().ndim() 
-            or r.instructions["final_broadcast"]->get_shape().ndim() != input->get_shape().ndim())
+        {
+            if(r.instructions["broadcast"]->get_shape().ndim() != input->get_shape().ndim() or
+               r.instructions["final_broadcast"]->get_shape().ndim() != input->get_shape().ndim())
                 return;
         }
         const auto* pm     = input->module_inputs().front();
@@ -261,7 +257,6 @@ std::printf("debug count for find_pointwise_reduce %d \n", ++icount)        ;
         auto new_inputs = find_inputs(rm, mpm.get_module(), map_ins);
         mpm.get_module().replace_instruction(reduce, reduce->get_operator(), new_inputs, {rm});
     }
-}
 };
 
 struct find_reduce_pointwise

@@ -31,14 +31,14 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test)
     migraphx::program p = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape score_shape{migraphx::shape::float_type, {2, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-    migraphx::shape label_shape{migraphx::shape::int32_type, {2}};
-    std::vector<float> label_data = {1, 4, 2, 4, 3, 2};
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<float> label_data = {0, 3, 1, 2};
 
     migraphx::parameter_map pp;
-    pp["1"] = migraphx::argument(score_shape, score_data.data());
-    pp["2"] = migraphx::argument(label_shape, label_data.data());
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
@@ -53,14 +53,14 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test)
         migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape score_shape{migraphx::shape::float_type, {2, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-    migraphx::shape label_shape{migraphx::shape::int32_type, {2}};
-    std::vector<float> label_data = {1, 4, 2, 4, 3, 2};
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<float> label_data = {0, 3, 1, 2};
 
     migraphx::parameter_map pp;
-    pp["1"] = migraphx::argument(score_shape, score_data.data());
-    pp["2"] = migraphx::argument(label_shape, label_data.data());
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
 
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
@@ -75,14 +75,14 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_test)
         migraphx::parse_onnx("softmaxcrossentropyloss_2d_mean_reduction_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape score_shape{migraphx::shape::float_type, {2, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-    migraphx::shape label_shape{migraphx::shape::int32_type, {2}};
-    std::vector<float> label_data = {1, 4, 2, 4, 3, 2};
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<float> label_data = {0, 3, 1, 2};
 
     migraphx::parameter_map pp;
-    pp["1"] = migraphx::argument(score_shape, score_data.data());
-    pp["2"] = migraphx::argument(label_shape, label_data.data());
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;

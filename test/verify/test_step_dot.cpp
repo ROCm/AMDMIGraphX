@@ -36,9 +36,10 @@ struct test_step_dot : verify_program<test_step_dot>
         auto* mm = p.get_main_module();
         migraphx::shape as{migraphx::shape::float_type, {128, 4, 64, 196}};
         migraphx::shape bs{migraphx::shape::float_type, {128, 4, 196, 196}};
-        auto a   = mm->add_parameter("input", as);
-        auto b   = mm->add_literal(migraphx::generate_literal(bs));
-        auto step = mm->add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), a);
+        auto a = mm->add_parameter("input", as);
+        auto b = mm->add_literal(migraphx::generate_literal(bs));
+        auto step =
+            mm->add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), a);
         auto dot = mm->add_instruction(migraphx::make_op("dot"), step, b);
         mm->add_return({dot});
         return p;

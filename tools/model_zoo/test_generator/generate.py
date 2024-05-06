@@ -30,6 +30,7 @@ warnings.filterwarnings('ignore')
 
 # datasets
 from sample_generator.dataset.imagenet import ImageNet2012Val
+from sample_generator.dataset.coco import COCO2017Val
 from sample_generator.dataset.librispeech import LibriSpeechASR
 from sample_generator.dataset.squad import SQuAD_HF
 from sample_generator.dataset.prompts import StylePrompts
@@ -71,14 +72,11 @@ librispeech_models = (Wav2Vec2_base_960h, WhisperSmallEn)
 diffusion_models = (StableDiffusion21, )
 
 default_dataset_model_mapping = {
-    "image":
-    DatasetModelsPair(ImageNet2012Val, imagenet_models),
-    "text":
-    DatasetModelsPair(SQuAD_HF, squad_models),
-    "audio":
-    DatasetModelsPair(LibriSpeechASR, librispeech_models),
-    "diffusion":
-    DatasetModelsPair((ImageNet2012Val, StylePrompts), diffusion_models)
+    "image": DatasetModelsPair(ImageNet2012Val, imagenet_models),
+    "text": DatasetModelsPair(SQuAD_HF, squad_models),
+    "audio": DatasetModelsPair(LibriSpeechASR, librispeech_models),
+    "diffusion": DatasetModelsPair((COCO2017Val, StylePrompts),
+                                   diffusion_models)
 }
 
 
@@ -119,7 +117,7 @@ def get_args():
         dest='diffusion_model_names',
         type=str,
         help=
-        f'DiffusionModel models to test with {ImageNet2012Val.name()} and {StylePrompts} dataset samples'
+        f'DiffusionModel models to test with {COCO2017Val.name()} and {StylePrompts} dataset samples'
     )
     parser.add_argument(
         '--output-folder-prefix',

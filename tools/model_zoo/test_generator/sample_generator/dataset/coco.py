@@ -22,4 +22,26 @@
 # THE SOFTWARE.
 #
 #####################################################################################
-__all__ = ["imagenet", "coco", "librispeech", "prompts", "squad"]
+from .base import BaseDataset, ValidationDatasetHFIteratorMixin
+from datasets import load_dataset
+
+
+class COCO2017Val(ValidationDatasetHFIteratorMixin, BaseDataset):
+    @property
+    def url(self):
+        return "lmms-lab/COCO-Caption2017"
+
+    @property
+    def split(self):
+        return "val"
+
+    @staticmethod
+    def name():
+        return "coco-2017-val"
+
+    def transform(self, inputs, data, prepocess_fn):
+        result = prepocess_fn(data["image"])
+        inputs, keys = sorted(inputs), sorted(list(result.keys()))
+        assert inputs == keys, f"{inputs = } == {keys = }"
+        # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
+        return dict(result)

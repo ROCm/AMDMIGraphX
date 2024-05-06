@@ -57,6 +57,7 @@ class AutoTokenizerHFMixin(object):
                 self.model_id, subfolder="tokenizer")
         return self._tokenizer
 
+    @property
     def tokenizer_2(self):
         if self._tokenizer_2 is None:
             self._tokenizer_2 = AutoTokenizer.from_pretrained(
@@ -130,6 +131,9 @@ class StableDiffusion21(OptimumHFDiffusionModelDownloadMixin,
                  negative_prompt_result['input_ids'])).astype(np.int32)
         }
         return result
+
+    def text_preprocess_2(self, *args, **kwargs):
+        raise RuntimeError("No tokenizer_2 for SD21 model")
 
     def image_preprocess(self, *args, **kwargs):
         resized_image = args[0].resize((512, 512))

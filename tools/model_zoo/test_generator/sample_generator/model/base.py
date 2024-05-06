@@ -80,6 +80,10 @@ class DiffusionModel(BaseModel):
         pass
 
     @abc.abstractmethod
+    def text_preprocess_2(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
     def image_preprocess(self, *args, **kwargs):
         pass
 

@@ -67,6 +67,7 @@ style_list = [
     ),
 ]
 
+
 class StylePrompts(BaseDataset):
     @property
     def url(self):
@@ -81,7 +82,7 @@ class StylePrompts(BaseDataset):
         return "style-prompts"
 
     def __iter__(self):
-        print(f"Load dataset")
+        print(f"Load dataset for {self.name()}")
         self.dataset = iter(style_list)
         return self.dataset
 

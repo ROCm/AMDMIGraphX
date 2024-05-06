@@ -77,6 +77,13 @@ def generate_diffusion_data(model,
     vae_decoder_folder_name_prefix = f"{os.path.dirname(vae_decoder_model_path)}/test_data_set"
     #####################
 
+    print('\n'.join([
+        f"Creating {folder_name_prefix}s..." for folder_name_prefix in [
+            text_encoder_folder_name_prefix, vae_encoder_folder_name_prefix,
+            unet_folder_name_prefix, vae_decoder_folder_name_prefix
+        ]
+    ]))
+
     test_idx = 0
     scale = 7.0
     seed = 42

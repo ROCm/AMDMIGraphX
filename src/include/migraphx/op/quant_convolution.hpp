@@ -81,7 +81,6 @@ struct quant_convolution
         const shape& input   = inputs.at(0);
         const shape& weights = inputs.at(1);
         auto t               = input.type();
-        auto w               = weights.type();
         size_t kdims         = input.lens().size() - 2;
         if(kdims != this->kdims())
         {
@@ -90,16 +89,10 @@ struct quant_convolution
 
         // all input type must be int8_type and output is float_type
         std::set<migraphx::shape::type_t> supported_types = {
-            shape::uint8_type, shape::int8_type, shape::fp8e4m3fnuz_type};
+            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input of type int8_t or "
-                           "fp8e4m3fnuz_type");
-        }
-
-        if(not contains(supported_types, w))
-        {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept weights of type int8_t or "
+            MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t or "
                            "fp8e4m3fnuz_type");
         }
 

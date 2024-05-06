@@ -26,6 +26,7 @@ from .base import DiffusionModel
 from transformers import AutoTokenizer
 from diffusers import EulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
+from optimum.exporters.onnx import main_export
 import numpy as np
 import os
 

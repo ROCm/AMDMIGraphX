@@ -21,29 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+struct test_reduce_mean_variance : verify_program<test_reduce_mean_variance>
 {
-    bool disable_fusion = enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{});
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes = true;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::half_type, {1, 32, 128}};
+        auto x        = mm->add_parameter("x", s);
+        auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        auto x2       = mm->add_instruction(migraphx::make_op("mul"), x, x);
+        auto mean_x2  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x2);
+        auto mean_2   = mm->add_instruction(migraphx::make_op("mul"), mean, mean);
+        auto variance = mm->add_instruction(migraphx::make_op("sub"), mean_x2, mean_2);
+        auto add      = mm->add_instruction(migraphx::make_op("add"), mean, variance);
+        mm->add_return({add});
+        return p;
+    };
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

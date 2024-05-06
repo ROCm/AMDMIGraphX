@@ -20,30 +20,28 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+#ifndef MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
+#define MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
 #include <string>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
+struct module;
 
-struct MIGRAPHX_EXPORT fuse_pointwise
+namespace gpu {
+
+struct prepare_reduce
 {
-    bool disable_fusion = enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{});
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes = true;
+    std::string name() const { return "gpu::prepare_reduce"; }
+    void apply(module& m) const;
 };
 
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+#endif // MIGRAPHX_GUARD_GPU_PREPARE_REDUCE_HPP

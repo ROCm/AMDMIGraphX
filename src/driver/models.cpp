@@ -21,29 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
-#include <string>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+#include "models.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
+namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+migraphx::program test_gemm()
 {
-    bool disable_fusion = enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{});
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes = true;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", migraphx::shape{migraphx::shape::float_type, {4, 5}});
+    auto b   = mm->add_parameter("b", migraphx::shape{migraphx::shape::float_type, {5, 3}});
+    mm->add_instruction(migraphx::make_op("dot"), a, b);
+    return p;
+}
 
 } // namespace MIGRAPHX_INLINE_NS
+} // namespace driver
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

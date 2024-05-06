@@ -61,11 +61,7 @@ struct scatter_compiler : compiler<Derived>
     // data before the MIGraphX operator in the graph.
     compiler_replace prepend_copy_data_to_output(const operation& co) const
     {
-        return {co,
-                [](module& m,
-                   instruction_ref ins,
-                   const operation& op,
-                   const std::unordered_map<instruction_ref, instruction_ref>&) {
+        return {co, [](module& m, instruction_ref ins, const operation& op) {
                     auto args = ins->inputs();
                     args.back() =
                         m.insert_instruction(ins, make_op("hip::copy"), args.front(), args.back());

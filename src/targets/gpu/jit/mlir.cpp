@@ -114,7 +114,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
-            return insert(cops, mod_splits, gemm_ins);
+            return insert(cops, mod_splits, ins, gemm_ins);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
@@ -122,10 +122,7 @@ struct mlir_compiler : compiler<mlir_compiler>
     compiler_replace insert(const mlir_code_object& mco) const
     {
         return {std::vector<operation>{mco.cop},
-                [=](module& m,
-                    instruction_ref ins,
-                    const std::vector<operation>& ops,
-                    const std::unordered_map<instruction_ref, instruction_ref>&) {
+                [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
                     std::vector<instruction_ref> inputs = ins->inputs();
                     for(const auto i : range(mco.prefill_indices.size()))
                     {
@@ -142,17 +139,21 @@ struct mlir_compiler : compiler<mlir_compiler>
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
                             const std::array<module_with_inputs, 2>& mods,
+                            instruction_ref precompile_ins,
                             instruction_ref split_ins) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
         return {
-            cobjs,
-            [=](module& m,
-                instruction_ref ins,
-                const std::vector<operation>& ops,
-                const std::unordered_map<instruction_ref, instruction_ref>& inputs_rep_map) {
+            cobjs, [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
+                auto compiled_inputs    = ins->inputs();
+                auto precompiled_inputs = precompile_ins->inputs();
+                std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map;
+                for(const auto i : range(precompiled_inputs.size()))
+                {
+                    inputs_rep_map[precompiled_inputs[i]] = compiled_inputs[i];
+                }
                 auto dot_inputs        = mods[0].inputs;
                 auto dot_mod_out_shape = mods[0].mod.get_output_shapes().front();
                 auto dot_alloc         = m.insert_instruction(

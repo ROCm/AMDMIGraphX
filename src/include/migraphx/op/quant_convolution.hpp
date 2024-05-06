@@ -75,7 +75,7 @@ struct quant_convolution
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_ndims().min_ndims(3);
+        check_shapes{inputs, *this}.has(2).same_type().same_ndims().min_ndims(3);
         check_attribute_size();
 
         const shape& input   = inputs.at(0);
@@ -88,8 +88,8 @@ struct quant_convolution
         }
 
         // all input type must be int8_type and output is float_type
-        std::set<migraphx::shape::type_t> supported_types = {
-            shape::int8_type, shape::uint8_type, shape::fp8e4m3fnuz_type};
+        std::set<migraphx::shape::type_t> supported_types = {shape::int8_type,
+                                                             shape::fp8e4m3fnuz_type};
         if(not contains(supported_types, t))
         {
             MIGRAPHX_THROW("QUANT_CONVOLUTION: only accept input and weights of type int8_t or "

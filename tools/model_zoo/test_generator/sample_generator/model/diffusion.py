@@ -29,6 +29,7 @@ from diffusers.image_processor import VaeImageProcessor
 from optimum.exporters.onnx import main_export
 import numpy as np
 import os
+from PIL import ImageOps
 
 
 class OptimumHFDiffusionModelDownloadMixin(object):
@@ -136,6 +137,6 @@ class StableDiffusion21(OptimumHFDiffusionModelDownloadMixin,
         raise RuntimeError("No tokenizer_2 for SD21 model")
 
     def image_preprocess(self, *args, **kwargs):
-        resized_image = args[0].resize((512, 512))
+        resized_image = ImageOps.fit(args[0], (512, 512))
         result = super().image_preprocess(resized_image, **kwargs)
         return {"sample": result}

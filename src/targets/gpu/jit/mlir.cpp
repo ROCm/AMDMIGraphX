@@ -38,44 +38,30 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-static migraphx::module create_pointwise_module(migraphx::module_ref in_mod)
+static module create_pointwise_module(module_ref in_mod)
 {
-    migraphx::module m;
-    std::unordered_map<instruction_ref, instruction_ref> ins_map;
-    for(const auto i : iterator_for(*in_mod))
+    module pw_mod;
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    for(auto param : in_mod->get_parameters())
     {
-        if(i->name() == "@param")
-        {
-            ins_map[i] = m.add_parameter(any_cast<builtin::param>(i->get_operator()).parameter,
-                                         shape{i->get_shape().type()});
-        }
-        else if(i->name() == "@literal")
-        {
-            ins_map[i] = m.add_literal(i->get_literal());
-        }
-        else if(i->name() == "multibroadcast" and i->inputs().front()->name() == "@literal")
-        {
-            ins_map[i] = ins_map[i->inputs().front()];
-        }
-        else
-        {
-            std::vector<instruction_ref> inputs;
-            inputs.resize(i->inputs().size());
-            std::transform(i->inputs().begin(),
-                           i->inputs().end(),
-                           inputs.begin(),
-                           [&](const auto input) { return ins_map[input]; });
-            if(i->name() == "@return")
-            {
-                m.add_return(inputs);
-            }
-            else
-            {
-                ins_map[i] = m.add_instruction(i->get_operator(), inputs);
-            }
-        }
+        map_ins[param] =
+            pw_mod.add_parameter(any_cast<builtin::param>(param->get_operator()).parameter,
+                                 shape{param->get_shape().type()});
     }
-    return m;
+    pw_mod.add_instructions(in_mod,
+                            &map_ins,
+                            [](module& m,
+                               instruction_ref ins,
+                               const operation& op,
+                               const std::vector<instruction_ref>& inputs,
+                               const std::vector<module_ref>& mod_args) -> instruction_ref {
+                                if(op.name() == "multibroadcast" and
+                                   inputs.front()->name() == "@literal")
+                                    return inputs.front();
+                                else
+                                    return m.insert_instruction(ins, op, inputs, mod_args);
+                            });
+    return pw_mod;
 }
 
 struct mlir_compiler : compiler<mlir_compiler>

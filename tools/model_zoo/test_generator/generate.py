@@ -41,7 +41,7 @@ from sample_generator.model.text import BERT_large_uncased, DistilBERT_base_case
 from sample_generator.model.text import GPTJ, Llama2_7b_chat_hf, Llama3_8b_instruct, T5_base, Gemma_2b_it
 from sample_generator.model.audio import Wav2Vec2_base_960h, WhisperSmallEn
 from sample_generator.model.hybrid import ClipVitLargePatch14
-from sample_generator.model.diffusion import StableDiffusion21
+from sample_generator.model.diffusion import StableDiffusion21, StableDiffusionXL
 
 # generator
 from sample_generator.generator import generate_test_dataset, generate_diffusion_data
@@ -69,7 +69,7 @@ squad_models = (
 
 librispeech_models = (Wav2Vec2_base_960h, WhisperSmallEn)
 
-diffusion_models = (StableDiffusion21, )
+diffusion_models = (StableDiffusion21, StableDiffusionXL)
 
 default_dataset_model_mapping = {
     "image": DatasetModelsPair(ImageNet2012Val, imagenet_models),

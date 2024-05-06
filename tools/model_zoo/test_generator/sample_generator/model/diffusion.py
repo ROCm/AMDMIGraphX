@@ -140,3 +140,49 @@ class StableDiffusion21(OptimumHFDiffusionModelDownloadMixin,
         resized_image = ImageOps.fit(args[0], (512, 512))
         result = super().image_preprocess(resized_image, **kwargs)
         return {"sample": result}
+
+
+class StableDiffusionXL(OptimumHFDiffusionModelDownloadMixin,
+                        AutoTokenizerHFMixin, VAEImageProcessorHFMixin,
+                        EulerDiscreteSchedulerHFMixin, DiffusionModel):
+    def __init__(self):
+        # it should be in pipeline exec order
+        self.models = ('text_encoder', 'text_encoder_2', 'vae_encoder', 'unet',
+                       'vae_decoder')
+
+    @property
+    def model_id(self):
+        return "stabilityai/stable-diffusion-xl-base-1.0"
+
+    @staticmethod
+    def name():
+        return "stable-diffusion-xl"
+
+    def get_model(self, folder, force_download=False):
+        return super().get_models(folder, self.models, force_download)
+
+    def preprocess(self, *args, **kwargs):
+        raise RuntimeError("Call text_preprocess or image_preprocess directly")
+
+    def text_preprocess(self, *args, **kwargs):
+        prompt, negative_prompt = args
+        dtype = np.int64 if kwargs.get('version_2', False) else np.int32
+        prompt_result = super().text_preprocess(prompt, **kwargs)
+        negative_prompt_result = super().text_preprocess(
+            negative_prompt, **kwargs)
+        result = {
+            'input_ids':
+            np.concatenate((prompt_result['input_ids'],
+                            negative_prompt_result['input_ids'])).astype(dtype)
+        }
+        return result
+
+    def text_preprocess_2(self, *args, **kwargs):
+        new_kwargs = dict(kwargs)
+        new_kwargs['version_2'] = True
+        return self.text_preprocess(*args, **new_kwargs)
+
+    def image_preprocess(self, *args, **kwargs):
+        resized_image = ImageOps.fit(args[0], (1024, 1024))
+        result = super().image_preprocess(resized_image, **kwargs)
+        return {"sample": result}

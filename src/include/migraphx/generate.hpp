@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,21 +36,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class T, MIGRAPHX_REQUIRES(is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    if(z == 0)
-        return T(0);
-    const auto max     = 32;
-    const double range = max / 2; // NOLINT
-    double result      = double(z % max) / range;
-    result -= 1;
+    const auto max     = 1ULL << (sizeof(T) * 8 - 1);
+    const double range = max / 2.0;
+    double result      = -1.0 + (z % max) / range;
+    // Expected output: between -1.0 and 1.0
     return T(result);
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max      = 1ULL << (sizeof(T) * 5);
+    // Range of max is limited to 24 bits, for a 32 bit output.
+    // To avoid any overflow to some later integer-multiply with an 8 bit number.
+    // In reality, the overflow in integer multiply shouldn't be an issue;
+    // For comparing results, in verify mode, Overflow(s) are even lesser relevant.
+    const long long max = 1ULL << (sizeof(T) * 6 - 1);
     const auto half_max = max / 2;
-    return half_max - (z % max);
+    auto result         = half_max - (z % max);
+    // Expected output: between -half_max and half_max
+    return T(result);
 }
 
 template <class T,
@@ -58,13 +62,15 @@ template <class T,
                             not std::is_same<T, bool>{})>
 constexpr T normalize(unsigned long z)
 {
-    const auto max = 1ULL << (sizeof(T) * 5);
+    const auto max = 1ULL << (sizeof(T) * 8 - 1);
+    // Expected output: between 0 and max - 1
     return z % max;
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, bool>{})>
 constexpr bool normalize(unsigned long z)
 {
+    // Expected output: 0 or 1
     return static_cast<bool>(z % 2);
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -104,6 +104,9 @@ struct test_large_reduce_mean1 : verify_program<test_large_reduce_mean1>
         mm->add_instruction(migraphx::op::reduce_mean{{1}}, x);
         return p;
     };
+
+    // slightly higher FP tolerance due to large size of operation
+    std::size_t get_tolerance() const { return 160; }
 };
 
 struct test_large_reduce_mean2 : verify_program<test_large_reduce_mean2>

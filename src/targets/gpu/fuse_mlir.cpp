@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -200,7 +201,7 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
+        instruction_ref prev_input = mm->add_parameter(param_name(input_cnt++, "y"),
                                                        upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {

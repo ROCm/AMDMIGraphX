@@ -320,6 +320,7 @@ std::string generate_reduce(module m, const std::string& name)
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
     cpp_generator g;
+    g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
     auto max_shape =
         std::max_element(param_shapes.begin(),

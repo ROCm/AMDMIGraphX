@@ -33,30 +33,9 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class PrivateMigraphTypeNameProbe>
 std::string compute_type_name()
 {
-    std::string name;
-#if defined(_MSC_VER) && !defined(__clang__)
-    const char struct_name[]    = "struct ";
-    const char class_name[]     = "class ";
-    const char function_name[]  = "compute_type_name<";
-    const char parameter_name[] = ">(void)";
-    const char cdecl_name[]     = "__cdecl";
-
-    name = __FUNCSIG__;
-
-    auto begin  = name.find(function_name) + sizeof(function_name) - 1;
-    auto length = name.find(parameter_name) - begin;
-    name        = name.substr(begin, length);
-    if(starts_with(class_name))
-        name = name.substr(sizeof(class_name) - 1);
-    else if(starts_with(struct_name))
-        name = name.substr(sizeof(struct_name) - 1);
-    begin = name.find(cdecl_name);
-    if(begin != std::string::npos)
-        name.erase(begin, sizeof(cdecl_name) - 1);
-#else
     const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
 
-    name = __PRETTY_FUNCTION__;
+    std::string name = __PRETTY_FUNCTION__;
 
     auto begin  = name.find(parameter_name) + sizeof(parameter_name);
 #if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
@@ -64,9 +43,7 @@ std::string compute_type_name()
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
-#endif
-    return name;
+    return name.substr(begin, length);
 }
 
 template <class T>

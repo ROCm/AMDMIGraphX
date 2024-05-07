@@ -537,8 +537,6 @@ TEST_CASE(dot_multi_scale_unsupported_axis)
     EXPECT(m1 == m2);
 }
 
-TEST_CASE(dot_fp16_model) {}
-
 TEST_CASE(dot_asymmetric_first_arg)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};

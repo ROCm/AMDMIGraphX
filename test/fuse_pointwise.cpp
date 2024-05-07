@@ -250,7 +250,8 @@ TEST_CASE(scalar_like_input)
     {
         auto* mm = p1.get_main_module();
         auto x   = mm->add_parameter("x", s);
-        auto one = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
+        auto one = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
         auto y =
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), one);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);

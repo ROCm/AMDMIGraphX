@@ -25,7 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

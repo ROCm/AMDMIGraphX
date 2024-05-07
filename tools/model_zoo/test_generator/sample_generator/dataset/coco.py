@@ -23,7 +23,6 @@
 #
 #####################################################################################
 from .base import BaseDataset, ValidationDatasetHFIteratorMixin
-from datasets import load_dataset
 
 
 class COCO2017Val(ValidationDatasetHFIteratorMixin, BaseDataset):

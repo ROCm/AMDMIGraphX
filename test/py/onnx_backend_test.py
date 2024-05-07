@@ -42,7 +42,8 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
     @classmethod
-    def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol):
+    def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol, model_dir):
+
         prog_string = c2.get_program()
         np.testing.assert_equal(len(ref_outputs),
                                 len(outputs),

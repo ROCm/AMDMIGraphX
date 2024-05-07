@@ -168,11 +168,16 @@ def main(image_model_names='all',
 
         dataset = dataset_model_pair.dataset
         for model in dataset_model_pair.models:
-            generate_test_dataset(model(),
-                                  dataset(),
-                                  output_folder_prefix=output_folder_prefix,
-                                  sample_limit=sample_limit,
-                                  decode_limit=decode_limit)
+            try:
+                generate_test_dataset(
+                    model(),
+                    dataset(),
+                    output_folder_prefix=output_folder_prefix,
+                    sample_limit=sample_limit,
+                    decode_limit=decode_limit)
+            except Exception as e:
+                print(f"Something went wrong:\n{e}\nSkipping model...")
+                continue
 
     for dataset_type, model_names in zip(('diffusion', ),
                                          (diffusion_model_names)):
@@ -184,12 +189,17 @@ def main(image_model_names='all',
 
         image_dataset, prompt_dataset = dataset_model_pair.dataset
         for model in dataset_model_pair.models:
-            generate_diffusion_data(model(),
-                                    image_dataset(),
-                                    prompt_dataset(),
-                                    output_folder_prefix=output_folder_prefix,
-                                    sample_limit=sample_limit,
-                                    decode_limit=decode_limit)
+            try:
+                generate_diffusion_data(
+                    model(),
+                    image_dataset(),
+                    prompt_dataset(),
+                    output_folder_prefix=output_folder_prefix,
+                    sample_limit=sample_limit,
+                    decode_limit=decode_limit)
+            except Exception as e:
+                print(f"Something went wrong:\n{e}\nSkipping model...")
+                continue
 
     print(
         f'Use this to test MIGraphX with the result:\n./test_models.sh {output_folder_prefix}'

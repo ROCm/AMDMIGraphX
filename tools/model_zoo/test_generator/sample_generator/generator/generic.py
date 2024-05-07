@@ -59,12 +59,7 @@ def generate_test_dataset(model,
     output_path = f"{output_folder_prefix or 'generated'}/{dataset.name()}/{model.name()}"
     folder_name_prefix = f"{output_path}/test_data_set"
 
-    # Model
-    try:
-        model_path = model.get_model(output_path)
-    except Exception as e:
-        print(f"Something went wrong:\n{e}\nSkipping model...")
-        return
+    model_path = model.get_model(output_path)
     inputs, outputs = get_model_io(model_path)
 
     sess = ort.InferenceSession(model_path)

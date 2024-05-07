@@ -331,7 +331,7 @@ template <class Derived>
 struct reducer_base
 {
     template <class T>
-    __device__ auto make_inner_slice(T x) const
+    constexpr auto make_inner_slice(T x) const
     {
         if constexpr(is_inner_storage<T>{})
         {
@@ -369,16 +369,16 @@ struct reducer_base
     }
 
     template <class F>
-    __device__ auto inner_sliced(F f) const
+    constexpr auto inner_sliced(F f) const
     {
         return [=](auto&&... xs) { return f(get_size(xs...), make_inner_slice(xs)...); };
     }
 
     template <class T>
-    static __device__ typename T::type& decl_inner_storage(const T&);
+    static constexpr typename T::type& decl_inner_storage(const T&);
 
     template <class F>
-    __device__ auto inner(F f) const
+    constexpr auto inner(F f) const
     {
         return this->inner_sliced([=](auto n, auto&&... xs) {
             using result_type = decltype(f(decl_inner_storage(xs)...));
@@ -395,7 +395,7 @@ struct reducer_base
     }
 
     template <class F>
-    __device__ auto lazy_inner(F f) const
+    constexpr auto lazy_inner(F f) const
     {
         return this->inner_sliced([=](auto n, auto&&... xs) {
             return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
@@ -403,7 +403,7 @@ struct reducer_base
     }
 
     template <class Op, class T, class Read>
-    __device__ auto reduce(Op op, T init, Read read) const
+    constexpr auto reduce(Op op, T init, Read read) const
     {
         return this->inner_sliced([=](auto n, auto&&... xs) {
             auto&& derived = static_cast<const Derived&>(*this);
@@ -412,13 +412,13 @@ struct reducer_base
     }
 
     template <class Op, class T>
-    __device__ auto reduce(Op op, T init) const
+    constexpr auto reduce(Op op, T init) const
     {
         return this->reduce(op, init, op::id{});
     }
 
     template <class F>
-    __device__ void outer(F f) const
+    constexpr void outer(F f) const
     {
         f();
     }

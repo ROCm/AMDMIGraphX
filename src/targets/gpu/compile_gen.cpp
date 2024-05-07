@@ -216,8 +216,11 @@ std::string generate_pointwise(const module& pm, const std::string& name, bool a
 
 std::string reduce_op::str() const
 {
-    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
-           join_strings(inputs, ", ") + "))";
+    auto result = "r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
+           join_strings(inputs, ", ") + ")";
+    if(write == "op::id{}")
+        return result;
+    return write + "(" + result + ")";
 }
 void reduce_op::set(const std::string& name, const shape& input, const shape& output)
 {
@@ -270,7 +273,12 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         auto input  = ins->inputs().front()->get_shape();
         auto output = ins->get_shape().sub_shapes().front();
         set(rop.name(), input, output);
-        read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
+        // std::vector<std::string> inits(ins->inputs().size(), init);
+        // init = "make_array(" + join_strings(inits, ", ") + ")";
+        if(read == "op::id{}")
+            read = "MIGRAPHX_LIFT(make_array)";
+        else
+            read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
     }
     else
     {
@@ -289,7 +297,9 @@ static bool use_lazy_inner(instruction_ref ins)
     if(ins->outputs().size() != 1)
         return false;
     auto output = ins->outputs().front();
-    return contains(output->name(), "reduce") or output->name() == "@return";
+    // return output->name() == "@return";
+    return contains(output->name(), "reduce");
+    // return contains(output->name(), "reduce") or output->name() == "@return";
 }
 
 void preload_params(module& m)

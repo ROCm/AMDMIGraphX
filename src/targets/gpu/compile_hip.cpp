@@ -337,6 +337,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
        }))
         compiler.flags.emplace_back("--std=c++17");
     compiler.flags.emplace_back(" -fno-gpu-rdc");
+    // compiler.flags.emplace_back("-ffast-math");
     if(enabled(MIGRAPHX_GPU_DEBUG_SYM{}))
         compiler.flags.emplace_back("-g");
     compiler.flags.emplace_back("-c");

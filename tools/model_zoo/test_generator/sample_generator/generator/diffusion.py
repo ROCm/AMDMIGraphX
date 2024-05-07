@@ -157,8 +157,7 @@ def generate_diffusion_data(model,
         vae_decoder_input_data_map = {
             "latent_sample": latents.numpy().astype(np.float32)
         }
-        vae_decoder_output_data_map = vae_decoder.inference(
-            vae_decoder_input_data_map, test_idx)
+        _ = vae_decoder.inference(vae_decoder_input_data_map, test_idx)
 
         test_idx += 1
         if sample_limit and sample_limit - 1 <= idx:

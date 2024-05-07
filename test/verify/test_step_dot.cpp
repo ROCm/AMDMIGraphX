@@ -21,25 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+struct test_step_dot : verify_program<test_step_dot>
 {
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes = true;
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape as{migraphx::shape::float_type, {128, 4, 64, 196}};
+        migraphx::shape bs{migraphx::shape::float_type, {128, 4, 196, 196}};
+        auto a = mm->add_parameter("input", as);
+        auto b = mm->add_literal(migraphx::generate_literal(bs));
+        auto step =
+            mm->add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), a);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), step, b);
+        mm->add_return({dot});
+        return p;
+    }
+    std::string section() const { return "gemm"; }
 };
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP

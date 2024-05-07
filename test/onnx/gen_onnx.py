@@ -2204,7 +2204,7 @@ def expand_test():
 
 
 @onnx_test()
-def expand_dyn_test():
+def expand_static_input_dyn_output_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 1])
     dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
@@ -2212,6 +2212,41 @@ def expand_dyn_test():
     node = onnx.helper.make_node('Expand', inputs=['x', 'dims'], outputs=['y'])
 
     return ([node], [x, dims_in], [y])
+
+
+@onnx_test()
+def expand_dyn_input_dyn_output_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 1])
+    dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Expand', inputs=['x', 'dims'], outputs=['y'])
+
+    return ([node], [x, dims_in], [y])
+
+
+@onnx_test()
+def expand_dyn_input_static_dims_throw():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 4])
+
+    shape_val = np.array([3, 4, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT32,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(int))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
+
+    node = onnx.helper.make_node('Expand',
+                                 inputs=['x', 'shape'],
+                                 outputs=['y'])
+
+    return ([shape_const, node], [x], [y])
 
 
 @onnx_test(True)

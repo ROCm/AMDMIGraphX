@@ -24,6 +24,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
+#include <migraphx/op/broadcast.hpp>
+#include <migraphx/op/multibroadcast.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
@@ -662,6 +665,21 @@ MIGRAPHX_BASIC_MATCHER(is_unused, const matcher_context& ctx, instruction_ref in
 MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
 {
     return contains({"broadcast", "multibroadcast"}, ins->name());
+}
+
+/*
+ * The input shape can be broadcast to the output shape
+*/
+MIGRAPHX_PRED_MATCHER(broadcastable, instruction_ref ins) 
+{ 
+    auto input_shape = ins->inputs().front()->get_shape();
+    auto output_shape = ins->get_shape();
+    if(input_shape.dynamic() or output_shape.dynamic())
+        return false;
+    //TODO: this is the condition that led to the exception.  Even though these shapes are broadcastable.
+    if(input_shape.ndim() != output_shape.ndim())
+        return false;
+    return is_broadcastable(input_shape.lens(), output_shape.lens());
 }
 
 template <class... Ms>

@@ -189,8 +189,9 @@ static void create_reduce_modules(module_pass_manager& mpm)
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
+    // todo:  does this change here make sense?
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once(), match::broadcastable())
                    .bind("broadcast"))
         .bind("final_broadcast");
 }
@@ -206,7 +207,7 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
     // TODO:  how to filter out inputs that aren't broadcastable with each other (eg. scalar)?
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
-    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
+    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once(), match::broadcastable());
     return match::any_of(match_op_input, broadcast_match_op_input);
 }
 

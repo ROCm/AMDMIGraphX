@@ -59,6 +59,16 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1);
 
 /**
+ * @brief Test whether two sets of static dimensions can be broadcasted one to the other.
+ * 
+ * @param s0        inputs.  Order does not matter.
+ * @param s1        input.
+ * @return          Boolean
+*/
+MIGRAPHX_EXPORT
+bool is_broadcastable(std::vector<std::size_t> s0, std::vector<std::size_t> s1);
+
+/**
  * Broadcasting for two vectors of dynamic_dimensions.
  * Compares `dynamic_dimension` objects from the trailing (right-most) dimension and working
  * leftwards.

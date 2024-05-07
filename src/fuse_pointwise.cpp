@@ -34,6 +34,8 @@
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -61,17 +63,14 @@ static literal get_scalar(instruction_ref ins)
     return r;
 }
 
-static void create_pointwise_modules(module_pass_manager& mpm,
-                                     size_t& n,
-                                     const std::initializer_list<std::string>& excluded_ops)
+static void create_pointwise_modules(module_pass_manager& mpm)
 {
+    std::size_t n = 0;
     for(auto ins : iterator_for(mpm.get_module()))
     {
         if(not ins->get_operator().attributes().get("pointwise", false))
             continue;
-
-        auto op_name = ins->get_operator().name();
-        if(contains(excluded_ops, op_name))
+        if(ins->get_operator().name() == "layout")
             continue;
         auto* pm = mpm.create_module(mpm.get_module().name() + ":pointwise" + std::to_string(n++));
         pm->set_bypass();
@@ -205,17 +204,12 @@ struct pointwise_reshape : rewrite_reshapes_base
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
     mpm.run_pass(eliminate_identity{});
-    size_t pointwise_cnt = 0;
-    if(disable_fusion)
+    create_pointwise_modules(mpm);
+    mpm.run_pass(dead_code_elimination{});
+    if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
     {
-        create_pointwise_modules(mpm, pointwise_cnt, {"layout"});
-        mpm.run_pass(dead_code_elimination{});
         return;
     }
-    // Excluding `logical_and` and `where` from fusion
-    // to fix GPU accuarcy of GridSample: https://github.com/ROCm/AMDMIGraphX/issues/2923
-    create_pointwise_modules(mpm, pointwise_cnt, {"layout", "logical_and", "where"});
-    mpm.run_pass(dead_code_elimination{});
     for(int i = 0; i < 8; i++)
     {
         if(enable_rewrite_reshapes)
@@ -224,9 +218,6 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
             break;
         mpm.run_pass(dead_code_elimination{});
     }
-    // create pointwise modules for excluded operators
-    create_pointwise_modules(mpm, pointwise_cnt, {"layout", "pointwise", "identity"});
-    mpm.run_pass(dead_code_elimination{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

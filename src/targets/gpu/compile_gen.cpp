@@ -294,8 +294,8 @@ static bool use_lazy_inner(instruction_ref ins)
     // shouldn't. Instead, use `inner` to workaround this issue in the
     // compiler.
     if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
-        return input->get_shape().broadcasted();
-    }))
+           return input->get_shape().broadcasted();
+       }))
         return false;
     auto output = ins->outputs().front();
     return contains(output->name(), "reduce") or output->name() == "@return";

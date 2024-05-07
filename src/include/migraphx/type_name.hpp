@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
 
+#include <string>
 #include <migraphx/config.hpp>
 
 namespace migraphx {

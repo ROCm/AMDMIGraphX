@@ -217,7 +217,7 @@ std::string generate_pointwise(const module& pm, const std::string& name, bool a
 std::string reduce_op::str() const
 {
     auto result = "r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
-           join_strings(inputs, ", ") + ")";
+                  join_strings(inputs, ", ") + ")";
     if(write == "op::id{}")
         return result;
     return write + "(" + result + ")";

@@ -76,6 +76,10 @@ function test() {
     echo "INFO: test $file ($2)"
     model_folder="$(dirname $file)"
     model_name="$(basename $model_folder)"
+    # avoid name conflict for non-unique submodels
+    if [[ "$model_folder" =~ "diffusion" ]]; then
+      model_name="$(basename $(dirname $model_folder))_${model_name}"
+    fi
     flag="--atol $ATOL --rtol $RTOL --target $TARGET"
     if [[ "$2" = "fp16" ]]; then
         flag="$flag --fp16"

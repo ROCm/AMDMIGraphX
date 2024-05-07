@@ -26,6 +26,5 @@ torch==2.1.1
 accelerate
 diffusers
 transformers
-huggingface-cli
--i https://test.pypi.org/simple
-hip-python
+huggingface_hub[cli]
+onnx

@@ -2,9 +2,9 @@
 
 File to load
 
-.. option::  --model [resnet50|inceptionv3|alexnet]
+.. option::  --test 
 
-Load model
+Test MIGraphX with single layer GEMM model
 
 .. option::  --onnx
 

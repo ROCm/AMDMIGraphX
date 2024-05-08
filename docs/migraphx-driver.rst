@@ -51,8 +51,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Description
    *  - --help | -h
       - Prints help section.
-   *  - --model <resnet50|inceptionv3|alexnet>
-      - Loads one of the three default models.
+   *  - --test 
+      - Test MIGraphX with single layer GEMM model.
    *  - --onnx
       - Loads the file as an ONNX graph.
    *  - --tf

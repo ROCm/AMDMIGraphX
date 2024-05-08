@@ -63,8 +63,9 @@ def get_merge_base(branch):
 
 
 def get_files_changed(against, ext=('.py')):
-    files = eval(f"git diff-index --cached --name-only {against}",
-                 cwd=get_top()).splitlines()
+    files = eval(
+        f"git diff-index --cached --name-only --diff-filter=d {against}",
+        cwd=get_top()).splitlines()
     return (f for f in files if f.endswith(ext) and not is_excluded(f))
 
 

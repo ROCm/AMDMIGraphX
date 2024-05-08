@@ -41,7 +41,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static literal get_scalar(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
     if(s.elements() != 1 and not(s.scalar()))
@@ -212,7 +212,8 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     }
     for(int i = 0; i < 8; i++)
     {
-        mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(not find_pointwise_modules(mpm))
             break;
         mpm.run_pass(dead_code_elimination{});

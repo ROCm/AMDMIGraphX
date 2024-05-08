@@ -56,7 +56,8 @@ __device__ void scatter(const T& indices_t, const U& updates_t, const V& output_
         {
             for(int k = 0; k < out_idx.size(); ++k)
             {
-                if(out_idx[k] > output_shape.lens[k]){
+                if(out_idx[k] >= output_shape.lens[k])
+                {
                     return;
                 }
             }

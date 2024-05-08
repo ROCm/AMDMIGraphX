@@ -673,10 +673,9 @@ MIGRAPHX_PRED_MATCHER(dims_match, instruction_ref ins)
 {
     auto input_shape  = ins->inputs().front()->get_shape();
     auto output_shape = ins->get_shape();
-    if((input_shape.dynamic() or output_shape.dynamic()) or
+    if(input_shape.dynamic() or output_shape.dynamic() or
        (input_shape.ndim() != output_shape.ndim()))
         return false;
-
     return true;
 }
 

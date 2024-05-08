@@ -22,16 +22,15 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_reduce.hpp>
-#include <migraphx/pass_manager.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/check_shapes.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>

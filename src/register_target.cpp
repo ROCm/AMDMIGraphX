@@ -50,7 +50,7 @@ struct auto_load_targets
     }
 };
 [[maybe_unused]] static auto load_targets = auto_load_targets{};
-}
+} // namespace
 
 void store_target_lib(const dynamic_loader& lib)
 {

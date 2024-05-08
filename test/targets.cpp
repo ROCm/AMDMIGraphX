@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,29 +25,26 @@
 #include <migraphx/target.hpp>
 #include "test.hpp"
 
-bool verify_target(const std::string& name)
-{
-    auto t = migraphx::make_target(name);
-    return t.name() == name;
-}
-
 TEST_CASE(make_target)
 {
-    CHECK(verify_target("ref"));
-#ifdef HAVE_CPU
-    CHECK(verify_target("cpu"));
-#endif
-#ifdef HAVE_GPU
-    CHECK(verify_target("gpu"));
-#endif
-#ifdef HAVE_FPGA
-    CHECK(verify_target("fpga"));
-#endif
+    for(const auto& name : migraphx::get_targets())
+    {
+        auto t = migraphx::make_target(name);
+        CHECK(t.name() == name);
+    }
 }
 
 TEST_CASE(make_invalid_target)
 {
     EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
+}
+
+TEST_CASE(targets)
+{
+    auto ref_target = migraphx::make_target("ref");
+
+    auto ts = migraphx::get_targets();
+    EXPECT(ts.size() >= 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

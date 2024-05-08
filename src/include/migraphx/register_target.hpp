@@ -37,6 +37,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_EXPORT void register_target(const target& t);
 MIGRAPHX_EXPORT void unregister_target(const std::string& name);
 MIGRAPHX_EXPORT target make_target(const std::string& name);
+MIGRAPHX_EXPORT std::vector<std::string> get_targets();
 
 namespace detail {
 struct target_handler

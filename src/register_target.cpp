@@ -32,6 +32,26 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
+struct auto_load_targets
+{
+    auto_load_targets()
+    {
+        make_target("ref");
+#ifdef HAVE_CPU
+        make_target("cpu");
+#endif
+#ifdef HAVE_GPU
+        make_target("gpu");
+#endif
+#ifdef HAVE_FPGA
+        make_target("fpga");
+#endif
+    }
+};
+[[maybe_unused]] static auto load_targets = auto_load_targets{};
+}
+
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
@@ -82,6 +102,17 @@ target make_target(const std::string& name)
         MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
+}
+
+std::vector<std::string> get_targets()
+{
+    std::vector<std::string> result;
+    std::transform(target_map().begin(),
+                   target_map().end(),
+                   std::back_inserter(result),
+                   [&](auto&& p) { return p.first; });
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -335,10 +335,10 @@ struct matcher_result
 
         void debug_print() const
         {
-            for(auto it = ins_map.begin(); it != ins_map.end(); it++)
+            for(auto it : ins_map)
             {
-                std::cout << it->first << ": \n";
-                it->second->debug_print();
+                std::cout << it.first << ": \n";
+                it.second->debug_print();
             }
         }
 
@@ -668,18 +668,19 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
 }
 
 /*
- * The input shape can be broadcast to the output shape
+ * Input and output shapes have the same rank.  This is assumed for broadcast
+ * instructions for some fusions.
 */
-MIGRAPHX_PRED_MATCHER(broadcastable, instruction_ref ins) 
+MIGRAPHX_PRED_MATCHER(dims_match, instruction_ref ins) 
 { 
     auto input_shape = ins->inputs().front()->get_shape();
     auto output_shape = ins->get_shape();
     if(input_shape.dynamic() or output_shape.dynamic())
         return false;
-    //TODO: this is the condition that led to the exception.  Even though these shapes are broadcastable.
+
     if(input_shape.ndim() != output_shape.ndim())
         return false;
-    return is_broadcastable(input_shape.lens(), output_shape.lens());
+    return true;
 }
 
 template <class... Ms>

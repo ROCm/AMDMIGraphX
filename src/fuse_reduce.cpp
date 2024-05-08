@@ -191,7 +191,7 @@ static auto match_broadcast(Ms... ms)
 {
     // todo:  does this change here make sense?
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once(), match::broadcastable())
+               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once(), match::dims_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
 }
@@ -204,10 +204,9 @@ static auto any_input(Ms... ms)
 
 static auto match_broadcastable_input(const std::string& op, const std::string& name)
 {
-    // TODO:  how to filter out inputs that aren't broadcastable with each other (eg. scalar)?
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
-    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once(), match::broadcastable());
+    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once(), match::dims_match());
     return match::any_of(match_op_input, broadcast_match_op_input);
 }
 
@@ -224,15 +223,6 @@ struct find_pointwise_reduce
     {
         auto reduce = r.result;
         auto input  = r.instructions["pointwise"];
-
-        // A broadcast with output shape's rank not matching input wouldn't work.
-        // TODO:  can the same error happen in find_reduce_reduce or find_reduce_pointwise?
-        if(contains(r.instructions, "broadcast"))
-        {
-            if(r.instructions["broadcast"]->get_shape().ndim() != input->get_shape().ndim() or
-               r.instructions["final_broadcast"]->get_shape().ndim() != input->get_shape().ndim())
-                return;
-        }
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 

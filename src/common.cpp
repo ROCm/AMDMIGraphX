@@ -31,28 +31,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-
-
-bool is_broadcastable(std::vector<std::size_t> s0,
-                      std::vector<std::size_t> s1)
-{
-    if(s0 == s1)
-        return true;
-    if(s0.size() > s1.size())
-        s0.swap(s1);
-    auto offset = s1.size() - s0.size();
-    auto s0_it = s0.begin();
-    for(auto s1_it = s1.begin() + offset; s1_it != s1.end(); s0_it++, s1_it++)
-    {
-        std::size_t a = *s0_it;
-        std::size_t b = *s1_it;
-        if(a != b and a != 1 and b != 1)
-            return false;
-    }
-    return true;            
-}
-
 std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
                                                   std::vector<std::size_t> s1)
 {
@@ -60,15 +38,15 @@ std::vector<std::size_t> compute_broadcasted_lens(std::vector<std::size_t> s0,
         return s0;
     if(s0.size() > s1.size())
         s0.swap(s1);
-    if(not is_broadcastable(s0, s1))
-    {
-        MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
-                        "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
-    }        
     std::vector<std::size_t> out_lens(s1);
     auto offset = s1.size() - s0.size();
     std::transform(
         s0.begin(), s0.end(), s1.begin() + offset, out_lens.begin() + offset, [&](auto a, auto b) {
+            if(a != b and a != 1 and b != 1)
+            {
+                MIGRAPHX_THROW("COMPUTE_BROADCASTLEN: shape {" + migraphx::to_string_range(s0) +
+                               "} and {" + migraphx::to_string_range(s1) + "} mismatch!");
+            }
             return std::max(a, b);
         });
     return out_lens;

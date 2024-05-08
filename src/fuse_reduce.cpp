@@ -75,6 +75,21 @@ struct fused_reduce
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
 
+
+/*
+ * Predicate matcher checks that input and output shapes have the same rank.  This is assumed
+ * for broadcast instructions for some fusions.
+ */
+MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
+{
+    auto input_shape  = ins->inputs().front()->get_shape();
+    auto output_shape = ins->get_shape();
+    bool cond         = input_shape.dynamic() or output_shape.dynamic() or
+                (input_shape.ndim() != output_shape.ndim());
+    return not cond;
+}
+
+
 static void insert_params(module_ref sm,
                           const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)
@@ -191,7 +206,7 @@ static auto match_broadcast(Ms... ms)
     // TODO:  add predicates to filter out dynamic shape inputs
     return match::skip(match::name("contiguous"))(
                match::name("multibroadcast")(
-                   match::arg(0)(ms...), match::used_once(), match::dims_match())
+                   match::arg(0)(ms...), match::used_once(), input_output_ndim_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
 }
@@ -207,7 +222,7 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
     auto broadcast_match_op_input =
-        any_input(match_broadcast(match_op), match::used_once(), match::dims_match());
+        any_input(match_broadcast(match_op), match::used_once(), input_output_ndim_match());
     return match::any_of(match_op_input, broadcast_match_op_input);
 }
 

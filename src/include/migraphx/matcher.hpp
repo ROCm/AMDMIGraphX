@@ -664,19 +664,6 @@ MIGRAPHX_PRED_MATCHER(broadcast, instruction_ref ins)
     return contains({"broadcast", "multibroadcast"}, ins->name());
 }
 
-/*
- * Input and output shapes have the same rank.  This is assumed for broadcast
- * instructions for some fusions.
- */
-MIGRAPHX_PRED_MATCHER(dims_match, instruction_ref ins)
-{
-    auto input_shape  = ins->inputs().front()->get_shape();
-    auto output_shape = ins->get_shape();
-    bool cond         = input_shape.dynamic() or output_shape.dynamic() or
-                (input_shape.ndim() != output_shape.ndim());
-    return not cond;
-}
-
 template <class... Ms>
 auto skip(Ms... ms)
 {

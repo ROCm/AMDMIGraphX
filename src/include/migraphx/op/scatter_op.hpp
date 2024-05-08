@@ -89,26 +89,20 @@ struct scatter_op : op_name<Derived>
 
                 // this addition doesn't necessarily make index positive if index was out of bounds
                 index         = (index < 0) ? index + axis_dim_size : index;
+                assert(skip_out_of_bounds or index >= 0);
                 if(skip_out_of_bounds and index < 0)
                 {
                     return;
                 }
-                else
-                {
-                    assert(index >= 0);
-                }
                 out_idx[axis] = index;
                 // skip index out of bounds if attribute on, else assert
+                assert(skip_out_of_bounds or output_shape.multi_within_bounds(out_idx));
                 if(skip_out_of_bounds)
                 {
-                    if(not output_shape.check_within_bounds(out_idx))
+                    if(not output_shape.multi_within_bounds(out_idx))
                     {
                         return;
                     }
-                }
-                else
-                {
-                    assert(output_shape.check_within_bounds(out_idx));
                 }
                 // look up the appropriate locations in output, using idx and out_idx.
                 // call reduction() method of derived struct to copy and reduce that element

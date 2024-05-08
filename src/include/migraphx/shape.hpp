@@ -278,8 +278,8 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
-    /// Check if a multi-dimensional index is out of bounds for the shape.
-    bool check_within_bounds(std::vector<std::size_t> multi) const;
+    /// Check if a multi-dimensional index is within bounds for the shape.
+    bool multi_within_bounds(std::vector<std::size_t> multi) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding

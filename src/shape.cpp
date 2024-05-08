@@ -420,13 +420,13 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
     *start = tidx;
 }
 
-bool shape::check_within_bounds(std::vector<std::size_t> multi) const
+bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
 {
     assert(this->lens().size() == multi.size());
     bool ret = true;
     for(int i = 0; i < multi.size(); ++i)
     {
-        if(multi.at(i) > this->lens().at(i))
+        if(multi.at(i) >= this->lens().at(i))
         {
             ret = false;
         }

@@ -43,7 +43,7 @@ const std::string_view preamble = R"migraphx(
 )migraphx";
 
 template <class F>
-std::function<F> compile_function(std::string_view src, std::string_view symbol_name)
+std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");

@@ -131,8 +131,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
-        // workaround for rocBLAS unsupported error when using uint8 in quant_dot & quant_convolution
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot"}},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},

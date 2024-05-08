@@ -75,7 +75,6 @@ struct fused_reduce
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
 
-
 /*
  * Predicate matcher checks that input and output shapes have the same rank.  This is assumed
  * for broadcast instructions for some fusions.
@@ -88,7 +87,6 @@ MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
                 (input_shape.ndim() != output_shape.ndim());
     return not cond;
 }
-
 
 static void insert_params(module_ref sm,
                           const std::vector<instruction_ref>& inputs,

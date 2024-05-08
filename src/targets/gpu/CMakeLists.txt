@@ -116,10 +116,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
-if (MIGRAPHX_USE_ROCBLAS)
-    set(ROCBLAS_SRCS rocblas.cpp gemm_impl.cpp)
-endif()
-
 add_library(migraphx_gpu
     abs.cpp
     analyze_streams.cpp
@@ -138,6 +134,7 @@ add_library(migraphx_gpu
     fuse_ck.cpp
     fuse_mlir.cpp
     fuse_ops.cpp
+    gemm_impl.cpp
     hip.cpp
     kernel.cpp
     lowering.cpp
@@ -156,13 +153,13 @@ add_library(migraphx_gpu
     problem_cache.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
+    rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
     target.cpp
     time_op.cpp
     topk.cpp
     write_literals.cpp
-    ${ROCBLAS_SRCS}
     ${JIT_GPU_SRCS}
 )
 

@@ -47,9 +47,7 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#if MIGRAPHX_USE_ROCBLAS
 #include <migraphx/gpu/rocblas.hpp>
-#endif
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {

@@ -42,7 +42,6 @@ TEST_CASE(make_invalid_target)
 TEST_CASE(targets)
 {
     auto ref_target = migraphx::make_target("ref");
-
     auto ts = migraphx::get_targets();
     EXPECT(ts.size() >= 1);
 }

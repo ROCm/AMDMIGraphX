@@ -30,7 +30,7 @@ TEST_CASE(test_param_name_sorted)
 
     auto xnames = names;
     // Shuffled
-    std::shuffle(xnames.begin(), xnames.end(), std::minstd_rand{});
+    std::shuffle(xnames.begin(), xnames.end(), std::minstd_rand{1});
     std::sort(xnames.begin(), xnames.end());
     EXPECT(xnames == names);
     // Reversed

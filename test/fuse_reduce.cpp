@@ -141,7 +141,6 @@ TEST_CASE(scalar_multibroadcast)
     // creates a fused_reduce module but does not add a submodule for the
     // multibroadcast instruction. 
     migraphx::shape sdot{migraphx::shape::double_type, {80, 204, 204}};
-    migraphx::shape sdot_double{migraphx::shape::double_type, {80, 204, 204}};
     migraphx::shape scalar{migraphx::shape::double_type, {1}, {0}};
     migraphx::program p1;
     {
@@ -170,8 +169,7 @@ TEST_CASE(scalar_multibroadcast)
         // instruction whether the individual matchers do anything or not.
         auto* reduce_mod = p2.create_module("main:reduce_sum0");
 
-        // TODO: the input changed type from half to double.  Is this correct?
-        auto x0    = reduce_mod->add_parameter("x0", sdot_double);
+        auto x0    = reduce_mod->add_parameter("x0", sdot);
         auto sqrtbc = reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});
 
@@ -180,6 +178,8 @@ TEST_CASE(scalar_multibroadcast)
     }
     EXPECT(p1 == p2);
 }
+
+// TODO:  Add tests for dynamic inputs.  Matcher should refuse them.
 
 TEST_CASE(scalar_multibroadcast_no_contig)
 {

@@ -189,7 +189,7 @@ static void create_reduce_modules(module_pass_manager& mpm)
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
-    // todo:  does this change here make sense?
+    //TODO:  add predicates to filter out dynamic shape inputs
     return match::skip(match::name("contiguous"))(
                match::name("multibroadcast")(match::arg(0)(ms...), match::used_once(), match::dims_match())
                    .bind("broadcast"))

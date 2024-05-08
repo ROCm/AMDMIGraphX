@@ -24,8 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
-#include <migraphx/op/broadcast.hpp>
-#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
@@ -335,7 +333,7 @@ struct matcher_result
 
         void debug_print() const
         {
-            for(auto it : ins_map)
+            for(const auto& it : ins_map)
             {
                 std::cout << it.first << ": \n";
                 it.second->debug_print();
@@ -675,11 +673,9 @@ MIGRAPHX_PRED_MATCHER(dims_match, instruction_ref ins)
 { 
     auto input_shape = ins->inputs().front()->get_shape();
     auto output_shape = ins->get_shape();
-    if(input_shape.dynamic() or output_shape.dynamic())
+    if((input_shape.dynamic() or output_shape.dynamic()) or (input_shape.ndim() != output_shape.ndim()))
         return false;
 
-    if(input_shape.ndim() != output_shape.ndim())
-        return false;
     return true;
 }
 

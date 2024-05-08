@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_FILE_BUFFER_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/filesystem.hpp>
 #include <string>
 #include <vector>
 
@@ -32,12 +33,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_EXPORT std::vector<char>
-read_buffer(const std::string& filename, size_t offset = 0, size_t nbytes = 0);
-MIGRAPHX_EXPORT std::string read_string(const std::string& filename);
+read_buffer(const fs::path& filename, size_t offset = 0, size_t nbytes = 0);
+MIGRAPHX_EXPORT std::string read_string(const fs::path& filename);
 
-MIGRAPHX_EXPORT void
-write_buffer(const std::string& filename, const char* buffer, std::size_t size);
-MIGRAPHX_EXPORT void write_buffer(const std::string& filename, const std::vector<char>& buffer);
+MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const char* buffer, std::size_t size);
+MIGRAPHX_EXPORT void write_buffer(const fs::path& filename, const std::vector<char>& buffer);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

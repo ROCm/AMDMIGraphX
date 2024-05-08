@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,18 +45,27 @@ struct compiler_replace
 {
     compiler_replace() = default;
 
-    compiler_replace(const operation& op) : code_object{op} {}
+    compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
     compiler_replace(const operation& op, F f)
-        : code_object{op},
+        : code_objects{{op}},
           replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_object);
+              f(m, ins, cr.code_objects.front());
           })
     {
     }
 
-    operation code_object = {};
+    template <class F>
+    compiler_replace(const std::vector<operation>& op, F f)
+        : code_objects{op},
+          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
+              f(m, ins, cr.code_objects);
+          })
+    {
+    }
+
+    std::vector<operation> code_objects = {};
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
 
@@ -65,7 +74,13 @@ struct compiler_replace
         if(replace_fn)
             replace_fn(*this, m, ins);
         else
-            m.replace_instruction(ins, code_object, ins->inputs());
+        {
+            if(code_objects.size() != 1)
+            {
+                MIGRAPHX_THROW("Provide custom replace function to insert multiple code objects\n");
+            }
+            m.replace_instruction(ins, code_objects.front(), ins->inputs());
+        }
     }
 };
 

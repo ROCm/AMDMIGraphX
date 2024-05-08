@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,8 @@
 #include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
+
+constexpr bool is_power_of_2(unsigned int x) { return x > 0 && (x & (x - 1)) == 0u; }
 
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1
@@ -84,6 +86,13 @@ template <unsigned int Mask, class T>
 __device__ T dpp_swizzle(T& x)
 {
     return dpp_op(x, [](auto i) { return __hip_ds_swizzle(i, Mask); });
+}
+
+template <unsigned int SrcLane, unsigned int Width, class T>
+__device__ T readlane(T& x)
+{
+    static_assert(is_power_of_2(Width), "Width must be a power of 2");
+    return dpp_op(x, [](auto i) { return __shfl(i, SrcLane, Width); });
 }
 
 #endif // MIGRAPHX_HAS_DPP

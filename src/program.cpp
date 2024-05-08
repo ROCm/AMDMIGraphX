@@ -523,6 +523,13 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, trace);
 }
 
+std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
+                                                 parameter_map params) const
+{
+    const module* mm = this->get_main_module();
+    return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
+}
+
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
@@ -808,12 +815,30 @@ double common_average(const std::vector<double>& v)
     return total / std::distance(v.begin() + n, v.end() - n);
 }
 
-std::string perf_group(const operation& op)
+std::string perf_group(instruction_ref ins, bool detailed)
 {
-    auto attr = op.attributes();
+    std::string result;
+    auto attr = ins->get_operator().attributes();
     if(attr.contains("group"))
-        return attr.at("group").to<std::string>();
-    return op.name();
+        result = attr.at("group").to<std::string>();
+    else
+        result = ins->get_operator().name();
+    if(detailed)
+    {
+        result += "<" + ins->get_shape().type_string();
+        std::vector<std::string> sizes;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(sizes),
+                       [&](instruction_ref input) {
+                           std::string r = to_string_range(input->get_shape().lens(), "x");
+                           if(not input->get_shape().standard())
+                               r += ":" + to_string_range(input->get_shape().strides(), "x");
+                           return r;
+                       });
+        result += "(" + join_strings(sizes, ", ") + ")>";
+    }
+    return result;
 }
 
 void program::mark(const parameter_map& params, marker&& m)
@@ -834,10 +859,8 @@ void program::mark(const parameter_map& params, marker&& m)
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os,
-                          std::size_t n,
-                          parameter_map params,
-                          std::size_t batch) const
+void program::perf_report(
+    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
@@ -893,9 +916,9 @@ void program::perf_report(std::ostream& os,
     for(auto&& p : ins_vec)
     {
         double avg = common_average(p.second);
-        op_times[perf_group(p.first->get_operator())] += avg;
+        op_times[perf_group(p.first, detailed)] += avg;
         total_instruction_time += avg;
-        op_n[perf_group(p.first->get_operator())]++;
+        op_n[perf_group(p.first, detailed)]++;
     }
     double calculate_overhead_time    = total_time - total_instruction_time;
     double calculate_overhead_percent = calculate_overhead_time * 100.0 / total_time;
@@ -1184,6 +1207,17 @@ void program::remove_module(const std::string& name)
     }
 
     impl->modules.erase(name);
+}
+
+void program::rename_module(const std::string& old_name, const std::string& new_name)
+{
+    assert(old_name != new_name);
+    assert(contains(impl->modules, old_name));
+    assert(not contains(impl->modules, new_name));
+    auto node  = impl->modules.extract(old_name);
+    node.key() = new_name;
+    node.mapped().set_name(new_name);
+    impl->modules.insert(std::move(node));
 }
 
 void program::remove_unused_modules()

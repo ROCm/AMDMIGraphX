@@ -79,8 +79,10 @@ void blas_shape(const shape& s)
 {
     if(s.lens().size() < 2)
         return;
-    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
+        MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
     shape batch_shape{s.type(),
@@ -129,7 +131,21 @@ auto rocblas_invoke(F f, Pack p, Ts... xs)
     });
 }
 
-static bool is_transposed(const shape& s) { return s.transposed() and s.strides().back() != 1; }
+static bool is_transposed(const shape& s)
+{
+    if(s.transposed())
+    {
+        return s.strides().back() != 1;
+    }
+
+    if(not s.broadcasted() and s.strides() != s.as_standard().strides())
+    {
+        auto perm = find_permutation(s);
+        return not std::is_sorted(perm.begin(), perm.end());
+    }
+
+    return false;
+}
 
 static rocblas_int get_batch_stride(const shape& s)
 {
@@ -580,6 +596,7 @@ static value gemm_problem(const shape& output_shape, std::vector<shape> input_sh
     return to_value(input_shapes);
 }
 
+#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
 static void gemm_save_solution(context& ctx,
                                const shape& output_shape,
                                const std::vector<shape>& input_shapes,
@@ -588,6 +605,7 @@ static void gemm_save_solution(context& ctx,
     ctx.get_problem_cache().insert(
         "rocblas", gemm_problem(output_shape, input_shapes), solution_idx);
 }
+#endif
 
 int32_t gemm_default_solution(context& ctx,
                               const shape& output_shape,

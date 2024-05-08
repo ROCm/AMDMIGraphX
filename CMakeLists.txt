@@ -88,7 +88,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.9.0)
+rocm_setup_version(VERSION 2.10.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -110,7 +110,7 @@ set(MIGRAPHX_ENABLE_CPU Off CACHE BOOL "")
 set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
-find_package(ParallelSTL)
+find_package(ParallelSTL QUIET)
 # TODO: resolve parallism issue
 # if(ParallelSTL_FOUND)
 # set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
@@ -328,11 +328,17 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
+if(BUILD_ADDRESS_SANITIZER)
+    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+else()
+    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+endif()
+
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas hip-rocclr hip-base half ${PACKAGE_DEPENDS}
+    DEPENDS miopen-hip rocblas ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
 )

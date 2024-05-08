@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -668,6 +668,35 @@ TEST_CASE(conv2d_test)
                                0.71606487,
                                -0.55201721,
                                -0.46427044};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(conv2d_dilation_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<float> a(16);
+    std::iota(a.begin(), a.end(), 0.0f);
+    std::vector<float> c(9);
+    std::iota(c.begin(), c.end(), 0.0f);
+
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 1, 4, 4}};
+    auto al = mm->add_literal(migraphx::literal{a_shape, a});
+
+    migraphx::shape c_shape{migraphx::shape::float_type, {1, 1, 3, 3}};
+    auto cl = mm->add_literal(migraphx::literal{c_shape, c});
+
+    mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {2, 2}}}),
+        al,
+        cl);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector(4);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {266, 206, 98, 66};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 

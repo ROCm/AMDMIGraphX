@@ -25,14 +25,13 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
-#include <migraphx/common_dims.hpp>
+#include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
@@ -42,7 +41,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static literal get_scalar(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
     if(s.elements() != 1 and not(s.scalar()))
@@ -114,18 +113,17 @@ static void create_pointwise_modules(module_pass_manager& mpm)
     }
 }
 
-static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
-                                                            instruction_ref output)
+static module::with_inputs append_pointwise_module(instruction_ref ins, instruction_ref output)
 {
     assert(contains(output->inputs(), ins));
-    module_ref pm = ins->module_inputs().at(0);
+    module pm     = *ins->module_inputs().at(0);
     module_ref xm = output->module_inputs().at(0);
 
-    auto last = std::prev(pm->end());
+    auto last = std::prev(pm.end());
     assert(last->name() == "@return");
     assert(last->inputs().size() == 1);
 
-    assert(pm->get_parameter_names().size() == ins->inputs().size());
+    assert(pm.get_parameter_names().size() == ins->inputs().size());
     assert(xm->get_parameter_names().size() == output->inputs().size());
 
     std::vector<instruction_ref> inputs = ins->inputs();
@@ -135,8 +133,8 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
     for(auto i : range(inputs.size()))
     {
         auto input = inputs[i];
-        auto param = pm->get_parameter("x" + std::to_string(i));
-        assert(param != pm->end());
+        auto param = pm.get_parameter("x" + std::to_string(i));
+        assert(param != pm.end());
         input_map[input] = param;
     }
     // Add the new parameter and additional inputs
@@ -158,20 +156,20 @@ static std::vector<instruction_ref> append_pointwise_module(instruction_ref ins,
         else
         {
             map_ins[param] =
-                pm->add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
+                pm.add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
             inputs.push_back(input);
             input_map[input] = map_ins[param];
         }
     }
-    pm->replace_return(pm->insert_instructions(last, xm, map_ins));
-    return inputs;
+    pm.replace_return(pm.insert_instructions(last, xm, &map_ins));
+    return {std::move(pm), inputs};
 }
 
-static bool find_pointwise_modules(module& m)
+static bool find_pointwise_modules(module_pass_manager& mpm)
 {
     bool changed = false;
-    auto last    = std::prev(m.end());
-    for(auto ins : iterator_for(m))
+    auto last    = std::prev(mpm.get_module().end());
+    for(auto ins : iterator_for(mpm.get_module()))
     {
         if(ins->name() != "pointwise")
             continue;
@@ -184,61 +182,23 @@ static bool find_pointwise_modules(module& m)
             continue;
         auto input = *it;
 
-        auto new_inputs = append_pointwise_module(input, ins);
-        m.replace_instruction(input, input->get_operator(), new_inputs, input->module_inputs());
-        m.replace_instruction(ins, input);
-        m.move_instruction(input, ins);
+        auto fused = append_pointwise_module(input, ins);
+        auto name  = fused.mod.name();
+        mpm.rename_module(name, name + ":" + ins->module_inputs().front()->name() + "-deleted");
+        auto* new_pm = mpm.create_module(name, std::move(fused.mod));
+        mpm.get_module().replace_instruction(ins, input->get_operator(), fused.inputs, {new_pm});
 
         changed = true;
     }
     return changed;
 }
+
 namespace {
-struct find_pointwise_reshape_pointwise
+struct pointwise_reshape : rewrite_reshapes_base
 {
-    auto matcher() const
-    {
-        auto reshape =
-            match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
-        auto skip_contiguous = [](auto... ms) {
-            return match::arg(0)(match::skip(match::name("contiguous")(match::used_once()))(ms...));
-        };
-        auto pointwise         = match::name("pointwise")(match::used_once());
-        auto reshape_pointwise = reshape(skip_contiguous(pointwise.bind("x"))).bind("reshape");
-        return match::name("pointwise")(match::any_of[match::inputs()](reshape_pointwise));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins         = r.result;
-        auto x_ins       = r.instructions["x"];
-        auto reshape_ins = r.instructions["reshape"];
-
-        auto cd = common_dims::compute(ins->get_shape().lens(), x_ins->get_shape().lens());
-        if(cd.dims.empty())
-            return;
-
-        auto reshape_input = [&](const auto& ins_to_insert) {
-            return [&](auto input) {
-                return m.insert_instruction(
-                    ins_to_insert, make_op("reshape", {{"dims", cd.dims}}), input);
-            };
-        };
-        auto x_inputs = x_ins->inputs();
-        std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), reshape_input(x_ins));
-        auto new_x_ins =
-            m.insert_instruction(x_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
-
-        auto inputs = ins->inputs();
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
-            if(input == reshape_ins)
-                return new_x_ins;
-            return reshape_input(ins)(input);
-        });
-        auto pw = m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
-        m.replace_instruction(ins, make_op("reshape", {{"dims", ins->get_shape().lens()}}), pw);
-    }
+    static std::string name() { return "pointwise"; }
 };
+
 } // namespace
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
@@ -252,9 +212,9 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     }
     for(int i = 0; i < 8; i++)
     {
-        match::find_matches(mpm.get_module(), find_pointwise_reshape_pointwise{});
-        mpm.run_pass(simplify_reshapes{1});
-        if(not find_pointwise_modules(mpm.get_module()))
+        if(enable_rewrite_reshapes)
+            mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
+        if(not find_pointwise_modules(mpm))
             break;
         mpm.run_pass(dead_code_elimination{});
     }

@@ -810,6 +810,16 @@ TEST_CASE(dot_dyn_static_test1)
                  s_m2);
 }
 
+TEST_CASE(dot_dyn_static_test2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {2, 3, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {3, 3}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
 TEST_CASE(dot_dyn_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
@@ -832,7 +842,7 @@ TEST_CASE(dot_dyn_test1)
 
 TEST_CASE(dot_dyn_test2)
 {
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 1}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 20}, {5, 5}, {5, 5}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 1}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
@@ -853,10 +863,10 @@ TEST_CASE(dot_dyn_test3)
 
 TEST_CASE(dot_dyn_test4)
 {
-    // Note how the inner dimensions have an intersection in range
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}, {4, 8}}};
-    migraphx::shape s_m2{migraphx::shape::float_type, {{1, 4}, {5, 9}, {8, 8}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {5, 5}, {8, 8}}},
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape s_m1{migraphx::shape::float_type, {{0, max_val}, {5, 5}, {0, max_val}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
                  s_m1,
                  s_m2);
@@ -940,6 +950,43 @@ TEST_CASE(broadcast_for_dot_dyn2)
         migraphx::make_op("broadcast_for_dot"),
         s1,
         s0);
+}
+
+TEST_CASE(broadcast_with_dims0)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {2, 4}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(
+        shape{shape::float_type, dyn_dims}, migraphx::make_op("broadcast_with_dims"), s0, s1);
+}
+
+TEST_CASE(broadcast_with_dims1)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::int32_type, {1, 2, 4}};
+    shape s1{migraphx::shape::int64_type, {1}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
+}
+
+TEST_CASE(broadcast_with_dims2)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {{1, 4}, {2, 2}, {4, 4}}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::float_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
 }
 
 TEST_CASE(flatten_shape)
@@ -2325,6 +2372,53 @@ TEST_CASE(pack_int4_odd_lengths)
     throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
 }
 
+TEST_CASE(unpack_int4)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 8}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4"), input);
+}
+
+TEST_CASE(unpack_int4_axis1)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_axis2)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", -3}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_axis)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 4}}), input);
+}
+
+TEST_CASE(unpack_int4_nonstandard)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 32, 16, 4}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_dtype)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(unpack_int4_odd_lengths)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {3, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {6, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
 TEST_CASE(pad_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
@@ -2380,6 +2474,20 @@ TEST_CASE(pointwise_no_output)
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
+TEST_CASE(pointwise_strict_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x = pm.add_parameter("x", s.with_type(migraphx::shape::half_type));
+        pm.add_return({x});
+    }
+    auto x = mm->add_parameter("x", s);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
 TEST_CASE(pooling_shape0)

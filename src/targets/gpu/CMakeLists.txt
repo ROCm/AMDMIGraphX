@@ -124,6 +124,7 @@ add_library(migraphx_gpu
     compile_hip.cpp
     compile_hip_code_object.cpp
     compile_miopen.cpp
+    compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
     fuse_ck.cpp
@@ -142,6 +143,7 @@ add_library(migraphx_gpu
     nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
+    prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp
     problem_cache.cpp
@@ -251,6 +253,8 @@ else()
         target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_HIP_COMPILER_LAUNCHER="${MIGRAPHX_HIP_COMPILER_LAUNCHER}")
     endif()
 endif()
+
+target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 # Check miopen find mode api
 

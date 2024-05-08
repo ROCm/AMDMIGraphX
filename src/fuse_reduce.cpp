@@ -189,9 +189,10 @@ static void create_reduce_modules(module_pass_manager& mpm)
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
-    //TODO:  add predicates to filter out dynamic shape inputs
+    // TODO:  add predicates to filter out dynamic shape inputs
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once(), match::dims_match())
+               match::name("multibroadcast")(
+                   match::arg(0)(ms...), match::used_once(), match::dims_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
 }
@@ -206,7 +207,8 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
 {
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
-    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once(), match::dims_match());
+    auto broadcast_match_op_input =
+        any_input(match_broadcast(match_op), match::used_once(), match::dims_match());
     return match::any_of(match_op_input, broadcast_match_op_input);
 }
 
@@ -222,7 +224,7 @@ struct find_pointwise_reduce
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce = r.result;
-        auto input  = r.instructions["pointwise"];
+        auto input         = r.instructions["pointwise"];
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
 

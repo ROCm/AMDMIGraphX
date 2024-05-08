@@ -139,7 +139,7 @@ TEST_CASE(scalar_multibroadcast)
     // Matches the find_pointwise_reduce matcher, but input x has a (scalar) shape
     // incompatible with the multibroadcast instruction; therefore it
     // creates a fused_reduce module but does not add a submodule for the
-    // multibroadcast instruction. 
+    // multibroadcast instruction.
     migraphx::shape sdot{migraphx::shape::double_type, {80, 204, 204}};
     migraphx::shape scalar{migraphx::shape::double_type, {1}, {0}};
     migraphx::program p1;
@@ -158,8 +158,8 @@ TEST_CASE(scalar_multibroadcast)
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", scalar);
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", scalar);
         auto zap = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
 
         auto pow = mm->add_instruction(
@@ -169,11 +169,13 @@ TEST_CASE(scalar_multibroadcast)
         // instruction whether the individual matchers do anything or not.
         auto* reduce_mod = p2.create_module("main:reduce_sum0");
 
-        auto x0    = reduce_mod->add_parameter("x0", sdot);
-        auto sqrtbc = reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
+        auto x0 = reduce_mod->add_parameter("x0", sdot);
+        auto sqrtbc =
+            reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});
 
-        auto bip    = mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
+        auto bip = mm->add_instruction(
+            migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         mm->add_return({bip});
     }
     EXPECT(p1 == p2);
@@ -183,8 +185,8 @@ TEST_CASE(scalar_multibroadcast)
 
 TEST_CASE(scalar_multibroadcast_no_contig)
 {
-    // find_pointwise_reduce matcher, with scalar shape, no 
-    // contiguous function.  Result is the same as for 
+    // find_pointwise_reduce matcher, with scalar shape, no
+    // contiguous function.  Result is the same as for
     // scalar_multibroadcast test.
     migraphx::shape sdot{migraphx::shape::double_type, {80, 204, 204}};
     migraphx::shape sdot_double{migraphx::shape::double_type, {80, 204, 204}};
@@ -196,7 +198,7 @@ TEST_CASE(scalar_multibroadcast_no_contig)
         auto zap = add_pointwise(p1, "main:pointwise0", {x}, single_pointwise("sqrt"));
         auto pow = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", sdot.lens()}}), zap);
-        auto bip    = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), pow);
+        auto bip = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), pow);
 
         mm->add_return({bip});
     }
@@ -204,8 +206,8 @@ TEST_CASE(scalar_multibroadcast_no_contig)
 
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", scalar);
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", scalar);
         auto zap = add_pointwise(p2, mm, "main:pointwise0", {x}, single_pointwise("sqrt"));
 
         auto pow = mm->add_instruction(
@@ -216,11 +218,13 @@ TEST_CASE(scalar_multibroadcast_no_contig)
         auto* reduce_mod = p2.create_module("main:reduce_sum0");
 
         // TODO: the input changed type from half to double.  Is this correct?
-        auto x0    = reduce_mod->add_parameter("x0", sdot_double);
-        auto sqrtbc = reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
+        auto x0 = reduce_mod->add_parameter("x0", sdot_double);
+        auto sqrtbc =
+            reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});
 
-        auto bip    = mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
+        auto bip = mm->add_instruction(
+            migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         mm->add_return({bip});
     }
     EXPECT(p1 == p2);

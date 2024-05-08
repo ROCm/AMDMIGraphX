@@ -216,7 +216,7 @@ TEST_CASE(scalar_multibroadcast_no_contig)
         // Add a reduce module.  These are created by fuse_reduce::apply() for any reduce
         // instruction whether the individual matchers do anything or not.
         auto* reduce_mod = p2.create_module("main:reduce_sum0");
-        auto x0 = reduce_mod->add_parameter("x0", sdot_double);
+        auto x0          = reduce_mod->add_parameter("x0", sdot_double);
         auto sqrtbc =
             reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});

@@ -22,21 +22,27 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-TEST_CASE(conv_bias_test)
+struct test_step_dot : verify_program<test_step_dot>
 {
-    migraphx::program p;
-    auto* mm      = p.get_main_module();
-    auto l0       = mm->add_parameter("0", {migraphx::shape::float_type, {1, 3, 32, 32}});
-    auto l1       = mm->add_parameter("1", {migraphx::shape::float_type, {1, 3, 5, 5}});
-    auto l2       = mm->add_parameter("2", {migraphx::shape::float_type, {1}});
-    uint64_t axis = 1;
-    auto l3       = mm->add_instruction(migraphx::make_op("convolution"), l0, l1);
-    auto l4       = mm->add_instruction(
-        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l3->get_shape().lens()}}), l2);
-    mm->add_instruction(migraphx::make_op("add"), l3, l4);
-
-    auto prog = optimize_onnx("conv_bias_test.onnx");
-    EXPECT(p == prog);
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape as{migraphx::shape::float_type, {128, 4, 64, 196}};
+        migraphx::shape bs{migraphx::shape::float_type, {128, 4, 196, 196}};
+        auto a = mm->add_parameter("input", as);
+        auto b = mm->add_literal(migraphx::generate_literal(bs));
+        auto step =
+            mm->add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}), a);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), step, b);
+        mm->add_return({dot});
+        return p;
+    }
+    std::string section() const { return "gemm"; }
+};

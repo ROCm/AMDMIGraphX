@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MATCHER_HPP
 
-#include <migraphx/common.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>

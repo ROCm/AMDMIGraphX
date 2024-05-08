@@ -32,6 +32,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+#ifdef _WIN32
 namespace {
 struct auto_load_targets
 {
@@ -51,6 +52,7 @@ struct auto_load_targets
 };
 [[maybe_unused]] static auto load_targets = auto_load_targets{};
 } // namespace
+#endif
 
 void store_target_lib(const dynamic_loader& lib)
 {

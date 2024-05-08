@@ -29,15 +29,9 @@
 #include <migraphx/make_op.hpp>
 #include <test.hpp>
 
-#ifdef _WIN32
-#define EXPORT_SYMBOL R"migraphx(__declspec(dllexport) )migraphx"
-#else
-#define EXPORT_SYMBOL
-#endif
-
 // NOLINTNEXTLINE
-const std::string_view add_42_src = EXPORT_SYMBOL R"migraphx(
-extern "C" int add(int x)
+const std::string_view add_42_src = R"migraphx(
+EXPORT extern "C" int add(int x)
 {
     return x+42;
 }
@@ -55,6 +49,8 @@ std::function<F> compile_function(std::string_view src, std::string_view symbol_
     compiler.flags.emplace_back("-std=c++14");
 #ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
+#else
+    compiler.flags.emplace_back("-DEXPORT=\"__declspec(dllexport)\"");
 #endif
     compiler.flags.emplace_back("-shared");
     compiler.output = migraphx::make_shared_object_filename("simple");
@@ -68,7 +64,7 @@ std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });
-    g.create_function(g.generate_module(m).set_attributes({EXPORT_SYMBOL "extern \"C\""}));
+    g.create_function(g.generate_module(m).set_attributes({"EXPORT extern \"C\""}));
 
     return compile_function<F>(g.str().insert(0, preamble), m.name());
 }

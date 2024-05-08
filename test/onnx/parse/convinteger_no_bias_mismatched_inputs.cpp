@@ -24,29 +24,38 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(convinteger_bias_test)
+TEST_CASE(convinteger_no_bias_mismatched_data_inputs_test)
 {
     migraphx::program p;
-    auto* mm       = p.get_main_module();
-    auto data      = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
-    auto weights   = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 5, 5}});
-    auto data_bias = mm->add_parameter("2", {migraphx::shape::int8_type, {1}, {1}});
+    auto* mm    = p.get_main_module();
+    auto data   = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 32, 32}});
+    auto weight = mm->add_parameter("1", {migraphx::shape::uint8_type, {1, 3, 5, 5}});
 
     mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
-    auto quant = mm->add_instruction(migraphx::make_op("quant_convolution"), data, weights);
+    mm->add_literal(
+        migraphx::literal{migraphx::shape{weight->get_shape().type(), {1}, {0}}, {128}});
 
-    auto bcast_data_bias = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", weights->get_shape().lens()}}),
-        data_bias);
+    // shift uint8 input
+    auto int8_shift2 =
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
 
-    auto quant2 =
-        mm->add_instruction(migraphx::make_op("quant_convolution"), bcast_data_bias, weights);
+    // shift uint8 input
+    auto unshifted_input_half = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), weight);
 
-    auto bcast_quant2 = mm->add_instruction(
-        migraphx::make_op("multibroadcast", {{"out_lens", quant->get_shape().lens()}}), quant2);
+    auto mbr2 = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", weight->get_shape().lens()}}),
+        int8_shift2);
 
-    mm->add_instruction(migraphx::make_op("sub"), quant, bcast_quant2);
+    auto input_shifted_half =
+        mm->add_instruction(migraphx::make_op("add"), unshifted_input_half, mbr2);
 
-    auto prog = optimize_onnx("convinteger_bias_test.onnx");
+    weight = mm->add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
+        input_shifted_half);
+
+    mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
+
+    auto prog = optimize_onnx("convinteger_mismatched_input_types_test.onnx");
     EXPECT(p == prog);
 }

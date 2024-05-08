@@ -400,6 +400,20 @@ MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
     });
 }
 
+std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
+                                             const std::vector<instruction_ref>& inputs)
+{
+    std::vector<instruction_ref> result;
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
+            if(input->get_shape().packed() or input->get_shape().broadcasted())
+                return input;
+            return mpm.get_module().insert_instruction(
+                std::next(input), make_op("contiguous"), input);
+        });
+    return result;
+}
+
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -432,7 +446,7 @@ struct find_mlir_fused_ops
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 
@@ -461,8 +475,10 @@ struct find_mlir_standalone_op
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(
-            gemm_based_op, mlir_op{gemm_based_op->get_operator()}, top_inputs, {mm});
+        mpm.get_module().replace_instruction(gemm_based_op,
+                                             mlir_op{gemm_based_op->get_operator()},
+                                             mlir_contiguous(mpm, top_inputs),
+                                             {mm});
     }
 };
 
@@ -541,7 +557,7 @@ struct find_mlir_standalone_attention_op
         mm->add_return({ins_to_replace});
 
         mpm.get_module().replace_instruction(
-            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
+            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 

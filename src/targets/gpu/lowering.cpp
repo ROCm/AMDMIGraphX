@@ -82,8 +82,9 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
-
+#if MIGRAPHX_USE_ROCBLAS
         compute_fp32 = get_compute_fp32_flag();
+#endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_generic_op("contiguous");
@@ -104,8 +105,10 @@ struct miopen_apply
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
+#if MIGRAPHX_USE_ROCBLAS
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
+#endif
         add_if_op();
         add_loop_op();
         add_neg_op();
@@ -232,6 +235,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
+#if MIGRAPHX_USE_ROCBLAS
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -243,6 +247,7 @@ struct miopen_apply
             return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }
+#endif
 
     void add_convolution_op(const std::string& name)
     {

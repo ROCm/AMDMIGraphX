@@ -1035,8 +1035,15 @@ struct find_split_concat
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
         if(std::distance(it, args.end()) < splits.size())
             return;
+        // Don't do anything if not all operations are slice
+        // if(not std::all_of(it, it + splits.size(), [](instruction_ref x) { 
+        //     return x->get_operator().name() == "slice";
+        // }))
+            // return;
         // If the slices are not in order then stop
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
+               if(x->get_operator().name() != "slice" or y->get_operator().name() != "slice")
+                    return true;
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());
                return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);

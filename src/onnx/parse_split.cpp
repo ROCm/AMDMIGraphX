@@ -65,7 +65,7 @@ struct parse_split : op_parser<parse_split>
             std::vector<instruction_ref> ret_ins;
             std::size_t num_outputs = info.num_outputs;
 
-            // Must do the splitting at runtime. Doing shape calculations in the graph
+            // Doing shape calculations for the splits in the graph
             auto split_dim = info.add_instruction(
                 make_op("dimensions_of", {{"start", tuned_axis}, {"end", tuned_axis + 1}}),
                 args[0]);
@@ -73,7 +73,7 @@ struct parse_split : op_parser<parse_split>
             auto num_outputs_lit = info.add_literal(literal{int64_scalar_shape, {num_outputs}});
             auto num_outputs_minus_1_lit =
                 info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}});
-            // (A + (B - 1)) / B == ceil(A/B)
+            // (A + (B - 1)) / B == ceil(A / B)
             auto chunk_size = info.add_instruction(
                 make_op("div"),
                 info.add_instruction(make_op("add"), split_dim, num_outputs_minus_1_lit),

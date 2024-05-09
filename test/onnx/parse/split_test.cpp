@@ -40,3 +40,9 @@ TEST_CASE(split_test)
     auto prog = migraphx::parse_onnx("split_test.onnx");
     EXPECT(p == prog);
 }
+
+TEST_CASE(split_dyn_input) {}
+
+TEST_CASE(split_dyn_input_split_attr_error) {}
+
+TEST_CASE(split_dyn_input_split_input_error) {}

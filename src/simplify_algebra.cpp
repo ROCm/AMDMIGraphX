@@ -1037,9 +1037,9 @@ struct find_split_concat
         if(std::distance(it, args.end()) < splits.size())
             return;
         // Don't do anything if other operations are mixed in with the slices
-        if(not std::all_of(it, it + splits.size(), [](instruction_ref x) { 
-            return x->get_operator().name() == "slice";
-        }))
+        if(not std::all_of(it, it + splits.size(), [](instruction_ref x) {
+               return x->get_operator().name() == "slice";
+           }))
             return;
         // Don't do anything if the slices are not in order
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {

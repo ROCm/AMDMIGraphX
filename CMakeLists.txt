@@ -337,7 +337,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS PACKAGE rocblas)
+    list(APPEND PACKAGE_DEPENDS rocblas)
 endif()
 
 rocm_create_package(

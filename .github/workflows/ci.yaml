@@ -356,7 +356,7 @@ jobs:
       with:
         python-version: 3.8
     - name: run License Check
-      run: python3 tools/check_stamped.py ${{ github.base_ref }}
+      run: python3 tools/check_stamped.py ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
   linux:
 

@@ -97,11 +97,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::tuple_type);
     // whiltelist supported Ops for the FP8
     std::set<std::string> unsupported_fp8_ops = {};
+#if MIGRAPHX_USE_ROCBLAS
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
         unsupported_fp8_ops.insert("quant_dot");
     }
+#endif
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");
     if(not gpu::gfx_has_fp8_intrinsics())
@@ -131,8 +133,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
-        // workaround for rocBLAS unsupported error when using uint8 in quant_dot & quant_convolution
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot"}},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},

@@ -21,31 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module;
-struct context;
-struct operation;
-
-namespace gpu {
-
-struct compile_miopen
+TEST_CASE(convinteger_no_bias)
 {
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_miopen"; }
-    void apply(module& m) const;
-    std::size_t compile(operation& op, instruction_ref ins) const;
-};
+    migraphx::program p;
+    auto* mm    = p.get_main_module();
+    auto data   = mm->add_parameter("0", {migraphx::shape::int8_type, {1, 3, 5, 5}});
+    auto weight = mm->add_parameter("1", {migraphx::shape::int8_type, {1, 3, 2, 2}});
+    mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
+    mm->add_literal(migraphx::literal{migraphx::shape{data->get_shape().type(), {1}, {0}}, {0}});
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+    mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
+
+    auto prog = optimize_onnx("convinteger_no_bias_test.onnx");
+    EXPECT(p == prog);
+}

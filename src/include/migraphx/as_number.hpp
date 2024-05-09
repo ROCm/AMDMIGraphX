@@ -21,45 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
-#define MIGRAPHX_GUARD_RTGLIB_TYPE_NAME_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
 
-#include <string>
+#include <cstdint>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class PrivateMigraphTypeNameProbe>
-std::string compute_type_name()
-{
-    const char parameter_name[] = "PrivateMigraphTypeNameProbe ="; // NOLINT
-
-    std::string name = __PRETTY_FUNCTION__;
-
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
-    auto length = name.find_last_of(",") - begin;
-#else
-    auto length = name.find_first_of("];", begin) - begin;
-#endif
-    return name.substr(begin, length);
-}
-
 template <class T>
-const std::string& get_type_name()
+T as_number(T x)
 {
-    static const std::string name = compute_type_name<T>();
-    return name;
+    return x;
 }
-
-template <class T>
-const std::string& get_type_name(const T&)
-{
-    return migraphx::get_type_name<T>();
-}
+inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
+inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP

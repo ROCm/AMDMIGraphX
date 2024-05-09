@@ -224,8 +224,6 @@ TEST_CASE(scalar_multibroadcast_contiguous)
     EXPECT(p1 == p2);
 }
 
-// TODO:  Add tests for dynamic inputs.  Matcher should refuse them.
-
 TEST_CASE(pointwise_broadcast_reduce_reshape)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

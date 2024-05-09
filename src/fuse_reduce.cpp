@@ -77,15 +77,13 @@ MIGRAPHX_REGISTER_OP(fused_reduce);
 
 /*
  * Predicate matcher checks that input and output shapes have the same rank.  This is assumed
- * for broadcast instructions for some fusions.
+ * for broadcast instructions for these fusions.
  */
 MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
 {
     auto input_shape  = ins->inputs().front()->get_shape();
     auto output_shape = ins->get_shape();
-    bool cond         = input_shape.dynamic() or output_shape.dynamic() or
-                (input_shape.ndim() != output_shape.ndim());
-    return not cond;
+    return input_shape.ndim() == output_shape.ndim();
 }
 
 static void insert_params(module_ref sm,
@@ -201,7 +199,6 @@ static void create_reduce_modules(module_pass_manager& mpm)
 template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
-    // TODO:  add predicates to filter out dynamic shape inputs
     return match::skip(match::name("contiguous"))(
                match::name("multibroadcast")(
                    match::arg(0)(ms...), match::used_once(), input_output_ndim_match())

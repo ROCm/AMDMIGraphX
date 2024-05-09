@@ -203,6 +203,13 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
 
+        // Create index for each class for input labels and scores
+        std::vector<size_t> label_class_vec(class_size, 0);
+        std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
+        auto label_class = info.add_literal(
+            migraphx::literal(migraphx::shape(shape::int64_type, {class_size}), label_class_vec));
+        auto label_index = info.add_instruction(migraphx::make_op("gather"), labels, label_class);
+
         // Get optional input weights (Used for mean reduction)
         instruction_ref weights;
         instruction_ref weight_tensor;
@@ -230,8 +237,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                     "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
             }
 
-            weight_tensor =
-                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
+            weight_tensor = info.add_instruction(
+                migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, weights);
 
             // adjust weights based on ignore index is that's set
             if(has_ignore_index)
@@ -257,7 +264,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
         auto loss_tensor = info.add_instruction(
-            migraphx::make_op("gather", {{"axis", 1}}), neg_lsm_scores, labels);
+            migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, neg_lsm_scores);
 
         if(is_k_dim)
         {

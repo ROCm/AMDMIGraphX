@@ -34,12 +34,18 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test)
     mm->add_literal(
         migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {-1}));
 
+    std::vector<size_t> label_class_vec(4, 0);
+    std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
+    auto label_class = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {4}), label_class_vec));
+    auto label_index = mm->add_instruction(migraphx::make_op("gather"), labels, label_class);
+
     auto softmax       = mm->add_instruction(migraphx::make_op("softmax"), scores);
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), softmax);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto loss =
-        mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), neglogsoftmax, labels);
+    auto loss = mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, neglogsoftmax);
     mm->add_return({loss});
 
     auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_test.onnx");
@@ -57,12 +63,19 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_double_test)
     mm->add_literal(
         migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {-1}));
 
+    std::vector<size_t> label_class_vec(4, 0);
+    std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
+    auto label_class = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {4}), label_class_vec));
+    auto label_index = mm->add_instruction(migraphx::make_op("gather"), labels, label_class);
+
     auto softmax       = mm->add_instruction(migraphx::make_op("softmax"), scores);
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), softmax);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto loss =
-        mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), neglogsoftmax, labels);
+    auto loss = mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, neglogsoftmax);
+
     mm->add_return({loss});
 
     auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_double_test.onnx");
@@ -80,12 +93,18 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_half_test)
     mm->add_literal(
         migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {-1}));
 
+    std::vector<size_t> label_class_vec(4, 0);
+    std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
+    auto label_class = mm->add_literal(
+        migraphx::literal(migraphx::shape(migraphx::shape::int64_type, {4}), label_class_vec));
+    auto label_index   = mm->add_instruction(migraphx::make_op("gather"), labels, label_class);
     auto softmax       = mm->add_instruction(migraphx::make_op("softmax"), scores);
     auto logsoftmax    = mm->add_instruction(migraphx::make_op("log"), softmax);
     auto neglogsoftmax = mm->add_instruction(migraphx::make_op("neg"), logsoftmax);
 
-    auto loss =
-        mm->add_instruction(migraphx::make_op("gather", {{"axis", 1}}), neglogsoftmax, labels);
+    auto loss = mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, neglogsoftmax);
+
     mm->add_return({loss});
 
     auto prog = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_half_test.onnx");

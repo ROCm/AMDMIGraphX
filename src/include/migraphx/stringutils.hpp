@@ -196,7 +196,7 @@ inline std::string to_string_range(Iterator start, Iterator last, const char* de
     std::stringstream ss;
     if(start != last)
     {
-        ss << *start;
+        ss << as_number(*start);
         std::for_each(std::next(start), last, [&](auto&& x) { ss << delim << as_number(x); });
     }
     return ss.str();

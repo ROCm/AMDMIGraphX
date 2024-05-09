@@ -61,6 +61,8 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -334,11 +336,15 @@ else()
     set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
 endif()
 
+if(MIGRAPHX_USE_ROCBLAS)
+    list(APPEND PACKAGE_DEPENDS rocblas)
+endif()
+
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip rocblas ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
+    DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
 )

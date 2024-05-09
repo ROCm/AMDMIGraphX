@@ -30,8 +30,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
-#include <migraphx/config.hpp>
-#include <migraphx/tensor_view.hpp>
+#include <migraphx/as_number.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

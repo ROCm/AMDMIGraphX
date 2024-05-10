@@ -157,7 +157,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
     }
 }, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
     stage('CK hipRTC') {
-        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1', 'MIGRAPHX_DISABLE_MLIR=1', 'MIGRAPHX_TRACE_BENCHMARKING=3']) {
+        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1', 'MIGRAPHX_DISABLE_MLIR=1']) {
             def gpu_targets = getgputargets()
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
         }

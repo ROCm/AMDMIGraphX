@@ -814,7 +814,7 @@ struct mlir_program
         tuning_config tc;
         run_high_level_pipeline();
         auto tuning_mode =
-            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindFull;
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};

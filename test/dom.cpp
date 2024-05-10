@@ -28,7 +28,7 @@
 #include <basic_ops.hpp>
 #include <test.hpp>
 
-bool dominates_self(const migraphx::dominator_info& dom, const migraphx::module& m)
+bool strictly_dominates_self(const migraphx::dominator_info& dom, const migraphx::module& m)
 {
     return migraphx::any_of(migraphx::iterator_for(m), [&](auto ins) {
         return dom.strictly_dominate(ins, ins);
@@ -47,7 +47,7 @@ bool dominates_self(const migraphx::dominator_info& dom, const migraphx::module&
 // └┬───┘└┬───┘└────┘
 // ┌▽─────▽┐         
 // │ins5   │         
-// └───────┘
+// └───────┘    
 // clang-format on
 TEST_CASE(dom1)
 {
@@ -60,7 +60,7 @@ TEST_CASE(dom1)
     auto ins6 = mm.add_instruction(pass_op{}, ins2);
 
     auto dom = migraphx::compute_dominator(mm);
-    CHECK(not dominates_self(dom, mm));
+    CHECK(not strictly_dominates_self(dom, mm));
     // ins1
     CHECK(dom.strictly_dominate(ins1, ins2));
     CHECK(dom.strictly_dominate(ins1, ins3));
@@ -107,7 +107,7 @@ TEST_CASE(dom2)
     auto ins6 = mm.add_instruction(pass_op{}, ins4);
 
     auto dom = migraphx::compute_dominator(mm);
-    CHECK(not dominates_self(dom, mm));
+    CHECK(not strictly_dominates_self(dom, mm));
     // ins1
     CHECK(dom.strictly_dominate(ins1, ins2));
     CHECK(dom.strictly_dominate(ins1, ins3));

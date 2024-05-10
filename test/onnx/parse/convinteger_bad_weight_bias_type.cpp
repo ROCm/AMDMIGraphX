@@ -26,5 +26,5 @@
 
 TEST_CASE(convinteger_bad_weight_bias_type_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("convinteger_mismatched_weight_bias.onnx"); }));
+    EXPECT(test::throws([&] { optimize_onnx("convinteger_mismatched_weight_bias_test.onnx"); }));
 }

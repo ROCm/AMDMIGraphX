@@ -26,5 +26,5 @@
 
 TEST_CASE(convinteger_bad_data_bias_type_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("convinteger_mismatched_data_bias.onnx"); }));
+    EXPECT(test::throws([&] { optimize_onnx("convinteger_mismatched_data_bias_test.onnx"); }));
 }

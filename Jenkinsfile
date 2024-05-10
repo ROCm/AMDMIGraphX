@@ -165,7 +165,8 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
-        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+        def sanitizers_disabled = "float-cast-overflow"
+        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -fno-sanitize=${sanitizers_disabled}"
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }

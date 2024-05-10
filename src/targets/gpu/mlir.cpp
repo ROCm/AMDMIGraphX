@@ -596,7 +596,6 @@ struct mlir_program
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
                             {"num_cu", num_cu},
-                            // TODO: Fix mis-spelling after rocMLIR fixes it
                             {"enable_splitk_for_tuning", true}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
@@ -815,7 +814,7 @@ struct mlir_program
         tuning_config tc;
         run_high_level_pipeline();
         auto tuning_mode =
-            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindQuick;
+            exhaustive ? RocmlirTuningParamSetKindFull : RocmlirTuningParamSetKindFull;
         if(enabled(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE{}))
             tuning_mode = RocmlirTuningParamSetKindExhaustive;
         mlir_tuning_space params{mlirRockTuningSpaceCreate(mmodule.get(), tuning_mode)};

@@ -35,15 +35,19 @@ struct test_reduce_mean_reduce_sum : verify_program<test_reduce_mean_reduce_sum>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {5, 784, 768}};
-        auto x        = mm->add_parameter("x", s);
-        auto n = mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {s.lens().back()}});
-        auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
-        auto meanb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), mean);
+        auto x     = mm->add_parameter("x", s);
+        auto n     = mm->add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {1}}, {s.lens().back()}});
+        auto mean  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        auto meanb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), mean);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), x, meanb);
-        auto nb = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), n);
-        auto div = mm->add_instruction(migraphx::make_op("div"), sub, nb);
-        auto div2       = mm->add_instruction(migraphx::make_op("mul"), div, div);
-        auto mean_div2  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), div2);
+        auto nb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), n);
+        auto div  = mm->add_instruction(migraphx::make_op("div"), sub, nb);
+        auto div2 = mm->add_instruction(migraphx::make_op("mul"), div, div);
+        auto mean_div2 =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), div2);
         mm->add_return({mean_div2});
         return p;
     };

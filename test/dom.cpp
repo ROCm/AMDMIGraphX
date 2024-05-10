@@ -47,7 +47,7 @@ bool strictly_dominates_self(const migraphx::dominator_info& dom, const migraphx
 // └┬───┘└┬───┘└────┘
 // ┌▽─────▽┐         
 // │ins5   │         
-// └───────┘    
+// └───────┘
 // clang-format on
 TEST_CASE(dom1)
 {

@@ -32,7 +32,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_ROCBLAS
 rocblas_handle_ptr create_rocblas_handle_ptr()
 {
     // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
@@ -63,7 +63,7 @@ bool rocblas_fp8_available()
     return gfx_has_fp8_intrinsics();
 #endif
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

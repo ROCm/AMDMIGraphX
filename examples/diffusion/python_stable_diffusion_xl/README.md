@@ -17,7 +17,10 @@ python3 -m venv sd_venv
 Install dependencies
 
 ```bash
+pip install -U pip
 pip install -r requirements.txt
+# hip-python needs to be installed separately to not conflict with test packages
+pip install -i https://test.pypi.org/simple hip-python
 ```
 
 Use MIGraphX Python Module

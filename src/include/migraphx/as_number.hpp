@@ -21,31 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
 
+#include <cstdint>
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
-struct context;
-struct operation;
-
-namespace gpu {
-
-struct compile_miopen
+template <class T>
+T as_number(T x)
 {
-    context* ctx = nullptr;
-    std::string name() const { return "gpu::compile_miopen"; }
-    void apply(module& m) const;
-    std::size_t compile(operation& op, instruction_ref ins) const;
-};
+    return x;
+}
+inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
+inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_MIOPEN_HPP
+#endif // MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP

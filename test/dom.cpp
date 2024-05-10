@@ -30,9 +30,8 @@
 
 bool strictly_dominates_self(const migraphx::dominator_info& dom, const migraphx::module& m)
 {
-    return migraphx::any_of(migraphx::iterator_for(m), [&](auto ins) {
-        return dom.strictly_dominate(ins, ins);
-    });
+    return migraphx::any_of(migraphx::iterator_for(m),
+                            [&](auto ins) { return dom.strictly_dominate(ins, ins); });
 }
 
 // clang-format off
@@ -72,7 +71,7 @@ TEST_CASE(dom1)
     CHECK(dom.strictly_dominate(ins2, ins4));
     CHECK(dom.strictly_dominate(ins2, ins5));
     CHECK(dom.strictly_dominate(ins2, ins6));
-    
+
     CHECK(not dom.strictly_dominate(ins3, ins6));
     CHECK(not dom.strictly_dominate(ins4, ins6));
     CHECK(not dom.strictly_dominate(ins3, ins5));

@@ -227,12 +227,12 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
-        if(mode != mlir_mode::fast)
-            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
         // for it.
         if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
             return false;
+        if(mode != mlir_mode::fast)
+            return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
         // auto m = a.lens()[a.lens().size() - 2];
@@ -580,7 +580,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx110");
+    const bool is_navi      = starts_with(device_name, "gfx11");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))

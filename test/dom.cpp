@@ -35,6 +35,7 @@ bool dominates_self(const migraphx::dominator_info& dom, const migraphx::module&
     });
 }
 
+// clang-format off
 // ┌────┐            
 // │ins1│            
 // └┬───┘            
@@ -47,6 +48,7 @@ bool dominates_self(const migraphx::dominator_info& dom, const migraphx::module&
 // ┌▽─────▽┐         
 // │ins5   │         
 // └───────┘    
+// clang-format on
 TEST_CASE(dom1)
 {
     migraphx::module mm;
@@ -77,6 +79,7 @@ TEST_CASE(dom1)
     CHECK(not dom.strictly_dominate(ins4, ins5));
 }
 
+// clang-format off
 // ┌────┐      
 // │ins1│      
 // └┬───┘      
@@ -92,6 +95,7 @@ TEST_CASE(dom1)
 // ┌▽─▽─┐┌▽───┐
 // │ins5││ins6│
 // └────┘└────┘
+// clang-format on
 TEST_CASE(dom2)
 {
     migraphx::module mm;

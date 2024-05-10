@@ -92,9 +92,8 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
         ir.end(),
         std::back_inserter(result),
         [&](auto x) {
-            return std::none_of(std::next(x), r.end(), [&](auto reduce) {
-                return reaches(*x, reduce);
-            });
+            return std::none_of(
+                std::next(x), r.end(), [&](auto reduce) { return reaches(*x, reduce); });
         },
         [](auto x) { return *x; });
     return result;
@@ -102,7 +101,7 @@ std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_
 
 void fuse_reductions(module& m)
 {
-    auto rs  = find_parallel_reduce(find_reduce(m));
+    auto rs = find_parallel_reduce(find_reduce(m));
     if(rs.size() < 2)
         return;
     // Only handle the same reduction operator for now

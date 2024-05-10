@@ -4569,7 +4569,11 @@ TEST_CASE(test_squeeze_dyn)
     migraphx::shape s3{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}}};
     expect_shape(s3, migraphx::make_op("squeeze"), s1);
 
-    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+    // allowing to squeeze dynamic_dimension that intersect with {1, 1}
+    migraphx::shape s4{migraphx::shape::float_type, {{1, 1}, {3, 3}, {1, 1}, {3, 3}}};
+    expect_shape(s4, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(test_squeeze_dyn_neg_axes)

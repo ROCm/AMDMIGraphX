@@ -33,7 +33,7 @@ TEST_CASE(logical_or_test)
     auto ret = mm->add_instruction(migraphx::make_op("logical_or"), l0, l1);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("logical_or_test.onnx");
+    auto prog = read_onnx("logical_or_test.onnx");
 
     EXPECT(p == prog);
 }

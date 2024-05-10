@@ -68,7 +68,7 @@ TEST_CASE(qlinearaveragepool_notset_test)
         mm->add_instruction(migraphx::make_op("quantizelinear"), fp_y, scale_y_bcast, z_pt_y_bcast);
 
     mm->add_return({y});
-    auto prog = migraphx::parse_onnx("qlinearaveragepool_notset_test.onnx");
+    auto prog = read_onnx("qlinearaveragepool_notset_test.onnx");
 
     EXPECT(p == prog);
 }

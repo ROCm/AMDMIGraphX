@@ -28,6 +28,6 @@ TEST_CASE(averagepool_dyn_asym_padding_error_test)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("averagepool_dyn_asym_padding_error_test.onnx", options); }));
+    EXPECT(
+        test::throws([&] { read_onnx("averagepool_dyn_asym_padding_error_test.onnx", options); }));
 }

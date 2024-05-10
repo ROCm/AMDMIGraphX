@@ -46,6 +46,6 @@ TEST_CASE(if_then_test_inlined)
     auto rt = mm->add_instruction(migraphx::make_op("add"), x, l1);
     mm->add_return({rt});
 
-    auto prog = migraphx::parse_onnx("if_then_test_inlined.onnx");
+    auto prog = read_onnx("if_then_test_inlined.onnx");
     EXPECT(p == prog);
 }

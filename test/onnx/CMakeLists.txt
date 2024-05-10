@@ -26,11 +26,15 @@
 function(add_onnx_test TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
     rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref)
+    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref onnx_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR})
     rocm_mark_as_test(${TEST_NAME})
 endfunction()
+
+include(Embed)
+file(GLOB ONNX_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.onnx)
+add_embed_library(onnx_files ${ONNX_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
 
 file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
 file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)

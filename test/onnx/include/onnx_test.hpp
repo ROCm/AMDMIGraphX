@@ -35,14 +35,23 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
-
+#include <migraphx/filesystem.hpp>
+#include <onnx_files.hpp>
 #include <test.hpp>
+
+inline migraphx::program read_onnx(const std::string& name,
+                                   migraphx::onnx_options options = migraphx::onnx_options{})
+{
+    static auto onnx_files{::onnx_files()};
+    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files[name]}, options);
+    return prog;
+}
 
 inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
-    auto prog                      = migraphx::parse_onnx(name, options);
+    auto prog                      = read_onnx(name, options);
     auto* mm                       = prog.get_main_module();
     if(run_passes)
         migraphx::run_passes(*mm,

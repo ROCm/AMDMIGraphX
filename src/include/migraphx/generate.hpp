@@ -92,18 +92,12 @@ struct xorshf96_engine
 
     using result_type = unsigned long;
 
-    static constexpr unsigned long max()
-    {
-        return std::numeric_limits<unsigned long>::max();
-    }
+    static constexpr unsigned long max() { return std::numeric_limits<unsigned long>::max(); }
 
-    static constexpr unsigned long min()
-    {
-        return std::numeric_limits<unsigned long>::min();
-    }
+    static constexpr unsigned long min() { return std::numeric_limits<unsigned long>::min(); }
 };
 
-template<class T>
+template <class T>
 struct normal_generator
 {
     static std::normal_distribution<> make_distribution()
@@ -119,9 +113,7 @@ struct normal_generator
     }
     xorshf96_engine engine;
     std::normal_distribution<> dist;
-    normal_generator(unsigned long seed = 0) :
-    engine(seed), dist{make_distribution()}
-    {}
+    normal_generator(unsigned long seed = 0) : engine(seed), dist{make_distribution()} {}
 
     T operator()() noexcept
     {
@@ -133,7 +125,6 @@ struct normal_generator
         return T(result);
         // double bits = std::pow(2, std::numeric_limits<T>::digits);
         // std::int64_t i = std::pow(2, std::numeric_limits<T>::digits) * result;
-
     }
 };
 

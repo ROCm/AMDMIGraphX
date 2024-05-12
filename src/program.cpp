@@ -562,8 +562,7 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             ctx.finish();
             double t2 = t.record<milliseconds>();
             std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name() != "load" and
-               not result.empty())
+            if(trace_level > 1 and ins->name() != "load" and not result.empty())
             {
                 migraphx::argument buffer;
                 try

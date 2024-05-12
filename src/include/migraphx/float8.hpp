@@ -305,7 +305,7 @@ class numeric_limits<fp8e4m3fnuz>
 {
     public:
     static constexpr bool has_infinity = false;
-    static constexpr int digits = 3;
+    static constexpr int digits        = 3;
     static constexpr fp8e4m3fnuz epsilon() { return fp8e4m3fnuz(0x28, fp8e4m3fnuz::from_bits()); }
     // NOLINTNEXTLINE
     static constexpr fp8e4m3fnuz quiet_NaN() { return fp8e4m3fnuz(0x80, fp8e4m3fnuz::from_bits()); }
@@ -322,7 +322,7 @@ class numeric_limits<fp8e4m3fn>
 {
     public:
     static constexpr bool has_infinity = false;
-    static constexpr int digits = 3;
+    static constexpr int digits        = 3;
     static constexpr fp8e4m3fn epsilon() { return fp8e4m3fn(0x20, fp8e4m3fn::from_bits()); }
     // NOLINTNEXTLINE
     static constexpr fp8e4m3fn quiet_NaN() { return fp8e4m3fn(0x7F, fp8e4m3fn::from_bits()); }
@@ -339,7 +339,7 @@ class numeric_limits<fp8e5m2fnuz>
 {
     public:
     static constexpr bool has_infinity = false;
-    static constexpr int digits = 2;
+    static constexpr int digits        = 2;
     static constexpr fp8e5m2fnuz epsilon() { return fp8e5m2fnuz(0x34, fp8e5m2fnuz::from_bits()); }
 
     static constexpr fp8e5m2fnuz quiet_NaN() // NOLINT
@@ -360,7 +360,7 @@ class numeric_limits<fp8e5m2>
 {
     public:
     static constexpr bool has_infinity = true;
-    static constexpr int digits = 2;
+    static constexpr int digits        = 2;
     static constexpr fp8e5m2 epsilon() { return fp8e5m2(0x34, fp8e5m2::from_bits()); }
     // 7D, 7E, 7F are positive NaNs and FD, FE, FF are negative NaNs
     static constexpr fp8e5m2 quiet_NaN() { return fp8e5m2(0xFF, fp8e5m2::from_bits()); } // NOLINT

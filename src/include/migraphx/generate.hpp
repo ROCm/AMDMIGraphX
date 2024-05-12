@@ -68,6 +68,75 @@ constexpr bool normalize(unsigned long z)
     return static_cast<bool>(z % 2);
 }
 
+struct xorshf96_engine
+{
+    unsigned long x = 123456789;
+    unsigned long y = 362436069;
+    unsigned long z;
+
+    xorshf96_engine(unsigned long seed = 0) : z(521288629ULL ^ seed) {}
+
+    constexpr unsigned long operator()() noexcept
+    {
+        x ^= x << 16U;
+        x ^= x >> 5U;
+        x ^= x << 1U;
+
+        unsigned long t = x;
+        x               = y;
+        y               = z;
+        z               = t ^ x ^ y;
+
+        return z;
+    }
+
+    using result_type = unsigned long;
+
+    static constexpr unsigned long max()
+    {
+        return std::numeric_limits<unsigned long>::max();
+    }
+
+    static constexpr unsigned long min()
+    {
+        return std::numeric_limits<unsigned long>::min();
+    }
+};
+
+template<class T>
+struct normal_generator
+{
+    static std::normal_distribution<> make_distribution()
+    {
+        if constexpr(std::is_same<T, bool>{})
+            return std::normal_distribution<>{0, 1};
+        if constexpr(std::is_integral<T>{})
+        {
+            double mid = std::numeric_limits<T>::max() / 4;
+            return std::normal_distribution<>{std::is_signed<T>{} ? 0 : mid, mid};
+        }
+        return std::normal_distribution<>{0, 1};
+    }
+    xorshf96_engine engine;
+    std::normal_distribution<> dist;
+    normal_generator(unsigned long seed = 0) :
+    engine(seed), dist{make_distribution()}
+    {}
+
+    T operator()() noexcept
+    {
+        auto result = dist(engine);
+        if constexpr(std::is_same<T, bool>{})
+            return result > 0;
+        if constexpr(std::is_integral<T>{})
+            return T(result);
+        return T(result);
+        // double bits = std::pow(2, std::numeric_limits<T>::digits);
+        // std::int64_t i = std::pow(2, std::numeric_limits<T>::digits) * result;
+
+    }
+};
+
 template <class T>
 struct xorshf96_generator
 {
@@ -112,7 +181,7 @@ template <class T>
 auto generate_tensor_data(const migraphx::shape& s, unsigned long seed = 0)
 {
     auto result = make_shared_array<T>(s.element_space());
-    std::generate(result.get(), result.get() + s.element_space(), xorshf96_generator<T>{seed});
+    std::generate(result.get(), result.get() + s.element_space(), normal_generator<T>{seed});
     return result;
 }
 

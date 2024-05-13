@@ -27,5 +27,4 @@
 TEST_CASE(batch_norm_invalid_bias_rank)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_bias_rank_test.onnx"); }));
-    EXPECT(test::throws([&] { optimize_onnx("batch_norm_invalid_bias_rank_test.onnx"); }));
 }

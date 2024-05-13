@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "onnx_test.hpp"
 #include <test.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
@@ -31,8 +32,8 @@
 
 TEST_CASE(external_data_diff_path_test)
 {
-    // migraphx::program p = create_external_data_prog();
+    migraphx::program p = create_external_data_prog();
 
-    // auto prog = migraphx::parse_onnx("ext_path/external_data_test.onnx");
-    // EXPECT(p == prog);
+    auto prog = optimize_onnx("ext_path/external_data_test.onnx");
+    EXPECT(p == prog);
 }

@@ -35,14 +35,69 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/ranges.hpp>
 #include <onnx_files.hpp>
+#include <weight_files.hpp>
 #include <test.hpp>
+#include <thread>
+
+struct weight_file
+{
+    std::unique_ptr<migraphx::fs::path> path = nullptr;
+
+    weight_file() = default;
+
+    explicit weight_file(const std::pair<std::string_view, std::string_view>& pair)
+        : path{std::make_unique<migraphx::fs::path>(pair.first)}
+    {
+        if(path.get()->has_parent_path())
+        {
+            migraphx::fs::path parent_path = path.get()->parent_path();
+            migraphx::fs::create_directories(parent_path);
+        }
+        migraphx::write_buffer(*path.get(), pair.second.begin(), pair.second.length());
+    }
+
+    weight_file(weight_file&& copy) : path(std::move(copy.path)){};
+
+    ~weight_file()
+    {
+        if(path != nullptr)
+        {
+            constexpr int max_retries_count = 5;
+            for([[maybe_unused]] auto count : migraphx::range(max_retries_count))
+            {
+                std::error_code ec;
+                migraphx::fs::remove_all(*path.get(), ec);
+                if(not ec)
+                    break;
+                std::cerr << "Failed to remove " << *path.get() << ": " << ec.message()
+                          << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(125));
+            }
+        }
+    }
+};
+
+inline static bool read_weight_files()
+{
+    static auto weight_files{::weight_files()};
+    static std::vector<weight_file> weights;
+    for(const auto& i : weight_files)
+    {
+        weights.push_back(weight_file{i});
+    }
+    return true;
+}
 
 inline migraphx::program read_onnx(const std::string& name,
                                    migraphx::onnx_options options = migraphx::onnx_options{})
 {
     static auto onnx_files{::onnx_files()};
+    static bool read_once = read_weight_files();
+    (void)(read_once);
     auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files[name]}, options);
     return prog;
 }

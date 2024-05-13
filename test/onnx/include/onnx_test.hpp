@@ -35,6 +35,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/ranges.hpp>
@@ -80,24 +81,26 @@ struct weight_file
     }
 };
 
-inline static bool read_weight_files()
+inline static std::string read_weight_files()
 {
     static auto weight_files{::weight_files()};
-    static std::vector<weight_file> weights;
+    static migraphx::tmp_dir td{"weights"};
     for(const auto& i : weight_files)
     {
-        // NOLINTNEXTLINE
-        weights.push_back(weight_file{i});
+        migraphx::fs::path full_path   = td.path / i.first;
+        migraphx::fs::path parent_path = full_path.parent_path();
+        migraphx::fs::create_directories(parent_path);
+        migraphx::write_buffer(full_path, i.second.begin(), i.second.length());
     }
-    return true;
+    return td.path.string();
 }
 
 inline migraphx::program read_onnx(const std::string& name,
-                                   const migraphx::onnx_options& options = migraphx::onnx_options{})
+                                   migraphx::onnx_options options = migraphx::onnx_options{})
 {
     static auto onnx_files{::onnx_files()};
-    static bool read_once = read_weight_files();
-    (void)(read_once);
+    static std::string external_data_path = read_weight_files();
+    options.external_data_path            = external_data_path;
     auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files[name]}, options);
     return prog;
 }

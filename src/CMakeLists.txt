@@ -316,6 +316,7 @@ target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
 add_library(migraphx_all_targets INTERFACE)
 
 add_subdirectory(api)
+add_subdirectory(common_api)
 add_subdirectory(driver)
 add_subdirectory(onnx)
 add_subdirectory(tf)

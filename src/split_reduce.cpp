@@ -86,7 +86,7 @@ struct splitter
         return dom->strictly_dominate(a, b);
     }
 
-    std::vector<instruction_ref> find_splits()
+    std::vector<instruction_ref> find_reduces()
     {
         std::vector<instruction_ref> result;
         copy_if(iterator_for(*rm), std::back_inserter(result), [](auto ins) {
@@ -102,10 +102,25 @@ struct splitter
             return {};
         if(result.size() < 2)
             return result;
-        if(this->strictly_dominate(result[0], result[1]))
+        if(reaches(result[0], result[1]))
             return {};
-        if(this->strictly_dominate(result[1], result[0]))
-            return {};
+        return result;
+    }
+
+    static instruction_ref find_split(instruction_ref reduce)
+    {
+        if(reduce->outputs().size() != 1)
+            return reduce;
+        auto output = reduce->outputs().front();
+        if(output->name() == "convert")
+            return find_split(output);
+        return reduce;
+    }
+
+    std::vector<instruction_ref> find_splits()
+    {
+        std::vector<instruction_ref> result;
+        transform(find_reduces(), std::back_inserter(result), &find_split);
         return result;
     }
 
@@ -131,7 +146,7 @@ struct splitter
                              if(contains(splits, live))
                                  return false;
                              if(splits.size() > 1 and none_of(splits, [&](instruction_ref split) {
-                                    return this->strictly_dominate(live, split);
+                                    return reaches(live, split);
                                 }))
                                  return false;
                              return true;

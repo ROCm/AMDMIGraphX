@@ -400,7 +400,7 @@ void instruction::print(std::ostream& os,
     // skip return instruction shape
     if(ins->name() != "@return")
         os << " -> " << ins->get_shape();
-    
+
     // print tid
     if(ins->target_id != 0)
         os << ", target_id=" << ins->target_id;

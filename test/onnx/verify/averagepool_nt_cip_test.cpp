@@ -28,7 +28,7 @@
 
 TEST_CASE(averagepool_nt_cip_test)
 {
-    auto p = migraphx::parse_onnx("averagepool_nt_cip_test.onnx");
+    auto p = read_onnx("averagepool_nt_cip_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data_x = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12,
                                  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24};

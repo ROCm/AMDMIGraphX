@@ -28,7 +28,7 @@ function(add_onnx_test TEST_NAME)
     rocm_clang_tidy_check(${TEST_NAME})
     target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref onnx_files weight_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
-    #rocm_add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_ONNX_DIR})
+    rocm_mark_as_test(TEST_NAME)
 endfunction()
 
 include(Embed)
@@ -42,7 +42,6 @@ file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
 file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)
 
 add_onnx_test(test_onnx_test ${ONNX_PARSE_TESTS})
-rocm_mark_as_test(test_onnx_test)
 add_onnx_test(test_onnx_rnn_test onnx_rnn_test.cpp)
 add_onnx_test(test_verify_onnx ${ONNX_VERIFY_TESTS})
 

@@ -28,7 +28,7 @@
 
 TEST_CASE(eyelike_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("eyelike_verify_test.onnx");
+    migraphx::program p = read_onnx("eyelike_verify_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::float_type, {3, 4}};

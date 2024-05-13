@@ -72,7 +72,7 @@ TEST_CASE(sampleOnnxMNIST)
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 28, 28}};
 
     migraphx::parameter_map param_map;
-    param_map["Input3"] = migraphx::argument(input_shape, hostData.data());
+    param_map["Input3"] = migraphx::argument(input_shape, reinterpret_cast<void*>(hostData.data()));
 
     auto result = p.eval(param_map).back();
 

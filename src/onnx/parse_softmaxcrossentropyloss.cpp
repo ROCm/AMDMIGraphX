@@ -207,8 +207,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         std::vector<size_t> label_class_vec(class_size, 0);
         std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
         auto label_class = info.add_literal(
-            migraphx::literal(migraphx::shape(shape::int64_type, {class_size}), label_class_vec));
+            migraphx::literal(migraphx::shape(label_shape.type(), {class_size}), label_class_vec));
         auto label_index = info.add_instruction(migraphx::make_op("gather"), labels, label_class);
+
+        auto loss_tensor = info.add_instruction(
+            migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
         // Get optional input weights (Used for mean reduction)
         instruction_ref weights;
@@ -238,7 +241,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
 
             weight_tensor = info.add_instruction(
-                migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, weights);
+                migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
+            weight_tensor = info.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}),
+                                                 weight_tensor,
+                                                 label_index,
+                                                 weights);
 
             // adjust weights based on ignore index is that's set
             if(has_ignore_index)
@@ -263,8 +270,10 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        auto loss_tensor = info.add_instruction(
-            migraphx::make_op("scatter_none", {{"axis", 0}}), labels, label_index, neg_lsm_scores);
+        loss_tensor = info.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}),
+                                           loss_tensor,
+                                           label_index,
+                                           neg_lsm_scores);
 
         if(is_k_dim)
         {
@@ -276,7 +285,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         // scaling tensor
         if(reduction == "mean" and not has_weights)
         {
-            loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}),
+            loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}),
                                                loss_tensor);
         }
         else if(reduction == "sum" or has_weights)
@@ -287,13 +296,16 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                     info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
             }
 
-            loss_tensor =
-                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), loss_tensor);
+            if(reduction == "sum")
+            {
+                loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}),
+                                                   loss_tensor);
+            }
 
             if(reduction == "mean")
             {
                 auto reduced_weights = info.add_instruction(
-                    migraphx::make_op("reduce_sum", {{"axes", {1}}}), weight_tensor);
+                    migraphx::make_op("reduce_sum", {{"axes", {0}}}), weight_tensor);
                 loss_tensor =
                     info.add_instruction(migraphx::make_op("div"), loss_tensor, reduced_weights);
             }

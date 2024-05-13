@@ -33,11 +33,13 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
-    std::vector<float> label_data = {0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
-    std::vector<float> weight_data = {1, 1, 1, 1};
+    std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    p.debug_print();
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());
@@ -58,11 +60,11 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0, 1.0f, 1.0f, 1.0f, 1.0f};
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
-    std::vector<float> label_data = {0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
-    std::vector<float> weight_data = {1, 1, 1, 1};
+    std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());
@@ -83,11 +85,11 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_weighted_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
-    std::vector<float> score_data = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
-    std::vector<float> label_data = {0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
-    std::vector<float> weight_data = {1, 1, 1, 1};
+    std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());

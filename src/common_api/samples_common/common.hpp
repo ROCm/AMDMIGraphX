@@ -11,6 +11,7 @@
 // #include <cmath>
 // #include <cstring>
 // #include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 // #include <fstream>
 // #include <functional>
 // #include <iomanip>
@@ -181,8 +182,8 @@
 // //    std::map<std::string, Record> mProfile;
 // //};
 
-// namespace samplesCommon
-// {
+namespace samplesCommon
+{
 // //using nvinfer1::utils::loadTimingCacheFile;
 // //using nvinfer1::utils::saveTimingCacheFile;
 // //using nvinfer1::utils::updateTimingCacheFile;
@@ -280,24 +281,24 @@
 // template <typename T>
 // using SampleUniquePtr = std::unique_ptr<T, InferDeleter>;
 
-// static auto StreamDeleter = [](cudaStream_t* pStream) {
-//     if (pStream)
-//     {
-//         static_cast<void>(cudaStreamDestroy(*pStream));
-//         delete pStream;
-//     }
-// };
+static auto StreamDeleter = [](hipStream_t* pStream) {
+    if (pStream)
+    {
+        static_cast<void>(hipStreamDestroy(*pStream));
+        delete pStream;
+    }
+};
 
-// inline std::unique_ptr<cudaStream_t, decltype(StreamDeleter)> makeCudaStream()
-// {
-//     std::unique_ptr<cudaStream_t, decltype(StreamDeleter)> pStream(new cudaStream_t, StreamDeleter);
-//     if (cudaStreamCreateWithFlags(pStream.get(), cudaStreamNonBlocking) != cudaSuccess)
-//     {
-//         pStream.reset(nullptr);
-//     }
+inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
+{
+    std::unique_ptr<hipStream_t, decltype(StreamDeleter)> pStream(new hipStream_t, StreamDeleter);
+    if (hipStreamCreateWithFlags(pStream.get(), hipStreamNonBlocking) != hipSuccess)
+    {
+        pStream.reset(nullptr);
+    }
 
-//     return pStream;
-// }
+    return pStream;
+}
 
 // //! Return vector of indices that puts magnitudes of sequence in descending order.
 // //template <class Iter>
@@ -903,7 +904,7 @@
 // //
 // //    return true;
 // //}
-// } // namespace samplesCommon
+} // namespace samplesCommon
 
 // //inline std::ostream& operator<<(std::ostream& os, const nvinfer1::Dims& dims)
 // //{

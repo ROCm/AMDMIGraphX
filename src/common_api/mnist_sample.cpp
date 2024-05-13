@@ -58,13 +58,13 @@ class SampleOnnxMNIST
     std::shared_ptr<mgxinfer1::ICudaEngine>
         mEngine; //!< The TensorRT engine used to run the network
 
-    // //!
-    // //! \brief Parses an ONNX model for MNIST and creates a TensorRT network
-    // //!
-    // bool constructNetwork(std::unique_ptr<nvinfer1::IBuilder>& builder,
-    //     std::unique_ptr<nvinfer1::INetworkDefinition>& network,
-    //     std::unique_ptr<nvinfer1::IBuilderConfig>& config,
-    //     std::unique_ptr<nvonnxparser::IParser>& parser);
+    //!
+    //! \brief Parses an ONNX model for MNIST and creates a TensorRT network
+    //!
+    bool constructNetwork(std::unique_ptr<mgxinfer1::IBuilder>& builder,
+                          std::unique_ptr<mgxinfer1::INetworkDefinition>& network,
+                          std::unique_ptr<mgxinfer1::IBuilderConfig>& config,
+                          std::unique_ptr<mgxonnxparser::IParser>& parser);
 
     // //!
     // //! \brief Reads the input  and stores the result in a managed buffer
@@ -101,48 +101,47 @@ bool SampleOnnxMNIST::build()
         return false;
     }
 
-    // auto config = std::unique_ptr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
-    // if (!config)
-    // {
-    //     return false;
-    // }
+    auto config = std::unique_ptr<mgxinfer1::IBuilderConfig>(builder->createBuilderConfig());
+    if(!config)
+    {
+        return false;
+    }
 
-    // auto parser
-    //     = std::unique_ptr<nvonnxparser::IParser>(nvonnxparser::createParser(*network,
-    //     sample::gLogger.getTRTLogger()));
-    // if (!parser)
-    // {
-    //     return false;
-    // }
+    auto parser =
+        std::unique_ptr<mgxonnxparser::IParser>(mgxonnxparser::createParser(*network, *logger));
+    if(!parser)
+    {
+        return false;
+    }
 
-    // auto constructed = constructNetwork(builder, network, config, parser);
-    // if (!constructed)
-    // {
-    //     return false;
-    // }
+    auto constructed = constructNetwork(builder, network, config, parser);
+    if(!constructed)
+    {
+        return false;
+    }
 
-    // // CUDA stream used for profiling by the builder.
-    // auto profileStream = samplesCommon::makeCudaStream();
-    // if (!profileStream)
-    // {
-    //     return false;
-    // }
-    // config->setProfileStream(*profileStream);
+    // CUDA stream used for profiling by the builder.
+    auto profileStream = samplesCommon::makeCudaStream();
+    if(!profileStream)
+    {
+        return false;
+    }
+    config->setProfileStream(*profileStream);
 
-    // std::unique_ptr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
-    // if (!plan)
-    // {
-    //     return false;
-    // }
+    std::unique_ptr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
+    if (!plan)
+    {
+        return false;
+    }
 
-    // mRuntime =
-    // std::shared_ptr<nvinfer1::IRuntime>(createInferRuntime(sample::gLogger.getTRTLogger())); if
-    // (!mRuntime)
-    // {
-    //     return false;
-    // }
+    mRuntime =
+    std::shared_ptr<mgxinfer1::IRuntime>(createInferRuntime(*logger)); if
+    (!mRuntime)
+    {
+        return false;
+    }
 
-    // mEngine = std::shared_ptr<nvinfer1::ICudaEngine>(
+    // mEngine = std::shared_ptr<mgxinfer1::ICudaEngine>(
     //     mRuntime->deserializeCudaEngine(plan->data(), plan->size()),
     //     samplesCommon::InferDeleter());
     // if (!mEngine)
@@ -169,37 +168,36 @@ bool SampleOnnxMNIST::build()
 // //!
 // //! \param builder Pointer to the engine builder
 // //!
-// bool SampleOnnxMNIST::constructNetwork(std::unique_ptr<nvinfer1::IBuilder>& builder,
-//     std::unique_ptr<nvinfer1::INetworkDefinition>& network,
-//     std::unique_ptr<nvinfer1::IBuilderConfig>& config, std::unique_ptr<nvonnxparser::IParser>&
-//     parser)
-// {
-//     auto parsed = parser->parseFromFile(locateFile(mParams.onnxFileName,
-//     mParams.dataDirs).c_str(),
-//         static_cast<int>(sample::gLogger.getReportableSeverity()));
-//     if (!parsed)
-//     {
-//         return false;
-//     }
+bool SampleOnnxMNIST::constructNetwork(std::unique_ptr<mgxinfer1::IBuilder>& builder,
+                                       std::unique_ptr<mgxinfer1::INetworkDefinition>& network,
+                                       std::unique_ptr<mgxinfer1::IBuilderConfig>& config,
+                                       std::unique_ptr<mgxonnxparser::IParser>& parser)
+{
+    auto file   = locateFile(mParams.onnxFileName, mParams.dataDirs);
+    auto parsed = parser->parseFromFile(file.c_str(), 0);
+    if(!parsed)
+    {
+        return false;
+    }
 
-//     if (mParams.fp16)
-//     {
-//         config->setFlag(BuilderFlag::kFP16);
-//     }
-//     if (mParams.bf16)
-//     {
-//         config->setFlag(BuilderFlag::kBF16);
-//     }
-//     if (mParams.int8)
-//     {
-//         config->setFlag(BuilderFlag::kINT8);
-//         samplesCommon::setAllDynamicRanges(network.get(), 127.0F, 127.0F);
-//     }
+    if(mParams.fp16)
+    {
+        config->setFlag(BuilderFlag::kFP16);
+    }
+    if(mParams.bf16)
+    {
+        config->setFlag(BuilderFlag::kBF16);
+    }
+    if(mParams.int8)
+    {
+        config->setFlag(BuilderFlag::kINT8);
+        // samplesCommon::setAllDynamicRanges(network.get(), 127.0F, 127.0F);
+    }
 
-//     samplesCommon::enableDLA(builder.get(), config.get(), mParams.dlaCore);
+    // samplesCommon::enableDLA(builder.get(), config.get(), mParams.dlaCore);
 
-//     return true;
-// }
+    return true;
+}
 
 // //!
 // //! \brief Runs the TensorRT inference engine for this sample

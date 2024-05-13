@@ -4,14 +4,15 @@
 // #include "NvInferRuntimeBase.h"
 // #include "cuda_runtime.h"
 // #include "sampleEntrypoints.h"
-// #include <cmath>
-// #include <cstdlib>
-// #include <fstream>
-// #include <iostream>
-// #include <memory>
-// #include <numeric>
-// #include <stdexcept>
-// #include <string>
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <numeric>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 // // For safeLoadLibrary
 // #ifdef _MSC_VER
@@ -50,66 +51,66 @@
 //         }                                                                                                              \
 //     } while (0)
 
-// //! Locate path to file, given its filename or filepath suffix and possible dirs it might lie in.
-// //! Function will also walk back MAX_DEPTH dirs from CWD to check for such a file path.
-// inline std::string locateFile(
-//     const std::string& filepathSuffix, const std::vector<std::string>& directories, bool reportError = true)
-// {
-//     const int MAX_DEPTH{10};
-//     bool found{false};
-//     std::string filepath;
+//! Locate path to file, given its filename or filepath suffix and possible dirs it might lie in.
+//! Function will also walk back MAX_DEPTH dirs from CWD to check for such a file path.
+inline std::string locateFile(
+    const std::string& filepathSuffix, const std::vector<std::string>& directories, bool reportError = true)
+{
+    const int MAX_DEPTH{10};
+    bool found{false};
+    std::string filepath;
 
-//     for (auto& dir : directories)
-//     {
-//         if (!dir.empty() && dir.back() != '/')
-//         {
-// #ifdef _MSC_VER
-//             filepath = dir + "\\" + filepathSuffix;
-// #else
-//             filepath = dir + "/" + filepathSuffix;
-// #endif
-//         }
-//         else
-//         {
-//             filepath = dir + filepathSuffix;
-//         }
+    for (auto& dir : directories)
+    {
+        if (!dir.empty() && dir.back() != '/')
+        {
+#ifdef _MSC_VER
+            filepath = dir + "\\" + filepathSuffix;
+#else
+            filepath = dir + "/" + filepathSuffix;
+#endif
+        }
+        else
+        {
+            filepath = dir + filepathSuffix;
+        }
 
-//         for (int i = 0; i < MAX_DEPTH && !found; i++)
-//         {
-//             const std::ifstream checkFile(filepath);
-//             found = checkFile.is_open();
-//             if (found)
-//             {
-//                 break;
-//             }
+        for (int i = 0; i < MAX_DEPTH && !found; i++)
+        {
+            const std::ifstream checkFile(filepath);
+            found = checkFile.is_open();
+            if (found)
+            {
+                break;
+            }
 
-//             filepath = "../" + filepath; // Try again in parent dir
-//         }
+            filepath = "../" + filepath; // Try again in parent dir
+        }
 
-//         if (found)
-//         {
-//             break;
-//         }
+        if (found)
+        {
+            break;
+        }
 
-//         filepath.clear();
-//     }
+        filepath.clear();
+    }
 
-//     // Could not find the file
-//     if (filepath.empty())
-//     {
-//         const std::string dirList = std::accumulate(directories.begin() + 1, directories.end(), directories.front(),
-//             [](const std::string& a, const std::string& b) { return a + "\n\t" + b; });
-//         std::cout << "Could not find " << filepathSuffix << " in data directories:\n\t" << dirList << std::endl;
+    // Could not find the file
+    if (filepath.empty())
+    {
+        const std::string dirList = std::accumulate(directories.begin() + 1, directories.end(), directories.front(),
+            [](const std::string& a, const std::string& b) { return a + "\n\t" + b; });
+        std::cout << "Could not find " << filepathSuffix << " in data directories:\n\t" << dirList << std::endl;
 
-//         if (reportError)
-//         {
-//             std::cout << "&&&& FAILED" << std::endl;
-//             exit(EXIT_FAILURE);
-//         }
-//     }
+        if (reportError)
+        {
+            std::cout << "&&&& FAILED" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
 
-//     return filepath;
-// }
+    return filepath;
+}
 
 // inline void readPGMFile(const std::string& fileName, uint8_t* buffer, int32_t inH, int32_t inW)
 // {

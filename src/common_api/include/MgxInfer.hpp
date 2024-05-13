@@ -1,10 +1,26 @@
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <memory>
+#include <vector>
 
 #include <hip/hip_runtime_api.h>
+#include <migraphx/onnx.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/load_save.hpp>
+
+inline void
+pass_impl(const std::string& msg, const char* file, const char* fun, int line, bool term)
+{
+    std::cout << file << ":" << line << ":" << fun << ": " << msg << std::endl;
+    if(term)
+        std::terminate();
+}
+
+#define pass(msg, term) pass_impl(msg, __FILE__, __FUNCTION__, __LINE__, term)
 
 namespace mgxinfer1 {
 
@@ -19,9 +35,6 @@ class IStreamReader
 {
 };
 class IPluginRegistry
-{
-};
-class IHostMemory
 {
 };
 class IEngineInspector
@@ -177,8 +190,16 @@ class IPluginV2
 class IPluginV3
 {
 };
-
-class IBuilderConfig
+class IInt8Calibrator
+{
+};
+class IAlgorithmSelector
+{
+};
+class ITimingCache
+{
+};
+class IProgressMonitor
 {
 };
 
@@ -186,6 +207,7 @@ class ICudaEngine;
 class IExecutionContext;
 class INetworkDefinition;
 class IBuilder;
+class IBuilderConfig;
 
 //! char_t is the type used by TensorRT to represent all valid characters.
 using char_t = char;
@@ -264,34 +286,6 @@ class ILogger
 };
 
 //!
-//! \class Dims
-//! \brief Structure to define the dimensions of a tensor.
-//!
-//! TensorRT can also return an "invalid dims" structure. This structure is
-//! represented by nbDims == -1 and d[i] == 0 for all i.
-//!
-//! TensorRT can also return an "unknown rank" dims structure. This structure is
-//! represented by nbDims == -1 and d[i] == -1 for all i.
-//!
-class Dims64
-{
-    public:
-    //! The maximum rank (number of dimensions) supported for a tensor.
-    static constexpr int32_t MAX_DIMS{8};
-
-    //! The rank (number of dimensions).
-    int32_t nbDims;
-
-    //! The extent of each dimension.
-    int64_t d[MAX_DIMS];
-};
-
-//!
-//! Alias for Dims64.
-//!
-using Dims = Dims64;
-
-//!
 //! \class INoCopy
 //!
 //! \brief Base class for all TensorRT interfaces that are implemented by the TensorRT libraries
@@ -309,343 +303,6 @@ class INoCopy
     INoCopy(INoCopy&& other)                 = delete;
     INoCopy& operator=(INoCopy&& other)      = delete;
 };
-
-//!
-//! \brief Represents a collection of one or more TempfileControlFlag values combined using
-//! bitwise-OR operations.
-//!
-//! \see TempfileControlFlag,
-//!      IRuntime::setTempfileControlFlags(),
-//!      IRuntime::getTempfileControlFlags()
-using TempfileControlFlags = uint32_t;
-
-//!
-//! \class IRuntime
-//!
-//! \brief Allows a serialized functionally unsafe engine to be deserialized.
-//!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
-//! and ABI.
-//!
-class IRuntime : public INoCopy
-{
-    public:
-    virtual ~IRuntime() noexcept = default;
-
-    //!
-    //! \brief Sets the DLA core used by the network. Defaults to -1.
-    //!
-    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
-    //!
-    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
-    //! are available.
-    //!
-    //! \warning if getNbDLACores() returns 0, then this function does nothing.
-    //!
-    //! \see getDLACore()
-    //!
-    void setDLACore(int32_t dlaCore) noexcept
-    {
-        assert("Not Implemented");
-        // mImpl->setDLACore(dlaCore);
-    }
-
-    //!
-    //! \brief Get the DLA core that the engine executes on.
-    //!
-    //! \return assigned DLA core or -1 for DLA not present or unset.
-    //!
-    int32_t getDLACore() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getDLACore();
-    }
-
-    //!
-    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
-    //!
-    int32_t getNbDLACores() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getNbDLACores();
-    }
-
-    //!
-    //! \brief Set the GPU allocator.
-    //!
-    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
-    //! will use this allocator. If NULL is passed, the default allocator will be used.
-    //!
-    //! Default: uses cudaMalloc/cudaFree.
-    //!
-    //! If nullptr is passed, the default allocator will be used.
-    //!
-    void setGpuAllocator(IGpuAllocator* allocator) noexcept
-    {
-        assert("Not Implemented");
-        // mImpl->setGpuAllocator(allocator);
-    }
-
-    //!
-    //! \brief Set the ErrorRecorder for this interface
-    //!
-    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
-    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
-    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
-    //! a call to decRefCount if a recorder has been registered.
-    //!
-    //! If an error recorder is not set, messages will be sent to the global log stream.
-    //!
-    //! \param recorder The error recorder to register with this interface.
-    //
-    //! \see getErrorRecorder()
-    //!
-    void setErrorRecorder(IErrorRecorder* recorder) noexcept
-    {
-        assert("Not Implemented");
-        // mImpl->setErrorRecorder(recorder);
-    }
-
-    //!
-    //! \brief get the ErrorRecorder assigned to this interface.
-    //!
-    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
-    //! if an error handler has not been set.
-    //!
-    //! \return A pointer to the IErrorRecorder object that has been registered.
-    //!
-    //! \see setErrorRecorder()
-    //!
-    IErrorRecorder* getErrorRecorder() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getErrorRecorder();
-    }
-
-    //!
-    //! \brief Deserialize an engine from host memory.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
-    //!
-    //! \param blob The memory that holds the serialized engine.
-    //! \param size The size of the memory.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->deserializeCudaEngine(blob, size);
-    }
-
-    //!
-    //! \brief Deserialize an engine from a stream.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the
-    //! engine.
-    //!
-    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
-    //!
-    //! \param streamReader a read-only stream from which TensorRT will deserialize a
-    //!        previously serialized engine.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
-    {
-        assert("Not Implemented");
-        // return mImpl->deserializeCudaEngine(streamReader);
-    }
-
-    //!
-    //! \brief get the logger with which the runtime was created
-    //!
-    //! \return the logger
-    //!
-    ILogger* getLogger() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getLogger();
-    }
-
-    //!
-    //! \brief Set the maximum number of threads.
-    //!
-    //! \param maxThreads The maximum number of threads that can be used by the runtime.
-    //! \return True if successful, false otherwise.
-    //!
-    //! The default value is 1 and includes the current thread.
-    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
-    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
-    //!
-    bool setMaxThreads(int32_t maxThreads) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->setMaxThreads(maxThreads);
-    }
-
-    //!
-    //! \brief Get the maximum number of threads that can be used by the runtime.
-    //!
-    //! Retrieves the maximum number of threads that can be used by the runtime.
-    //!
-    //! \return The maximum number of threads that can be used by the runtime.
-    //!
-    //! \see setMaxThreads()
-    //!
-    int32_t getMaxThreads() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getMaxThreads();
-    }
-
-    //!
-    //! \brief Set the directory that will be used by this runtime for temporary files.
-    //!
-    //! On some platforms the TensorRT runtime may need to create and use temporary files
-    //! with read/write/execute permissions to implement runtime functionality.
-    //!
-    //! \param path Path to the temporary directory for use, or nullptr.
-    //!
-    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
-    //! a default temporary directory if required:
-    //!
-    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
-    //! fall back to /tmp
-    //! - On Windows, TensorRT will try the TEMP environment variable.
-    //!
-    //! See the TensorRT Developer Guide for more information.
-    //!
-    //! The default value is nullptr.
-    //!
-    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
-    //! or absolute path in the format expected by the host operating system.
-    //!
-    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
-    //! terminator. Note that the operating system may have stricter path length requirements.
-    //!
-    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
-    //! and the directory shall be configured to disallow other users from modifying created files
-    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
-    //!
-    //! \see getTemporaryDirectory()
-    //!
-    void setTemporaryDirectory(char const* path) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->setTemporaryDirectory(path);
-    }
-
-    //!
-    //! \brief Get the directory that will be used by this runtime for temporary files.
-    //!
-    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
-    //!
-    //! \see setTemporaryDirectory()
-    char const* getTemporaryDirectory() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getTemporaryDirectory();
-    }
-
-    //!
-    //! \brief Set the tempfile control flags for this runtime.
-    //!
-    //! \param flags The flags to set.
-    //!
-    //! The default value is all flags set, i.e.
-    //!
-    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
-    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
-    //!
-    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->setTempfileControlFlags(flags);
-    }
-
-    //!
-    //! \brief Get the tempfile control flags for this runtime.
-    //!
-    //! \return The flags currently set.
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
-    //!
-    TempfileControlFlags getTempfileControlFlags() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getTempfileControlFlags();
-    }
-
-    //!
-    //! \brief Get the local plugin registry that can be used by the runtime.
-    //!
-    //! \return The local plugin registry that can be used by the runtime.
-    //!
-    IPluginRegistry& getPluginRegistry() noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getPluginRegistry();
-    }
-
-    //!
-    //! \brief Load IRuntime from the file.
-    //!
-    //! This method loads a runtime library from a shared library file. The runtime can then be used
-    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
-    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
-    //! the loaded runtime library.
-    //!
-    //! \param path Path to the runtime lean library.
-    //!
-    //! \return the runtime library, or nullptr if it could not be loaded
-    //!
-    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
-    //! terminator.
-    //!
-    IRuntime* loadRuntime(char const* path) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->loadRuntime(path);
-    }
-
-    //!
-    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
-    //! code.
-    //!
-    //! The default value is false.
-    //!
-    void setEngineHostCodeAllowed(bool allowed) noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->setEngineHostCodeAllowed(allowed);
-    }
-
-    //!
-    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    bool getEngineHostCodeAllowed() const noexcept
-    {
-        assert("Not Implemented");
-        // return mImpl->getEngineHostCodeAllowed();
-    }
-
-    // protected:
-    //     apiv::VRuntime* mImpl;
-};
-
-//!
-//! \brief Create an instance of an IRuntime class.
-//!
-//! \param logger The logging class for the runtime.
-//!
-inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{}; }
 
 //!
 //! \enum DataType
@@ -695,6 +352,404 @@ enum class DataType : int32_t
     //! Signed 4-bit integer type.
     kINT4 = 9,
 };
+
+//!
+//! \class IHostMemory
+//!
+//! \brief Class to handle library allocated memory that is accessible to the user.
+//!
+//! The memory allocated via the host memory object is owned by the library and will
+//! be de-allocated when the destroy method is called.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IHostMemory : public INoCopy
+{
+    public:
+    virtual ~IHostMemory() noexcept = default;
+
+    //! A pointer to the raw data that is owned by the library.
+    const void* data() const noexcept { return reinterpret_cast<const void*>(mem_.data()); }
+
+    //! The size in bytes of the data that was allocated.
+    std::size_t size() const noexcept { return mem_.size(); }
+
+    //! The type of the memory that was allocated.
+    DataType type() const noexcept { return type_; }
+
+    IHostMemory(const std::vector<char>& mem, DataType type) : mem_{mem}, type_{type} {}
+
+    protected:
+    // apiv::VHostMemory* mImpl;
+    std::vector<char> mem_;
+    DataType type_;
+};
+
+//!
+//! \class Dims
+//! \brief Structure to define the dimensions of a tensor.
+//!
+//! TensorRT can also return an "invalid dims" structure. This structure is
+//! represented by nbDims == -1 and d[i] == 0 for all i.
+//!
+//! TensorRT can also return an "unknown rank" dims structure. This structure is
+//! represented by nbDims == -1 and d[i] == -1 for all i.
+//!
+class Dims64
+{
+    public:
+    //! The maximum rank (number of dimensions) supported for a tensor.
+    static constexpr int32_t MAX_DIMS{8};
+
+    //! The rank (number of dimensions).
+    int32_t nbDims;
+
+    //! The extent of each dimension.
+    int64_t d[MAX_DIMS];
+};
+
+//!
+//! Alias for Dims64.
+//!
+using Dims = Dims64;
+
+//!
+//! \brief Represents a collection of one or more TempfileControlFlag values combined using
+//! bitwise-OR operations.
+//!
+//! \see TempfileControlFlag,
+//!      IRuntime::setTempfileControlFlags(),
+//!      IRuntime::getTempfileControlFlags()
+using TempfileControlFlags = uint32_t;
+
+//!
+//! \class IRuntime
+//!
+//! \brief Allows a serialized functionally unsafe engine to be deserialized.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IRuntime : public INoCopy
+{
+    public:
+    virtual ~IRuntime() noexcept = default;
+
+    //!
+    //! \brief Sets the DLA core used by the network. Defaults to -1.
+    //!
+    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
+    //!
+    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
+    //! are available.
+    //!
+    //! \warning if getNbDLACores() returns 0, then this function does nothing.
+    //!
+    //! \see getDLACore()
+    //!
+    void setDLACore(int32_t dlaCore) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDLACore(dlaCore);
+    }
+
+    //!
+    //! \brief Get the DLA core that the engine executes on.
+    //!
+    //! \return assigned DLA core or -1 for DLA not present or unset.
+    //!
+    int32_t getDLACore() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDLACore();
+    }
+
+    //!
+    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
+    //!
+    int32_t getNbDLACores() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbDLACores();
+    }
+
+    //!
+    //! \brief Set the GPU allocator.
+    //!
+    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
+    //! will use this allocator. If NULL is passed, the default allocator will be used.
+    //!
+    //! Default: uses cudaMalloc/cudaFree.
+    //!
+    //! If nullptr is passed, the default allocator will be used.
+    //!
+    void setGpuAllocator(IGpuAllocator* allocator) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setGpuAllocator(allocator);
+    }
+
+    //!
+    //! \brief Set the ErrorRecorder for this interface
+    //!
+    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
+    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
+    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
+    //! a call to decRefCount if a recorder has been registered.
+    //!
+    //! If an error recorder is not set, messages will be sent to the global log stream.
+    //!
+    //! \param recorder The error recorder to register with this interface.
+    //
+    //! \see getErrorRecorder()
+    //!
+    void setErrorRecorder(IErrorRecorder* recorder) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setErrorRecorder(recorder);
+    }
+
+    //!
+    //! \brief get the ErrorRecorder assigned to this interface.
+    //!
+    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
+    //! if an error handler has not been set.
+    //!
+    //! \return A pointer to the IErrorRecorder object that has been registered.
+    //!
+    //! \see setErrorRecorder()
+    //!
+    IErrorRecorder* getErrorRecorder() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getErrorRecorder();
+    }
+
+    //!
+    //! \brief Deserialize an engine from host memory.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
+    //!
+    //! \param blob The memory that holds the serialized engine.
+    //! \param size The size of the memory.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->deserializeCudaEngine(blob, size);
+    }
+
+    //!
+    //! \brief Deserialize an engine from a stream.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the
+    //! engine.
+    //!
+    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
+    //!
+    //! \param streamReader a read-only stream from which TensorRT will deserialize a
+    //!        previously serialized engine.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
+    {
+        pass("Not Implemented", true);
+        // return mImpl->deserializeCudaEngine(streamReader);
+    }
+
+    //!
+    //! \brief get the logger with which the runtime was created
+    //!
+    //! \return the logger
+    //!
+    ILogger* getLogger() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getLogger();
+    }
+
+    //!
+    //! \brief Set the maximum number of threads.
+    //!
+    //! \param maxThreads The maximum number of threads that can be used by the runtime.
+    //! \return True if successful, false otherwise.
+    //!
+    //! The default value is 1 and includes the current thread.
+    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
+    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
+    //!
+    bool setMaxThreads(int32_t maxThreads) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setMaxThreads(maxThreads);
+    }
+
+    //!
+    //! \brief Get the maximum number of threads that can be used by the runtime.
+    //!
+    //! Retrieves the maximum number of threads that can be used by the runtime.
+    //!
+    //! \return The maximum number of threads that can be used by the runtime.
+    //!
+    //! \see setMaxThreads()
+    //!
+    int32_t getMaxThreads() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMaxThreads();
+    }
+
+    //!
+    //! \brief Set the directory that will be used by this runtime for temporary files.
+    //!
+    //! On some platforms the TensorRT runtime may need to create and use temporary files
+    //! with read/write/execute permissions to implement runtime functionality.
+    //!
+    //! \param path Path to the temporary directory for use, or nullptr.
+    //!
+    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
+    //! a default temporary directory if required:
+    //!
+    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
+    //! fall back to /tmp
+    //! - On Windows, TensorRT will try the TEMP environment variable.
+    //!
+    //! See the TensorRT Developer Guide for more information.
+    //!
+    //! The default value is nullptr.
+    //!
+    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
+    //! or absolute path in the format expected by the host operating system.
+    //!
+    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
+    //! terminator. Note that the operating system may have stricter path length requirements.
+    //!
+    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
+    //! and the directory shall be configured to disallow other users from modifying created files
+    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
+    //!
+    //! \see getTemporaryDirectory()
+    //!
+    void setTemporaryDirectory(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTemporaryDirectory(path);
+    }
+
+    //!
+    //! \brief Get the directory that will be used by this runtime for temporary files.
+    //!
+    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
+    //!
+    //! \see setTemporaryDirectory()
+    char const* getTemporaryDirectory() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTemporaryDirectory();
+    }
+
+    //!
+    //! \brief Set the tempfile control flags for this runtime.
+    //!
+    //! \param flags The flags to set.
+    //!
+    //! The default value is all flags set, i.e.
+    //!
+    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
+    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
+    //!
+    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTempfileControlFlags(flags);
+    }
+
+    //!
+    //! \brief Get the tempfile control flags for this runtime.
+    //!
+    //! \return The flags currently set.
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
+    //!
+    TempfileControlFlags getTempfileControlFlags() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTempfileControlFlags();
+    }
+
+    //!
+    //! \brief Get the local plugin registry that can be used by the runtime.
+    //!
+    //! \return The local plugin registry that can be used by the runtime.
+    //!
+    IPluginRegistry& getPluginRegistry() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getPluginRegistry();
+    }
+
+    //!
+    //! \brief Load IRuntime from the file.
+    //!
+    //! This method loads a runtime library from a shared library file. The runtime can then be used
+    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
+    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
+    //! the loaded runtime library.
+    //!
+    //! \param path Path to the runtime lean library.
+    //!
+    //! \return the runtime library, or nullptr if it could not be loaded
+    //!
+    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    IRuntime* loadRuntime(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->loadRuntime(path);
+    }
+
+    //!
+    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
+    //! code.
+    //!
+    //! The default value is false.
+    //!
+    void setEngineHostCodeAllowed(bool allowed) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setEngineHostCodeAllowed(allowed);
+    }
+
+    //!
+    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    bool getEngineHostCodeAllowed() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getEngineHostCodeAllowed();
+    }
+
+    // protected:
+    //     apiv::VRuntime* mImpl;
+};
+
+//!
+//! \brief Create an instance of an IRuntime class.
+//!
+//! \param logger The logging class for the runtime.
+//!
+inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{}; }
 
 //!
 //! \enum TensorLocation
@@ -1056,7 +1111,7 @@ class ICudaEngine : public INoCopy
     //!
     Dims getTensorShape(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorShape(tensorName);
     }
 
@@ -1073,7 +1128,7 @@ class ICudaEngine : public INoCopy
     //!
     DataType getTensorDataType(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorDataType(tensorName);
     }
 
@@ -1089,7 +1144,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getNbLayers() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbLayers();
     }
 
@@ -1104,7 +1159,7 @@ class ICudaEngine : public INoCopy
     //!
     IHostMemory* serialize() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->serialize();
     }
 
@@ -1147,7 +1202,7 @@ class ICudaEngine : public INoCopy
     //!
     TensorLocation getTensorLocation(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorLocation(tensorName);
     }
 
@@ -1170,7 +1225,7 @@ class ICudaEngine : public INoCopy
     //!
     bool isShapeInferenceIO(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->isShapeInferenceIO(tensorName);
     }
 
@@ -1187,7 +1242,7 @@ class ICudaEngine : public INoCopy
     //!
     TensorIOMode getTensorIOMode(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorIOMode(tensorName);
     }
 
@@ -1201,7 +1256,7 @@ class ICudaEngine : public INoCopy
     //!
     [[deprecated]] IExecutionContext* createExecutionContextWithoutDeviceMemory() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->createExecutionContextWithoutDeviceMemory();
     }
 
@@ -1212,7 +1267,7 @@ class ICudaEngine : public INoCopy
     //!
     size_t getDeviceMemorySize() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getDeviceMemorySize();
     }
 
@@ -1223,7 +1278,7 @@ class ICudaEngine : public INoCopy
     //!
     size_t getDeviceMemorySizeForProfile(int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getDeviceMemorySizeForProfile(profileIndex);
     }
 
@@ -1234,7 +1289,7 @@ class ICudaEngine : public INoCopy
     //!
     bool isRefittable() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->isRefittable();
     }
 
@@ -1256,7 +1311,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getTensorBytesPerComponent(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorBytesPerComponent(tensorName);
     }
 
@@ -1277,7 +1332,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getTensorBytesPerComponent(char const* tensorName, int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorBytesPerComponentV2(tensorName, profileIndex);
     }
 
@@ -1299,7 +1354,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getTensorComponentsPerElement(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorComponentsPerElement(tensorName);
     }
 
@@ -1321,7 +1376,7 @@ class ICudaEngine : public INoCopy
     int32_t getTensorComponentsPerElement(char const* tensorName,
                                           int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorComponentsPerElementV2(tensorName, profileIndex);
     }
 
@@ -1338,7 +1393,7 @@ class ICudaEngine : public INoCopy
     //!
     TensorFormat getTensorFormat(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorFormat(tensorName);
     }
 
@@ -1354,7 +1409,7 @@ class ICudaEngine : public INoCopy
     //!
     TensorFormat getTensorFormat(char const* tensorName, int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorFormatV2(tensorName, profileIndex);
     }
 
@@ -1380,7 +1435,7 @@ class ICudaEngine : public INoCopy
     //!
     char const* getTensorFormatDesc(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorFormatDesc(tensorName);
     }
 
@@ -1405,7 +1460,7 @@ class ICudaEngine : public INoCopy
     //!
     char const* getTensorFormatDesc(char const* tensorName, int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorFormatDescV2(tensorName, profileIndex);
     }
 
@@ -1425,7 +1480,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getTensorVectorizedDim(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorVectorizedDim(tensorName);
     }
 
@@ -1443,7 +1498,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getTensorVectorizedDim(char const* tensorName, int32_t profileIndex) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorVectorizedDimV2(tensorName, profileIndex);
     }
 
@@ -1459,7 +1514,7 @@ class ICudaEngine : public INoCopy
     //!
     char const* getName() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getName();
     }
 
@@ -1471,7 +1526,7 @@ class ICudaEngine : public INoCopy
     //! \see IExecutionContext::setOptimizationProfileAsync()
     int32_t getNbOptimizationProfiles() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbOptimizationProfiles();
     }
 
@@ -1498,7 +1553,7 @@ class ICudaEngine : public INoCopy
                          int32_t profileIndex,
                          OptProfileSelector select) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getProfileShape(tensorName, profileIndex, select);
     }
 
@@ -1526,7 +1581,7 @@ class ICudaEngine : public INoCopy
                                           int32_t profileIndex,
                                           OptProfileSelector select) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getProfileTensorValues(tensorName, profileIndex, select);
     }
 
@@ -1542,7 +1597,7 @@ class ICudaEngine : public INoCopy
     //!
     EngineCapability getEngineCapability() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getEngineCapability();
     }
 
@@ -1562,7 +1617,7 @@ class ICudaEngine : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setErrorRecorder(recorder);
     }
 
@@ -1578,7 +1633,7 @@ class ICudaEngine : public INoCopy
     //!
     IErrorRecorder* getErrorRecorder() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getErrorRecorder();
     }
 
@@ -1593,7 +1648,7 @@ class ICudaEngine : public INoCopy
     //!
     [[deprecated]] bool hasImplicitBatchDimension() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->hasImplicitBatchDimension();
     }
 
@@ -1610,7 +1665,7 @@ class ICudaEngine : public INoCopy
     //!
     TacticSources getTacticSources() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTacticSources();
     }
 
@@ -1624,7 +1679,7 @@ class ICudaEngine : public INoCopy
     //!
     ProfilingVerbosity getProfilingVerbosity() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getProfilingVerbosity();
     }
 
@@ -1636,7 +1691,7 @@ class ICudaEngine : public INoCopy
     //!
     IEngineInspector* createEngineInspector() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->createEngineInspector();
     }
 
@@ -1651,7 +1706,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getNbIOTensors() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbIOTensors();
     }
 
@@ -1664,7 +1719,7 @@ class ICudaEngine : public INoCopy
     //!
     char const* getIOTensorName(int32_t index) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getIOTensorName(index);
     }
 
@@ -1678,7 +1733,7 @@ class ICudaEngine : public INoCopy
     //!
     HardwareCompatibilityLevel getHardwareCompatibilityLevel() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getHardwareCompatibilityLevel();
     }
 
@@ -1694,7 +1749,7 @@ class ICudaEngine : public INoCopy
     //!
     int32_t getNbAuxStreams() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbAuxStreams();
     }
 
@@ -1705,7 +1760,7 @@ class ICudaEngine : public INoCopy
     //!
     ISerializationConfig* createSerializationConfig() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->createSerializationConfig();
     }
 
@@ -1720,7 +1775,7 @@ class ICudaEngine : public INoCopy
     //!
     IHostMemory* serializeWithConfig(ISerializationConfig& config) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->serializeWithConfig(config);
     }
 
@@ -1766,7 +1821,7 @@ class ICudaEngine : public INoCopy
     //!
     bool setWeightStreamingBudget(int64_t gpuMemoryBudget) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setWeightStreamingBudget(gpuMemoryBudget);
     }
 
@@ -1786,7 +1841,7 @@ class ICudaEngine : public INoCopy
     //!
     int64_t getWeightStreamingBudget() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getWeightStreamingBudget();
     }
 
@@ -1809,7 +1864,7 @@ class ICudaEngine : public INoCopy
     //!
     int64_t getMinimumWeightStreamingBudget() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getMinimumWeightStreamingBudget();
     }
 
@@ -1828,7 +1883,7 @@ class ICudaEngine : public INoCopy
     //!
     int64_t getStreamableWeightsSize() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getStreamableWeightsSize();
     }
 
@@ -1843,7 +1898,7 @@ class ICudaEngine : public INoCopy
     //!
     bool isDebugTensor(char const* name) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->isDebugTensor(name);
     }
 
@@ -1878,7 +1933,7 @@ class IExecutionContext : public INoCopy
     //!
     void setDebugSync(bool sync) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setDebugSync(sync);
     }
 
@@ -1889,7 +1944,7 @@ class IExecutionContext : public INoCopy
     //!
     bool getDebugSync() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getDebugSync();
     }
 
@@ -1900,7 +1955,7 @@ class IExecutionContext : public INoCopy
     //!
     void setProfiler(IProfiler* profiler) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setProfiler(profiler);
     }
 
@@ -1911,7 +1966,7 @@ class IExecutionContext : public INoCopy
     //!
     IProfiler* getProfiler() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getProfiler();
     }
 
@@ -1922,7 +1977,7 @@ class IExecutionContext : public INoCopy
     //!
     ICudaEngine const& getEngine() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getEngine();
     }
 
@@ -1938,7 +1993,7 @@ class IExecutionContext : public INoCopy
     //!
     void setName(char const* name) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setName(name);
     }
 
@@ -1949,7 +2004,7 @@ class IExecutionContext : public INoCopy
     //!
     char const* getName() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getName();
     }
 
@@ -1973,7 +2028,7 @@ class IExecutionContext : public INoCopy
     //!
     void setDeviceMemory(void* memory) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setDeviceMemory(memory);
     }
 
@@ -1996,7 +2051,7 @@ class IExecutionContext : public INoCopy
     //!
     Dims getTensorStrides(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorStrides(tensorName);
     }
 
@@ -2012,7 +2067,7 @@ class IExecutionContext : public INoCopy
     //!
     int32_t getOptimizationProfile() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getOptimizationProfile();
     }
 
@@ -2032,7 +2087,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setInputShape(char const* tensorName, Dims const& dims) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setInputShape(tensorName, dims);
     }
 
@@ -2073,7 +2128,7 @@ class IExecutionContext : public INoCopy
     //!
     Dims getTensorShape(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorShape(tensorName);
     }
 
@@ -2090,7 +2145,7 @@ class IExecutionContext : public INoCopy
     //!
     bool allInputDimensionsSpecified() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->allInputDimensionsSpecified();
     }
 
@@ -2109,7 +2164,7 @@ class IExecutionContext : public INoCopy
     //!
     [[deprecated]] bool allInputShapesSpecified() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->allInputShapesSpecified();
     }
 
@@ -2129,7 +2184,7 @@ class IExecutionContext : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setErrorRecorder(recorder);
     }
 
@@ -2145,7 +2200,7 @@ class IExecutionContext : public INoCopy
     //!
     IErrorRecorder* getErrorRecorder() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getErrorRecorder();
     }
 
@@ -2163,7 +2218,7 @@ class IExecutionContext : public INoCopy
     //!
     bool executeV2(void* const* bindings) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->executeV2(bindings);
     }
 
@@ -2208,7 +2263,7 @@ class IExecutionContext : public INoCopy
     //! \see ICudaEngine::getNbOptimizationProfiles()
     bool setOptimizationProfileAsync(int32_t profileIndex, hipStream_t stream) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setOptimizationProfileAsync(profileIndex, stream);
     }
 
@@ -2225,7 +2280,7 @@ class IExecutionContext : public INoCopy
     //!
     void setEnqueueEmitsProfile(bool enqueueEmitsProfile) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setEnqueueEmitsProfile(enqueueEmitsProfile);
     }
 
@@ -2238,7 +2293,7 @@ class IExecutionContext : public INoCopy
     //!
     bool getEnqueueEmitsProfile() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getEnqueueEmitsProfile();
     }
 
@@ -2272,7 +2327,7 @@ class IExecutionContext : public INoCopy
     //!
     bool reportToProfiler() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->reportToProfiler();
     }
 
@@ -2317,7 +2372,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setTensorAddress(char const* tensorName, void* data) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setTensorAddress(tensorName, data);
     }
 
@@ -2336,7 +2391,7 @@ class IExecutionContext : public INoCopy
     //!
     void const* getTensorAddress(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTensorAddress(tensorName);
     }
 
@@ -2361,7 +2416,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setOutputTensorAddress(char const* tensorName, void* data) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setOutputTensorAddress(tensorName, data);
     }
 
@@ -2385,7 +2440,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setInputTensorAddress(char const* tensorName, void const* data) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setInputTensorAddress(tensorName, data);
     }
 
@@ -2407,7 +2462,7 @@ class IExecutionContext : public INoCopy
     //!
     void* getOutputTensorAddress(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getOutputTensorAddress(tensorName);
     }
 
@@ -2442,7 +2497,7 @@ class IExecutionContext : public INoCopy
     //!
     int32_t inferShapes(int32_t nbMaxNames, char const** tensorNames) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->inferShapes(nbMaxNames, tensorNames);
     }
 
@@ -2461,7 +2516,7 @@ class IExecutionContext : public INoCopy
     //!
     size_t updateDeviceMemorySizeForShapes() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->updateDeviceMemorySizeForShapes();
     }
 
@@ -2478,7 +2533,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setInputConsumedEvent(hipEvent_t event) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setInputConsumedEvent(event);
     }
 
@@ -2489,7 +2544,7 @@ class IExecutionContext : public INoCopy
     //!
     hipEvent_t getInputConsumedEvent() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getInputConsumedEvent();
     }
 
@@ -2511,7 +2566,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setOutputAllocator(char const* tensorName, IOutputAllocator* outputAllocator) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setOutputAllocator(tensorName, outputAllocator);
     }
 
@@ -2526,7 +2581,7 @@ class IExecutionContext : public INoCopy
     //!
     IOutputAllocator* getOutputAllocator(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getOutputAllocator(tensorName);
     }
 
@@ -2546,7 +2601,7 @@ class IExecutionContext : public INoCopy
     //!
     int64_t getMaxOutputSize(char const* tensorName) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getMaxOutputSize(tensorName);
     }
 
@@ -2567,7 +2622,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setTemporaryStorageAllocator(IGpuAllocator* allocator) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setTemporaryStorageAllocator(allocator);
     }
 
@@ -2578,7 +2633,7 @@ class IExecutionContext : public INoCopy
     //!
     IGpuAllocator* getTemporaryStorageAllocator() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getTemporaryStorageAllocator();
     }
 
@@ -2603,7 +2658,7 @@ class IExecutionContext : public INoCopy
     //!
     bool enqueueV3(hipStream_t stream) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->enqueueV3(stream);
     }
 
@@ -2620,7 +2675,7 @@ class IExecutionContext : public INoCopy
     //! \see getPersistentCacheLimit
     void setPersistentCacheLimit(size_t size) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setPersistentCacheLimit(size);
     }
 
@@ -2632,7 +2687,7 @@ class IExecutionContext : public INoCopy
     //! \see setPersistentCacheLimit
     size_t getPersistentCacheLimit() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getPersistentCacheLimit();
     }
 
@@ -2657,7 +2712,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setNvtxVerbosity(ProfilingVerbosity verbosity) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setNvtxVerbosity(verbosity);
     }
 
@@ -2670,7 +2725,7 @@ class IExecutionContext : public INoCopy
     //!
     ProfilingVerbosity getNvtxVerbosity() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNvtxVerbosity();
     }
 
@@ -2709,7 +2764,7 @@ class IExecutionContext : public INoCopy
     //!
     void setAuxStreams(hipStream_t* auxStreams, int32_t nbStreams) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setAuxStreams(auxStreams, nbStreams);
     }
 
@@ -2722,7 +2777,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setDebugListener(IDebugListener* listener) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setDebugListener(listener);
     }
 
@@ -2733,7 +2788,7 @@ class IExecutionContext : public INoCopy
     //!
     IDebugListener* getDebugListener() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getDebugListener();
     }
 
@@ -2753,7 +2808,7 @@ class IExecutionContext : public INoCopy
     //!
     bool setTensorDebugState(char const* name, bool flag) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setTensorDebugState(name, flag);
     }
 
@@ -2767,7 +2822,7 @@ class IExecutionContext : public INoCopy
     //! The default is off.
     bool setAllTensorsDebugState(bool flag) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setAllTensorsDebugState(flag);
     }
 
@@ -2779,7 +2834,7 @@ class IExecutionContext : public INoCopy
     //!
     bool getDebugState(char const* name) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getDebugState(name);
     }
 
@@ -3164,7 +3219,7 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* addInput(char const* name, DataType type, Dims const& dimensions) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addInput(name, type, dimensions);
     }
 
@@ -3179,7 +3234,7 @@ class INetworkDefinition : public INoCopy
     //!
     void markOutput(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->markOutput(tensor);
     }
 
@@ -3198,7 +3253,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool markDebug(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->markDebug(tensor);
     }
 
@@ -3215,7 +3270,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool unmarkDebug(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->unmarkDebug(tensor);
     }
 
@@ -3226,7 +3281,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool isDebugTensor(ITensor const& tensor) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->isDebugTensor(tensor);
     }
 
@@ -3247,7 +3302,7 @@ class INetworkDefinition : public INoCopy
     //!
     IActivationLayer* addActivation(ITensor& input, ActivationType type) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addActivation(input, type);
     }
 
@@ -3267,7 +3322,7 @@ class INetworkDefinition : public INoCopy
     //!
     ILRNLayer* addLRN(ITensor& input, int64_t window, float alpha, float beta, float k) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addLRN(input, window, alpha, beta, k);
     }
 
@@ -3296,7 +3351,7 @@ class INetworkDefinition : public INoCopy
     IScaleLayer*
     addScale(ITensor& input, ScaleMode mode, Weights shift, Weights scale, Weights power) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addScale(input, mode, shift, scale, power);
     }
 
@@ -3310,7 +3365,7 @@ class INetworkDefinition : public INoCopy
     //!
     ISoftMaxLayer* addSoftMax(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addSoftMax(input);
     }
 
@@ -3328,7 +3383,7 @@ class INetworkDefinition : public INoCopy
     //!
     IConcatenationLayer* addConcatenation(ITensor* const* inputs, int32_t nbInputs) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addConcatenation(inputs, nbInputs);
     }
 
@@ -3357,7 +3412,7 @@ class INetworkDefinition : public INoCopy
     IElementWiseLayer*
     addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addElementWise(input1, input2, op);
     }
 
@@ -3380,7 +3435,7 @@ class INetworkDefinition : public INoCopy
     //!
     IUnaryLayer* addUnary(ITensor& input, UnaryOperation operation) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addUnary(input, operation);
     }
 
@@ -3395,7 +3450,7 @@ class INetworkDefinition : public INoCopy
     //!
     IShuffleLayer* addShuffle(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addShuffle(input);
     }
 
@@ -3414,7 +3469,7 @@ class INetworkDefinition : public INoCopy
     IOneHotLayer*
     addOneHot(ITensor& indices, ITensor& values, ITensor& depth, int32_t axis) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addOneHot(indices, values, depth, axis);
     }
 
@@ -3427,7 +3482,7 @@ class INetworkDefinition : public INoCopy
     //!
     int32_t getNbLayers() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbLayers();
     }
 
@@ -3442,7 +3497,7 @@ class INetworkDefinition : public INoCopy
     //!
     ILayer* getLayer(int32_t index) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getLayer(index);
     }
 
@@ -3455,7 +3510,7 @@ class INetworkDefinition : public INoCopy
     //!
     int32_t getNbInputs() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbInputs();
     }
 
@@ -3472,7 +3527,7 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* getInput(int32_t index) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getInput(index);
     }
 
@@ -3487,7 +3542,7 @@ class INetworkDefinition : public INoCopy
     //!
     int32_t getNbOutputs() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbOutputs();
     }
 
@@ -3504,7 +3559,7 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* getOutput(int32_t index) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getOutput(index);
     }
 
@@ -3534,7 +3589,7 @@ class INetworkDefinition : public INoCopy
                             uint32_t reduceAxes,
                             bool keepDimensions) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addReduce(input, operation, reduceAxes, keepDimensions);
     }
 
@@ -3570,7 +3625,7 @@ class INetworkDefinition : public INoCopy
     //!
     ITopKLayer* addTopK(ITensor& input, TopKOperation op, int32_t k, uint32_t reduceAxes) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addTopK(input, op, k, reduceAxes);
     }
 
@@ -3587,7 +3642,7 @@ class INetworkDefinition : public INoCopy
     //!
     IGatherLayer* addGather(ITensor& data, ITensor& indices, int32_t axis) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addGather(data, indices, axis);
     }
 
@@ -3604,7 +3659,7 @@ class INetworkDefinition : public INoCopy
     //!
     IGatherLayer* addGatherV2(ITensor& data, ITensor& indices, GatherMode mode) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addGatherV2(data, indices, mode);
     }
 
@@ -3624,7 +3679,7 @@ class INetworkDefinition : public INoCopy
     //!
     IRaggedSoftMaxLayer* addRaggedSoftMax(ITensor& input, ITensor& bounds) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addRaggedSoftMax(input, bounds);
     }
 
@@ -3649,7 +3704,7 @@ class INetworkDefinition : public INoCopy
                                             ITensor& input1,
                                             MatrixOperation op1) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addMatrixMultiply(input0, op0, input1, op1);
     }
 
@@ -3664,7 +3719,7 @@ class INetworkDefinition : public INoCopy
     //!
     INonZeroLayer* addNonZero(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addNonZero(input);
     }
 
@@ -3689,7 +3744,7 @@ class INetworkDefinition : public INoCopy
     //!
     IConstantLayer* addConstant(Dims const& dimensions, Weights weights) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addConstant(dimensions, weights);
     }
 
@@ -3704,7 +3759,7 @@ class INetworkDefinition : public INoCopy
     //!
     IIdentityLayer* addIdentity(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addIdentity(input);
     }
 
@@ -3720,7 +3775,7 @@ class INetworkDefinition : public INoCopy
     //!
     ICastLayer* addCast(ITensor& input, DataType toType) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addCast(input, toType);
     }
 
@@ -3736,7 +3791,7 @@ class INetworkDefinition : public INoCopy
     //!
     void removeTensor(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->removeTensor(tensor);
     }
 
@@ -3749,7 +3804,7 @@ class INetworkDefinition : public INoCopy
     //!
     void unmarkOutput(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->unmarkOutput(tensor);
     }
 
@@ -3770,7 +3825,7 @@ class INetworkDefinition : public INoCopy
     IPluginV2Layer*
     addPluginV2(ITensor* const* inputs, int32_t nbInputs, IPluginV2& plugin) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addPluginV2(inputs, nbInputs, plugin);
     }
 
@@ -3793,7 +3848,7 @@ class INetworkDefinition : public INoCopy
                                 int32_t nbShapeInputs,
                                 IPluginV3& plugin) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addPluginV3(inputs, nbInputs, shapeInputs, nbShapeInputs, plugin);
     }
 
@@ -3815,7 +3870,7 @@ class INetworkDefinition : public INoCopy
     ISliceLayer*
     addSlice(ITensor& input, Dims const& start, Dims const& size, Dims const& stride) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addSlice(input, start, size, stride);
     }
 
@@ -3841,7 +3896,7 @@ class INetworkDefinition : public INoCopy
     //!
     void setName(char const* name) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setName(name);
     }
 
@@ -3856,7 +3911,7 @@ class INetworkDefinition : public INoCopy
     //!
     char const* getName() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getName();
     }
 
@@ -3873,7 +3928,7 @@ class INetworkDefinition : public INoCopy
     //!
     IShapeLayer* addShape(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addShape(input);
     }
 
@@ -3889,7 +3944,7 @@ class INetworkDefinition : public INoCopy
     //!
     [[deprecated]] bool hasImplicitBatchDimension() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->hasImplicitBatchDimension();
     }
 
@@ -3901,7 +3956,7 @@ class INetworkDefinition : public INoCopy
     //!
     NetworkDefinitionCreationFlags getFlags() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getFlags();
     }
 
@@ -3914,7 +3969,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool getFlag(NetworkDefinitionCreationFlag networkDefinitionCreationFlag) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getFlag(networkDefinitionCreationFlag);
     }
 
@@ -3933,7 +3988,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool markOutputForShapes(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->markOutputForShapes(tensor);
     }
 
@@ -3946,7 +4001,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool unmarkOutputForShapes(ITensor& tensor) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->unmarkOutputForShapes(tensor);
     }
 
@@ -3966,7 +4021,7 @@ class INetworkDefinition : public INoCopy
     //!
     IParametricReLULayer* addParametricReLU(ITensor& input, ITensor& slope) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addParametricReLU(input, slope);
     }
 
@@ -3993,7 +4048,7 @@ class INetworkDefinition : public INoCopy
                                         Weights kernelWeights,
                                         Weights biasWeights) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addConvolutionNd(input, nbOutputMaps, kernelSize, kernelWeights,
         // biasWeights);
     }
@@ -4014,7 +4069,7 @@ class INetworkDefinition : public INoCopy
     //!
     IPoolingLayer* addPoolingNd(ITensor& input, PoolingType type, Dims const& windowSize) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addPoolingNd(input, type, windowSize);
     }
 
@@ -4041,7 +4096,7 @@ class INetworkDefinition : public INoCopy
                                             Weights kernelWeights,
                                             Weights biasWeights) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addDeconvolutionNd(input, nbOutputMaps, kernelSize, kernelWeights,
         // biasWeights);
     }
@@ -4084,7 +4139,7 @@ class INetworkDefinition : public INoCopy
                             Weights power,
                             int32_t channelAxis) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addScaleNd(input, mode, shift, scale, power, channelAxis);
     }
 
@@ -4101,7 +4156,7 @@ class INetworkDefinition : public INoCopy
     //!
     IResizeLayer* addResize(ITensor& input) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addResize(input);
     }
 
@@ -4116,7 +4171,7 @@ class INetworkDefinition : public INoCopy
     //!
     ILoop* addLoop() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addLoop();
     }
 
@@ -4132,7 +4187,7 @@ class INetworkDefinition : public INoCopy
     //!
     IIfConditional* addIfConditional() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addIfConditional();
     }
 
@@ -4172,7 +4227,7 @@ class INetworkDefinition : public INoCopy
     //! \return The new select layer, or nullptr if it could not be created.
     ISelectLayer* addSelect(ITensor& condition, ITensor& thenInput, ITensor& elseInput) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addSelect(condition, thenInput, elseInput);
     }
 
@@ -4190,7 +4245,7 @@ class INetworkDefinition : public INoCopy
     //!
     IAssertionLayer* addAssertion(ITensor& condition, char const* message) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addAssertion(condition, message);
     }
 
@@ -4216,7 +4271,7 @@ class INetworkDefinition : public INoCopy
     //!
     [[deprecated]] IFillLayer* addFill(Dims const& dimensions, FillOperation op) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addFill(dimensions, op);
     }
 
@@ -4244,7 +4299,7 @@ class INetworkDefinition : public INoCopy
     //!
     IFillLayer* addFill(Dims const& dimensions, FillOperation op, DataType outputType) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addFillV2(dimensions, op, outputType);
     }
 
@@ -4262,7 +4317,7 @@ class INetworkDefinition : public INoCopy
     IPaddingLayer*
     addPaddingNd(ITensor& input, Dims const& prePadding, Dims const& postPadding) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addPaddingNd(input, prePadding, postPadding);
     }
 
@@ -4288,7 +4343,7 @@ class INetworkDefinition : public INoCopy
     //!
     bool setWeightsName(Weights weights, char const* name) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setWeightsName(weights, name);
     }
 
@@ -4308,7 +4363,7 @@ class INetworkDefinition : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setErrorRecorder(recorder);
     }
 
@@ -4324,7 +4379,7 @@ class INetworkDefinition : public INoCopy
     //!
     IErrorRecorder* getErrorRecorder() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getErrorRecorder();
     }
 
@@ -4346,7 +4401,7 @@ class INetworkDefinition : public INoCopy
     //!
     [[deprecated]] IDequantizeLayer* addDequantize(ITensor& input, ITensor& scale) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addDequantize(input, scale);
     }
 
@@ -4369,7 +4424,7 @@ class INetworkDefinition : public INoCopy
     //!
     IDequantizeLayer* addDequantize(ITensor& input, ITensor& scale, DataType outputType) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addDequantizeV2(input, scale, outputType);
     }
 
@@ -4391,7 +4446,7 @@ class INetworkDefinition : public INoCopy
     IScatterLayer*
     addScatter(ITensor& data, ITensor& indices, ITensor& updates, ScatterMode mode) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addScatter(data, indices, updates, mode);
     }
 
@@ -4413,7 +4468,7 @@ class INetworkDefinition : public INoCopy
     //!
     [[deprecated]] IQuantizeLayer* addQuantize(ITensor& input, ITensor& scale) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addQuantize(input, scale);
     }
 
@@ -4436,7 +4491,7 @@ class INetworkDefinition : public INoCopy
     //!
     IQuantizeLayer* addQuantize(ITensor& input, ITensor& scale, DataType outputType) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addQuantizeV2(input, scale, outputType);
     }
 
@@ -4452,7 +4507,7 @@ class INetworkDefinition : public INoCopy
     //!
     IEinsumLayer* addEinsum(ITensor* const* inputs, int32_t nbInputs, char const* equation) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addEinsum(inputs, nbInputs, equation);
     }
 
@@ -4471,7 +4526,7 @@ class INetworkDefinition : public INoCopy
     //!
     IGridSampleLayer* addGridSample(ITensor& input, ITensor& grid) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addGridSample(input, grid);
     }
 
@@ -4490,7 +4545,7 @@ class INetworkDefinition : public INoCopy
     //!
     INMSLayer* addNMS(ITensor& boxes, ITensor& scores, ITensor& maxOutputBoxesPerClass) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addNMS(boxes, scores, maxOutputBoxesPerClass);
     }
 
@@ -4510,7 +4565,7 @@ class INetworkDefinition : public INoCopy
     //!
     IReverseSequenceLayer* addReverseSequence(ITensor& input, ITensor& sequenceLens) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addReverseSequence(input, sequenceLens);
     }
 
@@ -4539,7 +4594,7 @@ class INetworkDefinition : public INoCopy
     INormalizationLayer*
     addNormalization(ITensor& input, ITensor& scale, ITensor& bias, uint32_t axesMask) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->addNormalization(input, scale, bias, axesMask);
     }
 
@@ -4551,12 +4606,1164 @@ class INetworkDefinition : public INoCopy
     //! \return the builder
     virtual IBuilder& getBuilder() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getBuilder();
     }
 
-    // protected:
+    void setProgram(std::shared_ptr<migraphx::program> program)
+    {
+        program_ = program;
+        std::cout << *program_ << std::endl;
+    }
+
+    const migraphx::program* getProgram() const { return program_.get(); }
+
+    protected:
     //     apiv::VNetworkDefinition* mImpl;
+    std::shared_ptr<migraphx::program> program_;
+};
+
+//!
+//! \brief Represents one or more BuilderFlag values using binary OR
+//! operations, e.g., 1U << BuilderFlag::kFP16 | 1U << BuilderFlag::kDEBUG.
+//!
+//! \see IBuilderConfig::setFlags(), IBuilderConfig::getFlags()
+//!
+using BuilderFlags = uint32_t;
+
+//!
+//! \enum BuilderFlag
+//!
+//! \brief List of valid modes that the builder can enable when creating an engine from a network
+//! definition.
+//!
+//! \see IBuilderConfig::setFlags(), IBuilderConfig::getFlags()
+//!
+enum class BuilderFlag : int32_t
+{
+    //! Enable FP16 layer selection, with FP32 fallback.
+    kFP16 = 0,
+
+    //! Enable Int8 layer selection, with FP32 fallback with FP16 fallback if kFP16 also specified.
+    kINT8 = 1,
+
+    //! Enable debugging of layers via synchronizing after every layer.
+    kDEBUG = 2,
+
+    //! Enable layers marked to execute on GPU if layer cannot execute on DLA.
+    kGPU_FALLBACK = 3,
+
+    //! Enable building a refittable engine.
+    kREFIT = 4,
+
+    //! Disable reuse of timing information across identical layers.
+    kDISABLE_TIMING_CACHE = 5,
+
+    //! Allow (but not require) computations on tensors of type DataType::kFLOAT to use TF32.
+    //! TF32 computes inner products by rounding the inputs to 10-bit mantissas before
+    //! multiplying, but accumulates the sum using 23-bit mantissas. Enabled by default.
+    kTF32 = 6,
+
+    //! Allow the builder to examine weights and use optimized functions when weights have suitable
+    //! sparsity.
+    kSPARSE_WEIGHTS = 7,
+
+    //! Change the allowed parameters in the EngineCapability::kSTANDARD flow to
+    //! match the restrictions that EngineCapability::kSAFETY check against for DeviceType::kGPU
+    //! and EngineCapability::kDLA_STANDALONE check against the DeviceType::kDLA case. This flag
+    //! is forced to true if EngineCapability::kSAFETY at build time if it is unset.
+    //!
+    //! This flag is only supported in NVIDIA Drive(R) products.
+    kSAFETY_SCOPE = 8,
+
+    //! Require that layers execute in specified precisions. Build fails otherwise.
+    kOBEY_PRECISION_CONSTRAINTS = 9,
+
+    //! Prefer that layers execute in specified precisions.
+    //! Fall back (with warning) to another precision if build would otherwise fail.
+    kPREFER_PRECISION_CONSTRAINTS = 10,
+
+    //! Require that no reformats be inserted between a layer and a network I/O tensor
+    //! for which ITensor::setAllowedFormats was called.
+    //! Build fails if a reformat is required for functional correctness.
+    kDIRECT_IO = 11,
+
+    //! Fail if IAlgorithmSelector::selectAlgorithms returns an empty set of algorithms.
+    kREJECT_EMPTY_ALGORITHMS = 12,
+
+    //! Restrict to lean runtime operators to provide version forward compatibility
+    //! for the plan.
+    //!
+    //! This flag is only supported by NVIDIA Volta and later GPUs.
+    //! This flag is not supported in NVIDIA Drive(R) products.
+    kVERSION_COMPATIBLE = 13,
+
+    //! Exclude lean runtime from the plan when version forward compatability is enabled.
+    //! By default, this flag is unset, so the lean runtime will be included in the plan.
+    //!
+    //! If BuilderFlag::kVERSION_COMPATIBLE is not set then the value of this flag will be ignored.
+    kEXCLUDE_LEAN_RUNTIME = 14,
+
+    //! Enable FP8 layer selection, with FP32 fallback.
+    //!
+    //! This flag is not supported with hardware-compatibility mode.
+    //!
+    //! \see HardwareCompatibilityLevel
+    kFP8 = 15,
+
+    //! Emit error when a tactic being timed is not present in the timing cache.
+    //! This flag has an effect only when IBuilderConfig has an associated ITimingCache.
+    kERROR_ON_TIMING_CACHE_MISS = 16,
+
+    //! Enable DataType::kBF16 layer selection, with FP32 fallback.
+    //! This flag is only supported by NVIDIA Ampere and later GPUs.
+    kBF16 = 17,
+
+    //! Disable caching of JIT-compilation results during engine build.
+    //! By default, JIT-compiled code will be serialized as part of the timing cache, which may
+    //! significantly increase the cache size. Setting this flag prevents the code from being
+    //! serialized. This flag has an effect only when BuilderFlag::DISABLE_TIMING_CACHE is not set.
+    kDISABLE_COMPILATION_CACHE = 18,
+
+    //! Strip the refittable weights from the engine plan file.
+    kSTRIP_PLAN = 19,
+
+    //! \deprecated Deprecated in TensorRT 10.0. Superseded by kSTRIP_PLAN.
+    kWEIGHTLESS = kSTRIP_PLAN,
+
+    //! Create a refittable engine under the assumption that the refit weights will be identical to
+    //! those provided at build time. The resulting engine will have the same performance as a
+    //! non-refittable one. All refittable weights can be refitted through the refit API, but if the
+    //! refit weights are not identical to the build-time weights, behavior is undefined. When used
+    //! alongside 'kSTRIP_PLAN', this flag will result in a small plan file for which weights are
+    //! later supplied via refitting. This enables use of a single set of weights with different
+    //! inference backends, or with TensorRT plans for multiple GPU architectures.
+    kREFIT_IDENTICAL = 20,
+
+    //!
+    //! \brief Enable weight streaming for the current engine.
+    //!
+    //! Weight streaming from the host enables execution of models that do not fit
+    //! in GPU memory by allowing TensorRT to intelligently stream network weights
+    //! from the CPU DRAM. Please see ICudaEngine::getMinimumWeightStreamingBudget
+    //! for the default memory budget when this flag is enabled.
+    //!
+    //! Enabling this feature changes the behavior of
+    //! IRuntime::deserializeCudaEngine to allocate the entire network’s weights
+    //! on the CPU DRAM instead of GPU memory. Then,
+    //! ICudaEngine::createExecutionContext will determine the optimal split of
+    //! weights between the CPU and GPU and place weights accordingly.
+    //!
+    //! Future TensorRT versions may enable this flag by default.
+    //!
+    //! \warning Enabling this flag may marginally increase build time.
+    //!
+    //! \warning Enabling this feature will significantly increase the latency of
+    //!          ICudaEngine::createExecutionContext.
+    //!
+    //! \see IRuntime::deserializeCudaEngine,
+    //!      ICudaEngine::getMinimumWeightStreamingBudget,
+    //!      ICudaEngine::setWeightStreamingBudget
+    //!
+    kWEIGHT_STREAMING = 21,
+};
+
+//!
+//! \enum DeviceType
+//! \brief The device that this layer/network will execute on.
+//!
+//!
+enum class DeviceType : int32_t
+{
+    kGPU = 0, //!< GPU Device
+    kDLA = 1, //!< DLA Core
+};
+
+//!
+//! \brief Represents one or more QuantizationFlag values using binary OR
+//! operations.
+//!
+//! \see IBuilderConfig::getQuantizationFlags(), IBuilderConfig::setQuantizationFlags()
+//!
+using QuantizationFlags = uint32_t;
+
+//!
+//! \enum QuantizationFlag
+//!
+//! \brief List of valid flags for quantizing the network to int8
+//!
+//! \see IBuilderConfig::setQuantizationFlag(), IBuilderConfig::getQuantizationFlag()
+//!
+enum class QuantizationFlag : int32_t
+{
+    //! Run int8 calibration pass before layer fusion. Only valid for IInt8LegacyCalibrator and
+    //! IInt8EntropyCalibrator. The builder always runs the int8 calibration pass before layer
+    //! fusion for IInt8MinMaxCalibrator and IInt8EntropyCalibrator2. Disabled by default.
+    kCALIBRATE_BEFORE_FUSION = 0
+};
+
+//!
+//! \enum MemoryPoolType
+//!
+//! \brief The type for memory pools used by TensorRT.
+//!
+//! \see IBuilderConfig::setMemoryPoolLimit, IBuilderConfig::getMemoryPoolLimit
+//!
+enum class MemoryPoolType : int32_t
+{
+    //!
+    //! kWORKSPACE is used by TensorRT to store intermediate buffers within an operation.
+    //! This defaults to max device memory. Set to a smaller value to restrict tactics that use over
+    //! the threshold en masse. For more targeted removal of tactics use the IAlgorithmSelector
+    //! interface.
+    //!
+    kWORKSPACE = 0,
+
+    //!
+    //! kDLA_MANAGED_SRAM is a fast software managed RAM used by DLA to communicate within a layer.
+    //! The size of this pool must be at least 4 KiB and must be a power of 2.
+    //! This defaults to 1 MiB.
+    //! Orin has capacity of 1 MiB per core.
+    //!
+    kDLA_MANAGED_SRAM = 1,
+
+    //!
+    //! kDLA_LOCAL_DRAM is host RAM used by DLA to share intermediate tensor data across operations.
+    //! The size of this pool must be at least 4 KiB and must be a power of 2.
+    //! This defaults to 1 GiB.
+    //!
+    kDLA_LOCAL_DRAM = 2,
+
+    //!
+    //! kDLA_GLOBAL_DRAM is host RAM used by DLA to store weights and metadata for execution.
+    //! The size of this pool must be at least 4 KiB and must be a power of 2.
+    //! This defaults to 512 MiB.
+    //!
+    kDLA_GLOBAL_DRAM = 3,
+
+    //!
+    //! kTACTIC_DRAM is the device DRAM used by the optimizer to
+    //! run tactics. On embedded devices, where host and device memory are unified, this includes
+    //! all host memory required by TensorRT to build the network up to the point of each memory
+    //! allocation. This defaults to 75% of totalGlobalMem as reported by cudaGetDeviceProperties
+    //! when cudaGetDeviceProperties.embedded is true, and 100% otherwise.
+    //!
+    kTACTIC_DRAM = 4,
+
+    //!
+    //! kTACTIC_SHARED_MEMORY defines the maximum sum of shared memory reserved by the driver and
+    //! used for executing CUDA kernels. Adjust this value to restrict tactics that exceed the
+    //! specified threshold en masse. The default value is device max capability. This value must
+    //! be less than 1GiB.
+    //!
+    //! The driver reserved shared memory can be queried from cuDeviceGetAttribute(&reservedShmem,
+    //! CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK).
+    //!
+    //! Updating this flag will override the shared memory limit set by \ref
+    //! HardwareCompatibilityLevel, which defaults to 48KiB - reservedShmem.
+    //!
+    kTACTIC_SHARED_MEMORY = 5,
+};
+
+//!
+//! \enum PreviewFeature
+//!
+//! \brief Define preview features
+//!
+//! Preview Features have been fully tested but are not yet as stable as other features in TensorRT.
+//! They are provided as opt-in features for at least one release.
+//!
+enum class PreviewFeature : int32_t
+{
+    //!
+    //! Allows optimization profiles to be shared across execution contexts.
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. The default value for this flag is on and can not
+    //! be changed.
+    //!
+    kPROFILE_SHARING_0806 = 0,
+};
+
+//!
+//! \class IBuilderConfig
+//!
+//! \brief Holds properties for configuring a builder to produce an engine.
+//!
+//! \see BuilderFlags
+//!
+class IBuilderConfig : public INoCopy
+{
+    public:
+    virtual ~IBuilderConfig() noexcept = default;
+
+    //!
+    //! \brief Set the number of averaging iterations used when timing layers.
+    //!
+    //! When timing layers, the builder minimizes over a set of average times for layer execution.
+    //! This parameter controls the number of iterations used in averaging.
+    //!
+    //! \see getAvgTimingIterations()
+    //!
+    virtual void setAvgTimingIterations(int32_t avgTiming) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setAvgTimingIterations(avgTiming);
+    }
+
+    //!
+    //! \brief Query the number of averaging iterations.
+    //!
+    //! By default the number of averaging iterations is 1.
+    //!
+    //! \see setAvgTimingIterations()
+    //!
+    int32_t getAvgTimingIterations() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getAvgTimingIterations();
+    }
+
+    //!
+    //! \brief Configure the builder to target specified EngineCapability flow.
+    //!
+    //! The flow means a sequence of API calls that allow an application to set up a runtime,
+    //! engine, and execution context in order to run inference.
+    //!
+    //! The supported flows are specified in the EngineCapability enum.
+    //!
+    void setEngineCapability(EngineCapability capability) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setEngineCapability(capability);
+    }
+
+    //!
+    //! \brief Query EngineCapability flow configured for the builder.
+    //!
+    //! By default it returns EngineCapability::kSTANDARD.
+    //!
+    //! \see setEngineCapability()
+    //!
+    EngineCapability getEngineCapability() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getEngineCapability();
+    }
+
+    //!
+    //! \brief Set Int8 Calibration interface.
+    //!
+    //! The calibrator is to minimize the information loss during the INT8 quantization process.
+    //!
+    void setInt8Calibrator(IInt8Calibrator* calibrator) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setInt8Calibrator(calibrator);
+    }
+
+    //!
+    //! \brief Get Int8 Calibration interface.
+    //!
+    IInt8Calibrator* getInt8Calibrator() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getInt8Calibrator();
+    }
+
+    //!
+    //! \brief Set the build mode flags to turn on builder options for this network.
+    //!
+    //! The flags are listed in the BuilderFlags enum.
+    //! The flags set configuration options to build the network.
+    //!
+    //! \param builderFlags The build option for an engine.
+    //!
+    //! \note This function will override the previous set flags, rather than bitwise ORing the new
+    //! flag.
+    //!
+    //! \see getFlags()
+    //!
+    void setFlags(BuilderFlags builderFlags) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setFlags(builderFlags);
+    }
+
+    //!
+    //! \brief Get the build mode flags for this builder config. Defaults to 0.
+    //!
+    //! \return The build options as a bitmask.
+    //!
+    //! \see setFlags()
+    //!
+    BuilderFlags getFlags() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getFlags();
+    }
+
+    //!
+    //! \brief clear a single build mode flag.
+    //!
+    //! clears the builder mode flag from the enabled flags.
+    //!
+    //! \see setFlags()
+    //!
+    void clearFlag(BuilderFlag builderFlag) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->clearFlag(builderFlag);
+    }
+
+    //!
+    //! \brief Set a single build mode flag.
+    //!
+    //! Add the input builder mode flag to the already enabled flags.
+    //!
+    //! \see setFlags()
+    //!
+    void setFlag(BuilderFlag builderFlag) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setFlag(builderFlag);
+    }
+
+    //!
+    //! \brief Returns true if the build mode flag is set
+    //!
+    //! \see getFlags()
+    //!
+    //! \return True if flag is set, false if unset.
+    //!
+    bool getFlag(BuilderFlag builderFlag) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getFlag(builderFlag);
+    }
+
+    //!
+    //! \brief Set the device that this layer must execute on.
+    //!
+    //! \param layer which layer to execute.
+    //! \param deviceType that this layer must execute on.
+    //! If DeviceType is not set or is reset, TensorRT will use the default DeviceType set in the
+    //! builder.
+    //!
+    //! \note The device type for a layer must be compatible with the safety flow (if specified).
+    //! For example a layer cannot be marked for DLA execution while the builder is configured for
+    //! kSAFETY.
+    //!
+    //! \see getDeviceType()
+    //!
+    void setDeviceType(ILayer const* layer, DeviceType deviceType) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDeviceType(layer, deviceType);
+    }
+
+    //!
+    //! \brief Get the device that this layer executes on.
+    //!
+    //! \return Returns DeviceType of the layer.
+    //!
+    DeviceType getDeviceType(ILayer const* layer) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDeviceType(layer);
+    }
+
+    //!
+    //! \brief whether the DeviceType has been explicitly set for this layer
+    //!
+    //! \return true if device type is not default
+    //!
+    //! \see setDeviceType() getDeviceType() resetDeviceType()
+    //!
+    bool isDeviceTypeSet(ILayer const* layer) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isDeviceTypeSet(layer);
+    }
+
+    //!
+    //! \brief reset the DeviceType for this layer
+    //!
+    //! \see setDeviceType() getDeviceType() isDeviceTypeSet()
+    //!
+    void resetDeviceType(ILayer const* layer) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->resetDeviceType(layer);
+    }
+
+    //!
+    //! \brief Checks if a layer can run on DLA.
+    //!
+    //! \return status true if the layer can on DLA else returns false.
+    //!
+    bool canRunOnDLA(ILayer const* layer) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->canRunOnDLA(layer);
+    }
+
+    //!
+    //! \brief Sets the DLA core used by the network. Defaults to -1.
+    //!
+    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
+    //!
+    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
+    //! are available.
+    //!
+    //! \warning if getNbDLACores() returns 0, then this function does nothing.
+    //!
+    //! \see IRuntime::setDLACore() getDLACore()
+    //!
+    void setDLACore(int32_t dlaCore) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDLACore(dlaCore);
+    }
+
+    //!
+    //! \brief Get the DLA core that the engine executes on.
+    //!
+    //! \return assigned DLA core or -1 for DLA not present or unset.
+    //!
+    int32_t getDLACore() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDLACore();
+    }
+
+    //!
+    //! \brief Sets the default DeviceType to be used by the builder. It ensures that all the layers
+    //! that can run on this device will run on it, unless setDeviceType is used to override the
+    //! default DeviceType for a layer.
+    //!
+    //! \see getDefaultDeviceType()
+    //!
+    void setDefaultDeviceType(DeviceType deviceType) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDefaultDeviceType(deviceType);
+    }
+
+    //!
+    //! \brief Get the default DeviceType which was set by setDefaultDeviceType.
+    //!
+    //! By default it returns DeviceType::kGPU.
+    //!
+    DeviceType getDefaultDeviceType() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDefaultDeviceType();
+    }
+
+    //!
+    //! \brief Resets the builder configuration to defaults.
+    //!
+    //! Useful for initializing a builder config object to its original state.
+    //!
+    void reset() noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->reset();
+    }
+
+    //!
+    //! \brief Set the cuda stream that is used to profile this network.
+    //!
+    //! \param stream The cuda stream used for profiling by the builder.
+    //!
+    //! \see getProfileStream()
+    //!
+    void setProfileStream(const hipStream_t stream) noexcept
+    {
+        pass("Not Implemented", false);
+        // return mImpl->setProfileStream(stream);
+    }
+
+    //!
+    //! \brief Get the cuda stream that is used to profile this network.
+    //!
+    //! \return The cuda stream set by setProfileStream, nullptr if setProfileStream has not been
+    //! called.
+    //!
+    //! \see setProfileStream()
+    //!
+    hipStream_t getProfileStream() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProfileStream();
+    }
+
+    //!
+    //! \brief Add an optimization profile.
+    //!
+    //! This function must be called at least once if the network has dynamic or shape input
+    //! tensors. This function may be called at most once when building a refittable engine, as more
+    //! than a single optimization profile are not supported for refittable engines.
+    //!
+    //! \param profile The new optimization profile, which must satisfy profile->isValid() == true
+    //!
+    //! \return The index of the optimization profile (starting from 0) if the input is valid, or -1
+    //! if the input is
+    //!         not valid.
+    //!
+    int32_t addOptimizationProfile(IOptimizationProfile const* profile) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->addOptimizationProfile(profile);
+    }
+
+    //!
+    //! \brief Get number of optimization profiles.
+    //!
+    //! This is one higher than the index of the last optimization profile that has be defined (or
+    //! zero, if none has been defined yet).
+    //!
+    //! \return The number of the optimization profiles.
+    //!
+    int32_t getNbOptimizationProfiles() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbOptimizationProfiles();
+    }
+
+    //!
+    //! \brief Set verbosity level of layer information exposed in NVTX annotations and
+    //! IEngineInspector.
+    //!
+    //! Control how much layer information will be exposed in NVTX annotations and IEngineInspector.
+    //!
+    //! \see ProfilingVerbosity, getProfilingVerbosity(), IEngineInspector
+    //!
+    void setProfilingVerbosity(ProfilingVerbosity verbosity) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setProfilingVerbosity(verbosity);
+    }
+
+    //!
+    //! \brief Get verbosity level of layer information exposed in NVTX annotations and
+    //! IEngineInspector.
+    //!
+    //! Get the current setting of verbosity level of layer information exposed in
+    //! NVTX annotations and IEngineInspector. Default value is
+    //! ProfilingVerbosity::kLAYER_NAMES_ONLY.
+    //!
+    //! \see ProfilingVerbosity, setProfilingVerbosity(), IEngineInspector
+    //!
+    ProfilingVerbosity getProfilingVerbosity() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProfilingVerbosity();
+    }
+
+    //!
+    //! \brief Set Algorithm Selector.
+    //!
+    //! \param selector The algorithm selector to be set in the build config.
+    void setAlgorithmSelector(IAlgorithmSelector* selector) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setAlgorithmSelector(selector);
+    }
+
+    //!
+    //! \brief Get Algorithm Selector.
+    //!
+    IAlgorithmSelector* getAlgorithmSelector() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getAlgorithmSelector();
+    }
+
+    //!
+    //! \brief Add a calibration profile.
+    //!
+    //! Calibration optimization profile must be set if int8 calibration is used to set scales for a
+    //! network with runtime dimensions.
+    //!
+    //! \param profile The new calibration profile, which must satisfy profile->isValid() == true or
+    //! be nullptr. MIN and MAX values will be overwritten by kOPT.
+    //!
+    //! \return True if the calibration profile was set correctly.
+    //!
+    bool setCalibrationProfile(IOptimizationProfile const* profile) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setCalibrationProfile(profile);
+    }
+
+    //!
+    //! \brief Get the current calibration profile.
+    //!
+    //! \return A pointer to the current calibration profile or nullptr if calibration profile is
+    //! unset.
+    //!
+    IOptimizationProfile const* getCalibrationProfile() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getCalibrationProfile();
+    }
+
+    //!
+    //! \brief Set the quantization flags.
+    //!
+    //! The flags are listed in the QuantizationFlag enum.
+    //! The flags set configuration options to quantize the network in int8.
+    //!
+    //! \param flags The quantization flags.
+    //!
+    //! \note This function will override the previous set flags, rather than bitwise ORing the new
+    //! flag.
+    //!
+    //! \see getQuantizationFlags()
+    //!
+    void setQuantizationFlags(QuantizationFlags flags) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setQuantizationFlags(flags);
+    }
+
+    //!
+    //! \brief Get the quantization flags.
+    //!
+    //! \return The quantization flags as a bitmask.
+    //!
+    //! \see setQuantizationFlag()
+    //!
+    QuantizationFlags getQuantizationFlags() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getQuantizationFlags();
+    }
+
+    //!
+    //! \brief clear a quantization flag.
+    //!
+    //! Clears the quantization flag from the enabled quantization flags.
+    //!
+    //! \see setQuantizationFlags()
+    //!
+    void clearQuantizationFlag(QuantizationFlag flag) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->clearQuantizationFlag(flag);
+    }
+
+    //!
+    //! \brief Set a single quantization flag.
+    //!
+    //! Add the input quantization flag to the already enabled quantization flags.
+    //!
+    //! \see setQuantizationFlags()
+    //!
+    void setQuantizationFlag(QuantizationFlag flag) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setQuantizationFlag(flag);
+    }
+
+    //!
+    //! \brief Returns true if the quantization flag is set.
+    //!
+    //! \see getQuantizationFlags()
+    //!
+    //! \return True if quantization flag is set, false if unset.
+    //!
+    bool getQuantizationFlag(QuantizationFlag flag) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getQuantizationFlag(flag);
+    }
+
+    //!
+    //! \brief Set tactic sources.
+    //!
+    //! This bitset controls which tactic sources TensorRT is allowed to use for tactic
+    //! selection.
+    //!
+    //! Multiple tactic sources may be combined with a bitwise OR operation. For example,
+    //! to enable cublas and cublasLt as tactic sources, use a value of:
+    //!
+    //! 1U << static_cast<uint32_t>(TacticSource::kCUBLAS) | 1U <<
+    //! static_cast<uint32_t>(TacticSource::kCUBLAS_LT)
+    //!
+    //! \see getTacticSources
+    //!
+    //! \return true if the tactic sources in the build configuration were updated.
+    //!         The tactic sources in the build configuration will not be updated if the provided
+    //!         value is invalid.
+    //!
+    bool setTacticSources(TacticSources tacticSources) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTacticSources(tacticSources);
+    }
+
+    //!
+    //! \brief Get tactic sources.
+    //!
+    //! Get the tactic sources currently set in the engine build
+    //! configuration.
+    //!
+    //! \see setTacticSources()
+    //!
+    //! \return tactic sources
+    //!
+    TacticSources getTacticSources() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTacticSources();
+    }
+
+    //!
+    //! \brief Create timing cache
+    //!
+    //! Create ITimingCache instance from serialized raw data. The created timing cache doesn’t
+    //! belong to a specific IBuilderConfig. It can be shared by multiple builder instances. Call
+    //! setTimingCache() before launching a builder to attach cache to builder instance.
+    //!
+    //! \param blob A pointer to the raw data that contains serialized timing cache
+    //! \param size The size in bytes of the serialized timing cache. Size 0 means create a new
+    //! cache from scratch
+    //!
+    //! \see setTimingCache
+    //!
+    //! \return the pointer to ITimingCache created
+    //!
+    ITimingCache* createTimingCache(void const* blob, std::size_t size) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->createTimingCache(blob, size);
+    }
+
+    //!
+    //! \brief Attach a timing cache to IBuilderConfig
+    //!
+    //! The timing cache has verification header to make sure the provided cache can be used in
+    //! current environment. A failure will be reported if the CUDA device property in the provided
+    //! cache is different from current environment. ignoreMismatch = true skips strict verification
+    //! and allows loading cache created from a different device.
+    //!
+    //! The cache must not be destroyed until after the engine is built.
+    //!
+    //! \param cache the timing cache to be used
+    //! \param ignoreMismatch whether or not allow using a cache that contains different CUDA device
+    //! property
+    //!
+    //! \return true if set successfully, false otherwise
+    //!
+    //! \warning Using cache generated from devices with different CUDA device properties may lead
+    //! to
+    //!          functional/performance bugs.
+    //!
+    bool setTimingCache(ITimingCache const& cache, bool ignoreMismatch) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTimingCache(cache, ignoreMismatch);
+    }
+
+    //!
+    //! \brief Get the pointer to the timing cache from current IBuilderConfig
+    //!
+    //! \return pointer to the timing cache used in current IBuilderConfig
+    //!
+    ITimingCache const* getTimingCache() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTimingCache();
+    }
+
+    //!
+    //! \brief Set the memory size for the memory pool.
+    //!
+    //! TensorRT layers access different memory pools depending on the operation.
+    //! This function sets in the IBuilderConfig the size limit, specified by \p poolSize,
+    //! for the corresponding memory pool, specified by \p pool.
+    //! TensorRT will build a plan file that is constrained by these limits or report
+    //! which constraint caused the failure.
+    //!
+    //! If the size of the pool, specified by \p poolSize, fails to meet the size requirements
+    //! for the pool, this function does nothing and emits the recoverable error,
+    //! ErrorCode::kINVALID_ARGUMENT, to the registered IErrorRecorder.
+    //!
+    //! If the size of the pool is larger than the maximum possible value for the
+    //! configuration, this function does nothing and emits ErrorCode::kUNSUPPORTED_STATE.
+    //!
+    //! If the pool does not exist on the requested device type when building
+    //! the network, a warning is emitted to the logger, and the memory pool
+    //! value is ignored.
+    //!
+    //! Refer to MemoryPoolType to see the size requirements for each pool.
+    //!
+    //! \param pool The memory pool to limit the available memory for.
+    //! \param poolSize The size of the pool in bytes.
+    //!
+    //! \see getMemoryPoolLimit, MemoryPoolType
+    //!
+    void setMemoryPoolLimit(MemoryPoolType pool, std::size_t poolSize) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setMemoryPoolLimit(pool, poolSize);
+    }
+
+    //!
+    //! \brief Get the memory size limit of the memory pool.
+    //!
+    //! Retrieve the memory size limit of the corresponding pool in bytes.
+    //! If setMemoryPoolLimit for the pool has not been called, this returns the default
+    //! value used by TensorRT. This default value is not necessarily the maximum possible
+    //! value for that configuration.
+    //!
+    //! \param pool The memory pool to get the limit for.
+    //!
+    //! \returns The size of the memory limit, in bytes, for the corresponding pool.
+    //!
+    //! \see setMemoryPoolLimit
+    //!
+    std::size_t getMemoryPoolLimit(MemoryPoolType pool) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMemoryPoolLimit(pool);
+    }
+
+    //!
+    //! \brief Enable or disable a specific preview feature
+    //!
+    //! Allows enabling or disabling experimental features, which are not enabled by default in the
+    //! current release.
+    //!
+    //! Refer to PreviewFeature for additional information, and a list of the available features.
+    //!
+    //! \param feature the feature to enable / disable
+    //! \param enable true for enable, false for disable
+    //!
+    //! \see PreviewFeature, getPreviewFeature
+    //!
+    void setPreviewFeature(PreviewFeature feature, bool enable) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setPreviewFeature(feature, enable);
+    }
+
+    //!
+    //! \brief Get status of preview feature
+    //!
+    //! \param feature the feature to query
+    //!
+    //! \returns true if the \p feature is enabled, false otherwise
+    //!
+    //! \see PreviewFeature, setPreviewFeature
+    //!
+    bool getPreviewFeature(PreviewFeature feature) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getPreviewFeature(feature);
+    }
+
+    //!
+    //! \brief Set builder optimization level
+    //!
+    //! Set the builder optimization level. Setting a higher optimization
+    //! level allows the optimizer to spend more time searching for optimization opportunities. The
+    //! resulting engine may have better performance compared to an engine built with a lower
+    //! optimization level.
+    //!
+    //! The default optimization level is 3. Valid values include integers from 0 to the maximum
+    //! optimization level, which is currently 5. Setting it to greater than the maximum level
+    //! results in behavior identical to the maximum level.
+    //!
+    //! Below are the descriptions about each builder optimization level:
+    //!
+    //! - Level 0: This enables the fastest compilation by disabling dynamic kernel generation and
+    //! selecting the first
+    //!   tactic that succeeds in execution. This will also not respect a timing cache.
+    //! - Level 1: Available tactics are sorted by heuristics, but only the top are tested to select
+    //! the best. If a
+    //!   dynamic kernel is generated its compile optimization is low.
+    //! - Level 2: Available tactics are sorted by heuristics, but only the fastest tactics are
+    //! tested to select the
+    //!   best.
+    //! - Level 3: Apply heuristics to see if a static precompiled kernel is applicable or if a new
+    //! one has to be
+    //!   compiled dynamically.
+    //! - Level 4: Always compiles a dynamic kernel.
+    //! - Level 5: Always compiles a dynamic kernel and compares it to static kernels.
+    //!
+    //! \param level The optimization level to set to. Must be non-negative.
+    //!
+    //! \see getBuilderOptimizationLevel
+    //!
+    void setBuilderOptimizationLevel(int32_t level) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setBuilderOptimizationLevel(level);
+    }
+
+    //!
+    //! \brief Get builder optimization level
+    //!
+    //! \returns the current builder optimization level
+    //!
+    //! \see setBuilderOptimizationLevel
+    //!
+    int32_t getBuilderOptimizationLevel() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getBuilderOptimizationLevel();
+    }
+
+    //!
+    //! \brief Set the hardware compatibility level.
+    //!
+    //! Hardware compatibility allows an engine to run on GPU
+    //! architectures other than that of the GPU where the engine was
+    //! built.
+    //!
+    //! The default hardware compatibility level is HardwareCompatibilityLevel::kNONE.
+    //!
+    //! \param hardwareCompatibilityLevel The level of hardware
+    //!        compatibility.
+    //!
+    void
+    setHardwareCompatibilityLevel(HardwareCompatibilityLevel hardwareCompatibilityLevel) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setHardwareCompatibilityLevel(hardwareCompatibilityLevel);
+    }
+
+    //!
+    //! \brief Get the hardware compatibility level.
+    //!
+    //! \return hardwareCompatibilityLevel The level of hardware
+    //!        compatibility.
+    //!
+    //! \see setHardwareCompatiblityLevel()
+    //!
+    HardwareCompatibilityLevel getHardwareCompatibilityLevel() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getHardwareCompatibilityLevel();
+    }
+
+    //!
+    //! \brief Set the plugin libraries to be serialized with version-compatible engines.
+    //!
+    //! Each entry in the list of libraries must be unique.
+    //!
+    //! \param paths The paths of plugin libraries.
+    //! \param nbPaths The number of paths.
+    //!
+    void setPluginsToSerialize(char const* const* paths, int32_t nbPaths) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setPluginsToSerialize(paths, nbPaths);
+    }
+
+    //!
+    //! \brief Get the plugin library path to be serialized with version-compatible engines.
+    //!
+    //! \param index Index of the plugin library path in the list.  Should be in the range `[0,
+    //! getNbPluginsToSerialize())`.
+    //!
+    //! \return The path to the plugin library.
+    //!
+    char const* getPluginToSerialize(int32_t index) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getPluginToSerialize(index);
+    }
+
+    //!
+    //! \brief Get the number of plugin library paths to be serialized with version-compatible
+    //! engines.
+    //!
+    //! \return The number of paths.
+    //!
+    int32_t getNbPluginsToSerialize() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbPluginsToSerialize();
+    }
+
+    //!
+    //! \brief Set the maximum number of auxiliary streams that TRT is allowed to use.
+    //!
+    //! If the network contains operators that can run in parallel, TRT can execute them using
+    //! auxiliary streams in addition to the one provided to the IExecutionContext::enqueueV3()
+    //! call.
+    //!
+    //! The default maximum number of auxiliary streams is determined by the heuristics in TensorRT
+    //! on whether enabling multi-stream would improve the performance. This behavior can be
+    //! overridden by calling this API to set the maximum number of auxiliary streams explicitly.
+    //! Set this to 0 to enforce single-stream inference.
+    //!
+    //! The resulting engine may use fewer auxiliary streams than the maximum if the network does
+    //! not contain enough parallelism or if TensorRT determines that using more auxiliary streams
+    //! does not help improve the performance.
+    //!
+    //! \note Allowing more auxiliary streams does not always give better performance since there
+    //! will be synchronizations overhead between streams. Using CUDA graphs at runtime can help
+    //! reduce the overhead caused by cross-stream synchronizations.
+    //!
+    //! \note Using more auxiliary leads to more memory usage at runtime since some activation
+    //! memory blocks will not be able to be reused.
+    //!
+    //! \param nbStreams The maximum number of auxiliary streams that TRT is allowed to use.
+    //!
+    //! \see getMaxAuxStreams(), ICudaEngine::getNbAuxStreams(), IExecutionContext::setAuxStreams()
+    //!
+    void setMaxAuxStreams(int32_t nbStreams) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setMaxAuxStreams(nbStreams);
+    }
+
+    //!
+    //! \brief Get the maximum number of auxiliary streams that TRT is allowed to use.
+    //!
+    //! \see setMaxAuxStreams()
+    //!
+    int32_t getMaxAuxStreams() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMaxAuxStreams();
+    }
+
+    //!
+    //! \brief Sets the progress monitor for building a network.
+    //!
+    //! \param monitor The progress monitor to assign to the IBuilderConfig.
+    //!
+    //! The progress monitor signals to the application when different phases of
+    //! the compiler are being executed. Setting to nullptr unsets the monitor so
+    //! that the application is not signaled.
+    //!
+    //! \see IBuilderConfig::getProgressMonitor
+    //!
+    void setProgressMonitor(IProgressMonitor* monitor) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setProgressMonitor(monitor);
+    }
+
+    //!
+    //! \return The progress monitor set by the application or nullptr.
+    //!
+    //! \see IBuilderConfig::setProgressMonitor
+    //!
+    IProgressMonitor* getProgressMonitor() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProgressMonitor();
+    }
+
+    // protected:
+    //     apiv::VBuilderConfig* mImpl;
 };
 
 //!
@@ -4577,7 +5784,7 @@ class IBuilder : public INoCopy
     //!
     bool platformHasFastFp16() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->platformHasFastFp16();
     }
 
@@ -4586,7 +5793,7 @@ class IBuilder : public INoCopy
     //!
     bool platformHasFastInt8() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->platformHasFastInt8();
     }
 
@@ -4599,7 +5806,7 @@ class IBuilder : public INoCopy
     //!
     int32_t getMaxDLABatchSize() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getMaxDLABatchSize();
     }
 
@@ -4608,7 +5815,7 @@ class IBuilder : public INoCopy
     //!
     int32_t getNbDLACores() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getNbDLACores();
     }
 
@@ -4626,7 +5833,7 @@ class IBuilder : public INoCopy
     //!
     void setGpuAllocator(IGpuAllocator* allocator) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setGpuAllocator(allocator);
     }
 
@@ -4637,7 +5844,7 @@ class IBuilder : public INoCopy
     //!
     IBuilderConfig* createBuilderConfig() noexcept
     {
-        assert("Not Implemented");
+        return new IBuilderConfig{};
         // return mImpl->createBuilderConfig();
     }
 
@@ -4681,7 +5888,7 @@ class IBuilder : public INoCopy
     //!
     IOptimizationProfile* createOptimizationProfile() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->createOptimizationProfile();
     }
 
@@ -4701,7 +5908,7 @@ class IBuilder : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->setErrorRecorder(recorder);
     }
 
@@ -4717,7 +5924,7 @@ class IBuilder : public INoCopy
     //!
     IErrorRecorder* getErrorRecorder() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getErrorRecorder();
     }
 
@@ -4726,7 +5933,7 @@ class IBuilder : public INoCopy
     //!
     void reset() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // mImpl->reset();
     }
 
@@ -4735,7 +5942,7 @@ class IBuilder : public INoCopy
     //!
     bool platformHasTf32() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->platformHasTf32();
     }
 
@@ -4757,8 +5964,9 @@ class IBuilder : public INoCopy
     IHostMemory* buildSerializedNetwork(INetworkDefinition& network,
                                         IBuilderConfig& config) noexcept
     {
-        assert("Not Implemented");
-        // return mImpl->buildSerializedNetwork(network, config);
+        migraphx::program p = *network.getProgram();
+        p.compile(migraphx::make_target("gpu"));
+        return new IHostMemory{migraphx::save_buffer(p), DataType::kUINT8};
     }
 
     //!
@@ -4782,7 +5990,7 @@ class IBuilder : public INoCopy
     bool isNetworkSupported(INetworkDefinition const& network,
                             IBuilderConfig const& config) const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->isNetworkSupported(network, config);
     }
 
@@ -4793,7 +6001,7 @@ class IBuilder : public INoCopy
     //!
     ILogger* getLogger() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getLogger();
     }
 
@@ -4810,7 +6018,7 @@ class IBuilder : public INoCopy
     //!
     bool setMaxThreads(int32_t maxThreads) noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->setMaxThreads(maxThreads);
     }
 
@@ -4825,7 +6033,7 @@ class IBuilder : public INoCopy
     //!
     int32_t getMaxThreads() const noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getMaxThreads();
     }
 
@@ -4836,12 +6044,15 @@ class IBuilder : public INoCopy
     //!
     IPluginRegistry& getPluginRegistry() noexcept
     {
-        assert("Not Implemented");
+        pass("Not Implemented", true);
         // return mImpl->getPluginRegistry();
     }
 
     // protected:
     //     apiv::VBuilder* mImpl;
+
+    private:
+    std::vector<char> serialized_network_;
 };
 
 //!
@@ -4855,3 +6066,409 @@ class IBuilder : public INoCopy
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
 
 } // namespace mgxinfer1
+
+//!
+//! \typedef SubGraph_t
+//!
+//! \brief The data structure containing the parsing capability of
+//! a set of nodes in an ONNX graph.
+//!
+typedef std::pair<std::vector<size_t>, bool> SubGraph_t;
+
+//!
+//! \typedef SubGraphCollection_t
+//!
+//! \brief The data structure containing all SubGraph_t partitioned
+//! out of an ONNX graph.
+//!
+typedef std::vector<SubGraph_t> SubGraphCollection_t;
+
+namespace mgxonnxparser {
+
+//!
+//! \enum ErrorCode
+//!
+//! \brief The type of error that the parser or refitter may return
+//!
+enum class ErrorCode : int
+{
+    kSUCCESS                   = 0,
+    kINTERNAL_ERROR            = 1,
+    kMEM_ALLOC_FAILED          = 2,
+    kMODEL_DESERIALIZE_FAILED  = 3,
+    kINVALID_VALUE             = 4,
+    kINVALID_GRAPH             = 5,
+    kINVALID_NODE              = 6,
+    kUNSUPPORTED_GRAPH         = 7,
+    kUNSUPPORTED_NODE          = 8,
+    kUNSUPPORTED_NODE_ATTR     = 9,
+    kUNSUPPORTED_NODE_INPUT    = 10,
+    kUNSUPPORTED_NODE_DATATYPE = 11,
+    kUNSUPPORTED_NODE_DYNAMIC  = 12,
+    kUNSUPPORTED_NODE_SHAPE    = 13,
+    kREFIT_FAILED              = 14
+};
+
+//!
+//! \brief Represents one or more OnnxParserFlag values using binary OR
+//! operations, e.g., 1U << OnnxParserFlag::kNATIVE_INSTANCENORM
+//!
+//! \see IParser::setFlags() and IParser::getFlags()
+//!
+using OnnxParserFlags = uint32_t;
+
+enum class OnnxParserFlag : int32_t
+{
+    //! Parse the ONNX model into the INetworkDefinition with the intention of using TensorRT's
+    //! native layer implementation over the plugin implementation for InstanceNormalization nodes.
+    //! This flag is required when building version-compatible or hardware-compatible engines.
+    //! This flag is set to be ON by default.
+    kNATIVE_INSTANCENORM = 0
+};
+
+//!
+//! \class IParserError
+//!
+//! \brief an object containing information about an error
+//!
+class IParserError
+{
+    public:
+    //!
+    //!\brief the error code.
+    //!
+    virtual ErrorCode code() const = 0;
+    //!
+    //!\brief description of the error.
+    //!
+    virtual char const* desc() const = 0;
+    //!
+    //!\brief source file in which the error occurred.
+    //!
+    virtual char const* file() const = 0;
+    //!
+    //!\brief source line at which the error occurred.
+    //!
+    virtual int line() const = 0;
+    //!
+    //!\brief source function in which the error occurred.
+    //!
+    virtual char const* func() const = 0;
+    //!
+    //!\brief index of the ONNX model node in which the error occurred.
+    //!
+    virtual int node() const = 0;
+    //!
+    //!\brief name of the node in which the error occurred.
+    //!
+    virtual char const* nodeName() const = 0;
+    //!
+    //!\brief name of the node operation in which the error occurred.
+    //!
+    virtual char const* nodeOperator() const = 0;
+    //!
+    //!\brief A list of the local function names, from the top level down, constituting the current
+    //!             stack trace in which the error occurred. A top-level node that is not inside any
+    //!             local function would return a nullptr.
+    //!
+    virtual char const* const* localFunctionStack() const = 0;
+    //!
+    //!\brief The size of the stack of local functions at the point where the error occurred.
+    //!             A top-level node that is not inside any local function would correspond to
+    //              a stack size of 0.
+    //!
+    virtual int32_t localFunctionStackSize() const = 0;
+
+    protected:
+    virtual ~IParserError() {}
+};
+
+//!
+//! \class IParser
+//!
+//! \brief an object for parsing ONNX models into a TensorRT network definition
+//!
+class IParser
+{
+    public:
+    //!
+    //! \brief Parse a serialized ONNX model into the TensorRT network.
+    //!         This method has very limited diagnostics. If parsing the serialized model
+    //!         fails for any reason (e.g. unsupported IR version, unsupported opset, etc.)
+    //!         it the user responsibility to intercept and report the error.
+    //!         To obtain a better diagnostic, use the parseFromFile method below.
+    //!
+    //! \param serialized_onnx_model Pointer to the serialized ONNX model
+    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    //!        in bytes
+    //! \param model_path Absolute path to the model file for loading external weights if required
+    //! \return true if the model was parsed successfully
+    //! \see getNbErrors() getError()
+    //!
+    virtual bool parse(void const* serialized_onnx_model,
+                       size_t serialized_onnx_model_size,
+                       const char* model_path = nullptr) = 0;
+
+    //!
+    //! \brief Parse an onnx model file, which can be a binary protobuf or a text onnx model
+    //!         calls parse method inside.
+    //!
+    //! \param onnxModelFile name
+    //! \param verbosity Level
+    //!
+    //! \return true if the model was parsed successfully
+    //!
+    //!
+    virtual bool parseFromFile(const char* onnxModelFile, int verbosity) = 0;
+
+    //!
+    //!\brief Check whether TensorRT supports a particular ONNX model.
+    //! 	       If the function returns True, one can proceed to engine building
+    //! 	       without having to call \p parse or \p parseFromFile.
+    //!
+    //! \param serialized_onnx_model Pointer to the serialized ONNX model
+    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    //!        in bytes
+    //! \param sub_graph_collection Container to hold supported subgraphs
+    //! \param model_path Absolute path to the model file for loading external weights if required
+    //! \return true if the model is supported
+    //!
+    virtual bool supportsModel(void const* serialized_onnx_model,
+                               size_t serialized_onnx_model_size,
+                               SubGraphCollection_t& sub_graph_collection,
+                               const char* model_path = nullptr) = 0;
+
+    //!
+    //!\brief Parse a serialized ONNX model into the TensorRT network
+    //! with consideration of user provided weights
+    //!
+    //! \param serialized_onnx_model Pointer to the serialized ONNX model
+    //! \param serialized_onnx_model_size Size of the serialized ONNX model
+    //!        in bytes
+    //! \return true if the model was parsed successfully
+    //! \see getNbErrors() getError()
+    //!
+    virtual bool parseWithWeightDescriptors(void const* serialized_onnx_model,
+                                            size_t serialized_onnx_model_size) = 0;
+
+    //!
+    //!\brief Returns whether the specified operator may be supported by the
+    //!         parser.
+    //!
+    //! Note that a result of true does not guarantee that the operator will be
+    //! supported in all cases (i.e., this function may return false-positives).
+    //!
+    //! \param op_name The name of the ONNX operator to check for support
+    //!
+    virtual bool supportsOperator(const char* op_name) const = 0;
+
+    //!
+    //!\brief Get the number of errors that occurred during prior calls to
+    //!         \p parse
+    //!
+    //! \see getError() clearErrors() IParserError
+    //!
+    virtual int getNbErrors() const = 0;
+
+    //!
+    //!\brief Get an error that occurred during prior calls to \p parse
+    //!
+    //! \see getNbErrors() clearErrors() IParserError
+    //!
+    virtual IParserError const* getError(int index) const = 0;
+
+    //!
+    //!\brief Clear errors from prior calls to \p parse
+    //!
+    //! \see getNbErrors() getError() IParserError
+    //!
+    virtual void clearErrors() = 0;
+
+    virtual ~IParser() noexcept = default;
+
+    //!
+    //! \brief Query the plugin libraries needed to implement operations used by the parser in a
+    //! version-compatible engine.
+    //!
+    //! This provides a list of plugin libraries on the filesystem needed to implement operations
+    //! in the parsed network.  If you are building a version-compatible engine using this network,
+    //! provide this list to IBuilderConfig::setPluginsToSerialize to serialize these plugins along
+    //! with the version-compatible engine, or, if you want to ship these plugin libraries
+    //! externally to the engine, ensure that IPluginRegistry::loadLibrary is used to load these
+    //! libraries in the appropriate runtime before deserializing the corresponding engine.
+    //!
+    //! \param[out] nbPluginLibs Returns the number of plugin libraries in the array, or -1 if there
+    //! was an error. \return Array of `nbPluginLibs` C-strings describing plugin library paths on
+    //! the filesystem if nbPluginLibs > 0, or nullptr otherwise.  This array is owned by the
+    //! IParser, and the pointers in the array are only valid until the next call to parse(),
+    //! supportsModel(), parseFromFile(), or parseWithWeightDescriptors().
+    //!
+    virtual char const* const* getUsedVCPluginLibraries(int64_t& nbPluginLibs) const noexcept = 0;
+
+    //!
+    //! \brief Set the parser flags.
+    //!
+    //! The flags are listed in the OnnxParserFlag enum.
+    //!
+    //! \param OnnxParserFlag The flags used when parsing an ONNX model.
+    //!
+    //! \note This function will override the previous set flags, rather than bitwise ORing the new
+    //! flag.
+    //!
+    //! \see getFlags()
+    //!
+    virtual void setFlags(OnnxParserFlags onnxParserFlags) noexcept = 0;
+
+    //!
+    //! \brief Get the parser flags. Defaults to 0.
+    //!
+    //! \return The parser flags as a bitmask.
+    //!
+    //! \see setFlags()
+    //!
+    virtual OnnxParserFlags getFlags() const noexcept = 0;
+
+    //!
+    //! \brief clear a parser flag.
+    //!
+    //! clears the parser flag from the enabled flags.
+    //!
+    //! \see setFlags()
+    //!
+    virtual void clearFlag(OnnxParserFlag onnxParserFlag) noexcept = 0;
+
+    //!
+    //! \brief Set a single parser flag.
+    //!
+    //! Add the input parser flag to the already enabled flags.
+    //!
+    //! \see setFlags()
+    //!
+    virtual void setFlag(OnnxParserFlag onnxParserFlag) noexcept = 0;
+
+    //!
+    //! \brief Returns true if the parser flag is set
+    //!
+    //! \see getFlags()
+    //!
+    //! \return True if flag is set, false if unset.
+    //!
+    virtual bool getFlag(OnnxParserFlag onnxParserFlag) const noexcept = 0;
+
+    //!
+    //!\brief Return the i-th output ITensor object for the ONNX layer "name".
+    //!
+    //! Return the i-th output ITensor object for the ONNX layer "name".
+    //! If "name" is not found or i is out of range, return nullptr.
+    //! In the case of multiple nodes sharing the same name this function will return
+    //! the output tensors of the first instance of the node in the ONNX graph.
+    //!
+    //! \param name The name of the ONNX layer.
+    //!
+    //! \param i The index of the output. i must be in range [0, layer.num_outputs).
+    //!
+    virtual mgxinfer1::ITensor const* getLayerOutputTensor(char const* name, int64_t i) = 0;
+};
+
+class Parser : public IParser
+{
+    public:
+    bool parse(void const* serialized_onnx_model,
+               size_t serialized_onnx_model_size,
+               const char* model_path = nullptr) override
+    {
+        pass("Not Implemented", true);
+    }
+
+    bool parseFromFile(const char* onnxModelFile, int verbosity) override
+    {
+        // TODO error handling
+        network_.setProgram(
+            std::make_shared<migraphx::program>(migraphx::parse_onnx(onnxModelFile)));
+        return true;
+    }
+
+    bool supportsModel(void const* serialized_onnx_model,
+                       size_t serialized_onnx_model_size,
+                       SubGraphCollection_t& sub_graph_collection,
+                       const char* model_path = nullptr) override
+    {
+        pass("Not Implemented", true);
+    }
+
+    bool parseWithWeightDescriptors(void const* serialized_onnx_model,
+                                    size_t serialized_onnx_model_size) override
+    {
+        pass("Not Implemented", true);
+    }
+
+    bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
+
+    int getNbErrors() const override { pass("Not Implemented", true); }
+
+    IParserError const* getError(int index) const override { pass("Not Implemented", true); }
+
+    void clearErrors() override { pass("Not Implemented", true); }
+
+    char const* const* getUsedVCPluginLibraries(int64_t& nbPluginLibs) const noexcept override
+    {
+        pass("Not Implemented", true);
+    }
+
+    void setFlags(OnnxParserFlags onnxParserFlags) noexcept override
+    {
+        pass("Not Implemented", true);
+    }
+
+    OnnxParserFlags getFlags() const noexcept override { pass("Not Implemented", true); }
+
+    void clearFlag(OnnxParserFlag onnxParserFlag) noexcept override
+    {
+        pass("Not Implemented", true);
+    }
+
+    void setFlag(OnnxParserFlag onnxParserFlag) noexcept override { pass("Not Implemented", true); }
+
+    bool getFlag(OnnxParserFlag onnxParserFlag) const noexcept override
+    {
+        pass("Not Implemented", true);
+    }
+
+    mgxinfer1::ITensor const* getLayerOutputTensor(char const* name, int64_t i) override
+    {
+        pass("Not Implemented", true);
+    }
+
+    private:
+    mgxinfer1::INetworkDefinition& network_;
+    mgxinfer1::ILogger& logger_;
+
+    Parser(mgxinfer1::INetworkDefinition& network, mgxinfer1::ILogger& logger)
+        : network_{network}, logger_{logger}
+    {
+    }
+
+    friend IParser* createParser(mgxinfer1::INetworkDefinition&, mgxinfer1::ILogger&);
+};
+
+//!
+//! \brief Create a new parser object
+//!
+//! \param network The network definition that the parser will write to
+//! \param logger The logger to use
+//! \return a new parser object or NULL if an error occurred
+//!
+//! Any input dimensions that are constant should not be changed after parsing,
+//! because correctness of the translation may rely on those constants.
+//! Changing a dynamic input dimension, i.e. one that translates to -1 in
+//! TensorRT, to a constant is okay if the constant is consistent with the model.
+//! Each instance of the parser is designed to only parse one ONNX model once.
+//!
+//! \see IParser
+//!
+inline IParser* createParser(mgxinfer1::INetworkDefinition& network, mgxinfer1::ILogger& logger)
+{
+    return new Parser{network, logger};
+}
+
+} // namespace mgxonnxparser

@@ -50,16 +50,24 @@ struct parse_split : op_parser<parse_split>
         }
 
         const auto& input_shape = args[0]->get_shape();
+        // axis over which the split occurs (split_axis)
         int64_t tuned_axis      = tune_axis(input_shape.ndim(), axis, opd.op_name);
-        if(input_shape.dynamic())
+
+        auto split_axis_is_fixed = [&]() {
+            return input_shape.dyn_dims().at(tuned_axis).is_fixed();
+        };
+
+        if(input_shape.dynamic() and not split_axis_is_fixed())
         {
             if(contains(info.attributes, "split"))
             {
-                MIGRAPHX_THROW("PARSE_SPLIT: dynamic input and `split` attribute not supported");
+                MIGRAPHX_THROW("PARSE_SPLIT: dynamic input and non-fixed split axis and `split` "
+                               "attribute not supported");
             }
             if(args.size() == 2)
             {
-                MIGRAPHX_THROW("PARSE_SPLIT: dynamic input and `split` input not supported");
+                MIGRAPHX_THROW("PARSE_SPLIT: dynamic input and non-fixed split axis and `split` "
+                               "input not supported");
             }
 
             std::vector<instruction_ref> ret_ins;
@@ -106,7 +114,8 @@ struct parse_split : op_parser<parse_split>
         }
         else
         {
-            const auto& lens = input_shape.lens();
+            // either static shape or fixed dynamic_dimension for split axis
+            auto tuned_axis_len = input_shape.to_static(0).lens().at(tuned_axis);
             std::vector<int64_t> vec_splits;
             if(contains(info.attributes, "split"))
             {
@@ -137,28 +146,27 @@ struct parse_split : op_parser<parse_split>
                                        std::to_string(info.num_outputs) + "!");
                     }
                 }
-                if(lens[tuned_axis] % num_outputs == 0)
+                if(tuned_axis_len % num_outputs == 0)
                 {
-                    std::size_t chunk_size = lens[tuned_axis] / num_outputs;
+                    std::size_t chunk_size = tuned_axis_len / num_outputs;
                     vec_splits.resize(num_outputs, chunk_size);
                 }
                 else
                 {
-                    std::size_t chunk_size      = lens[tuned_axis] / num_outputs + 1;
-                    std::size_t last_chunk_size = lens[tuned_axis] - chunk_size * (num_outputs - 1);
+                    std::size_t chunk_size      = tuned_axis_len / num_outputs + 1;
+                    std::size_t last_chunk_size = tuned_axis_len - chunk_size * (num_outputs - 1);
                     vec_splits.resize(num_outputs - 1, chunk_size);
                     vec_splits.push_back(last_chunk_size);
                 }
             }
 
             if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=
-               static_cast<int64_t>(lens[tuned_axis]))
+               static_cast<int64_t>(tuned_axis_len))
             {
                 MIGRAPHX_THROW(
                     "PARSE_SPLIT: sum of split attribute unequal to dim size of axis! tuned axis:" +
-                    std::to_string(lens[tuned_axis]) + " Output " + to_string_range(vec_splits) +
-                    " Rank " + std::to_string(input_shape.ndim()) + " Len outs " +
-                    to_string_range(lens));
+                    std::to_string(tuned_axis_len) + " Output " + to_string_range(vec_splits) +
+                    " Rank " + std::to_string(input_shape.ndim()));
             }
 
             std::vector<instruction_ref> ret_ins;

@@ -65,7 +65,7 @@ dominator_info compute_dominator_generic(Visitor v)
         if(children.size() == 1)
         {
             info.ins2idom[ins] = children.front();
-            instr2_doms[ins].insert(children.front());
+            instr2_doms[ins]   = instr2_doms[children.front()];
         }
         else if(children.size() > 1)
         {

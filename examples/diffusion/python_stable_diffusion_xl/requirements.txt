@@ -26,4 +26,5 @@ torch==2.1.1
 accelerate
 diffusers
 transformers
-huggingface-cli
+huggingface_hub[cli]
+onnx

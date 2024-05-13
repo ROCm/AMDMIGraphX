@@ -38,48 +38,9 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
-#include <migraphx/ranges.hpp>
 #include <onnx_files.hpp>
 #include <weight_files.hpp>
 #include <test.hpp>
-#include <thread>
-
-struct weight_file
-{
-    std::unique_ptr<migraphx::fs::path> path = nullptr;
-
-    weight_file() = default;
-
-    explicit weight_file(const std::pair<std::string_view, std::string_view>& pair)
-        : path{std::make_unique<migraphx::fs::path>(pair.first)}
-    {
-        if(path->has_parent_path())
-        {
-            migraphx::fs::path parent_path = path->parent_path();
-            migraphx::fs::create_directories(parent_path);
-        }
-        migraphx::write_buffer(*path, pair.second.begin(), pair.second.length());
-    }
-
-    weight_file(weight_file&& copy) noexcept : path(std::move(copy.path)){};
-
-    ~weight_file()
-    {
-        if(path != nullptr)
-        {
-            constexpr int max_retries_count = 5;
-            for([[maybe_unused]] auto count : migraphx::range(max_retries_count))
-            {
-                std::error_code ec;
-                migraphx::fs::remove_all(*path, ec);
-                if(not ec)
-                    break;
-                std::cerr << "Failed to remove " << *path << ": " << ec.message() << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(125));
-            }
-        }
-    }
-};
 
 inline static std::string read_weight_files()
 {

@@ -72,8 +72,10 @@ def main():
                 int(refiner_steps),
                 float(aesthetic_score),
                 float(negative_aesthetic_score),
+                args.verbose,
             )
             img = StableDiffusionMGX.convert_to_rgb_image(result)
+            sd.print_summary(steps)
         finally:
             log = ''.join([sys.stdout.get_log(), sys.stderr.get_log()])
             sys.stdout, sys.stderr = oldStdout, oldStderr
@@ -109,6 +111,7 @@ def main():
         gr.Textbox(placeholder="Output log of the run", label="Output log")
     ])
     demo.launch()
+    sd.cleanup()
 
 
 if __name__ == "__main__":

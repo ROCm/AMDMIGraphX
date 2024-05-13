@@ -26,5 +26,6 @@
 
 TEST_CASE(matmulinteger_zp_mismatch_error_test)
 {
-    EXPECT(test::throws([&] { optimize_onnx("matmulinteger_int8_uint8_one_zp_error_test.onnx"); }));
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("matmulinteger_int8_uint8_one_zp_error_test.onnx"); }));
 }

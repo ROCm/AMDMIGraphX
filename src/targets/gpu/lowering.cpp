@@ -84,8 +84,9 @@ struct miopen_apply
     {
         assert(mod != nullptr);
         assert(pass != nullptr);
-
+#if MIGRAPHX_USE_ROCBLAS
         compute_fp32 = get_compute_fp32_flag();
+#endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
         
         add_extend_op("argmax");
@@ -108,9 +109,10 @@ struct miopen_apply
         add_extend_op("pooling");
         add_generic_op("contiguous");
 #endif
+#if MIGRAPHX_USE_ROCBLAS
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
-        
+#endif
         add_if_op();
         add_loop_op();
         add_neg_op();
@@ -237,6 +239,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
+#if MIGRAPHX_USE_ROCBLAS
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -248,7 +251,9 @@ struct miopen_apply
             return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }
-    #if MIGRAPHX_USE_MIOPEN
+#endif
+
+#if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -262,7 +267,7 @@ struct miopen_apply
                                             output);
         });
     }
-    #endif
+#endif
     // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
     // the fields Since it doesn't have fields its default constructed
 

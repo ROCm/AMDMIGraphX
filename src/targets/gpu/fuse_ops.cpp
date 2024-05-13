@@ -556,6 +556,8 @@ struct find_conv_pointwise
     }
 };
 #endif
+
+#if MIGRAPHX_USE_ROCBLAS
 struct find_gemm_pointwise
 {
     auto matcher() const
@@ -681,6 +683,7 @@ struct find_gemm_pointwise
         m.replace_instruction(ins, gemm, inputs);
     }
 };
+#endif
 
 struct find_contiguous_tranpose_gemm
 {
@@ -901,7 +904,9 @@ void fuse_ops::apply(module& m) const
     run_passes(m, {dead_code_elimination{}});
 #endif
     match::find_matches(m,
+#if MIGRAPHX_USE_ROCBLAS
                         find_gemm_pointwise{},
+#endif
                         find_layernorm_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_tranpose_gemm{},

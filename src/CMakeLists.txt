@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -333,7 +334,9 @@ if(MIGRAPHX_ENABLE_GPU)
     if(MIGRAPHX_USE_MIOPEN)
         list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
     endif()
-list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)

@@ -52,7 +52,6 @@ struct rocblas_gemm
     bool compute_fp32    = false;
     unsigned trans_batch = 0;
     int32_t solution_idx = 0;
-
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
@@ -158,9 +157,7 @@ struct rocblas_gemm
 #endif
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

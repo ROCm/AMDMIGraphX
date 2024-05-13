@@ -114,6 +114,8 @@ struct hip_device
         }
         #endif
         
+
+#if MIGRAPHX_USE_ROCBLAS
         auto get_rocblas()
         {
             setup();
@@ -122,6 +124,7 @@ struct hip_device
             assert(rbhandle.get() != nullptr);
             return rbhandle.get();
         }
+#endif
 
         void wait() const
         {
@@ -152,10 +155,12 @@ struct hip_device
         private:
         std::size_t id                      = 0;
         shared<hip_stream_ptr> s            = nullptr;
-        #if MIGRAPHX_USE_MIOPEN
+ #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle      = nullptr;
-        #endif
+ #endif
+#if MIGRAPHX_USE_ROCBLAS
         shared<rocblas_handle_ptr> rbhandle = nullptr;
+#endif
     };
 
     void add_stream() { streams.emplace_back(device_id); }

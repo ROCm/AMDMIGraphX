@@ -32,8 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fuse_concat.hpp>
-#include <migraphx/fuse_pointwise.hpp>
-#include <migraphx/fuse_reduce.hpp>
+#include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/layout_nhwc.hpp>
@@ -79,7 +78,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REDUCE_FUSION)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
 #ifndef _WIN32
@@ -101,15 +99,18 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     unsupported_types.erase(shape::type_t::tuple_type);
     // whiltelist supported Ops for the FP8
     std::set<std::string> unsupported_fp8_ops = {};
+#if MIGRAPHX_USE_ROCBLAS
     if(not gpu::rocblas_fp8_available())
     {
         unsupported_fp8_ops.insert("dot");
         unsupported_fp8_ops.insert("quant_dot");
     }
-    #if MIGRAPHX_USE_MIOPEN
+#endif
+
+#if MIGRAPHX_USE_MIOPEN
     // MIOpen doesn't have support for fp8 pooling yet.
     unsupported_fp8_ops.insert("pooling");
-    #endif
+#endif
     if(not gpu::gfx_has_fp8_intrinsics())
     {
         unsupported_fp8_ops.insert("convolution");
@@ -137,8 +138,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         simplify_qdq{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
-        // workaround for rocBLAS unsupported error when using uint8 in quant_dot & quant_convolution
-        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot"}},
+        // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
+        eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
         eliminate_identity{},
@@ -164,10 +165,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_low_precision{},
         dead_code_elimination{},
         optimize_module{},
-        fuse_pointwise{},
-        dead_code_elimination{},
-        enable_pass(not enabled(MIGRAPHX_DISABLE_REDUCE_FUSION{}), fuse_reduce{}),
-        dead_code_elimination{},
+        fuse_pointwise_reduce{},
         enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
         fuse_concat{},

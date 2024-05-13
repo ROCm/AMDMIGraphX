@@ -86,6 +86,7 @@ inline static bool read_weight_files()
     static std::vector<weight_file> weights;
     for(const auto& i : weight_files)
     {
+        // NOLINTNEXTLINE
         weights.push_back(weight_file{i});
     }
     return true;

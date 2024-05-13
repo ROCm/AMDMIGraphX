@@ -341,7 +341,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_MIOPEN)
-    list(APPEND PACKAGE_DEPENDS PACKAGE miopen-hip)
+    list(APPEND PACKAGE_DEPENDS miopen-hip)
 endif()
 if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)

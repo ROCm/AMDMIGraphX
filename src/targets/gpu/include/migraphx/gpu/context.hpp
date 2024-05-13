@@ -31,7 +31,9 @@
 #else
 #include <hip/hip_runtime.h>
 #endif
+#if MIGRAPHX_USE_ROCBLAS
 #include <migraphx/gpu/rocblas.hpp>
+#endif
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -95,7 +97,7 @@ struct hip_device
             return nullptr;
         }
 
-        #if MIGRAPHX_USE_MIOPEN
+#if MIGRAPHX_USE_MIOPEN
         auto create_miopen_handle()
         {
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
@@ -112,7 +114,7 @@ struct hip_device
             assert(mihandle.get() != nullptr);
             return mihandle.get();
         }
-        #endif
+#endif
         
 
 #if MIGRAPHX_USE_ROCBLAS

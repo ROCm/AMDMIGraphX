@@ -26,21 +26,29 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-template <migraphx::shape::type_t DType>
-struct test_gemm : verify_program<test_gemm<DType>>
+#include <migraphx/instruction.hpp>
+
+struct test_reduce_mean_reduce_sum : verify_program<test_reduce_mean_reduce_sum>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto a   = mm->add_parameter("a", migraphx::shape{DType, {1, 2, 1280}});
-        auto b   = mm->add_parameter("b", migraphx::shape{DType, {1, 1280, 320}});
-        mm->add_instruction(migraphx::make_op("dot"), a, b);
+        migraphx::shape s{migraphx::shape::float_type, {5, 784, 768}};
+        auto x     = mm->add_parameter("x", s);
+        auto n     = mm->add_literal(migraphx::literal{
+            migraphx::shape{migraphx::shape::float_type, {1}}, {s.lens().back()}});
+        auto mean  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
+        auto meanb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), mean);
+        auto sub = mm->add_instruction(migraphx::make_op("sub"), x, meanb);
+        auto nb =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), n);
+        auto div  = mm->add_instruction(migraphx::make_op("div"), sub, nb);
+        auto div2 = mm->add_instruction(migraphx::make_op("mul"), div, div);
+        auto mean_div2 =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), div2);
+        mm->add_return({mean_div2});
         return p;
-    }
-    std::string section() const { return "gemm"; }
+    };
 };
-
-template struct test_gemm<migraphx::shape::float_type>;
-template struct test_gemm<migraphx::shape::half_type>;
-template struct test_gemm<migraphx::shape::fp8e4m3fnuz_type>;

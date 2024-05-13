@@ -288,6 +288,15 @@ static bool use_lazy_inner(instruction_ref ins)
 {
     if(ins->outputs().size() != 1)
         return false;
+    // When the inputs are broadcasted, it means the lambda will capture SGPRs
+    // when doing block/wave reduction. This can cause register spilling in
+    // the compiler when the lambda is evaluated at a later time although it
+    // shouldn't. Instead, use `inner` to workaround this issue in the
+    // compiler.
+    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+           return input->get_shape().broadcasted();
+       }))
+        return false;
     auto output = ins->outputs().front();
     return contains(output->name(), "reduce") or output->name() == "@return";
 }

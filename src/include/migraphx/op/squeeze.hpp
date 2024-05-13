@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,12 +59,18 @@ struct squeeze
         auto input_shape = inputs[0];
         if(input_shape.dynamic())
         {
+            // Allow for any dynamic_dimension that intersects with {1, 1}.
+            // Assuming that the shape at run-time will be compatible.
             if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return input_shape.dyn_dims()[axis] != 1;
+                   return not input_shape.dyn_dims()
+                                  .at(axis)
+                                  .intersection(shape::dynamic_dimension{1, 1})
+                                  .has_value();
+                   ;
                }))
             {
                 MIGRAPHX_THROW(
-                    "SQUEEZE: dynamic axis dimension should be equal to {1, 1, 0} or {1, 1, 1}");
+                    "SQUEEZE: dynamic axis dimension should have an intersection with {1, 1}");
             }
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             if(axes.empty())

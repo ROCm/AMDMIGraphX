@@ -95,7 +95,8 @@ bool is_compiled_cpu_module(const migraphx::module& m)
 {
     return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
-        if(not migraphx::starts_with(ins_name, "@"))
+        // sub is not lowered on CPU backend due to vectorization on non-aligned memory.
+        if(not migraphx::starts_with(ins_name, "@") and ins_name != "sub")
         {
             if(not migraphx::starts_with(ins_name, "cpu::") and
                not migraphx::starts_with(ins_name, "dnnl::") and
@@ -111,6 +112,7 @@ bool is_compiled_cpu_module(const migraphx::module& m)
 
 bool is_compiled_ref_module(const migraphx::module& m)
 {
+
     return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))

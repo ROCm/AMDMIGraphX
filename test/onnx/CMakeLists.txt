@@ -26,16 +26,13 @@
 function(add_onnx_test TEST_NAME)
     rocm_add_test_executable(${TEST_NAME} ${ARGN})
     rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref onnx_files weight_files)
+    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref onnx_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
 endfunction()
 
 include(Embed)
-file(GLOB_RECURSE ONNX_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.onnx)
+file(GLOB_RECURSE ONNX_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.onnx ${CMAKE_CURRENT_SOURCE_DIR}/*.weight)
 add_embed_library(onnx_files ${ONNX_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
-
-file(GLOB_RECURSE WEIGHT_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.weight)
-add_embed_library(weight_files ${WEIGHT_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
 
 file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
 file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)

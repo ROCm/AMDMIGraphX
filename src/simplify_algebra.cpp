@@ -792,9 +792,9 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
     }
 }
 
-/** Search for multiple "slice" instructions in an instruction's outputs 
+/** Search for multiple "slice" instructions in an instruction's outputs
  *  which are contiguous slices of the same tensor.
-*/
+ */
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
@@ -1008,9 +1008,9 @@ struct find_splits
 };
 
 /**
- * Matcher replaces a sequence of "slice" operations whose outputs are put back 
- * together by a "concat".  
-*/
+ * Matcher for a sequence of "slice" operations whose outputs are put back
+ * together by a "concat".
+ */
 struct find_split_concat
 {
     auto matcher() const
@@ -1039,14 +1039,14 @@ struct find_split_concat
                return i->outputs().front() != concat;
            }))
             return;
-    
+
         // The axis for the common output instruction must be the same as for the split ops
         auto concat_op = any_cast<op::concat>(concat->get_operator());
         auto split_op  = any_cast<op::slice>(splits.front()->get_operator());
         if(split_op.axes.size() != 1)
             return;
         if(split_op.axes.front() != concat_op.axis)
-            return;      
+            return;
 
         // Filter the common instruction's inputs (concat can have any number of inputs)
         // to the ones matching the split list
@@ -1056,13 +1056,15 @@ struct find_split_concat
         // Look for a series of slice operations equal to splits.size()
         if(std::distance(it, args.end()) < splits.size())
             return;
-        // Don't do anything if the "slice" inputs to the concat op have other operations mixed in among them
-        if(std::any_of(it, it + splits.size(), [](instruction_ref x) { 
-            return x->get_operator().name() != "slice";
-        }))
+        // Don't do anything if the "slice" inputs to the concat op have other operations mixed in
+        // among them
+        if(std::any_of(it, it + splits.size(), [](instruction_ref x) {
+               return x->get_operator().name() != "slice";
+           }))
             return;
         // One slice must "start" where the last slice "end"  This parallels the check
-        // in get_splits(), ensuring the inputs to the concat op follow the same rule as the outputs of "ins"
+        // in get_splits(), ensuring the inputs to the concat op follow the same rule as the outputs
+        // of "ins"
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());

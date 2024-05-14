@@ -392,14 +392,25 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
+bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
+{
+    return is_pointwise_op_supported_by_mlir(i);
+}
+
 MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
 {
     if(ins->name() != "pointwise")
         return false;
     auto* pm = ins->module_inputs().front();
-    return std::all_of(pm->begin(), pm->end(), [&](const auto& i) {
-        return is_pointwise_op_supported_by_mlir(i);
-    });
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir);
+}
+
+MIGRAPHX_PRED_MATCHER(mlir_input_pointwise, instruction_ref ins)
+{
+    if(ins->name() != "pointwise")
+        return false;
+    auto* pm = ins->module_inputs().front();
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir_for_input);
 }
 
 struct find_mlir_fused_ops
@@ -563,7 +574,7 @@ struct find_pointwise_mlir
     auto matcher() const
     {
         return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
-            match::name("pointwise")(match::used_once()).bind("pointwise")));
+            mlir_input_pointwise(match::used_once()).bind("pointwise")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const

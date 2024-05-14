@@ -42,7 +42,7 @@ MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m, const std::vector<sha
 
 MIGRAPHX_GPU_EXPORT bool is_module_fusible(const module& m, const value& solution);
 
-struct mlir_code_object
+struct MIGRAPHX_GPU_EXPORT mlir_code_object
 {
     code_object_op cop;
     std::vector<size_t> prefill_indices = {};

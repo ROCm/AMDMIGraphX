@@ -43,7 +43,6 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/simplify_algebra.hpp>
-#include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/cpu/fuse_ops.hpp>

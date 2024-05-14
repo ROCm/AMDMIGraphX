@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ struct hip_compile_options
     std::vector<shape> inputs;
     shape output;
     std::string kernel_name                    = "kernel";
-    std::string params                         = "";
+    std::vector<std::string> params            = {};
     std::vector<shape> virtual_inputs          = {};
     std::vector<src_file> additional_src_files = {};
 
@@ -63,6 +63,8 @@ struct hip_compile_options
         set_launch_params(
             v, [=](auto) { return default_global; }, default_local);
     }
+
+    void emplace_param(std::string_view s) { params.emplace_back(s); }
 };
 
 /// Compute global for n elements, but max out on target-specific upper limit
@@ -72,8 +74,8 @@ compute_global_for(context& ctx, std::size_t n, std::size_t over = 1);
 MIGRAPHX_GPU_EXPORT operation compile_hip_code_object(const std::string& content,
                                                       hip_compile_options options);
 
-MIGRAPHX_GPU_EXPORT std::size_t compute_block_size(std::size_t n,
-                                                   std::size_t max_block_size = 1024);
+MIGRAPHX_GPU_EXPORT std::size_t
+compute_block_size(context& ctx, std::size_t n, std::size_t max_block_size = 1024);
 
 MIGRAPHX_GPU_EXPORT std::string generate_make_shape(const shape& s);
 

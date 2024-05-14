@@ -88,16 +88,10 @@ inline void compile_check(migraphx::program& p,
     for(std::size_t i = 0; i < num; ++i)
     {
         auto output_shape = p.get_output_shapes()[i];
-        if(output_shape.dynamic() and shapes[i].dynamic())
-        {
-            if(output_shape.dyn_dims() != shapes[i].dyn_dims())
-            {
-                std::cout << ss.str() << std::endl;
-                throw std::runtime_error("Compiling program with " + name +
-                                         " alters its dynamic output dimensions");
-            }
-        }
-        else if(not(output_shape.dynamic() or shapes[i].dynamic()))
+        // for static output shapes check that the intial parsed shapes are
+        // the same as the ones after compiling
+        // no check for dynamic shapes because the shapes can change after compiling
+        if(not output_shape.dynamic() and not shapes[i].dynamic())
         {
             if(output_shape.lens() != shapes[i].lens())
             {
@@ -105,13 +99,6 @@ inline void compile_check(migraphx::program& p,
                 throw std::runtime_error("Compiling program with " + name +
                                          " alters its static output dimensions");
             }
-        }
-        else
-        {
-            std::cout << ss.str() << std::endl;
-            throw std::runtime_error(
-                "Compiling program with " + name +
-                " alters its output dimensions (static shape vs dynamic shape)");
         }
     }
     if(t.name() != "ref")

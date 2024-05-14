@@ -578,6 +578,8 @@ MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
     return ins->get_shape().broadcasted();
 }
 
+MIGRAPHX_PRED_MATCHER(scalar_shape, instruction_ref ins) { return ins->get_shape().scalar(); }
+
 MIGRAPHX_PRED_MATCHER(transpose_shape, instruction_ref ins)
 {
     return ins->get_shape().transposed();
@@ -590,6 +592,15 @@ MIGRAPHX_PRED_MATCHER(same_input_shapes, instruction_ref ins)
     auto s = ins->inputs().front()->get_shape();
     return std::all_of(
         ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x->get_shape() == s; });
+}
+
+MIGRAPHX_PRED_MATCHER(same_inputs, instruction_ref ins)
+{
+    if(ins->inputs().empty())
+        return false;
+    auto input = ins->inputs().front();
+    return std::all_of(
+        ins->inputs().begin(), ins->inputs().end(), [&](auto x) { return x == input; });
 }
 
 MIGRAPHX_PRED_MATCHER(has_same_value, instruction_ref ins)

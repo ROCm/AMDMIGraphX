@@ -25,6 +25,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/op/as_shape.hpp>
 #include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
@@ -119,6 +120,7 @@ struct find_nop_reshapes
         reshapes.insert("multibroadcast");
         reshapes.insert("pad");
         reshapes.insert("slice");
+        reshapes.insert("step");
         reshapes.insert("transpose");
         reshapes.insert("reduce_mean");
         reshapes.insert("reduce_max");
@@ -277,6 +279,78 @@ struct find_concat_multibroadcasts
         auto concat = m.insert_instruction(ins, op, inputs);
         m.replace_instruction(
             ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
+    }
+};
+
+struct find_concat_slice
+{
+    auto matcher() const
+    {
+        return match::name("concat")(match::any_of[match::outputs()](match::name("slice")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins    = mr.result;
+        auto inputs = ins->inputs();
+        auto outs   = ins->outputs();
+        std::vector<migraphx::instruction_ref> slice_ins;
+        migraphx::transform_if(
+            outs.begin(),
+            outs.end(),
+            std::back_inserter(slice_ins),
+            [&](const auto& oins) { return oins->name() == "slice"; },
+            [&](const auto& oins) { return oins; });
+        int concat_axis = any_cast<op::concat>(ins->get_operator()).axis;
+        // prune slice candidates
+        std::vector<migraphx::instruction_ref> slice_candidates;
+        for(const auto& sins : range(slice_ins.begin(), slice_ins.end()))
+        {
+            auto sop = any_cast<op::slice>(sins->get_operator());
+            // slices with only one axis is allowed, because concat happens only one axis
+            if(sop.axes.size() != 1 or sop.axes.front() != concat_axis)
+            {
+                continue;
+            }
+            slice_candidates.push_back(sins);
+        }
+        if(slice_candidates.empty())
+        {
+            return;
+        }
+        std::vector<size_t> prefix_scan = {0};
+        std::transform(
+            inputs.begin(), inputs.end(), std::back_inserter(prefix_scan), [&](const auto& i) {
+                return prefix_scan.back() + i->get_shape().lens()[concat_axis];
+            });
+        for(const auto& sins : slice_candidates)
+        {
+            auto sop           = any_cast<op::slice>(sins->get_operator());
+            size_t slice_start = sop.starts.front();
+            size_t slice_len   = sop.ends.front() - slice_start;
+            auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {
+                return j == slice_start;
+            });
+            if(fii == prefix_scan.end())
+            {
+                continue;
+            }
+            // slice_len == 0
+            else if(fii == prefix_scan.end() - 1)
+            {
+                assert(slice_len == 0 or slice_start >= prefix_scan.back());
+                continue;
+            }
+            else
+            {
+                size_t idx = std::distance(prefix_scan.begin(), fii);
+                if(inputs[idx]->get_shape().lens()[concat_axis] == slice_len)
+                {
+                    assert((prefix_scan[idx + 1] - prefix_scan[idx]) == slice_len);
+                    m.replace_instruction(sins, inputs[idx]);
+                }
+            }
+        }
     }
 };
 
@@ -572,42 +646,108 @@ struct find_reshape_cont
     }
 };
 
-// match sequence of transpose --> contiguous --> reshaper_op
-auto match_transpose_contiguous_reshaper()
+struct find_unary_shape_transforms
 {
-    return match::name({"reshape", "squeeze", "unsqueeze"})(
-               match::used_once(),
-               match::args(
-                   match::name("contiguous")(
-                       match::used_once(), match::args(match::transpose_shape().bind("trans_ins")))
-                       .bind("cont_ins")))
-        .bind("reshaper_ins");
-};
-
-// finds the pattern of transpose --> contiguous --> reshaper_op --> unary
-// application of this matcher moves the unary operation before the contiguous so it becomes
-// transpose --> unary --> contiguous --> reshaper_op. later pointwise sub-module can be created out
-// of unary --> contiguous --> reshaper_op. Such pattern appears in depthToSpace or spaceToDepth
-// operator.
-struct find_transpose_contiguous_reshaper_unary
-{
+    static const auto& shape_transforms()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "squeeze",
+            "unsqueeze",
+            "transpose",
+            "broadcast",
+            "multibroadcast",
+        };
+        return names;
+    }
     auto matcher() const
     {
-        return pointwise(match::used_once(),
-                         match::nargs(1),
-                         match::args(match_transpose_contiguous_reshaper()));
+        auto output_not_pointwise =
+            match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto input_has_shape_transform =
+            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+        return match::pointwise(
+            match::used_once(), input_has_shape_transform, output_not_pointwise);
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    static bool is_shape_transform(instruction_ref ins)
     {
-        auto ins           = r.result;
-        auto reshaper_ins  = r.instructions["reshaper_ins"];
-        auto trans_ins     = r.instructions["trans_ins"];
-        auto cont_ins      = r.instructions["cont_ins"];
-        auto unary_op_name = ins->get_operator().name();
-        auto unary_ins     = m.insert_instruction(cont_ins, make_op(unary_op_name), trans_ins);
-        // older cont and reshape are removed by deadcode elimination
-        m.replace_instruction(ins, reshaper_ins->get_operator(), unary_ins);
+        return ins->inputs().size() == 1 and
+               (contains(shape_transforms(), ins->name()) or ins->name() == "contiguous");
+    }
+
+    static bool can_fuse_unary(instruction_ref ins)
+    {
+        return ins->name() == "@literal" or
+               ins->get_operator().attributes().contains("pointwise") or
+               contains(ins->name(), "reduce");
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        if(ins->outputs().empty())
+            return;
+        auto input  = ins->inputs().front();
+        auto output = ins->outputs().front();
+
+        auto insert_ops = [&](const auto& ops, instruction_ref z) {
+            for(const auto& op : ops)
+            {
+                z = m.insert_instruction(ins, op, z);
+            }
+            return z;
+        };
+
+        std::vector<operation> xops;
+        auto x = input;
+        while(is_shape_transform(x))
+        {
+            xops.push_back(x->get_operator());
+            x = x->inputs().front();
+        }
+        std::reverse(xops.begin(), xops.end());
+
+        std::vector<operation> yops;
+        auto y              = output;
+        auto last_transform = m.end();
+        while(is_shape_transform(y) and y->outputs().size() == 1)
+        {
+            yops.push_back(y->get_operator());
+            last_transform = y;
+            y              = y->outputs().front();
+        }
+
+        bool move_up   = can_fuse_unary(x);
+        bool move_down = can_fuse_unary(y);
+
+        if(move_up and move_down)
+        {
+            if(x->name() == "@literal")
+                move_down = false; // NOLINT(bugprone-branch-clone)
+            else if(yops.empty())
+                move_up = false;
+            else
+                move_down = false;
+        }
+        else if(not move_up and not move_down)
+        {
+            if(not yops.empty())
+                move_up = true;
+        }
+
+        if(move_up)
+        {
+            auto z = m.insert_instruction(ins, ins->get_operator(), x);
+            z      = insert_ops(xops, z);
+            m.replace_instruction(ins, z);
+        }
+        else if(move_down and not yops.empty())
+        {
+            auto z = insert_ops(yops, input);
+            m.replace_instruction(last_transform, ins->get_operator(), z);
+        }
     }
 };
 
@@ -806,6 +946,76 @@ struct find_transpose_slice
     }
 };
 
+// replace scalar (multibroadcast ->unsqueeze, etc.) with just an updated (multibroadcast)
+struct find_scalar_multibroadcast_reshape_or_transpose
+{
+    auto matcher() const
+    {
+        auto contiguous = match::name("contiguous");
+        auto scalar_mbr = match::name("multibroadcast")(match::scalar_shape());
+        auto reshapes   = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
+        return reshapes(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("multibroadcast"))));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto mbr      = mr.instructions["multibroadcast"];
+        auto ins      = mr.result; // (un)squeeze/flatten/reshape/transpose
+        auto out_lens = ins->get_shape().lens();
+        m.replace_instruction(
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
+    }
+};
+
+struct find_reshape_reshape_dot
+{
+    auto matcher() const
+    {
+        return match::name("dot")(match::used_once(),
+                                  match::args(match::name("reshape").bind("inp_rsp1"),
+                                              match::name("reshape").bind("inp_rsp2")));
+    }
+
+    // Gemm axis should not be altered by the reshape
+    auto is_valid_reshape(instruction_ref in, instruction_ref rsp) const
+    {
+        auto in_lens  = in->get_shape().lens();
+        auto rsp_lens = rsp->get_shape().lens();
+
+        return std::equal(rsp_lens.end() - 2, rsp_lens.end(), in_lens.end() - 2, in_lens.end());
+    }
+
+    // Batch dims should match for both inputs
+    auto is_valid_inputs(instruction_ref in1, instruction_ref in2) const
+    {
+        auto in1_lens = in1->get_shape().lens();
+        auto in2_lens = in2->get_shape().lens();
+
+        return (
+            in1_lens.size() == in2_lens.size() and
+            std::equal(in1_lens.begin(), in1_lens.end() - 2, in2_lens.begin(), in2_lens.end() - 2));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto dot      = r.result;
+        auto inp_rsp1 = r.instructions["inp_rsp1"];
+        auto inp_rsp2 = r.instructions["inp_rsp2"];
+
+        auto dot_lens = dot->get_shape().lens();
+
+        auto inp1 = inp_rsp1->inputs().front();
+        auto inp2 = inp_rsp2->inputs().front();
+
+        if(not(is_valid_reshape(inp1, inp_rsp1) and is_valid_reshape(inp2, inp_rsp2) and
+               is_valid_inputs(inp1, inp2)))
+            return;
+
+        auto new_dot = m.insert_instruction(dot, dot->get_operator(), inp1, inp2);
+        m.replace_instruction(dot, make_op("reshape", {{"dims", dot_lens}}), new_dot);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
     for(int i = 0; i < depth; i++)
@@ -817,6 +1027,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshaper{},
                             find_reshape_cont{},
                             find_transpose{},
+                            find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
@@ -824,7 +1035,9 @@ void simplify_reshapes::apply(module& m) const
                             find_transpose_slice{},
                             find_broadcast_transpose{},
                             find_slice_transpose{},
-                            find_transpose_contiguous_reshaper_unary{});
+                            find_unary_shape_transforms{},
+                            find_reshape_reshape_dot{},
+                            find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

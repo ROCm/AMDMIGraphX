@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,7 +75,7 @@ struct gathernd_compiler : compiler<gathernd_compiler>
         // batch_dims
         assert(v.contains("batch_dims"));
         auto batch_dims = v.at("batch_dims").to<int64_t>();
-        options.params += " -DBATCH_DIMS=" + std::to_string(batch_dims);
+        options.emplace_param("-DBATCH_DIMS=" + std::to_string(batch_dims));
 
         return compile_hip_code_object(gathernd_kernel, options);
     }

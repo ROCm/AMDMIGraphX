@@ -38,6 +38,7 @@ namespace op {
 struct quantizelinear
 {
     std::string name() const { return "quantizelinear"; }
+    std::optional<migraphx::shape::type_t> out_type;
 
     value attributes() const
     {
@@ -45,6 +46,12 @@ struct quantizelinear
         // gpu compilation pipeline, rewrite_quantization will be invoked
         // from generate_pointwise() to rewrite this op.
         return {{"pointwise", true}};
+    }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.out_type, "out_type"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -57,6 +64,10 @@ struct quantizelinear
         if(inputs.size() == 3)
         {
             return {inputs[2].type(), inputs[0].lens(), inputs[0].strides()};
+        }
+        if(out_type.has_value())
+        {
+            return {out_type.value(), inputs[0].lens(), inputs[0].strides()};
         }
         return {shape::uint8_type, inputs[0].lens(), inputs[0].strides()};
     }

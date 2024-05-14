@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -100,6 +100,24 @@ void argument::assign_buffer(std::function<char*()> d)
         result.sub = subs;
         return result;
     })(s);
+}
+
+std::vector<argument> flatten(const std::vector<argument>& args)
+{
+    std::vector<argument> result;
+    for(const auto& arg : args)
+    {
+        if(arg.get_shape().type() == shape::tuple_type)
+        {
+            auto subs = flatten(arg.get_sub_objects());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(arg);
+        }
+    }
+    return result;
 }
 
 std::vector<shape> to_shapes(const std::vector<argument>& args)

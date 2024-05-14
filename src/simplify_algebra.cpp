@@ -1048,12 +1048,12 @@ struct find_split_concat
         if(split_op.axes.front() != concat_op.axis)
             return;
 
-        // Filter the common instruction's inputs (concat can have any number of inputs)
-        // to the ones matching the split list
+        // Find where the slices are in the concat instruction's inputs (concat can have
+        // any number of inputs)
         auto args = concat->inputs();
         auto it =
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
-        // Look for a series of slice operations equal to splits.size()
+        // Verify the slices were found, and the list is long enough
         if(std::distance(it, args.end()) < splits.size())
             return;
         // Don't do anything if the "slice" inputs to the concat op have other operations mixed in
@@ -1062,9 +1062,7 @@ struct find_split_concat
                return x->get_operator().name() != "slice";
            }))
             return;
-        // One slice must "start" where the last slice "end"  This parallels the check
-        // in get_splits(), ensuring the inputs to the concat op follow the same rule as the outputs
-        // of "ins"
+        // Check that the slices passed to concat are in order.
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());

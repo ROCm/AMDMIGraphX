@@ -1756,6 +1756,34 @@ TEST_CASE(simplify_slice_concat_flipped)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_slice_concat_interleaved_non_slice)
+{
+    // Matched by matcher find_split_concat, but no substitution because the "slice"
+    // instructions in the input list have a different instruction mixed in
+    migraphx::module m1;
+    {
+        migraphx::shape s{migraphx::shape::float_type, {1, 3, 1, 1}};
+        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+
+        auto x    = m1.add_parameter("x", s);
+        auto one  = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), one, x);
+
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), conv);
+        auto relu   = m1.add_instruction(migraphx::make_op("relu"), conv);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), conv);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), slice1, relu, slice2);
+
+        m1.add_instruction(pass_op{}, concat);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_split_add_relu)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};
@@ -2138,34 +2166,6 @@ TEST_CASE(simplify_split_add_relu_multi_axes)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), sum2);
         auto add   = m1.add_instruction(migraphx::make_op("add"), relu1, relu2);
         m1.add_instruction(pass_op{}, add);
-    }
-    migraphx::module m2 = m1;
-    run_pass(m1);
-    EXPECT(m1.sort() == m2.sort());
-}
-
-TEST_CASE(split_concat_extra_inputs)
-{
-    // Matched by matcher find_split_concat, but no substitution because the "slice"
-    // instructions in the input list have a different instruction mixed in
-    migraphx::module m1;
-    {
-        migraphx::shape s{migraphx::shape::float_type, {1, 3, 1, 1}};
-        migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
-
-        auto x    = m1.add_parameter("x", s);
-        auto one  = m1.add_literal(migraphx::generate_literal(ws, 1));
-        auto conv = m1.add_instruction(migraphx::make_op("convolution"), one, x);
-
-        auto slice1 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), conv);
-        auto relu   = m1.add_instruction(migraphx::make_op("relu"), conv);
-        auto slice2 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}), conv);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), slice1, relu, slice2);
-
-        m1.add_instruction(pass_op{}, concat);
     }
     migraphx::module m2 = m1;
     run_pass(m1);

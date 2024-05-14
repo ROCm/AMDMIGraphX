@@ -25,7 +25,6 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_HPP
 
-#include "migraphx/stringutils.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -39,6 +38,7 @@
 #include <migraphx/tmp_dir.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/stringutils.hpp>
 #include <onnx_files.hpp>
 #include <test.hpp>
 

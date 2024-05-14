@@ -32,6 +32,11 @@ import torch
 import time
 from functools import wraps
 
+from hip import hip
+from collections import namedtuple
+
+HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
+
 
 # measurement helper
 def measure(fn):
@@ -190,6 +195,13 @@ def get_args():
         default=None,
         help="Output name",
     )
+
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Log during run",
+    )
     return parser.parse_args()
 
 
@@ -292,9 +304,17 @@ def copy_tensor_sync(tensor, data):
     torch.cuda.synchronize()
 
 
+def copy_tensor(tensor, data):
+    tensor.copy_(data.to(tensor.dtype))
+
+
 def run_model_sync(model, args):
     model.run(args)
     mgx.gpu_sync()
+
+
+def run_model_async(model, args, stream):
+    model.run_async(args, stream, "ihipStream_t")
 
 
 def allocate_torch_tensors(model):
@@ -440,25 +460,72 @@ class StableDiffusionMGX():
                 self.tensors["refiner_clip2"])
             self.model_args["refiner_unetxl"] = tensors_to_args(
                 self.tensors["refiner_unetxl"])
+        # hipEventCreate return a tuple(error, event)
+        self.events = {
+            "warmup":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "run":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "clip":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "denoise":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "decode":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+        }
 
-    @measure
+        self.stream = hip.hipStreamCreate()[1]
+
+    def cleanup(self):
+        for event in self.events.values():
+            hip.hipEventDestroy(event.start)
+            hip.hipEventDestroy(event.end)
+        hip.hipStreamDestroy(self.stream)
+
+    def profile_start(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].start, None)
+
+    def profile_end(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].end, None)
+
+    # @measure
     @torch.no_grad()
-    def run(self, prompt, negative_prompt, steps, seed, scale, refiner_steps,
-            refiner_aesthetic_score, refiner_negative_aesthetic_score):
+    def run(self,
+            prompt,
+            negative_prompt,
+            steps,
+            seed,
+            scale,
+            refiner_steps,
+            refiner_aesthetic_score,
+            refiner_negative_aesthetic_score,
+            verbose=False):
         torch.cuda.synchronize()
+        self.profile_start("run")
         # need to set this for each run
         self.scheduler.set_timesteps(steps, device="cuda")
 
-        print("Tokenizing prompts...")
+        if verbose:
+            print("Tokenizing prompts...")
         prompt_tokens = self.tokenize(prompt, negative_prompt)
 
-        print("Creating text embeddings...")
+        if verbose:
+            print("Creating text embeddings...")
+        self.profile_start("clip")
         hidden_states, text_embeddings = self.get_embeddings(prompt_tokens)
-
+        self.profile_end("clip")
         sample_size = list(self.tensors["vae"]["latent_sample"].size())
-        print(
-            f"Creating random input data {sample_size} (latents) with {seed = }..."
-        )
+        if verbose:
+            print(
+                f"Creating random input data {sample_size} (latents) with {seed = }..."
+            )
         noise = torch.randn(
             sample_size, generator=torch.manual_seed(seed)).to(device="cuda")
         # input h/w crop h/w output h/w
@@ -466,12 +533,16 @@ class StableDiffusionMGX():
         time_id = [height * 8, width * 8, 0, 0, height * 8, width * 8]
         time_ids = torch.tensor([time_id, time_id]).to(device="cuda")
 
-        print("Apply initial noise sigma\n")
+        if verbose:
+            print("Apply initial noise sigma\n")
         latents = noise * self.scheduler.init_noise_sigma
 
-        print("Running denoising loop...")
+        if verbose:
+            print("Running denoising loop...")
+        self.profile_start("denoise")
         for step, t in enumerate(self.scheduler.timesteps):
-            print(f"#{step}/{len(self.scheduler.timesteps)} step")
+            if verbose:
+                print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings,
                                         hidden_states,
                                         latents,
@@ -479,7 +550,7 @@ class StableDiffusionMGX():
                                         scale,
                                         time_ids,
                                         model="unetxl")
-
+        self.profile_end("denoise")
         if self.use_refiner and refiner_steps > 0:
             hidden_states, text_embeddings = self.get_embeddings(
                 prompt_tokens, is_refiner=True)
@@ -493,9 +564,11 @@ class StableDiffusionMGX():
             # Add noise to latents using timesteps
             latents = self.scheduler.add_noise(latents, noise,
                                                self.scheduler.timesteps[:1])
-            print("Running refiner denoising loop...")
+            if verbose:
+                print("Running refiner denoising loop...")
             for step, t in enumerate(self.scheduler.timesteps):
-                print(f"#{step}/{len(self.scheduler.timesteps)} step")
+                if verbose:
+                    print(f"#{step}/{len(self.scheduler.timesteps)} step")
                 latents = self.denoise_step(text_embeddings,
                                             hidden_states,
                                             latents,
@@ -503,18 +576,40 @@ class StableDiffusionMGX():
                                             scale,
                                             time_ids,
                                             model="refiner_unetxl")
-
-        print("Scale denoised result...")
+        if verbose:
+            print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
 
-        print("Decode denoised result...")
+        self.profile_start("decode")
+        if verbose:
+            print("Decode denoised result...")
         image = self.decode(latents)
+        self.profile_end("decode")
 
         torch.cuda.synchronize()
+        self.profile_end("run")
         return image
 
+    def print_summary(self, denoise_steps):
+        print('WARMUP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['warmup'].start,
+                                    self.events['warmup'].end)[1]))
+        print('CLIP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['clip'].start,
+                                    self.events['clip'].end)[1]))
+        print('UNetx{}\t{:>9.2f} ms'.format(
+            str(denoise_steps),
+            hip.hipEventElapsedTime(self.events['denoise'].start,
+                                    self.events['denoise'].end)[1]))
+        print('VAE-Dec\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['decode'].start,
+                                    self.events['decode'].end)[1]))
+        print('RUN\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['run'].start,
+                                    self.events['run'].end)[1]))
+
+    # @measure
     @staticmethod
-    @measure
     def load_mgx_model(name,
                        shapes,
                        onnx_model_path,
@@ -550,7 +645,7 @@ class StableDiffusionMGX():
             sys.exit(1)
         return model
 
-    @measure
+    # @measure
     def tokenize(self, prompt, negative_prompt):
         def _tokenize(tokenizer):
             return self.tokenizers[tokenizer](
@@ -564,11 +659,12 @@ class StableDiffusionMGX():
         tokens2 = _tokenize("clip2")
         return (tokens, tokens2)
 
-    @measure
+    # @measure
     def get_embeddings(self, prompt_tokens, is_refiner=False):
         def _create_embedding(model, input):
-            copy_tensor_sync(self.tensors[model]["input_ids"], input.input_ids)
-            run_model_sync(self.models[model], self.model_args[model])
+            copy_tensor(self.tensors[model]["input_ids"], input.input_ids)
+            run_model_async(self.models[model], self.model_args[model],
+                            self.stream)
 
         clip_input, clip2_input = prompt_tokens
         clip, clip2 = "clip", ("refiner_" if is_refiner else "") + "clip2"
@@ -595,7 +691,7 @@ class StableDiffusionMGX():
     def save_image(pil_image, filename="output.png"):
         pil_image.save(filename)
 
-    @measure
+    # @measure
     def denoise_step(self, text_embeddings, hidden_states, latents, t, scale,
                      time_ids, model):
         latents_model_input = torch.cat([latents] * 2)
@@ -603,13 +699,14 @@ class StableDiffusionMGX():
             latents_model_input, t).to(device="cuda")
         timestep = torch.atleast_1d(t.to(device="cuda"))  # convert 0D -> 1D
 
-        copy_tensor_sync(self.tensors[model]["sample"], latents_model_input)
-        copy_tensor_sync(self.tensors[model]["encoder_hidden_states"],
-                         hidden_states)
-        copy_tensor_sync(self.tensors[model]["text_embeds"], text_embeddings)
-        copy_tensor_sync(self.tensors[model]["timestep"], timestep)
-        copy_tensor_sync(self.tensors[model]["time_ids"], time_ids)
-        run_model_sync(self.models[model], self.model_args[model])
+        copy_tensor(self.tensors[model]["sample"], latents_model_input)
+        copy_tensor(self.tensors[model]["encoder_hidden_states"],
+                    hidden_states)
+        copy_tensor(self.tensors[model]["text_embeds"], text_embeddings)
+        copy_tensor(self.tensors[model]["timestep"], timestep)
+        copy_tensor(self.tensors[model]["time_ids"], time_ids)
+        run_model_async(self.models[model], self.model_args[model],
+                        self.stream)
 
         noise_pred_text, noise_pred_uncond = torch.tensor_split(
             self.tensors[model][get_output_name(0)], 2)
@@ -621,22 +718,26 @@ class StableDiffusionMGX():
         # compute the previous noisy sample x_t -> x_t-1
         return self.scheduler.step(noise_pred, t, latents).prev_sample
 
-    @measure
+    # @measure
     def decode(self, latents):
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"], latents)
-        run_model_sync(self.models["vae"], self.model_args["vae"])
+        copy_tensor(self.tensors["vae"]["latent_sample"], latents)
+        run_model_async(self.models["vae"], self.model_args["vae"],
+                        self.stream)
         return self.tensors["vae"][get_output_name(0)]
 
-    @measure
+    # @measure
     def warmup(self, num_runs):
+        self.profile_start("warmup")
         init_fn = lambda x: torch.ones if "clip" in x else torch.randn
         for model in self.models.keys():
             for tensor in self.tensors[model].values():
-                copy_tensor_sync(tensor, init_fn(model)(tensor.size()))
+                copy_tensor(tensor, init_fn(model)(tensor.size()))
 
         for _ in range(num_runs):
             for model in self.models.keys():
-                run_model_sync(self.models[model], self.model_args[model])
+                run_model_async(self.models[model], self.model_args[model],
+                                self.stream)
+        self.profile_end("warmup")
 
 
 if __name__ == "__main__":
@@ -647,11 +748,18 @@ if __name__ == "__main__":
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
                             args.force_compile, args.exhaustive_tune)
+    print("Warmup")
     sd.warmup(5)
+    print("Run")
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale, args.refiner_steps,
                     args.refiner_aesthetic_score,
-                    args.refiner_negative_aesthetic_score)
+                    args.refiner_negative_aesthetic_score, args.verbose)
+
+    print("Summary")
+    sd.print_summary(args.steps)
+    print("Cleanup")
+    sd.cleanup()
 
     print("Convert result to rgb image...")
     image = StableDiffusionMGX.convert_to_rgb_image(result)

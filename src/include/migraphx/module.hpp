@@ -306,7 +306,7 @@ struct MIGRAPHX_EXPORT module
     std::unique_ptr<module_impl> impl;
 };
 
-struct module_with_inputs
+struct MIGRAPHX_EXPORT module_with_inputs
 {
     module mod;
     std::vector<instruction_ref> inputs;

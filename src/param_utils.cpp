@@ -55,11 +55,11 @@ find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
     std::map<std::string, instruction_ref> names;
     for(auto&& [input, param] : map_ins)
     {
-        if(sub and not sub->has_instruction(param))
+        if(sub != nullptr and not sub->has_instruction(param))
             continue;
         if(param->name() != "@param")
             continue;
-        if(parent and not parent->has_instruction(input))
+        if(parent != nullptr and not parent->has_instruction(input))
             continue;
         auto v      = param->get_operator().to_value();
         auto name   = v.at("parameter").to<std::string>();

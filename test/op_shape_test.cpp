@@ -3134,11 +3134,11 @@ TEST_CASE(reshape_broadcast_squeeze_memlayout_change)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", output.lens()}}), input);
 }
 
-TEST_CASE(reshape_dyn_1in)
+TEST_CASE(reshape_dyn_1in_0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{
-            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}})
+            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}, {2, 2, 12, 0}})
     {
         std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{};
         for(std::size_t i = 0; i < new_shape.size(); ++i)
@@ -3156,6 +3156,16 @@ TEST_CASE(reshape_dyn_1in)
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
+
+TEST_CASE(reshape_dyn_1in_1)
+{
+    // TODO
+}
+
+TEST_CASE(reshape_dyn_1in_2)
+{
+    // TODO
 }
 
 TEST_CASE(reshape_dyn_2in_0)

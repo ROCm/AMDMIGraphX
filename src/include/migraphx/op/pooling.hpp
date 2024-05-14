@@ -86,10 +86,6 @@ struct pooling
     // Global pooling with dynamic shape input
     bool dyn_global = false;
 
-    // an attribute of the Onnx pooling operator, not currently enabled here because MIOpen can't
-    // support it. We currently implement padding for average pooling by inserting a Padding
-    // operator during Onnx parsing. But to support dynamic shape inputs and count_include_pad
-    // together, it would be necessary to do this calculation at runtime in MIOpen.
     bool count_include_pad = false;
 
     template <class Self, class F>
@@ -345,9 +341,8 @@ struct pooling
                 int end;
                 std::size_t dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
                 // NOLINT
-                if(count_include_pad and ceil_mode and (mode != pooling_mode::max))
+                if(count_include_pad and (mode != pooling_mode::max))
                 {
-                    // TODO: this block can't execute until we enable count_include_pad
                     // Even when using padding, if in ceil_mode a window
                     // could extend beyond the end of both input and
                     // padding.  Clip out-of-bounds indexes but not padding.

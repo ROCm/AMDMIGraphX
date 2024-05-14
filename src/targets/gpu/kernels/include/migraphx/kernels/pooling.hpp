@@ -42,8 +42,10 @@ struct average_pool
     }
 };
 
+struct lpnorm_pool_base {};
+
 template <index_int P>
-struct lpnorm_pool
+struct lpnorm_pool : lpnorm_pool_base
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
@@ -138,6 +140,10 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
             }
             else
             {
+                if constexpr(is_base_of<Op, lpnorm_pool_base>{})
+                {
+                    x = op(x, op.init());
+                }
                 if constexpr(not IncludePad and is_same<Op, average_pool>{})
                 {
                     pool_size--;

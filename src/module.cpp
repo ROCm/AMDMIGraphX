@@ -998,7 +998,7 @@ module::fuse(const std::vector<instruction_ref>& inss,
              module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    if(not map_ins)
+    if(map_ins == nullptr)
         map_ins = &default_map_ins;
     std::vector<instruction_ref> inputs;
     for(auto ins : inss)
@@ -1023,7 +1023,7 @@ module::fuse(const module& m,
              module::inserter insert)
 {
     std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
-    if(not map_ins)
+    if(map_ins == nullptr)
         map_ins = &default_map_ins;
     insert_params(*this, inputs, *map_ins);
     auto param_map = m.get_ins_param_map(inputs);

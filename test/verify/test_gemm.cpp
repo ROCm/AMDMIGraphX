@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include "migraphx/compile_options.hpp"
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
@@ -39,6 +40,10 @@ struct test_gemm : verify_program<test_gemm<DType>>
         return p;
     }
     std::string section() const { return "gemm"; }
+    migraphx::compile_options get_compile_options() const
+    {
+        return migraphx::compile_options{.exhaustive_tune = true};
+    }
 };
 
 template struct test_gemm<migraphx::shape::float_type>;

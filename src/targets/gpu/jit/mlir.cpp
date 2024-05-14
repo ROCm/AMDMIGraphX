@@ -78,6 +78,9 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return i.name() == "dot" or i.name() == "quant_dot";
         });
+        std::cout << "Compiling solution: \n";
+        solution.debug_print();
+        std::cout << "is module fusible: " << is_module_fusible(*smod, solution) << "\n";
         // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
         // allow fused module
         if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and

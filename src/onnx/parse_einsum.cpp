@@ -366,7 +366,7 @@ struct parse_einsum : op_parser<parse_einsum>
 
         // Unsqueeze the input shape in the dimensions marked as -1 in the mapping_matrix
         // Transpose the input shape so the labels are in alphabetical order
-        op = unsqueeze_transpose(info, cur_pair, op);
+        op = transpose_unsqueeze(info, cur_pair, op);
 
         std::vector<int> red;
         // Check if a given label appears in any of the subsequent mapping matrix terms(this
@@ -564,12 +564,12 @@ struct parse_einsum : op_parser<parse_einsum>
             op = apply_reduce_sum_op(info, op, red, cur_pair[1]);
         }
 
-        return transpose_squeeze(info, cur_pair, op, map_mat.back());
+        return squeeze_transpose(info, cur_pair, op, map_mat.back());
     }
 
     // Permutes the labels so they are in alphabetical order and expands the input dimensions to
     // match the number of unique labels in the entire equation.
-    instruction_ref unsqueeze_transpose(const onnx_parser::node_info& info,
+    instruction_ref transpose_unsqueeze(const onnx_parser::node_info& info,
                                         int_mat& cur_pair,
                                         instruction_ref op) const
     {
@@ -597,8 +597,8 @@ struct parse_einsum : op_parser<parse_einsum>
         return info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
     }
 
-    // Reverts the effects of unsqueeze_transpose (adjusts the output so it fits the equation)
-    instruction_ref transpose_squeeze(const onnx_parser::node_info& info,
+    // Reverts the effects of transpose_unsqueeze (adjusts the output so it fits the equation)
+    instruction_ref squeeze_transpose(const onnx_parser::node_info& info,
                                       int_mat& cur_pair,
                                       instruction_ref op,
                                       std::vector<int> row_output) const

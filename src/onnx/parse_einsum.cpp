@@ -567,41 +567,34 @@ struct parse_einsum : op_parser<parse_einsum>
         return transpose_squeeze(info, cur_pair, op, map_mat.back());
     }
 
-    // Expands the input dimensions to match the number of unique labels in the entire equation.
-    // Then permutes the labels so they are in alphabetical order.
+    // Permutes the labels so they are in alphabetical order and expands the input dimensions to
+    // match the number of unique labels in the entire equation.
     instruction_ref unsqueeze_transpose(const onnx_parser::node_info& info,
                                         int_mat& cur_pair,
                                         instruction_ref op) const
     {
+        std::vector<int> perm;
         std::vector<int> unsq_axes;
-        std::vector<std::tuple<int, int>> perm;
 
         for(auto i = 0; i < cur_pair[1].size(); ++i)
         {
             if(cur_pair[1][i] == -1) // unsqueeze the dimensions corresponding to the missing labels
                 unsq_axes.push_back(i);
             else                     // permute the rest
-                perm.push_back({cur_pair[1][i], i});
+                perm.push_back(cur_pair[1][i]);
         }
-        auto unsqueeze = info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
 
-        // sort the permutation alphabetically
-        std::sort(
-            perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
+        std::vector<int64_t> perm64(perm.begin(), perm.end());
+        op = apply_transpose_op(info, op, perm64, perm);
 
-        // calculate a permutation that keeps the unsqueezed dims at the same position while
-        // permuting the rest
-        std::vector<int64_t> new_perm(cur_pair[1].size());
-        std::iota(new_perm.begin(), new_perm.end(), 0);
-        for(auto i = 0, p = 0; i < cur_pair[1].size(); ++i)
+        // compute output row
+        for(auto axis : unsq_axes)
         {
-            if(cur_pair[1][i] == -1) // unsqueezed dimensions are not permuted
-                continue;
-
-            new_perm[std::get<1>(perm[p++])] = i;
+            perm.insert(perm.begin() + axis, -1);
         }
+        cur_pair[1] = perm;
 
-        return apply_transpose_op(info, unsqueeze, new_perm, cur_pair[1]);
+        return info.add_instruction(make_op("unsqueeze", {{"axes", unsq_axes}}), op);
     }
 
     // Reverts the effects of unsqueeze_transpose (adjusts the output so it fits the equation)
@@ -610,39 +603,29 @@ struct parse_einsum : op_parser<parse_einsum>
                                       instruction_ref op,
                                       std::vector<int> row_output) const
     {
-        std::vector<std::tuple<int, int>> perm;
-        std::vector<int> sq;
+        std::vector<int> sq_axes;
+        std::vector<int> perm;
 
         for(auto i = 0; i < row_output.size(); ++i)
         {
-            if(row_output[i] == -1)
-                sq.push_back(i);
-            else
-                perm.push_back({row_output[i], i});
+            if(row_output[i] == -1) // squeeze the dimensions corresponding to the missing labels
+                sq_axes.push_back(i);
+            else                    // permute the rest
+                perm.push_back(row_output[i]);
         }
 
-        std::sort(
-            perm.begin(), perm.end(), by(std::less<>{}, [](auto x) { return std::get<0>(x); }));
+        op = info.add_instruction(make_op("squeeze", {{"axes", sq_axes}}), op);
 
-        std::vector<int64_t> new_perm(cur_pair[1].size());
-        std::iota(new_perm.begin(), new_perm.end(), 0);
-
-        for(auto i = 0, p = 0; i < row_output.size(); ++i)
+        if(not perm.empty())
         {
-            if(row_output[i] == -1)
-                continue;
-
-            new_perm[i] = std::get<1>(perm[p++]);
-        }
-
-        op = apply_transpose_op(info, op, new_perm, cur_pair[1]);
-
-        if(not sq.empty())
-        {
-            op = info.add_instruction(make_op("squeeze", {{"axes", sq}}), op);
+            std::vector<int64_t> perm64(perm.begin(), perm.end());
+            op = apply_transpose_op(info, op, invert_permutation(perm64), perm);
             // compute output row
-            for(int a : sq)
-                cur_pair[1][a] = -1;
+            for(auto axis : sq_axes)
+            {
+                perm.insert(perm.begin() + axis, -1);
+            }
+            cur_pair[1] = perm;
         }
 
         return op;

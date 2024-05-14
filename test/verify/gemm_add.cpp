@@ -47,6 +47,8 @@ struct gemm_add : verify_program<gemm_add<DType>>
         return p;
     }
     std::string section() const { return "gemm"; }
+
+    // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
     migraphx::compile_options get_compile_options() const
     {
         return migraphx::compile_options{.exhaustive_tune = true};

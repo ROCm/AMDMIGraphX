@@ -26,7 +26,7 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_test)
+TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_even_weighted_ones_test)
 {
     migraphx::program p =
         migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx");
@@ -39,7 +39,30 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_test)
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
     std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    p.debug_print();
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.38629436, 1.38629436, 1.38629436, 1.38629436};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_uneven_weighted_ones_test)
+{
+    migraphx::program p =
+        migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
+    std::vector<float> weight_data = {1.0f, 0.5f, 2.0f, 3.0f};
 
     migraphx::parameter_map pp;
     pp["0"] = migraphx::argument(score_shape, score_data.data());
@@ -48,12 +71,15 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_weighted_test)
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     // result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {45730, 44641, 46108, 45010};
+
+    std::vector<float> gold = {1.38629436, 4.15888308, 0.69314718, 2.77258872};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
-TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test)
+TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test_ones)
 {
     migraphx::program p =
         migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_weighted_test.onnx");
@@ -73,8 +99,33 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test)
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
-    // result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {45730, 44641, 46108, 45010};
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {5.545177};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_weighted_test_zeroes)
+{
+    migraphx::program p =
+        migraphx::parse_onnx("softmaxcrossentropyloss_2d_sum_reduction_weighted_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0, 0.0f, 0.0f, 0.0f, 0.0f};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
+    std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {5.545177};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
@@ -98,7 +149,33 @@ TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_weighted_test)
 
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
-    // result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {45730, 44641, 46108, 45010};
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.38629436};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(softmaxcrossentropyloss_2d_mean_reduction_uneven_weighted_test)
+{
+    migraphx::program p =
+        migraphx::parse_onnx("softmaxcrossentropyloss_2d_mean_reduction_weighted_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {4, 4}};
+    std::vector<float> score_data = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {4}};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
+    migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
+    std::vector<float> weight_data = {1.0f, 0.5f, 2.0f, 3.0f};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+    pp["2"] = migraphx::argument(weight_shape, weight_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {1.38629436};
+
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

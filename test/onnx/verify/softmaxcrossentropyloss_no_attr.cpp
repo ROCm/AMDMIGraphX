@@ -89,8 +89,6 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test_ones)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {5.5452f};
-    for(auto r : result_vector)
-        std::cout << r << std::endl;
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
@@ -114,8 +112,6 @@ TEST_CASE(softmaxcrossentropyloss_2d_sum_reduction_test_zeroes)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold = {5.5452f};
-    for(auto r : result_vector)
-        std::cout << r << std::endl;
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

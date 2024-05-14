@@ -296,7 +296,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                     info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
             }
 
-            if(reduction == "sum")
+            if(reduction == "sum" or reduction == "mean")
             {
                 loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}),
                                                    loss_tensor);

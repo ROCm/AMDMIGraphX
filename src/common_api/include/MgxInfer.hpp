@@ -12,15 +12,8 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
 
-inline void
-pass_impl(const std::string& msg, const char* file, const char* fun, int line, bool term)
-{
-    std::cout << file << ":" << line << ":" << fun << ": " << msg << std::endl;
-    if(term)
-        std::terminate();
-}
-
-#define pass(msg, term) pass_impl(msg, __FILE__, __FUNCTION__, __LINE__, term)
+#include "MgxInferRuntimeBase.hpp"
+#include "pass.hpp"
 
 namespace mgxinfer1 {
 
@@ -53,9 +46,6 @@ class IDebugListener
 {
 };
 class IOptimizationProfile
-{
-};
-class ITensor
 {
 };
 class IActivationLayer
@@ -209,81 +199,9 @@ class INetworkDefinition;
 class IBuilder;
 class IBuilderConfig;
 
-//! char_t is the type used by TensorRT to represent all valid characters.
-using char_t = char;
 
-//! AsciiChar is the type used by TensorRT to represent valid ASCII characters.
-//! This type is widely used in automotive safety context.
-using AsciiChar = char_t;
-
-//!
-//! \class ILogger
-//!
-//! \brief Application-implemented logging interface for the builder, refitter and runtime.
-//!
-//! The logger used to create an instance of IBuilder, IRuntime or IRefitter is used for all objects
-//! created through that interface. The logger must be valid until all objects created are released.
-//!
-//! The Logger object implementation must be thread safe. All locking and synchronization is pushed
-//! to the interface implementation and TensorRT does not hold any synchronization primitives when
-//! calling the interface functions.
-//!
-class ILogger
-{
-    public:
-    //!
-    //! \enum Severity
-    //!
-    //! \brief The severity corresponding to a log message.
-    //!
-    enum class Severity : int32_t
-    {
-        //! An internal error has occurred. Execution is unrecoverable.
-        kINTERNAL_ERROR = 0,
-        //! An application error has occurred.
-        kERROR = 1,
-        //! An application error has been discovered, but TensorRT has recovered or fallen back to a
-        //! default.
-        kWARNING = 2,
-        //!  Informational messages with instructional information.
-        kINFO = 3,
-        //!  Verbose messages with debugging information.
-        kVERBOSE = 4,
-    };
-
-    //!
-    //! \brief A callback implemented by the application to handle logging messages;
-    //!
-    //! \param severity The severity of the message.
-    //! \param msg A null-terminated log message.
-    //!
-    //! \warning Loggers used in the safety certified runtime must set a maximum message length and
-    //! truncate
-    //!          messages exceeding this length. It is up to the implementer of the derived class to
-    //!          define a suitable limit that will prevent buffer overruns, resource exhaustion, and
-    //!          other security vulnerabilities in their implementation. The TensorRT safety
-    //!          certified runtime will never emit messages longer than 1024 bytes.
-    //!
-    //! \usage
-    //! - Allowed context for the API call
-    //!   - Thread-safe: Yes, this method is required to be thread-safe and may be called from
-    //!   multiple threads
-    //!                  when multiple execution contexts are used during runtime, or if the same
-    //!                  logger is used for multiple runtimes, builders, or refitters.
-    //!
-    virtual void log(Severity severity, AsciiChar const* msg) noexcept = 0;
-
-    ILogger()          = default;
-    virtual ~ILogger() = default;
-
-    protected:
-    // @cond SuppressDoxyWarnings
-    ILogger(ILogger const&)              = default;
-    ILogger(ILogger&&)                   = default;
-    ILogger& operator=(ILogger const&) & = default;
-    ILogger& operator=(ILogger&&) &      = default;
-    // @endcond
-};
+using TensorFormats = uint32_t;
+using BuilderFlags  = uint32_t;
 
 //!
 //! \class INoCopy
@@ -304,54 +222,6 @@ class INoCopy
     INoCopy& operator=(INoCopy&& other)      = delete;
 };
 
-//!
-//! \enum DataType
-//! \brief The type of weights and tensors.
-//!
-enum class DataType : int32_t
-{
-    //! 32-bit floating point format.
-    kFLOAT = 0,
-
-    //! IEEE 16-bit floating-point format -- has a 5 bit exponent and 11 bit significand.
-    kHALF = 1,
-
-    //! Signed 8-bit integer representing a quantized floating-point value.
-    kINT8 = 2,
-
-    //! Signed 32-bit integer format.
-    kINT32 = 3,
-
-    //! 8-bit boolean. 0 = false, 1 = true, other values undefined.
-    kBOOL = 4,
-
-    //! Unsigned 8-bit integer format.
-    //! Cannot be used to represent quantized floating-point values.
-    //! Use the IdentityLayer to convert kUINT8 network-level inputs to {kFLOAT, kHALF} prior
-    //! to use with other TensorRT layers, or to convert intermediate output
-    //! before kUINT8 network-level outputs from {kFLOAT, kHALF} to kUINT8.
-    //! kUINT8 conversions are only supported for {kFLOAT, kHALF}.
-    //! kUINT8 to {kFLOAT, kHALF} conversion will convert the integer values
-    //! to equivalent floating point values.
-    //! {kFLOAT, kHALF} to kUINT8 conversion will convert the floating point values
-    //! to integer values by truncating towards zero. This conversion has undefined behavior for
-    //! floating point values outside the range [0.0F, 256.0F) after truncation.
-    //! kUINT8 conversions are not supported for {kINT8, kINT32, kBOOL}.
-    kUINT8 = 5,
-
-    //! Signed 8-bit floating point with
-    //! 1 sign bit, 4 exponent bits, 3 mantissa bits, and exponent-bias 7.
-    kFP8 = 6,
-
-    //! Brain float -- has an 8 bit exponent and 8 bit significand.
-    kBF16 = 7,
-
-    //! Signed 64-bit integer type.
-    kINT64 = 8,
-
-    //! Signed 4-bit integer type.
-    kINT4 = 9,
-};
 
 //!
 //! \class IHostMemory
@@ -370,49 +240,22 @@ class IHostMemory : public INoCopy
     virtual ~IHostMemory() noexcept = default;
 
     //! A pointer to the raw data that is owned by the library.
-    const void* data() const noexcept { return reinterpret_cast<const void*>(mem_.data()); }
+    const void* data() const noexcept { return data_; }
 
     //! The size in bytes of the data that was allocated.
-    std::size_t size() const noexcept { return mem_.size(); }
+    std::size_t size() const noexcept { return size_; }
 
     //! The type of the memory that was allocated.
     DataType type() const noexcept { return type_; }
 
-    IHostMemory(const std::vector<char>& mem, DataType type) : mem_{mem}, type_{type} {}
+    IHostMemory(void* data, size_t size, DataType type) : data_{data}, size_{size}, type_{type} {}
 
     protected:
     // apiv::VHostMemory* mImpl;
-    std::vector<char> mem_;
+    void* data_;
+    size_t size_;
     DataType type_;
 };
-
-//!
-//! \class Dims
-//! \brief Structure to define the dimensions of a tensor.
-//!
-//! TensorRT can also return an "invalid dims" structure. This structure is
-//! represented by nbDims == -1 and d[i] == 0 for all i.
-//!
-//! TensorRT can also return an "unknown rank" dims structure. This structure is
-//! represented by nbDims == -1 and d[i] == -1 for all i.
-//!
-class Dims64
-{
-    public:
-    //! The maximum rank (number of dimensions) supported for a tensor.
-    static constexpr int32_t MAX_DIMS{8};
-
-    //! The rank (number of dimensions).
-    int32_t nbDims;
-
-    //! The extent of each dimension.
-    int64_t d[MAX_DIMS];
-};
-
-//!
-//! Alias for Dims64.
-//!
-using Dims = Dims64;
 
 //!
 //! \brief Represents a collection of one or more TempfileControlFlag values combined using
@@ -424,332 +267,23 @@ using Dims = Dims64;
 using TempfileControlFlags = uint32_t;
 
 //!
-//! \class IRuntime
+//! \enum ExecutionContextAllocationStrategy
 //!
-//! \brief Allows a serialized functionally unsafe engine to be deserialized.
+//! \brief Different memory allocation behaviors for IExecutionContext.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
-//! and ABI.
+//! IExecutionContext requires a block of device memory for internal activation tensors during
+//! inference. The user can either let the execution context manage the memory in various ways or
+//! allocate the memory themselves.
 //!
-class IRuntime : public INoCopy
+//! \see ICudaEngine::createExecutionContext()
+//! \see IExecutionContext::setDeviceMemory()
+//!
+enum class ExecutionContextAllocationStrategy : int32_t
 {
-    public:
-    virtual ~IRuntime() noexcept = default;
-
-    //!
-    //! \brief Sets the DLA core used by the network. Defaults to -1.
-    //!
-    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
-    //!
-    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
-    //! are available.
-    //!
-    //! \warning if getNbDLACores() returns 0, then this function does nothing.
-    //!
-    //! \see getDLACore()
-    //!
-    void setDLACore(int32_t dlaCore) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setDLACore(dlaCore);
-    }
-
-    //!
-    //! \brief Get the DLA core that the engine executes on.
-    //!
-    //! \return assigned DLA core or -1 for DLA not present or unset.
-    //!
-    int32_t getDLACore() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getDLACore();
-    }
-
-    //!
-    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
-    //!
-    int32_t getNbDLACores() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbDLACores();
-    }
-
-    //!
-    //! \brief Set the GPU allocator.
-    //!
-    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
-    //! will use this allocator. If NULL is passed, the default allocator will be used.
-    //!
-    //! Default: uses cudaMalloc/cudaFree.
-    //!
-    //! If nullptr is passed, the default allocator will be used.
-    //!
-    void setGpuAllocator(IGpuAllocator* allocator) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setGpuAllocator(allocator);
-    }
-
-    //!
-    //! \brief Set the ErrorRecorder for this interface
-    //!
-    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
-    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
-    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
-    //! a call to decRefCount if a recorder has been registered.
-    //!
-    //! If an error recorder is not set, messages will be sent to the global log stream.
-    //!
-    //! \param recorder The error recorder to register with this interface.
-    //
-    //! \see getErrorRecorder()
-    //!
-    void setErrorRecorder(IErrorRecorder* recorder) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setErrorRecorder(recorder);
-    }
-
-    //!
-    //! \brief get the ErrorRecorder assigned to this interface.
-    //!
-    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
-    //! if an error handler has not been set.
-    //!
-    //! \return A pointer to the IErrorRecorder object that has been registered.
-    //!
-    //! \see setErrorRecorder()
-    //!
-    IErrorRecorder* getErrorRecorder() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getErrorRecorder();
-    }
-
-    //!
-    //! \brief Deserialize an engine from host memory.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
-    //!
-    //! \param blob The memory that holds the serialized engine.
-    //! \param size The size of the memory.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->deserializeCudaEngine(blob, size);
-    }
-
-    //!
-    //! \brief Deserialize an engine from a stream.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the
-    //! engine.
-    //!
-    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
-    //!
-    //! \param streamReader a read-only stream from which TensorRT will deserialize a
-    //!        previously serialized engine.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
-    {
-        pass("Not Implemented", true);
-        // return mImpl->deserializeCudaEngine(streamReader);
-    }
-
-    //!
-    //! \brief get the logger with which the runtime was created
-    //!
-    //! \return the logger
-    //!
-    ILogger* getLogger() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getLogger();
-    }
-
-    //!
-    //! \brief Set the maximum number of threads.
-    //!
-    //! \param maxThreads The maximum number of threads that can be used by the runtime.
-    //! \return True if successful, false otherwise.
-    //!
-    //! The default value is 1 and includes the current thread.
-    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
-    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
-    //!
-    bool setMaxThreads(int32_t maxThreads) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setMaxThreads(maxThreads);
-    }
-
-    //!
-    //! \brief Get the maximum number of threads that can be used by the runtime.
-    //!
-    //! Retrieves the maximum number of threads that can be used by the runtime.
-    //!
-    //! \return The maximum number of threads that can be used by the runtime.
-    //!
-    //! \see setMaxThreads()
-    //!
-    int32_t getMaxThreads() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getMaxThreads();
-    }
-
-    //!
-    //! \brief Set the directory that will be used by this runtime for temporary files.
-    //!
-    //! On some platforms the TensorRT runtime may need to create and use temporary files
-    //! with read/write/execute permissions to implement runtime functionality.
-    //!
-    //! \param path Path to the temporary directory for use, or nullptr.
-    //!
-    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
-    //! a default temporary directory if required:
-    //!
-    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
-    //! fall back to /tmp
-    //! - On Windows, TensorRT will try the TEMP environment variable.
-    //!
-    //! See the TensorRT Developer Guide for more information.
-    //!
-    //! The default value is nullptr.
-    //!
-    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
-    //! or absolute path in the format expected by the host operating system.
-    //!
-    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
-    //! terminator. Note that the operating system may have stricter path length requirements.
-    //!
-    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
-    //! and the directory shall be configured to disallow other users from modifying created files
-    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
-    //!
-    //! \see getTemporaryDirectory()
-    //!
-    void setTemporaryDirectory(char const* path) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setTemporaryDirectory(path);
-    }
-
-    //!
-    //! \brief Get the directory that will be used by this runtime for temporary files.
-    //!
-    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
-    //!
-    //! \see setTemporaryDirectory()
-    char const* getTemporaryDirectory() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTemporaryDirectory();
-    }
-
-    //!
-    //! \brief Set the tempfile control flags for this runtime.
-    //!
-    //! \param flags The flags to set.
-    //!
-    //! The default value is all flags set, i.e.
-    //!
-    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
-    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
-    //!
-    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setTempfileControlFlags(flags);
-    }
-
-    //!
-    //! \brief Get the tempfile control flags for this runtime.
-    //!
-    //! \return The flags currently set.
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
-    //!
-    TempfileControlFlags getTempfileControlFlags() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTempfileControlFlags();
-    }
-
-    //!
-    //! \brief Get the local plugin registry that can be used by the runtime.
-    //!
-    //! \return The local plugin registry that can be used by the runtime.
-    //!
-    IPluginRegistry& getPluginRegistry() noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getPluginRegistry();
-    }
-
-    //!
-    //! \brief Load IRuntime from the file.
-    //!
-    //! This method loads a runtime library from a shared library file. The runtime can then be used
-    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
-    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
-    //! the loaded runtime library.
-    //!
-    //! \param path Path to the runtime lean library.
-    //!
-    //! \return the runtime library, or nullptr if it could not be loaded
-    //!
-    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
-    //! terminator.
-    //!
-    IRuntime* loadRuntime(char const* path) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->loadRuntime(path);
-    }
-
-    //!
-    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
-    //! code.
-    //!
-    //! The default value is false.
-    //!
-    void setEngineHostCodeAllowed(bool allowed) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setEngineHostCodeAllowed(allowed);
-    }
-
-    //!
-    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    bool getEngineHostCodeAllowed() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getEngineHostCodeAllowed();
-    }
-
-    // protected:
-    //     apiv::VRuntime* mImpl;
+    kSTATIC = 0, //!< Default static allocation with the maximum size across all profiles.
+    kON_PROFILE_CHANGE = 1, //!< Reallocate for a profile when it's selected.
+    kUSER_MANAGED      = 2, //!< The user supplies custom allocation to the execution context.
 };
-
-//!
-//! \brief Create an instance of an IRuntime class.
-//!
-//! \param logger The logging class for the runtime.
-//!
-inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{}; }
 
 //!
 //! \enum TensorLocation
@@ -760,162 +294,6 @@ enum class TensorLocation : int32_t
 {
     kDEVICE = 0, //!< Data stored on device.
     kHOST   = 1, //!< Data stored on host.
-};
-
-//!
-//! \enum TensorIOMode
-//!
-//! \brief Definition of tensor IO Mode.
-//!
-enum class TensorIOMode : int32_t
-{
-    //! Tensor is not an input or output.
-    kNONE = 0,
-
-    //! Tensor is input to the engine.
-    kINPUT = 1,
-
-    //! Tensor is output by the engine.
-    kOUTPUT = 2
-};
-
-//!
-//! \enum TensorFormat
-//!
-//! \brief Format of the input/output tensors.
-//!
-//! This enum is used by both plugins and network I/O tensors.
-//!
-//! \see IPluginV2::supportsFormat(), safe::ICudaEngine::getBindingFormat()
-//!
-//! Many of the formats are **vector-major** or **vector-minor**. These formats specify
-//! a <em>vector dimension</em> and <em>scalars per vector</em>.
-//! For example, suppose that the tensor has has dimensions [M,N,C,H,W],
-//! the vector dimension is C and there are V scalars per vector.
-//!
-//! * A **vector-major** format splits the vectorized dimension into two axes in the
-//!   memory layout. The vectorized dimension is replaced by an axis of length ceil(C/V)
-//!   and a new dimension of length V is appended. For the example tensor, the memory layout
-//!   is equivalent to an array with dimensions [M][N][ceil(C/V)][H][W][V].
-//!   Tensor coordinate (m,n,c,h,w) maps to array location [m][n][c/V][h][w][c\%V].
-//!
-//! * A **vector-minor** format moves the vectorized dimension to become the last axis
-//!   in the memory layout. For the example tensor, the memory layout is equivalent to an
-//!   array with dimensions [M][N][H][W][ceil(C/V)*V]. Tensor coordinate (m,n,c,h,w) maps
-//!   array location subscript [m][n][h][w][c].
-//!
-//! In interfaces that refer to "components per element", that's the value of V above.
-//!
-//! For more information about data formats, see the topic "Data Format Description" located in the
-//! TensorRT Developer Guide.
-//! https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html#data-format-desc
-//!
-enum class TensorFormat : int32_t
-{
-    //! Memory layout is similar to an array in C or C++.
-    //! The stride of each dimension is the product of the dimensions after it.
-    //! The last dimension has unit stride.
-    //!
-    //! For DLA usage, the tensor sizes are limited to C,H,W in the range [1,8192].
-    kLINEAR = 0,
-
-    //! Vector-major format with two scalars per vector.
-    //! Vector dimension is third to last.
-    //!
-    //! This format requires FP16 or BF16 and at least three dimensions.
-    kCHW2 = 1,
-
-    //! Vector-minor format with eight scalars per vector.
-    //! Vector dimension is third to last.
-    //! This format requires FP16 or BF16 and at least three dimensions.
-    kHWC8 = 2,
-
-    //! Vector-major format with four scalars per vector.
-    //! Vector dimension is third to last.
-    //!
-    //! This format requires INT8 or FP16 and at least three dimensions.
-    //! For INT8, the length of the vector dimension must be a build-time constant.
-    //!
-    //! Deprecated usage:
-    //!
-    //! If running on the DLA, this format can be used for acceleration
-    //! with the caveat that C must be less than or equal to 4.
-    //! If used as DLA input and the build option kGPU_FALLBACK is not specified,
-    //! it needs to meet line stride requirement of DLA format. Column stride in
-    //! bytes must be a multiple of 64 on Orin.
-    kCHW4 = 3,
-
-    //! Vector-major format with 16 scalars per vector.
-    //! Vector dimension is third to last.
-    //!
-    //! This format requires INT8 or FP16 and at least three dimensions.
-    //!
-    //! For DLA usage, this format maps to the native feature format for FP16,
-    //! and the tensor sizes are limited to C,H,W in the range [1,8192].
-    kCHW16 = 4,
-
-    //! Vector-major format with 32 scalars per vector.
-    //! Vector dimension is third to last.
-    //!
-    //! This format requires at least three dimensions.
-    //!
-    //! For DLA usage, this format maps to the native feature format for INT8,
-    //! and the tensor sizes are limited to C,H,W in the range [1,8192].
-    kCHW32 = 5,
-
-    //! Vector-minor format with eight scalars per vector.
-    //! Vector dimension is fourth to last.
-    //!
-    //! This format requires FP16 or BF16 and at least four dimensions.
-    kDHWC8 = 6,
-
-    //! Vector-major format with 32 scalars per vector.
-    //! Vector dimension is fourth to last.
-    //!
-    //! This format requires FP16 or INT8 and at least four dimensions.
-    kCDHW32 = 7,
-
-    //! Vector-minor format where channel dimension is third to last and unpadded.
-    //!
-    //! This format requires either FP32 or UINT8 and at least three dimensions.
-    kHWC = 8,
-
-    //! DLA planar format. For a tensor with dimension {N, C, H, W}, the W axis
-    //! always has unit stride. The stride for stepping along the H axis is
-    //! rounded up to 64 bytes.
-    //!
-    //! The memory layout is equivalent to a C array with dimensions
-    //! [N][C][H][roundUp(W, 64/elementSize)] where elementSize is
-    //! 2 for FP16 and 1 for Int8, with the tensor coordinates (n, c, h, w)
-    //! mapping to array subscript [n][c][h][w].
-    kDLA_LINEAR = 9,
-
-    //! DLA image format. For a tensor with dimension {N, C, H, W} the C axis
-    //! always has unit stride. The stride for stepping along the H axis is rounded up
-    //! to 64 bytes on Orin. C can only be 1, 3 or 4.
-    //! If C == 1, it will map to grayscale format.
-    //! If C == 3 or C == 4, it will map to color image format. And if C == 3,
-    //! the stride for stepping along the W axis needs to be padded to 4 in elements.
-    //!
-    //! When C is {1, 3, 4}, then C' is {1, 4, 4} respectively,
-    //! the memory layout is equivalent to a C array with dimensions
-    //! [N][H][roundUp(W, 64/C'/elementSize)][C'] on Orin
-    //! where elementSize is 2 for FP16
-    //! and 1 for Int8. The tensor coordinates (n, c, h, w) mapping to array
-    //! subscript [n][h][w][c].
-    kDLA_HWC4 = 10,
-
-    //! Vector-minor format with 16 scalars per vector.
-    //! Vector dimension is third to last.
-    //!
-    //! This requires FP16 and at least three dimensions.
-    kHWC16 = 11,
-
-    //! Vector-minor format with one scalar per vector.
-    //! Vector dimension is fourth to last.
-    //!
-    //! This format requires FP32 and at least four dimensions.
-    kDHWC = 12
 };
 
 //!
@@ -1067,22 +445,419 @@ enum class HardwareCompatibilityLevel : int32_t
 };
 
 //!
-//! \enum ExecutionContextAllocationStrategy
+//! \class ITensor
 //!
-//! \brief Different memory allocation behaviors for IExecutionContext.
+//! \brief A tensor in a network definition.
 //!
-//! IExecutionContext requires a block of device memory for internal activation tensors during
-//! inference. The user can either let the execution context manage the memory in various ways or
-//! allocate the memory themselves.
+//! To remove a tensor from a network definition, use INetworkDefinition::removeTensor().
 //!
-//! \see ICudaEngine::createExecutionContext()
-//! \see IExecutionContext::setDeviceMemory()
+//! When using the DLA, the cumulative size of all Tensors that are not marked as Network Input or
+//! Output tensors, must be less than 1GB in size to fit into a single subgraph. If the build option
+//! kGPU_FALLBACK is specified, then multiple subgraphs can be created, with each subgraph limited
+//! to less than 1GB of internal tensors data.
 //!
-enum class ExecutionContextAllocationStrategy : int32_t
+//! \warning The volume of the tensor must be less than 2^31 elements. If the tensor is a shape
+//! tensor, its volume must not exceed 64. \warning Do not inherit from this class, as doing so will
+//! break forward-compatibility of the API and ABI.
+//!
+class ITensor : public INoCopy
 {
-    kSTATIC = 0, //!< Default static allocation with the maximum size across all profiles.
-    kON_PROFILE_CHANGE = 1, //!< Reallocate for a profile when it's selected.
-    kUSER_MANAGED      = 2, //!< The user supplies custom allocation to the execution context.
+    public:
+    ITensor(migraphx::shape shape) : shape_{shape} {}
+    //!
+    //! \brief Set the tensor name.
+    //!
+    //! For a network input, the name is assigned by the application. For tensors which are layer
+    //! outputs, a default name is assigned consisting of the layer name followed by the index of
+    //! the output in brackets.
+    //!
+    //! This method copies the name string.
+    //!
+    //! \param name The name.
+    //!
+    //! \warning The string name must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    //! \see getName()
+    //!
+    void setName(char const* name) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setName(name);
+    }
+
+    //!
+    //! \brief Get the tensor name.
+    //!
+    //! \return The name as a null-terminated C-style string.
+    //!
+    //! \see setName()
+    //!
+    char const* getName() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getName();
+    }
+
+    //!
+    //! \brief Set the dimensions of a tensor.
+    //!
+    //! For a network input, the dimensions are assigned by the application. For a network output,
+    //! the dimensions are computed based on the layer parameters and the inputs to the layer. If a
+    //! tensor size or a parameter is modified in the network, the dimensions of all dependent
+    //! tensors will be recomputed.
+    //!
+    //! This call is only legal for network input tensors, since the dimensions of layer output
+    //! tensors are inferred based on layer inputs and parameters. The volume must be less than 2^31
+    //! elements.
+    //!
+    //! \param dimensions The dimensions of the tensor.
+    //!
+    //! \see getDimensions()
+    //!
+    void setDimensions(Dims const& dimensions) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDimensions(dimensions);
+    }
+
+    //!
+    //! \brief Get the dimensions of a tensor.
+    //!
+    //! \return The dimensions of the tensor.
+    //!
+    //! \warning getDimensions() returns a -1 for dimensions that are derived from a wildcard
+    //! dimension.
+    //!
+    //! \see setDimensions()
+    //!
+    Dims getDimensions() const noexcept
+    {
+        // TODO incomplete
+        Dims dims;
+        auto lens   = shape_.lens();
+        dims.nbDims = static_cast<int32_t>(lens.size());
+        std::transform(
+            lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
+        return dims;
+        // pass("Not Implemented", true);
+        // return mImpl->getDimensions();
+    }
+
+    //!
+    //! \brief Set the data type of a tensor.
+    //!
+    //! \param type The data type of the tensor.
+    //!
+    //! The type is unchanged if the tensor is not a network input tensor, or marked as an output
+    //! tensor or shape output tensor.
+    //!
+    //! \see getType()
+    //!
+    void setType(DataType type) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setType(type);
+    }
+
+    //!
+    //! \brief Get the data type of a tensor.
+    //!
+    //! \return The data type of the tensor.
+    //!
+    //! \see setType()
+    //!
+    DataType getType() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getType();
+    }
+
+    //!
+    //! \brief Set dynamic range for the tensor
+    //!
+    //! Currently, only symmetric ranges are supported.
+    //! Therefore, the larger of the absolute values of the provided bounds is used.
+    //!
+    //! \return Whether the dynamic range was set successfully.
+    //!
+    //! Requires that min and max be finite, and min <= max.
+    //!
+    bool setDynamicRange(float min, float max) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setDynamicRange(min, max);
+    }
+
+    //!
+    //! \brief Whether the tensor is a network input.
+    //!
+    bool isNetworkInput() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isNetworkInput();
+    }
+
+    //!
+    //! \brief Whether the tensor is a network output.
+    //!
+    bool isNetworkOutput() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isNetworkOutput();
+    }
+
+    //!
+    //! \brief Set whether to enable broadcast of tensor across the implicit batch dimension.
+    //!
+    //! \warning This method has no effect other than issuing a warning.
+    //!
+    //! \param broadcastAcrossBatch Whether to broadcast the tensor across the implicit
+    //!         batch dimension that was a feature of TensorRT 9.x and prior.
+    //!
+    //! \see getBroadcastAcrossBatch()
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. Implicit batch is not supported since
+    //! TensorRT 10.0.
+    //!
+    [[deprecated]] void setBroadcastAcrossBatch(bool broadcastAcrossBatch) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setBroadcastAcrossBatch(broadcastAcrossBatch);
+    }
+
+    //!
+    //! \brief Check if tensor is broadcast across the implicit batch dimension.
+    //!
+    //! \return Always false since TensorRT 10.0 does not support an implicit batch dimension.
+    //!
+    //! \see setBroadcastAcrossBatch()
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. Implicit batch is not supported since
+    //! TensorRT 10.0.
+    //!
+    [[deprecated]] bool getBroadcastAcrossBatch() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getBroadcastAcrossBatch();
+    }
+
+    //!
+    //! \brief Get the storage location of a tensor.
+    //!
+    //! \return The location of tensor data.
+    //!
+    //! \see setLocation()
+    //!
+    TensorLocation getLocation() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getLocation();
+    }
+
+    //!
+    //! \brief Set the storage location of a tensor
+    //!
+    //! \param location the location of tensor data
+    //!
+    //! Only network input tensors for storing sequence lengths for RNNv2 are supported.
+    //! Using host storage for layers that do not support it will generate
+    //! errors at build time.
+    //!
+    //! \see getLocation()
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. RNNv2 is not supported and the location must
+    //! always be TensorLocation::kDEVICE since TensorRT 10.0.
+    //!
+    [[deprecated]] void setLocation(TensorLocation location) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setLocation(location);
+    }
+
+    //!
+    //! \brief Query whether dynamic range is set.
+    //!
+    //! \return True if dynamic range is set, false otherwise.
+    //!
+    bool dynamicRangeIsSet() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->dynamicRangeIsSet();
+    }
+
+    //!
+    //! \brief Undo effect of setDynamicRange.
+    //!
+    void resetDynamicRange() noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->resetDynamicRange();
+    }
+
+    //!
+    //! \brief Get minimum of dynamic range.
+    //!
+    //! \return Minimum of dynamic range, or quiet NaN if range was not set.
+    //!
+    float getDynamicRangeMin() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDynamicRangeMin();
+    }
+
+    //!
+    //! \brief Get maximum of dynamic range.
+    //!
+    //! \return Maximum of dynamic range, or quiet NaN if range was not set.
+    //!
+    float getDynamicRangeMax() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDynamicRangeMax();
+    }
+
+    //!
+    //! \brief Set allowed formats for this tensor. By default all formats are allowed.
+    //!        Shape tensors (for which isShapeTensor() returns true) may only have row-major linear
+    //!        format.
+    //!
+    //! When running network on DLA and the build option kGPU_FALLBACK is not specified, if DLA
+    //! format(kCHW4 with Int8, kCHW4 with FP16, kCHW16 with FP16, kCHW32 with Int8) is set, the
+    //! input format is treated as native DLA format with line stride requirement. Input/output
+    //! binding with these format should have correct layout during inference.
+    //!
+    //! \param formats A bitmask of TensorFormat values that are supported for this tensor.
+    //!
+    //! \see ITensor::getAllowedFormats()
+    //!
+    //! \see TensorFormats
+    //!
+    void setAllowedFormats(TensorFormats formats) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setAllowedFormats(formats);
+    }
+
+    //!
+    //! \brief Get a bitmask of TensorFormat values that the tensor supports.
+    //!        For a shape tensor, only row-major linear format is allowed.
+    //!
+    //! \return The value specified by setAllowedFormats or all possible formats.
+    //!
+    //! \see ITensor::setAllowedFormats()
+    //!
+    TensorFormats getAllowedFormats() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getAllowedFormats();
+    }
+
+    //!
+    //! \brief Whether the tensor is a shape tensor.
+    //!
+    //! A shape tensor is a tensor that is related to shape calculations.
+    //! It must have type Int32, Int64, Bool, or Float, and its shape must be determinable at build
+    //! time. Furthermore, it must be needed as a shape tensor, either marked as a network shape
+    //! output via markOutputForShapes(), or as a layer input that is required to be a shape
+    //! tensor, such as the second input to IShuffleLayer. Some layers are "polymorphic" in
+    //! this respect. For example, the inputs to IElementWiseLayer must be shape tensors
+    //! if the output is a shape tensor.
+    //!
+    //! The TensorRT Developer Guide give the formal rules for what tensors are shape tensors.
+    //!
+    //! The result of isShapeTensor() is reliable only when network construction is complete.
+    //! For example, if a partially built network sums two tensors T1 and T2 to create
+    //! tensor T3, and none are yet needed as shape tensors, isShapeTensor() returns false
+    //! for all three tensors.  Setting the second input of IShuffleLayer to be T3 would
+    //! cause all three tensors to be shape tensors, because IShuffleLayer requires that its
+    //! second optional input be a shape tensor, and IElementWiseLayer is "polymorphic".
+    //!
+    //! It is possible for a tensor to be both a shape tensor and an execution tensor.
+    //!
+    //! \return True if tensor is a shape tensor, false otherwise.
+    //!
+    //! \see INetworkDefinition::markOutputForShapes()
+    //!
+    bool isShapeTensor() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isShapeTensor();
+    }
+
+    //!
+    //! \brief Whether the tensor is an execution tensor.
+    //!
+    //! Tensors are usually execution tensors.  The exceptions are tensors used
+    //! solely for shape calculations or whose contents not needed to compute the outputs.
+    //!
+    //! The result of isExecutionTensor() is reliable only when network construction is complete.
+    //! For example, if a partially built network has no path from a tensor to a network output,
+    //! isExecutionTensor() returns false. Completing the path would cause it to become true.
+    //!
+    //!
+    //! A tensor with isShapeTensor() == false and isExecutionTensor() == false
+    //! can still show up as an input to the engine if its dimensions are required.
+    //! In that case, only its dimensions need to be set at runtime and a nullptr
+    //! can be passed instead of a pointer to its contents.
+    //!
+    bool isExecutionTensor() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isExecutionTensor();
+    }
+
+    //!
+    //! \brief Name a dimension of an input tensor.
+    //!
+    //! Associate a runtime dimension of an input tensor with a symbolic name.
+    //! Dimensions with the same non-empty name must be equal at runtime.
+    //! Knowing this equality for runtime dimensions may help the TensorRT optimizer.
+    //! Both runtime and build-time dimensions can be named.
+    //!
+    //! For example, setDimensionName(0, "n") associates the symbolic name "n" with the leading
+    //! dimension.
+    //!
+    //! This method copies the name string.
+    //! If the function is called again, with the same index, it will overwrite the previous name.
+    //! If nullptr is passed as name, it will clear the name of the dimension.
+    //!
+    //! \param index index of the dimension
+    //! \param name of the dimension, as a pointer to a null-terminated character sequence.
+    //!
+    //! \warning The string name must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    //! \see getDimensionName()
+    //!
+    void setDimensionName(int32_t index, char const* name) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDimensionName(index, name);
+    }
+
+    //!
+    //! \brief Get the name of an input dimension.
+    //!
+    //! \param index index of the dimension
+    //!
+    //! \return The name of the input dimension, or nullptr if the dimension has no name.
+    //!         The name is a pointer to a null-terminated character sequence.
+    //!
+    //! \see setDimensionName()
+    //!
+    char const* getDimensionName(int32_t index) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDimensionName(index);
+    }
+
+    protected:
+    // apiv::VTensor* mImpl;
+    virtual ~ITensor() noexcept = default;
+
+    private:
+    migraphx::shape shape_;
 };
 
 //!
@@ -1096,6 +871,8 @@ enum class ExecutionContextAllocationStrategy : int32_t
 class ICudaEngine : public INoCopy
 {
     public:
+    ICudaEngine(migraphx::program&& program) : program_{program} {}
+
     virtual ~ICudaEngine() noexcept = default;
 
     //!
@@ -1902,9 +1679,344 @@ class ICudaEngine : public INoCopy
         // return mImpl->isDebugTensor(name);
     }
 
+    private:
+    migraphx::program program_;
+
     // protected:
     //     apiv::VCudaEngine* mImpl;
 };
+
+//!
+//! \class IRuntime
+//!
+//! \brief Allows a serialized functionally unsafe engine to be deserialized.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IRuntime : public INoCopy
+{
+    public:
+    IRuntime(ILogger& logger) : logger_{logger} {}
+    virtual ~IRuntime() noexcept = default;
+
+    //!
+    //! \brief Sets the DLA core used by the network. Defaults to -1.
+    //!
+    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
+    //!
+    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
+    //! are available.
+    //!
+    //! \warning if getNbDLACores() returns 0, then this function does nothing.
+    //!
+    //! \see getDLACore()
+    //!
+    void setDLACore(int32_t dlaCore) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDLACore(dlaCore);
+    }
+
+    //!
+    //! \brief Get the DLA core that the engine executes on.
+    //!
+    //! \return assigned DLA core or -1 for DLA not present or unset.
+    //!
+    int32_t getDLACore() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDLACore();
+    }
+
+    //!
+    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
+    //!
+    int32_t getNbDLACores() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbDLACores();
+    }
+
+    //!
+    //! \brief Set the GPU allocator.
+    //!
+    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
+    //! will use this allocator. If NULL is passed, the default allocator will be used.
+    //!
+    //! Default: uses cudaMalloc/cudaFree.
+    //!
+    //! If nullptr is passed, the default allocator will be used.
+    //!
+    void setGpuAllocator(IGpuAllocator* allocator) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setGpuAllocator(allocator);
+    }
+
+    //!
+    //! \brief Set the ErrorRecorder for this interface
+    //!
+    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
+    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
+    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
+    //! a call to decRefCount if a recorder has been registered.
+    //!
+    //! If an error recorder is not set, messages will be sent to the global log stream.
+    //!
+    //! \param recorder The error recorder to register with this interface.
+    //
+    //! \see getErrorRecorder()
+    //!
+    void setErrorRecorder(IErrorRecorder* recorder) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setErrorRecorder(recorder);
+    }
+
+    //!
+    //! \brief get the ErrorRecorder assigned to this interface.
+    //!
+    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
+    //! if an error handler has not been set.
+    //!
+    //! \return A pointer to the IErrorRecorder object that has been registered.
+    //!
+    //! \see setErrorRecorder()
+    //!
+    IErrorRecorder* getErrorRecorder() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getErrorRecorder();
+    }
+
+    //!
+    //! \brief Deserialize an engine from host memory.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
+    //!
+    //! \param blob The memory that holds the serialized engine.
+    //! \param size The size of the memory.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
+    {
+        // Pass the error recorder to the engine as well
+        // TODO error handling
+        auto program = migraphx::load_buffer(reinterpret_cast<const char*>(blob), size);
+        std::cout << program << std::endl;
+        return new ICudaEngine{std::move(program)};
+        // return mImpl->deserializeCudaEngine(blob, size);
+    }
+
+    //!
+    //! \brief Deserialize an engine from a stream.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the
+    //! engine.
+    //!
+    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
+    //!
+    //! \param streamReader a read-only stream from which TensorRT will deserialize a
+    //!        previously serialized engine.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
+    {
+        pass("Not Implemented", true);
+        // return mImpl->deserializeCudaEngine(streamReader);
+    }
+
+    //!
+    //! \brief get the logger with which the runtime was created
+    //!
+    //! \return the logger
+    //!
+    ILogger* getLogger() const noexcept { return &logger_; }
+
+    //!
+    //! \brief Set the maximum number of threads.
+    //!
+    //! \param maxThreads The maximum number of threads that can be used by the runtime.
+    //! \return True if successful, false otherwise.
+    //!
+    //! The default value is 1 and includes the current thread.
+    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
+    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
+    //!
+    bool setMaxThreads(int32_t maxThreads) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setMaxThreads(maxThreads);
+    }
+
+    //!
+    //! \brief Get the maximum number of threads that can be used by the runtime.
+    //!
+    //! Retrieves the maximum number of threads that can be used by the runtime.
+    //!
+    //! \return The maximum number of threads that can be used by the runtime.
+    //!
+    //! \see setMaxThreads()
+    //!
+    int32_t getMaxThreads() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMaxThreads();
+    }
+
+    //!
+    //! \brief Set the directory that will be used by this runtime for temporary files.
+    //!
+    //! On some platforms the TensorRT runtime may need to create and use temporary files
+    //! with read/write/execute permissions to implement runtime functionality.
+    //!
+    //! \param path Path to the temporary directory for use, or nullptr.
+    //!
+    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
+    //! a default temporary directory if required:
+    //!
+    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
+    //! fall back to /tmp
+    //! - On Windows, TensorRT will try the TEMP environment variable.
+    //!
+    //! See the TensorRT Developer Guide for more information.
+    //!
+    //! The default value is nullptr.
+    //!
+    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
+    //! or absolute path in the format expected by the host operating system.
+    //!
+    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
+    //! terminator. Note that the operating system may have stricter path length requirements.
+    //!
+    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
+    //! and the directory shall be configured to disallow other users from modifying created files
+    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
+    //!
+    //! \see getTemporaryDirectory()
+    //!
+    void setTemporaryDirectory(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTemporaryDirectory(path);
+    }
+
+    //!
+    //! \brief Get the directory that will be used by this runtime for temporary files.
+    //!
+    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
+    //!
+    //! \see setTemporaryDirectory()
+    char const* getTemporaryDirectory() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTemporaryDirectory();
+    }
+
+    //!
+    //! \brief Set the tempfile control flags for this runtime.
+    //!
+    //! \param flags The flags to set.
+    //!
+    //! The default value is all flags set, i.e.
+    //!
+    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
+    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
+    //!
+    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTempfileControlFlags(flags);
+    }
+
+    //!
+    //! \brief Get the tempfile control flags for this runtime.
+    //!
+    //! \return The flags currently set.
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
+    //!
+    TempfileControlFlags getTempfileControlFlags() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTempfileControlFlags();
+    }
+
+    //!
+    //! \brief Get the local plugin registry that can be used by the runtime.
+    //!
+    //! \return The local plugin registry that can be used by the runtime.
+    //!
+    IPluginRegistry& getPluginRegistry() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getPluginRegistry();
+    }
+
+    //!
+    //! \brief Load IRuntime from the file.
+    //!
+    //! This method loads a runtime library from a shared library file. The runtime can then be used
+    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
+    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
+    //! the loaded runtime library.
+    //!
+    //! \param path Path to the runtime lean library.
+    //!
+    //! \return the runtime library, or nullptr if it could not be loaded
+    //!
+    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    IRuntime* loadRuntime(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->loadRuntime(path);
+    }
+
+    //!
+    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
+    //! code.
+    //!
+    //! The default value is false.
+    //!
+    void setEngineHostCodeAllowed(bool allowed) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setEngineHostCodeAllowed(allowed);
+    }
+
+    //!
+    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    bool getEngineHostCodeAllowed() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getEngineHostCodeAllowed();
+    }
+
+    private:
+    ILogger& logger_;
+
+    // protected:
+    //     apiv::VRuntime* mImpl;
+};
+
+//!
+//! \brief Create an instance of an IRuntime class.
+//!
+//! \param logger The logging class for the runtime.
+//!
+inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{logger}; }
 
 //!
 //! \class IExecutionContext
@@ -3510,7 +3622,8 @@ class INetworkDefinition : public INoCopy
     //!
     int32_t getNbInputs() const noexcept
     {
-        pass("Not Implemented", true);
+        // TODO store parameter_names and parameter_shapes as data members;
+        return program_->get_parameter_names().size();
         // return mImpl->getNbInputs();
     }
 
@@ -3527,7 +3640,12 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* getInput(int32_t index) const noexcept
     {
-        pass("Not Implemented", true);
+        // TODO check that index is in range
+        auto param_names = program_->get_parameter_names();
+        // Paired with the usage in mnist_sample.cpp, this currently causes a memory leak. One must
+        // suppose that the network owns the underlying memory, and just passes back a pointer to
+        // the ITensor.
+        return new ITensor{program_->get_parameter_shape(param_names.at(index))};
         // return mImpl->getInput(index);
     }
 
@@ -3542,7 +3660,7 @@ class INetworkDefinition : public INoCopy
     //!
     int32_t getNbOutputs() const noexcept
     {
-        pass("Not Implemented", true);
+        return program_->get_output_shapes().size();
         // return mImpl->getNbOutputs();
     }
 
@@ -3559,7 +3677,11 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* getOutput(int32_t index) const noexcept
     {
-        pass("Not Implemented", true);
+        // Paired with the usage in mnist_sample.cpp, this currently causes a memory leak. One must
+        // suppose that the network owns the underlying memory, and just passes back a pointer to
+        // the ITensor.
+        return new ITensor{program_->get_output_shapes().at(index)};
+        // pass("Not Implemented", true);
         // return mImpl->getOutput(index);
     }
 
@@ -4601,7 +4723,7 @@ class INetworkDefinition : public INoCopy
     //!
     //! \brief Return the builder from which this INetworkDefinition was created.
     //!
-    //! \see IBuilder::createNetworkV2
+    //! \see IBuider::createNetworkV2
     //!
     //! \return the builder
     virtual IBuilder& getBuilder() const noexcept
@@ -5966,7 +6088,11 @@ class IBuilder : public INoCopy
     {
         migraphx::program p = *network.getProgram();
         p.compile(migraphx::make_target("gpu"));
-        return new IHostMemory{migraphx::save_buffer(p), DataType::kUINT8};
+        serialized_networks_.push_back(migraphx::save_buffer(p));
+        auto&& current_network = serialized_networks_.back();
+        return new IHostMemory{reinterpret_cast<void*>(current_network.data()),
+                               current_network.size(),
+                               DataType::kUINT8};
     }
 
     //!
@@ -6052,7 +6178,12 @@ class IBuilder : public INoCopy
     //     apiv::VBuilder* mImpl;
 
     private:
-    std::vector<char> serialized_network_;
+    // TODO The TRT builder has some sort of reference counting for memory objects it has allocated.
+    // If it gets destroyed before the IHostMemory objects it passes outside its scope, a warning
+    // gets generated.
+    // Also look into the probability that it maintains its own memory pools that can have its size
+    // set by another apy call.
+    std::vector<std::vector<char>> serialized_networks_;
 };
 
 //!
@@ -6382,6 +6513,9 @@ class Parser : public IParser
 
     bool parseFromFile(const char* onnxModelFile, int verbosity) override
     {
+        // NOTE In TRT the parser uses the network's layer creation methods to construct the
+        // network. Due to how different the approach is MGX, (for now atleast) the parser will hand
+        // the network the program, which required expanding the INetwork signature.
         // TODO error handling
         network_.setProgram(
             std::make_shared<migraphx::program>(migraphx::parse_onnx(onnxModelFile)));

@@ -58,17 +58,16 @@
 //         }                                                                                                              \
 //     } while (0)
 
-// #undef ASSERT
-// #define ASSERT(condition)                                                   \
-//     do                                                                      \
-//     {                                                                       \
-//         if (!(condition))                                                   \
-//         {                                                                   \
-//             sample::gLogError << "Assertion failure: " << #condition << std::endl;  \
-//             exit(EXIT_FAILURE);                                                       \
-//         }                                                                   \
-//     } while (0)
-
+#undef ASSERT
+#define ASSERT(condition)                                                  \
+    do                                                                     \
+    {                                                                      \
+        if(!(condition))                                                   \
+        {                                                                  \
+            std::cerr << "Assertion failure: " << #condition << std::endl; \
+            exit(EXIT_FAILURE);                                            \
+        }                                                                  \
+    } while(0)
 
 // #define CHECK_RETURN(status, val) CHECK_RETURN_W_MSG(status, val, "")
 
@@ -114,7 +113,8 @@
 // //        }
 // //    }
 // //
-// //    SimpleProfiler(const char* name, const std::vector<SimpleProfiler>& srcProfilers = std::vector<SimpleProfiler>())
+// //    SimpleProfiler(const char* name, const std::vector<SimpleProfiler>& srcProfilers =
+// std::vector<SimpleProfiler>())
 // //        : mName(name)
 // //    {
 // //        for (const auto& srcProfiler : srcProfilers)
@@ -144,7 +144,8 @@
 // //        for (const auto& elem : value.mProfile)
 // //        {
 // //            totalTime += elem.second.time;
-// //            maxLayerNameLength = std::max(maxLayerNameLength, static_cast<int>(elem.first.size()));
+// //            maxLayerNameLength = std::max(maxLayerNameLength,
+// static_cast<int>(elem.first.size()));
 // //        }
 // //
 // //        auto old_settings = out.flags();
@@ -164,14 +165,17 @@
 // //            const std::string layerName = value.mLayerNames[i];
 // //            auto elem = value.mProfile.at(layerName);
 // //            out << std::setw(maxLayerNameLength) << layerName << " ";
-// //            out << std::setw(12) << std::fixed << std::setprecision(1) << (elem.time * 100.0F / totalTime) << "%"
+// //            out << std::setw(12) << std::fixed << std::setprecision(1) << (elem.time * 100.0F /
+// totalTime) << "%"
 // //                << " ";
 // //            out << std::setw(12) << elem.count << " ";
-// //            out << std::setw(12) << std::fixed << std::setprecision(2) << elem.time << std::endl;
+// //            out << std::setw(12) << std::fixed << std::setprecision(2) << elem.time <<
+// std::endl;
 // //        }
 // //        out.flags(old_settings);
 // //        out.precision(old_precision);
-// //        out << "========== " << value.mName << " total runtime = " << totalTime << " ms ==========" << std::endl;
+// //        out << "========== " << value.mName << " total runtime = " << totalTime << " ms
+// ==========" << std::endl;
 // //
 // //        return out;
 // //    }
@@ -182,8 +186,7 @@
 // //    std::map<std::string, Record> mProfile;
 // //};
 
-namespace samplesCommon
-{
+namespace samplesCommon {
 // //using nvinfer1::utils::loadTimingCacheFile;
 // //using nvinfer1::utils::saveTimingCacheFile;
 // //using nvinfer1::utils::updateTimingCacheFile;
@@ -269,20 +272,20 @@ namespace samplesCommon
 //     return (std::getenv("TENSORRT_DEBUG") ? true : false);
 // }
 
-// struct InferDeleter
-// {
-//     template <typename T>
-//     void operator()(T* obj) const
-//     {
-//         delete obj;
-//     }
-// };
+struct InferDeleter
+{
+    template <typename T>
+    void operator()(T* obj) const
+    {
+        delete obj;
+    }
+};
 
 // template <typename T>
 // using SampleUniquePtr = std::unique_ptr<T, InferDeleter>;
 
 static auto StreamDeleter = [](hipStream_t* pStream) {
-    if (pStream)
+    if(pStream)
     {
         static_cast<void>(hipStreamDestroy(*pStream));
         delete pStream;
@@ -292,7 +295,7 @@ static auto StreamDeleter = [](hipStream_t* pStream) {
 inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 {
     std::unique_ptr<hipStream_t, decltype(StreamDeleter)> pStream(new hipStream_t, StreamDeleter);
-    if (hipStreamCreateWithFlags(pStream.get(), hipStreamNonBlocking) != hipSuccess)
+    if(hipStreamCreateWithFlags(pStream.get(), hipStreamNonBlocking) != hipSuccess)
     {
         pStream.reset(nullptr);
     }
@@ -306,7 +309,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //{
 // //    std::vector<size_t> indices(end - begin);
 // //    std::iota(indices.begin(), indices.end(), 0);
-// //    std::sort(indices.begin(), indices.end(), [&begin](size_t i, size_t j) { return std::abs(begin[j]) < std::abs(begin[i]); });
+// //    std::sort(indices.begin(), indices.end(), [&begin](size_t i, size_t j) { return
+// std::abs(begin[j]) < std::abs(begin[i]); });
 // //    return indices;
 // //}
 // //
@@ -315,7 +319,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    std::ifstream infile(fileName);
 // //    if (!infile.is_open())
 // //    {
-// //        std::cout << "ERROR: readReferenceFile: Attempting to read from a file that is not open." << std::endl;
+// //        std::cout << "ERROR: readReferenceFile: Attempting to read from a file that is not
+// open." << std::endl;
 // //        return false;
 // //    }
 // //    std::string line;
@@ -358,7 +363,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    std::ifstream infile(fileName);
 // //    if (!infile.is_open())
 // //    {
-// //        std::cout << "ERROR readASCIIFile: Attempting to read from a file that is not open." << std::endl;
+// //        std::cout << "ERROR readASCIIFile: Attempting to read from a file that is not open." <<
+// std::endl;
 // //        return false;
 // //    }
 // //    out.clear();
@@ -374,7 +380,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    std::ofstream outfile(fileName);
 // //    if (!outfile.is_open())
 // //    {
-// //        std::cout << "ERROR: writeASCIIFile: Attempting to write to a file that is not open." << std::endl;
+// //        std::cout << "ERROR: writeASCIIFile: Attempting to write to a file that is not open."
+// << std::endl;
 // //        return false;
 // //    }
 // //    for (auto fn : in)
@@ -387,7 +394,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 
 // //inline void print_version()
 // //{
-// //    std::cout << "  TensorRT version: " << NV_TENSORRT_MAJOR << "." << NV_TENSORRT_MINOR << "." << NV_TENSORRT_PATCH
+// //    std::cout << "  TensorRT version: " << NV_TENSORRT_MAJOR << "." << NV_TENSORRT_MINOR << "."
+// << NV_TENSORRT_PATCH
 // //              << "." << NV_TENSORRT_BUILD << std::endl;
 // //}
 
@@ -413,19 +421,22 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // // Ensures that every tensor used by a network has a dynamic range set.
 // //
 // // All tensors in a network must have a dynamic range specified if a calibrator is not used.
-// // This function is just a utility to globally fill in missing scales and zero-points for the entire network.
+// // This function is just a utility to globally fill in missing scales and zero-points for the
+// entire network.
 // //
 // // If a tensor does not have a dyanamic range set, it is assigned inRange or outRange as follows:
 // //
-// // * If the tensor is the input to a layer or output of a pooling node, its dynamic range is derived from inRange.
+// // * If the tensor is the input to a layer or output of a pooling node, its dynamic range is
+// derived from inRange.
 // // * Otherwise its dynamic range is derived from outRange.
 // //
 // // The default parameter values are intended to demonstrate, for final layers in the network,
 // // cases where dynamic ranges are asymmetric.
 // //
 // // The default parameter values choosen arbitrarily. Range values should be choosen such that
-// // we avoid underflow or overflow. Also range value should be non zero to avoid uniform zero scale tensor.
-// inline void setAllDynamicRanges(nvinfer1::INetworkDefinition* network, float inRange = 2.0F, float outRange = 4.0F)
+// // we avoid underflow or overflow. Also range value should be non zero to avoid uniform zero
+// scale tensor. inline void setAllDynamicRanges(nvinfer1::INetworkDefinition* network, float
+// inRange = 2.0F, float outRange = 4.0F)
 // {
 //     // Ensure that all layer inputs have a scale.
 //     for (int i = 0; i < network->getNbLayers(); i++)
@@ -468,12 +479,14 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 //     }
 // }
 
-// //inline void setDummyInt8DynamicRanges(const nvinfer1::IBuilderConfig* c, nvinfer1::INetworkDefinition* n)
+// //inline void setDummyInt8DynamicRanges(const nvinfer1::IBuilderConfig* c,
+// nvinfer1::INetworkDefinition* n)
 // //{
 // //    // Set dummy per-tensor dynamic range if Int8 mode is requested.
 // //    if (c->getFlag(nvinfer1::BuilderFlag::kINT8))
 // //    {
-// //        sample::gLogWarning << "Int8 calibrator not provided. Generating dummy per-tensor dynamic range. Int8 accuracy "
+// //        sample::gLogWarning << "Int8 calibrator not provided. Generating dummy per-tensor
+// dynamic range. Int8 accuracy "
 // //                               "is not guaranteed."
 // //                            << std::endl;
 // //        setAllDynamicRanges(n);
@@ -481,13 +494,15 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //}
 
 // inline void enableDLA(
-//     nvinfer1::IBuilder* builder, nvinfer1::IBuilderConfig* config, int useDLACore, bool allowGPUFallback = true)
+//     nvinfer1::IBuilder* builder, nvinfer1::IBuilderConfig* config, int useDLACore, bool
+//     allowGPUFallback = true)
 // {
 //     if (useDLACore >= 0)
 //     {
 //         if (builder->getNbDLACores() == 0)
 //         {
-//             std::cerr << "Trying to use DLA core " << useDLACore << " on a platform that doesn't have any DLA cores"
+//             std::cerr << "Trying to use DLA core " << useDLACore << " on a platform that doesn't
+//             have any DLA cores"
 //                       << std::endl;
 //             assert("Error: use DLA core on a platfrom that doesn't have any DLA cores" && false);
 //         }
@@ -518,23 +533,24 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    return -1;
 // //}
 
-// inline uint32_t getElementSize(nvinfer1::DataType t) noexcept
-// {
-//     switch (t)
-//     {
-//     case nvinfer1::DataType::kINT64: return 8;
-//     case nvinfer1::DataType::kINT32:
-//     case nvinfer1::DataType::kFLOAT: return 4;
-//     case nvinfer1::DataType::kBF16:
-//     case nvinfer1::DataType::kHALF: return 2;
-//     case nvinfer1::DataType::kBOOL:
-//     case nvinfer1::DataType::kUINT8:
-//     case nvinfer1::DataType::kINT8:
-//     case nvinfer1::DataType::kFP8: return 1;
-//     case nvinfer1::DataType::kINT4: ASSERT(false && "Element size is not implemented for sub-byte data-types (INT4)");
-//     }
-//     return 0;
-// }
+inline uint32_t getElementSize(mgxinfer1::DataType t) noexcept
+{
+    switch(t)
+    {
+    case mgxinfer1::DataType::kINT64: return 8;
+    case mgxinfer1::DataType::kINT32:
+    case mgxinfer1::DataType::kFLOAT: return 4;
+    case mgxinfer1::DataType::kBF16:
+    case mgxinfer1::DataType::kHALF: return 2;
+    case mgxinfer1::DataType::kBOOL:
+    case mgxinfer1::DataType::kUINT8:
+    case mgxinfer1::DataType::kINT8:
+    case mgxinfer1::DataType::kFP8: return 1;
+    case mgxinfer1::DataType::kINT4:
+        ASSERT(false && "Element size is not implemented for sub-byte data-types (INT4)");
+    }
+    return 0;
+}
 
 // inline int64_t volume(nvinfer1::Dims const& dims, int32_t start, int32_t stop)
 // {
@@ -542,7 +558,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 //     ASSERT(start <= stop);
 //     ASSERT(stop <= dims.nbDims);
 //     ASSERT(std::all_of(dims.d + start, dims.d + stop, [](int32_t x) { return x >= 0; }));
-//     return std::accumulate(dims.d + start, dims.d + stop, int64_t{1}, std::multiplies<int64_t>{});
+//     return std::accumulate(dims.d + start, dims.d + stop, int64_t{1},
+//     std::multiplies<int64_t>{});
 // }
 
 // template <int C, int H, int W>
@@ -577,7 +594,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    infile.read(reinterpret_cast<char*>(ppm.buffer), ppm.w * ppm.h * 3);
 // //}
 // //
-// //inline void readPPMFile(const std::string& filename, vPPM& ppm, std::vector<std::string>& input_dir)
+// //inline void readPPMFile(const std::string& filename, vPPM& ppm, std::vector<std::string>&
+// input_dir)
 // //{
 // //    ppm.fileName = filename;
 // //    std::ifstream infile(locateFile(filename, input_dir), std::ifstream::binary);
@@ -635,7 +653,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //    outfile.write(reinterpret_cast<char*>(ppm.buffer), ppm.w * ppm.h * 3);
 // //}
 
-// //inline void writePPMFileWithBBox(const std::string& filename, vPPM ppm, std::vector<BBox>& dets)
+// //inline void writePPMFileWithBBox(const std::string& filename, vPPM ppm, std::vector<BBox>&
+// dets)
 // //{
 // //    std::ofstream outfile("./" + filename, std::ofstream::binary);
 // //    assert(!outfile.fail());
@@ -840,7 +859,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //#endif
 // //        if (ret == nullptr)
 // //        {
-// //            std::string const kERROR_MSG(mLibName + ": error loading symbol: " + std::string(name));
+// //            std::string const kERROR_MSG(mLibName + ": error loading symbol: " +
+// std::string(name));
 // //            throw std::invalid_argument(kERROR_MSG);
 // //        }
 // //        return reinterpret_cast<Signature*>(ret);
@@ -880,7 +900,8 @@ inline std::unique_ptr<hipStream_t, decltype(StreamDeleter)> makeCudaStream()
 // //
 // //    int32_t maxPersistentL2CacheSize;
 // //#if CUDART_VERSION >= 11030
-// //    CHECK(cudaDeviceGetAttribute(&maxPersistentL2CacheSize, cudaDevAttrMaxPersistingL2CacheSize, deviceIndex));
+// //    CHECK(cudaDeviceGetAttribute(&maxPersistentL2CacheSize,
+// cudaDevAttrMaxPersistingL2CacheSize, deviceIndex));
 // //#else
 // //    maxPersistentL2CacheSize = 0;
 // //#endif

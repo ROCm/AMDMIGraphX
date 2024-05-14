@@ -1,7 +1,7 @@
 #ifndef TENSORRT_SAFE_COMMON_H
 #define TENSORRT_SAFE_COMMON_H
 
-// #include "NvInferRuntimeBase.h"
+#include "MgxInferRuntimeBase.hpp"
 // #include "cuda_runtime.h"
 // #include "sampleEntrypoints.h"
 #include <cmath>
@@ -28,17 +28,17 @@
 // #include <sys/procmgr.h>
 // #endif // IS_QNX_SAFE
 
-// #undef CHECK
-// #define CHECK(status)                                                                                                  \
-//     do                                                                                                                 \
-//     {                                                                                                                  \
-//         auto ret = (status);                                                                                           \
-//         if (ret != 0)                                                                                                  \
-//         {                                                                                                              \
-//             std::cerr << "Cuda failure: " << ret << std::endl;                                                         \
-//             exit(EXIT_FAILURE);                                                                                        \
-//         }                                                                                                              \
-//     } while (0)
+#undef CHECK
+#define CHECK(status)                                                                                                  \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        auto ret = (status);                                                                                           \
+        if (ret != 0)                                                                                                  \
+        {                                                                                                              \
+            std::cerr << "Cuda failure: " << ret << std::endl;                                                         \
+            exit(EXIT_FAILURE);                                                                                        \
+        }                                                                                                              \
+    } while (0)
 
 // #undef SAFE_ASSERT
 // #define SAFE_ASSERT(condition)                                                                                         \
@@ -122,8 +122,8 @@ inline std::string locateFile(
 //     infile.read(reinterpret_cast<char*>(buffer), inH * inW);
 // }
 
-// namespace samplesCommon
-// {
+namespace samplesCommon
+{
 // template <typename T>
 // inline std::shared_ptr<T> infer_object(T* obj)
 // {
@@ -153,16 +153,16 @@ inline std::string locateFile(
 //     return 0;
 // }
 
-// template <typename A, typename B>
-// inline A divUp(A x, B n)
-// {
-//     return (x + n - 1) / n;
-// }
+template <typename A, typename B>
+inline A divUp(A x, B n)
+{
+    return (x + n - 1) / n;
+}
 
-// inline int64_t volume(nvinfer1::Dims const& d)
-// {
-//     return std::accumulate(d.d, d.d + d.nbDims, int64_t{1}, std::multiplies<int64_t>{});
-// }
+inline int64_t volume(mgxinfer1::Dims const& d)
+{
+    return std::accumulate(d.d, d.d + d.nbDims, int64_t{1}, std::multiplies<int64_t>{});
+}
 
 // //! Return m rounded up to nearest multiple of n
 // template <typename T1, typename T2>
@@ -322,7 +322,7 @@ inline std::string locateFile(
 // //    return splitVect;
 // //}
 
-// } // namespace samplesCommon
+} // namespace samplesCommon
 
 // namespace safetyCompliance
 // {

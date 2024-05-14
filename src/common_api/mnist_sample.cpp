@@ -129,33 +129,32 @@ bool SampleOnnxMNIST::build()
     config->setProfileStream(*profileStream);
 
     std::unique_ptr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
-    if (!plan)
+    if(!plan)
     {
         return false;
     }
 
-    mRuntime =
-    std::shared_ptr<mgxinfer1::IRuntime>(createInferRuntime(*logger)); if
-    (!mRuntime)
+    mRuntime = std::shared_ptr<mgxinfer1::IRuntime>(createInferRuntime(*logger));
+    if(!mRuntime)
     {
         return false;
     }
 
-    // mEngine = std::shared_ptr<mgxinfer1::ICudaEngine>(
-    //     mRuntime->deserializeCudaEngine(plan->data(), plan->size()),
-    //     samplesCommon::InferDeleter());
-    // if (!mEngine)
-    // {
-    //     return false;
-    // }
+    mEngine = std::shared_ptr<mgxinfer1::ICudaEngine>(
+        mRuntime->deserializeCudaEngine(plan->data(), plan->size()),
+        samplesCommon::InferDeleter());
+    if (!mEngine)
+    {
+        return false;
+    }
 
-    // ASSERT(network->getNbInputs() == 1);
-    // mInputDims = network->getInput(0)->getDimensions();
-    // ASSERT(mInputDims.nbDims == 4);
+    ASSERT(network->getNbInputs() == 1);
+    mInputDims = network->getInput(0)->getDimensions();
+    ASSERT(mInputDims.nbDims == 4);
 
-    // ASSERT(network->getNbOutputs() == 1);
-    // mOutputDims = network->getOutput(0)->getDimensions();
-    // ASSERT(mOutputDims.nbDims == 2);
+    ASSERT(network->getNbOutputs() == 1);
+    mOutputDims = network->getOutput(0)->getDimensions();
+    ASSERT(mOutputDims.nbDims == 2);
 
     return true;
 }
@@ -199,57 +198,57 @@ bool SampleOnnxMNIST::constructNetwork(std::unique_ptr<mgxinfer1::IBuilder>& bui
     return true;
 }
 
-// //!
-// //! \brief Runs the TensorRT inference engine for this sample
-// //!
-// //! \details This function is the main execution function of the sample. It allocates the buffer,
-// //!          sets inputs and executes the engine.
-// //!
-// bool SampleOnnxMNIST::infer()
-// {
-//     // Create RAII buffer manager object
-//     samplesCommon::BufferManager buffers(mEngine);
+//!
+//! \brief Runs the TensorRT inference engine for this sample
+//!
+//! \details This function is the main execution function of the sample. It allocates the buffer,
+//!          sets inputs and executes the engine.
+//!
+bool SampleOnnxMNIST::infer()
+{
+    // Create RAII buffer manager object
+    samplesCommon::BufferManager buffers(mEngine);
 
-//     auto context =
-//     std::unique_ptr<nvinfer1::IExecutionContext>(mEngine->createExecutionContext()); if
-//     (!context)
-//     {
-//         return false;
-//     }
+    auto context =
+    std::unique_ptr<mgxinfer1::IExecutionContext>(mEngine->createExecutionContext()); if
+    (!context)
+    {
+        return false;
+    }
 
-//     for (int32_t i = 0, e = mEngine->getNbIOTensors(); i < e; i++)
-//     {
-//         auto const name = mEngine->getIOTensorName(i);
-//         context->setTensorAddress(name, buffers.getDeviceBuffer(name));
-//     }
+    // for (int32_t i = 0, e = mEngine->getNbIOTensors(); i < e; i++)
+    // {
+    //     auto const name = mEngine->getIOTensorName(i);
+    //     context->setTensorAddress(name, buffers.getDeviceBuffer(name));
+    // }
 
-//     // Read the input data into the managed buffers
-//     ASSERT(mParams.inputTensorNames.size() == 1);
-//     if (!processInput(buffers))
-//     {
-//         return false;
-//     }
+    // // Read the input data into the managed buffers
+    // ASSERT(mParams.inputTensorNames.size() == 1);
+    // if (!processInput(buffers))
+    // {
+    //     return false;
+    // }
 
-//     // Memcpy from host input buffers to device input buffers
-//     buffers.copyInputToDevice();
+    // // Memcpy from host input buffers to device input buffers
+    // buffers.copyInputToDevice();
 
-//     bool status = context->executeV2(buffers.getDeviceBindings().data());
-//     if (!status)
-//     {
-//         return false;
-//     }
+    // bool status = context->executeV2(buffers.getDeviceBindings().data());
+    // if (!status)
+    // {
+    //     return false;
+    // }
 
-//     // Memcpy from device output buffers to host output buffers
-//     buffers.copyOutputToHost();
+    // // Memcpy from device output buffers to host output buffers
+    // buffers.copyOutputToHost();
 
-//     // Verify results
-//     if (!verifyOutput(buffers))
-//     {
-//         return false;
-//     }
+    // // Verify results
+    // if (!verifyOutput(buffers))
+    // {
+    //     return false;
+    // }
 
-//     return true;
-// }
+    return true;
+}
 
 // //!
 // //! \brief Reads the input and stores the result in a managed buffer
@@ -407,10 +406,12 @@ int main(int argc, char** argv)
         std::cerr << "Build failed" << std::endl;
         return 1;
     }
-    // if (!sample.infer())
-    // {
-    //     return sample::gLogger.reportFail(sampleTest);
-    // }
+    if (!sample.infer())
+    {
+        // return sample::gLogger.reportFail(sampleTest);
+        std::cerr << "Infer failed" << std::endl;
+        return 1;
+    }
 
     // return sample::gLogger.reportPass(sampleTest);
     return 0;

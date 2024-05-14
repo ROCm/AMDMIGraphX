@@ -179,7 +179,7 @@ struct compile_plan
         {
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string);
+                               problem_string);
             return *results.front();
         }
         if(not config)

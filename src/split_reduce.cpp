@@ -23,7 +23,6 @@
  *
  */
 #include <migraphx/split_reduce.hpp>
-#include <migraphx/dom_info.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
@@ -79,14 +78,7 @@ namespace {
 struct splitter
 {
     const_module_ref rm;
-    bool strictly_dominate(instruction_ref a, instruction_ref b)
-    {
-        if(not dom.has_value())
-            dom = compute_dominator(*rm);
-        return dom->strictly_dominate(a, b);
-    }
-
-    std::vector<instruction_ref> find_reduces()
+    std::vector<instruction_ref> find_splits()
     {
         std::vector<instruction_ref> result;
         copy_if(iterator_for(*rm), std::back_inserter(result), [](auto ins) {
@@ -104,23 +96,6 @@ struct splitter
             return result;
         if(reaches(result[0], result[1]))
             return {};
-        return result;
-    }
-
-    static instruction_ref find_split(instruction_ref reduce)
-    {
-        if(reduce->outputs().size() != 1)
-            return reduce;
-        auto output = reduce->outputs().front();
-        if(output->name() == "convert")
-            return find_split(output);
-        return reduce;
-    }
-
-    std::vector<instruction_ref> find_splits()
-    {
-        std::vector<instruction_ref> result;
-        transform(find_reduces(), std::back_inserter(result), &find_split);
         return result;
     }
 
@@ -155,8 +130,6 @@ struct splitter
         });
         return result;
     }
-
-    std::optional<dominator_info> dom = std::nullopt;
 };
 } // namespace
 

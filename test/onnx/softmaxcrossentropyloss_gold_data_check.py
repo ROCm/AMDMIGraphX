@@ -10,7 +10,9 @@ label_data = np.array([0, 3, 1, 2])
 weights = np.array([1., 0.5, 2., 3.], dtype=float)
 
 #sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx", verbose=1)
-sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx",
+#sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx",
+#                          verbose=1)
+sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_ignore_idx_test.onnx",
                           verbose=1)
 results = sess.run(None, {"0": X, "1": label_data, "2":weights})
 #results = sess.run(None, {"0": X, "1": label_data})

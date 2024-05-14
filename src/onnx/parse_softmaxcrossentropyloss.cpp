@@ -206,9 +206,12 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
+        // Default weights will always be 1
+        std::vector<float> weight_vec(class_size, 1.0f);
+        auto weights = info.add_literal(
+            migraphx::literal(migraphx::shape(scores_shape.type(), {class_size}), weight_vec));
+
         // Get optional input weights (Used for mean reduction)
-        instruction_ref weights;
-        instruction_ref weight_tensor;
         bool has_weights = (args.size() > 2);
         if(has_weights)
         {
@@ -232,16 +235,16 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 MIGRAPHX_THROW(
                     "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
             }
+        }
 
-            weight_tensor =
-                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
-
-            // adjust weights based on ignore index is that's set
-            if(has_ignore_index)
-            {
-                // TODO handle case with where
-                // weight_tensor = info.add_common_op("where", weight_tensor, ignore_index);
-            }
+        // adjust weights based on ignore index is that's set
+        if(has_ignore_index)
+        {
+            auto weights_shape = weights->get_shape();
+            std::vector<float> zero_val_vect(weights_shape.elements(), 0);
+            auto zero_val = info.add_literal(migraphx::literal(weights_shape, zero_val_vect));
+            weights       = info.add_instruction(
+                migraphx::make_op("scatter_none", {{"axis", 0}}), weights, ignore_index, zero_val);
         }
 
         if(is_k_dim)
@@ -268,6 +271,18 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 migraphx::make_op("reshape", {{"dims", label_shape.lens()}}), loss_tensor);
         }
 
+        instruction_ref weight_tensor;
+        if(has_ignore_index or has_weights)
+        {
+            weight_tensor =
+                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
+
+            // Mul op also handles ignored index as the corresponding weight will be zero if it
+            // matches ignore index
+            loss_tensor =
+                info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
+        }
+
         // Add reduction step after we're generated crossentropyloss tensor and rearragned weight
         // scaling tensor
         if(reduction == "mean" and not has_weights)
@@ -277,12 +292,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         }
         else if(reduction == "sum" or has_weights)
         {
-            if(has_weights)
-            {
-                loss_tensor =
-                    info.add_instruction(migraphx::make_op("mul"), loss_tensor, weight_tensor);
-            }
-
             if(reduction != "none")
             {
                 loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}),

@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/prepare_reduce.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -180,12 +181,16 @@ std::string make_transformer_args(std::vector<std::string> transformers)
     return join_strings(std::move(transformers), ", ");
 }
 
-void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& name)
+static void generate_pointwise(cpp_generator& gg,
+                               const module& pm,
+                               const std::string& name,
+                               bool always_return_tuple = false)
 {
     module m = pm;
     run_passes(m, {rewrite_quantization{}, optimize_module{}});
     m.sort();
     cpp_generator g;
+    g.always_return_tuple(always_return_tuple);
     g.fmap([](const std::string& fname) { return "migraphx::" + fname; });
     g.add_point_op("where", "${function:where}(${0}, ${1}, ${2})");
     g.add_point_op("prelu", "${function:where}(${0} < 0, ${0} * ${1}, ${0})");
@@ -202,28 +207,30 @@ void generate_pointwise(cpp_generator& gg, const module& pm, const std::string& 
                            .set_generic_types(m)
                            .set_name(name));
 }
-std::string generate_pointwise(const module& pm, const std::string& name)
+std::string generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple)
 {
     cpp_generator g;
-    generate_pointwise(g, pm, name);
+    generate_pointwise(g, pm, name, always_return_tuple);
     return g.str();
 }
 
 std::string reduce_op::str() const
 {
-    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" + input + "))";
+    return write + "(r.reduce(" + reduction + ", " + init + ", " + read + ")(" +
+           join_strings(inputs, ", ") + "))";
 }
-void reduce_op::set(instruction_ref ins, const operation& op)
+void reduce_op::set(const std::string& name, const shape& input, const shape& output)
 {
-    if(op.name() == "reduce_sum")
+    assert(input.type() != shape::tuple_type);
+    assert(output.type() != shape::tuple_type);
+    if(name == "reduce_sum")
     {
         reduction = "op::sum{}";
     }
-    else if(op.name() == "reduce_mean")
+    else if(name == "reduce_mean")
     {
-        auto s               = ins->inputs().front()->get_shape();
-        auto reduce_elements = s.elements() / ins->get_shape().elements();
-        auto reduce_type     = s.type();
+        auto reduce_elements = input.elements() / output.elements();
+        auto reduce_type     = input.type();
         reduction            = "op::sum{}";
         std::string mean     = "op::mean<" + std::to_string(reduce_elements) + ">{}";
         // Use float accumulator when reduction size is too large for half
@@ -234,17 +241,17 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         else
             write = mean;
     }
-    else if(op.name() == "reduce_max")
+    else if(name == "reduce_max")
     {
         reduction = "op::max{}";
         init      = "lowest{}";
     }
-    else if(op.name() == "reduce_min")
+    else if(name == "reduce_min")
     {
         reduction = "op::min{}";
         init      = "highest{}";
     }
-    else if(op.name() == "reduce_prod")
+    else if(name == "reduce_prod")
     {
         reduction = "op::product{}";
         init      = "1";
@@ -254,7 +261,23 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         MIGRAPHX_THROW("Unsupported reduce");
     }
 }
-std::string reduce_op::generate(instruction_ref ins, const std::string& x)
+
+void reduce_op::set(instruction_ref ins, const operation& op)
+{
+    if(op.name() == "gpu::parallel_reduce")
+    {
+        auto rop    = from_value<operation>(op.to_value().at("op"));
+        auto input  = ins->inputs().front()->get_shape();
+        auto output = ins->get_shape().sub_shapes().front();
+        set(rop.name(), input, output);
+        read = "compose(array_apply(" + read + "), MIGRAPHX_LIFT(make_array))";
+    }
+    else
+    {
+        set(op.name(), ins->inputs().front()->get_shape(), ins->get_shape());
+    }
+}
+std::string reduce_op::generate(instruction_ref ins, const std::vector<std::string>& x)
 {
     reduce_op r{x};
     r.set(ins, ins->get_operator());
@@ -264,6 +287,15 @@ std::string reduce_op::generate(instruction_ref ins, const std::string& x)
 static bool use_lazy_inner(instruction_ref ins)
 {
     if(ins->outputs().size() != 1)
+        return false;
+    // When the inputs are broadcasted, it means the lambda will capture SGPRs
+    // when doing block/wave reduction. This can cause register spilling in
+    // the compiler when the lambda is evaluated at a later time although it
+    // shouldn't. Instead, use `inner` to workaround this issue in the
+    // compiler.
+    if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](instruction_ref input) {
+           return input->get_shape().broadcasted();
+       }))
         return false;
     auto output = ins->outputs().front();
     return contains(output->name(), "reduce") or output->name() == "@return";
@@ -285,7 +317,7 @@ void preload_params(module& m)
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
-    run_passes(m, {optimize_module{}});
+    run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
     cpp_generator g;
     auto param_shapes = m.get_parameter_shapes();
@@ -298,9 +330,9 @@ std::string generate_reduce(module m, const std::string& name)
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
         {
-            return reduce_op::generate(ins, names.at(ins->inputs().front()));
+            return reduce_op::generate(ins, cpp_generator::to_args(ins->inputs(), names));
         }
-        else if(ins->name() == "pointwise")
+        if(ins->name() == "pointwise")
         {
             auto pointwise_name = "pointwise" + std::to_string(i);
             i++;
@@ -342,11 +374,18 @@ std::string generate_reduce(module m, const std::string& name)
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
         }
-        else if(ins->name() == "multibroadcast")
+        if(ins->name() == "multibroadcast")
         {
             return names.at(ins->inputs().front());
         }
-        else if(ins->name() == "identity")
+        if(ins->name() == "get_tuple_elem")
+        {
+            const auto& x = names.at(ins->inputs().front());
+            auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
+            return interpolate_string("${x}[${index}]",
+                                      {{"x", x}, {"index", std::to_string(index)}});
+        }
+        if(ins->name() == "identity")
         {
             const auto& x = names.at(ins->inputs().front());
             return "r.inner(op::id{})(" + x + ")";

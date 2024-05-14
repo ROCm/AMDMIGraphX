@@ -72,7 +72,8 @@ std::string make_transformer_args(Ts... xs)
     return make_transformer_args({xs.str()...});
 }
 
-std::string generate_pointwise(const module& pm, const std::string& name);
+std::string
+generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
 std::string generate_reduce(module m, const std::string& name);
 
@@ -80,15 +81,16 @@ std::string generate_name_from_ops(const module& m, const std::string& postname 
 
 struct reduce_op
 {
-    std::string input     = "";
+    std::vector<std::string> inputs = {};
     std::string reduction = "";
     std::string init      = "0";
     std::string read      = "op::id{}";
     std::string write     = "op::id{}";
 
     void set(instruction_ref ins, const operation& op);
+    void set(const std::string& name, const shape& input, const shape& output);
     std::string str() const;
-    static std::string generate(instruction_ref ins, const std::string& x);
+    static std::string generate(instruction_ref ins, const std::vector<std::string>& x);
 };
 
 } // namespace gen

@@ -24,7 +24,7 @@ See below for a comprehensive list of commands and option arguments, as well as 
 | Option                                   | Description                                               |
 | ---------------------------------------- | --------------------------------------------------------- |
 | --help \| -h                             | Show help                                                 |
-| --model <resnet50\|inceptionv3\|alexnet> | Loads one of the three default models                     |
+| --test                                   | Test MIGraphX with Single Layer GEMM Model                |
 | --onnx                                   | Load file as onnx graph                                   |
 | --tf                                     | Load file as a tensorflow graph                           |
 | --migraphx                               | Load file as a migraphx graph                             |

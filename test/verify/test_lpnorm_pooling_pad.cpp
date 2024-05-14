@@ -33,7 +33,7 @@ struct test_lpnorm_pooling_pad : verify_program<test_lpnorm_pooling_pad>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto x  = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5, 5}});
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5, 5}});
         mm->add_instruction(migraphx::make_op("pooling",
                                               {{"mode", migraphx::op::pooling_mode::lpnorm},
                                                {"padding", {2, 2}},

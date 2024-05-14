@@ -42,7 +42,9 @@ struct average_pool
     }
 };
 
-struct lpnorm_pool_base {};
+struct lpnorm_pool_base
+{
+};
 
 template <index_int P>
 struct lpnorm_pool : lpnorm_pool_base

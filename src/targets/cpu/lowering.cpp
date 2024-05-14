@@ -416,6 +416,16 @@ struct cpu_apply
                        {ins->inputs().front()});
     }
 
+    // TODO:  update lowering to run the reference
+    // code when OneDNN can't execute pooling for a CPU
+
+    // OneDNN has a limitation on padding size for pooling.  see
+    // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
+
+    // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
+    // padding = {2}; stride = {1}; lengths = {2} fails.
+    // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
+    // ("weights tensor") that MIGraphX doesn't enforce.
     instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = ins->get_operator();

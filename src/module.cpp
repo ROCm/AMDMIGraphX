@@ -1056,11 +1056,12 @@ std::unordered_map<instruction_ref, std::string> module::print(
                              const std::unordered_map<instruction_ref, std::string>&)>& print_func,
     std::unordered_map<instruction_ref, std::string> names) const
 {
+    const bool is_root = names.empty();
     int count = 0;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
-        if(not this->name().empty() and this->name() != "main")
+        if(not this->name().empty() and not is_root)
             var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
@@ -1159,10 +1160,10 @@ static void print_make_op(std::ostream& os, const operation& op)
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    os << "migraphx.shape(type=" << to_json_string(s.type_string())
-       << ", lens=" << to_json_string(s.lens());
+    os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", lens=["
+       << to_string_range(s.lens()) << "]";
     if(not s.standard())
-        os << ", strides=" << to_json_string(s.strides());
+        os << ", strides=[" << to_string_range(s.strides()) << "]";
     os << ")";
 }
 
@@ -1195,25 +1196,34 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                const bool use_abs = false;
-                // Disable abs for now
-                // ins->get_literal().visit([&](auto v) {
-                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                // });
-                if(use_abs)
-                    os << "migraphx.abs_literal(";
-                os << "migraphx.generate_argument(";
-                print_py_shape(os, ins->get_shape());
-                os << ", " << seed << ")";
-                if(use_abs)
-                    os << ")";
+                if(ins->get_shape().elements() < 10)
+                {
+                    os << "migraphx.create_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", [" << ins->get_literal() << "])";
+                }
+                else
+                {
+                    const bool use_abs = false;
+                    // Disable abs for now
+                    // ins->get_literal().visit([&](auto v) {
+                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                    // });
+                    if(use_abs)
+                        os << "migraphx.abs_literal(";
+                    os << "migraphx.generate_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", " << seed << ")";
+                    if(use_abs)
+                        os << ")";
+                    seed++;
+                }
                 os << ")" << std::endl;
-                seed++;
             }
             else if(ins->name() == "@param")
             {
                 std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                os << mname << ".add_parameter(" << enclose_name(name) << ",";
+                os << mname << ".add_parameter(" << enclose_name(name) << ", ";
                 print_py_shape(os, ins->get_shape());
                 os << ")" << std::endl;
             }
@@ -1228,7 +1238,9 @@ module::print_py(std::ostream& os,
                 os << mname << ".add_instruction(";
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
-                os << ")" << std::endl;
+                os << ") # ";
+                print_py_shape(os, ins->get_shape());
+                os << std::endl;
             }
         },
         names);

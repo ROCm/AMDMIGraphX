@@ -70,8 +70,8 @@ struct parse_split : op_parser<parse_split>
                                "input not supported");
             }
 
-            std::vector<instruction_ref> ret_ins(num_outputs);
             std::size_t num_outputs = info.num_outputs;
+            std::vector<instruction_ref> ret_ins(num_outputs);
 
             // Doing shape calculations for the splits in the graph
             auto split_dim = info.add_instruction(

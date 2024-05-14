@@ -3162,7 +3162,8 @@ TEST_CASE(reshape_dyn_1in)
 TEST_CASE(reshape_dyn_1in_negative_1_dims_0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
-    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {{1, 4}, {12, 12}, {2, 8}, {4, 16}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {
+        {1, 4}, {12, 12}, {2, 8}, {4, 16}};
     migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 12, 0, -1}}}), input);
 }
@@ -3171,7 +3172,8 @@ TEST_CASE(reshape_dyn_1in_negative_1_dims_0)
 TEST_CASE(reshape_dyn_1in_negative_1_dims_1)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
-    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {{1, 4}, {24, 384}, {2, 2}, {2, 2}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {
+        {1, 4}, {24, 384}, {2, 2}, {2, 2}};
     migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, -1, 2, 2}}}), input);
 }

@@ -65,6 +65,8 @@ struct reshape
 
     std::string name() const { return "reshape"; }
 
+    // Assumes that the shape from the `dims` attribute will be valid at run-time.
+    // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
     {
         auto input_dyn_dims = s0.dyn_dims();
@@ -131,10 +133,10 @@ struct reshape
             // maximum dimensions should never accumulate to zero
             assert(max_cur_elements != 0);
 
-            // hanle 0 dimension value (meaning unknown lower bound)
+            // hanle 0 dimension value (keep unknown lower bound)
             std::size_t min_dim =
                 (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
-            // handle maximum dimension value (meaning unknown upper bound)
+            // handle maximum dimension value (keep unknown upper bound)
             std::size_t max_dim =
                 (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
             shape::dynamic_dimension x_dd   = {min_dim, max_dim};

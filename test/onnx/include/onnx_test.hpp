@@ -46,16 +46,10 @@ inline static std::string
 read_weight_files(const std::unordered_map<std::string_view, std::string_view>& onnx_files)
 {
     static migraphx::tmp_dir td{"weights"};
-    std::vector<std::pair<std::string_view, std::string_view>> weight_files;
-    for(const auto& i : onnx_files)
-    {
-        if(migraphx::ends_with(std::string{i.first}, "weight"))
-        {
-            weight_files.push_back(i);
-        }
-    }
     for(const auto& i : weight_files)
     {
+        if(migraphx::ends_with(std::string{i.first}, "weight"))
+            continue;
         migraphx::fs::path full_path   = td.path / i.first;
         migraphx::fs::path parent_path = full_path.parent_path();
         migraphx::fs::create_directories(parent_path);

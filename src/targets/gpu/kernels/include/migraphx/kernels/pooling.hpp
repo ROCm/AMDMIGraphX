@@ -42,15 +42,12 @@ struct average_pool
     }
 };
 
-template<index_int P>
+template <index_int P>
 struct lpnorm_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() const
-    {
-        return 0.0;
-    }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
-    template<class T>
+    template <class T>
     MIGRAPHX_DEVICE_CONSTEXPR T apply(T x) const
     {
         if constexpr(P == 0)
@@ -58,17 +55,20 @@ struct lpnorm_pool
         else if constexpr(P == 1)
             return migraphx::abs(x);
         else if constexpr(P == 2)
-            return x*x;
+            return x * x;
         else
             return migraphx::pow(migraphx::abs(x), T(P));
     }
 
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const { return x + apply(y); }
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x + apply(y);
+    }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const 
-    { 
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const
+    {
         if constexpr(P == 0)
             return 1;
         else if constexpr(P == 1)

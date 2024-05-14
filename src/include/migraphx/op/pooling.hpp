@@ -400,10 +400,10 @@ struct pooling
                                [](auto ii, auto jj) { return ii + jj; });
                 // Check if any of coordinates are out of input tensor's range
                 if(std::equal(idx.begin() + 2,
-                                 idx.end(),
-                                 in_lens.begin() + 2,
-                                 in_lens.end(),
-                                 std::less<>{}))
+                              idx.end(),
+                              in_lens.begin() + 2,
+                              in_lens.end(),
+                              std::less<>{}))
                 {
                     output_val = op(output_val, input[idx]);
                 }

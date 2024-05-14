@@ -100,7 +100,7 @@ struct pooling_compiler : compiler<pooling_compiler>
             mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
 
         std::string op = mode + "_pool";
-        if (mode == "lpnorm")
+        if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
         std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";

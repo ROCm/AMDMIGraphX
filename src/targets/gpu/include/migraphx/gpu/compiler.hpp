@@ -48,28 +48,25 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f)
-        : code_objects{{op}},
-          replace_fn(make_replace(f))
+    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(f))
     {
     }
 
     template <class F, class Trace>
     compiler_replace(const operation& op, F f, Trace t)
         : code_objects{{op}}, replace_fn(make_replace(f)), trace_fn(t)
-        {}
+    {
+    }
 
     template <class F>
     compiler_replace(const std::vector<operation>& op, F f)
-        : code_objects{op},
-          replace_fn(make_replace_all(f))
+        : code_objects{op}, replace_fn(make_replace_all(f))
     {
     }
 
     template <class F, class Trace>
     compiler_replace(const std::vector<operation>& op, F f, Trace t)
-        : code_objects{op},
-          replace_fn(make_replace_all(f)), trace_fn(t)
+        : code_objects{op}, replace_fn(make_replace_all(f)), trace_fn(t)
     {
     }
 

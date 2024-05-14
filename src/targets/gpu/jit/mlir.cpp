@@ -120,7 +120,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                     }
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);
                     return m.replace_instruction(ins, mlir);
-                }, &trace};
+                },
+                &trace};
     }
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,

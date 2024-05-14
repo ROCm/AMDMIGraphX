@@ -244,7 +244,7 @@ struct MIGRAPHX_EXPORT module
     std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
-    
+
     // Fuse the instruction into the module by inserting the instructions and
     // parameters for any missing inputs.
     std::vector<instruction_ref>

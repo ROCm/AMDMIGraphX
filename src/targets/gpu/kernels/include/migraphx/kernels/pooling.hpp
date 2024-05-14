@@ -10,16 +10,16 @@ namespace migraphx {
 
 struct max_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return lowest{}; }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest{}; }
 
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y)
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
         return max(x, y);
     }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int)
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const
     {
         return x;
     }
@@ -27,18 +27,56 @@ struct max_pool
 
 struct average_pool
 {
-    MIGRAPHX_DEVICE_CONSTEXPR auto init() { return 0.0; }
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
     template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y)
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
         return x + y;
     }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y)
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y) const
     {
         return (y == 0) ? T{0.0} : T{x / y};
+    }
+};
+
+template<index_int P>
+struct lpnorm_pool
+{
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const
+    {
+        return 0.0;
+    }
+
+    template<class T>
+    MIGRAPHX_DEVICE_CONSTEXPR T apply(T x) const
+    {
+        if constexpr(P == 0)
+            return 1;
+        else if constexpr(P == 1)
+            return migraphx::abs(x);
+        else if constexpr(P == 2)
+            return x*x;
+        else
+            return migraphx::pow(migraphx::abs(x), T(P));
+    }
+
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const { return x + apply(y); }
+
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const 
+    { 
+        if constexpr(P == 0)
+            return 1;
+        else if constexpr(P == 1)
+            return x;
+        else if constexpr(P == 2)
+            return migraphx::sqrt(x);
+        else
+            return migraphx::pow(x, 1. / P);
     }
 };
 
@@ -84,7 +122,7 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <class Op, class Window, class Output, class Input>
+template <bool IncludePad, class Op, class Window, class Output, class Input>
 __device__ void pooling(Op op, Window w, Output output, Input input)
 {
     auto idx   = make_index();
@@ -100,9 +138,7 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
             }
             else
             {
-                // TODO: Only do for lpnorm
-                // x = op(x, op.init());
-                if constexpr(is_same<Op, average_pool>{})
+                if constexpr(not IncludePad and is_same<Op, average_pool>{})
                 {
                     pool_size--;
                 }

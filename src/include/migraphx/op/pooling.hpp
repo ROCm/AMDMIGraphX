@@ -102,6 +102,7 @@ struct pooling
                     f(self.lengths, "lengths"),
                     f(self.dilations, "dilations"),
                     f(self.ceil_mode, "ceil_mode"),
+                    f(self.count_include_pad, "count_include_pad"),
                     f(self.lp_order, "lp_order"),
                     f(self.dyn_global, "dyn_global"));
     }
@@ -398,13 +399,13 @@ struct pooling
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
                 // Check if any of coordinates are out of input tensor's range
-                if(std::mismatch(idx.begin() + 2,
+                if(std::equal(idx.begin() + 2,
                                  idx.end(),
                                  in_lens.begin() + 2,
                                  in_lens.end(),
-                                 std::less<>{}) == std::make_pair(idx.end(), in_lens.end()))
+                                 std::less<>{}))
                 {
-                    output_val = op(output_val, input[in_s.index(idx)]);
+                    output_val = op(output_val, input[idx]);
                 }
                 else
                 {
@@ -415,7 +416,7 @@ struct pooling
                     {
                         output_val = op(output_val, op.template init<Type>());
                     }
-                    if(mode == pooling_mode::average)
+                    if(mode == pooling_mode::average and not count_include_pad)
                     {
                         // Ignore padding
                         pool_size -= 1;

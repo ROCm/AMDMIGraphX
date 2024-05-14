@@ -59,7 +59,7 @@ read_weight_files(const std::unordered_map<std::string_view, std::string_view>& 
         migraphx::fs::path full_path   = td.path / i.first;
         migraphx::fs::path parent_path = full_path.parent_path();
         migraphx::fs::create_directories(parent_path);
-        migraphx::write_buffer(full_path, i.second.begin(), i.second.length());
+        migraphx::write_buffer(full_path, i.second.data(), i.second.size());
     }
     return td.path.string();
 }

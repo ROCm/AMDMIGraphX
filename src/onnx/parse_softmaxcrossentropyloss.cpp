@@ -203,13 +203,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
 
-        // Create index for each class for input labels and scores
-        std::vector<size_t> label_class_vec(class_size, 0);
-        std::iota(std::begin(label_class_vec), std::end(label_class_vec), 0);
-        auto label_class = info.add_literal(
-            migraphx::literal(migraphx::shape(label_shape.type(), {class_size}), label_class_vec));
-        auto label_index = info.add_instruction(migraphx::make_op("gather"), labels, label_class);
-
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
@@ -240,12 +233,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                     "softmaxcrossentropyloss: Weight and Scores inputs must be the same type");
             }
 
-            weight_tensor = info.add_instruction(
-                migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
-            weight_tensor = info.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}),
-                                                 weight_tensor,
-                                                 label_index,
-                                                 weights);
+            weight_tensor =
+                info.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), weights, labels);
 
             // adjust weights based on ignore index is that's set
             if(has_ignore_index)
@@ -270,10 +259,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 
-        loss_tensor = info.add_instruction(migraphx::make_op("scatter_none", {{"axis", 0}}),
-                                           loss_tensor,
-                                           label_index,
-                                           neg_lsm_scores);
+        loss_tensor = info.add_instruction(
+            migraphx::make_op("scatter_none", {{"axis", 0}}), loss_tensor, labels, neg_lsm_scores);
 
         if(is_k_dim)
         {

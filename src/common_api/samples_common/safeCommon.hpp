@@ -40,16 +40,16 @@
         }                                                                                                              \
     } while (0)
 
-// #undef SAFE_ASSERT
-// #define SAFE_ASSERT(condition)                                                                                         \
-//     do                                                                                                                 \
-//     {                                                                                                                  \
-//         if (!(condition))                                                                                              \
-//         {                                                                                                              \
-//             std::cerr << "Assertion failure: " << #condition << std::endl;                                             \
-//             exit(EXIT_FAILURE);                                                                                        \
-//         }                                                                                                              \
-//     } while (0)
+#undef SAFE_ASSERT
+#define SAFE_ASSERT(condition)                                                                                         \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (!(condition))                                                                                              \
+        {                                                                                                              \
+            std::cerr << "Assertion failure: " << #condition << std::endl;                                             \
+            exit(EXIT_FAILURE);                                                                                        \
+        }                                                                                                              \
+    } while (0)
 
 //! Locate path to file, given its filename or filepath suffix and possible dirs it might lie in.
 //! Function will also walk back MAX_DEPTH dirs from CWD to check for such a file path.
@@ -112,15 +112,15 @@ inline std::string locateFile(
     return filepath;
 }
 
-// inline void readPGMFile(const std::string& fileName, uint8_t* buffer, int32_t inH, int32_t inW)
-// {
-//     std::ifstream infile(fileName, std::ifstream::binary);
-//     SAFE_ASSERT(infile.is_open() && "Attempting to read from a file that is not open.");
-//     std::string magic, w, h, max;
-//     infile >> magic >> w >> h >> max;
-//     infile.seekg(1, infile.cur);
-//     infile.read(reinterpret_cast<char*>(buffer), inH * inW);
-// }
+inline void readPGMFile(const std::string& fileName, uint8_t* buffer, int32_t inH, int32_t inW)
+{
+    std::ifstream infile(fileName, std::ifstream::binary);
+    SAFE_ASSERT(infile.is_open() && "Attempting to read from a file that is not open.");
+    std::string magic, w, h, max;
+    infile >> magic >> w >> h >> max;
+    infile.seekg(1, infile.cur);
+    infile.read(reinterpret_cast<char*>(buffer), inH * inW);
+}
 
 namespace samplesCommon
 {

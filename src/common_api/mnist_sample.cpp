@@ -2,6 +2,7 @@
 // #define DEFINE_TRT_ENTRYPOINTS 1
 // #define DEFINE_TRT_LEGACY_PARSER_ENTRYPOINT 0
 
+#include "migraphx/stringutils.hpp"
 #include "samples_common/argsParser.hpp"
 #include "samples_common/buffers.hpp"
 #include "samples_common/common.hpp"
@@ -13,6 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <iomanip>
 #include <sstream>
 using namespace mgxinfer1;
 
@@ -66,15 +68,15 @@ class SampleOnnxMNIST
                           std::unique_ptr<mgxinfer1::IBuilderConfig>& config,
                           std::unique_ptr<mgxonnxparser::IParser>& parser);
 
-    // //!
-    // //! \brief Reads the input  and stores the result in a managed buffer
-    // //!
-    // bool processInput(const samplesCommon::BufferManager& buffers);
+    //!
+    //! \brief Reads the input  and stores the result in a managed buffer
+    //!
+    bool processInput(const samplesCommon::BufferManager& buffers);
 
-    // //!
-    // //! \brief Classifies digits and verify result
-    // //!
-    // bool verifyOutput(const samplesCommon::BufferManager& buffers);
+    //!
+    //! \brief Classifies digits and verify result
+    //!
+    bool verifyOutput(const samplesCommon::BufferManager& buffers);
 };
 
 // //!
@@ -141,9 +143,8 @@ bool SampleOnnxMNIST::build()
     }
 
     mEngine = std::shared_ptr<mgxinfer1::ICudaEngine>(
-        mRuntime->deserializeCudaEngine(plan->data(), plan->size()),
-        samplesCommon::InferDeleter());
-    if (!mEngine)
+        mRuntime->deserializeCudaEngine(plan->data(), plan->size()), samplesCommon::InferDeleter());
+    if(!mEngine)
     {
         return false;
     }
@@ -208,122 +209,123 @@ bool SampleOnnxMNIST::infer()
 {
     // Create RAII buffer manager object
     samplesCommon::BufferManager buffers(mEngine);
-
-    auto context =
-    std::unique_ptr<mgxinfer1::IExecutionContext>(mEngine->createExecutionContext()); if
-    (!context)
+    auto context = std::unique_ptr<mgxinfer1::IExecutionContext>(mEngine->createExecutionContext());
+    if(!context)
     {
         return false;
     }
 
-    // for (int32_t i = 0, e = mEngine->getNbIOTensors(); i < e; i++)
-    // {
-    //     auto const name = mEngine->getIOTensorName(i);
-    //     context->setTensorAddress(name, buffers.getDeviceBuffer(name));
-    // }
+    for (int32_t i = 0, e = mEngine->getNbIOTensors(); i < e; i++)
+    {
+        auto const name = mEngine->getIOTensorName(i);
+        context->setTensorAddress(name, buffers.getDeviceBuffer(name));
+    }
 
-    // // Read the input data into the managed buffers
+    // Read the input data into the managed buffers
+    std::cout << mParams.inputTensorNames.size() << std::endl;
+    std::cout << migraphx::to_string_range(mParams.inputTensorNames) << std::endl;
     // ASSERT(mParams.inputTensorNames.size() == 1);
-    // if (!processInput(buffers))
-    // {
-    //     return false;
-    // }
+    if (!processInput(buffers))
+    {
+        return false;
+    }
 
-    // // Memcpy from host input buffers to device input buffers
-    // buffers.copyInputToDevice();
+    // Memcpy from host input buffers to device input buffers
+    buffers.copyInputToDevice();
 
-    // bool status = context->executeV2(buffers.getDeviceBindings().data());
-    // if (!status)
-    // {
-    //     return false;
-    // }
+    bool status = context->executeV2(buffers.getDeviceBindings().data());
+    if (!status)
+    {
+        return false;
+    }
 
-    // // Memcpy from device output buffers to host output buffers
-    // buffers.copyOutputToHost();
+    // Memcpy from device output buffers to host output buffers
+    buffers.copyOutputToHost();
 
-    // // Verify results
-    // if (!verifyOutput(buffers))
-    // {
-    //     return false;
-    // }
+
+    // Verify results
+    if (!verifyOutput(buffers))
+    {
+        return false;
+    }
 
     return true;
 }
 
-// //!
-// //! \brief Reads the input and stores the result in a managed buffer
-// //!
-// bool SampleOnnxMNIST::processInput(const samplesCommon::BufferManager& buffers)
-// {
-//     const int inputH = mInputDims.d[2];
-//     const int inputW = mInputDims.d[3];
+//!
+//! \brief Reads the input and stores the result in a managed buffer
+//!
+bool SampleOnnxMNIST::processInput(const samplesCommon::BufferManager& buffers)
+{
+    const int inputH = mInputDims.d[2];
+    const int inputW = mInputDims.d[3];
 
-//     // Read a random digit file
-//     srand(unsigned(time(nullptr)));
-//     std::vector<uint8_t> fileData(inputH * inputW);
-//     mNumber = rand() % 10;
-//     readPGMFile(locateFile(std::to_string(mNumber) + ".pgm", mParams.dataDirs), fileData.data(),
-//     inputH, inputW);
+    // Read a random digit file
+    srand(unsigned(time(nullptr)));
+    std::vector<uint8_t> fileData(inputH * inputW);
+    mNumber = rand() % 10;
+    readPGMFile(locateFile(std::to_string(mNumber) + ".pgm", mParams.dataDirs), fileData.data(),
+    inputH, inputW);
 
-//     // Print an ascii representation
-//     sample::gLogInfo << "Input:" << std::endl;
-//     for (int i = 0; i < inputH * inputW; i++)
-//     {
-//         sample::gLogInfo << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % inputW) ? "" : "\n");
-//     }
-//     sample::gLogInfo << std::endl;
+    // Print an ascii representation
+    std::cout << "Input:" << std::endl;
+    for (int i = 0; i < inputH * inputW; i++)
+    {
+        std::cout << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % inputW) ? "" : "\n");
+    }
+    std::cout << std::endl;
 
-//     float* hostDataBuffer =
-//     static_cast<float*>(buffers.getHostBuffer(mParams.inputTensorNames[0])); for (int i = 0; i <
-//     inputH * inputW; i++)
-//     {
-//         hostDataBuffer[i] = 1.0 - float(fileData[i] / 255.0);
-//     }
+    float* hostDataBuffer =
+    static_cast<float*>(buffers.getHostBuffer(mParams.inputTensorNames[0])); for (int i = 0; i <
+    inputH * inputW; i++)
+    {
+        hostDataBuffer[i] = 1.0 - float(fileData[i] / 255.0);
+    }
 
-//     return true;
-// }
+    return true;
+}
 
-// //!
-// //! \brief Classifies digits and verify result
-// //!
-// //! \return whether the classification output matches expectations
-// //!
-// bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
-// {
-//     const int outputSize = mOutputDims.d[1];
-//     float* output = static_cast<float*>(buffers.getHostBuffer(mParams.outputTensorNames[0]));
-//     float val{0.0F};
-//     int idx{0};
+//!
+//! \brief Classifies digits and verify result
+//!
+//! \return whether the classification output matches expectations
+//!
+bool SampleOnnxMNIST::verifyOutput(const samplesCommon::BufferManager& buffers)
+{
+    const int outputSize = mOutputDims.d[1];
+    float* output = static_cast<float*>(buffers.getHostBuffer(mParams.outputTensorNames[0]));
+    float val{0.0F};
+    int idx{0};
 
-//     // Calculate Softmax
-//     float sum{0.0F};
-//     for (int i = 0; i < outputSize; i++)
-//     {
-//         output[i] = exp(output[i]);
-//         sum += output[i];
-//     }
+    // Calculate Softmax
+    float sum{0.0F};
+    for (int i = 0; i < outputSize; i++)
+    {
+        output[i] = exp(output[i]);
+        sum += output[i];
+    }
 
-//     sample::gLogInfo << "Output:" << std::endl;
-//     for (int i = 0; i < outputSize; i++)
-//     {
-//         output[i] /= sum;
-//         val = std::max(val, output[i]);
-//         if (val == output[i])
-//         {
-//             idx = i;
-//         }
+    std::cout << "Output:" << std::endl;
+    for (int i = 0; i < outputSize; i++)
+    {
+        output[i] /= sum;
+        val = std::max(val, output[i]);
+        if (val == output[i])
+        {
+            idx = i;
+        }
 
-//         sample::gLogInfo << " Prob " << i << "  " << std::fixed << std::setw(5) <<
-//         std::setprecision(4) << output[i]
-//                          << " "
-//                          << "Class " << i << ": " << std::string(int(std::floor(output[i] * 10 +
-//                          0.5F)), '*')
-//                          << std::endl;
-//     }
-//     sample::gLogInfo << std::endl;
+        std::cout << " Prob " << i << "  " << std::fixed << std::setw(5) <<
+        std::setprecision(4) << output[i]
+                         << " "
+                         << "Class " << i << ": " << std::string(int(std::floor(output[i] * 10 +
+                         0.5F)), '*')
+                         << std::endl;
+    }
+    std::cout << std::endl;
 
-//     return idx == mNumber && val > 0.9F;
-// }
+    return idx == mNumber && val > 0.9F;
+}
 
 // //!
 // //! \brief Initializes members of the params struct using the command line args
@@ -342,7 +344,7 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
     }
     params.onnxFileName = "mnist.onnx";
     params.inputTensorNames.push_back("Input3");
-    params.outputTensorNames.push_back("Plus214_Output_0");
+    params.outputTensorNames.push_back("main:#output_0"); // guessing output name?
     params.dlaCore = args.useDLACore;
     params.int8    = args.runInInt8;
     params.fp16    = args.runInFp16;
@@ -406,7 +408,7 @@ int main(int argc, char** argv)
         std::cerr << "Build failed" << std::endl;
         return 1;
     }
-    if (!sample.infer())
+    if(!sample.infer())
     {
         // return sample::gLogger.reportFail(sampleTest);
         std::cerr << "Infer failed" << std::endl;

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <variant>
 #include <vector>
 
 #include <hip/hip_runtime_api.h>
@@ -11,8 +12,10 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/ranges.hpp>
 
 #include "MgxInferRuntimeBase.hpp"
+#include "migraphx/migraphx.h"
 #include "pass.hpp"
 
 namespace mgxinfer1 {
@@ -199,7 +202,6 @@ class INetworkDefinition;
 class IBuilder;
 class IBuilderConfig;
 
-
 using TensorFormats = uint32_t;
 using BuilderFlags  = uint32_t;
 
@@ -221,7 +223,6 @@ class INoCopy
     INoCopy(INoCopy&& other)                 = delete;
     INoCopy& operator=(INoCopy&& other)      = delete;
 };
-
 
 //!
 //! \class IHostMemory
@@ -444,6 +445,16 @@ enum class HardwareCompatibilityLevel : int32_t
     kAMPERE_PLUS = 1,
 };
 
+inline Dims toDimensions(const migraphx::shape& shape)
+{
+    Dims dims;
+    auto lens   = shape.lens();
+    dims.nbDims = static_cast<int32_t>(lens.size());
+    std::transform(
+        lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
+    return dims;
+}
+
 //!
 //! \class ITensor
 //!
@@ -534,12 +545,7 @@ class ITensor : public INoCopy
     Dims getDimensions() const noexcept
     {
         // TODO incomplete
-        Dims dims;
-        auto lens   = shape_.lens();
-        dims.nbDims = static_cast<int32_t>(lens.size());
-        std::transform(
-            lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
-        return dims;
+        return toDimensions(shape_);
         // pass("Not Implemented", true);
         // return mImpl->getDimensions();
     }
@@ -861,1164 +867,6 @@ class ITensor : public INoCopy
 };
 
 //!
-//! \class ICudaEngine
-//!
-//! \brief An engine for executing inference on a built network, with functionally unsafe features.
-//!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
-//! and ABI.
-//!
-class ICudaEngine : public INoCopy
-{
-    public:
-    ICudaEngine(migraphx::program&& program) : program_{program} {}
-
-    virtual ~ICudaEngine() noexcept = default;
-
-    //!
-    //! \brief Get shape of an input or output tensor.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \return shape of the tensor, with -1 in place of each dynamic runtime dimension,
-    //!         or Dims{-1, {}} if the provided name does not map to an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    Dims getTensorShape(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorShape(tensorName);
-    }
-
-    //!
-    //! \brief Determine the required data type for a buffer from its tensor name.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \return The type of the data in the buffer, or DataType::kFLOAT if the provided name does
-    //! not map to an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    DataType getTensorDataType(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorDataType(tensorName);
-    }
-
-    //!
-    //! \brief Get the number of layers in the network.
-    //!
-    //! The number of layers in the network is not necessarily the number in the original network
-    //! definition, as layers may be combined or eliminated as the engine is optimized. This value
-    //! can be useful when building per-layer tables, such as when aggregating profiling data over a
-    //! number of executions.
-    //!
-    //! \return The number of layers in the network.
-    //!
-    int32_t getNbLayers() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbLayers();
-    }
-
-    //!
-    //! \brief Serialize the network to a stream.
-    //!
-    //! \return A IHostMemory object that contains the serialized engine.
-    //!
-    //! The network may be deserialized with IRuntime::deserializeCudaEngine().
-    //!
-    //! \see IRuntime::deserializeCudaEngine()
-    //!
-    IHostMemory* serialize() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->serialize();
-    }
-
-    //!
-    //! \brief Create an execution context and specify the strategy for allocating internal
-    //! activation memory.
-    //!
-    //! The default value for the allocation strategy is
-    //! ExecutionContextAllocationStrategy::kSTATIC, which means the context will pre-allocate a
-    //! block of device memory that is sufficient for all profiles. The newly created execution
-    //! context will be assigned optimization profile 0. If an error recorder has been set for the
-    //! engine, it will also be passed to the execution context.
-    //!
-    //! \see IExecutionContext
-    //! \see IExecutionContext::setOptimizationProfileAsync()
-    //! \see ExecutionContextAllocationStrategy
-    //!
-    IExecutionContext*
-    createExecutionContext(ExecutionContextAllocationStrategy strategy =
-                               ExecutionContextAllocationStrategy::kSTATIC) noexcept
-    {
-        // TODO
-        // return mImpl->createExecutionContext(strategy);
-    }
-
-    //!
-    //! \brief Get whether an input or output tensor must be on GPU or CPU.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \return TensorLocation::kDEVICE if tensorName must be on GPU, or TensorLocation::kHOST if on
-    //! CPU, or TensorLocation::kDEVICE if the provided name does not map to an input or output
-    //! tensor.
-    //!
-    //! The location is established at build time. E.g. shape tensors inputs are typically required
-    //! to be on the CPU.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    TensorLocation getTensorLocation(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorLocation(tensorName);
-    }
-
-    //!
-    //! \brief True if tensor is required as input for shape calculations or is output from shape
-    //! calculations.
-    //!
-    //! Return true for either of the following conditions:
-    //!
-    //! * The tensor is a network input, and its value is required for
-    //! IExecutionContext::getTensorShape()
-    //!   to return the shape of a network output.
-    //!
-    //! * The tensor is a network output, and inferShape() will compute its values.
-    //!
-    //! For example, if a network uses an input tensor "foo" as an addend to an IElementWiseLayer
-    //! that computes the "reshape dimensions" for IShuffleLayer, then isShapeInferenceIO("foo") ==
-    //! true. If the network copies said input tensor "foo" to an output "bar", then
-    //! isShapeInferenceIO("bar") == true and IExecutionContext::inferShapes() will write to "bar".
-    //!
-    bool isShapeInferenceIO(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->isShapeInferenceIO(tensorName);
-    }
-
-    //!
-    //! \brief Determine whether a tensor is an input or output tensor.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \return kINPUT if tensorName is an input, kOUTPUT if tensorName is an output, or kNONE if
-    //! neither.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    TensorIOMode getTensorIOMode(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorIOMode(tensorName);
-    }
-
-    //!
-    //! \brief create an execution context without any device memory allocated
-    //!
-    //! The memory for execution of this device context must be supplied by the application.
-    //!
-    //! \deprecated Deprecated in TensorRT 10.0. Superseded by createExecutionContext() with
-    //! parameter.
-    //!
-    [[deprecated]] IExecutionContext* createExecutionContextWithoutDeviceMemory() noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->createExecutionContextWithoutDeviceMemory();
-    }
-
-    //!
-    //! \brief Return the maximum device memory required by the context over all profiles.
-    //!
-    //! \see IExecutionContext::setDeviceMemory()
-    //!
-    size_t getDeviceMemorySize() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getDeviceMemorySize();
-    }
-
-    //!
-    //! \brief Return the maximum device memory required by the context for a profile.
-    //!
-    //! \see IExecutionContext::setDeviceMemory()
-    //!
-    size_t getDeviceMemorySizeForProfile(int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getDeviceMemorySizeForProfile(profileIndex);
-    }
-
-    //!
-    //! \brief Return true if an engine can be refit.
-    //!
-    //! \see nvinfer1::createInferRefitter()
-    //!
-    bool isRefittable() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->isRefittable();
-    }
-
-    //!
-    //! \brief Return the number of bytes per component of an element, or -1 if the provided name
-    //! does not map to an input or output tensor.
-    //!
-    //! The vector component size is returned if getTensorVectorizedDim() != -1.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator. \warning The function can only return the result of profile 0, and issues a
-    //! warning message when there are multiple profiles in the engine, use
-    //! getTensorBytesPerComponent with profileIndex when there are multiple profiles.
-    //!
-    //! \see getTensorVectorizedDim()
-    //! \see getTensorBytesPerComponent(tensorName, profileIndex)
-    //!
-    int32_t getTensorBytesPerComponent(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorBytesPerComponent(tensorName);
-    }
-
-    //!
-    //! \brief Return the number of bytes per component of an element of given profile, or -1 if the
-    //! provided name does not map to an input or output tensor.
-    //!
-    //! The vector component size is returned if getTensorVectorizedDim(tensorName, profileIndex) !=
-    //! -1.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //! \param profileIndex The profile index to query
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    //! \see getTensorVectorizedDim(tensorName, profileIndex)
-    //!
-    int32_t getTensorBytesPerComponent(char const* tensorName, int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorBytesPerComponentV2(tensorName, profileIndex);
-    }
-
-    //!
-    //! \brief Return the number of components included in one element, or -1 if the provided name
-    //! does not map to an input or output tensor.
-    //!
-    //! The number of elements in the vectors is returned if getTensorVectorizedDim() != -1.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator. \warning The function can only return the result of profile 0, and issues a
-    //! warning message when there are multiple profiles in the engine, use
-    //! getTensorComponentsPerElement with profileIndex when there are multiple profiles.
-    //!
-    //! \see getTensorVectorizedDim()
-    //! \see getTensorComponentsPerElement(tensorName, profileIndex)
-    //!
-    int32_t getTensorComponentsPerElement(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorComponentsPerElement(tensorName);
-    }
-
-    //!
-    //! \brief Return the number of components included in one element of given profile, or -1 if
-    //! the provided name does not map to an input or output tensor.
-    //!
-    //! The number of elements in the vectors is returned if getTensorVectorizedDim(tensorName,
-    //! profileIndex) != -1.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //! \param profileIndex The profile index to query
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    //! \see getTensorVectorizedDim(tensorName, profileIndex)
-    //!
-    int32_t getTensorComponentsPerElement(char const* tensorName,
-                                          int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorComponentsPerElementV2(tensorName, profileIndex);
-    }
-
-    //!
-    //! \brief Return the tensor format, or TensorFormat::kLINEAR if the provided name does not map
-    //! to an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator. \warning This API can only return the tensor format of profile 0, and issues
-    //! a warning message when there are multiple profiles in the engine, use getTensorFormat with
-    //! profileIndex when there are multiple profiles.
-    //!
-    //! \see getTensorFormat(tensorName, profileIndex)
-    //!
-    TensorFormat getTensorFormat(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorFormat(tensorName);
-    }
-
-    //!
-    //! \brief Return the tensor format of given profile, or TensorFormat::kLINEAR if the provided
-    //! name does not map to an input or output tensor.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //! \param profileIndex The profile index to query the format for.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    TensorFormat getTensorFormat(char const* tensorName, int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorFormatV2(tensorName, profileIndex);
-    }
-
-    //!
-    //! \brief Return the human readable description of the tensor format, or empty string if the
-    //! provided name does not map to an input or output tensor.
-    //!
-    //! The description includes the order, vectorization, data type, and strides.
-    //! Examples are shown as follows:
-    //!   Example 1: kCHW + FP32
-    //!     "Row-major linear FP32 format"
-    //!   Example 2: kCHW2 + FP16
-    //!     "Two-wide channel vectorized row-major FP16 format"
-    //!   Example 3: kHWC8 + FP16 + Line Stride = 32
-    //!     "Channel major FP16 format where C % 8 == 0 and H Stride % 32 == 0"
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator. \warning The function can only return the result of profile 0, and issues a
-    //! warning message when there are multiple profiles in the engine, use getTensorFormatDesc with
-    //! profileIndex when there are multiple profiles.
-    //!
-    char const* getTensorFormatDesc(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorFormatDesc(tensorName);
-    }
-
-    //!
-    //! \brief Return the human readable description of the tensor format of given profile, or empty
-    //! string if the provided name does not map to an input or output tensor.
-    //!
-    //! The description includes the order, vectorization, data type, and strides.
-    //! Examples are shown as follows:
-    //!   Example 1: kCHW + FP32
-    //!     "Row-major linear FP32 format"
-    //!   Example 2: kCHW2 + FP16
-    //!     "Two-wide channel vectorized row-major FP16 format"
-    //!   Example 3: kHWC8 + FP16 + Line Stride = 32
-    //!     "Channel major FP16 format where C % 8 == 0 and H Stride % 32 == 0"
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //! \param profileIndex The profile index to query the format for.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    char const* getTensorFormatDesc(char const* tensorName, int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorFormatDescV2(tensorName, profileIndex);
-    }
-
-    //!
-    //! \brief Return the dimension index that the buffer is vectorized, or -1 if the provided name
-    //! does not map to an input or output tensor.
-    //!
-    //! Specifically -1 is returned if scalars per vector is 1.
-    //!
-    //! \param tensorName The name of an input or output tensor.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator. \warning The function can only return the result of profile 0, and issues a
-    //! warning message when there are
-    //!  multiple profiles in the engine, use getTensorVectorizedDim with profileIndex when there
-    //!  are multiple profiles.
-    //!
-    int32_t getTensorVectorizedDim(char const* tensorName) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorVectorizedDim(tensorName);
-    }
-
-    //!
-    //! \brief Return the dimension index that the buffer is vectorized of given profile, or -1 if
-    //! the provided name does not map to an input or output tensor.
-    //!
-    //! Specifically -1 is returned if scalars per vector is 1.
-    //!
-    //! \param tensorName The name of an input.
-    //! \param profileIndex The profile index to query the format for.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    int32_t getTensorVectorizedDim(char const* tensorName, int32_t profileIndex) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTensorVectorizedDimV2(tensorName, profileIndex);
-    }
-
-    //!
-    //! \brief Returns the name of the network associated with the engine.
-    //!
-    //! The name is set during network creation and is retrieved after
-    //! building or deserialization.
-    //!
-    //! \see INetworkDefinition::setName(), INetworkDefinition::getName()
-    //!
-    //! \return A null-terminated C-style string representing the name of the network.
-    //!
-    char const* getName() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getName();
-    }
-
-    //!
-    //! \brief Get the number of optimization profiles defined for this engine.
-    //!
-    //! \return Number of optimization profiles. It is always at least 1.
-    //!
-    //! \see IExecutionContext::setOptimizationProfileAsync()
-    int32_t getNbOptimizationProfiles() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbOptimizationProfiles();
-    }
-
-    //!
-    //! \brief Get the minimum / optimum / maximum dimensions for an input tensor given its name
-    //! under an optimization profile.
-    //!
-    //! \param tensorName The name of an input tensor.
-    //!
-    //! \param profileIndex The profile index, which must be between 0 and
-    //! getNbOptimizationProfiles()-1.
-    //!
-    //! \param select Whether to query the minimum, optimum, or maximum dimensions for this input
-    //! tensor.
-    //!
-    //! \return The minimum / optimum / maximum dimensions for an input tensor in this profile.
-    //!         If the profileIndex is invalid or provided name does not map to an input tensor,
-    //!         return Dims{-1, {}}
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    Dims getProfileShape(char const* tensorName,
-                         int32_t profileIndex,
-                         OptProfileSelector select) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getProfileShape(tensorName, profileIndex, select);
-    }
-
-    //!
-    //! \brief Get the minimum / optimum / maximum values (not dimensions) for an input tensor given
-    //! its name under an optimization profile. These correspond to the values set using
-    //! IOptimizationProfile::setShapeValues when the engine was built.
-    //!
-    //! \param tensorName The name of an input tensor.
-    //!
-    //! \param profileIndex The profile index, which must be between 0 and
-    //! getNbOptimizationProfiles()-1.
-    //!
-    //! \param select Whether to query the minimum, optimum, or maximum values for this input
-    //! tensor.
-    //!
-    //! \return The minimum / optimum / maximum values for an input tensor in this profile.
-    //!        If the profileIndex is invalid or the provided name does not map to an input tensor,
-    //!        return nullptr.
-    //!
-    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
-    //! the terminator.
-    //!
-    int32_t const* getProfileTensorValues(char const* tensorName,
-                                          int32_t profileIndex,
-                                          OptProfileSelector select) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getProfileTensorValues(tensorName, profileIndex, select);
-    }
-
-    //!
-    //! \brief Determine what execution capability this engine has.
-    //!
-    //! If the engine has EngineCapability::kSTANDARD, then all engine functionality is valid.
-    //! If the engine has EngineCapability::kSAFETY, then only the functionality in safe engine is
-    //! valid. If the engine has EngineCapability::kDLA_STANDALONE, then only serialize, destroy,
-    //! and const-accessor functions are valid.
-    //!
-    //! \return The EngineCapability flag that the engine was built for.
-    //!
-    EngineCapability getEngineCapability() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getEngineCapability();
-    }
-
-    //!
-    //! \brief Set the ErrorRecorder for this interface
-    //!
-    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
-    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
-    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
-    //! a call to decRefCount if a recorder has been registered.
-    //!
-    //! If an error recorder is not set, messages will be sent to the global log stream.
-    //!
-    //! \param recorder The error recorder to register with this interface.
-    //!
-    //! \see getErrorRecorder()
-    //!
-    void setErrorRecorder(IErrorRecorder* recorder) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setErrorRecorder(recorder);
-    }
-
-    //!
-    //! \brief Get the ErrorRecorder assigned to this interface.
-    //!
-    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
-    //! if an error handler has not been set.
-    //!
-    //! \return A pointer to the IErrorRecorder object that has been registered.
-    //!
-    //! \see setErrorRecorder()
-    //!
-    IErrorRecorder* getErrorRecorder() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getErrorRecorder();
-    }
-
-    //!
-    //! \brief Query whether the engine was built with an implicit batch dimension.
-    //!
-    //! \return Always false since TensorRT 10.0 does not support an implicit batch dimension.
-    //!
-    //! \see createNetworkV2
-    //!
-    //! \deprecated Deprecated in TensorRT 10.0. Implicit batch is no supported since TensorRT 10.0.
-    //!
-    [[deprecated]] bool hasImplicitBatchDimension() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->hasImplicitBatchDimension();
-    }
-
-    //!
-    //! \brief return the tactic sources required by this engine.
-    //!
-    //! The value returned is equal to zero or more tactics sources set
-    //! at build time via setTacticSources() in IBuilderConfig. Sources
-    //! set by the latter but not returned by \ref ICudaEngine::getTacticSources
-    //! do not reduce overall engine execution time, and can be removed from
-    //! future builds to reduce build time.
-    //!
-    //! \see IBuilderConfig::setTacticSources()
-    //!
-    TacticSources getTacticSources() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTacticSources();
-    }
-
-    //!
-    //! \brief Return the \ref ProfilingVerbosity the builder config was set to when the engine was
-    //! built.
-    //!
-    //! \return the profiling verbosity the builder config was set to when the engine was built.
-    //!
-    //! \see IBuilderConfig::setProfilingVerbosity()
-    //!
-    ProfilingVerbosity getProfilingVerbosity() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getProfilingVerbosity();
-    }
-
-    //!
-    //! \brief Create a new engine inspector which prints the layer information in an engine or an
-    //! execution context.
-    //!
-    //! \see IEngineInspector.
-    //!
-    IEngineInspector* createEngineInspector() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->createEngineInspector();
-    }
-
-    //!
-    //! \brief Return number of IO tensors.
-    //!
-    //! It is the number of input and output tensors for the network from which the engine was
-    //! built. The names of the IO tensors can be discovered by calling getIOTensorName(i) for i in
-    //! 0 to getNbIOTensors()-1.
-    //!
-    //! \see getIOTensorName()
-    //!
-    int32_t getNbIOTensors() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbIOTensors();
-    }
-
-    //!
-    //! \brief Return name of an IO tensor.
-    //!
-    //! \param index value between 0 and getNbIOTensors()-1
-    //!
-    //! \see getNbIOTensors()
-    //!
-    char const* getIOTensorName(int32_t index) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getIOTensorName(index);
-    }
-
-    //!
-    //! \brief Return the hardware compatibility level of this engine.
-    //!
-    //! \return hardwareCompatibilityLevel The level of hardware
-    //!        compatibility.
-    //!
-    //! This is only supported for Ampere and newer architectures.
-    //!
-    HardwareCompatibilityLevel getHardwareCompatibilityLevel() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getHardwareCompatibilityLevel();
-    }
-
-    //!
-    //! \brief Return the number of auxiliary streams used by this engine.
-    //!
-    //! This number will be less than or equal to the maximum allowed number of auxiliary streams
-    //! set by IBuilderConfig::setMaxAuxStreams() API call when the engine was built.
-    //!
-    //! \return the number of auxiliary streams used by this engine.
-    //!
-    //! \see IBuilderConfig::setMaxAuxStreams(), IExecutionContext::setAuxStreams()
-    //!
-    int32_t getNbAuxStreams() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbAuxStreams();
-    }
-
-    //!
-    //! \brief Create a serialization configuration object.
-    //!
-    //! \see ISerializationConfig
-    //!
-    ISerializationConfig* createSerializationConfig() noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->createSerializationConfig();
-    }
-
-    //!
-    //! \brief Serialize the network to a stream with the provided SerializationConfig.
-    //!
-    //! \return An IHostMemory object that contains the serialized engine.
-    //!
-    //! The network may be deserialized with IRuntime::deserializeCudaEngine().
-    //!
-    //! \see IRuntime::deserializeCudaEngine()
-    //!
-    IHostMemory* serializeWithConfig(ISerializationConfig& config) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->serializeWithConfig(config);
-    }
-
-    //!
-    //! \brief Limit the maximum amount of GPU memory usable for network weights
-    //! in bytes.
-    //!
-    //! \param gpuMemoryBudget  This parameter may take on 3 types of values:
-    //!  -1: Allows TensorRT to choose the budget according to the streamable weights size.
-    //!      Free CUDA memory will be queried at ::createExecutionContext and accordingly:
-    //!       * If streamable weights all fit: weight streaming is not required and disabled.
-    //!       * Otherwise: Budget is set to getMinimumWeightStreamingBudget
-    //!   0: (default) Disables weight streaming. The execution may fail if the network is too large
-    //!   for GPU memory.
-    //!  >0: The maximum bytes of GPU memory that weights can occupy. It must be bounded by
-    //!      [getMinimumWeightStreamingBudget, min(getStreamableWeightsSize - 1, free GPU memory)].
-    //!
-    //! By setting a weight limit, users can expect a GPU memory usage reduction
-    //! of |network weights| - gpuMemoryBudget bytes. Maximum memory savings occur
-    //! when gpuMemoryBudget is set to getMinimumWeightStreamingBudget.
-    //!
-    //! Streaming larger amounts of memory will likely result in lower performance
-    //! except in some boundary cases where streaming weights allows the user to
-    //! run larger batch sizes. The higher throughput offsets the increased
-    //! latency in these cases. Tuning the value of the memory limit is
-    //! recommended for best performance.
-    //!
-    //! \warning If weight streaming is active, then multiple concurrent IExecutionContexts will
-    //! forced to run serially.
-    //!
-    //! \warning GPU memory for the weights is allocated upon the first IExecutionContext's creation
-    //!          and deallocated upon the last one's destruction.
-    //!
-    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
-    //!
-    //! \return true if the memory limit is valid and the call was successful
-    //!         otherwise false.
-    //!
-    //! \see BuilderFlag::kWEIGHT_STREAMING,
-    //!      ICudaEngine::getWeightStreamingBudget
-    //!      ICudaEngine::getMinimumWeightStreamingBudget,
-    //!      ICudaEngine::getStreamableWeightsSize
-    //!
-    bool setWeightStreamingBudget(int64_t gpuMemoryBudget) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setWeightStreamingBudget(gpuMemoryBudget);
-    }
-
-    //!
-    //! \brief Returns the current weight streaming device memory budget in bytes.
-    //!
-    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
-    //!
-    //! \returns The weight streaming budget in bytes. Please see ::setWeightStreamingBudget for the
-    //! possible
-    //!          values.
-    //!
-    //! \see BuilderFlag::kWEIGHT_STREAMING,
-    //!      ICudaEngine::setWeightStreamingBudget,
-    //!      ICudaEngine::getMinimumWeightStreamingBudget,
-    //!      ICudaEngine::getStreamableWeightsSize
-    //!
-    int64_t getWeightStreamingBudget() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getWeightStreamingBudget();
-    }
-
-    //!
-    //! \brief The minimum number of bytes of GPU memory required by network
-    //! weights for successful weight streaming.
-    //!
-    //! This is a positive integer for engines with streamable weights because a
-    //! staging buffer on the GPU is required to temporarily hold the streamed
-    //! weights. The size of the staging buffer is determined by TensorRT and must
-    //! be at least as large as the size of the largest streamable weight in the
-    //! network.
-    //!
-    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
-    //!
-    //!
-    //! \returns The minimum number of bytes of GPU memory required for streaming.
-    //!
-    //! \see ICudaEngine::setWeightStreamingBudget
-    //!
-    int64_t getMinimumWeightStreamingBudget() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getMinimumWeightStreamingBudget();
-    }
-
-    //!
-    //! \brief Get the total size in bytes of all streamable weights.
-    //!
-    //! The set of streamable weights is a subset of all network weights. The
-    //! total size may exceed free GPU memory.
-    //!
-    //! Returns 0 if BuilderFlag::kWEIGHT_STREAMING is unset during engine building.
-    //!
-    //!
-    //! \returns The total size in bytes of all streamable weights.
-    //!
-    //! \see ICudaEngine::setWeightStreamingBudget
-    //!
-    int64_t getStreamableWeightsSize() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getStreamableWeightsSize();
-    }
-
-    //!
-    //! \brief Check if a tensor is marked as a debug tensor.
-    //!
-    //! Determine whether the given name corresponds to a debug tensor.
-    //!
-    //! \returns True if tensor is a debug tensor, false otherwise.
-    //!
-    //! \see INetworkDefinition::markDebug
-    //!
-    bool isDebugTensor(char const* name) const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->isDebugTensor(name);
-    }
-
-    private:
-    migraphx::program program_;
-
-    // protected:
-    //     apiv::VCudaEngine* mImpl;
-};
-
-//!
-//! \class IRuntime
-//!
-//! \brief Allows a serialized functionally unsafe engine to be deserialized.
-//!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
-//! and ABI.
-//!
-class IRuntime : public INoCopy
-{
-    public:
-    IRuntime(ILogger& logger) : logger_{logger} {}
-    virtual ~IRuntime() noexcept = default;
-
-    //!
-    //! \brief Sets the DLA core used by the network. Defaults to -1.
-    //!
-    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
-    //!
-    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
-    //! are available.
-    //!
-    //! \warning if getNbDLACores() returns 0, then this function does nothing.
-    //!
-    //! \see getDLACore()
-    //!
-    void setDLACore(int32_t dlaCore) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setDLACore(dlaCore);
-    }
-
-    //!
-    //! \brief Get the DLA core that the engine executes on.
-    //!
-    //! \return assigned DLA core or -1 for DLA not present or unset.
-    //!
-    int32_t getDLACore() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getDLACore();
-    }
-
-    //!
-    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
-    //!
-    int32_t getNbDLACores() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getNbDLACores();
-    }
-
-    //!
-    //! \brief Set the GPU allocator.
-    //!
-    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
-    //! will use this allocator. If NULL is passed, the default allocator will be used.
-    //!
-    //! Default: uses cudaMalloc/cudaFree.
-    //!
-    //! If nullptr is passed, the default allocator will be used.
-    //!
-    void setGpuAllocator(IGpuAllocator* allocator) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setGpuAllocator(allocator);
-    }
-
-    //!
-    //! \brief Set the ErrorRecorder for this interface
-    //!
-    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
-    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
-    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
-    //! a call to decRefCount if a recorder has been registered.
-    //!
-    //! If an error recorder is not set, messages will be sent to the global log stream.
-    //!
-    //! \param recorder The error recorder to register with this interface.
-    //
-    //! \see getErrorRecorder()
-    //!
-    void setErrorRecorder(IErrorRecorder* recorder) noexcept
-    {
-        pass("Not Implemented", true);
-        // mImpl->setErrorRecorder(recorder);
-    }
-
-    //!
-    //! \brief get the ErrorRecorder assigned to this interface.
-    //!
-    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
-    //! if an error handler has not been set.
-    //!
-    //! \return A pointer to the IErrorRecorder object that has been registered.
-    //!
-    //! \see setErrorRecorder()
-    //!
-    IErrorRecorder* getErrorRecorder() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getErrorRecorder();
-    }
-
-    //!
-    //! \brief Deserialize an engine from host memory.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
-    //!
-    //! \param blob The memory that holds the serialized engine.
-    //! \param size The size of the memory.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
-    {
-        // Pass the error recorder to the engine as well
-        // TODO error handling
-        auto program = migraphx::load_buffer(reinterpret_cast<const char*>(blob), size);
-        std::cout << program << std::endl;
-        return new ICudaEngine{std::move(program)};
-        // return mImpl->deserializeCudaEngine(blob, size);
-    }
-
-    //!
-    //! \brief Deserialize an engine from a stream.
-    //!
-    //! If an error recorder has been set for the runtime, it will also be passed to the
-    //! engine.
-    //!
-    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
-    //!
-    //! \param streamReader a read-only stream from which TensorRT will deserialize a
-    //!        previously serialized engine.
-    //!
-    //! \return The engine, or nullptr if it could not be deserialized.
-    //!
-    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
-    {
-        pass("Not Implemented", true);
-        // return mImpl->deserializeCudaEngine(streamReader);
-    }
-
-    //!
-    //! \brief get the logger with which the runtime was created
-    //!
-    //! \return the logger
-    //!
-    ILogger* getLogger() const noexcept { return &logger_; }
-
-    //!
-    //! \brief Set the maximum number of threads.
-    //!
-    //! \param maxThreads The maximum number of threads that can be used by the runtime.
-    //! \return True if successful, false otherwise.
-    //!
-    //! The default value is 1 and includes the current thread.
-    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
-    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
-    //!
-    bool setMaxThreads(int32_t maxThreads) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setMaxThreads(maxThreads);
-    }
-
-    //!
-    //! \brief Get the maximum number of threads that can be used by the runtime.
-    //!
-    //! Retrieves the maximum number of threads that can be used by the runtime.
-    //!
-    //! \return The maximum number of threads that can be used by the runtime.
-    //!
-    //! \see setMaxThreads()
-    //!
-    int32_t getMaxThreads() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getMaxThreads();
-    }
-
-    //!
-    //! \brief Set the directory that will be used by this runtime for temporary files.
-    //!
-    //! On some platforms the TensorRT runtime may need to create and use temporary files
-    //! with read/write/execute permissions to implement runtime functionality.
-    //!
-    //! \param path Path to the temporary directory for use, or nullptr.
-    //!
-    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
-    //! a default temporary directory if required:
-    //!
-    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
-    //! fall back to /tmp
-    //! - On Windows, TensorRT will try the TEMP environment variable.
-    //!
-    //! See the TensorRT Developer Guide for more information.
-    //!
-    //! The default value is nullptr.
-    //!
-    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
-    //! or absolute path in the format expected by the host operating system.
-    //!
-    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
-    //! terminator. Note that the operating system may have stricter path length requirements.
-    //!
-    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
-    //! and the directory shall be configured to disallow other users from modifying created files
-    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
-    //!
-    //! \see getTemporaryDirectory()
-    //!
-    void setTemporaryDirectory(char const* path) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setTemporaryDirectory(path);
-    }
-
-    //!
-    //! \brief Get the directory that will be used by this runtime for temporary files.
-    //!
-    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
-    //!
-    //! \see setTemporaryDirectory()
-    char const* getTemporaryDirectory() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTemporaryDirectory();
-    }
-
-    //!
-    //! \brief Set the tempfile control flags for this runtime.
-    //!
-    //! \param flags The flags to set.
-    //!
-    //! The default value is all flags set, i.e.
-    //!
-    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
-    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
-    //!
-    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setTempfileControlFlags(flags);
-    }
-
-    //!
-    //! \brief Get the tempfile control flags for this runtime.
-    //!
-    //! \return The flags currently set.
-    //!
-    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
-    //!
-    TempfileControlFlags getTempfileControlFlags() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getTempfileControlFlags();
-    }
-
-    //!
-    //! \brief Get the local plugin registry that can be used by the runtime.
-    //!
-    //! \return The local plugin registry that can be used by the runtime.
-    //!
-    IPluginRegistry& getPluginRegistry() noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getPluginRegistry();
-    }
-
-    //!
-    //! \brief Load IRuntime from the file.
-    //!
-    //! This method loads a runtime library from a shared library file. The runtime can then be used
-    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
-    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
-    //! the loaded runtime library.
-    //!
-    //! \param path Path to the runtime lean library.
-    //!
-    //! \return the runtime library, or nullptr if it could not be loaded
-    //!
-    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
-    //! terminator.
-    //!
-    IRuntime* loadRuntime(char const* path) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->loadRuntime(path);
-    }
-
-    //!
-    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
-    //! code.
-    //!
-    //! The default value is false.
-    //!
-    void setEngineHostCodeAllowed(bool allowed) noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->setEngineHostCodeAllowed(allowed);
-    }
-
-    //!
-    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
-    //!
-    bool getEngineHostCodeAllowed() const noexcept
-    {
-        pass("Not Implemented", true);
-        // return mImpl->getEngineHostCodeAllowed();
-    }
-
-    private:
-    ILogger& logger_;
-
-    // protected:
-    //     apiv::VRuntime* mImpl;
-};
-
-//!
-//! \brief Create an instance of an IRuntime class.
-//!
-//! \param logger The logging class for the runtime.
-//!
-inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{logger}; }
-
-//!
 //! \class IExecutionContext
 //!
 //! \brief Context for executing inference using an engine, with functionally unsafe features.
@@ -2240,7 +1088,7 @@ class IExecutionContext : public INoCopy
     //!
     Dims getTensorShape(char const* tensorName) const noexcept
     {
-        pass("Not Implemented", true);
+        return toDimensions(program_->get_parameter_shapes().at(tensorName));
         // return mImpl->getTensorShape(tensorName);
     }
 
@@ -2330,7 +1178,8 @@ class IExecutionContext : public INoCopy
     //!
     bool executeV2(void* const* bindings) noexcept
     {
-        pass("Not Implemented", true);
+        auto result = program_->eval(param_map_);
+        return true;
         // return mImpl->executeV2(bindings);
     }
 
@@ -2484,7 +1333,10 @@ class IExecutionContext : public INoCopy
     //!
     bool setTensorAddress(char const* tensorName, void* data) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO
+        param_map_[tensorName] =
+            migraphx::argument(program_->get_parameter_shapes().at(tensorName), data);
+        return true;
         // return mImpl->setTensorAddress(tensorName, data);
     }
 
@@ -2950,9 +1802,1192 @@ class IExecutionContext : public INoCopy
         // return mImpl->getDebugState(name);
     }
 
-    // protected:
-    //     apiv::VExecutionContext* mImpl;
+    IExecutionContext(const std::shared_ptr<migraphx::program>& program) : program_{program} {}
+
+    protected:
+    std::shared_ptr<migraphx::program> program_;
+    migraphx::parameter_map param_map_;
 };
+
+inline DataType toDataType(const migraphx::shape::type_t& type)
+{
+    switch(type)
+    {
+    case migraphx::shape::type_t::float_type: return DataType::kFLOAT;
+    case migraphx::shape::type_t::half_type: return DataType::kHALF;
+    case migraphx::shape::type_t::int8_type: return DataType::kINT8;
+    case migraphx::shape::type_t::int32_type: return DataType::kINT32;
+    case migraphx::shape::type_t::bool_type: return DataType::kBOOL;
+    case migraphx::shape::type_t::uint8_type: return DataType::kUINT8;
+    case migraphx::shape::type_t::fp8e4m3fnuz_type: return DataType::kFP8;
+    case migraphx::shape::type_t::int64_type: return DataType::kINT64;
+    default: MIGRAPHX_THROW("Type not supported");
+    }
+}
+
+//!
+//! \class ICudaEngine
+//!
+//! \brief An engine for executing inference on a built network, with functionally unsafe features.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class ICudaEngine : public INoCopy
+{
+    public:
+    ICudaEngine(const std::shared_ptr<migraphx::program>& program)
+        : program_{program}, tensor_names_{program->get_parameter_names()}
+    {
+    }
+
+    virtual ~ICudaEngine() noexcept = default;
+
+    //!
+    //! \brief Get shape of an input or output tensor.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \return shape of the tensor, with -1 in place of each dynamic runtime dimension,
+    //!         or Dims{-1, {}} if the provided name does not map to an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    Dims getTensorShape(char const* tensorName) const noexcept
+    {
+        return toDimensions(program_->get_parameter_shapes().at(tensorName));
+        // return mImpl->getTensorShape(tensorName);
+    }
+
+    //!
+    //! \brief Determine the required data type for a buffer from its tensor name.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \return The type of the data in the buffer, or DataType::kFLOAT if the provided name does
+    //! not map to an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    DataType getTensorDataType(char const* tensorName) const noexcept
+    {
+        return toDataType(program_->get_parameter_shapes().at(tensorName).type());
+        // return mImpl->getTensorDataType(tensorName);
+    }
+
+    //!
+    //! \brief Get the number of layers in the network.
+    //!
+    //! The number of layers in the network is not necessarily the number in the original network
+    //! definition, as layers may be combined or eliminated as the engine is optimized. This value
+    //! can be useful when building per-layer tables, such as when aggregating profiling data over a
+    //! number of executions.
+    //!
+    //! \return The number of layers in the network.
+    //!
+    int32_t getNbLayers() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbLayers();
+    }
+
+    //!
+    //! \brief Serialize the network to a stream.
+    //!
+    //! \return A IHostMemory object that contains the serialized engine.
+    //!
+    //! The network may be deserialized with IRuntime::deserializeCudaEngine().
+    //!
+    //! \see IRuntime::deserializeCudaEngine()
+    //!
+    IHostMemory* serialize() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->serialize();
+    }
+
+    //!
+    //! \brief Create an execution context and specify the strategy for allocating internal
+    //! activation memory.
+    //!
+    //! The default value for the allocation strategy is
+    //! ExecutionContextAllocationStrategy::kSTATIC, which means the context will pre-allocate a
+    //! block of device memory that is sufficient for all profiles. The newly created execution
+    //! context will be assigned optimization profile 0. If an error recorder has been set for the
+    //! engine, it will also be passed to the execution context.
+    //!
+    //! \see IExecutionContext
+    //! \see IExecutionContext::setOptimizationProfileAsync()
+    //! \see ExecutionContextAllocationStrategy
+    //!
+    IExecutionContext*
+    createExecutionContext(ExecutionContextAllocationStrategy strategy =
+                               ExecutionContextAllocationStrategy::kSTATIC) noexcept
+    {
+        return new IExecutionContext{program_};
+        // return mImpl->createExecutionContext(strategy);
+    }
+
+    //!
+    //! \brief Get whether an input or output tensor must be on GPU or CPU.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \return TensorLocation::kDEVICE if tensorName must be on GPU, or TensorLocation::kHOST if on
+    //! CPU, or TensorLocation::kDEVICE if the provided name does not map to an input or output
+    //! tensor.
+    //!
+    //! The location is established at build time. E.g. shape tensors inputs are typically required
+    //! to be on the CPU.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    TensorLocation getTensorLocation(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorLocation(tensorName);
+    }
+
+    //!
+    //! \brief True if tensor is required as input for shape calculations or is output from shape
+    //! calculations.
+    //!
+    //! Return true for either of the following conditions:
+    //!
+    //! * The tensor is a network input, and its value is required for
+    //! IExecutionContext::getTensorShape()
+    //!   to return the shape of a network output.
+    //!
+    //! * The tensor is a network output, and inferShape() will compute its values.
+    //!
+    //! For example, if a network uses an input tensor "foo" as an addend to an IElementWiseLayer
+    //! that computes the "reshape dimensions" for IShuffleLayer, then isShapeInferenceIO("foo") ==
+    //! true. If the network copies said input tensor "foo" to an output "bar", then
+    //! isShapeInferenceIO("bar") == true and IExecutionContext::inferShapes() will write to "bar".
+    //!
+    bool isShapeInferenceIO(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isShapeInferenceIO(tensorName);
+    }
+
+    //!
+    //! \brief Determine whether a tensor is an input or output tensor.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \return kINPUT if tensorName is an input, kOUTPUT if tensorName is an output, or kNONE if
+    //! neither.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    TensorIOMode getTensorIOMode(char const* tensorName) const noexcept
+    {
+        return migraphx::contains(std::string(tensorName), "output") ? TensorIOMode::kOUTPUT : TensorIOMode::kINPUT;
+        // return mImpl->getTensorIOMode(tensorName);
+    }
+
+    //!
+    //! \brief create an execution context without any device memory allocated
+    //!
+    //! The memory for execution of this device context must be supplied by the application.
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. Superseded by createExecutionContext() with
+    //! parameter.
+    //!
+    [[deprecated]] IExecutionContext* createExecutionContextWithoutDeviceMemory() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->createExecutionContextWithoutDeviceMemory();
+    }
+
+    //!
+    //! \brief Return the maximum device memory required by the context over all profiles.
+    //!
+    //! \see IExecutionContext::setDeviceMemory()
+    //!
+    size_t getDeviceMemorySize() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDeviceMemorySize();
+    }
+
+    //!
+    //! \brief Return the maximum device memory required by the context for a profile.
+    //!
+    //! \see IExecutionContext::setDeviceMemory()
+    //!
+    size_t getDeviceMemorySizeForProfile(int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDeviceMemorySizeForProfile(profileIndex);
+    }
+
+    //!
+    //! \brief Return true if an engine can be refit.
+    //!
+    //! \see nvinfer1::createInferRefitter()
+    //!
+    bool isRefittable() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isRefittable();
+    }
+
+    //!
+    //! \brief Return the number of bytes per component of an element, or -1 if the provided name
+    //! does not map to an input or output tensor.
+    //!
+    //! The vector component size is returned if getTensorVectorizedDim() != -1.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator. \warning The function can only return the result of profile 0, and issues a
+    //! warning message when there are multiple profiles in the engine, use
+    //! getTensorBytesPerComponent with profileIndex when there are multiple profiles.
+    //!
+    //! \see getTensorVectorizedDim()
+    //! \see getTensorBytesPerComponent(tensorName, profileIndex)
+    //!
+    int32_t getTensorBytesPerComponent(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorBytesPerComponent(tensorName);
+    }
+
+    //!
+    //! \brief Return the number of bytes per component of an element of given profile, or -1 if the
+    //! provided name does not map to an input or output tensor.
+    //!
+    //! The vector component size is returned if getTensorVectorizedDim(tensorName, profileIndex) !=
+    //! -1.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //! \param profileIndex The profile index to query
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    //! \see getTensorVectorizedDim(tensorName, profileIndex)
+    //!
+    int32_t getTensorBytesPerComponent(char const* tensorName, int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorBytesPerComponentV2(tensorName, profileIndex);
+    }
+
+    //!
+    //! \brief Return the number of components included in one element, or -1 if the provided name
+    //! does not map to an input or output tensor.
+    //!
+    //! The number of elements in the vectors is returned if getTensorVectorizedDim() != -1.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator. \warning The function can only return the result of profile 0, and issues a
+    //! warning message when there are multiple profiles in the engine, use
+    //! getTensorComponentsPerElement with profileIndex when there are multiple profiles.
+    //!
+    //! \see getTensorVectorizedDim()
+    //! \see getTensorComponentsPerElement(tensorName, profileIndex)
+    //!
+    int32_t getTensorComponentsPerElement(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorComponentsPerElement(tensorName);
+    }
+
+    //!
+    //! \brief Return the number of components included in one element of given profile, or -1 if
+    //! the provided name does not map to an input or output tensor.
+    //!
+    //! The number of elements in the vectors is returned if getTensorVectorizedDim(tensorName,
+    //! profileIndex) != -1.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //! \param profileIndex The profile index to query
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    //! \see getTensorVectorizedDim(tensorName, profileIndex)
+    //!
+    int32_t getTensorComponentsPerElement(char const* tensorName,
+                                          int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorComponentsPerElementV2(tensorName, profileIndex);
+    }
+
+    //!
+    //! \brief Return the tensor format, or TensorFormat::kLINEAR if the provided name does not map
+    //! to an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator. \warning This API can only return the tensor format of profile 0, and issues
+    //! a warning message when there are multiple profiles in the engine, use getTensorFormat with
+    //! profileIndex when there are multiple profiles.
+    //!
+    //! \see getTensorFormat(tensorName, profileIndex)
+    //!
+    TensorFormat getTensorFormat(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorFormat(tensorName);
+    }
+
+    //!
+    //! \brief Return the tensor format of given profile, or TensorFormat::kLINEAR if the provided
+    //! name does not map to an input or output tensor.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //! \param profileIndex The profile index to query the format for.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    TensorFormat getTensorFormat(char const* tensorName, int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorFormatV2(tensorName, profileIndex);
+    }
+
+    //!
+    //! \brief Return the human readable description of the tensor format, or empty string if the
+    //! provided name does not map to an input or output tensor.
+    //!
+    //! The description includes the order, vectorization, data type, and strides.
+    //! Examples are shown as follows:
+    //!   Example 1: kCHW + FP32
+    //!     "Row-major linear FP32 format"
+    //!   Example 2: kCHW2 + FP16
+    //!     "Two-wide channel vectorized row-major FP16 format"
+    //!   Example 3: kHWC8 + FP16 + Line Stride = 32
+    //!     "Channel major FP16 format where C % 8 == 0 and H Stride % 32 == 0"
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator. \warning The function can only return the result of profile 0, and issues a
+    //! warning message when there are multiple profiles in the engine, use getTensorFormatDesc with
+    //! profileIndex when there are multiple profiles.
+    //!
+    char const* getTensorFormatDesc(char const* tensorName) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorFormatDesc(tensorName);
+    }
+
+    //!
+    //! \brief Return the human readable description of the tensor format of given profile, or empty
+    //! string if the provided name does not map to an input or output tensor.
+    //!
+    //! The description includes the order, vectorization, data type, and strides.
+    //! Examples are shown as follows:
+    //!   Example 1: kCHW + FP32
+    //!     "Row-major linear FP32 format"
+    //!   Example 2: kCHW2 + FP16
+    //!     "Two-wide channel vectorized row-major FP16 format"
+    //!   Example 3: kHWC8 + FP16 + Line Stride = 32
+    //!     "Channel major FP16 format where C % 8 == 0 and H Stride % 32 == 0"
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //! \param profileIndex The profile index to query the format for.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    char const* getTensorFormatDesc(char const* tensorName, int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorFormatDescV2(tensorName, profileIndex);
+    }
+
+    //!
+    //! \brief Return the dimension index that the buffer is vectorized, or -1 if the provided name
+    //! does not map to an input or output tensor.
+    //!
+    //! Specifically -1 is returned if scalars per vector is 1.
+    //!
+    //! \param tensorName The name of an input or output tensor.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator. \warning The function can only return the result of profile 0, and issues a
+    //! warning message when there are
+    //!  multiple profiles in the engine, use getTensorVectorizedDim with profileIndex when there
+    //!  are multiple profiles.
+    //!
+    int32_t getTensorVectorizedDim(char const* tensorName) const noexcept
+    {
+        // TODO what?
+        return -1;
+        // return mImpl->getTensorVectorizedDim(tensorName);
+    }
+
+    //!
+    //! \brief Return the dimension index that the buffer is vectorized of given profile, or -1 if
+    //! the provided name does not map to an input or output tensor.
+    //!
+    //! Specifically -1 is returned if scalars per vector is 1.
+    //!
+    //! \param tensorName The name of an input.
+    //! \param profileIndex The profile index to query the format for.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    int32_t getTensorVectorizedDim(char const* tensorName, int32_t profileIndex) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTensorVectorizedDimV2(tensorName, profileIndex);
+    }
+
+    //!
+    //! \brief Returns the name of the network associated with the engine.
+    //!
+    //! The name is set during network creation and is retrieved after
+    //! building or deserialization.
+    //!
+    //! \see INetworkDefinition::setName(), INetworkDefinition::getName()
+    //!
+    //! \return A null-terminated C-style string representing the name of the network.
+    //!
+    char const* getName() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getName();
+    }
+
+    //!
+    //! \brief Get the number of optimization profiles defined for this engine.
+    //!
+    //! \return Number of optimization profiles. It is always at least 1.
+    //!
+    //! \see IExecutionContext::setOptimizationProfileAsync()
+    int32_t getNbOptimizationProfiles() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbOptimizationProfiles();
+    }
+
+    //!
+    //! \brief Get the minimum / optimum / maximum dimensions for an input tensor given its name
+    //! under an optimization profile.
+    //!
+    //! \param tensorName The name of an input tensor.
+    //!
+    //! \param profileIndex The profile index, which must be between 0 and
+    //! getNbOptimizationProfiles()-1.
+    //!
+    //! \param select Whether to query the minimum, optimum, or maximum dimensions for this input
+    //! tensor.
+    //!
+    //! \return The minimum / optimum / maximum dimensions for an input tensor in this profile.
+    //!         If the profileIndex is invalid or provided name does not map to an input tensor,
+    //!         return Dims{-1, {}}
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    Dims getProfileShape(char const* tensorName,
+                         int32_t profileIndex,
+                         OptProfileSelector select) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProfileShape(tensorName, profileIndex, select);
+    }
+
+    //!
+    //! \brief Get the minimum / optimum / maximum values (not dimensions) for an input tensor given
+    //! its name under an optimization profile. These correspond to the values set using
+    //! IOptimizationProfile::setShapeValues when the engine was built.
+    //!
+    //! \param tensorName The name of an input tensor.
+    //!
+    //! \param profileIndex The profile index, which must be between 0 and
+    //! getNbOptimizationProfiles()-1.
+    //!
+    //! \param select Whether to query the minimum, optimum, or maximum values for this input
+    //! tensor.
+    //!
+    //! \return The minimum / optimum / maximum values for an input tensor in this profile.
+    //!        If the profileIndex is invalid or the provided name does not map to an input tensor,
+    //!        return nullptr.
+    //!
+    //! \warning The string tensorName must be null-terminated, and be at most 4096 bytes including
+    //! the terminator.
+    //!
+    int32_t const* getProfileTensorValues(char const* tensorName,
+                                          int32_t profileIndex,
+                                          OptProfileSelector select) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProfileTensorValues(tensorName, profileIndex, select);
+    }
+
+    //!
+    //! \brief Determine what execution capability this engine has.
+    //!
+    //! If the engine has EngineCapability::kSTANDARD, then all engine functionality is valid.
+    //! If the engine has EngineCapability::kSAFETY, then only the functionality in safe engine is
+    //! valid. If the engine has EngineCapability::kDLA_STANDALONE, then only serialize, destroy,
+    //! and const-accessor functions are valid.
+    //!
+    //! \return The EngineCapability flag that the engine was built for.
+    //!
+    EngineCapability getEngineCapability() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getEngineCapability();
+    }
+
+    //!
+    //! \brief Set the ErrorRecorder for this interface
+    //!
+    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
+    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
+    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
+    //! a call to decRefCount if a recorder has been registered.
+    //!
+    //! If an error recorder is not set, messages will be sent to the global log stream.
+    //!
+    //! \param recorder The error recorder to register with this interface.
+    //!
+    //! \see getErrorRecorder()
+    //!
+    void setErrorRecorder(IErrorRecorder* recorder) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setErrorRecorder(recorder);
+    }
+
+    //!
+    //! \brief Get the ErrorRecorder assigned to this interface.
+    //!
+    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
+    //! if an error handler has not been set.
+    //!
+    //! \return A pointer to the IErrorRecorder object that has been registered.
+    //!
+    //! \see setErrorRecorder()
+    //!
+    IErrorRecorder* getErrorRecorder() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getErrorRecorder();
+    }
+
+    //!
+    //! \brief Query whether the engine was built with an implicit batch dimension.
+    //!
+    //! \return Always false since TensorRT 10.0 does not support an implicit batch dimension.
+    //!
+    //! \see createNetworkV2
+    //!
+    //! \deprecated Deprecated in TensorRT 10.0. Implicit batch is no supported since TensorRT 10.0.
+    //!
+    [[deprecated]] bool hasImplicitBatchDimension() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->hasImplicitBatchDimension();
+    }
+
+    //!
+    //! \brief return the tactic sources required by this engine.
+    //!
+    //! The value returned is equal to zero or more tactics sources set
+    //! at build time via setTacticSources() in IBuilderConfig. Sources
+    //! set by the latter but not returned by \ref ICudaEngine::getTacticSources
+    //! do not reduce overall engine execution time, and can be removed from
+    //! future builds to reduce build time.
+    //!
+    //! \see IBuilderConfig::setTacticSources()
+    //!
+    TacticSources getTacticSources() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTacticSources();
+    }
+
+    //!
+    //! \brief Return the \ref ProfilingVerbosity the builder config was set to when the engine was
+    //! built.
+    //!
+    //! \return the profiling verbosity the builder config was set to when the engine was built.
+    //!
+    //! \see IBuilderConfig::setProfilingVerbosity()
+    //!
+    ProfilingVerbosity getProfilingVerbosity() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getProfilingVerbosity();
+    }
+
+    //!
+    //! \brief Create a new engine inspector which prints the layer information in an engine or an
+    //! execution context.
+    //!
+    //! \see IEngineInspector.
+    //!
+    IEngineInspector* createEngineInspector() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->createEngineInspector();
+    }
+
+    //!
+    //! \brief Return number of IO tensors.
+    //!
+    //! It is the number of input and output tensors for the network from which the engine was
+    //! built. The names of the IO tensors can be discovered by calling getIOTensorName(i) for i in
+    //! 0 to getNbIOTensors()-1.
+    //!
+    //! \see getIOTensorName()
+    //!
+    int32_t getNbIOTensors() const noexcept
+    {
+        return tensor_names_.size();
+        // return mImpl->getNbIOTensors();
+    }
+
+    //!
+    //! \brief Return name of an IO tensor.
+    //!
+    //! \param index value between 0 and getNbIOTensors()-1
+    //!
+    //! \see getNbIOTensors()
+    //!
+    char const* getIOTensorName(int32_t index) const noexcept
+    {
+        return tensor_names_.at(index).c_str();
+        // return mImpl->getIOTensorName(index);
+    }
+
+    //!
+    //! \brief Return the hardware compatibility level of this engine.
+    //!
+    //! \return hardwareCompatibilityLevel The level of hardware
+    //!        compatibility.
+    //!
+    //! This is only supported for Ampere and newer architectures.
+    //!
+    HardwareCompatibilityLevel getHardwareCompatibilityLevel() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getHardwareCompatibilityLevel();
+    }
+
+    //!
+    //! \brief Return the number of auxiliary streams used by this engine.
+    //!
+    //! This number will be less than or equal to the maximum allowed number of auxiliary streams
+    //! set by IBuilderConfig::setMaxAuxStreams() API call when the engine was built.
+    //!
+    //! \return the number of auxiliary streams used by this engine.
+    //!
+    //! \see IBuilderConfig::setMaxAuxStreams(), IExecutionContext::setAuxStreams()
+    //!
+    int32_t getNbAuxStreams() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbAuxStreams();
+    }
+
+    //!
+    //! \brief Create a serialization configuration object.
+    //!
+    //! \see ISerializationConfig
+    //!
+    ISerializationConfig* createSerializationConfig() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->createSerializationConfig();
+    }
+
+    //!
+    //! \brief Serialize the network to a stream with the provided SerializationConfig.
+    //!
+    //! \return An IHostMemory object that contains the serialized engine.
+    //!
+    //! The network may be deserialized with IRuntime::deserializeCudaEngine().
+    //!
+    //! \see IRuntime::deserializeCudaEngine()
+    //!
+    IHostMemory* serializeWithConfig(ISerializationConfig& config) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->serializeWithConfig(config);
+    }
+
+    //!
+    //! \brief Limit the maximum amount of GPU memory usable for network weights
+    //! in bytes.
+    //!
+    //! \param gpuMemoryBudget  This parameter may take on 3 types of values:
+    //!  -1: Allows TensorRT to choose the budget according to the streamable weights size.
+    //!      Free CUDA memory will be queried at ::createExecutionContext and accordingly:
+    //!       * If streamable weights all fit: weight streaming is not required and disabled.
+    //!       * Otherwise: Budget is set to getMinimumWeightStreamingBudget
+    //!   0: (default) Disables weight streaming. The execution may fail if the network is too large
+    //!   for GPU memory.
+    //!  >0: The maximum bytes of GPU memory that weights can occupy. It must be bounded by
+    //!      [getMinimumWeightStreamingBudget, min(getStreamableWeightsSize - 1, free GPU memory)].
+    //!
+    //! By setting a weight limit, users can expect a GPU memory usage reduction
+    //! of |network weights| - gpuMemoryBudget bytes. Maximum memory savings occur
+    //! when gpuMemoryBudget is set to getMinimumWeightStreamingBudget.
+    //!
+    //! Streaming larger amounts of memory will likely result in lower performance
+    //! except in some boundary cases where streaming weights allows the user to
+    //! run larger batch sizes. The higher throughput offsets the increased
+    //! latency in these cases. Tuning the value of the memory limit is
+    //! recommended for best performance.
+    //!
+    //! \warning If weight streaming is active, then multiple concurrent IExecutionContexts will
+    //! forced to run serially.
+    //!
+    //! \warning GPU memory for the weights is allocated upon the first IExecutionContext's creation
+    //!          and deallocated upon the last one's destruction.
+    //!
+    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
+    //!
+    //! \return true if the memory limit is valid and the call was successful
+    //!         otherwise false.
+    //!
+    //! \see BuilderFlag::kWEIGHT_STREAMING,
+    //!      ICudaEngine::getWeightStreamingBudget
+    //!      ICudaEngine::getMinimumWeightStreamingBudget,
+    //!      ICudaEngine::getStreamableWeightsSize
+    //!
+    bool setWeightStreamingBudget(int64_t gpuMemoryBudget) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setWeightStreamingBudget(gpuMemoryBudget);
+    }
+
+    //!
+    //! \brief Returns the current weight streaming device memory budget in bytes.
+    //!
+    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
+    //!
+    //! \returns The weight streaming budget in bytes. Please see ::setWeightStreamingBudget for the
+    //! possible
+    //!          values.
+    //!
+    //! \see BuilderFlag::kWEIGHT_STREAMING,
+    //!      ICudaEngine::setWeightStreamingBudget,
+    //!      ICudaEngine::getMinimumWeightStreamingBudget,
+    //!      ICudaEngine::getStreamableWeightsSize
+    //!
+    int64_t getWeightStreamingBudget() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getWeightStreamingBudget();
+    }
+
+    //!
+    //! \brief The minimum number of bytes of GPU memory required by network
+    //! weights for successful weight streaming.
+    //!
+    //! This is a positive integer for engines with streamable weights because a
+    //! staging buffer on the GPU is required to temporarily hold the streamed
+    //! weights. The size of the staging buffer is determined by TensorRT and must
+    //! be at least as large as the size of the largest streamable weight in the
+    //! network.
+    //!
+    //! \warning BuilderFlag::kWEIGHT_STREAMING must be set during engine building.
+    //!
+    //!
+    //! \returns The minimum number of bytes of GPU memory required for streaming.
+    //!
+    //! \see ICudaEngine::setWeightStreamingBudget
+    //!
+    int64_t getMinimumWeightStreamingBudget() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMinimumWeightStreamingBudget();
+    }
+
+    //!
+    //! \brief Get the total size in bytes of all streamable weights.
+    //!
+    //! The set of streamable weights is a subset of all network weights. The
+    //! total size may exceed free GPU memory.
+    //!
+    //! Returns 0 if BuilderFlag::kWEIGHT_STREAMING is unset during engine building.
+    //!
+    //!
+    //! \returns The total size in bytes of all streamable weights.
+    //!
+    //! \see ICudaEngine::setWeightStreamingBudget
+    //!
+    int64_t getStreamableWeightsSize() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getStreamableWeightsSize();
+    }
+
+    //!
+    //! \brief Check if a tensor is marked as a debug tensor.
+    //!
+    //! Determine whether the given name corresponds to a debug tensor.
+    //!
+    //! \returns True if tensor is a debug tensor, false otherwise.
+    //!
+    //! \see INetworkDefinition::markDebug
+    //!
+    bool isDebugTensor(char const* name) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->isDebugTensor(name);
+    }
+
+    private:
+    std::shared_ptr<migraphx::program> program_;
+    std::vector<std::string> tensor_names_;
+
+    // protected:
+    //     apiv::VCudaEngine* mImpl;
+};
+
+//!
+//! \class IRuntime
+//!
+//! \brief Allows a serialized functionally unsafe engine to be deserialized.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IRuntime : public INoCopy
+{
+    public:
+    IRuntime(ILogger& logger) : logger_{logger} {}
+    virtual ~IRuntime() noexcept = default;
+
+    //!
+    //! \brief Sets the DLA core used by the network. Defaults to -1.
+    //!
+    //! \param dlaCore The DLA core to execute the engine on, in the range [0,getNbDlaCores()).
+    //!
+    //! This function is used to specify which DLA core to use via indexing, if multiple DLA cores
+    //! are available.
+    //!
+    //! \warning if getNbDLACores() returns 0, then this function does nothing.
+    //!
+    //! \see getDLACore()
+    //!
+    void setDLACore(int32_t dlaCore) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setDLACore(dlaCore);
+    }
+
+    //!
+    //! \brief Get the DLA core that the engine executes on.
+    //!
+    //! \return assigned DLA core or -1 for DLA not present or unset.
+    //!
+    int32_t getDLACore() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getDLACore();
+    }
+
+    //!
+    //! \brief Returns number of DLA hardware cores accessible or 0 if DLA is unavailable.
+    //!
+    int32_t getNbDLACores() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getNbDLACores();
+    }
+
+    //!
+    //! \brief Set the GPU allocator.
+    //!
+    //! \param allocator Set the GPU allocator to be used by the runtime. All GPU memory acquired
+    //! will use this allocator. If NULL is passed, the default allocator will be used.
+    //!
+    //! Default: uses cudaMalloc/cudaFree.
+    //!
+    //! If nullptr is passed, the default allocator will be used.
+    //!
+    void setGpuAllocator(IGpuAllocator* allocator) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setGpuAllocator(allocator);
+    }
+
+    //!
+    //! \brief Set the ErrorRecorder for this interface
+    //!
+    //! Assigns the ErrorRecorder to this interface. The ErrorRecorder will track all errors during
+    //! execution. This function will call incRefCount of the registered ErrorRecorder at least
+    //! once. Setting recorder to nullptr unregisters the recorder with the interface, resulting in
+    //! a call to decRefCount if a recorder has been registered.
+    //!
+    //! If an error recorder is not set, messages will be sent to the global log stream.
+    //!
+    //! \param recorder The error recorder to register with this interface.
+    //
+    //! \see getErrorRecorder()
+    //!
+    void setErrorRecorder(IErrorRecorder* recorder) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setErrorRecorder(recorder);
+    }
+
+    //!
+    //! \brief get the ErrorRecorder assigned to this interface.
+    //!
+    //! Retrieves the assigned error recorder object for the given class. A nullptr will be returned
+    //! if an error handler has not been set.
+    //!
+    //! \return A pointer to the IErrorRecorder object that has been registered.
+    //!
+    //! \see setErrorRecorder()
+    //!
+    IErrorRecorder* getErrorRecorder() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getErrorRecorder();
+    }
+
+    //!
+    //! \brief Deserialize an engine from host memory.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the engine.
+    //!
+    //! \param blob The memory that holds the serialized engine.
+    //! \param size The size of the memory.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
+    {
+        // Pass the error recorder to the engine as well
+        // TODO error handling
+        auto program = std::make_shared<migraphx::program>(
+            migraphx::load_buffer(reinterpret_cast<const char*>(blob), size));
+        std::cout << *program << std::endl;
+        return new ICudaEngine{program};
+        // return mImpl->deserializeCudaEngine(blob, size);
+    }
+
+    //!
+    //! \brief Deserialize an engine from a stream.
+    //!
+    //! If an error recorder has been set for the runtime, it will also be passed to the
+    //! engine.
+    //!
+    //! This deserialization path will reduce host memory usage when weight streaming is enabled.
+    //!
+    //! \param streamReader a read-only stream from which TensorRT will deserialize a
+    //!        previously serialized engine.
+    //!
+    //! \return The engine, or nullptr if it could not be deserialized.
+    //!
+    ICudaEngine* deserializeCudaEngine(IStreamReader& streamReader)
+    {
+        pass("Not Implemented", true);
+        // return mImpl->deserializeCudaEngine(streamReader);
+    }
+
+    //!
+    //! \brief get the logger with which the runtime was created
+    //!
+    //! \return the logger
+    //!
+    ILogger* getLogger() const noexcept { return &logger_; }
+
+    //!
+    //! \brief Set the maximum number of threads.
+    //!
+    //! \param maxThreads The maximum number of threads that can be used by the runtime.
+    //! \return True if successful, false otherwise.
+    //!
+    //! The default value is 1 and includes the current thread.
+    //! A value greater than 1 permits TensorRT to use multi-threaded algorithms.
+    //! A value less than 1 triggers a kINVALID_ARGUMENT error.
+    //!
+    bool setMaxThreads(int32_t maxThreads) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setMaxThreads(maxThreads);
+    }
+
+    //!
+    //! \brief Get the maximum number of threads that can be used by the runtime.
+    //!
+    //! Retrieves the maximum number of threads that can be used by the runtime.
+    //!
+    //! \return The maximum number of threads that can be used by the runtime.
+    //!
+    //! \see setMaxThreads()
+    //!
+    int32_t getMaxThreads() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getMaxThreads();
+    }
+
+    //!
+    //! \brief Set the directory that will be used by this runtime for temporary files.
+    //!
+    //! On some platforms the TensorRT runtime may need to create and use temporary files
+    //! with read/write/execute permissions to implement runtime functionality.
+    //!
+    //! \param path Path to the temporary directory for use, or nullptr.
+    //!
+    //! If path is nullptr, then TensorRT will use platform-specific heuristics to pick
+    //! a default temporary directory if required:
+    //!
+    //! - On UNIX/Linux platforms, TensorRT will first try the TMPDIR environment variable, then
+    //! fall back to /tmp
+    //! - On Windows, TensorRT will try the TEMP environment variable.
+    //!
+    //! See the TensorRT Developer Guide for more information.
+    //!
+    //! The default value is nullptr.
+    //!
+    //! \warning If path is not nullptr, it must be a non-empty string representing a relative
+    //! or absolute path in the format expected by the host operating system.
+    //!
+    //! \warning The string path must be null-terminated, and be at most 4096 bytes including the
+    //! terminator. Note that the operating system may have stricter path length requirements.
+    //!
+    //! \warning The process using TensorRT must have rwx permissions for the temporary directory,
+    //! and the directory shall be configured to disallow other users from modifying created files
+    //! (e.g. on Linux, if the directory is shared with other users, the sticky bit must be set).
+    //!
+    //! \see getTemporaryDirectory()
+    //!
+    void setTemporaryDirectory(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTemporaryDirectory(path);
+    }
+
+    //!
+    //! \brief Get the directory that will be used by this runtime for temporary files.
+    //!
+    //! \returns A path to the temporary directory in use, or nullptr if no path is specified.
+    //!
+    //! \see setTemporaryDirectory()
+    char const* getTemporaryDirectory() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTemporaryDirectory();
+    }
+
+    //!
+    //! \brief Set the tempfile control flags for this runtime.
+    //!
+    //! \param flags The flags to set.
+    //!
+    //! The default value is all flags set, i.e.
+    //!
+    //! (1U << static_cast<uint32_t>(kALLOW_IN_MEMORY_FILES)) | (1U <<
+    //! static_cast<uint32_t>(kALLOW_TEMPORARY_FILES))
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, getTempfileControlFlags()
+    //!
+    void setTempfileControlFlags(TempfileControlFlags flags) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setTempfileControlFlags(flags);
+    }
+
+    //!
+    //! \brief Get the tempfile control flags for this runtime.
+    //!
+    //! \return The flags currently set.
+    //!
+    //! \see TempfileControlFlag, TempfileControlFlags, setTempfileControlFlags()
+    //!
+    TempfileControlFlags getTempfileControlFlags() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getTempfileControlFlags();
+    }
+
+    //!
+    //! \brief Get the local plugin registry that can be used by the runtime.
+    //!
+    //! \return The local plugin registry that can be used by the runtime.
+    //!
+    IPluginRegistry& getPluginRegistry() noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getPluginRegistry();
+    }
+
+    //!
+    //! \brief Load IRuntime from the file.
+    //!
+    //! This method loads a runtime library from a shared library file. The runtime can then be used
+    //! to execute a plan file built with BuilderFlag::kVERSION_COMPATIBLE and
+    //! BuilderFlag::kEXCLUDE_LEAN_RUNTIME both set and built with the same version of TensorRT as
+    //! the loaded runtime library.
+    //!
+    //! \param path Path to the runtime lean library.
+    //!
+    //! \return the runtime library, or nullptr if it could not be loaded
+    //!
+    //! \warning The path string must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    IRuntime* loadRuntime(char const* path) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->loadRuntime(path);
+    }
+
+    //!
+    //! \brief Set whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \param allowed Whether the runtime is allowed to deserialize engines with host executable
+    //! code.
+    //!
+    //! The default value is false.
+    //!
+    void setEngineHostCodeAllowed(bool allowed) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setEngineHostCodeAllowed(allowed);
+    }
+
+    //!
+    //! \brief Get whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    //! \return Whether the runtime is allowed to deserialize engines with host executable code.
+    //!
+    bool getEngineHostCodeAllowed() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getEngineHostCodeAllowed();
+    }
+
+    private:
+    ILogger& logger_;
+
+    // protected:
+    //     apiv::VRuntime* mImpl;
+};
+
+//!
+//! \brief Create an instance of an IRuntime class.
+//!
+//! \param logger The logging class for the runtime.
+//!
+inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{logger}; }
 
 //!
 //! \brief Represents one or more NetworkDefinitionCreationFlag flags

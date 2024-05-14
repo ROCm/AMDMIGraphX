@@ -159,22 +159,31 @@ struct compile_plan
             insert_compiles(compiles, value{}, 0);
         }
     }
+    std::string problem_string() const
+    {
+        if(config)
+            return problem->config;
+        return "<no problem key>";
+    }
+
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-        if(results.empty())
-            MIGRAPHX_THROW("No configs to tune");
-        if(results.size() == 1)
-        {
-            if(not results.front().has_value())
-                MIGRAPHX_THROW("No configs to tune");
-            return *results.front();
-        }
-        if(not config)
-            MIGRAPHX_THROW("Multiple kernels without config");
         if(trace_level > 0)
             std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
                       << std::endl;
+        if(results.empty())
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string);
+        if(results.size() == 1)
+        {
+            if(not results.front().has_value())
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string);
+            return *results.front();
+        }
+        if(not config)
+            MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
@@ -227,7 +236,7 @@ struct compile_plan
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           to_string(config->problem));
+                           problem_string);
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

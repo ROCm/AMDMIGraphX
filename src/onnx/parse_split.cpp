@@ -51,7 +51,7 @@ struct parse_split : op_parser<parse_split>
 
         const auto& input_shape = args[0]->get_shape();
         // axis over which the split occurs (split_axis)
-        int64_t tuned_axis      = tune_axis(input_shape.ndim(), axis, opd.op_name);
+        int64_t tuned_axis = tune_axis(input_shape.ndim(), axis, opd.op_name);
 
         auto split_axis_is_fixed = [&]() {
             return input_shape.dyn_dims().at(tuned_axis).is_fixed();
@@ -70,7 +70,7 @@ struct parse_split : op_parser<parse_split>
                                "input not supported");
             }
 
-            std::vector<instruction_ref> ret_ins;
+            std::vector<instruction_ref> ret_ins(num_outputs);
             std::size_t num_outputs = info.num_outputs;
 
             // Doing shape calculations for the splits in the graph
@@ -90,7 +90,7 @@ struct parse_split : op_parser<parse_split>
             {
                 // slice(input, starts = {n * chunk_size}, ends = {(n+1) * chunk_size}); axes =
                 // {tuned_axis}
-                ret_ins.push_back(info.add_instruction(
+                ret_ins.at(n) = info.add_instruction(
                     make_op("slice", {{"axes", {tuned_axis}}}),
                     args[0],
                     info.add_instruction(make_op("mul"),
@@ -98,18 +98,18 @@ struct parse_split : op_parser<parse_split>
                                          info.add_literal(literal{int64_scalar_shape, {n}})),
                     info.add_instruction(make_op("mul"),
                                          chunk_size,
-                                         info.add_literal(literal{int64_scalar_shape, {n + 1}}))));
+                                         info.add_literal(literal{int64_scalar_shape, {n + 1}})));
             }
             // last slice: slice(input, starts = {n * chunk_size}); ends = max_int, axes =
             // {tuned_axis}
-            ret_ins.push_back(info.add_instruction(
+            ret_ins.at(num_outputs - 1) = info.add_instruction(
                 make_op("slice",
                         {{"axes", {tuned_axis}}, {"ends", {std::numeric_limits<int64_t>::max()}}}),
                 args[0],
                 info.add_instruction(
                     make_op("mul"),
                     chunk_size,
-                    info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}}))));
+                    info.add_literal(literal{int64_scalar_shape, {num_outputs - 1}})));
             return ret_ins;
         }
         else

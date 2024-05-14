@@ -112,7 +112,6 @@ bool is_compiled_cpu_module(const migraphx::module& m)
 
 bool is_compiled_ref_module(const migraphx::module& m)
 {
-
     return std::all_of(m.begin(), m.end(), [](auto ins) {
         auto ins_name = ins.name();
         if(not migraphx::starts_with(ins_name, "@"))

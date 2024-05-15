@@ -45,6 +45,15 @@ struct tf_options
 MIGRAPHX_TF_EXPORT program parse_tf(const std::string& name,
                                     const tf_options& options = tf_options{});
 
+/// Create a program from an tf buffer
+MIGRAPHX_TF_EXPORT program parse_tf_buffer(const std::string& buffer,
+                                           const tf_options& options = tf_options{});
+
+/// Create a program from tf buffer
+MIGRAPHX_TF_EXPORT program parse_tf_buffer(const void* data,
+                                           std::size_t size,
+                                           const tf_options& options = tf_options{});
+
 MIGRAPHX_TF_EXPORT std::vector<std::string> get_tf_operators();
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -48,7 +48,7 @@ read_weight_files(const std::unordered_map<std::string_view, std::string_view>& 
     static migraphx::tmp_dir td{"weights"};
     for(const auto& i : onnx_files)
     {
-        if(migraphx::ends_with(std::string{i.first}, "weight"))
+        if(not migraphx::ends_with(std::string{i.first}, "weight"))
             continue;
         migraphx::fs::path full_path   = td.path / i.first;
         migraphx::fs::path parent_path = full_path.parent_path();

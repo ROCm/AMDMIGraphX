@@ -72,6 +72,13 @@ struct convert : unary<convert>
                 {
                     y = as.nan();
                 }
+                else if(shape::is_integral(type) and std::is_floating_point_v<decltype(x)>)
+                {
+                    // for the floating point to integer conversion, clamp first and then convert to
+                    // avoid undefined behaviour
+                    y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
+                                    static_cast<double>(as.max())));
+                }
                 else
                 {
                     // clamp overflowing/underflowing values to min()/max() instead of +/-infinity

@@ -58,7 +58,7 @@ program parse_tf_from(const tf_options& options, Ts&&... xs)
         throw;
     }
 #else
-    parser.parse_from(input);
+    parser.parse_from(std::forward<Ts>(xs)...);
 #endif
     return std::move(parser.prog);
 }

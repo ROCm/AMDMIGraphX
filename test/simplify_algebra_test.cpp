@@ -1763,7 +1763,7 @@ TEST_CASE(simplify_slice_concat_interleaved_non_slice)
     migraphx::module m1;
     {
         migraphx::shape s{migraphx::shape::float_type, {4, 3, 3, 3}};
-        auto x    = m1.add_parameter("x", s);
+        auto x      = m1.add_parameter("x", s);
         auto slice1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {1}}}), x);
         auto relu   = m1.add_instruction(migraphx::make_op("relu"), x);

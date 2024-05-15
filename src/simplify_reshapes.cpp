@@ -267,10 +267,26 @@ struct find_concat_multibroadcasts
             return;
         }
 
-        // Use inputs of multibroadcast ops as inputs to new concat op
+        // Get the inputs of multibroadcast ops, will be used as inputs to new concat op
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](auto i) {
             return i->inputs().front();
         });
+
+        // inputs to multibroadcasts should have the same dimensions except for the axis to
+        // concatenate n skips apply if not true
+        const auto& first_out_lens = inputs.front()->get_shape().lens();
+        for(std::size_t ax = 0; ax < first_out_lens.size(); ++ax)
+        {
+            if(ax != op.axis)
+            {
+                if(not std::all_of(inputs.begin(), inputs.end(), [&](auto input_to_mb) {
+                       return input_to_mb->get_shape().lens()[ax] == first_out_lens[ax];
+                   }))
+                {
+                    return;
+                }
+            }
+        }
 
         // Reduce axis by number of leading broadcasted dimensions
         if(inputs.front()->get_shape().lens().size() < out_lens.size())

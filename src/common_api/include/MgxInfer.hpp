@@ -1988,7 +1988,8 @@ class ICudaEngine : public INoCopy
     //!
     TensorIOMode getTensorIOMode(char const* tensorName) const noexcept
     {
-        return migraphx::contains(std::string(tensorName), "output") ? TensorIOMode::kOUTPUT : TensorIOMode::kINPUT;
+        return migraphx::contains(std::string(tensorName), "output") ? TensorIOMode::kOUTPUT
+                                                                     : TensorIOMode::kINPUT;
         // return mImpl->getTensorIOMode(tensorName);
     }
 
@@ -2364,7 +2365,7 @@ class ICudaEngine : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
-        pass("Not Implemented", true);
+        error_recorder_ = recorder;
         // return mImpl->setErrorRecorder(recorder);
     }
 
@@ -2652,6 +2653,7 @@ class ICudaEngine : public INoCopy
     private:
     std::shared_ptr<migraphx::program> program_;
     std::vector<std::string> tensor_names_;
+    IErrorRecorder* error_recorder_;
 
     // protected:
     //     apiv::VCudaEngine* mImpl;
@@ -2741,6 +2743,7 @@ class IRuntime : public INoCopy
     //!
     void setErrorRecorder(IErrorRecorder* recorder) noexcept
     {
+        error_recorder_ = recorder;
         pass("Not Implemented", true);
         // mImpl->setErrorRecorder(recorder);
     }
@@ -2773,13 +2776,22 @@ class IRuntime : public INoCopy
     //!
     ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
     {
-        // Pass the error recorder to the engine as well
-        // TODO error handling
-        auto program = std::make_shared<migraphx::program>(
-            migraphx::load_buffer(reinterpret_cast<const char*>(blob), size));
-        std::cout << *program << std::endl;
-        return new ICudaEngine{program};
-        // return mImpl->deserializeCudaEngine(blob, size);
+        std::shared_ptr<migraphx::program> program;
+        try
+        {
+            program = std::make_shared<migraphx::program>(
+                migraphx::load_buffer(reinterpret_cast<const char*>(blob), size));
+        }
+        catch(migraphx::exception e)
+        {
+            // TODO write to error recorder if set, otherwise to logger
+            return nullptr;
+        }
+        auto* engine = new ICudaEngine{std::move(program)};
+        if(error_recorder_)
+            engine->setErrorRecorder(error_recorder_);
+
+        return engine;
     }
 
     //!
@@ -2978,6 +2990,7 @@ class IRuntime : public INoCopy
 
     private:
     ILogger& logger_;
+    IErrorRecorder* error_recorder_;
 
     // protected:
     //     apiv::VRuntime* mImpl;
@@ -6123,7 +6136,15 @@ class IBuilder : public INoCopy
                                         IBuilderConfig& config) noexcept
     {
         migraphx::program p = *network.getProgram();
-        p.compile(migraphx::make_target("gpu"));
+        try
+        {
+            p.compile(migraphx::make_target("gpu"));
+        }
+        catch(migraphx::exception& e)
+        {
+            // TODO write to error recorder/logger
+            return nullptr;
+        }
         serialized_networks_.push_back(migraphx::save_buffer(p));
         auto&& current_network = serialized_networks_.back();
         return new IHostMemory{reinterpret_cast<void*>(current_network.data()),

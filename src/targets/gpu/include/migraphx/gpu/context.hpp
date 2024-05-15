@@ -30,6 +30,8 @@
 #include <migraphx/gpu/miopen.hpp>
 #else
 #include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <migraphx/manage_ptr.hpp>
 #endif
 #if MIGRAPHX_USE_ROCBLAS
 #include <migraphx/gpu/rocblas.hpp>

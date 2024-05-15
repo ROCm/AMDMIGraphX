@@ -216,8 +216,7 @@ static auto match_broadcastable_input(const std::string& op, const std::string& 
 {
     auto match_op                 = match::name(op)(match::used_once()).bind(name);
     auto match_op_input           = any_input(match_op, match::used_once());
-    auto broadcast_match_op_input =
-        any_input(match_broadcast(match_op), match::used_once(), input_output_ndim_match());
+    auto broadcast_match_op_input = any_input(match_broadcast(match_op), match::used_once());
     return match::any_of(match_op_input, broadcast_match_op_input);
 }
 

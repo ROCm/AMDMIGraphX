@@ -125,6 +125,13 @@ inline auto single_reduce(const std::string& name)
     };
 }
 
+inline auto squared()
+{
+    return [](auto* pm, const auto& inputs) {
+        return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[0]);
+    };
+}
+
 TEST_CASE(single)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
@@ -255,6 +262,41 @@ TEST_CASE(sequence_reduces)
     run_pass(p1);
 
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(parallel_reduce)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 327680}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto xx = mm->add_instruction(migraphx::make_op("mul"), x, x);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), x);
+        auto rsum2 = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), xx);
+        auto mul = mm->add_instruction(migraphx::make_op("mul"), rsum1, rsum2);
+        mm->add_return({mul});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto rsum = add_reduce(
+            p2, "main:reduce_sum0:main:pointwise1:main:pointwise0:main:reduce_sum1_split", {x}, {2}, "assign_add", [&](auto* rm, const auto& inputs, const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                auto xx = add_pointwise(
+                    p2, rm, "main:pointwise0", {inputs[0]}, squared());
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), inputs[0]);
+                auto rsum2 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+                return {rsum2, rsum1};
+            });
+        auto rsum2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rsum);
+        auto rsum1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rsum);
+        auto mul = add_pointwise(
+                    p2, mm, "main:pointwise1", {rsum1, rsum2}, single_pointwise("mul"));
+        mm->add_return({mul});
+    }
+    EXPECT(p1.sort() == p2.sort());
 }
 
 TEST_CASE(double_split_live)

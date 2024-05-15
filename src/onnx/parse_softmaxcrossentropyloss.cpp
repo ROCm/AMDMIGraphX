@@ -137,10 +137,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         std::string reduction = "mean";
         if(contains(info.attributes, "reduction"))
         {
-            std::set<std::string> supported_modes = {"mean", "none", "sum"};
-
             reduction = info.attributes.at("reduction").s();
-            if(not contains(supported_modes, reduction))
+            if(not contains({"mean", "sum", "none"}, reduction))
             {
                 MIGRAPHX_THROW("Invalid reduction mode: " + reduction +
                                "\n Valid options are [none, mean, sum]");
@@ -169,13 +167,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         {
             MIGRAPHX_THROW("softmaxcrossentropyloss: Scores must be two or more dimensions [batch, "
                            "class_size, D1...Dk]");
-        }
-
-        std::set<migraphx::shape::type_t> supported_label_types = {migraphx::shape::int32_type,
-                                                                   migraphx::shape::int64_type};
-        if(not contains(supported_label_types, label_shape.type()))
-        {
-            MIGRAPHX_THROW("softmaxcrossentropyloss: Label must be either int32 or int64 type");
         }
 
         // TODO: Update this operator when we get bfloat16 support
@@ -207,9 +198,10 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);
 
         // Default weights will always be 1
-        std::vector<float> weight_vec(class_size, 1.0f);
         auto weights = info.add_literal(
-            migraphx::literal(migraphx::shape(scores_shape.type(), {class_size}), weight_vec));
+            migraphx::literal(migraphx::shape(scores_shape.type(), {1}, {0}), {1}));
+        weights = info.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {class_size}}}), weights);
 
         // Get optional input weights (Used for mean reduction)
         bool has_weights = (args.size() > 2);

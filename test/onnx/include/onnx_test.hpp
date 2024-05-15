@@ -46,7 +46,7 @@ inline static std::string
 read_weight_files(const std::unordered_map<std::string_view, std::string_view>& onnx_files)
 {
     static migraphx::tmp_dir td{"weights"};
-    for(const auto& i : weight_files)
+    for(const auto& i : onnx_files)
     {
         if(migraphx::ends_with(std::string{i.first}, "weight"))
             continue;

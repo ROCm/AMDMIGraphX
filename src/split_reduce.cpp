@@ -124,7 +124,7 @@ struct splitter
             std::copy_if(live_set.begin(),
                          live_set.end(),
                          std::back_inserter(result),
-                         [&](instruction_ref live) {                                
+                         [&](instruction_ref live) {
                              if(live->name() == "@param")
                                  return false;
                              if(contains(splits, live))

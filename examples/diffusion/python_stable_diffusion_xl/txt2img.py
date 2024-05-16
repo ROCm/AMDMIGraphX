@@ -30,6 +30,7 @@ import os
 import sys
 import torch
 import time
+import math
 from functools import wraps
 
 from hip import hip
@@ -201,6 +202,13 @@ def get_args():
         action="store_true",
         default=False,
         help="Log during run",
+    )
+
+    parser.add_argument(
+        "--measure-denoise",
+        action="store_true",
+        default=False,
+        help="Measure each denoise step",
     )
     return parser.parse_args()
 
@@ -495,6 +503,13 @@ class StableDiffusionMGX():
         if name in self.events:
             hip.hipEventRecord(self.events[name].end, None)
 
+    def create_denoise_events(self, steps):
+        for idx in range(steps):
+            key = f"denoise_{idx}"
+            if key not in self.events:
+                self.events[key] = HipEventPair(start=hip.hipEventCreate()[1],
+                                                end=hip.hipEventCreate()[1])
+
     # @measure
     @torch.no_grad()
     def run(self,
@@ -506,7 +521,10 @@ class StableDiffusionMGX():
             refiner_steps,
             refiner_aesthetic_score,
             refiner_negative_aesthetic_score,
-            verbose=False):
+            verbose=False,
+            measure_denoise=False):
+        if measure_denoise:
+            self.create_denoise_events(steps)
         torch.cuda.synchronize()
         self.profile_start("run")
         # need to set this for each run
@@ -543,6 +561,8 @@ class StableDiffusionMGX():
         for step, t in enumerate(self.scheduler.timesteps):
             if verbose:
                 print(f"#{step}/{len(self.scheduler.timesteps)} step")
+            if measure_denoise:
+                self.profile_start(f"denoise_{step}")
             latents = self.denoise_step(text_embeddings,
                                         hidden_states,
                                         latents,
@@ -550,6 +570,9 @@ class StableDiffusionMGX():
                                         scale,
                                         time_ids,
                                         model="unetxl")
+            if measure_denoise:
+                self.profile_end(f"denoise_{step}")
+
         self.profile_end("denoise")
         if self.use_refiner and refiner_steps > 0:
             hidden_states, text_embeddings = self.get_embeddings(
@@ -590,7 +613,7 @@ class StableDiffusionMGX():
         self.profile_end("run")
         return image
 
-    def print_summary(self, denoise_steps):
+    def print_summary(self, denoise_steps, measure_denoise=False):
         print('WARMUP\t{:>9.2f} ms'.format(
             hip.hipEventElapsedTime(self.events['warmup'].start,
                                     self.events['warmup'].end)[1]))
@@ -601,6 +624,22 @@ class StableDiffusionMGX():
             str(denoise_steps),
             hip.hipEventElapsedTime(self.events['denoise'].start,
                                     self.events['denoise'].end)[1]))
+        if measure_denoise:
+            elapsed_times = [
+                hip.hipEventElapsedTime(self.events[f'denoise_{idx}'].start,
+                                        self.events[f'denoise_{idx}'].end)[1]
+                for idx in range(denoise_steps)
+            ]
+            for idx, elapsed_time in enumerate(elapsed_times):
+                print(
+                    f"  {idx+1:>2}/{len(elapsed_times)}: {elapsed_time:>9.2f}")
+            et_min, et_max, et_avg, et_p90 = min(elapsed_times), max(
+                elapsed_times
+            ), sum(elapsed_times) / len(elapsed_times), sorted(elapsed_times)[
+                int(math.ceil((len(elapsed_times) * 90) / 100)) - 1]
+            print(
+                f'  min={et_min:>.2f} max={et_max:>.2f} avg={et_avg:>.2f} 90th={et_p90:>.2f}'
+            )
         print('VAE-Dec\t{:>9.2f} ms'.format(
             hip.hipEventElapsedTime(self.events['decode'].start,
                                     self.events['decode'].end)[1]))
@@ -754,10 +793,11 @@ if __name__ == "__main__":
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale, args.refiner_steps,
                     args.refiner_aesthetic_score,
-                    args.refiner_negative_aesthetic_score, args.verbose)
+                    args.refiner_negative_aesthetic_score, args.verbose,
+                    args.measure_denoise)
 
     print("Summary")
-    sd.print_summary(args.steps)
+    sd.print_summary(args.steps, args.measure_denoise)
     print("Cleanup")
     sd.cleanup()
 

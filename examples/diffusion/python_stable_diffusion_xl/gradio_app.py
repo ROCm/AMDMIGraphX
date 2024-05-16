@@ -73,9 +73,10 @@ def main():
                 float(aesthetic_score),
                 float(negative_aesthetic_score),
                 args.verbose,
+                args.measure_denoise,
             )
             img = StableDiffusionMGX.convert_to_rgb_image(result)
-            sd.print_summary(steps)
+            sd.print_summary(steps, args.measure_denoise)
         finally:
             log = ''.join([sys.stdout.get_log(), sys.stderr.get_log()])
             sys.stdout, sys.stderr = oldStdout, oldStderr

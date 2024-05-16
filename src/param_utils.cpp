@@ -25,14 +25,20 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
+#include <cmath>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 std::string param_name(std::size_t i, const std::string& prefix)
 {
-    assert(i < 10);
-    return prefix + std::to_string(i);
+    if(i < 10)
+        return prefix + std::to_string(i);
+    const std::size_t max_digits = 5;
+    if(i >= std::pow(10, max_digits))
+        MIGRAPHX_THROW("Too many parameters.");
+    std::size_t n = log10(i) + 1;
+    return prefix + ":" + std::string(max_digits - n, '0') + std::to_string(i);
 }
 
 void sort_params(std::vector<instruction_ref>& params)

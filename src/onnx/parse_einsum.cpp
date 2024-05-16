@@ -513,12 +513,12 @@ struct parse_einsum : op_parser<parse_einsum>
         auto op1_lens = op1->get_shape().lens();
         auto op2_lens = op2->get_shape().lens();
 
-        std::vector<ssize_t> dims1{static_cast<ssize_t>(calc_dim(batch_axes, op1_lens)),
+        std::vector<int64_t> dims1{static_cast<int64_t>(calc_dim(batch_axes, op1_lens)),
                                    -1,
-                                   static_cast<ssize_t>(calc_dim(sum_axes, op1_lens))};
-        std::vector<ssize_t> dims2{static_cast<ssize_t>(calc_dim(batch_axes, op2_lens)),
+                                   static_cast<int64_t>(calc_dim(sum_axes, op1_lens))};
+        std::vector<int64_t> dims2{static_cast<int64_t>(calc_dim(batch_axes, op2_lens)),
                                    -1,
-                                   static_cast<ssize_t>(calc_dim(sum_axes, op2_lens))};
+                                   static_cast<int64_t>(calc_dim(sum_axes, op2_lens))};
 
         op1 = info.add_instruction(make_op("reshape", {{"dims", dims1}}), op1);
         op2 = info.add_instruction(make_op("reshape", {{"dims", dims2}}), op2);

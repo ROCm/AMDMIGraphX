@@ -39,7 +39,8 @@ struct module_pass_manager
     module_pass_manager(const module_pass_manager&)        = delete;
     virtual module& get_module()                           = 0;
     virtual module* create_module(const std::string& name) = 0;
-    virtual module* create_module(const std::string& name, module m) = 0;
+    virtual module* create_module(const std::string& name, module m)                     = 0;
+    virtual void rename_module(const std::string& old_name, const std::string& new_name) = 0;
     virtual module* get_common_parent()                    = 0;
     virtual module* get_root_module()                      = 0;
     virtual void run_pass(const pass& p)                   = 0;

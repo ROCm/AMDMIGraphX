@@ -25,6 +25,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
+#include <mlir-c/Dialect/RockEnums.h>
 #include <ostream>
 
 #ifdef MIGRAPHX_MLIR
@@ -594,7 +595,8 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu}});
+                            {"num_cu", num_cu},
+                            {"enable_splitk_for_tuning", true}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -945,6 +947,15 @@ struct mlir_program
     std::string sym_name;
 };
 
+bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
+{
+    mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
+    mp.parse(m);
+    mp.run_high_level_pipeline();
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+}
+
 std::string dump_mlir(const module& m)
 {
     mlir_program mp;
@@ -971,12 +982,12 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
-code_object_op compile_mlir(const context& migraphx_ctx,
-                            module m,
-                            const std::vector<instruction_ref>& inputs,
-                            const value& solution)
+mlir_code_object compile_mlir(const context& migraphx_ctx,
+                              module m,
+                              const std::vector<shape>& in_shapes,
+                              const value& solution)
 {
-    adjust_param_shapes(m, to_shapes(inputs));
+    adjust_param_shapes(m, in_shapes);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
@@ -987,6 +998,7 @@ code_object_op compile_mlir(const context& migraphx_ctx,
     }
 
     mlir_program mp;
+
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
@@ -996,9 +1008,33 @@ code_object_op compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto co            = mp.compile(solution);
-    co.expected_inputs = to_shapes(inputs);
+
+    co.expected_inputs = in_shapes;
     co.output          = m.get_output_shapes().front();
-    return co;
+    mlir_code_object mco;
+    mco.cop                 = co;
+    size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());
+    if(num_prefill_args > 0)
+    {
+        std::vector<size_t> prefill_indices(num_prefill_args);
+        std::vector<MlirAttribute> prefill_mlir_values(num_prefill_args);
+        mlirGetPrefillArgsInfo(
+            mp.mmodule.get(), prefill_indices.data(), prefill_mlir_values.data(), num_prefill_args);
+        std::vector<value> prefill_values(prefill_mlir_values.size());
+        std::transform(prefill_mlir_values.begin(),
+                       prefill_mlir_values.end(),
+                       prefill_values.begin(),
+                       [](const auto& v) {
+                           // mlir sets fill attribute as float but migx hip::fill operator only
+                           // supports integer type.
+                           // TODO: Need to add checks that it is indeed an integer.
+                           double dv = mlirFloatAttrGetValueDouble(v);
+                           return static_cast<int>(dv);
+                       });
+        mco.prefill_indices = prefill_indices;
+        mco.prefill_values  = prefill_values;
+    }
+    return mco;
 }
 
 instruction_ref insert_mlir(module& m,
@@ -1050,8 +1086,7 @@ void use(T&)
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-code_object_op
-compile_mlir(const context&, module, const std::vector<instruction_ref>&, const value&)
+mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&)
 {
     return {};
 }

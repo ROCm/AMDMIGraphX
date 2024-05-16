@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -123,6 +123,22 @@ struct array
 {
     using value_type = T;
     T d[N];
+
+    constexpr array() = default;
+
+    template <class... Ts,
+              MIGRAPHX_REQUIRES(sizeof...(Ts) == N and (is_convertible<Ts, T>{} and ...))>
+    constexpr array(Ts... xs) : d{xs...}
+    {
+    }
+
+    template <class U, MIGRAPHX_REQUIRES(is_convertible<U, T>{} and (N > 1))>
+    constexpr explicit array(U x)
+    {
+        for(index_int i = 0; i < N; i++)
+            d[i] = x;
+    }
+
     constexpr T& operator[](index_int i)
     {
         MIGRAPHX_ASSERT(i < N);
@@ -259,6 +275,12 @@ struct array
         return ss;
     }
 };
+
+template <class F>
+constexpr auto array_apply(F f)
+{
+    return [=](auto&& x) { return x.apply(f); };
+}
 
 template <class T, class... Ts>
 constexpr array<T, sizeof...(Ts) + 1> make_array(T x, Ts... xs)

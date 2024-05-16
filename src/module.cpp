@@ -663,6 +663,71 @@ std::vector<shape> module::get_output_shapes() const
     }
 }
 
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
+                                          compute_shapes_options options) const
+{
+    auto params = this->get_parameter_names();
+    std::sort(params.begin(), params.end());
+    std::unordered_map<instruction_ref, shape> ins_shapes;
+    std::unordered_map<std::string, shape> adjusted_param_shapes;
+    std::transform(inputs.begin(),
+                   inputs.end(),
+                   params.begin(),
+                   std::inserter(adjusted_param_shapes, adjusted_param_shapes.end()),
+                   [](auto ps, auto name) { return std::make_pair(name, ps); });
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            ins_shapes[ins] =
+                adjusted_param_shapes[any_cast<builtin::param>(ins->get_operator()).parameter];
+            if(options.strict_type and ins->get_shape().type() != ins_shapes[ins].type())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched type: expected " +
+                               ins->get_shape().type_string() + " but passed " +
+                               ins_shapes[ins].type_string());
+            }
+            if(options.strict_lens and ins->get_shape().lens() != ins_shapes[ins].lens())
+            {
+                MIGRAPHX_THROW(options.name + ": Mismatched lens: expected {" +
+                               to_string_range(ins->get_shape().lens()) + "} but passed {" +
+                               to_string_range(ins_shapes[ins].lens()) + "}");
+            }
+        }
+        else if(ins->name() == "@literal")
+        {
+            if(not options.scalar_const_out_lens.empty() and ins->get_shape().scalar())
+            {
+                std::vector<std::size_t> strides(options.scalar_const_out_lens.size());
+                ins_shapes[ins] =
+                    shape{ins->get_shape().type(), options.scalar_const_out_lens, strides};
+            }
+            else
+            {
+                ins_shapes[ins] = ins->get_shape();
+            }
+        }
+        else
+        {
+            std::vector<shape> input_shapes;
+            input_shapes.resize(ins->inputs().size());
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           input_shapes.begin(),
+                           [&](auto in) { return ins_shapes.at(in); });
+            if(ins->name() == "@return")
+                return input_shapes;
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+        }
+    }
+    MIGRAPHX_THROW("No return found in the submodule");
+}
+
+std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs) const
+{
+    return compute_shapes(inputs, {});
+}
+
 std::vector<instruction_ref> module::get_returns() const
 {
     auto last = std::prev(this->end());
@@ -857,8 +922,7 @@ generic_split(const module& m,
         instructions2.push_back(ins);
     }
 
-    std::vector<instruction_ref> inputs2 = select_params(instructions2, param_map);
-    inputs2.insert(inputs2.begin(), splits.begin(), splits.end());
+    std::vector<instruction_ref> inputs2 = splits;
     module m2;
     std::size_t n = 0;
     std::unordered_map<instruction_ref, instruction_ref> map_ins2;
@@ -870,6 +934,7 @@ generic_split(const module& m,
             continue;
         if(not contains(instructions2, ins))
             continue;
+        inputs2.push_back(param_map.at(ins));
         map_ins2[ins] = m2.add_parameter(param_name(n++), ins->get_shape().as_standard());
     }
     auto r = m2.add_instructions(instructions2, &map_ins2);
@@ -991,11 +1056,12 @@ std::unordered_map<instruction_ref, std::string> module::print(
                              const std::unordered_map<instruction_ref, std::string>&)>& print_func,
     std::unordered_map<instruction_ref, std::string> names) const
 {
+    const bool is_root = names.empty();
     int count = 0;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
-        if(not this->name().empty() and this->name() != "main")
+        if(not this->name().empty() and not is_root)
             var_name = this->name() + ":";
         if(ins->name() == "@param")
         {
@@ -1094,10 +1160,10 @@ static void print_make_op(std::ostream& os, const operation& op)
 
 static void print_py_shape(std::ostream& os, const migraphx::shape& s)
 {
-    os << "migraphx.shape(type=" << to_json_string(s.type_string())
-       << ", lens=" << to_json_string(s.lens());
+    os << "migraphx.shape(type=" << to_json_string(s.type_string()) << ", lens=["
+       << to_string_range(s.lens()) << "]";
     if(not s.standard())
-        os << ", strides=" << to_json_string(s.strides());
+        os << ", strides=[" << to_string_range(s.strides()) << "]";
     os << ")";
 }
 
@@ -1130,25 +1196,34 @@ module::print_py(std::ostream& os,
             if(ins->name() == "@literal")
             {
                 os << mname << ".add_literal(";
-                const bool use_abs = false;
-                // Disable abs for now
-                // ins->get_literal().visit([&](auto v) {
-                //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                // });
-                if(use_abs)
-                    os << "migraphx.abs_literal(";
-                os << "migraphx.generate_argument(";
-                print_py_shape(os, ins->get_shape());
-                os << ", " << seed << ")";
-                if(use_abs)
-                    os << ")";
+                if(ins->get_shape().elements() < 10)
+                {
+                    os << "migraphx.create_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", [" << ins->get_literal() << "])";
+                }
+                else
+                {
+                    const bool use_abs = false;
+                    // Disable abs for now
+                    // ins->get_literal().visit([&](auto v) {
+                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
+                    // });
+                    if(use_abs)
+                        os << "migraphx.abs_literal(";
+                    os << "migraphx.generate_argument(";
+                    print_py_shape(os, ins->get_shape());
+                    os << ", " << seed << ")";
+                    if(use_abs)
+                        os << ")";
+                    seed++;
+                }
                 os << ")" << std::endl;
-                seed++;
             }
             else if(ins->name() == "@param")
             {
                 std::string name = any_cast<builtin::param>(ins->get_operator()).parameter;
-                os << mname << ".add_parameter(" << enclose_name(name) << ",";
+                os << mname << ".add_parameter(" << enclose_name(name) << ", ";
                 print_py_shape(os, ins->get_shape());
                 os << ")" << std::endl;
             }
@@ -1163,7 +1238,9 @@ module::print_py(std::ostream& os,
                 os << mname << ".add_instruction(";
                 print_py_op(os, ins->get_operator());
                 os << ", [" << join_strings(input_vars, ", ") << "]";
-                os << ")" << std::endl;
+                os << ") # ";
+                print_py_shape(os, ins->get_shape());
+                os << std::endl;
             }
         },
         names);

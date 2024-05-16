@@ -810,6 +810,16 @@ TEST_CASE(dot_dyn_static_test1)
                  s_m2);
 }
 
+TEST_CASE(dot_dyn_static_test2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {2, 3, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {3, 3}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
 TEST_CASE(dot_dyn_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
@@ -832,7 +842,7 @@ TEST_CASE(dot_dyn_test1)
 
 TEST_CASE(dot_dyn_test2)
 {
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 1}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 20}, {5, 5}, {5, 5}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 1}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
@@ -853,10 +863,10 @@ TEST_CASE(dot_dyn_test3)
 
 TEST_CASE(dot_dyn_test4)
 {
-    // Note how the inner dimensions have an intersection in range
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}, {4, 8}}};
-    migraphx::shape s_m2{migraphx::shape::float_type, {{1, 4}, {5, 9}, {8, 8}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {5, 5}, {8, 8}}},
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape s_m1{migraphx::shape::float_type, {{0, max_val}, {5, 5}, {0, max_val}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
                  s_m1,
                  s_m2);
@@ -940,6 +950,43 @@ TEST_CASE(broadcast_for_dot_dyn2)
         migraphx::make_op("broadcast_for_dot"),
         s1,
         s0);
+}
+
+TEST_CASE(broadcast_with_dims0)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {2, 4}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(
+        shape{shape::float_type, dyn_dims}, migraphx::make_op("broadcast_with_dims"), s0, s1);
+}
+
+TEST_CASE(broadcast_with_dims1)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::int32_type, {1, 2, 4}};
+    shape s1{migraphx::shape::int64_type, {1}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
+}
+
+TEST_CASE(broadcast_with_dims2)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {{1, 4}, {2, 2}, {4, 4}}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::float_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
 }
 
 TEST_CASE(flatten_shape)
@@ -2509,6 +2556,20 @@ TEST_CASE(pointwise_no_output)
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
+TEST_CASE(pointwise_strict_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x = pm.add_parameter("x", s.with_type(migraphx::shape::half_type));
+        pm.add_return({x});
+    }
+    auto x = mm->add_parameter("x", s);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
 TEST_CASE(pooling_shape0)
@@ -4590,7 +4651,11 @@ TEST_CASE(test_squeeze_dyn)
     migraphx::shape s3{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}}};
     expect_shape(s3, migraphx::make_op("squeeze"), s1);
 
-    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+    // allowing to squeeze dynamic_dimension that intersect with {1, 1}
+    migraphx::shape s4{migraphx::shape::float_type, {{1, 1}, {3, 3}, {1, 1}, {3, 3}}};
+    expect_shape(s4, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(test_squeeze_dyn_neg_axes)

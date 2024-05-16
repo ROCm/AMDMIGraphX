@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,8 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(batch_norm_invalid_rank)
+TEST_CASE(convinteger_bad_weight_bias_type_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_rank.onnx"); }));
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("convinteger_mismatched_weight_bias_test.onnx"); }));
 }

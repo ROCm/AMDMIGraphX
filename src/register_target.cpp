@@ -58,22 +58,23 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
-        std::string so_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION) + ".0";
-        auto target_name       = make_shared_object_filename("migraphx_" + name);
+        std::string so_major_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION);
+        auto target_name             = make_shared_object_filename("migraphx_" + name);
 
-        // Try to load library with so version appended to the name.
-        // If library with so version name is not found,
-        // try loading the library without the so version name appended.
-        // For example, if "libmigraphx_ref.so.2010000.0" is not found,
+        // Try to load library with so_major_version appended to the name.
+        // If library with so_major_version name is not found,
+        // try loading the library without the so_major_version name appended.
+        // For example, if "libmigraphx_ref.so.2010000" is not found,
         // try loading "libmigraphx_ref.so".
         try
         {
-            // Default to loading shared libraries with so version appended.
-            store_target_lib(dynamic_loader(target_name + so_version));
+            // Default to loading shared libraries with
+            // so_major_version appended.
+            store_target_lib(dynamic_loader(target_name + so_major_version));
         }
         catch(...)
         {
-            // Load the library without the so version in the name.
+            // Load the library without the so_major_version in the name.
             store_target_lib(dynamic_loader(target_name));
         }
     }

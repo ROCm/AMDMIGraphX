@@ -40,10 +40,7 @@ void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
     if(new_line)
         std::cout << std::endl;
 }
-void debug_print(const dimension& dim)
-{
-    debug_print(dim.subdimensions);
-}
+void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
 void debug_print(const std::vector<dimension>& dims)
 {
     for(const auto& d : dims)
@@ -378,19 +375,20 @@ void shape_transform_descriptor::simplify()
 
     // Find broadcasted dimensions
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
-    group_find(dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
-        auto axis = rank;
-        if(last != dimensions.end())
-        {
-            assert(not last->subdimensions.empty());
-            const auto& sub = last->subdimensions.front();
-            assert(not sub.axis.empty());
-            axis = sub.axis.front();
-        }
-        std::deque<std::size_t> dims(std::distance(start, last));
-        std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
-        broadcast_dims_map[axis] = dims;
-    });
+    group_find(
+        dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
+            auto axis = rank;
+            if(last != dimensions.end())
+            {
+                assert(not last->subdimensions.empty());
+                const auto& sub = last->subdimensions.front();
+                assert(not sub.axis.empty());
+                axis = sub.axis.front();
+            }
+            std::deque<std::size_t> dims(std::distance(start, last));
+            std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
+            broadcast_dims_map[axis] = dims;
+        });
 
     // Reinsert removed axes of 1
     for(auto&& p : missing_axes)

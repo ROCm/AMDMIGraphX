@@ -321,7 +321,7 @@ TEST_CASE(optimize_squeeze_broadcast)
                    make_op("broadcast", {{"axis", 0}, {"out_lens", {256, 64, 1, 1}}}),
                }) == ops{
                          make_op("unsqueeze", {{"axes", {3}}}),
-                        make_op("multibroadcast", {{"out_lens", {256, 64, 1, 1}}}),
+                         make_op("multibroadcast", {{"out_lens", {256, 64, 1, 1}}}),
                      });
 }
 

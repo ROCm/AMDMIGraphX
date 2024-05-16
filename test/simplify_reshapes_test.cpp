@@ -932,7 +932,7 @@ TEST_CASE(concat_multibroadcasts4)
 }
 
 // different input parameter shapes
-// dimensions other than concat axis do not match
+// matched by find_concat_multibroadcasts but dimensions other than concat axis do not match
 // skips this case
 TEST_CASE(concat_multibroadcasts5)
 {

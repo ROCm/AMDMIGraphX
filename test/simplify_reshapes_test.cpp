@@ -953,7 +953,7 @@ TEST_CASE(concat_multibroadcasts5)
 }
 
 // concat axis moved because rank(in_dims) < rank(out_dims)
-// parameter inputs are not the same rank
+// matched by find_concat_multibroadcasts but parameter inputs are not the same rank
 // skips this case
 TEST_CASE(concat_multibroadcasts6)
 {

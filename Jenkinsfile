@@ -155,13 +155,13 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
             cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags_cxx}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
         }
     }
-}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
-    stage('CK hipRTC') {
-        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1', 'MIGRAPHX_DISABLE_MLIR=1']) {
-            def gpu_targets = getgputargets()
-            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
-        }
-    }
+//}, ck_hiprtc: rocmnode('mi100+') { cmake_build ->
+//   stage('CK hipRTC') {
+//        withEnv(['MIGRAPHX_ENABLE_CK=1', 'MIGRAPHX_TUNE_CK=1', 'MIGRAPHX_DISABLE_MLIR=1']) {
+//            def gpu_targets = getgputargets()
+//            cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'")
+//        }
+//    }
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"

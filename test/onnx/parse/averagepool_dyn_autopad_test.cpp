@@ -47,6 +47,6 @@ TEST_CASE(averagepool_dyn_autopad_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog = migraphx::parse_onnx("averagepool_dyn_autopad_test.onnx", options);
+    auto prog                     = read_onnx("averagepool_dyn_autopad_test.onnx", options);
     EXPECT(p == prog);
 }

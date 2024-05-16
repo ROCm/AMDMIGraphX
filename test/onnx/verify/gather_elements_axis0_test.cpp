@@ -28,7 +28,7 @@
 
 TEST_CASE(gather_elements)
 {
-    migraphx::program p = migraphx::parse_onnx("gather_elements_axis0_test.onnx");
+    migraphx::program p = read_onnx("gather_elements_axis0_test.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape s_data{migraphx::shape::float_type, {3, 4}};
     std::vector<float> data = {

@@ -37,7 +37,7 @@ TEST_CASE(sinh_dynamic_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = dd;
-    auto prog                     = parse_onnx("sinh_dynamic_test.onnx", options);
+    auto prog                     = read_onnx("sinh_dynamic_test.onnx", options);
 
     EXPECT(p == prog);
 }

@@ -26,5 +26,5 @@
 
 TEST_CASE(lpnormalization_p_error_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("lpnormalization_p_error_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("lpnormalization_p_error_test.onnx"); }));
 }

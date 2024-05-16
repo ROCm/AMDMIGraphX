@@ -28,7 +28,7 @@
 
 TEST_CASE(reversesequence_time_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("reversesequence_time_test.onnx");
+    migraphx::program p = read_onnx("reversesequence_time_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape xs{migraphx::shape::float_type, {4, 4}};

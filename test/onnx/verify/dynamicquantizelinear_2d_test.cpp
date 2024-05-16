@@ -28,7 +28,7 @@
 
 TEST_CASE(dynamicquantizelinear_2d_test)
 {
-    auto p = migraphx::parse_onnx("dynamicquantizelinear_2d_test.onnx");
+    auto p = read_onnx("dynamicquantizelinear_2d_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> data{1.0, 2.1, 1.3, 2.5, 3.34, 4.0, 1.5, 2.6, 3.9, 4.0, 3.0, 2.345};

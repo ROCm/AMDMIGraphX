@@ -30,8 +30,7 @@
 TEST_CASE(mvn_rank_2_fp16_test)
 {
     using migraphx::half;
-    auto result =
-        mvn_test<migraphx::half>({2, 2}, migraphx::parse_onnx("mvn_rank_2_fp16_test.onnx"));
+    auto result = mvn_test<migraphx::half>({2, 2}, read_onnx("mvn_rank_2_fp16_test.onnx"));
     std::vector<migraphx::half> gold{half{-1}, half{1}, half{-1}, half{1}};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }

@@ -28,7 +28,7 @@
 
 TEST_CASE(nonzero_test)
 {
-    migraphx::program p = migraphx::parse_onnx("nonzero_dynamic_test.onnx");
+    migraphx::program p = read_onnx("nonzero_dynamic_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::bool_type, {2, 2}};

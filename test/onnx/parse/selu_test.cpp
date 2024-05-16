@@ -52,7 +52,7 @@ TEST_CASE(selu_test)
     auto r      = mm->add_instruction(migraphx::make_op("mul"), item12, mblg);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("selu_test.onnx");
+    auto prog = read_onnx("selu_test.onnx");
 
     EXPECT(p == prog);
 }

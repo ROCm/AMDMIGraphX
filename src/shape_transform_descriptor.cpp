@@ -579,6 +579,21 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
     }
 }
 
+static bool missing_axes(const dimension& d)
+{
+    return std::all_of(
+                   d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+                       return s.axis.empty() and not s.hidden_axis.has_value();
+                   });
+}
+static bool has_axes(const dimension& d)
+{
+    return std::any_of(
+                   d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
+                       return not s.axis.empty();
+                   });
+}
+
 std::vector<operation> shape_transform_descriptor::generate() const
 {
     std::vector<operation> result;
@@ -591,23 +606,15 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        new_dims.end(),
                        std::back_inserter(out_lens),
                        [](const dimension& d) { return d.len(); });
+        auto startb   = std::find_if_not(new_dims.begin(), new_dims.end(), &missing_axes);
+        auto trailb   = std::find_if_not(startb, new_dims.end(), &has_axes);
+        auto axis = std::distance(new_dims.begin(), startb);
         // Use broadcast instead of multibroadcast
-        if(std::all_of(new_dims.begin(), new_dims.end(), [&](const dimension& d) {
-               if(not is_broadcast_dim(d))
-                   return true;
-               // Check that the broadcasted dimension does not have an axis
-               return std::all_of(
-                   d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
-                       return s.axis.empty() and not s.hidden_axis.has_value();
-                   });
-           }))
+        if (std::all_of(trailb, new_dims.end(), &missing_axes))
         {
-            auto it   = std::find_if_not(new_dims.begin(), new_dims.end(), &is_broadcast_dim);
-            auto axis = std::distance(new_dims.begin(), it);
             result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
-            // Remove broadcasted axes
-            new_dims.erase(std::remove_if(new_dims.begin(), new_dims.end(), &is_broadcast_dim),
-                           new_dims.end());
+            new_dims.erase(trailb, new_dims.end());
+            new_dims.erase(new_dims.begin(), new_dims.begin()+axis);
         }
         else
         {

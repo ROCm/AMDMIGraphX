@@ -919,7 +919,7 @@ TEST_CASE(concat_multibroadcasts3)
 }
 
 // Broadcasted batch dim, axis is broadcasted dim
-// skips this case
+// matched by find_concat_multibroadcasts but it skips this case
 TEST_CASE(concat_multibroadcasts4)
 {
     std::vector<std::size_t> in_lens     = {3, 4};

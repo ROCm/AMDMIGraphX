@@ -229,7 +229,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
             }
         }
 
-        // adjust weights based on ignore index is that's set
+        // adjust weights based on ignore index is that's set to reduce output after mul to zero
+        // Saves us from doing a where() here and just scale at the end
         if(has_ignore_index)
         {
             auto weights_shape = weights->get_shape();

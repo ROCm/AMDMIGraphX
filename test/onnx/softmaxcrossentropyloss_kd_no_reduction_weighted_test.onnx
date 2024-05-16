@@ -3,7 +3,7 @@
 0
 1
 23"SoftmaxCrossEntropyLoss*
-	reduction"mean 5softmaxcrossentropyloss_kd_no_reduction_weighted_testZ
+	reduction"none 5softmaxcrossentropyloss_kd_no_reduction_weighted_testZ
 0
 
 

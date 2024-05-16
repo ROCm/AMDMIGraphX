@@ -48,6 +48,28 @@ TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_ones)
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 
+TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_asym_test)
+{
+    migraphx::program p = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_asym_test.onnx");
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape score_shape{migraphx::shape::float_type, {3, 4}};
+    std::vector<float> score_data = {1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
+    migraphx::shape label_shape{migraphx::shape::int32_type, {3}};
+    std::vector<int32_t> label_data = {0, 3, 1, 2};
+
+    migraphx::parameter_map pp;
+    pp["0"] = migraphx::argument(score_shape, score_data.data());
+    pp["1"] = migraphx::argument(label_shape, label_data.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
 TEST_CASE(softmaxcrossentropyloss_2d_no_reduction_test_zeros)
 {
     migraphx::program p = migraphx::parse_onnx("softmaxcrossentropyloss_2d_no_reduction_test.onnx");

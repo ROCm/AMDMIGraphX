@@ -11395,6 +11395,25 @@ def softmaxcrossentropyloss_2d_no_reduction_test():
 
 
 @onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_asym_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [3])
+    loss = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+        ],
+        outputs=["2"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels], [loss])
+
+
+@onnx_test()
 def softmaxcrossentropyloss_2d_no_reduction_double_test():
     scores = helper.make_tensor_value_info('0', TensorProto.DOUBLE, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
@@ -11551,6 +11570,47 @@ def softmaxcrossentropyloss_2d_no_reduction_weighted_test():
     scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 4])
     labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
     weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_asym_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3, 4])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [3])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4])
+    loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [3])
+
+    node = onnx.helper.make_node(
+        "SoftmaxCrossEntropyLoss",
+        inputs=[
+            "0",
+            "1",
+            "2",
+        ],
+        outputs=["3"],
+        reduction="none",
+    )
+
+    return ([node], [scores, labels, weights], [loss])
+
+
+@onnx_test()
+def softmaxcrossentropyloss_2d_no_reduction_weighted_asym_class_test():
+    scores = helper.make_tensor_value_info('0', TensorProto.FLOAT, [4, 3])
+    labels = helper.make_tensor_value_info('1', TensorProto.INT32, [4])
+    weights = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3])
     loss = helper.make_tensor_value_info('3', TensorProto.FLOAT, [4])
 
     node = onnx.helper.make_node(
@@ -11795,7 +11855,7 @@ def softmaxcrossentropyloss_kd_sum_reduction_double_weighted_test():
             "2",
         ],
         outputs=["3"],
-        reduction="mean",
+        reduction="sum",
     )
 
     return ([node], [scores, labels, weights], [loss])
@@ -11817,7 +11877,7 @@ def softmaxcrossentropyloss_kd_no_reduction_weighted_test():
             "2",
         ],
         outputs=["3"],
-        reduction="mean",
+        reduction="none",
     )
 
     return ([node], [scores, labels, weights], [loss])

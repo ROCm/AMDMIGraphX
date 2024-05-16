@@ -268,11 +268,11 @@ struct find_concat_multibroadcasts
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto concat_ins        = mr.result;
-        auto concat_op         = any_cast<op::concat>(concat_ins->get_operator());
-        auto concat_out_lens   = concat_ins->get_shape().lens();
-        auto concat_inputs     = concat_ins->inputs();
-        auto front_mb_strides  = concat_inputs.front()->get_shape().strides();
+        auto concat_ins       = mr.result;
+        auto concat_op        = any_cast<op::concat>(concat_ins->get_operator());
+        auto concat_out_lens  = concat_ins->get_shape().lens();
+        auto concat_inputs    = concat_ins->inputs();
+        auto front_mb_strides = concat_inputs.front()->get_shape().strides();
 
         // Only apply when concat axis is not a broadcasted dimension
         if(std::any_of(concat_inputs.begin(), concat_inputs.end(), [&](auto i) {
@@ -281,7 +281,7 @@ struct find_concat_multibroadcasts
         {
             return;
         }
-    
+
         // Get the inputs of multibroadcast ops, will be used as inputs to new concat op
         std::vector<instruction_ref> mb_inputs(concat_inputs.size());
         std::transform(concat_inputs.begin(), concat_inputs.end(), mb_inputs.begin(), [](auto i) {
@@ -290,14 +290,17 @@ struct find_concat_multibroadcasts
 
         // Check that the inputs into the multibroadcasts have the same rank
         const auto& first_shape = mb_inputs.front()->get_shape();
-        if(not std::all_of(mb_inputs.begin() + 1, mb_inputs.end(), [&](auto mb_in) { return mb_in->get_shape().ndim() == first_shape.ndim(); }))
+        if(not std::all_of(mb_inputs.begin() + 1, mb_inputs.end(), [&](auto mb_in) {
+               return mb_in->get_shape().ndim() == first_shape.ndim();
+           }))
         {
             return;
         }
 
         // Reduce axis by number of leading broadcasted dimensions
         if(mb_inputs.front()->get_shape().lens().size() < concat_out_lens.size())
-            concat_op.axis -= std::count(front_mb_strides.begin(), front_mb_strides.begin() + concat_op.axis, 0);
+            concat_op.axis -=
+                std::count(front_mb_strides.begin(), front_mb_strides.begin() + concat_op.axis, 0);
 
         // Inputs to multibroadcasts should have the same dimensions except for the axis to
         // concatenate over
@@ -316,8 +319,9 @@ struct find_concat_multibroadcasts
         }
 
         auto new_concat_ins = m.insert_instruction(concat_ins, concat_op, mb_inputs);
-        m.replace_instruction(
-            concat_ins, migraphx::make_op("multibroadcast", {{"out_lens", concat_out_lens}}), new_concat_ins);
+        m.replace_instruction(concat_ins,
+                              migraphx::make_op("multibroadcast", {{"out_lens", concat_out_lens}}),
+                              new_concat_ins);
     }
 };
 

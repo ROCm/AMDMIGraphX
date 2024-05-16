@@ -334,7 +334,7 @@ TEST_CASE(optimize_squeeze_unsqueeze_broadcast)
                    make_op("squeeze"),
                    make_op("broadcast", {{"axis", 0}, {"out_lens", {256, 64, 1, 1}}}),
                }) == ops{
-                            make_op("broadcast", {{"axis", 0}, {"out_lens", {256, 64, 1, 1}}}),
+                         make_op("broadcast", {{"axis", 0}, {"out_lens", {256, 64, 1, 1}}}),
                      });
 }
 

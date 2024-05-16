@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/split_reduce.hpp>
+#include <migraphx/dom_info.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
@@ -78,6 +79,14 @@ namespace {
 struct splitter
 {
     const_module_ref rm;
+
+    bool strictly_dominate(instruction_ref a, instruction_ref b)
+    {
+        if(not dom.has_value())
+            dom = compute_dominator(*rm);
+        return dom->strictly_dominate(a, b);
+    }
+
     std::vector<instruction_ref> find_splits()
     {
         std::vector<instruction_ref> result;
@@ -109,19 +118,19 @@ struct splitter
             if(rins == rm->begin())
                 return;
             // We want to know what instructions are live after the split instruction
-            auto ins = std::prev(rins);
+            auto ins = instruction::get_output_alias(std::prev(rins));
             if(not contains(splits, ins))
                 return;
             std::copy_if(live_set.begin(),
                          live_set.end(),
                          std::back_inserter(result),
-                         [&](instruction_ref live) {
+                         [&](instruction_ref live) {                                
                              if(live->name() == "@param")
                                  return false;
                              if(contains(splits, live))
                                  return false;
                              if(splits.size() > 1 and none_of(splits, [&](instruction_ref split) {
-                                    return reaches(live, split);
+                                    return this->strictly_dominate(live, split);
                                 }))
                                  return false;
                              return true;
@@ -130,6 +139,8 @@ struct splitter
         });
         return result;
     }
+
+    std::optional<dominator_info> dom = std::nullopt;
 };
 } // namespace
 

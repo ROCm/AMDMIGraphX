@@ -217,6 +217,8 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
+        // this section of code is turned off for now, as the ck kernel hits accuracy issues..
+#ifdef CK_KERNEL_FIXED_IN_FUTURE
         if(not exhaustive and not enabled(MIGRAPHX_TUNE_CK{}))
             return nullopt;
         tuning_config tc;
@@ -228,6 +230,13 @@ struct ck_gemm_softmax_gemm_compiler : compiler<ck_gemm_softmax_gemm_compiler>
         std::vector<shape> gemm_shapes{shapes[0], shapes[1], shapes.back()};
         tc.problem = to_value(gemm_shapes);
         return tc;
+#else
+        (void)ctx;
+        (void)ins;
+        (void)op;
+        (void)exhaustive;
+        return nullopt;
+#endif
     }
 };
 

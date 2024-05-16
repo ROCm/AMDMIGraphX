@@ -40,6 +40,10 @@ void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
     if(new_line)
         std::cout << std::endl;
 }
+void debug_print(const dimension& dim)
+{
+    debug_print(dim.subdimensions);
+}
 void debug_print(const std::vector<dimension>& dims)
 {
     for(const auto& d : dims)
@@ -302,6 +306,13 @@ static bool is_broadcast_dim(const dimension& d)
     const auto& sub = d.subdimensions.front();
     return sub.axis.empty();
 }
+static bool missing_leading_axis(const dimension& d)
+{
+    if(d.subdimensions.empty())
+        return true;
+    const auto& sub = d.subdimensions.front();
+    return sub.axis.empty();
+}
 
 static void set_broadcast_dim(dimension& d, std::size_t axis)
 {
@@ -367,7 +378,7 @@ void shape_transform_descriptor::simplify()
 
     // Find broadcasted dimensions
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
-    group_find(dimensions.begin(), dimensions.end(), &is_broadcast_dim, [&](auto start, auto last) {
+    group_find(dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
         auto axis = rank;
         if(last != dimensions.end())
         {

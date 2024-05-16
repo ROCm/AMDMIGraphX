@@ -312,4 +312,17 @@ TEST_CASE(optimize_multibroadcast_reshape)
                      });
 }
 
+TEST_CASE(optimize_squeeze_broadcast)
+{
+    EXPECT(migraphx::optimize_shape_transforms(
+               {256, 1, 1},
+               {
+                   make_op("squeeze"),
+                   make_op("broadcast", {{"axis", 0}, {"out_lens", {256, 64, 1, 1}}}),
+               }) == ops{
+                         make_op("unsqueeze", {{"axes", {3}}}),
+                        make_op("multibroadcast", {{"out_lens", {256, 64, 1, 1}}}),
+                     });
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

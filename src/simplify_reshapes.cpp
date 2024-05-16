@@ -178,6 +178,7 @@ struct find_nop_reshapes
         reshapes.insert("multibroadcast");
         reshapes.insert("pad");
         reshapes.insert("slice");
+        reshapes.insert("step");
         reshapes.insert("transpose");
         reshapes.insert("reduce_mean");
         reshapes.insert("reduce_max");

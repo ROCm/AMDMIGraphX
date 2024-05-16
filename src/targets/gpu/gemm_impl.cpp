@@ -36,7 +36,7 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_ROCBLAS
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
 as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
@@ -79,8 +79,10 @@ void blas_shape(const shape& s)
 {
     if(s.lens().size() < 2)
         return;
-    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
+        MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
     shape batch_shape{s.type(),
@@ -676,7 +678,7 @@ int32_t gemm_finalize(context& ctx,
     return gemm_finalize_impl(
         ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

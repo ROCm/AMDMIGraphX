@@ -202,6 +202,20 @@ struct MIGRAPHX_EXPORT module
     instruction_ref begin() const;
     instruction_ref end() const;
 
+    struct compute_shapes_options
+    {
+        std::string name                               = "compute_shapes";
+        bool strict_type                               = false;
+        bool strict_lens                               = false;
+        std::vector<std::size_t> scalar_const_out_lens = {};
+    };
+
+    /// Compute a new ouput shape by replacing each parameter with input
+    /// shapes passed in.
+    std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
+                                      compute_shapes_options options) const;
+    std::vector<shape> compute_shapes(const std::vector<shape>& inputs) const;
+
     std::vector<shape> get_output_shapes() const;
 
     instruction_ref validate() const;
@@ -292,7 +306,7 @@ struct MIGRAPHX_EXPORT module
     std::unique_ptr<module_impl> impl;
 };
 
-struct module_with_inputs
+struct MIGRAPHX_EXPORT module_with_inputs
 {
     module mod;
     std::vector<instruction_ref> inputs;

@@ -199,8 +199,10 @@ TEST_CASE(batchnorm_test)
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-4f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
-    auto usq_bias  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
-    auto usq_mean  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
+    auto usq_bias  = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
+    auto usq_mean = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
@@ -229,8 +231,10 @@ TEST_CASE(batchnorm_half_test)
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-4f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
-    auto usq_bias  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
-    auto usq_mean  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
+    auto usq_bias  = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
+    auto usq_mean = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
@@ -259,8 +263,10 @@ TEST_CASE(batchnormv3_test)
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1e-6f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
-    auto usq_bias  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
-    auto usq_mean  = mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
+    auto usq_bias  = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
+    auto usq_mean = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
@@ -449,7 +455,12 @@ TEST_CASE(depthwiseconv_test)
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), l1);
     auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);
     auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3}}}), l4);
-    mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 3}}), l0, l5);
+    mm->add_instruction(
+        migraphx::make_op(
+            "convolution",
+            {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 3}}),
+        l0,
+        l5);
     auto prog = optimize_tf("depthwise_conv_test.pb", true);
 
     EXPECT(p == prog);
@@ -657,7 +668,7 @@ TEST_CASE(pack_test_nhwc)
 
     auto* mm = p.get_main_module();
     auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
-    auto l1 = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
+    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
     auto l2 = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {1, 2, 1, 1}});
     std::vector<migraphx::instruction_ref> args{l0, l1, l2};
     std::vector<migraphx::instruction_ref> unsqueezed_args;
@@ -670,8 +681,8 @@ TEST_CASE(pack_test_nhwc)
                        return mm->add_instruction(
                            migraphx::make_op("unsqueeze", {{"axes", {nchw_axis}}}), arg);
                    });
-    auto concat = mm->add_instruction(migraphx::make_op("concat", {{"axis", nchw_axis}}),
-                        unsqueezed_args);
+    auto concat =
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", nchw_axis}}), unsqueezed_args);
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 2}}}), concat);
     auto prog = optimize_tf("pack_test_nhwc.pb", true);
 

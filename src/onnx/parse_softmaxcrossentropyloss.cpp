@@ -169,10 +169,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                            "class_size, D1...Dk]");
         }
 
-        // TODO: Update this operator when we get bfloat16 support
-        std::set<migraphx::shape::type_t> supported_score_weight_types = {
-            migraphx::shape::half_type, migraphx::shape::float_type, migraphx::shape::double_type};
-        if(not contains(supported_score_weight_types, scores_shape.type()))
+        if(migraphx::shape::is_integral(scores_shape.type()))
         {
             MIGRAPHX_THROW(
                 "softmaxcrossentropyloss: Score must be either half, float, or double type");
@@ -216,7 +213,7 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                                "contain weight for each class");
             }
 
-            if(not contains(supported_score_weight_types, weights_shape.type()))
+            if(migraphx::shape::is_integral(weights_shape.type()))
             {
                 MIGRAPHX_THROW(
                     "softmaxcrossentropyloss: weight must be either half, float, or double type");

@@ -49,7 +49,7 @@ migraphx::program read_pb_file(const std::string& name, const migraphx::tf_optio
     if(pb_files.find(name) == pb_files.end())
     {
         std::cerr << "Can not find TensorFlow Protobuf file by name: " << name
-                  << " ,aborting the program\n"
+                  << " , aborting the program\n"
                   << std::endl;
         std::abort();
     }

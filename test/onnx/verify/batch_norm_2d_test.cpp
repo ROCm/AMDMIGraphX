@@ -28,7 +28,7 @@
 
 TEST_CASE(batch_norm_2d_test)
 {
-    migraphx::program p = migraphx::parse_onnx("batch_norm_2d_test.onnx");
+    migraphx::program p = read_onnx("batch_norm_2d_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3, 4, 4}};

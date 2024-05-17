@@ -28,7 +28,7 @@
 
 TEST_CASE(selu_test)
 {
-    migraphx::program p = migraphx::parse_onnx("selu_test.onnx");
+    migraphx::program p = read_onnx("selu_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape xs{migraphx::shape::double_type, {2, 3}};

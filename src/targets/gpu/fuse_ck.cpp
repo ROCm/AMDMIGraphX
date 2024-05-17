@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/fuse_ck.hpp>
-#include <migraphx/gpu/gemm_softmax_gemm.hpp>
+
 #include <migraphx/matcher.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/gpu/fuse_ck.hpp>
+#include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/gpu/device_name.hpp>
 
 namespace migraphx {
@@ -106,7 +108,7 @@ MIGRAPHX_PRED_MATCHER(is_ck_gemm, instruction_ref ins)
             return false;
     }
     auto device_name = trim(split_string(get_device_name(), ':').front());
-    if(device_name == "gfx940")
+    if(starts_with(device_name, "gfx94"))
     {
         if(ins->get_shape().type() == shape::half_type)
         {

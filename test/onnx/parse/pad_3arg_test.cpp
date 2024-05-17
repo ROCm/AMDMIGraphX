@@ -35,7 +35,7 @@ TEST_CASE(pad_3arg_test)
         migraphx::make_op("pad", {{"pads", {1, 1, 2, 2}}, {"value", 1.0f}}), l0);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("pad_3arg_test.onnx");
+    auto prog = read_onnx("pad_3arg_test.onnx");
 
     EXPECT(p == prog);
 }

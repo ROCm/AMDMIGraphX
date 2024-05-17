@@ -28,7 +28,7 @@
 
 TEST_CASE(gemm_half_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gemm_half_test.onnx");
+    migraphx::program p = read_onnx("gemm_half_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a_shape{migraphx::shape::half_type, {8, 6}};

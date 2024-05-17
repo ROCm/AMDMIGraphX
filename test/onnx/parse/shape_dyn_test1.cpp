@@ -37,7 +37,7 @@ TEST_CASE(shape_dyn_test1)
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    auto prog                       = parse_onnx("shape_dyn_test1.onnx", options);
+    auto prog                       = read_onnx("shape_dyn_test1.onnx", options);
 
     EXPECT(p == prog);
 }

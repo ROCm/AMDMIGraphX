@@ -792,11 +792,11 @@ TEST_CASE(reduce_reshape_reduce)
         auto y   = mm->add_parameter("y", s2);
         auto x1r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), x1);
         auto x2r = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3r.lens()}}), x2);
+        auto yr = mm->add_instruction(migraphx::make_op("reshape", {{"dims", s3.lens()}}), y);
         auto freduce = add_reduce(
             p2,
-            "main:pointwise2:main:reduce_sum2_reshape_reshape:main:reduce_sum1:main:reduce_sum0:"
-            "main:pointwise0:main:pointwise1_reshape",
-            {x1r, x2r},
+            "main:pointwise2:main:reduce_sum2_reshape_reshape:main:pointwise3_reshape:main:reduce_sum1:main:reduce_sum0:main:pointwise0:main:pointwise1_reshape",
+            {x1r, x2r, yr},
             {3, 4},
             [&](auto* rm, const auto& inputs, const auto& axes) {
                 auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
@@ -813,15 +813,13 @@ TEST_CASE(reduce_reshape_reduce)
                     migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum2);
                 auto sub2 = add_pointwise(
                     p2, rm, "main:pointwise2", {rsum2b, inputs[0]}, single_pointwise("sub"));
-                return rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub2);
+                auto rsum3 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), sub2);
+                auto rsum3b = rm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s3.lens()}}), rsum3);
+                return add_pointwise(p2, rm, "main:pointwise3", {rsum3b, inputs[2]}, single_pointwise("add"));
             });
         auto freducer =
-            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2r.lens()}}), freduce);
-        // TODO: Fuse the last add as well
-        auto freducerb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s2.lens()}}), freducer);
-        auto add = add_pointwise(p2, "main:pointwise3", {freducerb, y}, single_pointwise("add"));
-        mm->add_return({add});
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", s2.lens()}}), freduce);
+        mm->add_return({freducer});
     }
     EXPECT(p1.sort() == p2.sort());
 }

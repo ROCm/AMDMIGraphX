@@ -71,6 +71,6 @@ TEST_CASE(reversesequence_time_test)
     ret     = mm->add_instruction(migraphx::make_op("concat", {{"axis", batch_axis}}), ret, s0);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("reversesequence_time_test.onnx");
+    auto prog = read_onnx("reversesequence_time_test.onnx");
     EXPECT(p == prog);
 }

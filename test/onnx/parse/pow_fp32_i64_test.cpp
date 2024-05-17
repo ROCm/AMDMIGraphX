@@ -35,7 +35,7 @@ TEST_CASE(pow_fp32_i64_test)
     auto ret = mm->add_instruction(migraphx::make_op("pow"), l0, l1f);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("pow_fp32_i64_test.onnx");
+    auto prog = read_onnx("pow_fp32_i64_test.onnx");
 
     EXPECT(p == prog);
 }

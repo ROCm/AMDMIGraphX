@@ -44,6 +44,6 @@ TEST_CASE(isinf_neg_test)
     auto ret = mm->add_instruction(migraphx::make_op("logical_and"), is_inf, is_neg);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("isinf_neg_test.onnx");
+    auto prog = read_onnx("isinf_neg_test.onnx");
     EXPECT(p == prog);
 }

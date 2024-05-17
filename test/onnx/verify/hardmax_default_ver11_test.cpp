@@ -28,7 +28,7 @@
 
 TEST_CASE(hardmax_default_ver11_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("hardmax_default_ver11_test.onnx");
+    migraphx::program p = read_onnx("hardmax_default_ver11_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<std::size_t> input_lens{1, 2, 3, 4};

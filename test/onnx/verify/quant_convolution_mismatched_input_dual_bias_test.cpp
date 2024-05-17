@@ -28,7 +28,7 @@
 
 TEST_CASE(quant_convolution_mismatched_inputs_dual_zero_bias_test)
 {
-    migraphx::program p = migraphx::parse_onnx("convinteger_mismatched_inputs_dual_bias_test.onnx");
+    migraphx::program p = read_onnx("convinteger_mismatched_inputs_dual_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {1, 3, 5, 5}};
@@ -81,7 +81,7 @@ TEST_CASE(quant_convolution_mismatched_inputs_dual_zero_bias_test)
 
 TEST_CASE(quant_convolution_mismatched_inputs_dual_non_zero_bias_test)
 {
-    migraphx::program p = migraphx::parse_onnx("convinteger_mismatched_inputs_dual_bias_test.onnx");
+    migraphx::program p = read_onnx("convinteger_mismatched_inputs_dual_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {1, 3, 5, 5}};

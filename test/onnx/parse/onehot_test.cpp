@@ -52,7 +52,7 @@ TEST_CASE(onehot_test)
     auto r   = mm->add_instruction(migraphx::make_op("add"), mul, mb_off_val);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("onehot_test.onnx");
+    auto prog = read_onnx("onehot_test.onnx");
 
     EXPECT(p == prog);
 }

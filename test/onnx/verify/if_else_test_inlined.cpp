@@ -28,7 +28,7 @@
 
 TEST_CASE(if_else_test_inlined)
 {
-    migraphx::program p = migraphx::parse_onnx("if_else_test_inlined.onnx");
+    migraphx::program p = read_onnx("if_else_test_inlined.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape s_data{migraphx::shape::float_type, {2, 3}};
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};

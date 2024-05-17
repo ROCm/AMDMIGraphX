@@ -65,7 +65,7 @@ TEST_CASE(qlinearglobalavgpool_test)
 
     mm->add_return({y});
 
-    auto prog = migraphx::parse_onnx("qlinearglobalavgpool_test.onnx");
+    auto prog = read_onnx("qlinearglobalavgpool_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

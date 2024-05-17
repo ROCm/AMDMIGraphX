@@ -923,6 +923,9 @@ void move_instructions_back(module& m, instruction_ref pos, std::vector<instruct
     }
 }
 
+/** Search for multiple "slice" instructions in an instruction's outputs
+ *  which are contiguous slices of the same tensor.
+ */
 std::vector<instruction_ref> get_splits(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
@@ -934,16 +937,22 @@ std::vector<instruction_ref> get_splits(instruction_ref ins)
         return {};
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto&& axes    = get_slice(result.front()).axes;
+
+    // "slice" instructions must all have the same axes
     if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
         return {};
     auto get_start = [&](auto& i) -> auto& { return get_slice(i).starts; };
     auto get_end   = [&](auto& i) -> auto& { return get_slice(i).ends; };
+
+    // Sort the "slice" instructions in order of starts
     std::sort(
         result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
     if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
            return i != 0;
        }))
         return {};
+
+    // one slice must "start" where the last slice "end"
     auto it = std::adjacent_find(
         result.begin(), result.end(), [&](auto x, auto y) { return get_end(x) != get_start(y); });
     if(it != result.end())
@@ -1129,6 +1138,10 @@ struct find_splits
     }
 };
 
+/**
+ * Matcher for a sequence of "slice" operations whose outputs are put back
+ * together by a "concat".
+ */
 struct find_split_concat
 {
     auto matcher() const
@@ -1139,40 +1152,56 @@ struct find_split_concat
 
     void apply(module& m, const match::matcher_result& r) const
     {
+        // Verifies that the slices meet several conditions: they must all output to the same
+        // concat instruction, slice on the same (1 only) axis, and the end of one slice
+        // must match the start of the next.
         auto ins = r.result;
 
         auto splits = get_splits(ins);
         if(splits.empty())
             return;
+        // Each slice must output to only one instruction
         if(std::any_of(
                splits.begin(), splits.end(), [](auto i) { return i->outputs().size() != 1; }))
             return;
-        // Check for concat operator
+        // The single output instruction for all items in the list must be the same one
         auto concat = splits.front()->outputs().front();
         if(std::any_of(splits.begin(), splits.end(), [&](auto i) {
                return i->outputs().front() != concat;
            }))
             return;
-        // Check axis match
+
+        // The axis for the common output instruction must be the same as for the split ops
         auto concat_op = any_cast<op::concat>(concat->get_operator());
         auto split_op  = any_cast<op::slice>(splits.front()->get_operator());
         if(split_op.axes.size() != 1)
             return;
         if(split_op.axes.front() != concat_op.axis)
             return;
-        // Replace args
+
+        // Find where the slices are in the concat instruction's inputs (concat can have
+        // any number of inputs)
         auto args = concat->inputs();
         auto it =
             std::find_if(args.begin(), args.end(), [&](auto i) { return i == splits.front(); });
+        // Verify the slices were found, and the list is long enough
         if(std::distance(it, args.end()) < splits.size())
             return;
-        // If the slices are not in order then stop
+        // Don't do anything if the "slice" inputs to the concat op have other operations mixed in
+        // among them
+        if(std::any_of(it, it + splits.size(), [](instruction_ref x) {
+               return x->get_operator().name() != "slice";
+           }))
+            return;
+        // Check that the slices passed to concat are in order.
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());
                return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);
            }))
             return;
+
+        // Perform the substitution
         *it = splits.front()->inputs().front();
         args.erase(std::next(it), it + splits.size());
 

@@ -26,5 +26,5 @@
 
 TEST_CASE(spacetodepth_nondivisibility_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("spacetodepth_nondivisibility_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("spacetodepth_nondivisibility_test.onnx"); }));
 }

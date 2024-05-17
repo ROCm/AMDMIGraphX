@@ -28,7 +28,7 @@
 
 TEST_CASE(matmulinteger_uns_test)
 {
-    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_test.onnx");
+    migraphx::program p = read_onnx("matmulinteger_uns_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};

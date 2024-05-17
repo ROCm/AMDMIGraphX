@@ -240,7 +240,7 @@ void dimension::simplify()
     if(subdimensions.size() < 2)
         return;
     // Remove dimensions of 1
-    subdimensions.erase(std::remove_if(std::next(subdimensions.begin()),
+    subdimensions.erase(std::remove_if(subdimensions.begin(),
                                        subdimensions.end(),
                                        [&](const sub& d) { return d.len == 1; }),
                         subdimensions.end());
@@ -450,6 +450,7 @@ void shape_transform_descriptor::simplify()
             }
         }
     }
+    debug_print(dimensions);
 }
 
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)

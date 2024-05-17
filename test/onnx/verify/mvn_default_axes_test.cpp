@@ -29,7 +29,7 @@
 
 TEST_CASE(mvn_default_axes_test)
 {
-    auto result = mvn_test({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_test.onnx"));
+    auto result = mvn_test({2, 2, 2, 2}, read_onnx("mvn_default_axes_test.onnx"));
     std::vector<float> gold{-1.32424438,
                             -1.08347268,
                             -0.84270097,

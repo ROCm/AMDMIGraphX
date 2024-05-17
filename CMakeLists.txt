@@ -169,6 +169,9 @@ rocm_enable_clang_tidy(
         -cert-dcl51-cpp
         -cert-err33-c
         -cert-str34-c
+        # We seed random numbers with constants for reproducibility
+        -cert-msc32-c
+        -cert-msc51-cpp
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
         # Enable some alpha checks

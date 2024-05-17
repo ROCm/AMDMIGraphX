@@ -32,7 +32,7 @@ auto reducesum_variable_axes_test_base(const std::string& file, size_t axes_size
 
     migraphx::onnx_options options;
     options.map_input_dims["axes"] = std::vector<size_t>{axes_size};
-    migraphx::program p            = migraphx::parse_onnx(file, options);
+    migraphx::program p            = read_onnx(file, options);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map pm;

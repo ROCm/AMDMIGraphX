@@ -40,7 +40,7 @@ TEST_CASE(equal_test)
         eq);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("equal_test.onnx");
+    auto prog = read_onnx("equal_test.onnx");
 
     EXPECT(p == prog);
 }

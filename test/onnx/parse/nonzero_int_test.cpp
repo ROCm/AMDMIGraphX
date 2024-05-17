@@ -37,6 +37,6 @@ TEST_CASE(nonzero_int_test)
     auto r                       = mm->add_literal(migraphx::literal(si, indices));
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("nonzero_int_test.onnx");
+    auto prog = read_onnx("nonzero_int_test.onnx");
     EXPECT(p == prog);
 }

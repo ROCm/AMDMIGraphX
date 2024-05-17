@@ -43,7 +43,7 @@ TEST_CASE(slice_5arg_step_test)
         migraphx::make_op("step", {{"axes", {-1, -2}}, {"steps", {2, 2}}}), reverse_out);
     mm->add_return({step_out});
 
-    auto prog = migraphx::parse_onnx("slice_5arg_step_test.onnx");
+    auto prog = read_onnx("slice_5arg_step_test.onnx");
 
     EXPECT(p == prog);
 }

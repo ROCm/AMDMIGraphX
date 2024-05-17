@@ -39,6 +39,6 @@ TEST_CASE(slice_var_input_default_steps)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
-    auto prog                     = parse_onnx("slice_var_input_default_steps.onnx", options);
+    auto prog                     = read_onnx("slice_var_input_default_steps.onnx", options);
     EXPECT(p == prog);
 }

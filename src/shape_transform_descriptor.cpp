@@ -450,7 +450,6 @@ void shape_transform_descriptor::simplify()
             }
         }
     }
-    debug_print(dimensions);
 }
 
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)

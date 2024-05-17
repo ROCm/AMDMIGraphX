@@ -35,7 +35,7 @@ TEST_CASE(softmax_dyn_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = migraphx::parse_onnx("softmax_dyn_test.onnx", options);
+    auto prog                     = read_onnx("softmax_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

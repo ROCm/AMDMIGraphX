@@ -26,5 +26,5 @@
 
 TEST_CASE(transpose_invalid_perm_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("transpose_invalid_perm_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("transpose_invalid_perm_test.onnx"); }));
 }

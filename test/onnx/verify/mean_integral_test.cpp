@@ -28,7 +28,7 @@
 
 TEST_CASE(mean_integral_test)
 {
-    migraphx::program p = migraphx::parse_onnx("mean_integral_test.onnx");
+    migraphx::program p = read_onnx("mean_integral_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::int32_type, {2, 2, 2}};

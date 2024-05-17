@@ -28,7 +28,7 @@
 
 TEST_CASE(clip_args_type_mismatch)
 {
-    auto p = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
+    auto p = read_onnx("clip_test_args_type_mismatch.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape s_0{migraphx::shape::float_type, {3, 3}};
     migraphx::parameter_map pp;

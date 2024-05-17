@@ -42,7 +42,7 @@ TEST_CASE(where_test)
     auto r = mm->add_instruction(migraphx::make_op("where"), lccm, lxm, lym);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("where_test.onnx");
+    auto prog = read_onnx("where_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -26,5 +26,5 @@
 
 TEST_CASE(randomnormal_shape_error_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("randomnormal_shape_error_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("randomnormal_shape_error_test.onnx"); }));
 }

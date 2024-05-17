@@ -244,6 +244,21 @@ struct find_nested_slice
     }
 };
 
+/**
+ *  Example case
+ *  From:
+ *  param0: lens = [3, 4], strides = [4, 1]
+ *  param1: lens = [3, 4], strides = [4, 1]
+ *  mb0: multibroadcast(param0, output_lens = [2, 3, 4])
+ *  mb1: multibroadcast(param1, output_lens = [2, 3, 4])
+ *  concat(mb0, mb1, axis = 2)
+ *
+ *  To:
+ *  param0: lens = [3, 4], strides = [4, 1]
+ *  param1: lens = [3, 4], strides = [4, 1]
+ *  con0: concat(param0, param1, axis = 1)
+ *  multibroadcast(con0, lens = [2, 3, 4])
+ */
 struct find_concat_multibroadcasts
 {
     auto matcher() const
@@ -253,32 +268,60 @@ struct find_concat_multibroadcasts
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins        = mr.result;
-        auto op         = any_cast<op::concat>(ins->get_operator());
-        auto out_lens   = ins->get_shape().lens();
-        auto inputs     = ins->inputs();
-        auto in_strides = inputs.front()->get_shape().strides();
+        auto concat_ins       = mr.result;
+        auto concat_op        = any_cast<op::concat>(concat_ins->get_operator());
+        auto concat_out_lens  = concat_ins->get_shape().lens();
+        auto concat_inputs    = concat_ins->inputs();
+        auto front_mb_strides = concat_inputs.front()->get_shape().strides();
 
         // Only apply when concat axis is not a broadcasted dimension
-        if(std::any_of(inputs.begin(), inputs.end(), [&](auto i) {
-               return i->get_shape().strides()[op.axis] == 0;
+        if(std::any_of(concat_inputs.begin(), concat_inputs.end(), [&](auto i) {
+               return i->get_shape().strides()[concat_op.axis] == 0;
            }))
         {
             return;
         }
 
-        // Use inputs of multibroadcast ops as inputs to new concat op
-        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [](auto i) {
+        // Get the inputs of multibroadcast ops, will be used as inputs to new concat op
+        std::vector<instruction_ref> mb_inputs(concat_inputs.size());
+        std::transform(concat_inputs.begin(), concat_inputs.end(), mb_inputs.begin(), [](auto i) {
             return i->inputs().front();
         });
 
-        // Reduce axis by number of leading broadcasted dimensions
-        if(inputs.front()->get_shape().lens().size() < out_lens.size())
-            op.axis -= std::count(in_strides.begin(), in_strides.begin() + op.axis, 0);
+        // Check that the inputs into the multibroadcasts have the same rank
+        const auto& first_shape = mb_inputs.front()->get_shape();
+        if(not std::all_of(mb_inputs.begin() + 1, mb_inputs.end(), [&](auto mb_in) {
+               return mb_in->get_shape().ndim() == first_shape.ndim();
+           }))
+        {
+            return;
+        }
 
-        auto concat = m.insert_instruction(ins, op, inputs);
-        m.replace_instruction(
-            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), concat);
+        // Reduce axis by number of leading broadcasted dimensions
+        if(mb_inputs.front()->get_shape().lens().size() < concat_out_lens.size())
+            concat_op.axis -=
+                std::count(front_mb_strides.begin(), front_mb_strides.begin() + concat_op.axis, 0);
+
+        // Inputs to multibroadcasts should have the same dimensions except for the axis to
+        // concatenate over
+        const auto& front_in_lens = mb_inputs.front()->get_shape().lens();
+        for(std::size_t ax = 0; ax < front_in_lens.size(); ++ax)
+        {
+            if(ax != concat_op.axis)
+            {
+                if(not std::all_of(mb_inputs.begin(), mb_inputs.end(), [&](auto input_to_mb) {
+                       return input_to_mb->get_shape().lens()[ax] == front_in_lens[ax];
+                   }))
+                {
+                    return;
+                }
+            }
+        }
+
+        auto new_concat_ins = m.insert_instruction(concat_ins, concat_op, mb_inputs);
+        m.replace_instruction(concat_ins,
+                              migraphx::make_op("multibroadcast", {{"out_lens", concat_out_lens}}),
+                              new_concat_ins);
     }
 };
 

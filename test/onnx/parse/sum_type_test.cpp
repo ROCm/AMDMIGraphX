@@ -69,7 +69,7 @@ TEST_CASE(sum_type_test)
     auto s6 = mm->add_instruction(migraphx::make_op("add"), s5, l_raw);
     mm->add_return({s6});
 
-    auto prog = migraphx::parse_onnx("sum_type_test.onnx");
+    auto prog = read_onnx("sum_type_test.onnx");
 
     EXPECT(p == prog);
 }

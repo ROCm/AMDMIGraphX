@@ -26,5 +26,5 @@
 
 TEST_CASE(slice_var_input_steps_error)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_var_input_steps_error.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("slice_var_input_steps_error.onnx"); }));
 }

@@ -30,5 +30,5 @@ TEST_CASE(slice_reverse_dyn_test)
     // parsing. At the time of writing, Reverse doesn't support dynamic shape input.
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("slice_reverse_dyn_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("slice_reverse_dyn_test.onnx", options); }));
 }

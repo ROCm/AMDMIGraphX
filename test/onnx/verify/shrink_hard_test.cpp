@@ -28,7 +28,7 @@
 
 TEST_CASE(shrink_hard_test)
 {
-    migraphx::program p = migraphx::parse_onnx("shrink_hard_test.onnx");
+    migraphx::program p = read_onnx("shrink_hard_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::float_type, {5}};

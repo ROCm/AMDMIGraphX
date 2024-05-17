@@ -33,7 +33,7 @@ TEST_CASE(undefined_test)
     auto l2 = mm->add_instruction(migraphx::make_op("identity"), l1);
     mm->add_return({l2});
 
-    auto prog = migraphx::parse_onnx("undefined_test.onnx");
+    auto prog = read_onnx("undefined_test.onnx");
 
     EXPECT(p == prog);
 }

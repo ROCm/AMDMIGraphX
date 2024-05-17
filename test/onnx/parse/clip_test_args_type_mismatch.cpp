@@ -42,6 +42,6 @@ TEST_CASE(clip_test_args_type_mismatch)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), max_val);
     auto r = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx("clip_test_args_type_mismatch.onnx");
+    auto prog = read_onnx("clip_test_args_type_mismatch.onnx");
     EXPECT(p == prog);
 }

@@ -74,14 +74,16 @@ struct rewrite_reshapes
         {
             auto reshape =
                 match::name("reshape", "squeeze", "unsqueeze", "flatten")(match::used_once());
-            auto skip_contiguous_broadcast = match::skip(
-                    match::name("contiguous", "multibroadcast")(match::used_once()));
+            auto skip_contiguous_broadcast =
+                match::skip(match::name("contiguous", "multibroadcast")(match::used_once()));
             auto skip_contiguous_broadcast_arg = [&](auto... ms) {
                 return match::arg(0)(skip_contiguous_broadcast(ms...));
             };
             auto pointwise         = match::name(op1)(match::used_once());
-            auto reshape_pointwise = reshape(skip_contiguous_broadcast_arg(pointwise.bind("x"))).bind("reshape");
-            return match::name(op2)(match::any_of[match::inputs()](skip_contiguous_broadcast(reshape_pointwise).bind("input")));
+            auto reshape_pointwise =
+                reshape(skip_contiguous_broadcast_arg(pointwise.bind("x"))).bind("reshape");
+            return match::name(op2)(match::any_of[match::inputs()](
+                skip_contiguous_broadcast(reshape_pointwise).bind("input")));
         }
 
         template <class F>
@@ -110,10 +112,10 @@ struct rewrite_reshapes
 
         static std::optional<bool> is_broadcasted(instruction_ref start, instruction_ref last)
         {
-            auto broadcast_ins = find_input_if(
-                start, last, [&](auto i) { return i->name() == "multibroadcast"; });
+            auto broadcast_ins =
+                find_input_if(start, last, [&](auto i) { return i->name() == "multibroadcast"; });
             bool result = broadcast_ins != last;
-            if (result and not match_input(broadcast_ins, last))
+            if(result and not match_input(broadcast_ins, last))
                 return nullopt;
             return result;
         }
@@ -123,17 +125,18 @@ struct rewrite_reshapes
             auto ins         = r.result;
             auto x_ins       = r.instructions["x"];
             auto reshape_ins = r.instructions["reshape"];
-            auto input_ins       = r.instructions["input"];
+            auto input_ins   = r.instructions["input"];
 
             const auto has_broadcast_before_reshape = is_broadcasted(reshape_ins, x_ins);
-            const auto has_broadcast_after_reshape = is_broadcasted(input_ins, reshape_ins);
+            const auto has_broadcast_after_reshape  = is_broadcasted(input_ins, reshape_ins);
             if(not has_broadcast_before_reshape.has_value())
                 return;
             if(not has_broadcast_after_reshape.has_value())
                 return;
-            if (*has_broadcast_after_reshape and *has_broadcast_before_reshape)
+            if(*has_broadcast_after_reshape and *has_broadcast_before_reshape)
                 return;
-            const bool has_broadcast = *has_broadcast_after_reshape or *has_broadcast_before_reshape;
+            const bool has_broadcast =
+                *has_broadcast_after_reshape or *has_broadcast_before_reshape;
 
             auto dims1 = T::base_dims(ins);
             auto dims2 = T::base_dims(x_ins);

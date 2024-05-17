@@ -54,12 +54,9 @@ __device__ void scatter(const T& indices_t, const U& updates_t, const V& output_
         out_idx[Axis] = index;
         if constexpr(SkipOutOfBounds)
         {
-            if(equal(
-                out_idx[0],
-                out_idx[out_idx.size()],
-                output_shape.lens[0],
-                [](auto x, auto y){ return x < y; }
-            ))
+            if(equal(out_idx[0], out_idx[out_idx.size()], output_shape.lens[0], [](auto x, auto y) {
+                   return x < y;
+               }))
             {
                 return;
             }

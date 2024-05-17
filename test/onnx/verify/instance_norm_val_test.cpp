@@ -29,7 +29,7 @@
 
 TEST_CASE(instance_norm_test)
 {
-    migraphx::program p = migraphx::parse_onnx("instance_norm_val_test.onnx");
+    migraphx::program p = read_onnx("instance_norm_val_test.onnx");
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

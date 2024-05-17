@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::string param_name(std::size_t i, const std::string& prefix = "x");
+MIGRAPHX_EXPORT std::string param_name(std::size_t i, const std::string& prefix = "x");
 
 void sort_params(std::vector<instruction_ref>& params);
 

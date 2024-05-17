@@ -26,5 +26,5 @@
 
 TEST_CASE(eyelike_not_rank2_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("eyelike_not_rank2_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("eyelike_not_rank2_test.onnx"); }));
 }

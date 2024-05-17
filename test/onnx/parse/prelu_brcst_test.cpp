@@ -35,7 +35,7 @@ TEST_CASE(prelu_brcst_test)
     auto ret = mm->add_instruction(migraphx::make_op("prelu"), l0, bl1);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("prelu_brcst_test.onnx");
+    auto prog = read_onnx("prelu_brcst_test.onnx");
 
     EXPECT(p == prog);
 }

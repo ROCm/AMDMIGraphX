@@ -35,14 +35,49 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
-
+#include <migraphx/tmp_dir.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/stringutils.hpp>
+#include <onnx_files.hpp>
 #include <test.hpp>
+
+inline static std::string
+read_weight_files(const std::unordered_map<std::string_view, std::string_view>& onnx_files)
+{
+    static migraphx::tmp_dir td{"weights"};
+    for(const auto& i : onnx_files)
+    {
+        if(not migraphx::ends_with(std::string{i.first}, "weight"))
+            continue;
+        migraphx::fs::path full_path   = td.path / i.first;
+        migraphx::fs::path parent_path = full_path.parent_path();
+        migraphx::fs::create_directories(parent_path);
+        migraphx::write_buffer(full_path, i.second.data(), i.second.size());
+    }
+    return td.path.string();
+}
+
+inline migraphx::program read_onnx(const std::string& name,
+                                   migraphx::onnx_options options = migraphx::onnx_options{})
+{
+    static auto onnx_files{::onnx_files()};
+    static std::string external_data_path = read_weight_files(onnx_files);
+    options.external_data_path            = external_data_path;
+    if(onnx_files.find(name) == onnx_files.end())
+    {
+        std::cerr << "ONNX model file: " << name << " not found, aborting the test." << std::endl;
+        std::abort();
+    }
+    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
+    return prog;
+}
 
 inline migraphx::program optimize_onnx(const std::string& name, bool run_passes = false)
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;
-    auto prog                      = migraphx::parse_onnx(name, options);
+    auto prog                      = read_onnx(name, options);
     auto* mm                       = prog.get_main_module();
     if(run_passes)
         migraphx::run_passes(*mm,

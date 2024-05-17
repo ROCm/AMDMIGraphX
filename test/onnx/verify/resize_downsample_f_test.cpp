@@ -28,7 +28,7 @@
 
 TEST_CASE(resize_downsample_f_test)
 {
-    migraphx::program p = migraphx::parse_onnx("resize_downsample_f_test.onnx");
+    migraphx::program p = read_onnx("resize_downsample_f_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};

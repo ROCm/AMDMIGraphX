@@ -30,7 +30,7 @@ TEST_CASE(multinomial_dyn_test)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto p                        = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+    auto p                        = read_onnx("multinomial_dyn_test.onnx", options);
     const size_t batch_size(2);
     const size_t categories(5);
     const size_t sample_size(100000);

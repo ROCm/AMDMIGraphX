@@ -30,8 +30,7 @@
 TEST_CASE(mvn_default_axes_fp16_test)
 {
     using migraphx::half;
-    auto result =
-        mvn_test<half>({2, 2, 2, 2}, migraphx::parse_onnx("mvn_default_axes_fp16_test.onnx"));
+    auto result = mvn_test<half>({2, 2, 2, 2}, read_onnx("mvn_default_axes_fp16_test.onnx"));
     std::vector<half> gold{half{-1.324},
                            half{-1.084},
                            half{-0.843},

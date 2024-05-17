@@ -29,7 +29,7 @@
 TEST_CASE(resize_outsize_test)
 {
     // resize using output_size input, rather than scales
-    migraphx::program p = migraphx::parse_onnx("resize_outsize_test.onnx");
+    migraphx::program p = read_onnx("resize_outsize_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};

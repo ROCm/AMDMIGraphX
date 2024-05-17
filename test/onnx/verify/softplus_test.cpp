@@ -28,7 +28,7 @@
 
 TEST_CASE(softplus_test)
 {
-    migraphx::program p = migraphx::parse_onnx("softplus_test.onnx");
+    migraphx::program p = read_onnx("softplus_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::float_type, {5}};

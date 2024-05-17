@@ -28,7 +28,7 @@
 
 TEST_CASE(mod_test_fmod_different_types)
 {
-    migraphx::program p = migraphx::parse_onnx("mod_test_fmod_different_dtypes.onnx");
+    migraphx::program p = read_onnx("mod_test_fmod_different_dtypes.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s_float{migraphx::shape::float_type, {3, 3, 3}};

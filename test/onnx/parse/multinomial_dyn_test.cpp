@@ -76,6 +76,6 @@ TEST_CASE(multinomial_dyn_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value  = {1, categories};
     options.print_program_on_error = true;
-    auto prog                      = migraphx::parse_onnx("multinomial_dyn_test.onnx", options);
+    auto prog                      = read_onnx("multinomial_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

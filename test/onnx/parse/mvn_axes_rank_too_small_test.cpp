@@ -26,5 +26,5 @@
 
 TEST_CASE(mvn_axes_rank_too_small_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_axes_rank_too_small_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("mvn_axes_rank_too_small_test.onnx"); }));
 }

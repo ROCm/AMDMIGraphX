@@ -41,6 +41,6 @@ TEST_CASE(conv_dynamic_batch_same_upper)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
 
-    auto prog = migraphx::parse_onnx("conv_dynamic_batch_same_upper_test.onnx", options);
+    auto prog = read_onnx("conv_dynamic_batch_same_upper_test.onnx", options);
     EXPECT(p == prog);
 }

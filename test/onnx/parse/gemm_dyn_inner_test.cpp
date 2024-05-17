@@ -42,6 +42,6 @@ TEST_CASE(gemm_dyn_inner_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10, {8}};
-    auto prog                     = migraphx::parse_onnx("gemm_dyn_inner_test.onnx", options);
+    auto prog                     = read_onnx("gemm_dyn_inner_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -37,6 +37,11 @@ TEST_CASE(onehot_test)
         mm->add_instruction(migraphx::make_op("onehot", {{"axis", 0}}), indices, depth, values);
     mm->add_return({ret});
 
+<<<<<<< HEAD
     auto prog = migraphx::parse_onnx("onehot_test.onnx");
+=======
+    auto prog = read_onnx("onehot_test.onnx");
+
+>>>>>>> 3b3eca54477f736d16f1be99395c41f615dd1b54
     EXPECT(p == prog);
 }

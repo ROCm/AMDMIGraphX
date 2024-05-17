@@ -35,6 +35,6 @@ TEST_CASE(isinf_no_detect_test)
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::bool_type}, {false}}));
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("isinf_no_detect_test.onnx");
+    auto prog = read_onnx("isinf_no_detect_test.onnx");
     EXPECT(p == prog);
 }

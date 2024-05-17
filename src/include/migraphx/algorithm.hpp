@@ -128,6 +128,18 @@ inline size_t levenshtein_distance(const std::string& s1, const std::string& s2)
     return d[l2];
 }
 
+template <class Iterator1, class Iterator2, class BinaryPred>
+constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2,
+                     BinaryPred p)
+{
+  for (; first1 != last1; ++first1, ++first2)
+    if (not p(*first1, *first2))
+    {
+      return false;
+    }
+  return true;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

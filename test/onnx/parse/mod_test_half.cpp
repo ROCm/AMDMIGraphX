@@ -26,5 +26,5 @@
 
 TEST_CASE(mod_test_half)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("mod_test_half.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("mod_test_half.onnx"); }));
 }

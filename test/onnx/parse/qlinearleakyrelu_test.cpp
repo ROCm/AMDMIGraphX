@@ -59,7 +59,7 @@ TEST_CASE(qlinearleakyrelu_test)
 
     mm->add_return({y});
 
-    auto prog = migraphx::parse_onnx("qlinearleakyrelu_test.onnx");
+    auto prog = read_onnx("qlinearleakyrelu_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

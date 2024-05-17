@@ -343,8 +343,8 @@ if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
 endif()
 
-rocm_package_add_deb_dependencies(DEPENDS "hip-dev")
-rocm_package_add_rpm_dependencies(DEPENDS "hip-devel")
+rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX

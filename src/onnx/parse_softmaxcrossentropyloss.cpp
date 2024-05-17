@@ -248,7 +248,8 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         // Offload calculation of log(Softmax(scores)) for the input before we perform cross entropy
         // loss calculation
-        auto softmax_scores = info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
+        auto softmax_scores =
+            info.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), scores);
         auto log_sm_scores  = info.add_instruction(migraphx::make_op("log"), softmax_scores);
         auto neg_lsm_scores = info.add_instruction(migraphx::make_op("neg"), log_sm_scores);
 

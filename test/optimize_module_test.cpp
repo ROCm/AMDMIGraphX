@@ -84,7 +84,8 @@ TEST_CASE(broadcast_transpose_inner_broadcast_generic)
     {
         auto x         = m2.add_parameter("x", {migraphx::shape::float_type, {5, 10}});
         auto y         = m2.add_parameter("y", {migraphx::shape::float_type, {5}});
-        auto yb = m2.add_instruction(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 10}}}), y);
+        auto yb        = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {5, 10}}}), y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), x, yb);
         auto mb2 = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {3, 5, 10}}}), mul);

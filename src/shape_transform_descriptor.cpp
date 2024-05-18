@@ -265,6 +265,10 @@ void dimension::simplify()
                         subdimensions.end());
 }
 
+
+// Search all subdimensions and return the subdimensions vector, an iterator
+// to the subdimension found and an optional iterator to the previous
+// subdimension if available.
 template <class Predicate>
 static auto find_subdimension(shape_transform_descriptor& td, Predicate p)
 {
@@ -319,6 +323,8 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         d.subdimensions.front().hidden_axis = axis;
 }
 
+// Group all axes into a map with a key of the axis and the value is vector of
+// all subdimensions that have that axis.
 static std::map<std::size_t, std::vector<dimension::sub*>>
 group_axes(std::vector<dimension>& dimensions)
 {
@@ -335,7 +341,8 @@ group_axes(std::vector<dimension>& dimensions)
     return axes_map;
 }
 
-static void renumber_subaxes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+// Renumber all axes while preserving the order of the axes
+static void renumber_axes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
 {
     for(auto&& p : axes_map)
     {
@@ -355,10 +362,10 @@ static void renumber_subaxes(std::map<std::size_t, std::vector<dimension::sub*>>
         }
     }
 }
-static void renumber_subaxes(std::vector<dimension>& dimensions)
+static void renumber_axes(std::vector<dimension>& dimensions)
 {
     auto axes_map = group_axes(dimensions);
-    renumber_subaxes(axes_map);
+    renumber_axes(axes_map);
 }
 
 void shape_transform_descriptor::simplify()
@@ -374,12 +381,13 @@ void shape_transform_descriptor::simplify()
         if(axes_map.empty())
             return;
 
-        renumber_subaxes(axes_map);
+        renumber_axes(axes_map);
 
         // Find last axis
         last_axis = std::prev(axes_map.end())->second.back()->axis;
 
-        // Find missing axes
+        // Find missing axes. This will store a mapping between the missing
+        // axis and the next available axis.
         for(auto axis : range(rank))
         {
             if(contains(axes_map, axis))
@@ -389,7 +397,8 @@ void shape_transform_descriptor::simplify()
         }
     }
 
-    // Find broadcasted dimensions
+    // Find broadcasted dimensions. This will store a map from the next axis
+    // to the previous axes being broadcasted.
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
     group_find(
         dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {
@@ -405,12 +414,17 @@ void shape_transform_descriptor::simplify()
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
             broadcast_dims_map[axis] = dims;
         });
-    // Reinsert removed axes of 1
+    
+    // Reinsert removed axis of 1. This tries to insert the missing axis next
+    // to an adjacent axis or used as one of the broadcasted axes in order to
+    // minimize transposition.
     for(auto&& p : missing_axes)
     {
         auto missing_axis = p.first;
         auto next_axis    = p.second;
-        auto missing_sub  = dimension::sub{1, {missing_axis}};
+        auto missing_sub  = dimension::sub{1, {missing_axis}};        
+        // If next_axis is the rank that means there isnt another axis to
+        // search for, so instead try to insert the axis at the end.
         if(next_axis == rank)
         {
             auto [sub, it, prev] = find_subdimension(
@@ -436,7 +450,9 @@ void shape_transform_descriptor::simplify()
             }
         }
         else
-        {
+        {            
+            // Search for the subdimension that has the next axis and try to
+            // insert the axis before it will be in order.
             auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {
                 if(s.axis.empty())
                     return false;
@@ -491,7 +507,7 @@ void shape_transform_descriptor::simplify()
         d1.subdimensions.pop_back();
     });
 
-    renumber_subaxes(dimensions);
+    renumber_axes(dimensions);
 }
 
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)
@@ -583,9 +599,11 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
             [&](auto start, auto last) {
                 if(use_reshape)
                     return;
+                // Number of elements
                 auto n = std::distance(start, last);
                 if(n < 2)
                     return;
+                // Number of elements that are 1
                 auto n1 =
                     std::count_if(start, last, [](const dimension::sub& s) { return s.len == 1; });
                 use_reshape |= std::max<int64_t>(0, n - n1 - 1) > 0;

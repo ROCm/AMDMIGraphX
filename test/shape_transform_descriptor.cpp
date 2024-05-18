@@ -338,22 +338,16 @@ TEST_CASE(optimize_squeeze_unsqueeze_broadcast)
                      });
 }
 
-// @2 = unsqueeze[axes={0},steps={}](@0) -> float_type, {1, 3, 3, 3, 1}, {27, 9, 3, 1, 1}
-// @3 = transpose[permutation={4, 3, 0, 1, 2}](@2) -> float_type, {1, 3, 1, 3, 3}, {1, 1, 27, 9, 3}
-// @4 = squeeze[axes={0}](@3) -> float_type, {3, 1, 3, 3}, {1, 27, 9, 3}
-
 TEST_CASE(optimize_tranpose_reshape)
 {
     EXPECT(
         migraphx::optimize_shape_transforms(
-            {3, 3, 3, 1},                                              // {3, 3, 3, 1}, {9, 3, 1, 1}
+            {3, 3, 3, 1},
             {
-                make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), // {1, 3, 3, 3}, {1, 1, 9, 3}
-                make_op("reshape", {{"dims", {3, 1, 3, 3}}}),          // {3, 1, 3, 3}, {9, 9, 3, 1}
+                make_op("transpose", {{"permutation", {3, 2, 0, 1}}}),
+                make_op("reshape", {{"dims", {3, 1, 3, 3}}}),         
             }) == ops{
                       make_op("transpose", {{"permutation", {2, 3, 0, 1}}}),
-                      // make_op("transpose", {{"permutation", {3, 2, 0, 1}}}),
-                      // make_op("reshape", {{"dims", {3, 1, 3, 3}}}),
                   });
 }
 

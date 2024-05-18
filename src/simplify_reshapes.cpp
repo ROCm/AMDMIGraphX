@@ -282,7 +282,7 @@ struct find_concat_multibroadcasts
             return;
         }
 
-        // Get the inputs of multibroadcast ops, will be used as inputs to new concat op
+        // Get the inputs of multibroadcast ops. Will be used as inputs to new concat op
         std::vector<instruction_ref> mb_inputs(concat_inputs.size());
         std::transform(concat_inputs.begin(), concat_inputs.end(), mb_inputs.begin(), [](auto i) {
             return i->inputs().front();
@@ -307,15 +307,9 @@ struct find_concat_multibroadcasts
         const auto& front_in_lens = mb_inputs.front()->get_shape().lens();
         for(std::size_t ax = 0; ax < front_in_lens.size(); ++ax)
         {
-            if(ax != concat_op.axis)
-            {
-                if(not std::all_of(mb_inputs.begin(), mb_inputs.end(), [&](auto input_to_mb) {
-                       return input_to_mb->get_shape().lens()[ax] == front_in_lens[ax];
-                   }))
-                {
-                    return;
-                }
-            }
+			const auto& lens = input_to_mb->get_shape().lens();
+			return std::equal(lens.begin(), lens.begin() + concat_op.axis, front_in_lens.begin()) and 
+				   std::equal(lens.begin() + concat_op.axis + 1, lens.end(), front_in_lens.begin() + concat_op.axis + 1);
         }
 
         auto new_concat_ins = m.insert_instruction(concat_ins, concat_op, mb_inputs);

@@ -29,13 +29,13 @@
 #include <test.hpp>
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(name, type)        \
-    template <class Container>                         \
-    void name();                                       \
-    TEST_CASE_REGISTER(name<std::vector<type>>);       \
-    TEST_CASE_REGISTER(name<std::list<type>>);         \
-    TEST_CASE_REGISTER(name<std::forward_list<type>>); \
-    template <class Container>                         \
+#define MIGRAPHX_FORWARD_CONTAINER_TEST_CASE(name, type) \
+    template <class Container>                           \
+    void name();                                         \
+    TEST_CASE_REGISTER(name<std::vector<type>>);         \
+    TEST_CASE_REGISTER(name<std::list<type>>);           \
+    TEST_CASE_REGISTER(name<std::forward_list<type>>);   \
+    template <class Container>                           \
     void name()
 
 template <class Container, class Iterator>

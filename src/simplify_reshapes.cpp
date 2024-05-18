@@ -144,28 +144,6 @@ struct find_nested_shape_transforms
     }
 };
 
-struct find_reshaper
-{
-    auto matcher() const
-    {
-        auto reshaper          = match::name(reshaper_names());
-        auto contiguous        = match::name("contiguous");
-        auto no_output_reshape = match::none_of[match::outputs()](reshaper);
-        auto input_reshape     = match::arg(0)(match::skip(contiguous)(reshaper));
-        auto input             = match::skip(reshaper, contiguous)(match::any().bind("x"));
-        return reshaper(no_output_reshape, input_reshape, input);
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins   = mr.result;
-        auto input = mr.instructions["x"];
-        auto dims  = ins->get_shape().lens();
-
-        m.replace_instruction(ins, make_op("reshape", {{"dims", dims}}), input);
-    }
-};
-
 struct find_nop_reshapes
 {
     auto matcher() const
@@ -192,44 +170,6 @@ struct find_nop_reshapes
     {
         auto ins = mr.result;
         m.replace_instruction(ins, ins->inputs().front());
-    }
-};
-
-struct find_transpose
-{
-    auto matcher() const
-    {
-        auto output_not_transpose =
-            match::none_of(match::skip_output(match::name("contiguous"))(match::name("transpose")));
-        auto input_has_transpose =
-            match::args(match::skip(match::name("contiguous"))(match::name("transpose")));
-        return match::name("transpose")(output_not_transpose, input_has_transpose);
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins = mr.result;
-        auto x   = ins;
-        auto t   = ins;
-        std::vector<std::int64_t> dims(ins->get_shape().lens().size());
-        std::iota(dims.begin(), dims.end(), 0);
-        do
-        {
-            dims = reorder_dims(get_transpose_dims(t), dims);
-            x    = t;
-            t    = find_transpose_input(x);
-        } while(x != t and t->name() == "transpose");
-        if(t == ins or t->name() != "transpose")
-            return;
-        if(is_no_transpose(dims))
-        {
-            m.replace_instruction(ins, t->inputs().front());
-        }
-        else
-        {
-            m.replace_instruction(
-                ins, make_op("transpose", {{"permutation", dims}}), t->inputs().front());
-        }
     }
 };
 
@@ -807,46 +747,6 @@ struct find_unary_shape_transforms
     }
 };
 
-// simplifies broadcast->transpose to transpose->broadcast
-// in the case of a scalar, simply rewrite to broadcast
-// this can allow for further optimizations with find_inner_broadcast() in simplify_algebra.cpp
-struct find_broadcast_transpose
-{
-    auto matcher() const
-    {
-        return match::name("transpose")(
-            match::arg(0)(match::name("multibroadcast").bind("bcast_ins")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto transpose      = r.result;
-        auto transpose_lens = transpose->get_shape().lens();
-        auto bcast_ins      = r.instructions["bcast_ins"];
-        auto input          = bcast_ins->inputs().front();
-        // scalar transformation does not need extra transpose
-        if(not input->get_shape().scalar())
-        {
-            // find common shape
-            auto in_lens  = input->get_shape().lens();
-            int lens_diff = transpose_lens.size() - in_lens.size();
-            // insert unsqueeze if input lens < transpose lens
-            if(lens_diff > 0)
-            {
-                std::vector<size_t> unsqueeze_axes(lens_diff);
-                std::iota(unsqueeze_axes.begin(), unsqueeze_axes.end(), 0);
-                input = m.insert_instruction(
-                    bcast_ins, make_op("unsqueeze", {{"axes", unsqueeze_axes}}), input);
-            }
-            // apply transpose before the multibroadcast
-            input = m.insert_instruction(bcast_ins, transpose->get_operator(), input);
-        }
-        auto new_mbcast = m.insert_instruction(
-            bcast_ins, make_op("multibroadcast", {{"out_lens", transpose_lens}}), input);
-        m.replace_instruction(transpose, new_mbcast);
-    }
-};
-
 struct find_slice_transpose
 {
     auto matcher() const
@@ -1002,27 +902,6 @@ struct find_transpose_slice
     }
 };
 
-// replace scalar (multibroadcast ->unsqueeze, etc.) with just an updated (multibroadcast)
-struct find_scalar_multibroadcast_reshape_or_transpose
-{
-    auto matcher() const
-    {
-        auto contiguous = match::name("contiguous");
-        auto scalar_mbr = match::name("multibroadcast")(match::scalar_shape());
-        auto reshapes   = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
-        return reshapes(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("multibroadcast"))));
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto mbr      = mr.instructions["multibroadcast"];
-        auto ins      = mr.result; // (un)squeeze/flatten/reshape/transpose
-        auto out_lens = ins->get_shape().lens();
-        m.replace_instruction(
-            ins, migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), mbr->inputs()[0]);
-    }
-};
-
 struct find_reshape_reshape_dot
 {
     auto matcher() const
@@ -1082,19 +961,15 @@ void simplify_reshapes::apply(module& m) const
                             find_nop_reshapes{},
                             find_reshape_cont{},
                             find_nested_shape_transforms{},
-                            // find_reshaper{},
-                            // find_transpose{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_multibroadcasts{},
                             find_nested_slice{},
                             find_nested_concat{},
                             find_transpose_slice{},
-                            // find_broadcast_transpose{},
                             find_slice_transpose{},
                             find_unary_shape_transforms{},
                             find_reshape_reshape_dot{});
-        // find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }
 }

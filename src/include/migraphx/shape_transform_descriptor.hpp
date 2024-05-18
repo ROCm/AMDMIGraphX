@@ -90,6 +90,12 @@ struct shape_transform_descriptor
         {
             std::size_t len;
             std::vector<std::size_t> axis = {};
+            // The hidden axis is used for broadcasted dimensions. The
+            // original axis has a length of 1, but this subdimension has a
+            // length greater then 1, so it cant be directly associated with
+            // the axis. However, it still needs to accounted for. After we
+            // generate the broadcast we will set the axis to the hidden
+            // axis, and then length to 1.
             optional<std::size_t> hidden_axis = nullopt;
         };
         std::vector<sub> subdimensions;

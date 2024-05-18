@@ -128,6 +128,21 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     return first;
 }
 
+template<class Iterator, class F>
+Iterator adjacent_for_each(Iterator first, Iterator last, F f)
+{
+    if (first == last)
+        return last;
+ 
+    Iterator next = first;
+    ++next;
+ 
+    for (; next != last; ++next, ++first)
+        f(*first, *next);
+ 
+    return last;
+}
+
 template <class Iterator1, class Iterator2>
 std::ptrdiff_t
 levenshtein_distance(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2)

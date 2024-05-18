@@ -319,6 +319,47 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         d.subdimensions.front().hidden_axis = axis;
 }
 
+static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(std::vector<dimension>& dimensions)
+{
+    std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
+    for(auto& d : dimensions)
+    {
+        for(auto& s : d.subdimensions)
+        {
+            if(s.axis.empty())
+                continue;
+            axes_map[s.axis.front()].push_back(&s);
+        }
+    }
+    return axes_map;
+}
+
+static void renumber_subaxes(std::map<std::size_t, std::vector<dimension::sub*>>& axes_map)
+{
+    for(auto&& p : axes_map)
+    {
+        const auto& axis = p.first;
+        auto& subs       = p.second;
+        if(subs.size() == 1)
+        {
+            subs[0]->axis = {axis};
+        }
+        else
+        {
+            std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
+                          return s->axis;
+                      }));
+            for(std::size_t i : range(subs.size()))
+                subs[i]->axis = {axis, i};
+        }
+    }
+}
+static void renumber_subaxes(std::vector<dimension>& dimensions)
+{
+    auto axes_map = group_axes(dimensions);
+    renumber_subaxes(axes_map);
+}
+
 void shape_transform_descriptor::simplify()
 {
     for(auto& d : dimensions)
@@ -327,38 +368,12 @@ void shape_transform_descriptor::simplify()
     std::map<std::size_t, std::size_t> missing_axes;
     std::vector<std::size_t> last_axis;
     {
-        // Group axis
-        std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
-        for(auto& d : dimensions)
-        {
-            for(auto& s : d.subdimensions)
-            {
-                if(s.axis.empty())
-                    continue;
-                axes_map[s.axis.front()].push_back(&s);
-            }
-        }
+        // Group axes
+        auto axes_map = group_axes(dimensions);
         if(axes_map.empty())
             return;
 
-        // Renumber subaxis
-        for(auto&& p : axes_map)
-        {
-            const auto& axis = p.first;
-            auto& subs       = p.second;
-            if(subs.size() == 1)
-            {
-                subs[0]->axis = {axis};
-            }
-            else
-            {
-                std::sort(subs.begin(), subs.end(), by(std::less<>{}, [](const dimension::sub* s) {
-                              return s->axis;
-                          }));
-                for(std::size_t i : range(subs.size()))
-                    subs[i]->axis = {axis, i};
-            }
-        }
+        renumber_subaxes(axes_map);
 
         // Find last axis
         last_axis = std::prev(axes_map.end())->second.back()->axis;
@@ -389,8 +404,7 @@ void shape_transform_descriptor::simplify()
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
             broadcast_dims_map[axis] = dims;
         });
-
-    // Reinsert removed axes of 1
+    // Reinsert removed axis of 1
     for(auto&& p : missing_axes)
     {
         auto missing_axis = p.first;
@@ -450,6 +464,33 @@ void shape_transform_descriptor::simplify()
             }
         }
     }
+
+    // Find a dimension that ends with a subdimension of 1 with a single axis,
+    // and is followed by subdimension in the next dimension of 1 that has a
+    // split axis. It will remove the trailing subdimension and update the
+    // leading subdimension to use the axis from the trailing subdimension.
+    adjacent_for_each(dimensions.begin(), dimensions.end(), [&](dimension& d1, dimension& d2) {
+        if(d1.subdimensions.size() < 2)
+            return;
+        if(d2.subdimensions.empty())
+            return;
+        if(d2.len() != 1)
+            return;
+        const auto& sub1 = d1.subdimensions.back();
+        auto& sub2 = d2.subdimensions.front();
+        if(sub1.axis.size() != 1)
+            return;
+        if(sub2.axis.size() < 2)
+            return;
+        if(sub1.len != 1)
+            return;
+        if(sub2.len != 1)
+            return;
+        sub2.axis = sub1.axis;
+        d1.subdimensions.pop_back();
+    });
+
+    renumber_subaxes(dimensions);
 }
 
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)

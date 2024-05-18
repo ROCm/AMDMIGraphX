@@ -445,22 +445,20 @@ TEST_CASE(depthwiseconv_test)
 
     auto* mm = p.get_main_module();
 
-    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto x = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
     std::vector<float> weight_data(3 * 3 * 3 * 1);
     std::fill(weight_data.begin(), weight_data.end(), 1.0f);
-    auto l1 =
+    auto weights =
         mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
 
-    auto l3 =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {3, 2, 0, 1}}}), l1);
-    auto l4 = mm->add_instruction(migraphx::make_op("contiguous"), l3);
-    auto l5 = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 3, 3}}}), l4);
+    auto transpose =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), weights);
     mm->add_instruction(
         migraphx::make_op(
             "convolution",
             {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 3}}),
-        l0,
-        l5);
+        x,
+        transpose);
     auto prog = optimize_tf("depthwise_conv_test.pb", true);
 
     EXPECT(p == prog);

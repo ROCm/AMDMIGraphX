@@ -128,18 +128,18 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     return first;
 }
 
-template<class Iterator, class F>
+template <class Iterator, class F>
 Iterator adjacent_for_each(Iterator first, Iterator last, F f)
 {
-    if (first == last)
+    if(first == last)
         return last;
- 
+
     Iterator next = first;
     ++next;
- 
-    for (; next != last; ++next, ++first)
+
+    for(; next != last; ++next, ++first)
         f(*first, *next);
- 
+
     return last;
 }
 

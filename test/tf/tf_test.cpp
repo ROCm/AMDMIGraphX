@@ -451,8 +451,8 @@ TEST_CASE(depthwiseconv_test)
     auto weights =
         mm->add_literal(migraphx::shape{migraphx::shape::float_type, {3, 3, 3, 1}}, weight_data);
 
-    auto transpose =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), weights);
+    auto transpose = mm->add_instruction(
+        migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), weights);
     mm->add_instruction(
         migraphx::make_op(
             "convolution",

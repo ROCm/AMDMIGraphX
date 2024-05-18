@@ -137,7 +137,7 @@ struct find_nested_shape_transforms
             if(ops == opt_ops)
                 return;
             auto y = x;
-            for(auto op : opt_ops)
+            for(const auto& op : opt_ops)
                 y = m.insert_instruction(ins, op, y);
             m.replace_instruction(ins, y);
         }

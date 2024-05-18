@@ -138,12 +138,14 @@ bool shape_transform_descriptor::apply(const std::vector<operation>& ops)
         else if(op.name() == "multibroadcast")
         {
             dims = compute_dims(op, dims);
+            // cppcheck-suppress knownConditionTrueFalse
             if(not apply_broadcast(dims))
                 return false;
         }
         else if(op.name() == "broadcast")
         {
             dims = compute_dims(op, dims);
+            // cppcheck-suppress knownConditionTrueFalse
             if(not apply_broadcast(dims, v["axis"].to<std::size_t>()))
                 return false;
         }

@@ -340,15 +340,14 @@ TEST_CASE(optimize_squeeze_unsqueeze_broadcast)
 
 TEST_CASE(optimize_tranpose_reshape)
 {
-    EXPECT(
-        migraphx::optimize_shape_transforms(
-            {3, 3, 3, 1},
-            {
-                make_op("transpose", {{"permutation", {3, 2, 0, 1}}}),
-                make_op("reshape", {{"dims", {3, 1, 3, 3}}}),         
-            }) == ops{
-                      make_op("transpose", {{"permutation", {2, 3, 0, 1}}}),
-                  });
+    EXPECT(migraphx::optimize_shape_transforms(
+               {3, 3, 3, 1},
+               {
+                   make_op("transpose", {{"permutation", {3, 2, 0, 1}}}),
+                   make_op("reshape", {{"dims", {3, 1, 3, 3}}}),
+               }) == ops{
+                         make_op("transpose", {{"permutation", {2, 3, 0, 1}}}),
+                     });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

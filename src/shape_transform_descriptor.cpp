@@ -319,7 +319,8 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         d.subdimensions.front().hidden_axis = axis;
 }
 
-static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(std::vector<dimension>& dimensions)
+static std::map<std::size_t, std::vector<dimension::sub*>>
+group_axes(std::vector<dimension>& dimensions)
 {
     std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
     for(auto& d : dimensions)
@@ -477,7 +478,7 @@ void shape_transform_descriptor::simplify()
         if(d2.len() != 1)
             return;
         const auto& sub1 = d1.subdimensions.back();
-        auto& sub2 = d2.subdimensions.front();
+        auto& sub2       = d2.subdimensions.front();
         if(sub1.axis.size() != 1)
             return;
         if(sub2.axis.size() < 2)
@@ -645,7 +646,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        new_dims.end(),
                        std::back_inserter(out_lens),
                        [](const dimension& d) { return d.len(); });
-        auto startb = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
         auto trailb = std::find_if_not(startb, new_dims.end(), &has_axes);
         auto axis   = std::distance(new_dims.begin(), startb);
         auto extra_dims = axis + std::distance(trailb, new_dims.end());

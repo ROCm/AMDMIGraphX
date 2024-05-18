@@ -265,7 +265,6 @@ void dimension::simplify()
                         subdimensions.end());
 }
 
-
 // Search all subdimensions and return the subdimensions vector, an iterator
 // to the subdimension found and an optional iterator to the previous
 // subdimension if available.
@@ -414,7 +413,7 @@ void shape_transform_descriptor::simplify()
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
             broadcast_dims_map[axis] = dims;
         });
-    
+
     // Reinsert removed axis of 1. This tries to insert the missing axis next
     // to an adjacent axis or used as one of the broadcasted axes in order to
     // minimize transposition.
@@ -422,7 +421,7 @@ void shape_transform_descriptor::simplify()
     {
         auto missing_axis = p.first;
         auto next_axis    = p.second;
-        auto missing_sub  = dimension::sub{1, {missing_axis}};        
+        auto missing_sub  = dimension::sub{1, {missing_axis}};
         // If next_axis is the rank that means there isnt another axis to
         // search for, so instead try to insert the axis at the end.
         if(next_axis == rank)
@@ -450,7 +449,7 @@ void shape_transform_descriptor::simplify()
             }
         }
         else
-        {            
+        {
             // Search for the subdimension that has the next axis and try to
             // insert the axis before it will be in order.
             auto [sub, it, prev] = find_subdimension(*this, [&](const dimension::sub& s) {

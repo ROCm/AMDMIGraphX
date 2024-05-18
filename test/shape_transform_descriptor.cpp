@@ -349,7 +349,7 @@ TEST_CASE(optimize_squeeze_broadcast)
                      });
 }
 
-TEST_CASE(optimize_squeeze_unsqueeze_broadcast)
+TEST_CASE(optimize_squeeze_unsqueeze_broadcast_to_broadcast)
 {
     EXPECT(migraphx::optimize_shape_transforms(
                {256},
@@ -362,7 +362,7 @@ TEST_CASE(optimize_squeeze_unsqueeze_broadcast)
                      });
 }
 
-TEST_CASE(optimize_tranpose_reshape)
+TEST_CASE(optimize_transpose_reshape_to_transpose)
 {
     EXPECT(migraphx::optimize_shape_transforms(
                {3, 3, 3, 1},

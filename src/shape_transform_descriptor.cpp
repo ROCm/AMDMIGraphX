@@ -319,8 +319,7 @@ static void set_broadcast_dim(dimension& d, std::size_t axis)
         d.subdimensions.front().hidden_axis = axis;
 }
 
-static std::map<std::size_t, std::vector<dimension::sub*>>
-group_axes(std::vector<dimension>& dimensions)
+static std::map<std::size_t, std::vector<dimension::sub*>> group_axes(std::vector<dimension>& dimensions)
 {
     std::map<std::size_t, std::vector<dimension::sub*>> axes_map;
     for(auto& d : dimensions)
@@ -405,7 +404,7 @@ void shape_transform_descriptor::simplify()
             std::iota(dims.begin(), dims.end(), std::distance(dimensions.begin(), start));
             broadcast_dims_map[axis] = dims;
         });
-    // Reinsert removed axis of 1
+    // Reinsert removed axes of 1
     for(auto&& p : missing_axes)
     {
         auto missing_axis = p.first;
@@ -478,7 +477,7 @@ void shape_transform_descriptor::simplify()
         if(d2.len() != 1)
             return;
         const auto& sub1 = d1.subdimensions.back();
-        auto& sub2       = d2.subdimensions.front();
+        auto& sub2 = d2.subdimensions.front();
         if(sub1.axis.size() != 1)
             return;
         if(sub2.axis.size() < 2)
@@ -621,7 +620,7 @@ static operation make_reshape_unsqueeze(const std::vector<dimension::sub>& subs)
     }
 }
 
-static bool missing_axes(const dimension& d)
+static bool has_no_axes(const dimension& d)
 {
     return std::all_of(d.subdimensions.begin(), d.subdimensions.end(), [](const dimension::sub& s) {
         return s.axis.empty() and not s.hidden_axis.has_value();
@@ -646,12 +645,12 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        new_dims.end(),
                        std::back_inserter(out_lens),
                        [](const dimension& d) { return d.len(); });
-        auto startb = std::find_if_not(new_dims.begin(), new_dims.end(), &missing_axes);
+        auto startb = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
         auto trailb = std::find_if_not(startb, new_dims.end(), &has_axes);
         auto axis   = std::distance(new_dims.begin(), startb);
         auto extra_dims = axis + std::distance(trailb, new_dims.end());
         // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &missing_axes) and extra_dims > 0)
+        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0)
         {
             result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
             new_dims.erase(trailb, new_dims.end());

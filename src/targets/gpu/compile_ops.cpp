@@ -162,7 +162,7 @@ struct compile_plan
     std::string problem_string() const
     {
         if(config)
-            return problem->config;
+            return to_string(config->problem);
         return "<no problem key>";
     }
 
@@ -174,12 +174,12 @@ struct compile_plan
                       << std::endl;
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string);
+                           problem_string());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
                 MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                               problem_string);
+                               problem_string());
             return *results.front();
         }
         if(not config)
@@ -236,7 +236,7 @@ struct compile_plan
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           problem_string);
+                           problem_string());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

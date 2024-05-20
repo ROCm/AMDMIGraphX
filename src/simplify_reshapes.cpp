@@ -273,6 +273,7 @@ struct find_concat_multibroadcasts
         auto concat_out_lens  = concat_ins->get_shape().lens();
         auto concat_inputs    = concat_ins->inputs();
         auto front_mb_strides = concat_inputs.front()->get_shape().strides();
+        assert(concat_op.axis >= 0);
 
         // Only apply when concat axis is not a broadcasted dimension
         if(std::any_of(concat_inputs.begin(), concat_inputs.end(), [&](auto i) {

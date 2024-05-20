@@ -48,7 +48,7 @@ rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
     rocblas_set_stream(rb.get(), s);
     return rb;
 }
-
+#endif
 bool get_compute_fp32_flag()
 {
     const auto device_name = trim(split_string(get_device_name(), ':').front());
@@ -57,13 +57,17 @@ bool get_compute_fp32_flag()
 
 bool rocblas_fp8_available()
 {
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8_intrinsics();
-#endif
+    #if MIGRAPHX_USE_ROCBLAS
+        #ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
+            return false;
+        #else
+            return gfx_has_fp8_intrinsics();
+        #endif
+    #else
+        return false;
+    #endif
 }
-#endif
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

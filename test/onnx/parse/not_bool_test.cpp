@@ -32,7 +32,7 @@ TEST_CASE(not_bool_test)
     auto ret = mm->add_instruction(migraphx::make_op("not"), l0);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("not_bool_test.onnx");
+    auto prog = read_onnx("not_bool_test.onnx");
 
     EXPECT(p == prog);
 }

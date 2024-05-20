@@ -330,9 +330,27 @@ struct matcher_result
             });
         }
 
+        void debug_print() const
+        {
+            for(const auto& it : ins_map)
+            {
+                std::cout << it.first << ": \n";
+                it.second->debug_print();
+            }
+        }
+
         private:
         std::unordered_map<std::string, instruction_ref> ins_map;
     };
+
+    void debug_print() const
+    {
+        std::cout << "matcher_container: \n  instructions:";
+        instructions.debug_print();
+        std::cout << "  result: \n";
+        result->debug_print();
+    }
+
     instruction_container instructions;
     instruction_ref result;
 };

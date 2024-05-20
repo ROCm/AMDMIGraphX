@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,9 +37,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-program parse_tf(const std::string& name, const tf_options& options)
+template <class... Ts>
+program parse_tf_from(const tf_options& options, Ts&&... xs)
 {
-    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
     tf::tf_parser parser;
     parser.is_nhwc           = options.is_nhwc;
     parser.batch_size        = options.batch_size;
@@ -50,7 +50,7 @@ program parse_tf(const std::string& name, const tf_options& options)
     // Log the program when it can't be parsed
     try
     {
-        parser.parse_from(input);
+        parser.parse_from(std::forward<Ts>(xs)...);
     }
     catch(...)
     {
@@ -58,9 +58,25 @@ program parse_tf(const std::string& name, const tf_options& options)
         throw;
     }
 #else
-    parser.parse_from(input);
+    parser.parse_from(std::forward<Ts>(xs)...);
 #endif
     return std::move(parser.prog);
+}
+
+program parse_tf(const std::string& name, const tf_options& options)
+{
+    std::fstream input(name.c_str(), std::ios::in | std::ios::binary);
+    return parse_tf_from(options, input);
+}
+
+program parse_tf_buffer(const std::string& buffer, const tf_options& options)
+{
+    return parse_tf_from(options, buffer.data(), buffer.size());
+}
+
+program parse_tf_buffer(const void* data, std::size_t size, const tf_options& options)
+{
+    return parse_tf_from(options, data, size);
 }
 
 std::vector<std::string> get_tf_operators() { return tf::get_op_parsers(); }

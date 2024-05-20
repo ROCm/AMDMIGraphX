@@ -40,7 +40,7 @@ TEST_CASE(slice_5arg_reverse_test)
     auto ret = mm->add_instruction(migraphx::make_op("reverse", {{"axes", {-1}}}), slice_out);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("slice_5arg_reverse_test.onnx");
+    auto prog = read_onnx("slice_5arg_reverse_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -28,7 +28,7 @@
 
 TEST_CASE(instance_norm_dyn_batch_test)
 {
-    migraphx::program p = migraphx::parse_onnx("instance_norm_dyn_batch_test.onnx");
+    migraphx::program p = read_onnx("instance_norm_dyn_batch_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::float_type, {1, 2, 3, 3}};

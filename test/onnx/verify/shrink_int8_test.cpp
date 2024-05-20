@@ -28,7 +28,7 @@
 
 TEST_CASE(shrink_int8_test)
 {
-    migraphx::program p = migraphx::parse_onnx("shrink_int8_test.onnx");
+    migraphx::program p = read_onnx("shrink_int8_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::int8_type, {3, 3}};

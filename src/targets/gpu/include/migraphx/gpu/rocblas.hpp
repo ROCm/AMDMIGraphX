@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,11 +25,14 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_ROCBLAS_HPP
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/gpu/config.hpp>
+#if MIGRAPHX_USE_ROCBLAS
 #include <rocblas/rocblas.h>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+#if MIGRAPHX_USE_ROCBLAS
 
 using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_handle);
 
@@ -41,7 +44,7 @@ struct context;
 MIGRAPHX_GPU_EXPORT bool get_compute_fp32_flag();
 
 MIGRAPHX_GPU_EXPORT bool rocblas_fp8_available();
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

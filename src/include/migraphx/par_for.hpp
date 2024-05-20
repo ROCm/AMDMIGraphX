@@ -38,9 +38,9 @@ void par_for(std::size_t n, F f)
 }
 
 template <class F>
-void par_for(std::size_t n, std::size_t, F f)
+void par_for(std::size_t n, std::size_t min_grain, F f)
 {
-    par_for(n, f);
+    simple_par_for(n, min_grain, f);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -57,15 +57,15 @@ bool get_compute_fp32_flag()
 
 bool rocblas_fp8_available()
 {
-    #if MIGRAPHX_USE_ROCBLAS
-        #ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-            return false;
-        #else
-            return gfx_has_fp8_intrinsics();
-        #endif
-    #else
-        return false;
-    #endif
+#if MIGRAPHX_USE_ROCBLAS
+#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
+    return false;
+#else
+    return gfx_has_fp8_intrinsics();
+#endif
+#else
+    return false;
+#endif
 }
 
 } // namespace gpu

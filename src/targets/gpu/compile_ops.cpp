@@ -169,9 +169,11 @@ struct compile_plan
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-        if(trace_level > 0)
+        if(trace_level > 0 and not results.empty())
+        {
             std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
                       << std::endl;
+        }
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
                            problem_string());

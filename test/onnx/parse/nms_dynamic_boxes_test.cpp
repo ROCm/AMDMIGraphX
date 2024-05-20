@@ -46,6 +46,6 @@ TEST_CASE(nms_dynamic_boxes_test)
     options.default_dyn_dim_value = {6, 20};
     options.use_dyn_output        = true;
 
-    auto prog = migraphx::parse_onnx("nms_dynamic_boxes_test.onnx", options);
+    auto prog = read_onnx("nms_dynamic_boxes_test.onnx", options);
     EXPECT(p == prog);
 }

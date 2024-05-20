@@ -40,12 +40,12 @@ TEST_CASE(unknown_test)
 
 TEST_CASE(unknown_test_throw)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("unknown_test.onnx"); }));
 }
 
 TEST_CASE(unknown_test_throw_print_error)
 {
     migraphx::onnx_options options;
     options.print_program_on_error = true;
-    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("unknown_test.onnx", options); }));
 }

@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,22 +22,11 @@
 # THE SOFTWARE.
 #####################################################################################
 
-
-function(add_onnx_test TEST_NAME)
-    rocm_add_test_executable(${TEST_NAME} ${ARGN})
-    rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_onnx migraphx_ref onnx_files)
-    target_include_directories(${TEST_NAME} PUBLIC ../include include)
-endfunction()
-
 include(Embed)
-file(GLOB_RECURSE ONNX_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.onnx ${CMAKE_CURRENT_SOURCE_DIR}/*.weight)
-add_embed_library(onnx_files ${ONNX_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
+file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.pb)
+add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
 
-file(GLOB ONNX_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
-file(GLOB ONNX_VERIFY_TESTS CONFIGURE_DEPENDS verify/*.cpp)
-
-add_onnx_test(test_onnx_test ${ONNX_PARSE_TESTS})
-add_onnx_test(test_onnx_rnn_test onnx_rnn_test.cpp)
-add_onnx_test(test_verify_onnx ${ONNX_VERIFY_TESTS})
-
+rocm_add_test_executable(test_tf tf_test.cpp)
+rocm_clang_tidy_check(test_tf)
+target_link_libraries(test_tf migraphx_tf pb_files)
+target_include_directories(test_tf PUBLIC ../include)

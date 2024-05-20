@@ -29,7 +29,7 @@
 TEST_CASE(quant_convolution_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearMul
-    migraphx::program p = migraphx::parse_onnx("convinteger_no_bias_test.onnx");
+    migraphx::program p = read_onnx("convinteger_no_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::int8_type, {1, 3, 5, 5}};

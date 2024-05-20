@@ -65,7 +65,7 @@ TEST_CASE(expand_dyn_input_dyn_output_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
-    auto prog                     = parse_onnx("expand_dyn_input_dyn_output_test.onnx", options);
+    auto prog                     = read_onnx("expand_dyn_input_dyn_output_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -73,6 +73,5 @@ TEST_CASE(expand_dyn_input_static_dims_throw)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("expand_dyn_input_static_dims_throw.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("expand_dyn_input_static_dims_throw.onnx", options); }));
 }

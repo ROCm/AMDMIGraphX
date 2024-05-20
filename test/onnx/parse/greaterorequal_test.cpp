@@ -38,6 +38,6 @@ TEST_CASE(greaterorequal_test)
 
     mm->add_return({ge});
 
-    auto prog = migraphx::parse_onnx("greaterorequal_test.onnx");
+    auto prog = read_onnx("greaterorequal_test.onnx");
     EXPECT(p == prog);
 }

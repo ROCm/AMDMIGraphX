@@ -26,5 +26,5 @@
 
 TEST_CASE(conv_attr_fail_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_attr_fail_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("conv_attr_fail_test.onnx"); }));
 }

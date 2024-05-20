@@ -28,7 +28,7 @@
 
 TEST_CASE(reversesequence_4D_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("reversesequence_4D_test.onnx");
+    migraphx::program p = read_onnx("reversesequence_4D_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape xs{migraphx::shape::float_type, {2, 2, 2, 2}};

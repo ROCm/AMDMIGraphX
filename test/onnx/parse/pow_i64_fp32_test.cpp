@@ -37,7 +37,7 @@ TEST_CASE(pow_i64_fp32_test)
         migraphx::make_op("convert", {{"target_type", migraphx::shape::int64_type}}), fr);
     mm->add_return({ir});
 
-    auto prog = migraphx::parse_onnx("pow_i64_fp32_test.onnx");
+    auto prog = read_onnx("pow_i64_fp32_test.onnx");
 
     EXPECT(p == prog);
 }

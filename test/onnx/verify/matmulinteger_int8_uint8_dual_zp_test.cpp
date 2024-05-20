@@ -28,7 +28,7 @@
 
 TEST_CASE(matmulinteger_int8_uint8_dual_zp_test)
 {
-    migraphx::program p = migraphx::parse_onnx("matmulinteger_int8_uint8_dual_zp_test.onnx");
+    migraphx::program p = read_onnx("matmulinteger_int8_uint8_dual_zp_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::int8_type, {4, 3}};

@@ -938,8 +938,8 @@ TEST_CASE(concat_multibroadcasts5)
     migraphx::module m;
     auto s0 = migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1, 64}};
     auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 1, 60, 64, 192}};
-    auto x                            = m.add_parameter("x", s0);
-    auto y                            = m.add_parameter("y", s1);
+    auto x  = m.add_parameter("x", s0);
+    auto y  = m.add_parameter("y", s1);
     std::vector<std::size_t> mb_lens0 = {1, 12, 60, 64, 64};
     std::vector<std::size_t> mb_lens1 = {1, 12, 60, 64, 192};
     auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);

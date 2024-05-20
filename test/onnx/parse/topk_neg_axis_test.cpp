@@ -38,7 +38,7 @@ TEST_CASE(topk_neg_axis_test)
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     mm->add_return({val, ind});
 
-    auto prog = migraphx::parse_onnx("topk_neg_axis_test.onnx");
+    auto prog = read_onnx("topk_neg_axis_test.onnx");
 
     EXPECT(p == prog);
 }

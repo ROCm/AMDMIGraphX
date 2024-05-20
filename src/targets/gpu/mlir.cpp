@@ -947,10 +947,12 @@ struct mlir_program
     std::string sym_name;
 };
 
-bool is_module_fusible(const module& m, const value& solution)
+bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     mlir_program mp;
+    mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+    mp.run_high_level_pipeline();
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 

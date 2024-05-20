@@ -40,7 +40,7 @@ TEST_CASE(averagepool_sl_cip_test)
                                                           {"dilations", {1, 1}}}),
                                    ins_pad);
     mm->add_return({ret});
-    auto prog = migraphx::parse_onnx("averagepool_sl_cip_test.onnx");
+    auto prog = read_onnx("averagepool_sl_cip_test.onnx");
 
     EXPECT(p == prog);
 }

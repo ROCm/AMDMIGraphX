@@ -35,7 +35,7 @@ TEST_CASE(logical_and_bcast_test)
     auto ret = mm->add_instruction(migraphx::make_op("logical_and"), l0, l2);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("logical_and_bcast_test.onnx");
+    auto prog = read_onnx("logical_and_bcast_test.onnx");
 
     EXPECT(p == prog);
 }

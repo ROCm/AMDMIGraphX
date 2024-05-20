@@ -45,7 +45,7 @@ TEST_CASE(roialign_default_test)
         bi);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("roialign_default_test.onnx");
+    auto prog = read_onnx("roialign_default_test.onnx");
 
     EXPECT(p == prog);
 }

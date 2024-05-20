@@ -29,7 +29,7 @@
 TEST_CASE(if_literal_test)
 {
     auto run_prog = [](bool cond) {
-        migraphx::program p = migraphx::parse_onnx("if_literal_test.onnx");
+        migraphx::program p = read_onnx("if_literal_test.onnx");
         p.compile(migraphx::make_target("ref"));
         migraphx::shape s_data{migraphx::shape::bool_type};
         std::vector<char> data = {static_cast<char>(cond)};

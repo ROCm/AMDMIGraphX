@@ -50,6 +50,6 @@ TEST_CASE(nms_overwrite_use_dyn_output_test)
     migraphx::onnx_options options;
     options.use_dyn_output = true;
 
-    auto prog = migraphx::parse_onnx("nms_use_dyn_output_false_test.onnx", options);
+    auto prog = read_onnx("nms_use_dyn_output_false_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -48,6 +48,6 @@ TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
 
     mm->add_return({rt, rt2});
 
-    auto prog = migraphx::parse_onnx("if_then_else_multi_output_shapes_inlined_test.onnx");
+    auto prog = read_onnx("if_then_else_multi_output_shapes_inlined_test.onnx");
     EXPECT(p == prog);
 }

@@ -30,7 +30,9 @@ function(add_tf_test TEST_NAME)
 endfunction()
 
 include(Embed)
-file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.pb)
-add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
+file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/*.pb)
+add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/models)
 
 file(GLOB TF_TESTS CONFIGRE_DEPENDS tests/*.cpp)
+
+add_tf_test(test_tf ${TF_TESTS})

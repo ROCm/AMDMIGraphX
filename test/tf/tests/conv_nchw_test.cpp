@@ -1,6 +1,6 @@
 
 #include <tf_test.hpp>
-#include <conv_test_utils.hpp>
+#include <tf_conv_utils.hpp>
 
 
 TEST_CASE(conv_nchw_test)

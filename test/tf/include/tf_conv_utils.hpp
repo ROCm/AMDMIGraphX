@@ -3,7 +3,7 @@
 #define MIGRAPHX_GUARD_TEST_TF_TF_CONV_UTILS_HPP
 
 
-migraphx::program create_conv()
+inline migraphx::program create_conv()
 {
     migraphx::program p;
 

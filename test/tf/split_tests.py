@@ -59,7 +59,7 @@ ${content}
 ''')
 
 conv_test_util = '''
-migraphx::program create_conv()
+inline migraphx::program create_conv()
 {
     migraphx::program p;
 
@@ -89,11 +89,11 @@ def write_header(filename, content):
 
 
 include_guide = {
-    'conv_test': 'conv_test_utils.hpp',
-    'conv_add_test': 'conv_test_utils.hpp',
-    'conv_nchw_test': 'conv_test_utils.hpp',
-    'conv_relu_test': 'conv_test_utils.hpp',
-    'conv_relu6_test': 'conv_test_utils.hpp',
+    'conv_test': 'tf_conv_utils.hpp',
+    'conv_add_test': 'tf_conv_utils.hpp',
+    'conv_nchw_test': 'tf_conv_utils.hpp',
+    'conv_relu_test': 'tf_conv_utils.hpp',
+    'conv_relu6_test': 'tf_conv_utils.hpp',
 }
 
 def create_includes(case):

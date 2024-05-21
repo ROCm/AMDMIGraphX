@@ -28,7 +28,7 @@
 
 TEST_CASE(gridsample_reflection_padding_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_reflection_padding_test.onnx");
+    migraphx::program p = read_onnx("gridsample_reflection_padding_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;

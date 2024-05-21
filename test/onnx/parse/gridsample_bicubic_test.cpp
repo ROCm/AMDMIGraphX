@@ -26,5 +26,5 @@
 
 TEST_CASE(gridsample_bicubic_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gridsample_bicubic_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("gridsample_bicubic_test.onnx"); }));
 }

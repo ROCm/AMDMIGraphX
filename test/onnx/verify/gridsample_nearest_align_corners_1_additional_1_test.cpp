@@ -28,8 +28,7 @@
 
 TEST_CASE(gridsample_nearest_align_corners_1_additional_1_test)
 {
-    migraphx::program p =
-        migraphx::parse_onnx("gridsample_nearest_align_corners_1_additional_1_test.onnx");
+    migraphx::program p = read_onnx("gridsample_nearest_align_corners_1_additional_1_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;

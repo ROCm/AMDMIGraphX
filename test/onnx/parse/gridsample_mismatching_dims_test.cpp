@@ -26,5 +26,5 @@
 
 TEST_CASE(gridsample_mismatching_dims_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gridsample_mismatching_dims_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("gridsample_mismatching_dims_test.onnx"); }));
 }

@@ -32,7 +32,7 @@ def tf_test(op_test):
         g1 = tf.Graph()
         op_test(g1)
         tf.io.write_graph(g1,
-                          '.',
+                          './models',
                           '{}.pb'.format(op_test.__name__),
                           as_text=False)
 

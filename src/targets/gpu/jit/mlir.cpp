@@ -77,7 +77,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
         auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
-            return i.name() == "dot" or i.name() == "quant_dot";
+            return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
         });
         // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
         // allow fused module

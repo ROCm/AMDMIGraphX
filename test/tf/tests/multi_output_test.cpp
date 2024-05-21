@@ -1,6 +1,7 @@
 
 #include <tf_test.hpp>
 
+
 TEST_CASE(multi_output_test)
 {
     migraphx::program p;

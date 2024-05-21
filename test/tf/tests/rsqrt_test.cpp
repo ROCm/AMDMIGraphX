@@ -1,6 +1,7 @@
 
 #include <tf_test.hpp>
 
+
 TEST_CASE(rsqrt_test)
 {
     migraphx::program p;

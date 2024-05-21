@@ -1,6 +1,7 @@
 
 #include <tf_test.hpp>
 
+
 TEST_CASE(sqdiff_test)
 {
     migraphx::program p;

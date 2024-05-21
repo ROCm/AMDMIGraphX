@@ -1,6 +1,7 @@
 
 #include <tf_test.hpp>
 
+
 TEST_CASE(relu6_half_test)
 {
     migraphx::program p;

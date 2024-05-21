@@ -92,3 +92,5 @@ migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
     }
     return prog;
 }
+
+#endif

@@ -31,5 +31,5 @@ TEST_CASE(resize_dyn_err1_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = dd;
 
-    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_dyn_err1_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("resize_dyn_err1_test.onnx", options); }));
 }

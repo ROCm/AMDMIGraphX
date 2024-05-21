@@ -24,6 +24,7 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <pb_files.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -42,19 +43,32 @@
 
 #include "test.hpp"
 
+migraphx::program read_pb_file(const std::string& name, const migraphx::tf_options& options)
+{
+    static auto pb_files{::pb_files()};
+    if(pb_files.find(name) == pb_files.end())
+    {
+        std::cerr << "Can not find TensorFlow Protobuf file by name: " << name
+                  << " , aborting the program\n"
+                  << std::endl;
+        std::abort();
+    }
+    return migraphx::parse_tf_buffer(std::string{pb_files.at(name)}, options);
+}
+
 migraphx::program
 parse_tf(const std::string& name,
          bool is_nhwc,
          const std::unordered_map<std::string, std::vector<std::size_t>>& dim_params = {},
          const std::vector<std::string>& output_node_names                           = {})
 {
-    return migraphx::parse_tf(name,
-                              migraphx::tf_options{is_nhwc, 1, dim_params, output_node_names});
+
+    return read_pb_file(name, migraphx::tf_options{is_nhwc, 1, dim_params, output_node_names});
 }
 
 migraphx::program optimize_tf(const std::string& name, bool is_nhwc)
 {
-    auto prog = migraphx::parse_tf(name, migraphx::tf_options{is_nhwc, 1});
+    auto prog = read_pb_file(name, migraphx::tf_options{is_nhwc, 1});
     auto* mm  = prog.get_main_module();
     if(is_nhwc)
         migraphx::run_passes(*mm,

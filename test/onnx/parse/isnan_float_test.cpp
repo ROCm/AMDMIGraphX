@@ -33,6 +33,6 @@ TEST_CASE(isnan_float_test)
     auto ret = mm->add_instruction(migraphx::make_op("isnan"), t1);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("isnan_float_test.onnx");
+    auto prog = read_onnx("isnan_float_test.onnx");
     EXPECT(p == prog);
 }

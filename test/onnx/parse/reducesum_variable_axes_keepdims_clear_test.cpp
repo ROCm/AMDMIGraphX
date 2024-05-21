@@ -25,6 +25,5 @@
 
 TEST_CASE(reducesum_variable_axes_keepdims_clear_test)
 {
-    EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("reducesum_variable_axes_keepdims_clear_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("reducesum_variable_axes_keepdims_clear_test.onnx"); }));
 }

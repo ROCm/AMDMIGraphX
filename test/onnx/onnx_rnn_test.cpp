@@ -34,12 +34,12 @@
 #include <migraphx/serialize.hpp>
 
 #include <migraphx/make_op.hpp>
-
+#include <onnx_test.hpp>
 #include "test.hpp"
 
-migraphx::program optimize_onnx(const std::string& name, bool eliminate_deadcode = true)
+migraphx::program read_rnn_onnx(const std::string& name, bool eliminate_deadcode = true)
 {
-    auto prog = migraphx::parse_onnx(name);
+    auto prog = read_onnx(name);
     auto* mm  = prog.get_main_module();
     if(eliminate_deadcode)
         migraphx::run_passes(*mm, {migraphx::dead_code_elimination{}});
@@ -95,7 +95,7 @@ TEST_CASE(rnn_test_bidirectional)
         seq_len,
         ih);
     mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-    auto prog = optimize_onnx("onnx_rnn_bi.onnx");
+    auto prog = read_rnn_onnx("onnx_rnn_bi.onnx");
 
     EXPECT(p == prog);
 }
@@ -149,7 +149,7 @@ TEST_CASE(rnn_test_bidirectional_layout)
     out_hs =
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}), out_hs);
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-    auto prog = optimize_onnx("rnn_bi_layout_test.onnx");
+    auto prog = read_rnn_onnx("rnn_bi_layout_test.onnx");
 
     EXPECT(p == prog);
 }
@@ -195,7 +195,7 @@ TEST_CASE(rnn_test_one_direction)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_rnn_forward.onnx");
+        auto prog = read_rnn_onnx("onnx_rnn_forward.onnx");
 
         EXPECT(p == prog);
     }
@@ -224,7 +224,7 @@ TEST_CASE(rnn_test_one_direction)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("rnn_f_default_af_test.onnx");
+        auto prog = read_rnn_onnx("rnn_f_default_af_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -254,7 +254,7 @@ TEST_CASE(rnn_test_one_direction)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_rnn_reverse.onnx");
+        auto prog = read_rnn_onnx("onnx_rnn_reverse.onnx");
 
         EXPECT(p == prog);
     }
@@ -282,7 +282,7 @@ TEST_CASE(rnn_test_one_direction)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_rnn_3args.onnx");
+        auto prog = read_rnn_onnx("onnx_rnn_3args.onnx");
 
         EXPECT(p == prog);
     }
@@ -314,7 +314,7 @@ TEST_CASE(rnn_test_one_direction)
             seq_len,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_rnn_5args.onnx");
+        auto prog = read_rnn_onnx("onnx_rnn_5args.onnx");
 
         EXPECT(p == prog);
     }
@@ -369,7 +369,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("rnn_f_layout_test.onnx");
+        auto prog = read_rnn_onnx("rnn_f_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -408,7 +408,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("rnn_r_layout_test.onnx");
+        auto prog = read_rnn_onnx("rnn_r_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -444,7 +444,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("rnn_r_3arg_layout_test.onnx");
+        auto prog = read_rnn_onnx("rnn_r_3arg_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -483,7 +483,7 @@ TEST_CASE(rnn_test_one_direction_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("rnn_f_5arg_layout_test.onnx");
+        auto prog = read_rnn_onnx("rnn_f_5arg_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -538,7 +538,7 @@ TEST_CASE(gru_test)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_forward.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_forward.onnx");
 
         EXPECT(p == prog);
     }
@@ -578,7 +578,7 @@ TEST_CASE(gru_test)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_reverse.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_reverse.onnx");
 
         EXPECT(p == prog);
     }
@@ -620,7 +620,7 @@ TEST_CASE(gru_test)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_bi.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_bi.onnx");
 
         EXPECT(p == prog);
     }
@@ -678,7 +678,7 @@ TEST_CASE(gru_layout_test)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_f_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_f_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -726,7 +726,7 @@ TEST_CASE(gru_layout_test)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_r_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_r_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -776,7 +776,7 @@ TEST_CASE(gru_layout_test)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_bi_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_bi_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -820,7 +820,7 @@ TEST_CASE(gru_test_args)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_3arg.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_3arg.onnx");
 
         EXPECT(p == prog);
     }
@@ -857,7 +857,7 @@ TEST_CASE(gru_test_args)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_4arg.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_4arg.onnx");
 
         EXPECT(p == prog);
     }
@@ -898,7 +898,7 @@ TEST_CASE(gru_test_args)
             seq_len,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_5arg.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_5arg.onnx");
 
         EXPECT(p == prog);
     }
@@ -950,7 +950,7 @@ TEST_CASE(gru_test_args_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_f_3arg_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_f_3arg_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -995,7 +995,7 @@ TEST_CASE(gru_test_args_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_r_4arg_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_r_4arg_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -1044,7 +1044,7 @@ TEST_CASE(gru_test_args_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("gru_bi_5arg_layout_test.onnx");
+        auto prog = read_rnn_onnx("gru_bi_5arg_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -1095,7 +1095,7 @@ TEST_CASE(gru_test_actv_funcs)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_bi_0.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_bi_0.onnx");
 
         EXPECT(p == prog);
     }
@@ -1138,7 +1138,7 @@ TEST_CASE(gru_test_actv_funcs)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_bi_1.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_bi_1.onnx");
 
         EXPECT(p == prog);
     }
@@ -1180,7 +1180,7 @@ TEST_CASE(gru_test_actv_funcs)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_bi_2.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_bi_2.onnx");
 
         EXPECT(p == prog);
     }
@@ -1220,7 +1220,7 @@ TEST_CASE(gru_test_actv_funcs)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_forward_0.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_forward_0.onnx");
 
         EXPECT(p == prog);
     }
@@ -1260,7 +1260,7 @@ TEST_CASE(gru_test_actv_funcs)
             seq_len,
             ih);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_gru_reverse_1.onnx");
+        auto prog = read_rnn_onnx("onnx_gru_reverse_1.onnx");
 
         EXPECT(p == prog);
     }
@@ -1319,7 +1319,7 @@ TEST_CASE(lstm_forward)
             ic,
             pph);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_forward.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_forward.onnx");
 
         EXPECT(p == prog);
     }
@@ -1353,7 +1353,7 @@ TEST_CASE(lstm_forward)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f3args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f3args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1386,7 +1386,7 @@ TEST_CASE(lstm_forward)
             und,
             und,
             und);
-        auto prog = optimize_onnx("onnx_lstm_hs.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_hs.onnx");
 
         EXPECT(p == prog);
     }
@@ -1420,7 +1420,7 @@ TEST_CASE(lstm_forward)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_last.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_last.onnx");
 
         EXPECT(p == prog);
     }
@@ -1454,7 +1454,7 @@ TEST_CASE(lstm_forward)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_cell.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_cell.onnx");
 
         EXPECT(p == prog);
     }
@@ -1489,7 +1489,7 @@ TEST_CASE(lstm_forward)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f4args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f4args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1526,7 +1526,7 @@ TEST_CASE(lstm_forward)
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f5args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f5args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1564,7 +1564,7 @@ TEST_CASE(lstm_forward)
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f6args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f6args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1603,7 +1603,7 @@ TEST_CASE(lstm_forward)
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f7args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f7args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1669,7 +1669,7 @@ TEST_CASE(lstm_forward_layout)
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
 
-        auto prog = optimize_onnx("lstm_f_layout_hs_test.onnx");
+        auto prog = read_rnn_onnx("lstm_f_layout_hs_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -1712,7 +1712,7 @@ TEST_CASE(lstm_forward_layout)
             pph);
         auto last_cell = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_cell);
-        auto prog = optimize_onnx("lstm_f_layout_cell_test.onnx");
+        auto prog = read_rnn_onnx("lstm_f_layout_cell_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -1763,7 +1763,7 @@ TEST_CASE(lstm_forward_actv_func)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f0af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f0af.onnx");
 
         EXPECT(p == prog);
     }
@@ -1799,7 +1799,7 @@ TEST_CASE(lstm_forward_actv_func)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f1af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f1af.onnx");
 
         EXPECT(p == prog);
     }
@@ -1837,7 +1837,7 @@ TEST_CASE(lstm_forward_actv_func)
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_f2af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_f2af.onnx");
 
         EXPECT(p == prog);
     }
@@ -1891,7 +1891,7 @@ TEST_CASE(lstm_reverse)
             ic,
             pph);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_reverse.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_reverse.onnx");
 
         EXPECT(p == prog);
     }
@@ -1928,7 +1928,7 @@ TEST_CASE(lstm_reverse)
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
         mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_r5args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_r5args.onnx");
 
         EXPECT(p == prog);
     }
@@ -1962,7 +1962,7 @@ TEST_CASE(lstm_reverse)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_r0af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_r0af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2025,7 +2025,7 @@ TEST_CASE(lstm_reverse_layout)
         std::vector<int64_t> perm_hid{2, 0, 1, 3};
         out_hs    = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
-        auto prog = optimize_onnx("lstm_r_layout_test.onnx");
+        auto prog = read_rnn_onnx("lstm_r_layout_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -2073,7 +2073,7 @@ TEST_CASE(lstm_reverse_layout)
                                           last_output);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_cell);
 
-        auto prog = optimize_onnx("lstm_r_layout_hs_cell_test.onnx");
+        auto prog = read_rnn_onnx("lstm_r_layout_hs_cell_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -2130,7 +2130,7 @@ TEST_CASE(lstm_bidirectional)
             ic,
             pph);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi.onnx");
 
         EXPECT(p == prog);
     }
@@ -2167,7 +2167,7 @@ TEST_CASE(lstm_bidirectional)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi3args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi3args.onnx");
 
         EXPECT(p == prog);
     }
@@ -2205,7 +2205,7 @@ TEST_CASE(lstm_bidirectional)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi4args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi4args.onnx");
 
         EXPECT(p == prog);
     }
@@ -2244,7 +2244,7 @@ TEST_CASE(lstm_bidirectional)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi5args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi5args.onnx");
 
         EXPECT(p == prog);
     }
@@ -2284,7 +2284,7 @@ TEST_CASE(lstm_bidirectional)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi6args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi6args.onnx");
 
         EXPECT(p == prog);
     }
@@ -2325,7 +2325,7 @@ TEST_CASE(lstm_bidirectional)
             ic,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi7args.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi7args.onnx");
 
         EXPECT(p == prog);
     }
@@ -2392,7 +2392,7 @@ TEST_CASE(lstm_bidirectional_layout)
         out_hs = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm_hid}}),
                                      out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_output);
-        auto prog = optimize_onnx("lstm_bi_layout_last_test.onnx");
+        auto prog = read_rnn_onnx("lstm_bi_layout_last_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -2437,7 +2437,7 @@ TEST_CASE(lstm_bidirectional_layout)
             pph);
         auto last_cell = mm->add_instruction(migraphx::make_op("rnn_last_cell_output"), out_hs);
         mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), last_cell);
-        auto prog = optimize_onnx("lstm_bi_layout_cell_test.onnx");
+        auto prog = read_rnn_onnx("lstm_bi_layout_cell_test.onnx");
 
         EXPECT(p == prog);
     }
@@ -2492,7 +2492,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi0af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi0af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2531,7 +2531,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi1af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi1af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2570,7 +2570,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi2af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi2af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2610,7 +2610,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi3af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi3af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2651,7 +2651,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             ic,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi4af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi4af.onnx");
 
         EXPECT(p == prog);
     }
@@ -2688,7 +2688,7 @@ TEST_CASE(lstm_bi_actv_funcs)
             und,
             und);
         mm->add_instruction(migraphx::make_op("rnn_last_hs_output"), out_hs);
-        auto prog = optimize_onnx("onnx_lstm_bi5af.onnx");
+        auto prog = read_rnn_onnx("onnx_lstm_bi5af.onnx");
 
         EXPECT(p == prog);
     }

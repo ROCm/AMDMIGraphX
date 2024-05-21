@@ -42,7 +42,7 @@ TEST_CASE(matmul_dyn_vv_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = dd;
-    auto prog                     = parse_onnx("matmul_dyn_vv_test.onnx", options);
+    auto prog                     = read_onnx("matmul_dyn_vv_test.onnx", options);
 
     EXPECT(p == prog);
 }

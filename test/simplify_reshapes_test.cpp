@@ -918,9 +918,10 @@ TEST_CASE(concat_multibroadcasts3)
     EXPECT(new_concat->get_operator().to_value()["axis"].to<int>() == 2);
 }
 
+// Broadcasted batch dim, axis is broadcasted dim
+// matched by find_concat_multibroadcasts but it skips this case
 TEST_CASE(concat_multibroadcasts4)
 {
-    // Broadcasted batch dim, axis is broadcasted dim
     std::vector<std::size_t> in_lens     = {3, 4};
     std::vector<std::size_t> mbcast_lens = {2, 3, 4};
     const int axis                       = 0;
@@ -928,6 +929,112 @@ TEST_CASE(concat_multibroadcasts4)
     auto m1                              = m;
     run_pass(m);
     EXPECT(m1 == m);
+}
+
+// Matched by find_concat_multibroadcasts but skipped because dimensions other than concat axis do
+// not match
+TEST_CASE(concat_multibroadcasts5)
+{
+    migraphx::module m;
+    auto s0 = migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1, 64}};
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {1, 1, 60, 64, 192}};
+    auto x  = m.add_parameter("x", s0);
+    auto y  = m.add_parameter("y", s1);
+    std::vector<std::size_t> mb_lens0 = {1, 12, 60, 64, 64};
+    std::vector<std::size_t> mb_lens1 = {1, 12, 60, 64, 192};
+    auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);
+    auto mb_y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens1}}), y);
+    auto concat_xy = m.add_instruction(migraphx::make_op("concat", {{"axis", 4}}), mb_x, mb_y);
+    m.add_return({concat_xy});
+    auto m_original = m;
+    run_pass(m);
+    EXPECT(m == m_original);
+}
+
+// Matched by find_concat_multibroadcasts but skipped because parameter inputs are not the same
+// rank.
+TEST_CASE(concat_multibroadcasts6)
+{
+    migraphx::module m;
+    auto s0                           = migraphx::shape{migraphx::shape::float_type, {64}};
+    auto s1                           = migraphx::shape{migraphx::shape::float_type, {60, 64, 192}};
+    auto x                            = m.add_parameter("x", s0);
+    auto y                            = m.add_parameter("y", s1);
+    std::vector<std::size_t> mb_lens0 = {12, 60, 64, 64};
+    std::vector<std::size_t> mb_lens1 = {12, 60, 64, 192};
+    auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);
+    auto mb_y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens1}}), y);
+    auto concat_xy = m.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), mb_x, mb_y);
+    m.add_return({concat_xy});
+    auto m_original = m;
+    run_pass(m);
+    EXPECT(m == m_original);
+}
+
+// Concat axis moved to 2 because rank(in_dims) < rank(out_dims)
+// Matched by find_concat_multibroadcasts but skipped because the dimensions
+// other than the concat axis are not the same.
+// TODO: has common broadcast axes, so can be simplified by moving multibroadcast up to have a
+// smaller concat.
+TEST_CASE(concat_multibroadcasts7)
+{
+    migraphx::module m;
+    auto s0                           = migraphx::shape{migraphx::shape::float_type, {1, 1, 64}};
+    auto s1                           = migraphx::shape{migraphx::shape::float_type, {60, 64, 192}};
+    auto x                            = m.add_parameter("x", s0);
+    auto y                            = m.add_parameter("y", s1);
+    std::vector<std::size_t> mb_lens0 = {1, 12, 60, 64, 64};
+    std::vector<std::size_t> mb_lens1 = {1, 12, 60, 64, 192};
+    auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);
+    auto mb_y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens1}}), y);
+    auto concat_xy = m.add_instruction(migraphx::make_op("concat", {{"axis", 4}}), mb_x, mb_y);
+    m.add_return({concat_xy});
+    auto m_original = m;
+    run_pass(m);
+    EXPECT(m == m_original);
+}
+
+// Shape of inputs to multibroadcasts do not have the same rank.
+// Matched by find_concat_multibroadcasts but skipped.
+// TODO: has a common broadcast axis, so can be simplified by moving multibroadcast up to have a
+// smaller concat.
+TEST_CASE(concat_multibroadcasts8)
+{
+    migraphx::module m;
+    auto s0                           = migraphx::shape{migraphx::shape::float_type, {64, 64}};
+    auto s1                           = migraphx::shape{migraphx::shape::float_type, {60, 1, 192}};
+    auto x                            = m.add_parameter("x", s0);
+    auto y                            = m.add_parameter("y", s1);
+    std::vector<std::size_t> mb_lens0 = {60, 64, 64};
+    std::vector<std::size_t> mb_lens1 = {60, 64, 192};
+    auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);
+    auto mb_y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens1}}), y);
+    auto concat_xy = m.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), mb_x, mb_y);
+    m.add_return({concat_xy});
+    auto m_original = m;
+    run_pass(m);
+    EXPECT(m == m_original);
+}
+
+// Shape of inputs to multibroadcasts do not have a common broadcast axis.
+// Matched by find_concat_multibroadcasts, but skipped because the dimensions other than
+// the concat axis are not the same.
+TEST_CASE(concat_multibroadcasts9)
+{
+    migraphx::module m;
+    auto s0                           = migraphx::shape{migraphx::shape::float_type, {1, 64, 64}};
+    auto s1                           = migraphx::shape{migraphx::shape::float_type, {60, 1, 192}};
+    auto x                            = m.add_parameter("x", s0);
+    auto y                            = m.add_parameter("y", s1);
+    std::vector<std::size_t> mb_lens0 = {60, 64, 64};
+    std::vector<std::size_t> mb_lens1 = {60, 64, 192};
+    auto mb_x = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens0}}), x);
+    auto mb_y = m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", mb_lens1}}), y);
+    auto concat_xy = m.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), mb_x, mb_y);
+    m.add_return({concat_xy});
+    auto m_original = m;
+    run_pass(m);
+    EXPECT(m == m_original);
 }
 
 TEST_CASE(concat_transpose1)

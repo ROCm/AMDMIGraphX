@@ -82,12 +82,7 @@ add_subdirectory(onnx)
 
 # tf test
 set(TEST_TF_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tf)
-add_executable(test_tf tf/tf_test.cpp)
-rocm_mark_as_test(test_tf)
-rocm_clang_tidy_check(test_tf)
-target_link_libraries(test_tf migraphx_tf)
-target_include_directories(test_tf PUBLIC include)
-add_test(NAME test_tf COMMAND $<TARGET_FILE:test_tf> WORKING_DIRECTORY ${TEST_TF_DIR})
+add_subdirectory(tf)
 
 add_subdirectory(api)
 add_subdirectory(verify)

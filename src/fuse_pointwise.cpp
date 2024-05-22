@@ -204,14 +204,18 @@ struct pointwise_broadcast_pointwise
 {
     auto matcher() const
     {
-        auto broadcast_pointwise = match::name("multibroadcast")(match::used_once(), match::args(match::name("pointwise")(match::used_once()).bind("x"))).bind("broadcast");
+        auto broadcast_pointwise =
+            match::name("multibroadcast")(
+                match::used_once(),
+                match::args(match::name("pointwise")(match::used_once()).bind("x")))
+                .bind("broadcast");
         return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto broadcast_ins = r.instructions["broadcast"];
-        auto x_ins = r.instructions["x"];
+        auto x_ins         = r.instructions["x"];
 
         auto broadcast = broadcast_ins->get_operator();
 
@@ -220,7 +224,8 @@ struct pointwise_broadcast_pointwise
             return m.insert_instruction(broadcast_ins, broadcast, input);
         });
 
-        m.replace_instruction(broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
+        m.replace_instruction(
+            broadcast_ins, x_ins->get_operator(), x_inputs, x_ins->module_inputs());
     }
 };
 
@@ -244,7 +249,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
     {
         if(enable_rewrite_reshapes)
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
-        if (enable_rewrite_broadcasts)
+        if(enable_rewrite_broadcasts)
             rewrite_broadcasts(mpm);
         if(not find_pointwise_modules(mpm))
             break;

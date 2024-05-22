@@ -63,6 +63,8 @@ endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 
+option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -341,6 +343,10 @@ endif()
 
 if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    list(APPEND PACKAGE_DEPENDS hipblaslt)
 endif()
 
 rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")

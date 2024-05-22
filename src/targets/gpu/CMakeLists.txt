@@ -41,6 +41,15 @@ else()
     message(STATUS "MIGraphX build without rocBLAS")
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    # hipblaslt
+    find_package(hipblaslt REQUIRED)
+    message(STATUS "MIGraphX build with hipBLASLt")
+else()
+    message(STATUS "MIGraphX build without hipBLASLt")
+endif()
+
+
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
 endif()
@@ -280,6 +289,12 @@ else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=1)
+else()
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_HIPBLASLT=0)
+endif()
+
 set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
 if(MIGRAPHX_USE_FIND_2_API)
@@ -318,6 +333,10 @@ if(MIGRAPHX_USE_ROCBLAS)
 
 
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
+endif()
+
+if(MIGRAPHX_USE_HIPBLASLT)
+    target_link_libraries(migraphx_gpu PUBLIC roc::hipblaslt)
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)

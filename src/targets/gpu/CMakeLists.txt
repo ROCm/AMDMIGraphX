@@ -90,6 +90,9 @@ rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
+if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
+    target_link_libraries(migraphx_device INTERFACE hip::device)
+endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
@@ -121,11 +124,8 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
-if (MIGRAPHX_USE_MIOPEN)
-    set(MIOPEN_SRCS compile_miopen.cpp abs.cpp lrn.cpp pooling.cpp)
-endif()
-
 add_library(migraphx_gpu
+    abs.cpp
     analyze_streams.cpp
     allocation_model.cpp
     argmax.cpp
@@ -135,6 +135,7 @@ add_library(migraphx_gpu
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp
+    compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
@@ -147,6 +148,7 @@ add_library(migraphx_gpu
     lowering.cpp
     logsoftmax.cpp
     loop.cpp
+    lrn.cpp
     mlir.cpp
     multinomial.cpp
     no_device.cpp
@@ -155,6 +157,7 @@ add_library(migraphx_gpu
     prefuse_ops.cpp
     prepare_reduce.cpp
     perfdb.cpp
+    pooling.cpp
     problem_cache.cpp
     reverse.cpp
     rnn_variable_seq_lens.cpp
@@ -165,12 +168,15 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
-    ${MIOPEN_SRCS}
     ${JIT_GPU_SRCS}
 )
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
+if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
+    target_link_libraries(migraphx_gpu INTERFACE migraphx_device)
+    # target_link_libraries(migraphx_gpu PUBLIC hip::device)
+endif()
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})

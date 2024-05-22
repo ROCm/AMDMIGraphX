@@ -23,14 +23,16 @@
  */
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_HPP
-#if MIGRAPHX_USE_MIOPEN
+
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/config.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <miopen/miopen.h>
-#include <migraphx/config.hpp>
+
 
 #include <sstream>
 

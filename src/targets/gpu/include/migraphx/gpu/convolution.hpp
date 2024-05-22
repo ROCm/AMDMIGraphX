@@ -27,9 +27,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/operation.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#endif
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/quant_convolution.hpp>

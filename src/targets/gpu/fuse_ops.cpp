@@ -25,9 +25,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/matcher.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#endif
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/oper.hpp>
 #include <migraphx/gpu/gemm.hpp>

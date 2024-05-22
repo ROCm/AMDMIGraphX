@@ -46,9 +46,7 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/compiler.hpp>
 

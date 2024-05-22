@@ -26,9 +26,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#endif
 #include <migraphx/op/abs.hpp>
 
 namespace migraphx {

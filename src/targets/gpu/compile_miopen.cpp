@@ -33,6 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
 struct miopen_op
 {
     operation op = op::identity{};
@@ -82,6 +83,7 @@ void compile_miopen::apply(module& m) const
         m.replace_instruction(ins, op, inputs);
     }
 }
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

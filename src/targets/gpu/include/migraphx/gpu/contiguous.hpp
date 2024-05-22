@@ -34,6 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
+
 struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
 {
     std::string name() const { return "gpu::contiguous"; }
@@ -45,6 +46,7 @@ struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
         return {t, lens};
     }
 };
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

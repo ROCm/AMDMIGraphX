@@ -25,9 +25,7 @@
 #include <migraphx/gpu/device/logsoftmax.hpp>
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/manage_ptr.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#endif
 #include <migraphx/tune_axis.hpp>
 #include <utility>
 

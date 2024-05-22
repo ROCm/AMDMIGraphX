@@ -680,13 +680,13 @@ static bool has_axes(const dimension& d)
 // This will generate the operators to apply the shape transformation that is
 // represented by this class. This is the order of operators that will be
 // generated if needed:
-// 
+//
 // 1. Reshape/unsqueeze
 // 2. Transpose
 // 3. Broadcast
 // 4. Reshape/squeeze
 // 5. Broadcast
-// 
+//
 // This will generate operators backwrds starting at 5 and going up. Steps 1-3
 // are generated from the subdimesions and steps 4-5 are generated with the
 // dimensions.

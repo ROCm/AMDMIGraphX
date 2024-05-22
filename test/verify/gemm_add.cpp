@@ -35,9 +35,9 @@ struct gemm_add : verify_program<gemm_add<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 3}};
-        migraphx::shape m2_shape{DType, {1, 3, 4}};
-        migraphx::shape m3_shape{DType, {1, 2, 4}};
+        migraphx::shape m1_shape{DType, {1, 2, 1280}};
+        migraphx::shape m2_shape{DType, {1, 1280, 320}};
+        migraphx::shape m3_shape{DType, {1, 2, 320}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
@@ -47,6 +47,12 @@ struct gemm_add : verify_program<gemm_add<DType>>
         return p;
     }
     std::string section() const { return "gemm"; }
+
+    // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
+    migraphx::compile_options get_compile_options() const
+    {
+        return migraphx::compile_options{.exhaustive_tune = true};
+    }
 };
 
 template struct gemm_add<migraphx::shape::float_type>;

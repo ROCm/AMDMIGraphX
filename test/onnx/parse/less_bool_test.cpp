@@ -40,6 +40,6 @@ TEST_CASE(less_bool_test)
     auto ret = mm->add_instruction(migraphx::make_op("less"), cin1, input2);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("less_bool_test.onnx");
+    auto prog = read_onnx("less_bool_test.onnx");
     EXPECT(p == prog);
 }

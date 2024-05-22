@@ -217,6 +217,60 @@ TEST_CASE(dot)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(dot_fp16)
+{
+    migraphx::shape sh1{migraphx::shape::half_type, {1280, 1000}};
+    migraphx::shape sh2{migraphx::shape::half_type, {1000, 1024}};
+
+    migraphx::module m1;
+    {
+        auto t1    = m1.add_parameter("t1", sh1);
+        auto t2    = m1.add_parameter("t2", sh2);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+        auto t1f   = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), t1);
+        auto t2f = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), t2);
+        auto q1  = add_quantize_op(m1, "quantizelinear", t1f, scale, zero);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", q1, scale, zero);
+        auto q2  = add_quantize_op(m1, "quantizelinear", t2f, scale, zero);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", q2, scale, zero);
+        auto d1h = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d1);
+        auto d2h = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d2);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), d1h, d2h);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2;
+    {
+        auto t1    = m2.add_parameter("t1", sh1);
+        auto t2    = m2.add_parameter("t2", sh2);
+        auto scale = m2.add_literal(0.5f);
+        auto zero  = m2.add_literal(std::int8_t{0});
+        auto t1f   = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), t1);
+        auto t2f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), t2);
+
+        auto q1 = add_quantize_op(m2, "quantizelinear", t1f, scale, zero);
+        auto q2 = add_quantize_op(m2, "quantizelinear", t2f, scale, zero);
+
+        auto dot       = m2.add_instruction(migraphx::make_op("quant_dot"), q1, q2);
+        auto out_scale = add_scale_mul(m2, scale, scale, 1, 1, dot->get_shape().lens());
+        auto out_zp    = init_zero_point(m2, dot);
+        auto d3        = add_quantize_op(m2, "dequantizelinear", dot, out_scale, out_zp);
+        auto d3h       = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), d3);
+        m2.add_return({d3h});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(dot_multi_scale)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {1280, 1000}};

@@ -28,7 +28,7 @@
 
 TEST_CASE(isinf_half_test)
 {
-    migraphx::program p = migraphx::parse_onnx("isinf_half_test.onnx");
+    migraphx::program p = read_onnx("isinf_half_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::half_type, {2, 3}};

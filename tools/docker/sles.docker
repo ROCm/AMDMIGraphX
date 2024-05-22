@@ -5,7 +5,7 @@ RUN sh -c 'echo -e "\
 name=rocm\n\
 baseurl=https://repo.radeon.com/rocm/zyp/6.0.2/main\n\
 enabled=1\n\
-gpgcheck=1\n\
+gpgcheck=0\n\
 gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
 " > /etc/zypp/repos.d/rocm.repo'
 

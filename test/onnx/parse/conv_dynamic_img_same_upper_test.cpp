@@ -45,6 +45,6 @@ TEST_CASE(conv_dynamic_img_same_upper)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {5, 10};
 
-    auto prog = migraphx::parse_onnx("conv_dynamic_img_same_upper_test.onnx", options);
+    auto prog = read_onnx("conv_dynamic_img_same_upper_test.onnx", options);
     EXPECT(p == prog);
 }

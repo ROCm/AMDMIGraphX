@@ -28,7 +28,7 @@
 
 TEST_CASE(qlinearmatmul_2D_test)
 {
-    migraphx::program p = migraphx::parse_onnx("qlinearmatmul_2D_test.onnx");
+    migraphx::program p = read_onnx("qlinearmatmul_2D_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {1, 8}};

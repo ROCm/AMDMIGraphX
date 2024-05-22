@@ -28,7 +28,7 @@
 
 TEST_CASE(qlinearaveragepool_2d_test)
 {
-    auto p = migraphx::parse_onnx("qlinearaveragepool_2d_test.onnx");
+    auto p = read_onnx("qlinearaveragepool_2d_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<int8_t> data_x = {84,  -73, 117, -2,  -97, 72,   67,  27,   1,  -44,  110, 51,
                                   9,   7,   58,  113, -34, 34,   124, -20,  6,  66,   68,  98,

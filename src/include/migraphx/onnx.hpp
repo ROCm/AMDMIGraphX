@@ -58,6 +58,9 @@ struct onnx_options
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     /// Use dynamic output for operators when available
     bool use_dyn_output = false;
+    /// Path to use for the external data if it is stored at different location compared to onnx
+    /// file
+    std::string external_data_path = "";
 };
 
 /// Create a program from an onnx file

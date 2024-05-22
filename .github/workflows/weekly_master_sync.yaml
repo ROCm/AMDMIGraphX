@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
  
 jobs:
-  createPullRequest:
-    name: Update and create pull request
+  SyncAndMerge:
+    name: Sync master and merge develop
     runs-on: ubuntu-latest
     steps:
  

@@ -598,10 +598,10 @@ struct find_pointwise_mlir
     }
 
     static instruction_ref insert_pointwise(module& m,
-                                                   instruction_ref ins,
-                                                   const operation& op,
-                                                   const std::vector<instruction_ref>& inputs,
-                                                   const std::vector<module_ref>& mod_args)
+                                            instruction_ref ins,
+                                            const operation& op,
+                                            const std::vector<instruction_ref>& inputs,
+                                            const std::vector<module_ref>& mod_args)
     {
         assert(mod_args.empty());
         return insert_common_op(m, ins, op, inputs);

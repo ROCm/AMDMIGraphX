@@ -707,7 +707,8 @@ std::vector<operation> shape_transform_descriptor::generate() const
         auto axis   = std::distance(new_dims.begin(), startb);
         auto extra_dims = axis + std::distance(trailb, new_dims.end());
         // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and axis < new_dims.size())
+        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+           axis < new_dims.size())
         {
             result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
             new_dims.erase(trailb, new_dims.end());

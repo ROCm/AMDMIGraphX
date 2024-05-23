@@ -174,7 +174,7 @@ TEST_CASE(scalar_multibroadcast)
         reduce_mod->add_return({sqrtbc});
 
         EXPECT(test::throws([&] {
-            auto boop = mm->add_instruction(
+            mm->add_instruction(
                 migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         }));
         // reduce modules must be flagged for bypass when running subsequent passes
@@ -224,7 +224,7 @@ TEST_CASE(scalar_multibroadcast_contiguous)
         reduce_mod->add_return({sqrtbc});
 
         EXPECT(test::throws([&] {
-            auto boop = mm->add_instruction(
+            mm->add_instruction(
                 migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         }));
         // reduce modules must be flagged for bypass when running subsequent passes

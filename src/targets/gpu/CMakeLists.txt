@@ -91,7 +91,7 @@ rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
 if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
-    target_link_libraries(migraphx_device INTERFACE hip::device)
+    target_link_libraries(migraphx_device INTERFACE hip::host)
 endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
@@ -171,12 +171,10 @@ add_library(migraphx_gpu
     ${JIT_GPU_SRCS}
 )
 
+
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
-if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
-    target_link_libraries(migraphx_gpu INTERFACE migraphx_device)
-    # target_link_libraries(migraphx_gpu PUBLIC hip::device)
-endif()
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})
@@ -350,8 +348,12 @@ if(MIGRAPHX_USE_ROCBLAS)
 endif()
 
 target_link_libraries(migraphx_gpu PUBLIC migraphx)
-
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
+    target_link_libraries(migraphx_gpu PUBLIC migraphx_device)
+else()
+    target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
+endif()
+target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)

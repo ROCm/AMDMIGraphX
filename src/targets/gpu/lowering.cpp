@@ -418,6 +418,7 @@ struct miopen_apply
         });
     }
 };
+
 void lowering::apply(module_pass_manager& mpm) const
 {
     miopen_apply{&mpm.get_module(), &mpm, this}.apply();

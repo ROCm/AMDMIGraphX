@@ -26,12 +26,11 @@
 
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
-#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/gpu/miopen.hpp>
-#else
-#include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
-#include <migraphx/manage_ptr.hpp>
+#if MIGRAPHX_USE_MIOPEN == 0 and MIGRAPHX_USE_ROCBLAS ==0 
+    #include <hip/hip_runtime.h>
+    #include <hip/hip_runtime_api.h>
+    #include <migraphx/manage_ptr.hpp>
 #endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>

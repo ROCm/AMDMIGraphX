@@ -26,7 +26,6 @@
 #ifndef MIGRAPHX_GUARD_TEST_TF_TF_CONV_UTILS_HPP
 #define MIGRAPHX_GUARD_TEST_TF_TF_CONV_UTILS_HPP
 
-
 inline migraphx::program create_conv()
 {
     migraphx::program p;
@@ -48,6 +47,5 @@ inline migraphx::program create_conv()
     mm->add_instruction(op, l0, l2);
     return p;
 }
-
 
 #endif

@@ -60,13 +60,13 @@ jobs:
       - name: read_config
         id: read_config
         run: |
-          ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.yml | cut -d "'" -f2)
-          ROCM_BASE_IMAGE=$(grep 'ROCM_BASE_IMAGE' .github/workflows/config.yml | cut -d "'" -f2)
-          ROCM_BUILT_IMAGE=$(grep 'ROCM_BUILT_IMAGE' .github/workflows/config.yml | cut -d "'" -f2)
-          BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          PERFORMANCE_REPORTS_REPO=$(grep 'PERFORMANCE_REPORTS_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          ORGANIZATION_REPO=$(grep 'ORGANIZATION_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          USE_NAVI=$(grep 'USE_NAVI' .github/workflows/config.yml | cut -d "'" -f2)
+          ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.md | cut -d "'" -f2)
+          ROCM_BASE_IMAGE=$(grep 'ROCM_BASE_IMAGE' .github/workflows/config.md | cut -d "'" -f2)
+          ROCM_BUILT_IMAGE=$(grep 'ROCM_BUILT_IMAGE' .github/workflows/config.md | cut -d "'" -f2)
+          BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          PERFORMANCE_REPORTS_REPO=$(grep 'PERFORMANCE_REPORTS_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          ORGANIZATION_REPO=$(grep 'ORGANIZATION_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          USE_NAVI=$(grep 'USE_NAVI' .github/workflows/config.ymd | cut -d "'" -f2)
           echo "rocm_version=$ROCM_VERSION" >> $GITHUB_OUTPUT
           echo "rocm_base_image=$ROCM_BASE_IMAGE" >> $GITHUB_OUTPUT
           echo "rocm_built_image=$ROCM_BUILT_IMAGE" >> $GITHUB_OUTPUT

@@ -64,14 +64,14 @@ jobs:
       - name: read_config
         id: read_config
         run: |
-          ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.yml | cut -d "'" -f2)
-          BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          PERFORMANCE_REPORTS_REPO=$(grep 'PERFORMANCE_REPORTS_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          PERFORMANCE_BACKUP_REPO=$(grep 'PERFORMANCE_BACKUP_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          ORGANIZATION_REPO=$(grep 'ORGANIZATION_REPO' .github/workflows/config.yml | cut -d "'" -f2)
-          RESULTS_TO_COMPARE=$(grep 'RESULTS_TO_COMPARE' .github/workflows/config.yml | cut -d "'" -f2)
-          CALCULATION_METHOD_FLAG=$(grep 'CALCULATION_METHOD_FLAG' .github/workflows/config.yml | cut -d "'" -f2)
-          PERFORMANCE_TEST_TIMEOUT=$(grep 'PERFORMANCE_TEST_TIMEOUT' .github/workflows/config.yml | cut -d "'" -f2)
+          ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.md | cut -d "'" -f2)
+          BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          PERFORMANCE_REPORTS_REPO=$(grep 'PERFORMANCE_REPORTS_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          PERFORMANCE_BACKUP_REPO=$(grep 'PERFORMANCE_BACKUP_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          ORGANIZATION_REPO=$(grep 'ORGANIZATION_REPO' .github/workflows/config.md | cut -d "'" -f2)
+          RESULTS_TO_COMPARE=$(grep 'RESULTS_TO_COMPARE' .github/workflows/config.md | cut -d "'" -f2)
+          CALCULATION_METHOD_FLAG=$(grep 'CALCULATION_METHOD_FLAG' .github/workflows/config.md | cut -d "'" -f2)
+          PERFORMANCE_TEST_TIMEOUT=$(grep 'PERFORMANCE_TEST_TIMEOUT' .github/workflows/config.md | cut -d "'" -f2)
           echo "rocm_version=$ROCM_VERSION" >> $GITHUB_OUTPUT
           echo "utils_repo=$BENCHMARK_UTILS_REPO" >> $GITHUB_OUTPUT
           echo "reports_repo=$PERFORMANCE_REPORTS_REPO" >> $GITHUB_OUTPUT

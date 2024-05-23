@@ -28,6 +28,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
@@ -118,6 +119,41 @@ struct hip_device
         }
 #endif
 
+#if MIGRAPHX_USE_HIPBLASLT
+        auto get_hipblaslt()
+        {
+            setup();
+            if(hblthandle == nullptr)
+            {
+                hblthandle = create_hipblaslt_handle_ptr(get());
+            }
+            assert(hblthandle.get() != nullptr);
+            return hblthandle.get();
+        }
+
+        auto get_hipblaslt_preference()
+        {
+            setup();
+            if(hbltpreference == nullptr)
+            {
+                hbltpreference = create_hipblaslt_preference_ptr();
+            }
+            assert(hbltpreference.get() != nullptr);
+            return hbltpreference.get();
+        }
+
+        auto get_hipblaslt_workspace()
+        {
+            setup();
+            if(hbltworkspace == nullptr)
+            {
+                hbltworkspace = create_hipblaslt_workspace_ptr();
+            }
+            assert(hbltworkspace.get() != nullptr);
+            return hbltworkspace.get();
+        }
+#endif
+
         void wait() const
         {
             if(s == nullptr)
@@ -150,6 +186,12 @@ struct hip_device
         shared<miopen_handle> mihandle = nullptr;
 #if MIGRAPHX_USE_ROCBLAS
         shared<rocblas_handle_ptr> rbhandle = nullptr;
+#endif
+
+#if MIGRAPHX_USE_HIPBLASLT
+        shared<hipblaslt_handle_ptr> hblthandle         = nullptr;
+        shared<hipblaslt_preference_ptr> hbltpreference = nullptr;
+        shared<hipblaslt_workspace_ptr> hbltworkspace   = nullptr;
 #endif
     };
 

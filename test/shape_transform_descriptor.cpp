@@ -382,7 +382,7 @@ TEST_CASE(optimize_scalar_broadcast_unsqueeze)
                                                    make_op("unsqueeze", {{"axes", {1}}}),
                                                }) ==
            ops{
-               make_op("multibroadcast", {{"out_lens", {1, 2}}}),
+               make_op("multibroadcast", {{"out_lens", {2, 1}}}),
            });
 }
 

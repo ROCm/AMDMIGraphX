@@ -33,9 +33,7 @@
 #include <hip/hip_runtime_api.h>
 #include <migraphx/manage_ptr.hpp>
 #endif
-#if MIGRAPHX_USE_ROCBLAS
 #include <migraphx/gpu/rocblas.hpp>
-#endif
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>

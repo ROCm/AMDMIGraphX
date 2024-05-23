@@ -707,7 +707,7 @@ std::vector<operation> shape_transform_descriptor::generate() const
         auto axis   = std::distance(new_dims.begin(), startb);
         auto extra_dims = axis + std::distance(trailb, new_dims.end());
         // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0)
+        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and axis < new_dims.size())
         {
             result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
             new_dims.erase(trailb, new_dims.end());
@@ -718,6 +718,10 @@ std::vector<operation> shape_transform_descriptor::generate() const
             result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
         }
     }
+    // If all the dimensions have no axes then there isnt anthing else to do
+    // so just clear the new_dims
+    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+        new_dims.clear();
     // Flatten broadcasted dimensions
     for(auto& d : new_dims)
     {

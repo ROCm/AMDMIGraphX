@@ -27,7 +27,7 @@
 #include <migraphx/gpu/export.h>
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
-#if MIGRAPHX_USE_MIOPEN == 0 and MIGRAPHX_USE_ROCBLAS ==0 
+#if MIGRAPHX_USE_MIOPEN == 0
     #include <hip/hip_runtime.h>
     #include <hip/hip_runtime_api.h>
     #include <migraphx/manage_ptr.hpp>

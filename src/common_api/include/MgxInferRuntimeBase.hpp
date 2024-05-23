@@ -1,6 +1,9 @@
 #pragma once
 
-#include <cstddef>
+#include <iterator>
+#include <migraphx/shape.hpp>
+
+#include <algorithm>
 #include <cstdint>
 
 namespace mgxinfer1 {
@@ -313,5 +316,78 @@ enum class TensorIOMode : int32_t
     //! Tensor is output by the engine.
     kOUTPUT = 2
 };
+
+//!
+//! \enum TensorLocation
+//!
+//! \brief The location for tensor data storage, device or host.
+//!
+enum class TensorLocation : int32_t
+{
+    kDEVICE = 0, //!< Data stored on device.
+    kHOST   = 1, //!< Data stored on host.
+};
+
+inline DataType toDataType(const migraphx::shape::type_t& type)
+{
+    switch(type)
+    {
+    case migraphx::shape::type_t::float_type: return DataType::kFLOAT;
+    case migraphx::shape::type_t::half_type: return DataType::kHALF;
+    case migraphx::shape::type_t::int8_type: return DataType::kINT8;
+    case migraphx::shape::type_t::int32_type: return DataType::kINT32;
+    case migraphx::shape::type_t::bool_type: return DataType::kBOOL;
+    case migraphx::shape::type_t::uint8_type: return DataType::kUINT8;
+    case migraphx::shape::type_t::fp8e4m3fnuz_type: return DataType::kFP8;
+    case migraphx::shape::type_t::int64_type: return DataType::kINT64;
+    default: MIGRAPHX_THROW("Type not supported");
+    }
+}
+
+inline migraphx::shape::type_t fromDataType(const DataType& type)
+{
+    switch(type)
+    {
+    case DataType::kFLOAT: return migraphx::shape::type_t::float_type;
+    case DataType::kHALF: return migraphx::shape::type_t::half_type;
+    case DataType::kINT8: return migraphx::shape::type_t::int8_type;
+    case DataType::kINT32: return migraphx::shape::type_t::int32_type;
+    case DataType::kBOOL: return migraphx::shape::type_t::bool_type;
+    case DataType::kUINT8: return migraphx::shape::type_t::uint8_type;
+    case DataType::kFP8: return migraphx::shape::type_t::fp8e4m3fnuz_type;
+    case DataType::kINT64: return migraphx::shape::type_t::int64_type;
+    default: MIGRAPHX_THROW("Type not supported");
+    }
+}
+
+inline Dims toDimensions(const migraphx::shape& shape)
+{
+    Dims dims;
+    auto lens   = shape.lens();
+    dims.nbDims = static_cast<int32_t>(lens.size());
+    std::transform(
+        lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
+    return dims;
+}
+
+inline std::vector<int64_t> dimsToVec(const Dims& dims)
+{
+    std::vector<int64_t> ret;
+    std::copy(dims.d, dims.d + dims.nbDims, std::back_inserter(ret));
+    return ret;
+}
+
+inline std::vector<int64_t> axesToVector(int32_t axes)
+{
+    std::vector<int64_t> ret;
+    for(int i = 0; i < 32; ++i)
+    {
+        if(axes & (1 << i))
+        {
+            ret.push_back(i);
+        }
+    }
+    return ret;
+}
 
 } // namespace mgxinfer1

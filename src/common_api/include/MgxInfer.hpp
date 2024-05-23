@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -13,6 +14,8 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 
 #include "MgxInferRuntimeBase.hpp"
 #include "migraphx/migraphx.h"
@@ -66,22 +69,10 @@ class ISoftMaxLayer
 class IConcatenationLayer
 {
 };
-class IElementWiseLayer
-{
-};
-class IUnaryLayer
-{
-};
 class IShuffleLayer
 {
 };
 class IOneHotLayer
-{
-};
-class ILayer
-{
-};
-class IReduceLayer
 {
 };
 class ITopKLayer
@@ -225,237 +216,6 @@ class INoCopy
 };
 
 //!
-//! \class IHostMemory
-//!
-//! \brief Class to handle library allocated memory that is accessible to the user.
-//!
-//! The memory allocated via the host memory object is owned by the library and will
-//! be de-allocated when the destroy method is called.
-//!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
-//! and ABI.
-//!
-class IHostMemory : public INoCopy
-{
-    public:
-    virtual ~IHostMemory() noexcept = default;
-
-    //! A pointer to the raw data that is owned by the library.
-    const void* data() const noexcept { return data_; }
-
-    //! The size in bytes of the data that was allocated.
-    std::size_t size() const noexcept { return size_; }
-
-    //! The type of the memory that was allocated.
-    DataType type() const noexcept { return type_; }
-
-    IHostMemory(void* data, size_t size, DataType type) : data_{data}, size_{size}, type_{type} {}
-
-    protected:
-    // apiv::VHostMemory* mImpl;
-    void* data_;
-    size_t size_;
-    DataType type_;
-};
-
-//!
-//! \brief Represents a collection of one or more TempfileControlFlag values combined using
-//! bitwise-OR operations.
-//!
-//! \see TempfileControlFlag,
-//!      IRuntime::setTempfileControlFlags(),
-//!      IRuntime::getTempfileControlFlags()
-using TempfileControlFlags = uint32_t;
-
-//!
-//! \enum ExecutionContextAllocationStrategy
-//!
-//! \brief Different memory allocation behaviors for IExecutionContext.
-//!
-//! IExecutionContext requires a block of device memory for internal activation tensors during
-//! inference. The user can either let the execution context manage the memory in various ways or
-//! allocate the memory themselves.
-//!
-//! \see ICudaEngine::createExecutionContext()
-//! \see IExecutionContext::setDeviceMemory()
-//!
-enum class ExecutionContextAllocationStrategy : int32_t
-{
-    kSTATIC = 0, //!< Default static allocation with the maximum size across all profiles.
-    kON_PROFILE_CHANGE = 1, //!< Reallocate for a profile when it's selected.
-    kUSER_MANAGED      = 2, //!< The user supplies custom allocation to the execution context.
-};
-
-//!
-//! \enum TensorLocation
-//!
-//! \brief The location for tensor data storage, device or host.
-//!
-enum class TensorLocation : int32_t
-{
-    kDEVICE = 0, //!< Data stored on device.
-    kHOST   = 1, //!< Data stored on host.
-};
-
-//!
-//! \enum OptProfileSelector
-//!
-//! \brief When setting or querying optimization profile parameters (such as shape tensor inputs or
-//! dynamic dimensions),
-//!        select whether we are interested in the minimum, optimum, or maximum values for these
-//!        parameters. The minimum and maximum specify the permitted range that is supported at
-//!        runtime, while the optimum value is used for the kernel selection. This should be the
-//!        "typical" value that is expected to occur at runtime.
-//!
-//! \see IOptimizationProfile::setDimensions(), IOptimizationProfile::setShapeValues()
-//!
-enum class OptProfileSelector : int32_t
-{
-    kMIN =
-        0, //!< This is used to set or get the minimum permitted value for dynamic dimensions etc.
-    kOPT = 1, //!< This is used to set or get the value that is used in the optimization (kernel
-              //!< selection).
-    kMAX = 2 //!< This is used to set or get the maximum permitted value for dynamic dimensions etc.
-};
-
-//!
-//! \enum EngineCapability
-//!
-//! \brief List of supported engine capability flows.
-//!
-//! \details The EngineCapability determines the restrictions of a network during build time and
-//! what runtime it targets. When BuilderFlag::kSAFETY_SCOPE is not set (by default),
-//! EngineCapability::kSTANDARD does not provide any restrictions on functionality and the resulting
-//! serialized engine can be executed with TensorRT's standard runtime APIs in the nvinfer1
-//! namespace. EngineCapability::kSAFETY provides a restricted subset of network operations that are
-//! safety certified and the resulting serialized engine can be executed with TensorRT's safe
-//! runtime APIs in the nvinfer1::safe namespace. EngineCapability::kDLA_STANDALONE provides a
-//! restricted subset of network operations that are DLA compatible and the resulting serialized
-//! engine can be executed using standalone DLA runtime APIs. See sampleCudla for an example of
-//! integrating cuDLA APIs with TensorRT APIs.
-//!
-enum class EngineCapability : int32_t
-{
-    //!
-    //! Standard: TensorRT flow without targeting the safety runtime.
-    //! This flow supports both DeviceType::kGPU and DeviceType::kDLA.
-    //!
-    kSTANDARD = 0,
-
-    //!
-    //! Safety: TensorRT flow with restrictions targeting the safety runtime.
-    //! See safety documentation for list of supported layers and formats.
-    //! This flow supports only DeviceType::kGPU.
-    //!
-    //! This flag is only supported in NVIDIA Drive(R) products.
-    kSAFETY = 1,
-
-    //!
-    //! DLA Standalone: TensorRT flow with restrictions targeting external, to TensorRT, DLA
-    //! runtimes. See DLA documentation for list of supported layers and formats. This flow supports
-    //! only DeviceType::kDLA.
-    //!
-    kDLA_STANDALONE = 2,
-};
-
-//!
-//! \enum TacticSource
-//!
-//! \brief List of tactic sources for TensorRT.
-//!
-//! \see TacticSources, IBuilderConfig::setTacticSources(), IBuilderConfig::getTacticSources()
-//!
-enum class TacticSource : int32_t
-{
-    //! cuBLAS tactics. Disabled by default.
-    //! \note Disabling kCUBLAS will cause the cuBLAS handle passed to plugins in attachToContext to
-    //! be null. \deprecated Deprecated in TensorRT 10.0.
-    kCUBLAS = 0,
-
-    //! cuBLAS LT tactics. Enabled by default.
-    //! \deprecated Deprecated in TensorRT 9.0.
-    kCUBLAS_LT = 1,
-
-    //! cuDNN tactics. Disabled by default.
-    //! \note Disabling kCUDNN will cause the cuDNN handle passed to plugins in attachToContext to
-    //! be null. \deprecated Deprecated in TensorRT 10.0.
-    kCUDNN = 2,
-
-    //! Enables convolution tactics implemented with edge mask tables. These tactics tradeoff memory
-    //! for performance by consuming additional memory space proportional to the input size. Enabled
-    //! by default.
-    kEDGE_MASK_CONVOLUTIONS = 3,
-
-    //! Enables convolution tactics implemented with source-code JIT fusion. The engine building
-    //! time may increase when this is enabled. Enabled by default.
-    kJIT_CONVOLUTIONS = 4,
-};
-
-//!
-//! \brief Represents a collection of one or more TacticSource values
-//! combine using bitwise-OR operations.
-//!
-//! \see IBuilderConfig::setTacticSources(), IBuilderConfig::getTacticSources()
-//!
-using TacticSources = uint32_t;
-
-//!
-//! \enum ProfilingVerbosity
-//!
-//! \brief List of verbosity levels of layer information exposed in NVTX annotations and in
-//! IEngineInspector.
-//!
-//! \see IBuilderConfig::setProfilingVerbosity(),
-//!      IBuilderConfig::getProfilingVerbosity(),
-//!      IEngineInspector
-//!
-enum class ProfilingVerbosity : int32_t
-{
-    kLAYER_NAMES_ONLY = 0, //!< Print only the layer names. This is the default setting.
-    kNONE             = 1, //!< Do not print any layer information.
-    kDETAILED = 2, //!< Print detailed layer information including layer names and layer parameters.
-};
-
-//!
-//! \enum HardwareCompatibilityLevel
-//!
-//! \brief Describes requirements of compatibility with GPU architectures other than that of the GPU
-//! on which the engine was built.
-//!
-//! Levels except kNONE are only supported for engines built on NVIDIA Ampere and later GPUs.
-//!
-//! \warning Note that compatibility with future hardware depends on CUDA forward compatibility
-//! support.
-//!
-enum class HardwareCompatibilityLevel : int32_t
-{
-    //! Do not require hardware compatibility with GPU architectures other than that of the GPU on
-    //! which the engine was built.
-    kNONE = 0,
-
-    //! Require that the engine is compatible with Ampere and newer GPUs. This will limit the
-    //! combined usage of driver reserved and backend kernel max shared memory to 48KiB, may reduce
-    //! the number of available tactics for each layer, and may prevent some fusions from occurring.
-    //! Thus this can decrease the performance, especially for tf32 models. This option will disable
-    //! cuDNN, cuBLAS, and cuBLAS LT as tactic sources.
-    //!
-    //! The driver reserved shared memory can be queried from cuDeviceGetAttribute(&reservedShmem,
-    //! CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK).
-    //!
-    kAMPERE_PLUS = 1,
-};
-
-inline Dims toDimensions(const migraphx::shape& shape)
-{
-    Dims dims;
-    auto lens   = shape.lens();
-    dims.nbDims = static_cast<int32_t>(lens.size());
-    std::transform(
-        lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
-    return dims;
-}
-
-//!
 //! \class ITensor
 //!
 //! \brief A tensor in a network definition.
@@ -474,7 +234,7 @@ inline Dims toDimensions(const migraphx::shape& shape)
 class ITensor : public INoCopy
 {
     public:
-    ITensor(migraphx::shape shape) : shape_{shape} {}
+    ITensor(migraphx::instruction_ref ins) : ins_{ins} {}
     //!
     //! \brief Set the tensor name.
     //!
@@ -545,7 +305,7 @@ class ITensor : public INoCopy
     Dims getDimensions() const noexcept
     {
         // TODO incomplete
-        return toDimensions(shape_);
+        return toDimensions(ins_->get_shape());
         // pass("Not Implemented", true);
         // return mImpl->getDimensions();
     }
@@ -858,12 +618,919 @@ class ITensor : public INoCopy
         // return mImpl->getDimensionName(index);
     }
 
-    protected:
-    // apiv::VTensor* mImpl;
+    migraphx::instruction_ref getInstruction() const noexcept { return ins_; }
+
+    // TODO this destructor was protected. For now it is moved to public to avoid compile errors.
     virtual ~ITensor() noexcept = default;
 
+    protected:
+    // apiv::VTensor* mImpl;
+
     private:
-    migraphx::shape shape_;
+    migraphx::instruction_ref ins_;
+};
+
+//!
+//! \enum LayerType
+//!
+//! \brief The type values of layer classes.
+//!
+//! \see ILayer::getType()
+//!
+enum class LayerType : int32_t
+{
+    kCONVOLUTION        = 0,  //!< Convolution layer.
+    kCAST               = 1,  //!< Cast layer
+    kACTIVATION         = 2,  //!< Activation layer.
+    kPOOLING            = 3,  //!< Pooling layer.
+    kLRN                = 4,  //!< LRN layer.
+    kSCALE              = 5,  //!< Scale layer.
+    kSOFTMAX            = 6,  //!< SoftMax layer.
+    kDECONVOLUTION      = 7,  //!< Deconvolution layer.
+    kCONCATENATION      = 8,  //!< Concatenation layer.
+    kELEMENTWISE        = 9,  //!< Elementwise layer.
+    kPLUGIN             = 10, //!< Plugin layer.
+    kUNARY              = 11, //!< UnaryOp operation Layer.
+    kPADDING            = 12, //!< Padding layer.
+    kSHUFFLE            = 13, //!< Shuffle layer.
+    kREDUCE             = 14, //!< Reduce layer.
+    kTOPK               = 15, //!< TopK layer.
+    kGATHER             = 16, //!< Gather layer.
+    kMATRIX_MULTIPLY    = 17, //!< Matrix multiply layer.
+    kRAGGED_SOFTMAX     = 18, //!< Ragged softmax layer.
+    kCONSTANT           = 19, //!< Constant layer.
+    kIDENTITY           = 20, //!< Identity layer.
+    kPLUGIN_V2          = 21, //!< PluginV2 layer.
+    kSLICE              = 22, //!< Slice layer.
+    kSHAPE              = 23, //!< Shape layer.
+    kPARAMETRIC_RELU    = 24, //!< Parametric ReLU layer.
+    kRESIZE             = 25, //!< Resize Layer.
+    kTRIP_LIMIT         = 26, //!< Loop Trip limit layer
+    kRECURRENCE         = 27, //!< Loop Recurrence layer
+    kITERATOR           = 28, //!< Loop Iterator layer
+    kLOOP_OUTPUT        = 29, //!< Loop output layer
+    kSELECT             = 30, //!< Select layer.
+    kFILL               = 31, //!< Fill layer
+    kQUANTIZE           = 32, //!< Quantize layer
+    kDEQUANTIZE         = 33, //!< Dequantize layer
+    kCONDITION          = 34, //!< Condition layer
+    kCONDITIONAL_INPUT  = 35, //!< Conditional Input layer
+    kCONDITIONAL_OUTPUT = 36, //!< Conditional Output layer
+    kSCATTER            = 37, //!< Scatter layer
+    kEINSUM             = 38, //!< Einsum layer
+    kASSERTION          = 39, //!< Assertion layer
+    kONE_HOT            = 40, //!< OneHot layer
+    kNON_ZERO           = 41, //!< NonZero layer
+    kGRID_SAMPLE        = 42, //!< Grid sample layer
+    kNMS                = 43, //!< NMS layer
+    kREVERSE_SEQUENCE   = 44, //!< Reverse sequence layer
+    kNORMALIZATION      = 45, //!< Normalization layer
+    kPLUGIN_V3          = 46  //!< PluginV3 layer.
+};
+
+//!
+//! \class ILayer
+//!
+//! \brief Base class for all layer classes in a network definition.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class ILayer : public INoCopy
+{
+    public:
+    ILayer(const std::shared_ptr<migraphx::program>& program,
+           const std::vector<migraphx::instruction_ref>& inputs,
+           const std::vector<migraphx::instruction_ref>& outputs)
+        : program_{program}
+    {
+        for(auto ins : inputs)
+        {
+            inputs_.push_back(std::make_unique<ITensor>(ins));
+        }
+
+        for(auto ins : outputs)
+        {
+            outputs_.push_back(std::make_unique<ITensor>(ins));
+        }
+    }
+
+    //!
+    //! \brief Return the type of a layer.
+    //!
+    //! \see LayerType
+    //!
+    LayerType getType() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getType();
+    }
+
+    //!
+    //! \brief Set the name of a layer.
+    //!
+    //! This method copies the name string.
+    //!
+    //! \warning The string name must be null-terminated, and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    //! \see getName()
+    //!
+    void setName(char const* name) noexcept
+    {
+        pass("Not Implemented", true);
+        // mLayer->setName(name);
+    }
+
+    //!
+    //! \brief Return the name of a layer.
+    //!
+    //! \see setName()
+    //!
+    char const* getName() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getName();
+    }
+
+    //!
+    //! \brief Get the number of inputs of a layer.
+    //!
+    int32_t getNbInputs() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getNbInputs();
+    }
+
+    //!
+    //! \brief Get the layer input corresponding to the given index.
+    //!
+    //! \param index The index of the input tensor.
+    //!
+    //! \return The input tensor, or nullptr if the index is out of range or the tensor is optional
+    //! (\ref ISliceLayer).
+    //!
+    ITensor* getInput(int32_t index) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getInput(index);
+    }
+
+    //!
+    //! \brief Get the number of outputs of a layer.
+    //!
+    int32_t getNbOutputs() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getNbOutputs();
+    }
+
+    //!
+    //! \brief Get the layer output corresponding to the given index.
+    //!
+    //! \return The indexed output tensor, or nullptr if the index is out of range or the tensor is
+    //! optional.
+    //!
+    ITensor* getOutput(int32_t index) const noexcept
+    {
+        return outputs_[index].get();
+        // return mLayer->getOutput(index);
+    }
+
+    //!
+    //! \brief Replace an input of this layer with a specific tensor.
+    //!
+    //! \param index the index of the input to modify.
+    //! \param tensor the new input tensor
+    //!
+    //! Except for IFillLayer, ILoopOutputLayer, INMSLayer, IResizeLayer, IShuffleLayer, and
+    //! ISliceLayer, this method cannot change the number of inputs to a layer. The index argument
+    //! must be less than the value of getNbInputs().
+    //!
+    //! See comments for overloads of setInput() for layers with special behavior.
+    //!
+    void setInput(int32_t index, ITensor& tensor) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->setInput(index, tensor);
+    }
+
+    //!
+    //! \brief Set the preferred or required computational precision of this layer in a weakly-typed
+    //! network.
+    //!
+    //! Setting the precision directs TensorRT to choose an implementation that runs at this
+    //! computational precision. TensorRT could still choose a non-conforming fastest implementation
+    //! that ignores the requested precision. To force choosing an implementation with the requested
+    //! precision, set exactly one of the following flags, which differ in what happens if no such
+    //! implementation exists:
+    //!
+    //! * BuilderFlag::kOBEY_PRECISION_CONSTRAINTS - build fails with an error message.
+    //!
+    //! * BuilderFlag::kPREFER_PRECISION_CONSTRAINTS - TensorRT falls back to an
+    //!   implementation without the requested precision.
+    //!
+    //! If precision is not set, or falling back, TensorRT will select the layer computational
+    //! precision and layer input type based on global performance considerations and the flags
+    //! specified to the builder.
+    //!
+    //! For a IIdentityLayer: If it casts to/from float/half/int8/uint8, the precision must be one
+    //! of those types, otherwise it must be either the input or output type.
+    //!
+    //! Strongly-typed networks reject calls to method setPrecision. In strongly-typed networks, the
+    //! computation precision is typically controlled by casting the input tensors to the desired
+    //! type. The exception is INormalizationLayer, which has a method setComputePrecision().
+    //!
+    //! \param dataType the computational precision.
+    //!
+    //! \see getPrecision() precisionIsSet() resetPrecision()
+    //!
+    void setPrecision(DataType dataType) noexcept
+    {
+        pass("Not Implemented", true);
+        // mLayer->setPrecision(dataType);
+    }
+
+    //!
+    //! \brief get the computational precision of this layer
+    //!
+    //! \return the computational precision
+    //!
+    //! \see setPrecision() precisionIsSet() resetPrecision()
+    //!
+    DataType getPrecision() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getPrecision();
+    }
+
+    //!
+    //! \brief whether the computational precision has been set for this layer
+    //!
+    //! \return whether the computational precision has been explicitly set
+    //!
+    //! \see setPrecision() getPrecision() resetPrecision()
+    //!
+    bool precisionIsSet() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->precisionIsSet();
+    }
+
+    //!
+    //! \brief reset the computational precision for this layer
+    //!
+    //! \see setPrecision() getPrecision() precisionIsSet()
+    //!
+    void resetPrecision() noexcept
+    {
+        pass("Not Implemented", true);
+        // mLayer->resetPrecision();
+    }
+
+    //!
+    //! \brief Set the output type of this layer in a weakly-typed network.
+    //!
+    //! Setting the output type constrains TensorRT to choose implementations which generate output
+    //! data with the given type. If it is not set, TensorRT will select output type based on layer
+    //! computational precision. TensorRT could still choose non-conforming output type based on
+    //! fastest implementation. To force choosing the requested output type, set exactly one of the
+    //! following flags, which differ in what happens if no such implementation exists:
+    //!
+    //! * BuilderFlag::kOBEY_PRECISION_CONSTRAINTS - build fails with an error message.
+    //!
+    //! * BuilderFlag::kPREFER_PRECISION_CONSTRAINTS - TensorRT falls back to an
+    //!   implementation with a non-conforming output type.
+    //!
+    //! In case layer precision is not specified, or falling back, the output type depends on the
+    //! chosen implementation, based on performance considerations and the flags specified to the
+    //! builder.
+    //!
+    //! This method cannot be used to set the data type of the second output tensor of the TopK
+    //! layer. The data type of the second output tensor of the topK layer is always Int32. Also the
+    //! output type of all layers that are shape operations must be DataType::kINT32, and all
+    //! attempts to set the output type to some other data type will be ignored except for issuing
+    //! an error message.
+    //!
+    //! Note that the layer output type is generally not identical to the data type of the output
+    //! tensor, as TensorRT may insert implicit reformatting operations to convert the former to the
+    //! latter. Calling layer->setOutputType(i, type) has no effect on the data type of the i-th
+    //! output tensor of layer, and users need to call layer->getOutput(i)->setType(type) to change
+    //! the tensor data type. This is particularly relevant if the tensor is marked as a network
+    //! output, since only setType() [but not setOutputType()] will affect the data representation
+    //! in the corresponding output binding.
+    //!
+    //! Strongly-typed networks reject calls to method setOutputType. Instead, the output type can
+    //! be set only for layers that define method setToType(). Those layers are:
+    //!
+    //! * ICastLayer
+    //! * IDequantizeLayer
+    //! * IFillLayer
+    //! * IQuantizeLayer
+    //!
+    //! \param index the index of the output to set
+    //! \param dataType the type of the output
+    //!
+    //! \see getOutputType() outputTypeIsSet() resetOutputType()
+    //!
+    void setOutputType(int32_t index, DataType dataType) noexcept
+    {
+        pass("Not Implemented", true);
+        // mLayer->setOutputType(index, dataType);
+    }
+
+    //!
+    //! \brief get the output type of this layer
+    //!
+    //! \param index the index of the output
+    //!
+    //! \return the output precision. If no precision has been set, DataType::kFLOAT will be
+    //! returned,
+    //!         unless the output type is inherently DataType::kINT32.
+    //!
+    //! \see getOutputType() outputTypeIsSet() resetOutputType()
+    //!
+    DataType getOutputType(int32_t index) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getOutputType(index);
+    }
+
+    //!
+    //! \brief whether the output type has been set for this layer
+    //!
+    //! \param index the index of the output
+    //!
+    //! \return whether the output type has been explicitly set
+    //!
+    //! \see setOutputType() getOutputType() resetOutputType()
+    //!
+    bool outputTypeIsSet(int32_t index) const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->outputTypeIsSet(index);
+    }
+
+    //!
+    //! \brief reset the output type for this layer
+    //!
+    //! \param index the index of the output
+    //!
+    //! \see setOutputType() getOutputType() outputTypeIsSet()
+    //!
+    void resetOutputType(int32_t index) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->resetOutputType(index);
+    }
+
+    //!
+    //! \brief Set the metadata for this layer.
+    //!
+    //! The metadata is emitted in the JSON returned by IEngineInspector with
+    //! ProfilingVerbosity set to kDETAILED.
+    //!
+    //! \param metadata The per-layer metadata.
+    //!
+    //! \warning The string name must be null-terminated and be at most 4096 bytes including the
+    //! terminator.
+    //!
+    //! \see getMetadata()
+    //! \see getLayerInformation()
+    //!
+    void setMetadata(char const* metadata) noexcept
+    {
+        pass("Not Implemented", true);
+        // mLayer->setMetadata(metadata);
+    }
+
+    //!
+    //! \brief Get the metadata of the layer.
+    //!
+    //! \return The metadata as a null-terminated C-style string. If setMetadata() has not been
+    //! called,
+    //!         an empty string "" will be returned as a default value.
+    //!
+    //! \see setMetadata()
+    //!
+    char const* getMetadata() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mLayer->getMetadata();
+    }
+
+    virtual ~ILayer() noexcept = default;
+
+    protected:
+    // apiv::VLayer* mLayer;
+    std::shared_ptr<migraphx::program> program_;
+    std::vector<std::unique_ptr<ITensor>> inputs_;
+    std::vector<std::unique_ptr<ITensor>> outputs_;
+};
+
+//!
+//! \enum UnaryOperation
+//!
+//! \brief Enumerates the unary operations that may be performed by a Unary layer.
+//!
+//! Operations kNOT must have inputs of DataType::kBOOL.
+//!
+//! Operation kSIGN and kABS must have inputs of floating-point type, DataType::kINT8,
+//! DataType::kINT32 or DataType::kINT64.
+//!
+//! Operation kISINF must have inputs of floating-point type.
+//!
+//! All other operations must have inputs of floating-point type.
+//!
+//! \see IUnaryLayer
+//!
+enum class UnaryOperation : int32_t
+{
+    kEXP   = 0,  //!< Exponentiation.
+    kLOG   = 1,  //!< Log (base e).
+    kSQRT  = 2,  //!< Square root.
+    kRECIP = 3,  //!< Reciprocal.
+    kABS   = 4,  //!< Absolute value.
+    kNEG   = 5,  //!< Negation.
+    kSIN   = 6,  //!< Sine.
+    kCOS   = 7,  //!< Cosine.
+    kTAN   = 8,  //!< Tangent.
+    kSINH  = 9,  //!< Hyperbolic sine.
+    kCOSH  = 10, //!< Hyperbolic cosine.
+    kASIN  = 11, //!< Inverse sine.
+    kACOS  = 12, //!< Inverse cosine.
+    kATAN  = 13, //!< Inverse tangent.
+    kASINH = 14, //!< Inverse hyperbolic sine.
+    kACOSH = 15, //!< Inverse hyperbolic cosine.
+    kATANH = 16, //!< Inverse hyperbolic tangent.
+    kCEIL  = 17, //!< Ceiling.
+    kFLOOR = 18, //!< Floor.
+    kERF   = 19, //!< Gauss error function.
+    kNOT   = 20, //!< Logical NOT.
+    kSIGN = 21, //!< Sign, If input > 0, output 1; if input < 0, output -1; if input == 0, output 0.
+    kROUND = 22, //!< Round to nearest even for floating-point data type.
+    kISINF = 23, //!< Return true if input value equals +/- infinity for floating-point data type.
+};
+
+//!
+//! \class IUnaryLayer
+//!
+//! \brief Layer that represents an unary operation.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IUnaryLayer : public ILayer
+{
+    public:
+    using ILayer::ILayer;
+    //!
+    //! \brief Set the unary operation for the layer.
+    //!
+    //! When running this layer on DLA, only UnaryOperation::kABS is supported.
+    //!
+    //! \see getOperation(), UnaryOperation
+    //!
+    void setOperation(UnaryOperation op) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setOperation(op);
+    }
+
+    //!
+    //! \brief Get the unary operation for the layer.
+    //!
+    //! \see setOperation(), UnaryOperation
+    //!
+    UnaryOperation getOperation() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getOperation();
+    }
+
+    virtual ~IUnaryLayer() noexcept = default;
+
+    protected:
+    // apiv::VUnaryLayer* mImpl;
+};
+
+//!
+//! \enum ElementWiseOperation
+//!
+//! \brief Enumerates the binary operations that may be performed by an ElementWise layer.
+//!
+//! Operations kAND, kOR, and kXOR must have inputs of DataType::kBOOL.
+//!
+//! Operation kPOW must have inputs of floating-point type or DataType::kINT8.
+//!
+//! All other operations must have inputs of floating-point type, DataType::kINT8, DataType::kINT32,
+//! or DataType::kINT64.
+//!
+//! \see IElementWiseLayer
+//!
+enum class ElementWiseOperation : int32_t
+{
+    kSUM       = 0,  //!< Sum of the two elements.
+    kPROD      = 1,  //!< Product of the two elements.
+    kMAX       = 2,  //!< Maximum of the two elements.
+    kMIN       = 3,  //!< Minimum of the two elements.
+    kSUB       = 4,  //!< Subtract the second element from the first.
+    kDIV       = 5,  //!< Divide the first element by the second.
+    kPOW       = 6,  //!< The first element to the power of the second element.
+    kFLOOR_DIV = 7,  //!< Floor division of the first element by the second.
+    kAND       = 8,  //!< Logical AND of two elements.
+    kOR        = 9,  //!< Logical OR of two elements.
+    kXOR       = 10, //!< Logical XOR of two elements.
+    kEQUAL     = 11, //!< Check if two elements are equal.
+    kGREATER   = 12, //!< Check if element in first tensor is greater than corresponding element in
+                     //!< second tensor.
+    kLESS = 13 //!< Check if element in first tensor is less than corresponding element in second
+               //!< tensor.
+};
+
+//!
+//! \class IElementWiseLayer
+//!
+//! \brief A elementwise layer in a network definition.
+//!
+//! This layer applies a per-element binary operation between corresponding elements of two tensors.
+//!
+//! The input tensors must have the same rank. For each dimension, their lengths must
+//! match, or one of them must be one. In the latter case, the tensor is broadcast along that axis.
+//!
+//! The output tensor has the same rank as the inputs. For each output dimension,
+//! its length is equal to the lengths of the corresponding input dimensions if they match,
+//! otherwise it is equal to the length that is not one.
+//!
+//! \warning When running this layer on the DLA with Int8 data type, the dynamic ranges of two input
+//! tensors shall be equal. If the dynamic ranges are generated using calibrator, the largest value
+//! shall be used.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IElementWiseLayer : public ILayer
+{
+    public:
+    using ILayer::ILayer;
+
+    //!
+    //! \brief Set the binary operation for the layer.
+    //!
+    //! DLA supports only kSUM, kPROD, kMAX, kMIN, and kSUB.
+    //!
+    //! \see getOperation(), ElementWiseOperation
+    //!
+    //! \see getBiasWeights()
+    //!
+    void setOperation(ElementWiseOperation op) noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->setOperation(op);
+    }
+
+    //!
+    //! \brief Get the binary operation for the layer.
+    //!
+    //! \see setOperation(), ElementWiseOperation
+    //!
+    //! \see setBiasWeights()
+    //!
+    ElementWiseOperation getOperation() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getOperation();
+    }
+
+    virtual ~IElementWiseLayer() noexcept = default;
+
+    protected:
+    // apiv::VElementWiseLayer* mImpl;
+};
+
+//!
+//! \enum ReduceOperation
+//!
+//! \brief Enumerates the reduce operations that may be performed by a Reduce layer.
+//!
+//! The table shows the result of reducing across an empty volume of a given type.
+//!
+//! Operation | kFLOAT and kHALF  | kINT32  | kINT8
+//! --------- | ----------------- | ------- | -----
+//! kSUM      | 0                 | 0       | 0
+//! kPROD     | 1                 | 1       | 1
+//! kMAX      | negative infinity | INT_MIN | -128
+//! kMIN      | positive infinity | INT_MAX | 127
+//! kAVG      | NaN               | 0       | -128
+//!
+//! The current version of TensorRT usually performs reduction for kINT8 via kFLOAT or kHALF.
+//! The kINT8 values show the quantized representations of the floating-point values.
+//!
+enum class ReduceOperation : int32_t
+{
+    kSUM  = 0,
+    kPROD = 1,
+    kMAX  = 2,
+    kMIN  = 3,
+    kAVG  = 4
+};
+
+//!
+//! \class IReduceLayer
+//!
+//! \brief Layer that represents a reduction across a non-bool tensor.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IReduceLayer : public ILayer
+{
+    public:
+    using ILayer::ILayer;
+
+    //!
+    //! \brief Set the reduce operation for the layer.
+    //!
+    //! \see getOperation(), ReduceOperation
+    //!
+    void setOperation(ReduceOperation op) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setOperation(op);
+    }
+
+    //!
+    //! \brief Get the reduce operation for the layer.
+    //!
+    //! \see setOperation(), ReduceOperation
+    //!
+    ReduceOperation getOperation() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getOperation();
+    }
+
+    //!
+    //! \brief Set the axes over which to reduce.
+    //!
+    //! \see getReduceAxes
+    //!
+    void setReduceAxes(uint32_t reduceAxes) noexcept
+    {
+        auto ins = inputs_.front()->getInstruction();
+        ins->replace(migraphx::make_op(ins->name(), {{"axes", axesToVector(reduceAxes)}}));
+        // mImpl->setReduceAxes(reduceAxes);
+    }
+
+    //!
+    //! \brief Get the axes over which to reduce for the layer.
+    //!
+    //! \see setReduceAxes
+    //!
+    uint32_t getReduceAxes() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getReduceAxes();
+    }
+
+    //!
+    //! \brief Set the boolean that specifies whether or not to keep the reduced dimensions for the
+    //! layer.
+    //!
+    //! \see getKeepDimensions
+    //!
+    void setKeepDimensions(bool keepDimensions) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setKeepDimensions(keepDimensions);
+    }
+
+    //!
+    //! \brief Get the boolean that specifies whether or not to keep the reduced dimensions for the
+    //! layer.
+    //!
+    //! \see setKeepDimensions
+    //!
+    bool getKeepDimensions() const noexcept
+    {
+        pass("Not Implemented", true);
+        // return mImpl->getKeepDimensions();
+    }
+
+    virtual ~IReduceLayer() noexcept = default;
+
+    protected:
+    // apiv::VReduceLayer* mImpl;
+};
+
+//!
+//! \class IHostMemory
+//!
+//! \brief Class to handle library allocated memory that is accessible to the user.
+//!
+//! The memory allocated via the host memory object is owned by the library and will
+//! be de-allocated when the destroy method is called.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IHostMemory : public INoCopy
+{
+    public:
+    virtual ~IHostMemory() noexcept = default;
+
+    //! A pointer to the raw data that is owned by the library.
+    const void* data() const noexcept { return data_; }
+
+    //! The size in bytes of the data that was allocated.
+    std::size_t size() const noexcept { return size_; }
+
+    //! The type of the memory that was allocated.
+    DataType type() const noexcept { return type_; }
+
+    IHostMemory(void* data, size_t size, DataType type) : data_{data}, size_{size}, type_{type} {}
+
+    protected:
+    // apiv::VHostMemory* mImpl;
+    void* data_;
+    size_t size_;
+    DataType type_;
+};
+
+//!
+//! \brief Represents a collection of one or more TempfileControlFlag values combined using
+//! bitwise-OR operations.
+//!
+//! \see TempfileControlFlag,
+//!      IRuntime::setTempfileControlFlags(),
+//!      IRuntime::getTempfileControlFlags()
+using TempfileControlFlags = uint32_t;
+
+//!
+//! \enum ExecutionContextAllocationStrategy
+//!
+//! \brief Different memory allocation behaviors for IExecutionContext.
+//!
+//! IExecutionContext requires a block of device memory for internal activation tensors during
+//! inference. The user can either let the execution context manage the memory in various ways or
+//! allocate the memory themselves.
+//!
+//! \see ICudaEngine::createExecutionContext()
+//! \see IExecutionContext::setDeviceMemory()
+//!
+enum class ExecutionContextAllocationStrategy : int32_t
+{
+    kSTATIC = 0, //!< Default static allocation with the maximum size across all profiles.
+    kON_PROFILE_CHANGE = 1, //!< Reallocate for a profile when it's selected.
+    kUSER_MANAGED      = 2, //!< The user supplies custom allocation to the execution context.
+};
+
+//!
+//! \enum OptProfileSelector
+//!
+//! \brief When setting or querying optimization profile parameters (such as shape tensor inputs or
+//! dynamic dimensions),
+//!        select whether we are interested in the minimum, optimum, or maximum values for these
+//!        parameters. The minimum and maximum specify the permitted range that is supported at
+//!        runtime, while the optimum value is used for the kernel selection. This should be the
+//!        "typical" value that is expected to occur at runtime.
+//!
+//! \see IOptimizationProfile::setDimensions(), IOptimizationProfile::setShapeValues()
+//!
+enum class OptProfileSelector : int32_t
+{
+    kMIN =
+        0, //!< This is used to set or get the minimum permitted value for dynamic dimensions etc.
+    kOPT = 1, //!< This is used to set or get the value that is used in the optimization (kernel
+              //!< selection).
+    kMAX = 2 //!< This is used to set or get the maximum permitted value for dynamic dimensions etc.
+};
+
+//!
+//! \enum EngineCapability
+//!
+//! \brief List of supported engine capability flows.
+//!
+//! \details The EngineCapability determines the restrictions of a network during build time and
+//! what runtime it targets. When BuilderFlag::kSAFETY_SCOPE is not set (by default),
+//! EngineCapability::kSTANDARD does not provide any restrictions on functionality and the resulting
+//! serialized engine can be executed with TensorRT's standard runtime APIs in the nvinfer1
+//! namespace. EngineCapability::kSAFETY provides a restricted subset of network operations that are
+//! safety certified and the resulting serialized engine can be executed with TensorRT's safe
+//! runtime APIs in the nvinfer1::safe namespace. EngineCapability::kDLA_STANDALONE provides a
+//! restricted subset of network operations that are DLA compatible and the resulting serialized
+//! engine can be executed using standalone DLA runtime APIs. See sampleCudla for an example of
+//! integrating cuDLA APIs with TensorRT APIs.
+//!
+enum class EngineCapability : int32_t
+{
+    //!
+    //! Standard: TensorRT flow without targeting the safety runtime.
+    //! This flow supports both DeviceType::kGPU and DeviceType::kDLA.
+    //!
+    kSTANDARD = 0,
+
+    //!
+    //! Safety: TensorRT flow with restrictions targeting the safety runtime.
+    //! See safety documentation for list of supported layers and formats.
+    //! This flow supports only DeviceType::kGPU.
+    //!
+    //! This flag is only supported in NVIDIA Drive(R) products.
+    kSAFETY = 1,
+
+    //!
+    //! DLA Standalone: TensorRT flow with restrictions targeting external, to TensorRT, DLA
+    //! runtimes. See DLA documentation for list of supported layers and formats. This flow supports
+    //! only DeviceType::kDLA.
+    //!
+    kDLA_STANDALONE = 2,
+};
+
+//!
+//! \enum TacticSource
+//!
+//! \brief List of tactic sources for TensorRT.
+//!
+//! \see TacticSources, IBuilderConfig::setTacticSources(), IBuilderConfig::getTacticSources()
+//!
+enum class TacticSource : int32_t
+{
+    //! cuBLAS tactics. Disabled by default.
+    //! \note Disabling kCUBLAS will cause the cuBLAS handle passed to plugins in attachToContext to
+    //! be null. \deprecated Deprecated in TensorRT 10.0.
+    kCUBLAS = 0,
+
+    //! cuBLAS LT tactics. Enabled by default.
+    //! \deprecated Deprecated in TensorRT 9.0.
+    kCUBLAS_LT = 1,
+
+    //! cuDNN tactics. Disabled by default.
+    //! \note Disabling kCUDNN will cause the cuDNN handle passed to plugins in attachToContext to
+    //! be null. \deprecated Deprecated in TensorRT 10.0.
+    kCUDNN = 2,
+
+    //! Enables convolution tactics implemented with edge mask tables. These tactics tradeoff memory
+    //! for performance by consuming additional memory space proportional to the input size. Enabled
+    //! by default.
+    kEDGE_MASK_CONVOLUTIONS = 3,
+
+    //! Enables convolution tactics implemented with source-code JIT fusion. The engine building
+    //! time may increase when this is enabled. Enabled by default.
+    kJIT_CONVOLUTIONS = 4,
+};
+
+//!
+//! \brief Represents a collection of one or more TacticSource values
+//! combine using bitwise-OR operations.
+//!
+//! \see IBuilderConfig::setTacticSources(), IBuilderConfig::getTacticSources()
+//!
+using TacticSources = uint32_t;
+
+//!
+//! \enum ProfilingVerbosity
+//!
+//! \brief List of verbosity levels of layer information exposed in NVTX annotations and in
+//! IEngineInspector.
+//!
+//! \see IBuilderConfig::setProfilingVerbosity(),
+//!      IBuilderConfig::getProfilingVerbosity(),
+//!      IEngineInspector
+//!
+enum class ProfilingVerbosity : int32_t
+{
+    kLAYER_NAMES_ONLY = 0, //!< Print only the layer names. This is the default setting.
+    kNONE             = 1, //!< Do not print any layer information.
+    kDETAILED = 2, //!< Print detailed layer information including layer names and layer parameters.
+};
+
+//!
+//! \enum HardwareCompatibilityLevel
+//!
+//! \brief Describes requirements of compatibility with GPU architectures other than that of the GPU
+//! on which the engine was built.
+//!
+//! Levels except kNONE are only supported for engines built on NVIDIA Ampere and later GPUs.
+//!
+//! \warning Note that compatibility with future hardware depends on CUDA forward compatibility
+//! support.
+//!
+enum class HardwareCompatibilityLevel : int32_t
+{
+    //! Do not require hardware compatibility with GPU architectures other than that of the GPU on
+    //! which the engine was built.
+    kNONE = 0,
+
+    //! Require that the engine is compatible with Ampere and newer GPUs. This will limit the
+    //! combined usage of driver reserved and backend kernel max shared memory to 48KiB, may reduce
+    //! the number of available tactics for each layer, and may prevent some fusions from occurring.
+    //! Thus this can decrease the performance, especially for tf32 models. This option will disable
+    //! cuDNN, cuBLAS, and cuBLAS LT as tactic sources.
+    //!
+    //! The driver reserved shared memory can be queried from cuDeviceGetAttribute(&reservedShmem,
+    //! CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK).
+    //!
+    kAMPERE_PLUS = 1,
 };
 
 //!
@@ -1809,22 +2476,6 @@ class IExecutionContext : public INoCopy
     std::shared_ptr<migraphx::program> program_;
     migraphx::parameter_map param_map_;
 };
-
-inline DataType toDataType(const migraphx::shape::type_t& type)
-{
-    switch(type)
-    {
-    case migraphx::shape::type_t::float_type: return DataType::kFLOAT;
-    case migraphx::shape::type_t::half_type: return DataType::kHALF;
-    case migraphx::shape::type_t::int8_type: return DataType::kINT8;
-    case migraphx::shape::type_t::int32_type: return DataType::kINT32;
-    case migraphx::shape::type_t::bool_type: return DataType::kBOOL;
-    case migraphx::shape::type_t::uint8_type: return DataType::kUINT8;
-    case migraphx::shape::type_t::fp8e4m3fnuz_type: return DataType::kFP8;
-    case migraphx::shape::type_t::int64_type: return DataType::kINT64;
-    default: MIGRAPHX_THROW("Type not supported");
-    }
-}
 
 //!
 //! \class ICudaEngine
@@ -3096,111 +3747,6 @@ class Weights
 };
 
 //!
-//! \enum ElementWiseOperation
-//!
-//! \brief Enumerates the binary operations that may be performed by an ElementWise layer.
-//!
-//! Operations kAND, kOR, and kXOR must have inputs of DataType::kBOOL.
-//!
-//! Operation kPOW must have inputs of floating-point type or DataType::kINT8.
-//!
-//! All other operations must have inputs of floating-point type, DataType::kINT8, DataType::kINT32,
-//! or DataType::kINT64.
-//!
-//! \see IElementWiseLayer
-//!
-enum class ElementWiseOperation : int32_t
-{
-    kSUM       = 0,  //!< Sum of the two elements.
-    kPROD      = 1,  //!< Product of the two elements.
-    kMAX       = 2,  //!< Maximum of the two elements.
-    kMIN       = 3,  //!< Minimum of the two elements.
-    kSUB       = 4,  //!< Subtract the second element from the first.
-    kDIV       = 5,  //!< Divide the first element by the second.
-    kPOW       = 6,  //!< The first element to the power of the second element.
-    kFLOOR_DIV = 7,  //!< Floor division of the first element by the second.
-    kAND       = 8,  //!< Logical AND of two elements.
-    kOR        = 9,  //!< Logical OR of two elements.
-    kXOR       = 10, //!< Logical XOR of two elements.
-    kEQUAL     = 11, //!< Check if two elements are equal.
-    kGREATER   = 12, //!< Check if element in first tensor is greater than corresponding element in
-                     //!< second tensor.
-    kLESS = 13 //!< Check if element in first tensor is less than corresponding element in second
-               //!< tensor.
-};
-
-//!
-//! \enum UnaryOperation
-//!
-//! \brief Enumerates the unary operations that may be performed by a Unary layer.
-//!
-//! Operations kNOT must have inputs of DataType::kBOOL.
-//!
-//! Operation kSIGN and kABS must have inputs of floating-point type, DataType::kINT8,
-//! DataType::kINT32 or DataType::kINT64.
-//!
-//! Operation kISINF must have inputs of floating-point type.
-//!
-//! All other operations must have inputs of floating-point type.
-//!
-//! \see IUnaryLayer
-//!
-enum class UnaryOperation : int32_t
-{
-    kEXP   = 0,  //!< Exponentiation.
-    kLOG   = 1,  //!< Log (base e).
-    kSQRT  = 2,  //!< Square root.
-    kRECIP = 3,  //!< Reciprocal.
-    kABS   = 4,  //!< Absolute value.
-    kNEG   = 5,  //!< Negation.
-    kSIN   = 6,  //!< Sine.
-    kCOS   = 7,  //!< Cosine.
-    kTAN   = 8,  //!< Tangent.
-    kSINH  = 9,  //!< Hyperbolic sine.
-    kCOSH  = 10, //!< Hyperbolic cosine.
-    kASIN  = 11, //!< Inverse sine.
-    kACOS  = 12, //!< Inverse cosine.
-    kATAN  = 13, //!< Inverse tangent.
-    kASINH = 14, //!< Inverse hyperbolic sine.
-    kACOSH = 15, //!< Inverse hyperbolic cosine.
-    kATANH = 16, //!< Inverse hyperbolic tangent.
-    kCEIL  = 17, //!< Ceiling.
-    kFLOOR = 18, //!< Floor.
-    kERF   = 19, //!< Gauss error function.
-    kNOT   = 20, //!< Logical NOT.
-    kSIGN = 21, //!< Sign, If input > 0, output 1; if input < 0, output -1; if input == 0, output 0.
-    kROUND = 22, //!< Round to nearest even for floating-point data type.
-    kISINF = 23, //!< Return true if input value equals +/- infinity for floating-point data type.
-};
-
-//!
-//! \enum ReduceOperation
-//!
-//! \brief Enumerates the reduce operations that may be performed by a Reduce layer.
-//!
-//! The table shows the result of reducing across an empty volume of a given type.
-//!
-//! Operation | kFLOAT and kHALF  | kINT32  | kINT8
-//! --------- | ----------------- | ------- | -----
-//! kSUM      | 0                 | 0       | 0
-//! kPROD     | 1                 | 1       | 1
-//! kMAX      | negative infinity | INT_MIN | -128
-//! kMIN      | positive infinity | INT_MAX | 127
-//! kAVG      | NaN               | 0       | -128
-//!
-//! The current version of TensorRT usually performs reduction for kINT8 via kFLOAT or kHALF.
-//! The kINT8 values show the quantized representations of the floating-point values.
-//!
-enum class ReduceOperation : int32_t
-{
-    kSUM  = 0,
-    kPROD = 1,
-    kMAX  = 2,
-    kMIN  = 3,
-    kAVG  = 4
-};
-
-//!
 //! \enum TopKOperation
 //!
 //! \brief Enumerates the operations that may be performed by a TopK layer.
@@ -3380,7 +3926,12 @@ class INetworkDefinition : public INoCopy
     //!
     ITensor* addInput(char const* name, DataType type, Dims const& dimensions) noexcept
     {
-        pass("Not Implemented", true);
+        auto* mm = program_->get_main_module();
+        auto input =
+            mm->add_parameter(name, migraphx::shape{fromDataType(type), dimsToVec(dimensions)});
+        input_tensors_.push_back(std::make_unique<ITensor>(input));
+        auto* ret = input_tensors_.back().get();
+        return ret;
         // return mImpl->addInput(name, type, dimensions);
     }
 
@@ -3395,7 +3946,7 @@ class INetworkDefinition : public INoCopy
     //!
     void markOutput(ITensor& tensor) noexcept
     {
-        pass("Not Implemented", true);
+        pass("Not Implemented", false);
         // mImpl->markOutput(tensor);
     }
 
@@ -3573,7 +4124,24 @@ class INetworkDefinition : public INoCopy
     IElementWiseLayer*
     addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
     {
-        pass("Not Implemented", true);
+        auto mm = program_->get_main_module();
+
+        std::string elem_wise_op;
+        switch(op)
+        {
+        case ElementWiseOperation::kSUM: elem_wise_op = "add"; break;
+        default: pass("Not Implemented", true);
+        }
+
+        auto elem_wise_ins = mm->add_instruction(
+            migraphx::make_op(elem_wise_op), input1.getInstruction(), input2.getInstruction());
+
+        std::vector<migraphx::instruction_ref> input_instructions{elem_wise_ins};
+        std::vector<migraphx::instruction_ref> output_instructions{elem_wise_ins};
+
+        layers_.push_back(
+            std::make_unique<IElementWiseLayer>(program_, input_instructions, output_instructions));
+        return dynamic_cast<IElementWiseLayer*>(layers_.back().get());
         // return mImpl->addElementWise(input1, input2, op);
     }
 
@@ -3596,7 +4164,24 @@ class INetworkDefinition : public INoCopy
     //!
     IUnaryLayer* addUnary(ITensor& input, UnaryOperation operation) noexcept
     {
-        pass("Not Implemented", true);
+        auto mm = program_->get_main_module();
+
+        std::string unary_op;
+        switch(operation)
+        {
+        case UnaryOperation::kABS: unary_op = "abs"; break;
+        case UnaryOperation::kSIN: unary_op = "sin"; break;
+        default: pass("Not Implemented", true);
+        }
+
+        auto unary_ins = mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction());
+
+        std::vector<migraphx::instruction_ref> input_instructions{unary_ins};
+        std::vector<migraphx::instruction_ref> output_instructions{unary_ins};
+
+        layers_.push_back(
+            std::make_unique<IUnaryLayer>(program_, input_instructions, output_instructions));
+        return dynamic_cast<IUnaryLayer*>(layers_.back().get());
         // return mImpl->addUnary(input, operation);
     }
 
@@ -3690,11 +4275,12 @@ class INetworkDefinition : public INoCopy
     ITensor* getInput(int32_t index) const noexcept
     {
         // TODO check that index is in range
-        auto param_names = program_->get_parameter_names();
+        // auto param_names = program_->get_parameter_names();
         // Paired with the usage in mnist_sample.cpp, this currently causes a memory leak. One must
         // suppose that the network owns the underlying memory, and just passes back a pointer to
         // the ITensor.
-        return new ITensor{program_->get_parameter_shape(param_names.at(index))};
+        // auto ins = program_->get_parameter(param_names.at(index));
+        return input_tensors_[index].get();
         // return mImpl->getInput(index);
     }
 
@@ -3729,7 +4315,9 @@ class INetworkDefinition : public INoCopy
         // Paired with the usage in mnist_sample.cpp, this currently causes a memory leak. One must
         // suppose that the network owns the underlying memory, and just passes back a pointer to
         // the ITensor.
-        return new ITensor{program_->get_output_shapes().at(index)};
+        // TODO is this correct?
+        // auto ins = program_->get_main_module()->get_returns()[index];
+        return output_tensors_[index].get();
         // pass("Not Implemented", true);
         // return mImpl->getOutput(index);
     }
@@ -3760,8 +4348,37 @@ class INetworkDefinition : public INoCopy
                             uint32_t reduceAxes,
                             bool keepDimensions) noexcept
     {
-        pass("Not Implemented", true);
-        // return mImpl->addReduce(input, operation, reduceAxes, keepDimensions);
+        auto mm = program_->get_main_module();
+
+        std::string reduce_op;
+        switch(operation)
+        {
+        case ReduceOperation::kSUM: reduce_op = "reduce_sum"; break;
+        case ReduceOperation::kPROD: reduce_op = "reduce_prod"; break;
+        case ReduceOperation::kMAX: reduce_op = "reduce_max"; break;
+        case ReduceOperation::kMIN: reduce_op = "reduce_min"; break;
+        case ReduceOperation::kAVG: reduce_op = "reduce_mean"; break;
+        }
+
+        std::vector<int64_t> axes = axesToVector(reduceAxes);
+
+        auto reduce_ins = mm->add_instruction(migraphx::make_op(reduce_op, {{"axes", axes}}),
+                                              input.getInstruction());
+
+        std::vector<migraphx::instruction_ref> input_instructions{reduce_ins};
+        std::vector<migraphx::instruction_ref> output_instructions;
+
+        if(!keepDimensions)
+        {
+            auto squeeze_ins =
+                mm->add_instruction(migraphx::make_op("squeeze", {{"axes", axes}}), reduce_ins);
+            output_instructions.push_back(squeeze_ins);
+        }
+
+        layers_.push_back(
+            std::make_unique<IReduceLayer>(program_, input_instructions, output_instructions));
+        return dynamic_cast<IReduceLayer*>(layers_.back().get());
+        //  return mImpl->addReduce(input, operation, reduceAxes, keepDimensions);
     }
 
     //!
@@ -4785,13 +5402,26 @@ class INetworkDefinition : public INoCopy
     {
         program_ = program;
         std::cout << *program_ << std::endl;
+
+        for(auto param : program_->get_main_module()->get_parameters())
+        {
+            input_tensors_.push_back(std::make_unique<ITensor>(param));
+        }
+
+        for(auto param : program_->get_main_module()->get_returns())
+        {
+            output_tensors_.push_back(std::make_unique<ITensor>(param));
+        }
     }
 
     const migraphx::program* getProgram() const { return program_.get(); }
 
     protected:
     //     apiv::VNetworkDefinition* mImpl;
-    std::shared_ptr<migraphx::program> program_;
+    std::shared_ptr<migraphx::program> program_ = std::make_shared<migraphx::program>();
+    mutable std::vector<std::unique_ptr<ITensor>> input_tensors_;
+    mutable std::vector<std::unique_ptr<ITensor>> output_tensors_;
+    mutable std::vector<std::unique_ptr<ILayer>> layers_;
 };
 
 //!

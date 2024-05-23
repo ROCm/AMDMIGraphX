@@ -148,10 +148,14 @@ bool SampleOnnxMNIST::build()
     {
         return false;
     }
+    
+    std::cout << "BLA" << std::endl;
 
     ASSERT(network->getNbInputs() == 1);
     mInputDims = network->getInput(0)->getDimensions();
     ASSERT(mInputDims.nbDims == 4);
+
+        std::cout << "ABA" << std::endl;
 
     ASSERT(network->getNbOutputs() == 1);
     mOutputDims = network->getOutput(0)->getDimensions();

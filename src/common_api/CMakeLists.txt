@@ -27,3 +27,8 @@ add_executable(MNISTSample mnist_sample.cpp)
 rocm_clang_tidy_check(MNISTSample)
 target_link_libraries(MNISTSample migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)
 target_include_directories(MNISTSample PUBLIC ../include include)
+
+add_executable(Network network.cpp)
+rocm_clang_tidy_check(Network)
+target_link_libraries(Network migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)
+target_include_directories(Network PUBLIC ../include include)

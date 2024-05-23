@@ -28,6 +28,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
 #include <optional>
@@ -595,6 +597,16 @@ struct find_pointwise_mlir
             mlir_input_pointwise(match::used_once()).bind("pointwise")));
     }
 
+    static instruction_ref insert_pointwise(module& m,
+                                                   instruction_ref ins,
+                                                   const operation& op,
+                                                   const std::vector<instruction_ref>& inputs,
+                                                   const std::vector<module_ref>& mod_args)
+    {
+        assert(mod_args.empty());
+        return insert_common_op(m, ins, op, inputs);
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
@@ -606,7 +618,7 @@ struct find_pointwise_mlir
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
         m->set_bypass();
-        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins).front();
+        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
         map_ins[pw] = rins;
 
         auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
@@ -652,6 +664,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+
+    mpm.run_pass(dead_code_elimination{});
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
         match::find_matches(mpm, find_pointwise_mlir{});

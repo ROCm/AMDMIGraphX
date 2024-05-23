@@ -376,14 +376,14 @@ TEST_CASE(optimize_transpose_reshape_to_transpose)
 
 TEST_CASE(optimize_scalar_broadcast_unsqueeze)
 {
-    EXPECT(migraphx::optimize_shape_transforms(
-               {1},
-               {
-                   make_op("multibroadcast", {{"out_lens", {2}}}),
-                   make_op("unsqueeze", {{"axes", {1}}}),
-               }) == ops{
-                        make_op("multibroadcast", {{"out_lens", {1, 2}}}),
-                     });
+    EXPECT(migraphx::optimize_shape_transforms({1},
+                                               {
+                                                   make_op("multibroadcast", {{"out_lens", {2}}}),
+                                                   make_op("unsqueeze", {{"axes", {1}}}),
+                                               }) ==
+           ops{
+               make_op("multibroadcast", {{"out_lens", {1, 2}}}),
+           });
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

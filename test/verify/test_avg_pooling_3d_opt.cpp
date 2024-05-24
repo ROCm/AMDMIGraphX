@@ -27,6 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
+// gpu::pooling not supported when MIOpen is OFF
+#if MIGRAPHX_USE_MIOPEN
 struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
 {
     migraphx::program create_program() const
@@ -41,3 +43,4 @@ struct test_avg_pooling_3d_opt : verify_program<test_avg_pooling_3d_opt>
         return p;
     }
 };
+#endif

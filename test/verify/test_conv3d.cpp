@@ -27,6 +27,8 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
+// 3D convolution not supported in mlir due to https://github.com/ROCm/AMDMIGraphX/blob/e4013bb2a5818c4df50f51dbb310ca271f5adc69/src/targets/gpu/fuse_mlir.cpp#L259
+#if MIGRAPHX_USE_MIOPEN
 struct test_conv3d : verify_program<test_conv3d>
 {
     migraphx::program create_program() const
@@ -47,3 +49,4 @@ struct test_conv3d : verify_program<test_conv3d>
     }
     std::string section() const { return "conv"; }
 };
+#endif

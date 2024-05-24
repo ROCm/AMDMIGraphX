@@ -46,5 +46,8 @@ struct test_conv_pooling : verify_program<test_conv_pooling<DType>>
     std::string section() const { return "conv"; }
 };
 
+// gpu::pooling not supported when MIOpen is OFF
+#if MIGRAPHX_USE_MIOPEN
 template struct test_conv_pooling<migraphx::shape::float_type>;
 template struct test_conv_pooling<migraphx::shape::fp8e4m3fnuz_type>;
+#endif

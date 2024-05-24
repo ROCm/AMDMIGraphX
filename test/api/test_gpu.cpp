@@ -28,6 +28,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include "test.hpp"
 
+// gpu::convolution not supported since MIOpen is OFF
+#if MIGRAPHX_USE_MIOPEN
 TEST_CASE(load_and_run)
 {
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
@@ -50,6 +52,7 @@ TEST_CASE(load_and_run)
     CHECK(shapes_before.size() == outputs.size());
     CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
+#endif
 
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
@@ -169,6 +172,8 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
                 migraphx::shape(migraphx_shape_float_type, {2, 2, 2, 2})});
 }
 
+// gpu::convolution not supported since MIOpen is OFF
+#if MIGRAPHX_USE_MIOPEN
 TEST_CASE(load_and_run_async)
 {
     auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
@@ -222,6 +227,7 @@ TEST_CASE(load_and_run_ctx)
     p.eval(pp);
     ctx.finish();
 }
+#endif
 
 TEST_CASE(if_pl_test)
 {

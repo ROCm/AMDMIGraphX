@@ -363,6 +363,7 @@ add_subdirectory(driver)
 add_subdirectory(hiprtc)
 
 rocm_install_targets(
+    PRIVATE
     TARGETS migraphx_gpu migraphx_device compile_for_gpu
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

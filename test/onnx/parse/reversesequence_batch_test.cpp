@@ -63,6 +63,6 @@ TEST_CASE(reversesequence_batch_test)
     }
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("reversesequence_batch_test.onnx");
+    auto prog = read_onnx("reversesequence_batch_test.onnx");
     EXPECT(p == prog);
 }

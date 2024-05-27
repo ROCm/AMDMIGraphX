@@ -72,7 +72,7 @@ TEST_CASE(qlinearmatmul_2D_test)
 
     mm->add_return({c});
 
-    auto prog = migraphx::parse_onnx("qlinearmatmul_2D_test.onnx");
+    auto prog = read_onnx("qlinearmatmul_2D_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

@@ -52,6 +52,6 @@ TEST_CASE(if_then_test)
     auto r   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), ret);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("if_then_test.onnx");
+    auto prog = read_onnx("if_then_test.onnx");
     EXPECT(p == prog);
 }

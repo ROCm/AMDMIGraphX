@@ -269,6 +269,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -331,7 +332,10 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)

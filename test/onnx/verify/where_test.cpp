@@ -28,7 +28,7 @@
 
 TEST_CASE(where_test)
 {
-    migraphx::program p = migraphx::parse_onnx("where_test.onnx");
+    migraphx::program p = read_onnx("where_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape c_shape{migraphx::shape::bool_type, {2}};

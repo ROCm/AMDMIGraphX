@@ -32,28 +32,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-#ifdef _WIN32
-namespace {
-struct auto_load_targets
-{
-    auto_load_targets()
-    {
-        make_target("ref");
-#ifdef HAVE_CPU
-        make_target("cpu");
-#endif
-#ifdef HAVE_GPU
-        make_target("gpu");
-#endif
-#ifdef HAVE_FPGA
-        make_target("fpga");
-#endif
-    }
-};
-[[maybe_unused]] static auto load_targets = auto_load_targets{};
-} // namespace
-#endif
-
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;

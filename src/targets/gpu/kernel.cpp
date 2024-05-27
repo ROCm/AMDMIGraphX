@@ -27,21 +27,25 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <cassert>
 
+#ifdef _WIN32
+#include <hip/hip_ext.h>
+#else
 // extern declare the function since hip/hip_ext.h header is broken
-extern "C" hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
-                                               uint32_t,
-                                               uint32_t,
-                                               uint32_t,
-                                               uint32_t,
-                                               uint32_t,
-                                               uint32_t,
-                                               size_t,
-                                               hipStream_t,
-                                               void**,
-                                               void**,
-                                               hipEvent_t = nullptr,
-                                               hipEvent_t = nullptr,
-                                               uint32_t   = 0);
+extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           size_t,
+                                           hipStream_t,
+                                           void**,
+                                           void**,
+                                           hipEvent_t = nullptr,
+                                           hipEvent_t = nullptr,
+                                           uint32_t   = 0);
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

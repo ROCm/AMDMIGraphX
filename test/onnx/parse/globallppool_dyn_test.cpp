@@ -41,7 +41,7 @@ TEST_CASE(globallppool_dyn_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {16, 32};
-    auto prog                     = migraphx::parse_onnx("globallppool_dyn_test.onnx", options);
+    auto prog                     = read_onnx("globallppool_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

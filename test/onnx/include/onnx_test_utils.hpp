@@ -25,6 +25,7 @@
 #ifndef MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 #define MIGRAPHX_GUARD_TEST_ONNX_ONNX_TEST_UTILS_HPP
 
+#include <onnx_test.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
@@ -395,7 +396,7 @@ inline void scatter_test_base(const std::string& reduction, int axis, const std:
     auto r = mm->add_instruction(
         migraphx::make_op("scatter_" + reduction, {{"axis", axis}}), l0, l1, l2);
     mm->add_return({r});
-    auto prog = migraphx::parse_onnx(onnx_file);
+    auto prog = read_onnx(onnx_file);
 
     EXPECT(p == prog);
 }

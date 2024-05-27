@@ -88,6 +88,6 @@ TEST_CASE(resize_downsample_linear_test)
     auto add1  = mm->add_instruction(migraphx::make_op("add"), mul1, slc10);
     mm->add_return({add1});
 
-    auto prog = migraphx::parse_onnx("resize_downsample_linear_test.onnx");
+    auto prog = read_onnx("resize_downsample_linear_test.onnx");
     EXPECT(p == prog);
 }

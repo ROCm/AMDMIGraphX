@@ -29,7 +29,7 @@
 TEST_CASE(qlinearmul_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearMul
-    migraphx::program p = migraphx::parse_onnx("qlinearmul_test.onnx");
+    migraphx::program p = read_onnx("qlinearmul_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {64}};

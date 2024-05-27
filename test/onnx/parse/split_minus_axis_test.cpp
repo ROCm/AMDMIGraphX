@@ -37,7 +37,7 @@ TEST_CASE(split_minus_axis_test)
         migraphx::make_op("slice", {{"axes", {-1}}, {"starts", {10}}, {"ends", {15}}}), input);
     mm->add_return({r1, r2, r3});
 
-    auto prog = migraphx::parse_onnx("split_minus_axis_test.onnx");
+    auto prog = read_onnx("split_minus_axis_test.onnx");
 
     EXPECT(p == prog);
 }

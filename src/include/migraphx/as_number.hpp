@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
+#define MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP
 
-#include <onnx_test.hpp>
+#include <cstdint>
+#include <migraphx/config.hpp>
 
-TEST_CASE(batch_norm_invalid_rank)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+template <class T>
+T as_number(T x)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("batch_norm_invalid_rank.onnx"); }));
+    return x;
 }
+inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
+inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_RTGLIB_AS_NUMBER_HPP

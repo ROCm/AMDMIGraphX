@@ -23,49 +23,52 @@
  */
 
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-#if MIGRAPHX_USE_ROCBLAS
-rocblas_handle_ptr create_rocblas_handle_ptr()
+#if MIGRAPHX_USE_HIPBLASLT
+// for hipblaslt only
+static size_t workspace_size = HIPBLASLT_WORKSPACE_SIZE;
+static void* d_workspace;
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
 {
-    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
-    rocblas_initialize();
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
+    hipblasLtHandle_t handle;
+    hipblasLtCreate(&handle);
+    return hipblaslt_handle_ptr{handle};
 }
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
+hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s)
 {
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
-#endif
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
+    hipblaslt_handle_ptr hblt = create_hipblaslt_handle_ptr();
+    hipblasSetStream(hblt.get(), s);
+    return hblt;
 }
 
-bool rocblas_fp8_available()
+hipblaslt_preference_ptr create_hipblaslt_preference_ptr()
 {
-#if MIGRAPHX_USE_ROCBLAS
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8_intrinsics();
-#endif
-#else
-    return false;
-#endif
+    hipblasLtMatmulPreference_t preference;
+    hipblasLtMatmulPreferenceCreate(&preference);
+    CHECK_HIPBLAS_ERROR(
+        hipblasLtMatmulPreferenceSetAttribute(preference,
+                                              HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                              &workspace_size,
+                                              sizeof(workspace_size)));
+    return hipblaslt_preference_ptr{preference};
 }
+
+hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr()
+{
+    auto status = hipMalloc(&d_workspace, workspace_size);
+    if(status != hipSuccess)
+    {
+        MIGRAPHX_THROW("hipMalloc failed for allocating workspace for the hipBLASLt\n");
+    }
+    return hipblaslt_workspace_ptr{d_workspace};
+}
+#endif // MIGRAPHX_USE_HIPBLASLT
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

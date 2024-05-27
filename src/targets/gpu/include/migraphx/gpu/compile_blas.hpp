@@ -21,52 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_GPU_COMPILE_BLAS_HPP
+#define MIGRAPHX_GUARD_GPU_COMPILE_BLAS_HPP
 
-#include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/gpu/rocblas.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+struct context;
+struct operation;
+
 namespace gpu {
-#if MIGRAPHX_USE_ROCBLAS
-rocblas_handle_ptr create_rocblas_handle_ptr()
-{
-    // add a call to rocblas_initialize() to workaround a rocblas bug SWDEV-438929
-    rocblas_initialize();
-    rocblas_handle handle;
-    rocblas_create_handle(&handle);
-    return rocblas_handle_ptr{handle};
-}
 
-rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s)
+struct compile_blas
 {
-    rocblas_handle_ptr rb = create_rocblas_handle_ptr();
-    rocblas_set_stream(rb.get(), s);
-    return rb;
-}
-#endif
-bool get_compute_fp32_flag()
-{
-    const auto device_name = trim(split_string(get_device_name(), ':').front());
-    return (starts_with(device_name, "gfx9") and device_name >= "gfx908");
-}
-
-bool rocblas_fp8_available()
-{
-#if MIGRAPHX_USE_ROCBLAS
-#ifndef MIGRAPHX_USE_ROCBLAS_FP8_API
-    return false;
-#else
-    return gfx_has_fp8_intrinsics();
-#endif
-#else
-    return false;
-#endif
-}
+    context* ctx = nullptr;
+    std::string name() const { return "gpu::compile_blas"; }
+    void apply(module& m) const;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_COMPILE_BLAS_HPP

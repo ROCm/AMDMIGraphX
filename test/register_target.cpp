@@ -41,5 +41,5 @@ struct auto_load_targets
 #endif
     }
 };
-[[maybe_unused]] static auto load_targets = auto_load_targets{};
+[[maybe_unused]] static auto load_targets{auto_load_targets{}};
 } // namespace

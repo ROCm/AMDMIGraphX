@@ -86,7 +86,7 @@ struct miopen_apply
         compute_fp32 = get_compute_fp32_flag();
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
-        
+
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
@@ -98,7 +98,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
-        
+
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");

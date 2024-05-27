@@ -171,8 +171,6 @@ add_library(migraphx_gpu
     ${JIT_GPU_SRCS}
 )
 
-
-
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 

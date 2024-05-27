@@ -33,7 +33,6 @@
 #include <migraphx/op/lrn.hpp>
 #include <miopen/miopen.h>
 
-
 #include <sstream>
 
 #ifdef MIGRAPHX_HAS_FIND_MODE_API

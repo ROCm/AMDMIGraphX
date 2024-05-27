@@ -28,9 +28,9 @@
 #include <migraphx/context.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #if MIGRAPHX_USE_MIOPEN == 0
-    #include <hip/hip_runtime.h>
-    #include <hip/hip_runtime_api.h>
-    #include <migraphx/manage_ptr.hpp>
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <migraphx/manage_ptr.hpp>
 #endif
 #include <migraphx/gpu/rocblas.hpp>
 #include <migraphx/gpu/hip.hpp>
@@ -114,7 +114,6 @@ struct hip_device
             return mihandle.get();
         }
 #endif
-        
 
 #if MIGRAPHX_USE_ROCBLAS
         auto get_rocblas()
@@ -154,11 +153,11 @@ struct hip_device
         }
 
         private:
-        std::size_t id                      = 0;
-        shared<hip_stream_ptr> s            = nullptr;
- #if MIGRAPHX_USE_MIOPEN
-        shared<miopen_handle> mihandle      = nullptr;
- #endif
+        std::size_t id           = 0;
+        shared<hip_stream_ptr> s = nullptr;
+#if MIGRAPHX_USE_MIOPEN
+        shared<miopen_handle> mihandle = nullptr;
+#endif
 #if MIGRAPHX_USE_ROCBLAS
         shared<rocblas_handle_ptr> rbhandle = nullptr;
 #endif

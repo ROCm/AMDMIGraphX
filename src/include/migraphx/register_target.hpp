@@ -65,6 +65,9 @@ struct register_target_action
     }
 };
 
+template <class T>
+using auto_register_target = auto_register<register_target_action, T>;
+
 #define MIGRAPHX_REGISTER_TARGET(...) MIGRAPHX_AUTO_REGISTER(register_target_action, __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS

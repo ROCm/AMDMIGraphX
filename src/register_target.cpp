@@ -44,6 +44,8 @@ std::unordered_map<std::string, target>& target_map()
     return m;
 }
 
+void register_target_init() { (void)target_map(); }
+
 void unregister_target(const std::string& name)
 {
     assert(target_map().count(name));

@@ -643,7 +643,7 @@ struct find_gemm_pointwise
         auto ins      = r.result;
         auto gemm_ins = r.instructions["gemm"];
 
-        auto gemm = any_cast<rocblas_gemm<op::dot>>(gemm_ins->get_operator());
+        auto gemm = any_cast<hip_gemm<op::dot>>(gemm_ins->get_operator());
 
         // Already fused gemm
         if(not float_equal(gemm.beta, 0))

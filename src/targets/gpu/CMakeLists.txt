@@ -214,6 +214,12 @@ if(MIGRAPHX_USE_ROCBLAS)
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
+if(MIGRAPHX_USE_HIPBLASLT)
+    register_op(migraphx_gpu
+        HEADER migraphx/gpu/gemm.hpp
+        OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
 register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
     OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
     INCLUDES migraphx/gpu/context.hpp)

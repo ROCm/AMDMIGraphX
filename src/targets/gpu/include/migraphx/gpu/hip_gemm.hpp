@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
-#define MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_GPU_HIP_GEMM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_GPU_HIP_GEMM_HPP
 
 #include <migraphx/errors.hpp>
 #include <migraphx/operation.hpp>
@@ -30,7 +30,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/gemm_impl.hpp>
+#include <migraphx/gpu/hip_gemm_impl.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/ranges.hpp>
@@ -67,9 +67,9 @@ struct hip_gemm
     {
         if(contains(op.name(), "quant_"))
         {
-            return "gpu::quant_gemm";
+            return "gpu::hip_quant_gemm";
         }
-        return "gpu::gemm";
+        return "gpu::hip_gemm";
     }
 
     shape compute_shape(const std::vector<shape>& inputs) const
@@ -111,13 +111,13 @@ struct hip_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::gemm" or output_shape.type() == migraphx::shape::float_type)
+        if(this->name() == "gpu::hip_gemm" or output_shape.type() == migraphx::shape::float_type)
         {
-            gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
+            hip_gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
         }
         else
         {
-            gemm_compute(
+            hip_gemm_compute(
                 ctx, output_shape, args, int32_t(alpha), int32_t(beta), compute_fp32, solution_idx);
         }
         return args.back();
@@ -130,34 +130,29 @@ struct hip_gemm
 
     void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
     {
-#ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
         if(solution_idx == 0)
-            solution_idx = gemm_default_solution(ctx, output_shape, input_shapes);
-        if(enabled(MIGRAPHX_ENABLE_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
+            solution_idx = hip_gemm_default_solution(ctx, output_shape, input_shapes);
+        if(enabled(MIGRAPHX_ENABLE_HIP_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
         {
-            if(this->name() == "gpu::gemm")
+            if(this->name() == "gpu::hip_gemm")
             {
-                solution_idx = gemm_finalize(
+                solution_idx = hip_gemm_finalize(
                     ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
             }
             else
             {
-                solution_idx = gemm_finalize(ctx,
-                                             output_shape,
-                                             input_shapes,
-                                             int32_t(alpha),
-                                             int32_t(beta),
-                                             compute_fp32,
-                                             solution_idx);
+                solution_idx = hip_gemm_finalize(ctx,
+                                                 output_shape,
+                                                 input_shapes,
+                                                 int32_t(alpha),
+                                                 int32_t(beta),
+                                                 compute_fp32,
+                                                 solution_idx);
             }
         }
-#else
-        // suppress compiler warnings
-        (void)ctx, (void)output_shape, (void)input_shapes;
-#endif // MIGRAPHX_USE_ROCBLAS_TUNING_API
     }
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_RTGLIB_GPU_GEMM_HPP
+#endif // MIGRAPHX_GUARD_RTGLIB_GPU_HIP_GEMM_HPP

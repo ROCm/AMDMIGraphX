@@ -244,7 +244,7 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            return mod->replace_instruction(ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }
 #endif

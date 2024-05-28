@@ -20,34 +20,20 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(tanh_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p;
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    auto l1  = mm->add_instruction(migraphx::make_op("tanh"), l0);
+    mm->add_return({l1});
+    auto prog = parse_tf("tanh_test.pb", false);
 
-#endif
+    EXPECT(p == prog);
+}

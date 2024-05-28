@@ -20,34 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
+#include <tf_conv_utils.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(conv_relu6_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p = create_conv();
+    auto* mm            = p.get_main_module();
+    std::vector<size_t> input_lens{1, 32, 16, 16};
+    auto l0      = std::prev(mm->end());
+    auto min_val = mm->add_literal(0.0f);
+    auto max_val = mm->add_literal(6.0f);
+    min_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  min_val);
+    max_val = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}),
+                                  max_val);
+    mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
+    auto prog = optimize_tf("conv_relu6_test.pb", true);
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    EXPECT(p == prog);
+}

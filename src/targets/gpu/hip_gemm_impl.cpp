@@ -224,8 +224,22 @@ struct hip_gemm_impl
         auto ldb_ = static_cast<int64_t>(ldb);
         auto ldc_ = static_cast<int64_t>(ldc);
         auto ldd_ = static_cast<int64_t>(ldd);
-        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, m_, k_, lda_));
-        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, n_, k_, ldb_));
+        if(op_A == HIPBLAS_OP_T)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, m_, k_, lda_));
+        }
+        else
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, k_, m_, lda_));
+        }
+        if(op_B == HIPBLAS_OP_T)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, k_, n_, ldb_));
+        }
+        else
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, n_, k_, ldb_));
+        }
         CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matC, output_type, n_, m_, ldc_));
         // set all matrices to row major layouts
         // hipblasLtOrder_t layout = HIPBLASLT_ORDER_ROW;

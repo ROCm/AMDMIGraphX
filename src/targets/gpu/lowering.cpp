@@ -46,8 +46,10 @@
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/gemm.hpp>
+#include <migraphx/gpu/hip_gemm.hpp>
 #include <migraphx/gpu/miopen.hpp>
 #include <migraphx/gpu/rocblas.hpp>
+#include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/compiler.hpp>
 
 namespace migraphx {

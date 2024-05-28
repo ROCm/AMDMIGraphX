@@ -24,7 +24,6 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_HIP_GEMM_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_HIP_GEMM_IMPL_HPP
 
-#include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -67,25 +66,6 @@ void hip_gemm_compute(context& ctx,
                       int32_t beta,
                       bool compute_fp32,
                       int32_t solution_idx);
-
-int32_t hip_gemm_finalize(context& ctx,
-                          const shape& output_shape,
-                          const std::vector<shape>& input_shapes,
-                          float alpha,
-                          float beta,
-                          bool compute_fp32);
-
-int32_t hip_gemm_finalize(context& ctx,
-                          const shape& output_shape,
-                          const std::vector<shape>& input_shapes,
-                          int32_t alpha,
-                          int32_t beta,
-                          bool compute_fp32,
-                          int32_t solution_idx);
-
-int32_t hip_gemm_default_solution(context& ctx,
-                                  const shape& output_shape,
-                                  const std::vector<shape>& input_shapes);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

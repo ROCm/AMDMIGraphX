@@ -44,7 +44,7 @@ shape transpose_batch(const shape& s, unsigned trans_batch);
 void blas_shape(const shape& s);
 
 template <class Op>
-struct hip_gemm
+struct rocblas_gemm
 {
     Op op;
     float alpha          = 1;

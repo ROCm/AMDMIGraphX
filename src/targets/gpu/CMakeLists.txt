@@ -151,6 +151,7 @@ add_library(migraphx_gpu
     gemm_impl.cpp
     hip.cpp
     hipblaslt.cpp
+    hip_gemm_impl.cpp
     kernel.cpp
     lowering.cpp
     logsoftmax.cpp
@@ -216,7 +217,7 @@ if(MIGRAPHX_USE_ROCBLAS)
 endif()
 if(MIGRAPHX_USE_HIPBLASLT)
     register_op(migraphx_gpu
-        HEADER migraphx/gpu/gemm.hpp
+        HEADER migraphx/gpu/hip_gemm.hpp
         OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()

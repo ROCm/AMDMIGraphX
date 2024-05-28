@@ -40,8 +40,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-shape transpose_batch(const shape& s, unsigned trans_batch);
-void blas_shape(const shape& s);
+shape transpose_batch_hip(const shape& s, unsigned trans_batch);
+void blas_shape_hip(const shape& s);
 
 template <class Op>
 struct hip_gemm
@@ -79,15 +79,15 @@ struct hip_gemm
         // When input shapes are A, B, C the GEMM equation is  C  =  α AB+ β C   where α, β are
         // scalars
         check_shapes{in_shapes, *this}.has(2, 3);
-        blas_shape(inputs[0]);
-        blas_shape(inputs[1]);
+        blas_shape_hip(inputs[0]);
+        blas_shape_hip(inputs[1]);
         // if gemm and add are fused
         if(in_shapes.size() > 2)
         {
             auto cmat_shape = in_shapes.back();
             check_shapes{{cmat_shape}, *this}.not_transposed().not_broadcasted();
             in_shapes.pop_back();
-            blas_shape(cmat_shape);
+            blas_shape_hip(cmat_shape);
             auto op_out_shape = op.compute_shape(in_shapes);
             if(cmat_shape.lens() != op_out_shape.lens())
             {
@@ -102,10 +102,10 @@ struct hip_gemm
                                to_string(cmat_shape.type()) +
                                ", it must be: " + to_string(op_out_shape.type()));
             }
-            return transpose_batch(op_out_shape, trans_batch);
+            return transpose_batch_hip(op_out_shape, trans_batch);
         }
 
-        return transpose_batch(op.compute_shape(in_shapes), trans_batch);
+        return transpose_batch_hip(op.compute_shape(in_shapes), trans_batch);
     }
 
     argument
@@ -126,30 +126,6 @@ struct hip_gemm
     std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
     {
         return shapes.size() - 1;
-    }
-
-    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
-    {
-        if(solution_idx == 0)
-            solution_idx = hip_gemm_default_solution(ctx, output_shape, input_shapes);
-        if(enabled(MIGRAPHX_ENABLE_HIP_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
-        {
-            if(this->name() == "gpu::hip_gemm")
-            {
-                solution_idx = hip_gemm_finalize(
-                    ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
-            }
-            else
-            {
-                solution_idx = hip_gemm_finalize(ctx,
-                                                 output_shape,
-                                                 input_shapes,
-                                                 int32_t(alpha),
-                                                 int32_t(beta),
-                                                 compute_fp32,
-                                                 solution_idx);
-            }
-        }
     }
 };
 } // namespace gpu

@@ -56,6 +56,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_ROCBLAS_GEMM);
+
 struct miopen_apply
 {
     module* mod              = nullptr;
@@ -237,7 +239,7 @@ struct miopen_apply
         return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
     }
 
-#if MIGRAPHX_USE_ROCBLAS
+#if MIGRAPHX_USE_ROCBLAS and MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
     void add_gemm_op(const std::string& name)
     {
@@ -246,6 +248,11 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
+            if(enabled(MIGRAPHX_USE_ROCBLAS_GEMM{}))
+            {
+                return mod->replace_instruction(
+                    ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            }
             return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
         });
     }

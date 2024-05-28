@@ -59,6 +59,8 @@ struct fused_reduce
         const auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
+        if(not sm->bypass())
+            MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
@@ -426,6 +428,7 @@ struct reduce_reshape : rewrite_reshapes_base
         auto dims  = base_dims(inputs);
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
+        sm->set_bypass();
         insert_module_in_submodule(sm, inputs, oldm, transform_op([&](const operation& sop) {
                                        if(contains(sop.name(), "reduce"))
                                            return make_op(sop.name(), {{"axes", axes}});

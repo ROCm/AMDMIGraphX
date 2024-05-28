@@ -119,8 +119,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_einsum_transpose_cpu')
     backend_test.exclude(r'test_maxunpool_export_with_output_shape_cpu')
     backend_test.exclude(r'test_maxunpool_export_without_output_shape_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int32_cpu')
-    backend_test.exclude(r'test_mod_mixed_sign_int8_cpu')
     backend_test.exclude(r'test_qlinearmatmul_2D_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_cpu')
     backend_test.exclude(r'test_range_float_type_positive_delta_expanded_cpu')

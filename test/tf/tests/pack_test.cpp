@@ -20,34 +20,33 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(pack_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p;
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {2}});
+    auto l1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2}});
+    auto l2  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {2}});
+    std::vector<migraphx::instruction_ref> args{l0, l1, l2};
+    std::vector<migraphx::instruction_ref> unsqueezed_args;
+    int64_t axis = 1;
 
-#endif
+    std::transform(
+        args.begin(),
+        args.end(),
+        std::back_inserter(unsqueezed_args),
+        [&](migraphx::instruction_ref arg) {
+            return mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
+        });
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", static_cast<int>(axis)}}),
+                        unsqueezed_args);
+    auto prog = optimize_tf("pack_test.pb", false);
+
+    EXPECT(p == prog);
+}

@@ -20,34 +20,26 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(pooling_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p;
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {1, 3, 16, 16}});
+    migraphx::op::pooling avg_pool_op{migraphx::op::pooling_mode::average};
+    migraphx::op::pooling max_pool_op{migraphx::op::pooling_mode::max};
+    avg_pool_op.stride  = {2, 2};
+    max_pool_op.stride  = {2, 2};
+    avg_pool_op.lengths = {2, 2};
+    max_pool_op.lengths = {2, 2};
+    mm->add_instruction(avg_pool_op, l0);
+    mm->add_instruction(max_pool_op, l0);
+    auto prog = optimize_tf("pooling_test.pb", true);
 
-#endif
+    EXPECT(p == prog);
+}

@@ -39,6 +39,6 @@ TEST_CASE(split_test_uneven_num_outputs)
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {11}}}), input);
     mm->add_return({r1, r2, r3, r4});
 
-    auto prog = migraphx::parse_onnx("split_test_uneven_num_outputs.onnx");
+    auto prog = read_onnx("split_test_uneven_num_outputs.onnx");
     EXPECT(p == prog);
 }

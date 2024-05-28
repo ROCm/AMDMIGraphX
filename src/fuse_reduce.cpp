@@ -22,16 +22,16 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_reduce.hpp>
-#include <migraphx/pass_manager.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/ranges.hpp>
-#include <migraphx/check_shapes.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
@@ -59,6 +59,8 @@ struct fused_reduce
         const auto* sm = mods.front();
         if(sm->get_output_shapes().size() != 1)
             MIGRAPHX_THROW("Only one output supported");
+        if(not sm->bypass())
+            MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
@@ -67,7 +69,7 @@ struct fused_reduce
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
                return shapes.at(name).lens() == input.lens();
            }))
-            MIGRAPHX_THROW("Dimenstion does not match the submodule.");
+            MIGRAPHX_THROW("Input dimension does not match the submodule.");
 
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),
@@ -77,6 +79,17 @@ struct fused_reduce
     std::string name() const { return "fused_reduce"; }
 };
 MIGRAPHX_REGISTER_OP(fused_reduce);
+
+/*
+ * Predicate matcher checks that input and output shapes have the same rank.  This is assumed
+ * for broadcast instructions for these fusions.
+ */
+MIGRAPHX_PRED_MATCHER(input_output_ndim_match, instruction_ref ins)
+{
+    auto input_shape  = ins->inputs().front()->get_shape();
+    auto output_shape = ins->get_shape();
+    return input_shape.ndim() == output_shape.ndim();
+}
 
 static void insert_params(module_ref sm,
                           const std::vector<instruction_ref>& inputs,
@@ -227,7 +240,8 @@ template <class... Ms>
 static auto match_broadcast(Ms... ms)
 {
     return match::skip(match::name("contiguous"))(
-               match::name("multibroadcast")(match::arg(0)(ms...), match::used_once())
+               match::name("multibroadcast")(
+                   match::arg(0)(ms...), match::used_once(), input_output_ndim_match())
                    .bind("broadcast"))
         .bind("final_broadcast");
 }
@@ -257,19 +271,19 @@ struct find_pointwise_reduce
 {
     auto matcher() const
     {
+        // fused_reduce instruction with pointwise inputs.
         return match::name("fused_reduce")(match_broadcastable_input("pointwise", "pointwise"));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto reduce = r.result;
-        auto input  = r.instructions["pointwise"];
-
+        auto input         = r.instructions["pointwise"];
         const auto* pm     = input->module_inputs().front();
         const auto* old_rm = reduce->module_inputs().front();
+
         auto* rm           = mpm.create_module(pm->name() + ":" + old_rm->name());
         rm->set_bypass();
-
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         // Insert pointwise
         auto rins      = insert_ins_in_submodule(rm, input, map_ins).front();
@@ -414,6 +428,7 @@ struct reduce_reshape : rewrite_reshapes_base
         auto dims  = base_dims(inputs);
         auto* oldm = ins->module_inputs().front();
         auto* sm   = mpm.create_module(oldm->name() + "_reshape");
+        sm->set_bypass();
         insert_module_in_submodule(sm, inputs, oldm, transform_op([&](const operation& sop) {
                                        if(contains(sop.name(), "reduce"))
                                            return make_op(sop.name(), {{"axes", axes}});

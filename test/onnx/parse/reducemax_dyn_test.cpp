@@ -37,7 +37,7 @@ TEST_CASE(reducemax_dyn_test)
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{3, 5}, {4, 4}, {5, 5}, {6, 6}};
-    auto prog                       = migraphx::parse_onnx("reducemax_dyn_test.onnx", options);
+    auto prog                       = read_onnx("reducemax_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

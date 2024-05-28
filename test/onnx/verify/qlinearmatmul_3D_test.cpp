@@ -30,7 +30,7 @@ TEST_CASE(qlinearmatmul_3D_test)
 {
     // https://xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__QLinearMatMul.html
 
-    migraphx::program p = migraphx::parse_onnx("qlinearmatmul_3D_test.onnx");
+    migraphx::program p = read_onnx("qlinearmatmul_3D_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {2, 2, 4}};

@@ -40,7 +40,7 @@ TEST_CASE(averagepool_same_upper_test)
     auto ret   = mm->add_instruction(
         migraphx::make_op("slice", {{"axes", {2, 3}}, {"starts", {1, 1}}, {"ends", {6, 6}}}), ins);
     mm->add_return({ret});
-    auto prog = migraphx::parse_onnx("averagepool_same_upper_test.onnx");
+    auto prog = read_onnx("averagepool_same_upper_test.onnx");
 
     EXPECT(p == prog);
 }

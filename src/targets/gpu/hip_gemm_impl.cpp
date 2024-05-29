@@ -43,6 +43,25 @@ struct hipblaslt_args
     hipblasLtMatmulPreference_t preference;
 };
 
+hipDataType compute_to_hip_type(hipblasComputeType_t type)
+{
+    switch(type)
+    {
+    case HIPBLAS_COMPUTE_32F: return HIP_R_32F;
+    case HIPBLAS_COMPUTE_32I: return HIP_R_32I;
+    case HIPBLAS_COMPUTE_16F:
+    case HIPBLAS_COMPUTE_64F:
+    case HIPBLAS_COMPUTE_32I_PEDANTIC:
+    case HIPBLAS_COMPUTE_16F_PEDANTIC:
+    case HIPBLAS_COMPUTE_32F_PEDANTIC:
+    case HIPBLAS_COMPUTE_64F_PEDANTIC:
+    case HIPBLAS_COMPUTE_32F_FAST_16F:
+    case HIPBLAS_COMPUTE_32F_FAST_16BF:
+    case HIPBLAS_COMPUTE_32F_FAST_TF32:
+        MIGRAPHX_THROW("HIPBLAS_GEMM: conversion from hipComputeType_t to hipDataType failed");
+    }
+}
+
 // Convert hipBLAS datatypes to equivalent Migraphx data types
 hipDataType get_type_hipblas(shape::type_t type)
 {
@@ -179,7 +198,7 @@ struct hip_gemm_impl
 
         arg_type    = get_type_hipblas(input_shapes[0].type());
         output_type = get_type_hipblas(input_shapes[2].type());
-        if(output_type == HIP_R_8I or output_type == HIP_R_8U)
+        if(arg_type == HIP_R_8I or arg_type == HIP_R_8U)
         {
             output_type = HIP_R_32I;
             compute_type = HIPBLAS_COMPUTE_32I;
@@ -187,7 +206,9 @@ struct hip_gemm_impl
         if(compute_fp32)
         {
             if(arg_type == HIP_R_16F)
+            {
                 compute_type = HIPBLAS_COMPUTE_32F;
+            }
         }
         if(arg_type == HIP_R_8F_E4M3_FNUZ)
         {
@@ -241,19 +262,10 @@ struct hip_gemm_impl
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, n_, k_, ldb_));
         }
         CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matC, output_type, n_, m_, ldc_));
-        // set all matrices to row major layouts
-        // hipblasLtOrder_t layout = HIPBLASLT_ORDER_ROW;
-        // CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-        //     matA, HIPBLASLT_MATRIX_LAYOUT_ORDER, &layout, sizeof(int32_t)));
-        // CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-        //     matB, HIPBLASLT_MATRIX_LAYOUT_ORDER, &layout, sizeof(int32_t)));
-        // CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-        //     matC, HIPBLASLT_MATRIX_LAYOUT_ORDER, &layout, sizeof(int32_t)));
+
         if(is_3inputs)
         {
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matD, output_type, n_, m_, ldd_));
-            // CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-            //    matD, HIPBLASLT_MATRIX_LAYOUT_ORDER, &layout, sizeof(int32_t)));
         }
         if(num_matrices > 1)
         {
@@ -290,7 +302,8 @@ struct hip_gemm_impl
                                                       sizeof(d_stride_)));
             }
         }
-        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(&hipblaslt_desc, compute_type, output_type));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(
+            &hipblaslt_desc, compute_type, compute_to_hip_type(compute_type)));
         CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(
             hipblaslt_desc, HIPBLASLT_MATMUL_DESC_TRANSB, &op_A, sizeof(int32_t)));
         CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescSetAttribute(

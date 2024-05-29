@@ -173,6 +173,12 @@ TEST_CASE(scalar_multibroadcast)
             reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});
 
+        EXPECT(test::throws([&] {
+            mm->add_instruction(
+                migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
+        }));
+        // reduce modules must be flagged for bypass when running subsequent passes
+        reduce_mod->set_bypass();
         auto bip = mm->add_instruction(
             migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         mm->add_return({bip});
@@ -217,6 +223,12 @@ TEST_CASE(scalar_multibroadcast_contiguous)
             reduce_mod->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1, 2}}}), x0);
         reduce_mod->add_return({sqrtbc});
 
+        EXPECT(test::throws([&] {
+            mm->add_instruction(
+                migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
+        }));
+        // reduce modules must be flagged for bypass when running subsequent passes
+        reduce_mod->set_bypass();
         auto bip = mm->add_instruction(
             migraphx::make_op("fused_reduce", {{"axes", {1, 2}}}), {pow}, {reduce_mod});
         mm->add_return({bip});

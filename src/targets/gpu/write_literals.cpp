@@ -34,15 +34,23 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
+static std::size_t weightStreamingBudget = 5000; // in bytes
+
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
+    std::size_t free;
+    std::size_t total;
+    std::size_t bytes = 0;
+
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            if(enabled(MIGRAPHX_COPY_LITERALS{}))
+            // hipMemGetInfo(&free, &total);
+            // std::cout << "Free: " << free << " Total: " << total << std::endl;
+            if(enabled(MIGRAPHX_COPY_LITERALS{}) || (weight_streaming && bytes >= weightStreamingBudget))
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
@@ -51,11 +59,17 @@ void write_literals::apply(module& m) const
             }
             else
             {
+                bytes += ins->get_shape().bytes();
                 std::string id = m.name() + ":@literal:" + std::to_string(n);
                 m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
                 n++;
             }
         }
+    }
+
+    std::cout << "Literal size (in bytes): " << bytes << std::endl;
+    if (weight_streaming) {
+        std::cout << "Using weight streaming..." << std::endl;
     }
 }
 

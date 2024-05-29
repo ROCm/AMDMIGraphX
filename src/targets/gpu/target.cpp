@@ -187,7 +187,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         promote_literals{},
         dead_code_elimination{},
-        write_literals{&ctx},
+        write_literals{&ctx, options.weight_streaming},
         schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
         memory_coloring{"hip::allocate"},
         sync_device{},

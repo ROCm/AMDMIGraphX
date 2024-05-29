@@ -167,6 +167,7 @@ std::shared_ptr<void> write_to_gpu(const void* x, std::size_t sz, bool host = fa
     auto status = hipMemcpy(result.get(), x, sz, hipMemcpyHostToDevice);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Copy to gpu failed: " + hip_error(status));
+    std::cout << "Wrote " << sz << " bytes to GPU" << std::endl;
     return result;
 }
 

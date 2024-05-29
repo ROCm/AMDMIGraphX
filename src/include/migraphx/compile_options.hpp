@@ -40,6 +40,7 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+    bool weight_streaming = false;
 
     tracer trace{};
 };

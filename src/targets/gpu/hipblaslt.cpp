@@ -68,6 +68,15 @@ hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr()
     }
     return hipblaslt_workspace_ptr{d_workspace};
 }
+
+bool hipblaslt_supported()
+{
+    const auto device_name = trim(split_string(get_device_name(), ':').front());
+    // hipblaslt is supported for MI100 and above and Navi3x and above
+    return (starts_with(device_name, "gfx9") and device_name >= "gfx908" and
+            not starts_with(device_name, "gfx10"));
+}
+
 #endif // MIGRAPHX_USE_HIPBLASLT
 
 } // namespace gpu

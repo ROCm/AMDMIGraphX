@@ -270,6 +270,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -22,11 +22,17 @@
 # THE SOFTWARE.
 #####################################################################################
 
-include(Embed)
-file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.pb)
-add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
+function(add_tf_test TEST_NAME)
+    rocm_add_test_executable(${TEST_NAME} ${ARGN})
+    rocm_clang_tidy_check(${TEST_NAME})
+    target_link_libraries(${TEST_NAME} migraphx_tf pb_files)
+    target_include_directories(${TEST_NAME} PUBLIC ../include include)
+endfunction()
 
-rocm_add_test_executable(test_tf tf_test.cpp)
-rocm_clang_tidy_check(test_tf)
-target_link_libraries(test_tf migraphx_tf pb_files)
-target_include_directories(test_tf PUBLIC ../include)
+include(Embed)
+file(GLOB_RECURSE PB_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/models/*.pb)
+add_embed_library(pb_files ${PB_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/models)
+
+file(GLOB TF_TESTS CONFIGRE_DEPENDS tests/*.cpp)
+
+add_tf_test(test_tf ${TF_TESTS})

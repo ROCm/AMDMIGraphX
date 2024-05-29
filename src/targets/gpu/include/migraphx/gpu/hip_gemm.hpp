@@ -49,7 +49,6 @@ struct hip_gemm
     Op op;
     float alpha          = 1;
     float beta           = 0;
-    bool compute_fp32    = false;
     unsigned trans_batch = 0;
     int32_t solution_idx = 0;
     template <class Self, class F>
@@ -58,7 +57,6 @@ struct hip_gemm
         return pack_join(migraphx::reflect(self.op, f),
                          pack(f(self.alpha, "alpha"),
                               f(self.beta, "beta"),
-                              f(self.compute_fp32, "compute_fp32"),
                               f(self.trans_batch, "trans_batch"),
                               f(self.solution_idx, "solution_idx")));
     }
@@ -113,12 +111,11 @@ struct hip_gemm
     {
         if(this->name() == "gpu::hip_gemm" or output_shape.type() == migraphx::shape::float_type)
         {
-            hip_gemm_compute(ctx, output_shape, args, alpha, beta, compute_fp32, solution_idx);
+            hip_gemm_compute(ctx, output_shape, args, alpha, beta, solution_idx);
         }
         else
         {
-            hip_gemm_compute(
-                ctx, output_shape, args, int32_t(alpha), int32_t(beta), compute_fp32, solution_idx);
+            hip_gemm_compute(ctx, output_shape, args, int32_t(alpha), int32_t(beta), solution_idx);
         }
         return args.back();
     }

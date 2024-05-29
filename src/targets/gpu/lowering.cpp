@@ -253,7 +253,7 @@ struct miopen_apply
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
             }
-            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);
+            return mod->replace_instruction(ins, hip_gemm<Op>{Op{}, 1, 0}, refs);
         });
     }
 #endif

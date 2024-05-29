@@ -49,14 +49,12 @@ namespace gpu {
  * @param args .
  * @param alpha .
  * @param beta .
- * @param compute_fp32 .
  */
 void hip_gemm_compute(context& ctx,
                       const shape& output_shape,
                       const std::vector<argument>& args,
                       float alpha,
                       float beta,
-                      bool compute_fp32,
                       int32_t solution_idx);
 
 void hip_gemm_compute(context& ctx,
@@ -64,7 +62,6 @@ void hip_gemm_compute(context& ctx,
                       const std::vector<argument>& args,
                       int32_t alpha,
                       int32_t beta,
-                      bool compute_fp32,
                       int32_t solution_idx);
 
 } // namespace gpu

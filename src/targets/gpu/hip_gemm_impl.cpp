@@ -154,36 +154,15 @@ template <typename T>
 struct hip_gemm_impl
 {
     hip_gemm_impl(const shape& output_shape,
-              const std::vector<shape>& input_shapes,
-              T alpha_param,
-              T beta_param,
-              bool compute_fp32_flag)
-        : solution(),alpha(alpha_param),
-          beta(beta_param),
-          is_3inputs(input_shapes.size() == 4),
-          compute_fp32(compute_fp32_flag)
+                  const std::vector<shape>& input_shapes,
+                  T alpha_param,
+                  T beta_param)
+        : solution(), alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 4)
     {
         if(not is_3inputs)
         {
             beta = 0;
         }
-
-        // Create lambdas that will cast alpha, beta to the output shape's type
-        // and retain the values being pointed to
-        output_shape.visit_type([&](auto as) {
-            auto alpha_r = as(alpha);
-            auto beta_r  = as(beta);
-            if(compute_fp32)
-            {
-                get_alpha_hip = [=] { return &alpha; };
-                get_beta_hip  = [=] { return &beta; };
-            }
-            else
-            {
-                get_alpha_hip = [=] { return &alpha_r; };
-                get_beta_hip  = [=] { return &beta_r; };
-            }
-        });
 
         transa     = is_transposed_hip(input_shapes[0]);
         transb     = is_transposed_hip(input_shapes[1]);
@@ -200,19 +179,10 @@ struct hip_gemm_impl
         output_type = get_type_hipblas(input_shapes[2].type());
         if(arg_type == HIP_R_8I or arg_type == HIP_R_8U)
         {
-            output_type = HIP_R_32I;
             compute_type = HIPBLAS_COMPUTE_32I;
         }
-        if(compute_fp32)
+        else
         {
-            if(arg_type == HIP_R_16F)
-            {
-                compute_type = HIPBLAS_COMPUTE_32F;
-            }
-        }
-        if(arg_type == HIP_R_8F_E4M3_FNUZ)
-        {
-            assert(get_type_hipblas(input_shapes[1].type()) == HIP_R_8F_E4M3_FNUZ);
             compute_type = HIPBLAS_COMPUTE_32F;
         }
 
@@ -441,12 +411,12 @@ struct hip_gemm_impl
         auto algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
-                    get_alpha_hip(),                              // alpha
+                    &alpha,                                       // alpha
                     args[1].data(),                               // A
                     matB,                                         // Adesc
                     args[0].data(),                               // B
                     matA,                                         // Bdesc
-                    get_beta_hip(),                               // beta
+                    &beta,                                        // beta
                     args[2].data(),                               // C
                     matC,                                         // Cdesc
                     is_3inputs ? args[3].data() : args[2].data(), // D
@@ -484,10 +454,10 @@ struct hip_gemm_impl
         (void)(args);
         return pack(ctx.get_stream().get_hipblaslt(),
                     hipblaslt_desc,
-                    get_alpha_hip(),
+                    &alpha,
                     matB,
                     matA,
-                    get_beta_hip(),
+                    &beta,
                     matC,
                     is_3inputs ? matD : matC,
                     algo,
@@ -537,10 +507,10 @@ struct hip_gemm_impl
 #if 1
             auto status = hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
                                                                hipblaslt_desc,
-                                                               get_alpha_hip(),
+                                                               &alpha,
                                                                matB,
                                                                matA,
-                                                               get_beta_hip(),
+                                                               &beta,
                                                                matC,
                                                                is_3inputs ? matD : matC,
                                                                algo,
@@ -618,8 +588,6 @@ struct hip_gemm_impl
     T alpha             = 0;
     T beta              = 0;
 
-    std::function<const void*()> get_alpha_hip{};
-    std::function<const void*()> get_beta_hip{};
     int32_t lda              = 0;
     int32_t ldb              = 0;
     int32_t ldc              = 0;
@@ -631,8 +599,7 @@ struct hip_gemm_impl
     hipDataType arg_type     = HIP_R_32F;
     hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
     hipDataType output_type           = HIP_R_32F;
-    bool is_3inputs          = true;
-    bool compute_fp32        = true;
+    bool is_3inputs                   = true;
 
     // hipblaslt
     hipDataType dtype;
@@ -649,7 +616,6 @@ void hip_gemm_compute(context& ctx,
                       const std::vector<argument>& args,
                       float alpha,
                       float beta,
-                      bool compute_fp32,
                       int32_t solution_idx)
 {
     std::vector<shape> input_shapes;
@@ -657,7 +623,7 @@ void hip_gemm_compute(context& ctx,
                    args.end(),
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
-    auto gemm_item = hip_gemm_impl<float>(output_shape, input_shapes, alpha, beta, compute_fp32);
+    auto gemm_item = hip_gemm_impl<float>(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }
 
@@ -666,7 +632,6 @@ void hip_gemm_compute(context& ctx,
                       const std::vector<argument>& args,
                       int32_t alpha,
                       int32_t beta,
-                      bool compute_fp32,
                       int32_t solution_idx)
 {
     std::vector<shape> input_shapes;
@@ -674,7 +639,7 @@ void hip_gemm_compute(context& ctx,
                    args.end(),
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
-    auto gemm_item = hip_gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta, compute_fp32);
+    auto gemm_item = hip_gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }
 

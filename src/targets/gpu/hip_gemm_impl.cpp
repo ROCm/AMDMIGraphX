@@ -24,6 +24,7 @@
 
 #include <hipblaslt/hipblaslt.h>
 #include <hipblaslt/hipblaslt-ext.hpp>
+#include <limits>
 #include <migraphx/gpu/hipblaslt.hpp>
 #include <migraphx/gpu/hip_gemm_impl.hpp>
 #include <migraphx/reduce_dims.hpp>
@@ -177,10 +178,10 @@ struct hip_gemm_impl
             }
         });
 
-        transa     = is_transposed_hip(input_shapes[0]);
-        transb     = is_transposed_hip(input_shapes[1]);
-        op_A       = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-        op_B       = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        transa = is_transposed_hip(input_shapes[0]);
+        transb = is_transposed_hip(input_shapes[1]);
+        op_A   = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_B   = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
 
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
@@ -308,8 +309,12 @@ struct hip_gemm_impl
                 const int n_sol = 1;
                 int returnedAlgoCount;
                 heuristicResult.resize(n_sol);
-                uint64_t max_workspace = {2 * 1024 * 1024 * uint64_t{1024}};
-                CHECK_HIPBLAS_ERROR(hipblasLtMatmulPreferenceSetAttribute(preference, HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &max_workspace, sizeof(uint64_t)));
+                uint64_t max_workspace = std::numeric_limits<uint64_t>::max();
+                CHECK_HIPBLAS_ERROR(
+                    hipblasLtMatmulPreferenceSetAttribute(preference,
+                                                          HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                                          &max_workspace,
+                                                          sizeof(uint64_t)));
                 CHECK_HIPBLAS_ERROR(
                     hipblasLtMatmulAlgoGetHeuristic(handle,
                                                     gemm.hipblaslt_desc,
@@ -584,20 +589,20 @@ struct hip_gemm_impl
     std::function<const void*()> get_alpha{};
     std::function<const void*()> get_beta{};
 
-    int64_t lda                       = 0;
-    int64_t ldb                       = 0;
-    int64_t ldc                       = 0;
-    int64_t ldd                       = 0;
-    int64_t a_stride                  = 0;
-    int64_t b_stride                  = 0;
-    int64_t c_stride                  = 0;
-    int64_t d_stride                  = 0;
-    hipDataType arg_type     = HIP_R_32F;
-    hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
-    hipDataType output_type           = HIP_R_32F;
-    bool is_3inputs                   = true;
+    int64_t lda      = 0;
+    int64_t ldb      = 0;
+    int64_t ldc      = 0;
+    int64_t ldd      = 0;
+    int64_t a_stride = 0;
+    int64_t b_stride = 0;
+    int64_t c_stride = 0;
+    int64_t d_stride = 0;
+    bool is_3inputs  = true;
 
     // hipblaslt
+    hipDataType arg_type              = HIP_R_32F;
+    hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
+    hipDataType output_type           = HIP_R_32F;
     hipblasLtMatmulDesc_t hipblaslt_desc;
     hipblasOperation_t op_A;
     hipblasOperation_t op_B;

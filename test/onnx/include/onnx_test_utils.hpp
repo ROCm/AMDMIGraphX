@@ -179,12 +179,12 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     {
         auto x_sq = add_common_op(*mm, migraphx::make_op("mul"), {x, x});
         auto axis = reduce_axes[0];
-        axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
-        auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
-        rms = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
+        axis      = axis < 0 ? axis + x->get_shape().lens().size() : axis;
+        auto rms  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        rms       = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
         auto rrms = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
         auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});
-        result = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
+        result      = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
         return p;
     }
 

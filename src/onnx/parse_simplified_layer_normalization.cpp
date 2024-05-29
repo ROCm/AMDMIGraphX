@@ -54,37 +54,40 @@ struct parse_simplified_layer_normalization : op_parser<parse_simplified_layer_n
         }
         if(contains(info.attributes, "stash_type"))
         {
-            std::cerr << "WARNING: SIMPLIFIED_LAYER_NORMALIZATION attribute stash_type is only used for training.\n";
+            std::cerr << "WARNING: SIMPLIFIED_LAYER_NORMALIZATION attribute stash_type is only "
+                         "used for training.\n";
         }
 
         if(args.size() != 2)
         {
-            MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid input count - expected 2 got " + std::to_string(args.size()));
+            MIGRAPHX_THROW(
+                "PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid input count - expected 2 got " +
+                std::to_string(args.size()));
         }
 
-        auto x        = args.at(0);
-        auto scale     = args.at(1);
+        auto x     = args.at(0);
+        auto scale = args.at(1);
 
         auto x_shape   = x->get_shape();
         auto x_dtype   = x_shape.type();
         int64_t x_rank = x_shape.ndim();
-        axis = axis < 0 ? axis + x_rank : axis;
+        axis           = axis < 0 ? axis + x_rank : axis;
 
         if(x_rank < 2 or x_rank > 3)
         {
             MIGRAPHX_THROW("PARSE_SIMPLIFIED_LAYER_NORMALIZATION: invalid input shape");
         }
-        
+
         auto x_sq = info.add_common_op("mul", x, x);
-        auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
         auto mean = rms;
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        rms = info.add_common_op("add", rms, eps);
-        auto rrms = info.add_instruction(make_op("rsqrt"), rms);
+        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
+        rms         = info.add_common_op("add", rms, eps);
+        auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
         auto result = info.add_common_op("mul", x, rrms);
-        result = info.add_common_op("mul", result, scale);
+        result      = info.add_common_op("mul", result, scale);
 
         return {result, mean, rrms};
     }

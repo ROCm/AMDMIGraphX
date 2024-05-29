@@ -277,11 +277,12 @@ struct hip_copy_literal
         std::size_t free_after;
         std::size_t total;
         auto status = hipMemGetInfo(&free_before, &total);
-        // std::cout << "[Before] Free: " << free_before << " Total: " << total << std::endl;
+        std::cout << "[Before] Free: " << free_before << " Total: " << total << std::endl;
         argument a = to_gpu(l.get_argument());
-        status = hipMemGetInfo(&free_after, &total); 
-        if (status != hipSuccess) {}
-        // std::cout << "[After] Free: " << free_after << " Total: " << total << " Change: " << free_before - free_after << std::endl;
+        status     = hipMemGetInfo(&free_after, &total);
+        if(status != hipSuccess) {}
+        std::cout << "[After]  Free: " << free_after << " Total: " << total << " Change: " <<
+        free_before - free_after << std::endl;
 
         store_preallocated_param(ctx, id, a);
     }

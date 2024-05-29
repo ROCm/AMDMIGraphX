@@ -41,6 +41,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
     bool weight_streaming = false;
+    long streaming_budget = -1;
 
     tracer trace{};
 };

@@ -34,14 +34,12 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
 
-static std::size_t weightStreamingBudget = 5000; // in bytes
-
 void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
-    std::size_t free;
-    std::size_t total;
+    // std::size_t free;
+    // std::size_t total;
     std::size_t bytes = 0;
 
     for(auto ins : iterator_for(m))
@@ -50,7 +48,10 @@ void write_literals::apply(module& m) const
         {
             // hipMemGetInfo(&free, &total);
             // std::cout << "Free: " << free << " Total: " << total << std::endl;
-            if(enabled(MIGRAPHX_COPY_LITERALS{}) || (weight_streaming && bytes >= weightStreamingBudget))
+            std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
+            std::cout << "Streaming budget: " << streaming_budget << std::endl;
+            if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
+               (weight_streaming && static_cast<long>(bytes + ins->get_shape().bytes()) >= streaming_budget))
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
@@ -67,8 +68,9 @@ void write_literals::apply(module& m) const
         }
     }
 
-    std::cout << "Literal size (in bytes): " << bytes << std::endl;
-    if (weight_streaming) {
+    std::cout << "Literal size on gpu (bytes): " << bytes << std::endl;
+    if(weight_streaming)
+    {
         std::cout << "Using weight streaming..." << std::endl;
     }
 }

@@ -79,7 +79,7 @@ struct loader
     bool optimize               = false;
     bool skip_unknown_operators = false;
     bool brief                  = false;
-    bool weight_streaming = false;
+    bool weight_streaming       = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -500,7 +500,13 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
-        ap(co.weight_streaming, {"--enable-weight-streaming"}, ap.help("Enables weight streaming during runtime."), ap.set_value(true));
+        ap(co.weight_streaming,
+           {"--enable-weight-streaming"},
+           ap.help("Enables weight streaming during runtime."),
+           ap.set_value(true));
+        ap(co.streaming_budget,
+           {"--streaming-budget"},
+           ap.help("Sets weight streaming budget (in bytes). Must be called alongside --enable-weight-streaming."));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));

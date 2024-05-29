@@ -150,19 +150,35 @@ static int32_t get_batch_stride_hip(const shape& s)
  * The template parameter T is not the type of the matrix data but of the weighting
  * coefficients alpha and beta
  */
-template <typename T>
 struct hip_gemm_impl
 {
     hip_gemm_impl(const shape& output_shape,
                   const std::vector<shape>& input_shapes,
-                  T alpha_param,
-                  T beta_param)
+                  float alpha_param,
+                  float beta_param)
         : solution(), alpha(alpha_param), beta(beta_param), is_3inputs(input_shapes.size() == 4)
     {
         if(not is_3inputs)
         {
             beta = 0;
         }
+
+        // Create lambdas that will cast alpha, beta to the output shape's type
+        // and retain the values being pointed to
+        output_shape.visit_type([&](auto as) {
+            if(as.is_integral())
+            {
+                int32_t alpha_r = int32_t(alpha);
+                int32_t beta_r  = int32_t(beta);
+                get_alpha       = [=] { return &alpha_r; };
+                get_beta        = [=] { return &beta_r; };
+            }
+            else
+            {
+                get_alpha = [=] { return &alpha; };
+                get_beta  = [=] { return &beta; };
+            }
+        });
 
         transa     = is_transposed_hip(input_shapes[0]);
         transb     = is_transposed_hip(input_shapes[1]);
@@ -351,6 +367,76 @@ struct hip_gemm_impl
         std::vector<hipblasLtMatmulHeuristicResult_t> heuristicResult;
     } solution;
 
+    /**
+     * Helper method to create that subset of a long hipblaslt argument list that is common
+     * to multiple "hipblasLtMatmul" calls.
+     *
+     * The hipblaslt GEMM API handles inputs and output matrices as
+     *  column-major format. When doing a C = A * B, we actually do
+     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
+     *   A and args[0] as B in calling the hipblaslt GEMM.
+     *
+     * */
+    auto create_hipblaslt_args_common(context& ctx,
+                                      const std::vector<argument>& args,
+                                      int32_t solution_idx)
+    {
+        auto algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_desc,
+                    get_alpha(),                                  // alpha
+                    args[1].data(),                               // A
+                    matB,                                         // Adesc
+                    args[0].data(),                               // B
+                    matA,                                         // Bdesc
+                    get_beta(),                                   // beta
+                    args[2].data(),                               // C
+                    matC,                                         // Cdesc
+                    is_3inputs ? args[3].data() : args[2].data(), // D
+                    is_3inputs ? matD : matC,                     // Ddesc
+                    algo,                                         // algo
+                    ctx.get_stream().get_hipblaslt_workspace(),   // workspace
+                    HIPBLASLT_WORKSPACE_SIZE,                     // workspaceSizeInBytes
+                    ctx.get_stream().get()                        // stream
+        );
+    }
+
+    auto
+    create_hipblaslt_tuning_args_common(context& ctx,
+                                        const std::vector<argument>& args,
+                                        std::vector<hipblasLtMatmulHeuristicResult_t> result) const
+    {
+        (void)(args);
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
+                    op_B,
+                    op_A,
+                    dtype,
+                    dtype,
+                    output_type,
+                    output_type,
+                    compute_type,
+                    result);
+    }
+
+    auto create_hipblaslt_supporting_args_common(context& ctx,
+                                                 const std::vector<argument>& args,
+                                                 hipblasLtMatmulAlgo_t& algo,
+                                                 size_t& workspace_size) const
+    {
+        (void)(args);
+        return pack(ctx.get_stream().get_hipblaslt(),
+                    hipblaslt_desc,
+                    get_alpha(),
+                    matB,
+                    matA,
+                    get_beta(),
+                    matC,
+                    is_3inputs ? matD : matC,
+                    algo,
+                    workspace_size);
+    }
+
     void
     run(context& ctx, const std::vector<argument>& input_args, int32_t solution_idx = 0) // const
     {
@@ -392,76 +478,6 @@ struct hip_gemm_impl
             return 0;
         }
         return solution_idx;
-    }
-
-    /**
-     * Helper method to create that subset of a long hipblaslt argument list that is common
-     * to multiple "hipblasLtMatmul" calls.
-     *
-     * The hipblaslt GEMM API handles inputs and output matrices as
-     *  column-major format. When doing a C = A * B, we actually do
-     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
-     *   A and args[0] as B in calling the hipblaslt GEMM.
-     *
-     * */
-    auto create_hipblaslt_args_common(context& ctx,
-                                      const std::vector<argument>& args,
-                                      int32_t solution_idx)
-    {
-        auto algo = &solution.get_result(ctx, *this, solution_idx)[0].algo;
-        return pack(ctx.get_stream().get_hipblaslt(),
-                    hipblaslt_desc,
-                    &alpha,                                       // alpha
-                    args[1].data(),                               // A
-                    matB,                                         // Adesc
-                    args[0].data(),                               // B
-                    matA,                                         // Bdesc
-                    &beta,                                        // beta
-                    args[2].data(),                               // C
-                    matC,                                         // Cdesc
-                    is_3inputs ? args[3].data() : args[2].data(), // D
-                    is_3inputs ? matD : matC,                     // Ddesc
-                    algo,                                         // algo
-                    ctx.get_stream().get_hipblaslt_workspace(),   // workspace
-                    HIPBLASLT_WORKSPACE_SIZE,                     // workspaceSizeInBytes
-                    ctx.get_stream().get()                        // stream
-        );
-    }
-
-    auto
-    create_hipblaslt_tuning_args_common(context& ctx,
-                                        const std::vector<argument>& args,
-                                        std::vector<hipblasLtMatmulHeuristicResult_t> result) const
-    {
-        (void)(args);
-        return pack(ctx.get_stream().get_hipblaslt(),
-                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                    op_B,
-                    op_A,
-                    dtype,
-                    dtype,
-                    output_type,
-                    output_type,
-                    compute_type,
-                    result);
-    }
-
-    auto create_hipblaslt_supporting_args_common(context& ctx,
-                                                 const std::vector<argument>& args,
-                                                 hipblasLtMatmulAlgo_t& algo,
-                                                 size_t& workspace_size) const
-    {
-        (void)(args);
-        return pack(ctx.get_stream().get_hipblaslt(),
-                    hipblaslt_desc,
-                    &alpha,
-                    matB,
-                    matA,
-                    &beta,
-                    matC,
-                    is_3inputs ? matD : matC,
-                    algo,
-                    workspace_size);
     }
 
     /**
@@ -507,10 +523,10 @@ struct hip_gemm_impl
 #if 1
             auto status = hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
                                                                hipblaslt_desc,
-                                                               &alpha,
+                                                               get_alpha(),
                                                                matB,
                                                                matA,
-                                                               &beta,
+                                                               get_beta(),
                                                                matC,
                                                                is_3inputs ? matD : matC,
                                                                algo,
@@ -542,7 +558,7 @@ struct hip_gemm_impl
         std::transform(solution_indices_1.begin(),
                        solution_indices_1.end(),
                        std::back_inserter(result_1),
-                       [this](int32_t elem) { return elem; });
+                       [](int32_t elem) { return elem; });
         std::copy(result_0.begin(), result_0.end(), std::back_inserter(solution_indices));
         std::copy(result_1.begin(), result_1.end(), std::back_inserter(solution_indices));
 
@@ -585,8 +601,10 @@ struct hip_gemm_impl
     int32_t k           = 0;
     bool transa         = false;
     bool transb         = false;
-    T alpha             = 0;
-    T beta              = 0;
+    float alpha         = 0;
+    float beta          = 0;
+    std::function<const void*()> get_alpha{};
+    std::function<const void*()> get_beta{};
 
     int32_t lda              = 0;
     int32_t ldb              = 0;
@@ -623,23 +641,7 @@ void hip_gemm_compute(context& ctx,
                    args.end(),
                    std::back_inserter(input_shapes),
                    [](const argument& x) { return x.get_shape(); });
-    auto gemm_item = hip_gemm_impl<float>(output_shape, input_shapes, alpha, beta);
-    gemm_item.run(ctx, args, solution_idx);
-}
-
-void hip_gemm_compute(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<argument>& args,
-                      int32_t alpha,
-                      int32_t beta,
-                      int32_t solution_idx)
-{
-    std::vector<shape> input_shapes;
-    std::transform(args.begin(),
-                   args.end(),
-                   std::back_inserter(input_shapes),
-                   [](const argument& x) { return x.get_shape(); });
-    auto gemm_item = hip_gemm_impl<int32_t>(output_shape, input_shapes, alpha, beta);
+    auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
 }
 

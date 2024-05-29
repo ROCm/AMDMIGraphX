@@ -109,14 +109,7 @@ struct hip_gemm
     argument
     compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const
     {
-        if(this->name() == "gpu::hip_gemm" or output_shape.type() == migraphx::shape::float_type)
-        {
-            hip_gemm_compute(ctx, output_shape, args, alpha, beta, solution_idx);
-        }
-        else
-        {
-            hip_gemm_compute(ctx, output_shape, args, int32_t(alpha), int32_t(beta), solution_idx);
-        }
+        hip_gemm_compute(ctx, output_shape, args, alpha, beta, solution_idx);
         return args.back();
     }
 

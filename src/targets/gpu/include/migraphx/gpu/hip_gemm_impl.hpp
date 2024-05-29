@@ -57,13 +57,6 @@ void hip_gemm_compute(context& ctx,
                       float beta,
                       int32_t solution_idx);
 
-void hip_gemm_compute(context& ctx,
-                      const shape& output_shape,
-                      const std::vector<argument>& args,
-                      int32_t alpha,
-                      int32_t beta,
-                      int32_t solution_idx);
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

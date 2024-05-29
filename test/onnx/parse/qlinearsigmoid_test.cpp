@@ -59,7 +59,7 @@ TEST_CASE(qlinearsigmoid_test)
 
     mm->add_return({y});
 
-    auto prog = migraphx::parse_onnx("qlinearsigmoid_test.onnx");
+    auto prog = read_onnx("qlinearsigmoid_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

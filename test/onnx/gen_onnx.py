@@ -1316,6 +1316,22 @@ def conv_bias_test():
 
 
 @onnx_test()
+def conv_bad_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [1])
+    out = helper.make_tensor_value_info('3', TensorProto.FLOAT, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('Conv',
+                                 inputs=['0', '1', '2'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z], [out])
+
+
+@onnx_test()
 def conv_bn_relu_maxpool_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 5, 5])
@@ -1530,10 +1546,40 @@ def conv_relu_maxpool_x2_test():
 
 
 @onnx_test()
+def convinteger_no_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
+    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y], [out])
+
+
+@onnx_test()
+def convinteger_no_bias_uint8_test():
+    x = helper.make_tensor_value_info('0', TensorProto.UINT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.UINT8, [1, 3, 5, 5])
+    out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1'],
+                                 outputs=['3'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y], [out])
+
+
+@onnx_test()
 def convinteger_bias_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
     y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
-    z = helper.make_tensor_value_info('2', TensorProto.INT32, [1])
+    z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
     out = helper.make_tensor_value_info('3', TensorProto.INT32, [1, 2, 28, 28])
 
     node = onnx.helper.make_node('ConvInteger',
@@ -1543,6 +1589,89 @@ def convinteger_bias_test():
                                  strides=[1, 1])
 
     return ([node], [x, y, z], [out])
+
+
+@onnx_test()
+def convinteger_dual_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
+    z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
+
+
+@onnx_test()
+def convinteger_mismatched_input_types_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.UINT8, [1, 3, 5, 5])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y], [out])
+
+
+@onnx_test()
+def convinteger_mismatched_inputs_dual_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.UINT8, [1, 3, 5, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 2, 2])
+    z = helper.make_tensor_value_info('2', TensorProto.UINT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 1, 4, 4])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
+
+
+@onnx_test()
+def convinteger_mismatched_data_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.UINT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.INT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
+
+
+@onnx_test()
+def convinteger_mismatched_weight_bias_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT8, [1, 3, 32, 32])
+    y = helper.make_tensor_value_info('1', TensorProto.INT8, [1, 3, 5, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT8, [1])
+    w = helper.make_tensor_value_info('3', TensorProto.UINT8, [1])
+    out = helper.make_tensor_value_info('4', TensorProto.INT32, [1, 2, 28, 28])
+
+    node = onnx.helper.make_node('ConvInteger',
+                                 inputs=['0', '1', '2', '3'],
+                                 outputs=['4'],
+                                 dilations=[1, 1],
+                                 strides=[1, 1])
+
+    return ([node], [x, y, z, w], [out])
 
 
 @onnx_test()
@@ -1955,6 +2084,13 @@ def dequantizelinear_neg_axis_test():
 
 
 @onnx_test()
+def dim_param_test():
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT, ["dim0", "dim1"])
+
+    return ([], [x], [x])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])
@@ -2188,6 +2324,52 @@ def expand_test():
     )
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 1])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Expand',
+                                 inputs=['x', 'shape'],
+                                 outputs=['y'])
+
+    return ([shape_const, node], [x], [y])
+
+
+@onnx_test()
+def expand_static_input_dyn_output_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 1, 1])
+    dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Expand', inputs=['x', 'dims'], outputs=['y'])
+
+    return ([node], [x, dims_in], [y])
+
+
+@onnx_test()
+def expand_dyn_input_dyn_output_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 1])
+    dims_in = helper.make_tensor_value_info('dims', TensorProto.INT64, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('Expand', inputs=['x', 'dims'], outputs=['y'])
+
+    return ([node], [x, dims_in], [y])
+
+
+@onnx_test()
+def expand_dyn_input_static_dims_throw():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 1, 1])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 4])
+
+    shape_val = np.array([3, 4, 4]).astype(np.int64)
+    shape_ts = helper.make_tensor(name='shape_tensor',
+                                  data_type=TensorProto.INT32,
+                                  dims=shape_val.shape,
+                                  vals=shape_val.flatten().astype(int))
+    shape_const = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['shape'],
+        value=shape_ts,
+    )
 
     node = onnx.helper.make_node('Expand',
                                  inputs=['x', 'shape'],
@@ -2509,6 +2691,127 @@ def gathernd_batch_dims_test():
     )
 
     return ([node], [x, i], [y])
+
+
+@onnx_test()
+def gelu_default_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_default_half_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_tanh_double_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [3, 3])
+
+    node = onnx.helper.make_node("Gelu",
+                                 inputs=["x"],
+                                 outputs=["y"],
+                                 approximate="tanh")
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_invalid_input_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.INT32, [3])
+    y = helper.make_tensor_value_info("y", TensorProto.INT32, [3])
+
+    node = onnx.helper.make_node("Gelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_add_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_bias_invalid_type_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [3])
+    z = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("BiasGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info("z", TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x"], outputs=["y"])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
+def gelu_fast_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT16, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT16, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_invalid_x_test():
+    x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def gelu_fast_invalid_bias_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 3])
+    y = helper.make_tensor_value_info("y", TensorProto.DOUBLE, [3, 3])
+    z = helper.make_tensor_value_info('z', TensorProto.FLOAT, [3, 3])
+
+    node = onnx.helper.make_node("FastGelu", inputs=["x", "y"], outputs=["z"])
+
+    return ([node], [x, y], [z])
 
 
 @onnx_test()
@@ -5131,8 +5434,38 @@ def matmulinteger_dyn_error():
 
 
 @onnx_test()
+def matmulinteger_invalid_type_error():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [None, 6, 16])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT16, [None, 16, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [None, 6, 8])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmulinteger_uns_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
@@ -5149,8 +5482,109 @@ def matmulinteger_uns_test():
 def matmulinteger_uns_zp_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
     m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
-    zp1 = helper.make_tensor('3', TensorProto.UINT8, [], [12])
-    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [0])
+    zp1 = helper.make_tensor('3', TensorProto.UINT8, [], [0])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [5])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_zero_vec_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [4, 3],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_zero_vec_test2():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.INT8, [3, 2])
+    zp1 = helper.make_tensor(
+        '3', TensorProto.UINT8, [4, 3],
+        [128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_one_zp_error_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.UINT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [5])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_dual_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [1])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [1])
+    y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
+
+    node = onnx.helper.make_node(
+        'MatMulInteger',
+        inputs=['1', '2', '3', '4'],
+        outputs=['y'],
+    )
+
+    return ([node], [m1, m2], [y], [zp1, zp2])
+
+
+@onnx_test()
+def matmulinteger_int8_uint8_dual_zero_zp_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.INT8, [4, 3])
+    m2 = helper.make_tensor_value_info('2', TensorProto.UINT8, [3, 2])
+    zp1 = helper.make_tensor('3', TensorProto.INT8, [], [0])
+    zp2 = helper.make_tensor('4', TensorProto.UINT8, [], [128])
     y = helper.make_tensor_value_info('y', TensorProto.INT32, [4, 2])
 
     node = onnx.helper.make_node(
@@ -7312,6 +7746,23 @@ def recip_test():
     return ([node], [x], [y])
 
 
+def reduceop_variable_axes_test(op_name,
+                                axes_len=1,
+                                keepdims=1,
+                                noop_with_empty_axes=0):
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [axes_len])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
+
+    node = onnx.helper.make_node(op_name,
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 keepdims=keepdims,
+                                 noop_with_empty_axes=noop_with_empty_axes)
+
+    return ([node], [x, axes], [y])
+
+
 @onnx_test()
 def reducel1_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
@@ -7495,12 +7946,11 @@ def reduceprod_test():
 def reducesum_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [3, 4, 5, 6])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 1, 6])
-    axes = [2]
 
     node = onnx.helper.make_node('ReduceSum',
                                  inputs=['x'],
                                  outputs=['y'],
-                                 axes=axes,
+                                 axes=[2],
                                  keepdims=0)
 
     return ([node], [x], [y])
@@ -7572,6 +8022,53 @@ def reducesum_multiaxis_test():
                                  keepdims=0)
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def reducesum_variable_axes_test():
+    return reduceop_variable_axes_test('ReduceSum')
+
+
+@onnx_test()
+def reducesum_variable_axes_noop_test():
+    return reduceop_variable_axes_test('ReduceSum', noop_with_empty_axes=1)
+
+
+@onnx_test()
+def reducesum_variable_axes_keepdims_clear_test():
+    return reduceop_variable_axes_test('ReduceSum', keepdims=0)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_test():
+    return reduceop_variable_axes_test('ReduceSum', None)
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'])
+
+    return ([node], [x, axes], [y])
+
+
+@onnx_test()
+def reducesum_variable_dynamic_axes_noop_set_verify_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2, 2, 2])
+    axes = helper.make_tensor_value_info('axes', TensorProto.INT64, [None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None])
+
+    node = onnx.helper.make_node('ReduceSum',
+                                 inputs=['x', 'axes'],
+                                 outputs=['y'],
+                                 noop_with_empty_axes=1)
+
+    return ([node], [x, axes], [y])
 
 
 @onnx_test()

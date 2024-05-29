@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -215,42 +215,55 @@ inline __device__ auto coutln()
     return make_printer([](auto f) { f(); }, [] { printf("\n"); });
 }
 
-template <class F, class... Ts>
-__device__ void print_each(F f, Ts... xs)
+template <class Stream, class T, class... Ts>
+__device__ void unsafe_print_each(Stream s, T x, Ts... xs)
 {
-    each_args([&](auto x) { f() << x; }, xs...);
+    s << x;
+    each_args([&](auto xx) { s << ' ' << xx; }, xs...);
 }
 
-template <class F, class... Ts>
-__device__ void print_each_once(F f, Ts... xs)
+template <class Stream, class... Ts>
+__device__ void print_each(Stream s, Ts... xs)
+{
+    auto idx = make_index();
+    for(auto i = 0; i < idx.nglobal(); i++)
+    {
+        if(i == idx.global)
+            unsafe_print_each(s, xs...);
+        __syncthreads();
+    }
+}
+
+template <class Stream, class... Ts>
+__device__ void print_each_once(Stream s, Ts... xs)
 {
     auto idx = make_index();
     if(idx.global == 0)
-        print_each(f, xs...);
+        unsafe_print_each(s, xs...);
 }
 
 template <class... Ts>
 __device__ void print(Ts... xs)
 {
-    print_each(&cout, xs...);
+    print_each(cout(), xs...);
 }
 
 template <class... Ts>
 __device__ void print_once(Ts... xs)
 {
-    print_each_once(&cout, xs...);
+    print_each_once(cout(), xs...);
 }
 
 template <class... Ts>
 __device__ void println(Ts... xs)
 {
-    print_each(&cout, xs..., '\n');
+    print_each(cout(), xs..., '\n');
 }
 
 template <class... Ts>
 __device__ void println_once(Ts... xs)
 {
-    print_each_once(&cout, xs..., '\n');
+    print_each_once(cout(), xs..., '\n');
 }
 
 } // namespace migraphx

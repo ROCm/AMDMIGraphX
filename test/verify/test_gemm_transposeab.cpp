@@ -41,6 +41,7 @@ struct test_gemm_transposeab : verify_program<test_gemm_transposeab<DType>>
         mm->add_instruction(migraphx::make_op("dot"), at, bt);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
 template struct test_gemm_transposeab<migraphx::shape::float_type>;

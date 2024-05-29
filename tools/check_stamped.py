@@ -30,7 +30,7 @@
 # in the license stamp, with the assumption being that any modifications/creations will need to be stamped to the year that the
 # modification/creation was made.
 #####################################################################################
-import subprocess, sys, datetime
+import subprocess, sys, datetime, argparse
 
 debug = False
 
@@ -111,14 +111,15 @@ def check_filename(filename: str, fileTuple: tuple or list) -> bool:
     return False
 
 
-def main() -> None:
+def main(branch) -> None:
     unsupported_file_types.extend(specificIgnores)
 
     ## Get a list of all files (not including deleted) that have changed/added in comparison to the latest Dev branch from MI Graphx
 
     # Subprocess 1 is fetching the latest dev branch from the MIgraphX Url and naming it as 'FETCH_HEAD'
     subprocess.run(
-        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX develop --quiet",
+        "git fetch https://github.com/ROCmSoftwarePlatform/AMDMIGraphX {0} --quiet"
+        .format(branch),
         shell=True,
         stdout=subprocess.PIPE)
 
@@ -153,7 +154,7 @@ def main() -> None:
 
     elif len(stampedFilesWithBadYear) > 0:
         print(
-            f"\nError: The licenses for the following {str(len(stampedFilesWithBadYear))} file(s) either... do not match the year of commit, have a different copyright format or have not been synced from the latest develop branch:\n{str(stampedFilesWithBadYear)}\nThere is a license_stamper script (./tools/license_stamper.py), which you can run to automatically update and add any needed license stamps"
+            f"\nError: The licenses for the following {str(len(stampedFilesWithBadYear))} file(s) either... do not match the year of commit, have a different copyright format or have not been synced from the latest {branch} branch:\n{str(stampedFilesWithBadYear)}\nThere is a license_stamper script (./tools/license_stamper.py), which you can run to automatically update and add any needed license stamps"
         )
         sys.exit(1)
 
@@ -168,4 +169,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("branch")
+    args = parser.parse_args()
+
+    main(args.branch)

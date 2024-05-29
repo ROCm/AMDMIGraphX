@@ -59,7 +59,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     // get non-fixed dynamic_dimension from all parameters
     for(const auto& param : dyn_params)
     {
-        const auto& dds   = param.second.dyn_dims();
+        const auto& dds    = param.second.dyn_dims();
         auto num_non_fixed = std::count_if(dds.cbegin(), dds.cend(), [&](auto dd) {
             if(not dd.is_fixed())
             {
@@ -140,10 +140,12 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 auto static_shape     = dyn_param_shape.to_static(dim_size);
                 map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
             }
-            auto outputs = submod->add_instructions(mm, map_ins);
+            auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});
             submodules.push_back(submod);
         }
+        // sort parameters by name for consistency (vs. parameter order attr)
+        std::sort(param_names.begin(), param_names.end());
         // redirect to select_module operator and return
         std::vector<instruction_ref> sm_inputs;
         std::transform(param_names.cbegin(),

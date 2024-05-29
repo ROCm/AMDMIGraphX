@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -311,6 +312,18 @@ constexpr auto compute_reduce_axis()
     return make_shape(lens, get_shape_c<Input>{}.strides);
 }
 
+template <class T, class F>
+constexpr auto final_reduce(T x, F f)
+{
+    return vec_reduce(x, f);
+}
+
+template <class T, index_int N, class F>
+constexpr auto final_reduce(array<T, N> a, F f)
+{
+    return a.apply([&](auto x) { return final_reduce(x, f); });
+}
+
 template <class Input, index_int Axis>
 using with_axis = decltype(compute_reduce_axis<Input, Axis>());
 
@@ -454,7 +467,7 @@ struct block
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -511,7 +524,7 @@ struct block_large
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return block_reduce(idx, op, init, index_int{n}, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -584,7 +597,7 @@ struct subwave
         __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
         {
             return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
-                return vec_reduce(read(xs(j, d)...), op);
+                return final_reduce(read(xs(j, d)...), op);
             });
         }
 
@@ -730,18 +743,18 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
     });
 }
 
-template <class Algo, class Reduced, class Output, class F>
-__device__ void fused_reduce(Output output, F f)
+template <class Algo, class Reduced, class Output, class Assign, class F>
+__device__ void fused_reduce(Output output, Assign assign, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
         auto result = f(r, out_idx);
         if constexpr(reduce::is_inner_storage<decltype(result)>{})
         {
-            r.inner([&](auto& y, auto x) { y = x; })(output, result);
+            r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
         }
         else
         {
-            r.outer([&] { output[out_idx] = implicit_conversion(result); });
+            r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
         }
     });
 }

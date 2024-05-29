@@ -38,6 +38,6 @@ TEST_CASE(lessorequal_test)
 
     mm->add_return({le});
 
-    auto prog = migraphx::parse_onnx("lessorequal_test.onnx");
+    auto prog = read_onnx("lessorequal_test.onnx");
     EXPECT(p == prog);
 }

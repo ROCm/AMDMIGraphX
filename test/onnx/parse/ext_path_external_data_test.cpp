@@ -22,7 +22,12 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "onnx_test.hpp"
+#include <test.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/onnx.hpp>
 #include <onnx_test_utils.hpp>
 
 TEST_CASE(external_data_diff_path_test)

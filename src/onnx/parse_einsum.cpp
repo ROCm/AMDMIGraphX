@@ -239,9 +239,10 @@ struct parse_einsum : op_parser<parse_einsum>
                               const std::map<char, int>& label_count,
                               size_t ellipsis_ndim) const
     {
-        const auto* const it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
-            return not contains(label_count, l) and l != '*';
-        });
+        std::string_view::iterator it =
+            std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
+                return not contains(label_count, l) and l != '*';
+            });
         if(it != output_term.end())
             MIGRAPHX_THROW("Output term contains label " + std::to_string(*it) +
                            ", which is not present in any of the input terms");

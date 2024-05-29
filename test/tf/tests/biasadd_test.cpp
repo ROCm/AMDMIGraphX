@@ -20,34 +20,24 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(biasadd_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p;
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto* mm = p.get_main_module();
+    migraphx::shape s0{migraphx::shape::float_type, {1, 500, 1, 1}};
+    uint64_t axis = 1;
+    auto l0       = mm->add_parameter("0", s0);
+    auto l1       = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {500}});
+    auto l2       = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", axis}, {"out_lens", l0->get_shape().lens()}}), l1);
+    mm->add_instruction(migraphx::make_op("add"), l0, l2);
+    auto prog = optimize_tf("biasadd_test.pb", true);
 
-#endif
+    EXPECT(p == prog);
+}

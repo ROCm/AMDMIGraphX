@@ -20,34 +20,32 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_MOD_HPP
-#define MIGRAPHX_GUARD_OPERATORS_MOD_HPP
 
-#include <migraphx/op/binary.hpp>
-#include <cmath>
+#include <tf_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct mod : binary<mod>
+TEST_CASE(split_test)
 {
-    std::string name() const { return "mod"; }
-    value attributes() const
-    {
-        auto a           = base_attributes();
-        a["commutative"] = false;
-        return a;
-    }
-    auto apply() const
-    {
-        return [](auto x, auto y) { return std::fmod((std::remainder(x, y)) + y, y); };
-    }
-};
+    migraphx::program p;
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto* mm = p.get_main_module();
+    std::vector<int64_t> axes{0, 1};
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {5, 30}});
+    mm->add_literal(3); // num_splits
+    mm->add_literal(1); // split axis
+    mm->add_literal(1); // concat axis
+    mm->add_literal(1); // concat axis
+    auto l1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 0}}, {"ends", {5, 10}}}), l0);
+    auto l2 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 10}}, {"ends", {5, 20}}}), l0);
+    auto l3 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", axes}, {"starts", {0, 20}}, {"ends", {5, 30}}}), l0);
+    auto l4 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l1, l2);
+    auto l5 = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l3);
+    mm->add_return({l4, l5});
+    auto prog = parse_tf("split_test.pb", false);
 
-#endif
+    EXPECT(p == prog);
+}

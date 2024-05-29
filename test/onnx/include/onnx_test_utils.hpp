@@ -160,7 +160,8 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
                 size_t skipped_axis,
                 bool skip_bias                      = false,
                 const float eps_value               = 1e-5f,
-                const migraphx::shape::type_t dtype = migraphx::shape::float_type)
+                const migraphx::shape::type_t dtype = migraphx::shape::float_type,
+                bool simplified                     = false)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -173,6 +174,19 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     }
 
     auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
+
+    if(simplified)
+    {
+        auto x_sq = add_common_op(*mm, migraphx::make_op("mul"), {x, x});
+        auto axis = reduce_axes[0];
+        axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
+        auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        rms = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
+        auto rrms = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
+        auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});
+        result = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
+        return p;
+    }
 
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x);
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});

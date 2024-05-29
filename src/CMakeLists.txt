@@ -348,6 +348,12 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
 endif()
 
+if(MIGRAPHX_USE_MIOPEN)
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
+else()
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
+endif()
+
 if(HAVE_HALF_EXPR)
     target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()

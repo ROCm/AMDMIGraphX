@@ -35,7 +35,7 @@ TEST_CASE(topk_attrk_test)
     auto ind  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     mm->add_return({val, ind});
 
-    auto prog = migraphx::parse_onnx("topk_attrk_test.onnx");
+    auto prog = read_onnx("topk_attrk_test.onnx");
 
     EXPECT(p == prog);
 }

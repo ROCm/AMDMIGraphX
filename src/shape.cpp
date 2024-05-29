@@ -530,7 +530,7 @@ shape shape::to_dynamic() const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [](auto s) { return s.to_dynamic(); });
-        return {subs};
+        return shape(subs);
     }
     if(this->dynamic())
     {
@@ -548,7 +548,7 @@ shape shape::to_static(std::size_t x) const
                        sub_shapes().cend(),
                        std::back_inserter(subs),
                        [&](auto s) { return s.to_static(x); });
-        return {subs};
+        return shape(subs);
     }
     if(not this->dynamic())
     {
@@ -727,6 +727,24 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+std::vector<shape> flatten(const std::vector<shape>& shapes)
+{
+    std::vector<shape> result;
+    for(const auto& s : shapes)
+    {
+        if(s.type() == shape::tuple_type)
+        {
+            auto subs = flatten(s.sub_shapes());
+            result.insert(result.end(), subs.begin(), subs.end());
+        }
+        else
+        {
+            result.push_back(s);
+        }
+    }
+    return result;
+}
 
 void migraphx_to_value(value& v, const shape& s)
 {

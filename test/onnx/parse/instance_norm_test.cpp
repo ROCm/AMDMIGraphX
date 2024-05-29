@@ -58,7 +58,7 @@ TEST_CASE(instance_norm_test)
     mm->add_return({ret});
 
     migraphx::onnx_options options;
-    auto prog = migraphx::parse_onnx("instance_norm_test.onnx", options);
+    auto prog = read_onnx("instance_norm_test.onnx", options);
 
     EXPECT(p == prog);
 }

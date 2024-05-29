@@ -7,7 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Additions
 
-* Added FP8 support
+* Added beta version of FP8, functional, not performant
 * Created a dockerfile with MIGraphX+ONNX Runtime EP+Torch
 * Added support for the `Hardmax`, `DynamicQuantizeLinear`, `Qlinearconcat`, `Unique`, `QLinearAveragePool`, `QLinearSigmoid`, `QLinearLeakyRelu`, `QLinearMul`, `IsInf` operators
 * Created web site examples for `Whisper`, `Llama-2`, and `Stable Diffusion 2.1`

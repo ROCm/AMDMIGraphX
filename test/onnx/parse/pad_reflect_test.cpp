@@ -39,7 +39,7 @@ TEST_CASE(pad_reflect_test)
     auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), l2, l1, l0, l3);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("pad_reflect_test.onnx");
+    auto prog = read_onnx("pad_reflect_test.onnx");
 
     EXPECT(p == prog);
 }

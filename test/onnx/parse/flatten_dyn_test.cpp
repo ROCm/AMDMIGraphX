@@ -36,6 +36,6 @@ TEST_CASE(flatten_dyn_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = parse_onnx("flatten_dyn_test.onnx", options);
+    auto prog                     = read_onnx("flatten_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

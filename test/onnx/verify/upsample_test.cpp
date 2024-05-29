@@ -28,7 +28,7 @@
 
 TEST_CASE(upsample_test)
 {
-    migraphx::program p = migraphx::parse_onnx("upsample_test.onnx");
+    migraphx::program p = read_onnx("upsample_test.onnx");
 
     std::vector<float> x_data = {1, 2, 3, 4};
     migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};

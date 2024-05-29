@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -66,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
@@ -77,6 +79,7 @@ add_library(migraphx
     operation.cpp
     optimize_module.cpp
     pad_calc.cpp
+    param_utils.cpp
     pass.cpp
     pass_manager.cpp
     permutation.cpp
@@ -94,8 +97,10 @@ add_library(migraphx
     replace_allocate.cpp
     rewrite_reduce.cpp
     simplify_qdq.cpp
+    split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
+    rewrite_low_precision.cpp
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
@@ -139,6 +144,7 @@ register_migraphx_ops(
     atan
     broadcast
     broadcast_for_dot
+    broadcast_with_dims
     capture
     ceil
     clip
@@ -194,6 +200,7 @@ register_migraphx_ops(
     nonmaxsuppression
     nonzero
     outline
+    pack_int4
     pad
     pointwise
     pooling
@@ -254,6 +261,7 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_int4
     unsqueeze
     where
 )
@@ -262,6 +270,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -324,7 +333,10 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -342,6 +354,8 @@ endif()
 if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
+
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

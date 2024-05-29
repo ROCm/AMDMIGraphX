@@ -164,7 +164,7 @@ struct ck_gemm_compiler : compiler<ck_gemm_compiler>
         }
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
-            options.params += " -DMIGRAPHX_CK_CHECK=1";
+            options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
 
         auto src = interpolate_string(ck_gemm_kernel,
                                       {{"solution", template_str},

@@ -37,6 +37,6 @@ TEST_CASE(split_test)
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {11}}, {"ends", {15}}}), input);
     mm->add_return({r1, r2, r3});
 
-    auto prog = migraphx::parse_onnx("split_test.onnx");
+    auto prog = read_onnx("split_test.onnx");
     EXPECT(p == prog);
 }

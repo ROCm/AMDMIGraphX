@@ -33,7 +33,7 @@ TEST_CASE(transpose_default_perm_test)
     auto r = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), input);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("transpose_default_perm_test.onnx");
+    auto prog = read_onnx("transpose_default_perm_test.onnx");
 
     EXPECT(p == prog);
 }

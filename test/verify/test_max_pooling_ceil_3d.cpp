@@ -27,17 +27,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d>
+template <migraphx::shape::type_t T>
+struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
         auto op = migraphx::op::pooling{
             migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
         mm->add_instruction(op, input);
         return p;
     }
 };
+
+template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
+// TODO: uncomment once "Clang ASAN" CI is fixed.  See PR 2973 for details
+// template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;

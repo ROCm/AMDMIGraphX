@@ -146,9 +146,6 @@ static int32_t get_batch_stride_hip(const shape& s)
  * Wrapper for multiple hipBLASLt calls.  The constructor creates parameters for
  * these calls based on data shapes and other values contained in the associated
  * instruction and operation.
- *
- * The template parameter T is not the type of the matrix data but of the weighting
- * coefficients alpha and beta
  */
 struct hip_gemm_impl
 {
@@ -182,6 +179,9 @@ struct hip_gemm_impl
 
         transa     = is_transposed_hip(input_shapes[0]);
         transb     = is_transposed_hip(input_shapes[1]);
+        op_A       = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+        op_B       = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
+
         auto n_dim = output_shape.lens().size();
         auto dim_0 = n_dim - 2;
         auto dim_1 = n_dim - 1;
@@ -190,20 +190,6 @@ struct hip_gemm_impl
         ldb = input_shapes[1].strides()[transb ? dim_1 : dim_0];
         ldc = input_shapes[2].strides()[dim_0];
         ldd = is_3inputs ? input_shapes[3].strides()[dim_0] : ldc;
-
-        arg_type    = get_type_hipblas(input_shapes[0].type());
-        output_type = get_type_hipblas(input_shapes[2].type());
-        if(arg_type == HIP_R_8I or arg_type == HIP_R_8U)
-        {
-            compute_type = HIPBLAS_COMPUTE_32I;
-        }
-        else
-        {
-            compute_type = HIPBLAS_COMPUTE_32F;
-        }
-
-        auto a_lens = input_shapes[0].lens();
-        auto b_lens = input_shapes[1].lens();
 
         auto out_lens = output_shape.lens();
         m             = out_lens[dim_0];
@@ -216,50 +202,42 @@ struct hip_gemm_impl
         d_stride     = is_3inputs ? get_batch_stride_hip(input_shapes[3]) : c_stride;
         num_matrices = std::accumulate(
             out_lens.rbegin() + 2, out_lens.rend(), std::size_t{1}, std::multiplies<std::size_t>());
-        // hipblaslt
-        dtype = get_type_hipblas(input_shapes[0].type());
 
-        // casting from int32_t which is int64_t
-        const uint64_t m_ = static_cast<uint64_t>(m);
-        const uint64_t n_ = static_cast<uint64_t>(n);
-        const uint64_t k_ = static_cast<uint64_t>(k);
+        arg_type    = get_type_hipblas(input_shapes[0].type());
+        output_type = get_type_hipblas(input_shapes[2].type());
 
-        op_A = transa ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-        op_B = transb ? HIPBLAS_OP_T : HIPBLAS_OP_N;
-
-        auto lda_ = static_cast<int64_t>(lda);
-        auto ldb_ = static_cast<int64_t>(ldb);
-        auto ldc_ = static_cast<int64_t>(ldc);
-        auto ldd_ = static_cast<int64_t>(ldd);
-        if(op_A == HIPBLAS_OP_T)
+        if(arg_type == HIP_R_8I or arg_type == HIP_R_8U)
         {
-            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, m_, k_, lda_));
+            compute_type = HIPBLAS_COMPUTE_32I;
         }
         else
         {
-            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, dtype, k_, m_, lda_));
+            compute_type = HIPBLAS_COMPUTE_32F;
+        }
+        if(op_A == HIPBLAS_OP_T)
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, arg_type, m, k, lda));
+        }
+        else
+        {
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matA, arg_type, k, m, lda));
         }
         if(op_B == HIPBLAS_OP_T)
         {
-            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, k_, n_, ldb_));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, arg_type, k, n, ldb));
         }
         else
         {
-            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, dtype, n_, k_, ldb_));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matB, arg_type, n, k, ldb));
         }
-        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matC, output_type, n_, m_, ldc_));
+        CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matC, output_type, n, m, ldc));
 
         if(is_3inputs)
         {
-            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matD, output_type, n_, m_, ldd_));
+            CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutCreate(&matD, output_type, n, m, ldd));
         }
         if(num_matrices > 1)
         {
-            const int64_t a_stride_ = static_cast<int64_t>(a_stride);
-            const int64_t b_stride_ = static_cast<int64_t>(b_stride);
-            const int64_t c_stride_ = static_cast<int64_t>(c_stride);
-            const int64_t d_stride_ = static_cast<int64_t>(d_stride);
-
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
                 matA, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
@@ -268,11 +246,11 @@ struct hip_gemm_impl
                 matC, HIPBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &num_matrices, sizeof(num_matrices)));
 
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-                matA, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &a_stride_, sizeof(a_stride_)));
+                matA, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &a_stride, sizeof(a_stride)));
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-                matB, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &b_stride_, sizeof(b_stride_)));
+                matB, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &b_stride, sizeof(b_stride)));
             CHECK_HIPBLAS_ERROR(hipblasLtMatrixLayoutSetAttribute(
-                matC, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &c_stride_, sizeof(c_stride_)));
+                matC, HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, &c_stride, sizeof(c_stride)));
 
             if(is_3inputs)
             {
@@ -284,8 +262,8 @@ struct hip_gemm_impl
                 CHECK_HIPBLAS_ERROR(
                     hipblasLtMatrixLayoutSetAttribute(matD,
                                                       HIPBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
-                                                      &d_stride_,
-                                                      sizeof(d_stride_)));
+                                                      &d_stride,
+                                                      sizeof(d_stride)));
             }
         }
         CHECK_HIPBLAS_ERROR(hipblasLtMatmulDescCreate(
@@ -411,8 +389,8 @@ struct hip_gemm_impl
                     hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
                     op_B,
                     op_A,
-                    dtype,
-                    dtype,
+                    arg_type,
+                    arg_type,
                     output_type,
                     output_type,
                     compute_type,
@@ -502,8 +480,8 @@ struct hip_gemm_impl
                                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
                                    op_B,
                                    op_A,
-                                   dtype,
-                                   dtype,
+                                   arg_type,
+                                   arg_type,
                                    output_type,
                                    output_type,
                                    compute_type,
@@ -596,9 +574,9 @@ struct hip_gemm_impl
 
     // rocblas
     size_t num_matrices = 0;
-    int32_t m           = 0;
-    int32_t n           = 0;
-    int32_t k           = 0;
+    uint64_t m          = 0;
+    uint64_t n          = 0;
+    uint64_t k          = 0;
     bool transa         = false;
     bool transb         = false;
     float alpha         = 0;
@@ -606,21 +584,20 @@ struct hip_gemm_impl
     std::function<const void*()> get_alpha{};
     std::function<const void*()> get_beta{};
 
-    int32_t lda              = 0;
-    int32_t ldb              = 0;
-    int32_t ldc              = 0;
-    int32_t ldd              = 0;
-    int32_t a_stride         = 0;
-    int32_t b_stride         = 0;
-    int32_t c_stride         = 0;
-    int32_t d_stride         = 0;
+    int64_t lda                       = 0;
+    int64_t ldb                       = 0;
+    int64_t ldc                       = 0;
+    int64_t ldd                       = 0;
+    int64_t a_stride                  = 0;
+    int64_t b_stride                  = 0;
+    int64_t c_stride                  = 0;
+    int64_t d_stride                  = 0;
     hipDataType arg_type     = HIP_R_32F;
     hipblasComputeType_t compute_type = HIPBLAS_COMPUTE_32F;
     hipDataType output_type           = HIP_R_32F;
     bool is_3inputs                   = true;
 
     // hipblaslt
-    hipDataType dtype;
     hipblasLtMatmulDesc_t hipblaslt_desc;
     hipblasOperation_t op_A;
     hipblasOperation_t op_B;

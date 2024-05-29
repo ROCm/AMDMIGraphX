@@ -239,7 +239,7 @@ struct parse_einsum : op_parser<parse_einsum>
                               const std::map<char, int>& label_count,
                               size_t ellipsis_ndim) const
     {
-        const auto* it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
+        const auto it = std::find_if(output_term.begin(), output_term.end(), [&](auto l) {
             return not contains(label_count, l) and l != '*';
         });
         if(it != output_term.end())

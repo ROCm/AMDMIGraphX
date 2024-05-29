@@ -34,7 +34,7 @@ static migraphx::shape make_shape(std::vector<size_t> lens)
 
 TEST_CASE(einsum_permute_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_permute_test.onnx");
+    migraphx::program p = read_onnx("einsum_permute_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -57,7 +57,7 @@ TEST_CASE(einsum_permute_test)
 
 TEST_CASE(einsum_summation_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_summation_test.onnx");
+    migraphx::program p = read_onnx("einsum_summation_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -79,7 +79,7 @@ TEST_CASE(einsum_summation_test)
 
 TEST_CASE(einsum_column_sum_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_column_sum_test.onnx");
+    migraphx::program p = read_onnx("einsum_column_sum_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -101,7 +101,7 @@ TEST_CASE(einsum_column_sum_test)
 
 TEST_CASE(einsum_row_sum_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_row_sum_test.onnx");
+    migraphx::program p = read_onnx("einsum_row_sum_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -123,7 +123,7 @@ TEST_CASE(einsum_row_sum_test)
 
 TEST_CASE(einsum_matrix_vector_multiplication_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_vector_multiplication_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_vector_multiplication_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -149,7 +149,7 @@ TEST_CASE(einsum_matrix_vector_multiplication_test)
 
 TEST_CASE(einsum_matrix_matrix_multiplication_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_matrix_multiplication_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_matrix_multiplication_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -172,7 +172,7 @@ TEST_CASE(einsum_matrix_matrix_multiplication_test)
 
 TEST_CASE(einsum_vector_dot_product_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_vector_dot_product_test.onnx");
+    migraphx::program p = read_onnx("einsum_vector_dot_product_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3}};
@@ -194,7 +194,7 @@ TEST_CASE(einsum_vector_dot_product_test)
 
 TEST_CASE(einsum_matrix_dot_product_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_dot_product_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_dot_product_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -217,7 +217,7 @@ TEST_CASE(einsum_matrix_dot_product_test)
 
 TEST_CASE(einsum_hadamard_product_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_hadamard_product_test.onnx");
+    migraphx::program p = read_onnx("einsum_hadamard_product_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -241,7 +241,7 @@ TEST_CASE(einsum_hadamard_product_test)
 
 TEST_CASE(einsum_vector_outer_product_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_vector_outer_product_test.onnx");
+    migraphx::program p = read_onnx("einsum_vector_outer_product_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3}};
@@ -280,7 +280,7 @@ TEST_CASE(einsum_vector_outer_product_test)
 
 TEST_CASE(einsum_matrix_outer_product_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_outer_product_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_outer_product_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 3}};
@@ -324,7 +324,7 @@ TEST_CASE(einsum_matrix_outer_product_test)
 
 TEST_CASE(einsum_batch_matrix_multiplication_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_batch_matrix_multiplication_test.onnx");
+    migraphx::program p = read_onnx("einsum_batch_matrix_multiplication_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 2, 5}};
@@ -378,7 +378,7 @@ TEST_CASE(einsum_batch_matrix_multiplication_test)
 
 TEST_CASE(einsum_tensor_contraction_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_tensor_contraction_test.onnx");
+    migraphx::program p = read_onnx("einsum_tensor_contraction_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 3, 5, 7}};
@@ -544,7 +544,7 @@ TEST_CASE(einsum_tensor_contraction_test)
 
 TEST_CASE(einsum_matrix_diagonal_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_diagonal_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_diagonal_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 3}};
@@ -573,7 +573,7 @@ TEST_CASE(einsum_matrix_diagonal_test)
 
 TEST_CASE(einsum_batch_matrix_diagonal_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_batch_matrix_diagonal_test.onnx");
+    migraphx::program p = read_onnx("einsum_batch_matrix_diagonal_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 3, 3}};
@@ -606,7 +606,7 @@ TEST_CASE(einsum_batch_matrix_diagonal_test)
 
 TEST_CASE(einsum_3d_diagonal_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_3d_diagonal_test.onnx");
+    migraphx::program p = read_onnx("einsum_3d_diagonal_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 3, 3}};
@@ -631,7 +631,7 @@ TEST_CASE(einsum_3d_diagonal_test)
 
 TEST_CASE(einsum_diag_vector_multiply_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_diag_vector_multiply_test.onnx");
+    migraphx::program p = read_onnx("einsum_diag_vector_multiply_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 3}};
@@ -664,7 +664,7 @@ TEST_CASE(einsum_diag_vector_multiply_test)
 
 TEST_CASE(einsum_matrix_trace_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_trace_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_trace_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 3}};
@@ -693,7 +693,7 @@ TEST_CASE(einsum_matrix_trace_test)
 
 TEST_CASE(einsum_matrix_trace_implicit_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_matrix_trace_implicit_test.onnx");
+    migraphx::program p = read_onnx("einsum_matrix_trace_implicit_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 3}};
@@ -722,7 +722,7 @@ TEST_CASE(einsum_matrix_trace_implicit_test)
 
 TEST_CASE(einsum_2d_3d_multiplication_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_2d_3d_multiplication_test.onnx");
+    migraphx::program p = read_onnx("einsum_2d_3d_multiplication_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 3}};
@@ -773,8 +773,7 @@ TEST_CASE(einsum_2d_3d_multiplication_test)
 
 TEST_CASE(einsum_element_wise_multiplication_and_row_sum_test)
 {
-    migraphx::program p =
-        migraphx::parse_onnx("einsum_element_wise_multiplication_and_row_sum_test.onnx");
+    migraphx::program p = read_onnx("einsum_element_wise_multiplication_and_row_sum_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3}};
@@ -810,7 +809,7 @@ TEST_CASE(einsum_element_wise_multiplication_and_row_sum_test)
 
 TEST_CASE(einsum_broadcast_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_broadcast_test.onnx");
+    migraphx::program p = read_onnx("einsum_broadcast_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 1}};
@@ -836,7 +835,7 @@ TEST_CASE(einsum_broadcast_test)
 
 TEST_CASE(einsum_3d_broadcast_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_3d_broadcast_test.onnx");
+    migraphx::program p = read_onnx("einsum_3d_broadcast_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {1, 3, 1}};
@@ -880,7 +879,7 @@ TEST_CASE(einsum_3d_broadcast_test)
 
 TEST_CASE(einsum_3d_opposite_broadcast_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_3d_opposite_broadcast_test.onnx");
+    migraphx::program p = read_onnx("einsum_3d_opposite_broadcast_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {1, 3, 2}};
@@ -917,7 +916,7 @@ TEST_CASE(einsum_3d_opposite_broadcast_test)
 
 TEST_CASE(einsum_3_inputs_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_3_inputs_test.onnx");
+    migraphx::program p = read_onnx("einsum_3_inputs_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 2, 2}};
@@ -967,7 +966,7 @@ TEST_CASE(einsum_3_inputs_test)
 
 TEST_CASE(einsum_bilinear_transformation_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_bilinear_transformation_test.onnx");
+    migraphx::program p = read_onnx("einsum_bilinear_transformation_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 3}};
@@ -1034,7 +1033,7 @@ TEST_CASE(einsum_bilinear_transformation_test)
 
 TEST_CASE(einsum_ellipsis_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_ellipsis_test.onnx");
+    migraphx::program p = read_onnx("einsum_ellipsis_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 3, 2}};
@@ -1089,7 +1088,7 @@ TEST_CASE(einsum_ellipsis_test)
 
 TEST_CASE(einsum_ellipsis_multidim_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_ellipsis_multidim_test.onnx");
+    migraphx::program p = read_onnx("einsum_ellipsis_multidim_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 2, 3, 2}};
@@ -1138,7 +1137,7 @@ TEST_CASE(einsum_ellipsis_multidim_test)
 
 TEST_CASE(einsum_ellipsis_zero_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_ellipsis_zero_test.onnx");
+    migraphx::program p = read_onnx("einsum_ellipsis_zero_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 3, 2}};
@@ -1182,7 +1181,7 @@ TEST_CASE(einsum_ellipsis_zero_test)
 
 TEST_CASE(einsum_ellipsis_implicit_form_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_ellipsis_implicit_form_test.onnx");
+    migraphx::program p = read_onnx("einsum_ellipsis_implicit_form_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 2, 3, 2}};
@@ -1228,7 +1227,7 @@ TEST_CASE(einsum_ellipsis_implicit_form_test)
 
 TEST_CASE(einsum_ellipsis_scalar_multiplication_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_ellipsis_scalar_multiplication_test.onnx");
+    migraphx::program p = read_onnx("einsum_ellipsis_scalar_multiplication_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {2, 3}};
@@ -1252,7 +1251,7 @@ TEST_CASE(einsum_ellipsis_scalar_multiplication_test)
 
 TEST_CASE(einsum_common_1_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_1_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_1_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 2, 2, 2}};
@@ -1322,7 +1321,7 @@ TEST_CASE(einsum_common_1_test)
 
 TEST_CASE(einsum_common_2_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_2_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_2_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 2, 2, 2}};
@@ -1384,7 +1383,7 @@ TEST_CASE(einsum_common_2_test)
 
 TEST_CASE(einsum_common_3_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_3_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_3_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 2, 2, 2}};
@@ -1446,7 +1445,7 @@ TEST_CASE(einsum_common_3_test)
 
 TEST_CASE(einsum_common_4_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_4_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_4_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {2, 2, 3, 2}};
@@ -1487,7 +1486,7 @@ TEST_CASE(einsum_common_4_test)
 
 TEST_CASE(einsum_common_5_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_5_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_5_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 2, 3, 2}};
@@ -1540,7 +1539,7 @@ TEST_CASE(einsum_common_5_test)
 
 TEST_CASE(einsum_common_6_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_6_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_6_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 2, 2}};
@@ -1604,7 +1603,7 @@ TEST_CASE(einsum_common_6_test)
 
 TEST_CASE(einsum_common_7_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_7_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_7_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {5, 5}};
@@ -1629,7 +1628,7 @@ TEST_CASE(einsum_common_7_test)
 
 TEST_CASE(einsum_common_8_test)
 {
-    migraphx::program p = migraphx::parse_onnx("einsum_common_8_test.onnx");
+    migraphx::program p = read_onnx("einsum_common_8_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x1_shape{migraphx::shape::float_type, {3, 3}};

@@ -33,7 +33,7 @@ TEST_CASE(squeeze_empty_axes_test)
     auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
     mm->add_return({l1});
 
-    auto prog = migraphx::parse_onnx("squeeze_empty_axes_test.onnx");
+    auto prog = read_onnx("squeeze_empty_axes_test.onnx");
 
     EXPECT(p == prog);
 }

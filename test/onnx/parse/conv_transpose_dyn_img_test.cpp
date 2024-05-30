@@ -36,6 +36,6 @@ TEST_CASE(conv_transpose_dyn_img_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 6};
-    auto prog                     = parse_onnx("conv_transpose_dyn_img_test.onnx", options);
+    auto prog                     = read_onnx("conv_transpose_dyn_img_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -28,7 +28,7 @@
 
 TEST_CASE(mean_broadcast_test)
 {
-    migraphx::program p = migraphx::parse_onnx("mean_broadcast_test.onnx");
+    migraphx::program p = read_onnx("mean_broadcast_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::float_type, {1, 3, 4}};

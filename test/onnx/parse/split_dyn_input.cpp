@@ -40,7 +40,7 @@ TEST_CASE(split_dyn_input_fixed_split_axis_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
-    auto prog = migraphx::parse_onnx("split_dyn_input_fixed_split_axis_test.onnx", options);
+    auto prog = migraphx::read_onnx("split_dyn_input_fixed_split_axis_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -88,7 +88,7 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
-    auto prog = migraphx::parse_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
+    auto prog = migraphx::read_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
     EXPECT(p == prog);
 }
 
@@ -97,7 +97,7 @@ TEST_CASE(split_dyn_input_split_attr_error)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
     EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("split_dyn_input_split_attr_test.onnx", options); }));
+        [&] { migraphx::read_onnx("split_dyn_input_split_attr_test.onnx", options); }));
 }
 
 TEST_CASE(split_dyn_input_split_input_error)
@@ -105,5 +105,5 @@ TEST_CASE(split_dyn_input_split_input_error)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
     EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("split_dyn_input_split_input_test.onnx", options); }));
+        [&] { migraphx::read_onnx("split_dyn_input_split_input_test.onnx", options); }));
 }

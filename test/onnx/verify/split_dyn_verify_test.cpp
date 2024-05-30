@@ -30,7 +30,7 @@ TEST_CASE(split_dyn_input_fixed_split_axis_test)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
-    auto p = migraphx::read_onnx("split_dyn_input_fixed_split_axis_test.onnx", options);
+    auto p = read_onnx("split_dyn_input_fixed_split_axis_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
     migraphx::shape data_shape{migraphx::shape::float_type, {10, 15}};
     std::vector<float> data(150, 1.23);
@@ -54,7 +54,7 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test0)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
-    auto p = migraphx::read_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
+    auto p                        = read_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
     migraphx::shape data_shape{migraphx::shape::float_type, {12, 15}};
     std::vector<float> data(180, 1.23);
@@ -79,7 +79,7 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test1)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {10, 30};
-    auto p = migraphx::read_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
+    auto p                        = read_onnx("split_dyn_input_dyn_split_axis_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
     migraphx::shape data_shape{migraphx::shape::float_type, {20, 15}};
     std::vector<float> data(300, 1.23);

@@ -384,24 +384,6 @@ struct hip_gemm_impl
         );
     }
 
-    auto
-    create_hipblaslt_tuning_args_common(context& ctx,
-                                        const std::vector<argument>& args,
-                                        std::vector<hipblasLtMatmulHeuristicResult_t> result) const
-    {
-        (void)(args);
-        return pack(ctx.get_stream().get_hipblaslt(),
-                    hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                    op_B,
-                    op_A,
-                    arg_type,
-                    arg_type,
-                    output_type,
-                    output_type,
-                    compute_type,
-                    result);
-    }
-
     auto create_hipblaslt_supporting_args_common(context& ctx,
                                                  const std::vector<argument>& args,
                                                  hipblasLtMatmulAlgo_t& algo,
@@ -479,8 +461,16 @@ struct hip_gemm_impl
                        [](const shape& x) { return to_gpu(generate_argument(x)); });
 
         std::vector<hipblasLtMatmulHeuristicResult_t> result;
-        auto tuning_args = create_hipblaslt_tuning_args_common(ctx, input_args, result);
-        hipblaslt_invoke(&hipblaslt_ext::getAllAlgos, tuning_args);
+        CHECK_HIPBLAS_ERROR(hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
+                                                       hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
+                                                       op_A,
+                                                       op_B,
+                                                       arg_type,
+                                                       arg_type,
+                                                       output_type,
+                                                       output_type,
+                                                       compute_type,
+                                                       result));
         std::vector<int32_t> solution_indices;
         int returned_algo_count = result.size();
         for(int i = 0; i < returned_algo_count; i++)
@@ -496,6 +486,7 @@ struct hip_gemm_impl
             }
             catch(...)
             {
+                // algo is not supported, continue in that case
                 continue;
             }
         }

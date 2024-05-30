@@ -29,7 +29,7 @@
 
 TEST_CASE(tril_batch_diff_k_test)
 {
-    migraphx::program p = migraphx::parse_onnx("tril_batch_diff_k_test.onnx");
+    migraphx::program p = read_onnx("tril_batch_diff_k_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {2, 2, 3}}, p);
 

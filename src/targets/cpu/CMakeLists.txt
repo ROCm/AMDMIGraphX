@@ -97,6 +97,7 @@ else()
 endif()
 
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx_cpu
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

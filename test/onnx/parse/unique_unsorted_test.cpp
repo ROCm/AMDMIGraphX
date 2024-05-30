@@ -39,7 +39,7 @@ TEST_CASE(unique_unsorted_test)
     auto x_idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), out);
     auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
     mm->add_return({y, y_idx, x_idx, count});
-    auto prog = migraphx::parse_onnx("unique_unsorted_test.onnx");
+    auto prog = read_onnx("unique_unsorted_test.onnx");
 
     EXPECT(p == prog);
 }

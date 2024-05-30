@@ -45,6 +45,6 @@ TEST_CASE(split_test_no_attribute)
 
     mm->add_return({r1, r2, r3, r4});
 
-    auto prog = migraphx::parse_onnx("split_test_no_attribute.onnx");
+    auto prog = read_onnx("split_test_no_attribute.onnx");
     EXPECT(p == prog);
 }

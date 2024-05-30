@@ -28,7 +28,7 @@
 
 TEST_CASE(qlinearconcat_3d_test)
 {
-    auto p = migraphx::parse_onnx("qlinearconcat_3d_test.onnx");
+    auto p = read_onnx("qlinearconcat_3d_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<int8_t> data_t0 = {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,

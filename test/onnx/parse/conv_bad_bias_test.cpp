@@ -26,5 +26,5 @@
 
 TEST_CASE(conv_bad_bias_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("conv_bad_bias_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("conv_bad_bias_test.onnx"); }));
 }

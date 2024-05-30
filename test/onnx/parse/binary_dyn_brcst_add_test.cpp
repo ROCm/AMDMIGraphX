@@ -37,7 +37,7 @@ TEST_CASE(binary_dyn_brcst_add_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = migraphx::parse_onnx("binary_dyn_brcst_add_test.onnx", options);
+    auto prog                     = read_onnx("binary_dyn_brcst_add_test.onnx", options);
 
     EXPECT(p == prog);
 }

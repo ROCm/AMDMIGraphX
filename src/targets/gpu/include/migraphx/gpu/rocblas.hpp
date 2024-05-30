@@ -38,13 +38,13 @@ using rocblas_handle_ptr = MIGRAPHX_MANAGE_PTR(rocblas_handle, rocblas_destroy_h
 
 rocblas_handle_ptr create_rocblas_handle_ptr();
 rocblas_handle_ptr create_rocblas_handle_ptr(hipStream_t s);
-
+#endif
 struct context;
 
 MIGRAPHX_GPU_EXPORT bool get_compute_fp32_flag();
 
 MIGRAPHX_GPU_EXPORT bool rocblas_fp8_available();
-#endif
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

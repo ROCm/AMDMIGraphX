@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
 #include <migraphx/gpu/context.hpp>
+#include <limits.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +37,7 @@ struct MIGRAPHX_GPU_EXPORT write_literals
 {
     context* ctx = nullptr;
     bool weight_streaming = false;
-    long streaming_budget = -1;
+    long streaming_budget = LONG_MAX;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

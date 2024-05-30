@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
+#include <limits.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +42,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
     bool weight_streaming = false;
-    long streaming_budget = -1;
+    long streaming_budget = LONG_MAX;
 
     tracer trace{};
 };

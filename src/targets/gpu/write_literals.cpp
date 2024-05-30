@@ -38,20 +38,28 @@ void write_literals::apply(module& m) const
 {
     assert(ctx != nullptr);
     std::size_t n = 0;
-    // std::size_t free;
-    // std::size_t total;
-    std::size_t bytes = 0;
+    std::size_t free;
+    std::size_t total;
+    std::size_t bytes_on_gpu = 0;
+    std::size_t bytes_total = 0;
+
+    if(weight_streaming)
+    {
+        std::cout << "Using weight streaming..." << std::endl;
+        std::cout << "Streaming budget: " << streaming_budget << std::endl;
+    }
 
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            // hipMemGetInfo(&free, &total);
+            hipMemGetInfo(&free, &total);
             // std::cout << "Free: " << free << " Total: " << total << std::endl;
-            std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
-            std::cout << "Streaming budget: " << streaming_budget << std::endl;
+            // std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
+            bytes_total += ins->get_shape().bytes();
             if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
-               (weight_streaming && static_cast<long>(bytes + ins->get_shape().bytes()) >= streaming_budget))
+               (weight_streaming &&
+                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= streaming_budget) || (weight_streaming && static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= free))
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
@@ -60,7 +68,7 @@ void write_literals::apply(module& m) const
             }
             else
             {
-                bytes += ins->get_shape().bytes();
+                bytes_on_gpu += ins->get_shape().bytes();
                 std::string id = m.name() + ":@literal:" + std::to_string(n);
                 m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
                 n++;
@@ -68,11 +76,8 @@ void write_literals::apply(module& m) const
         }
     }
 
-    std::cout << "Literal size on gpu (bytes): " << bytes << std::endl;
-    if(weight_streaming)
-    {
-        std::cout << "Using weight streaming..." << std::endl;
-    }
+    std::cout << "Literal size on gpu (bytes): " << bytes_on_gpu << std::endl;
+    std::cout << "Total size of literals (bytes): " << bytes_total << std::endl;
 }
 
 } // namespace gpu

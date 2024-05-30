@@ -67,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp

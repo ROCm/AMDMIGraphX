@@ -379,7 +379,7 @@ struct hip_gemm_impl
                     is_3inputs ? matD : matC,                     // Ddesc
                     algo,                                         // algo
                     ctx.get_stream().get_hipblaslt_workspace(),   // workspace
-                    HIPBLASLT_WORKSPACE_SIZE,                     // workspaceSizeInBytes
+                    algo->max_workspace_bytes,                    // workspaceSizeInBytes
                     ctx.get_stream().get()                        // stream
         );
     }

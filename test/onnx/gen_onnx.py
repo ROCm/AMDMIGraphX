@@ -10084,6 +10084,7 @@ def split_test_invalid_num_outputs():
 
     return ([node], [x], [y1, y2, y3, y4])
 
+
 @onnx_test()
 def split_dyn_input_fixed_split_axis_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 15])
@@ -10097,6 +10098,7 @@ def split_dyn_input_fixed_split_axis_test():
                                  axis=1)
 
     return ([node], [x], [y1, y2, y3])
+
 
 @onnx_test()
 def split_dyn_input_dyn_split_axis_test():
@@ -10112,6 +10114,7 @@ def split_dyn_input_dyn_split_axis_test():
 
     return ([node], [x], [y1, y2, y3])
 
+
 @onnx_test()
 def split_dyn_input_split_attr_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 15])
@@ -10126,6 +10129,7 @@ def split_dyn_input_split_attr_test():
                                  split=[7, 4, 4])
 
     return ([node], [x], [y1, y2, y3])
+
 
 @onnx_test()
 def split_dyn_input_split_input_test():

@@ -123,12 +123,18 @@ auto parse_static_split(onnx_parser::node_info info,
                                std::to_string(info.num_outputs) + "!");
             }
         }
-
-        std::size_t chunk_size = tuned_axis_len / num_outputs;
-        vec_splits.resize(num_outputs, chunk_size);
-        auto last = tuned_axis_len % num_outputs;
-        if(last)
-            vec_splits.back() = last;
+        if(tuned_axis_len % num_outputs == 0)
+        {
+            std::size_t chunk_size = tuned_axis_len / num_outputs;
+            vec_splits.resize(num_outputs, chunk_size);
+        }
+        else
+        {
+            std::size_t chunk_size      = tuned_axis_len / num_outputs + 1;
+            std::size_t last_chunk_size = tuned_axis_len - chunk_size * (num_outputs - 1);
+            vec_splits.resize(num_outputs - 1, chunk_size);
+            vec_splits.push_back(last_chunk_size);
+        }
     }
 
     if(std::accumulate(vec_splits.begin(), vec_splits.end(), int64_t(0)) !=

@@ -42,7 +42,7 @@ TEST_CASE(upsample_test)
     auto r   = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, li);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("upsample_test.onnx");
+    auto prog = read_onnx("upsample_test.onnx");
 
     EXPECT(p == prog);
 }

@@ -42,7 +42,7 @@ TEST_CASE(scatternd_dyn_test)
     options.map_dyn_input_dims["data"]    = {{1, 3, {2}}, {2, 2}, {2, 2}};
     options.map_dyn_input_dims["indices"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
     options.map_dyn_input_dims["updates"] = {{2, 1, {2}}, {1, 1}, {2, 2}};
-    auto prog = migraphx::parse_onnx("scatternd_dyn_test.onnx", options);
+    auto prog                             = read_onnx("scatternd_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

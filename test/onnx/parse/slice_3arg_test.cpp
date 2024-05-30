@@ -35,7 +35,7 @@ TEST_CASE(slice_3arg_test)
         migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 0}}, {"ends", {2, 5}}}), l0);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("slice_3arg_test.onnx");
+    auto prog = read_onnx("slice_3arg_test.onnx");
 
     EXPECT(p == prog);
 }

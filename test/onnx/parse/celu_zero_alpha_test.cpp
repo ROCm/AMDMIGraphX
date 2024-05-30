@@ -26,5 +26,5 @@
 
 TEST_CASE(celu_zero_alpha_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("celu_zero_alpha_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("celu_zero_alpha_test.onnx"); }));
 }

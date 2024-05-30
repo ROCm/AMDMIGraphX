@@ -169,6 +169,9 @@ rocm_enable_clang_tidy(
         -cert-dcl51-cpp
         -cert-err33-c
         -cert-str34-c
+        # We seed random numbers with constants for reproducibility
+        -cert-msc32-c
+        -cert-msc51-cpp
         # Disable all alpha checks by default
         -clang-analyzer-alpha*
         # Enable some alpha checks
@@ -340,11 +343,14 @@ if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
 endif()
 
+rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
+
 rocm_create_package(
     NAME MIGraphX
     DESCRIPTION "AMD's graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} hip-base half ${PACKAGE_DEPENDS}
+    DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
 )

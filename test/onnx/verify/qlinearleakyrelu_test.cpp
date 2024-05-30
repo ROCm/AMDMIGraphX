@@ -29,7 +29,7 @@
 TEST_CASE(qlinearleakyrelu_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearSigmoid
-    migraphx::program p = migraphx::parse_onnx("qlinearleakyrelu_test.onnx");
+    migraphx::program p = read_onnx("qlinearleakyrelu_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x{migraphx::shape::int8_type, {64}};

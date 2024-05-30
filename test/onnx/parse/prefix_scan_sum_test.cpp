@@ -35,6 +35,6 @@ TEST_CASE(prefix_scan_sum)
         l0);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("prefix_scan_sum_test.onnx");
+    auto prog = read_onnx("prefix_scan_sum_test.onnx");
     EXPECT(p == prog);
 }

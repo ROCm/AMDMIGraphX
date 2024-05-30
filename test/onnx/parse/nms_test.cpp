@@ -47,6 +47,6 @@ TEST_CASE(nms_test)
         migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("nms_test.onnx");
+    auto prog = read_onnx("nms_test.onnx");
     EXPECT(p == prog);
 }

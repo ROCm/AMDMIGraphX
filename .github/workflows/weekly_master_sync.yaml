@@ -1,0 +1,23 @@
+name: Master weekly sync
+ 
+on:
+  schedule:
+   - cron: '0 15 * * sun'
+  workflow_dispatch:
+ 
+jobs:
+  SyncAndMerge:
+    name: Sync master and merge develop
+    runs-on: ubuntu-latest
+    steps:
+ 
+      - uses: actions/checkout@v4.1.1
+        with: 
+          ref: develop
+          fetch-depth: '0'
+ 
+      - name: Merge Fast Forward Only
+        run: |
+          git checkout master
+          git merge origin/develop --ff-only
+          git push origin HEAD

@@ -26,5 +26,5 @@
 
 TEST_CASE(unknown_aten_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("unknown_aten_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("unknown_aten_test.onnx"); }));
 }

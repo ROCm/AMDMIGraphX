@@ -28,7 +28,7 @@
 
 TEST_CASE(depthtospace_simple_test)
 {
-    auto p = migraphx::parse_onnx("depthtospace_simple_test.onnx");
+    auto p = read_onnx("depthtospace_simple_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data_in(48);
     std::iota(std::begin(data_in), std::end(data_in), 0);

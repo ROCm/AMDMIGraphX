@@ -38,6 +38,6 @@ TEST_CASE(gathernd_dyn_test)
     migraphx::onnx_options options;
     options.map_dyn_input_dims["data"]    = {{2, 4, {2}}, {2, 4}};
     options.map_dyn_input_dims["indices"] = {{1, 3}, {2, 2}};
-    auto prog                             = migraphx::parse_onnx("gathernd_dyn_test.onnx", options);
+    auto prog                             = read_onnx("gathernd_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -32,7 +32,7 @@ TEST_CASE(resize_upsample_f_dyn_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
 
-    auto p = migraphx::parse_onnx("resize_upsample_f_dyn_test.onnx", options);
+    auto p = read_onnx("resize_upsample_f_dyn_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 
     // should upscale to 2x4x8

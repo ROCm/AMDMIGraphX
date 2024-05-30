@@ -257,7 +257,7 @@ auto is_mlir_conv(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4)
+        if(ins->get_shape().lens().size() != 4 and group > 1)
             return false;
         if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;

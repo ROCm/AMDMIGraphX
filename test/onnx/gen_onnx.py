@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -10029,7 +10031,8 @@ def simplified_layer_normalization_invalid_input_test():
 def simplified_layer_normalization_invalid_n_args_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
     scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
-    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [1, 2, 4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16,
+                                         [1, 2, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
 
     node = onnx.helper.make_node(

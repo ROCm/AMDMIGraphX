@@ -26,5 +26,6 @@
 
 TEST_CASE(simplified_layer_normalization_invalid_input_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("simplified_layer_normalization_invalid_input_test.onnx"); }));
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("simplified_layer_normalization_invalid_input_test.onnx"); }));
 }

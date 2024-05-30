@@ -54,7 +54,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_HIPBLASLT_GEMM);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPBLASLT_GEMM);
 
 struct miopen_apply
 {
@@ -246,7 +246,7 @@ struct miopen_apply
             assert(refs.size() == 2);
             auto output = insert_allocation(ins, ins->get_shape());
             refs.push_back(output);
-            if(not enabled(MIGRAPHX_USE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
+            if(not enabled(MIGRAPHX_ENABLE_HIPBLASLT_GEMM{}) or not hipblaslt_supported())
             {
                 return mod->replace_instruction(
                     ins, rocblas_gemm<Op>{Op{}, 1, 0, compute_fp32}, refs);

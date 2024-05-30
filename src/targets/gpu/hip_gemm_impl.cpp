@@ -336,10 +336,10 @@ struct hip_gemm_impl
             else
             {
                 // query for the solutions. 1st as the best.
-                std::vector<int> algoIndex(1);
-                algoIndex[0] = idx;
+                std::vector<int32_t> algoIndex = {idx};
                 CHECK_HIPBLAS_ERROR(
                     hipblaslt_ext::getAlgosFromIndex(handle, algoIndex, heuristicResult));
+                assert(heuristicResult.size() == 1);
             }
             return heuristicResult;
         }
@@ -464,7 +464,7 @@ struct hip_gemm_impl
     }
 
     /**
-     * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
+     * Find best hipBLASLt solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
     int tune(context& ctx, const std::vector<shape>& input_shapes) // const
@@ -478,72 +478,30 @@ struct hip_gemm_impl
                        std::back_inserter(input_args),
                        [](const shape& x) { return to_gpu(generate_argument(x)); });
 
-        // Second part: hipblasLt
         std::vector<hipblasLtMatmulHeuristicResult_t> result;
-#if 1
-        hipblaslt_ext::getAllAlgos(ctx.get_stream().get_hipblaslt(),
-                                   hipblaslt_ext::GemmType::HIPBLASLT_GEMM,
-                                   op_B,
-                                   op_A,
-                                   arg_type,
-                                   arg_type,
-                                   output_type,
-                                   output_type,
-                                   compute_type,
-                                   result);
-#else
         auto tuning_args = create_hipblaslt_tuning_args_common(ctx, input_args, result);
         hipblaslt_invoke(&hipblaslt_ext::getAllAlgos, tuning_args);
-
-#endif // if 1
-        std::vector<int> solution_indices_1;
+        std::vector<int32_t> solution_indices;
         int returned_algo_count = result.size();
         for(int i = 0; i < returned_algo_count; i++)
         {
             auto algo                 = result[i].algo;
             size_t ret_workspace_size = 0;
-
-#if 1
-            auto status = hipblaslt_ext::matmulIsAlgoSupported(ctx.get_stream().get_hipblaslt(),
-                                                               hipblaslt_desc,
-                                                               get_alpha(),
-                                                               matB,
-                                                               matA,
-                                                               get_beta(),
-                                                               matC,
-                                                               is_3inputs ? matD : matC,
-                                                               algo,
-                                                               ret_workspace_size);
-#else
             auto supporting_args =
                 create_hipblaslt_supporting_args_common(ctx, input_args, algo, ret_workspace_size);
-            auto status = hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
-#endif // #if 1
-            if(status == HIPBLAS_STATUS_SUCCESS)
+            try
             {
-                if(ret_workspace_size < HIPBLASLT_WORKSPACE_SIZE)
-                {
-                    solution_indices_1.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
-                }
-                else
-                {
-                    std::cout << "Need space larger than given workspace!" << std::endl;
-                }
+                hipblaslt_invoke(&hipblaslt_ext::matmulIsAlgoSupported, supporting_args);
+                solution_indices.push_back(hipblaslt_ext::getIndexFromAlgo(algo));
+            }
+            catch(...)
+            {
+                continue;
             }
         }
 
-        // Third part: comparing rocBLAS and hipblasLt solutions
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
-        std::vector<int32_t> result_0, result_1;
-        std::vector<int32_t> solution_indices;
-
-        std::transform(solution_indices_1.begin(),
-                       solution_indices_1.end(),
-                       std::back_inserter(result_1),
-                       [](int32_t elem) { return elem; });
-        std::copy(result_0.begin(), result_0.end(), std::back_inserter(solution_indices));
-        std::copy(result_1.begin(), result_1.end(), std::back_inserter(solution_indices));
 
         // Initialize to default solution index
         int32_t best_sol = 0;
@@ -625,6 +583,20 @@ void hip_gemm_compute(context& ctx,
                    [](const argument& x) { return x.get_shape(); });
     auto gemm_item = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     gemm_item.run(ctx, args, solution_idx);
+}
+
+int32_t hip_gemm_finalize(context& ctx,
+                          const shape& output_shape,
+                          const std::vector<shape>& input_shapes,
+                          float alpha,
+                          float beta,
+                          int32_t solution_idx)
+{
+    // TODO implement problem cache
+    (void)(solution_idx);
+    auto gemm_item   = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
+    int32_t solution = gemm_item.tune(ctx, input_shapes);
+    return solution;
 }
 
 } // namespace gpu

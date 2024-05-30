@@ -117,6 +117,19 @@ struct hip_gemm
     {
         return shapes.size() - 1;
     }
+
+    void finalize(context& ctx, const shape& output_shape, const std::vector<shape>& input_shapes)
+    {
+        // TODO: implement problem cache
+        /*if(solution_idx == 0)
+            solution_idx = gemm_default_solution(ctx, output_shape, input_shapes);
+        */
+        if(enabled(MIGRAPHX_ENABLE_HIP_GEMM_TUNING{}) or ctx.get_exhaustive_tune_flag())
+        {
+            solution_idx =
+                hip_gemm_finalize(ctx, output_shape, input_shapes, alpha, beta, solution_idx);
+        }
+    }
 };
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

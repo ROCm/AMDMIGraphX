@@ -1065,16 +1065,14 @@ struct find_reshape_reshape_dot
 // const folding simplifications
 struct find_mul_add_shape_op_dot
 {
-    std::string op_name;
-
     auto matcher() const
     {
-        auto const_mul_add = match::name("mul", "add")(
+        const std::unordered_set<std::string> shape_ops = {"transpose", "convert"};
+        auto const_mul_add                              = match::name("mul", "add")(
             match::either_arg(0, 1)(match::is_constant().bind("const"), match::any().bind("inp")));
-        auto match_shape_op = match::name(op_name)(match::args(const_mul_add.bind("pw")));
-        auto skip_reshape_outputs =
-            match::skip_output(match::any_of(match::name("transpose", "convert")));
-        return match_shape_op(skip_reshape_outputs(match::name("dot")));
+        auto match_shape_op        = match::name(shape_ops)(match::args(const_mul_add.bind("pw")));
+        auto skip_shape_op_outputs = match::skip_output(match::any_of(match::name(shape_ops)));
+        return match_shape_op(skip_shape_op_outputs(match::name("dot")));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1114,8 +1112,7 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_unary_shape_transforms{},
                             find_reshape_reshape_dot{},
-                            find_mul_add_shape_op_dot{"transpose"},
-                            find_mul_add_shape_op_dot{"convert"},
+                            find_mul_add_shape_op_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
     }

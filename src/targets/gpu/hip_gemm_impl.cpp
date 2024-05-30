@@ -30,19 +30,12 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
-#include <type_traits>
 
 using microseconds = std::chrono::duration<double, std::micro>;
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
-struct hipblaslt_args
-{
-    hipblasLtHandle_t handle;
-    hipblasLtMatmulPreference_t preference;
-};
 
 hipDataType compute_to_hip_type(hipblasComputeType_t type)
 {
@@ -423,8 +416,7 @@ struct hip_gemm_impl
     }
 
     /**
-     * Checks a particular solution for validity by running it with the flag
-     * rocblas_gemm_flags_check_solution_index (could be invalid if this model was
+     * Checks a particular solution for validity by running it (could be invalid if this model was
      * tuned with a different rocBLAS version)
      *
      * @return Returns either solution_idx if valid, or else the default value 0
@@ -576,6 +568,21 @@ void hip_gemm_compute(context& ctx,
     gemm_item.run(ctx, args, solution_idx);
 }
 
+static value hip_gemm_problem(const shape& output_shape, std::vector<shape> input_shapes)
+{
+    input_shapes.push_back(output_shape);
+    return to_value(input_shapes);
+}
+
+static void hip_gemm_save_solution(context& ctx,
+                                   const shape& output_shape,
+                                   const std::vector<shape>& input_shapes,
+                                   int32_t solution_idx)
+{
+    ctx.get_problem_cache().insert(
+        "hipblaslt", hip_gemm_problem(output_shape, input_shapes), solution_idx);
+}
+
 int32_t hip_gemm_finalize(context& ctx,
                           const shape& output_shape,
                           const std::vector<shape>& input_shapes,
@@ -583,11 +590,21 @@ int32_t hip_gemm_finalize(context& ctx,
                           float beta,
                           int32_t solution_idx)
 {
-    // TODO implement problem cache
-    (void)(solution_idx);
     auto gemm_item   = hip_gemm_impl(output_shape, input_shapes, alpha, beta);
     int32_t solution = gemm_item.tune(ctx, input_shapes);
+    hip_gemm_save_solution(ctx, output_shape, input_shapes, solution_idx);
     return solution;
+}
+
+int32_t hip_gemm_default_solution(context& ctx,
+                                  const shape& output_shape,
+                                  const std::vector<shape>& input_shapes)
+{
+    auto sol =
+        ctx.get_problem_cache().get("hipblaslt", hip_gemm_problem(output_shape, input_shapes));
+    if(sol.has_value())
+        return sol->to<int32_t>();
+    return 0;
 }
 
 } // namespace gpu

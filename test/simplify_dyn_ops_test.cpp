@@ -763,7 +763,10 @@ TEST_CASE(static_onehot)
         auto mb_ones = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {4, 1}}}), ones_lit);
         auto mask = m1.add_instruction(
-            migraphx::make_op("scatter_none", {{"axis", 1}, {"skip_out_of_bounds", 1}}), zeros_lit, unsqueeze_inds, mb_ones);
+            migraphx::make_op("scatter_none", {{"axis", 1}, {"skip_out_of_bounds", 1}}),
+            zeros_lit,
+            unsqueeze_inds,
+            mb_ones);
         auto off_val = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
             values_param);

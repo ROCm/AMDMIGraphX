@@ -53,10 +53,7 @@ struct scatter_op : op_name<Derived>
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.axis, "axis"),
-            f(self.skip_out_of_bounds, "skip_out_of_bounds")
-        );
+        return pack(f(self.axis, "axis"), f(self.skip_out_of_bounds, "skip_out_of_bounds"));
     }
 
     value attributes() const
@@ -72,43 +69,43 @@ struct scatter_op : op_name<Derived>
         // If non-packed, this converts to a packed output while preserving permutation of tensor
         return inputs.front().with_lens(inputs.front().lens());
     }
-   
+
     // iterate through items in shape
     template <class TensorView0, class TensorView1>
     void scatter_reduce_iterate(TensorView0 indices, TensorView1 output, TensorView1 update) const
     {
-        auto ind_s = indices.get_shape();
-        auto output_shape = output.get_shape();
+        auto ind_s         = indices.get_shape();
+        auto output_shape  = output.get_shape();
         auto axis_dim_size = output_shape.lens()[axis];
         shape_for_each(ind_s, [&](const auto& idx) {
-                auto out_idx = idx;
+            auto out_idx = idx;
 
-                // tensor_view::() invokes indexing logic of
-                // std::size_t shape::index(std::size_t i) const
-                auto index = indices(idx.begin(), idx.end());
+            // tensor_view::() invokes indexing logic of
+            // std::size_t shape::index(std::size_t i) const
+            auto index = indices(idx.begin(), idx.end());
 
-                // this addition doesn't necessarily make index positive if index was out of bounds
-                index         = (index < 0) ? index + axis_dim_size : index;
-                assert(skip_out_of_bounds or index >= 0);
-                if(skip_out_of_bounds and index < 0)
+            // this addition doesn't necessarily make index positive if index was out of bounds
+            index = (index < 0) ? index + axis_dim_size : index;
+            assert(skip_out_of_bounds or index >= 0);
+            if(skip_out_of_bounds and index < 0)
+            {
+                return;
+            }
+            out_idx[axis] = index;
+            // skip index out of bounds if attribute on, else assert
+            assert(skip_out_of_bounds or output_shape.multi_within_bounds(out_idx));
+            if(skip_out_of_bounds)
+            {
+                if(not output_shape.multi_within_bounds(out_idx))
                 {
                     return;
                 }
-                out_idx[axis] = index;
-                // skip index out of bounds if attribute on, else assert
-                assert(skip_out_of_bounds or output_shape.multi_within_bounds(out_idx));
-                if(skip_out_of_bounds)
-                {
-                    if(not output_shape.multi_within_bounds(out_idx))
-                    {
-                        return;
-                    }
-                }
-                // look up the appropriate locations in output, using idx and out_idx.
-                // call reduction() method of derived struct to copy and reduce that element
-                derived().reduction()(output(out_idx.begin(), out_idx.end()),
-                        update(idx.begin(), idx.end()));
-                return;
+            }
+            // look up the appropriate locations in output, using idx and out_idx.
+            // call reduction() method of derived struct to copy and reduce that element
+            derived().reduction()(output(out_idx.begin(), out_idx.end()),
+                                  update(idx.begin(), idx.end()));
+            return;
         });
     }
 
@@ -118,9 +115,7 @@ struct scatter_op : op_name<Derived>
 
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
             std::copy(data.begin(), data.end(), output.begin());
-            args[1].visit([&](auto indices) {
-                scatter_reduce_iterate(indices, output, update);
-            });
+            args[1].visit([&](auto indices) { scatter_reduce_iterate(indices, output, update); });
         });
 
         return result;

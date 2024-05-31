@@ -180,9 +180,7 @@ TEST_CASE(onehot_simplify_test0)
     auto values_param = mm->add_parameter("values", values_s);
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", 0}}), inds_param, depth_lit, values_param);
-    migraphx::run_passes(p,
-                         {migraphx::simplify_dyn_ops{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -221,9 +219,7 @@ TEST_CASE(onehot_simplify_test1)
     auto values_param = mm->add_parameter("values", values_s);
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
-    migraphx::run_passes(p,
-                         {migraphx::simplify_dyn_ops{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -254,13 +250,11 @@ TEST_CASE(onehot_simplify_test2)
     migraphx::shape depth_s{migraphx::shape::int64_type, {1}, {0}};
     migraphx::shape values_s{migraphx::shape::float_type, {2}};
     auto inds_param   = mm->add_parameter("indices", inds_s);
-    auto depth_lit  = mm->add_literal(migraphx::literal{depth_s, {3}});
+    auto depth_lit    = mm->add_literal(migraphx::literal{depth_s, {3}});
     auto values_param = mm->add_parameter("values", values_s);
     mm->add_instruction(
         migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
-    migraphx::run_passes(p,
-                         {migraphx::simplify_dyn_ops{},
-                          migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::simplify_dyn_ops{}, migraphx::dead_code_elimination{}});
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;

@@ -65,7 +65,9 @@ struct scatter_elements_compiler : scatter_compiler<scatter_elements_compiler>
         auto skip_out_of_bounds = std::to_string(op.to_value().get("skip_out_of_bounds", 0));
 
         return interpolate_string(scatter_elements_kernel,
-                                  {{"reduction", "assign_" + reduction}, {"axis", axis}, {"skip_out_of_bounds", skip_out_of_bounds}});
+                                  {{"reduction", "assign_" + reduction},
+                                   {"axis", axis},
+                                   {"skip_out_of_bounds", skip_out_of_bounds}});
     }
 
     std::string get_kernel_name(const operation&) const { return "scatter_elements_kernel"; }

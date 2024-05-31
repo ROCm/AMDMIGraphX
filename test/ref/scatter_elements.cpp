@@ -367,12 +367,15 @@ TEST_CASE(scatter_elements_skip_out_of_bounds_test)
     };
     // clang-format on
 
-    auto lit_data = mm->add_literal(migraphx::literal{sd, vd});
-    auto lit_inds = mm->add_literal(migraphx::literal{si, vi});
+    auto lit_data    = mm->add_literal(migraphx::literal{sd, vd});
+    auto lit_inds    = mm->add_literal(migraphx::literal{si, vi});
     auto lit_updates = mm->add_literal(migraphx::literal{su, vu});
 
     auto r = mm->add_instruction(
-        migraphx::make_op("scatter_none", {{"axis", 0}, {"skip_out_of_bounds", true}}), lit_data, lit_inds, lit_updates);
+        migraphx::make_op("scatter_none", {{"axis", 0}, {"skip_out_of_bounds", true}}),
+        lit_data,
+        lit_inds,
+        lit_updates);
     mm->add_return({r});
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

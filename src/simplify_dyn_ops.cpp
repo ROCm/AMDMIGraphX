@@ -487,11 +487,9 @@ struct find_static_broadcast_for_dot
  * onehot(static_shape_arg, constant_arg, values)
  * To:
  * A = literal(shape = onehot_output_shape, value = 0)
- * B = unsqueeze(literal(lens = indices_lens, strides = broadcasted scalar, value = 1), axis=onehot_axis)
- * C = scatter(A, unsqueeze(indices, axis=onehot_axis), B)
- * diff = on_value - off_value
- * D = mul(diff, C);
- * return = add(D, off_value);
+ * B = unsqueeze(literal(lens = indices_lens, strides = broadcasted scalar, value = 1),
+ * axis=onehot_axis) C = scatter(A, unsqueeze(indices, axis=onehot_axis), B) diff = on_value -
+ * off_value D = mul(diff, C); return = add(D, off_value);
  *
  * NOTE: It might be cleaner to use some form of `fill` instead of
  * (on_value - off_value) * mask + off_value when we have `fill` working
@@ -508,14 +506,14 @@ struct find_static_onehot
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto onehot_ins           = mr.result;
-        auto onehot_inputs        = onehot_ins->inputs();
-        auto onehot_op            = any_cast<op::onehot>(onehot_ins->get_operator());
-        auto indices_ins          = onehot_inputs[0];
+        auto onehot_ins     = mr.result;
+        auto onehot_inputs  = onehot_ins->inputs();
+        auto onehot_op      = any_cast<op::onehot>(onehot_ins->get_operator());
+        auto indices_ins    = onehot_inputs[0];
         shape indices_shape = indices_ins->get_shape();
-        auto depth_ins            = onehot_inputs[1];
-        auto values_ins           = onehot_inputs[2];
-        shape values_shape        = values_ins->get_shape();
+        auto depth_ins      = onehot_inputs[1];
+        auto values_ins     = onehot_inputs[2];
+        shape values_shape  = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
         auto normalized_axis =
             (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
@@ -533,14 +531,12 @@ struct find_static_onehot
             onehot_ins,
             migraphx::make_op("multibroadcast", {{"out_lens", unsqueeze_inds->get_shape().lens()}}),
             ones_lit);
-        auto mask = m.insert_instruction(onehot_ins,
-                                         make_op("scatter_none", {
-                                             {"axis", normalized_axis},
-                                             {"skip_out_of_bounds", true}
-                                         }),
-                                         zeros_lit,
-                                         unsqueeze_inds,
-                                         mb_ones);
+        auto mask = m.insert_instruction(
+            onehot_ins,
+            make_op("scatter_none", {{"axis", normalized_axis}, {"skip_out_of_bounds", true}}),
+            zeros_lit,
+            unsqueeze_inds,
+            mb_ones);
         auto off_val =
             m.insert_instruction(onehot_ins,
                                  make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),

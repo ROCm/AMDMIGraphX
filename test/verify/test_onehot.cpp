@@ -37,8 +37,8 @@ struct test_onehot : verify_program<test_onehot<DType>>
         migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
         migraphx::shape depth_s{migraphx::shape::int64_type, {1}, {0}};
         migraphx::shape values_s{DType, {2}};
-        auto inds_lit = mm->add_literal(migraphx::literal{inds_s, {0, -8, -1, 5}});
-        auto depth_lit  = mm->add_literal(migraphx::literal{depth_s, {3}});
+        auto inds_lit     = mm->add_literal(migraphx::literal{inds_s, {0, -8, -1, 5}});
+        auto depth_lit    = mm->add_literal(migraphx::literal{depth_s, {3}});
         auto values_param = mm->add_parameter("values", values_s);
         mm->add_instruction(
             migraphx::make_op("onehot", {{"axis", -1}}), inds_lit, depth_lit, values_param);
@@ -47,7 +47,7 @@ struct test_onehot : verify_program<test_onehot<DType>>
 };
 template struct test_onehot<migraphx::shape::float_type>;
 template struct test_onehot<migraphx::shape::int32_type>;
- 
+
 struct test_onehot_param_inds : verify_program<test_onehot_param_inds>
 {
     migraphx::program create_program() const
@@ -58,7 +58,7 @@ struct test_onehot_param_inds : verify_program<test_onehot_param_inds>
         migraphx::shape depth_s{migraphx::shape::int64_type, {1}, {0}};
         migraphx::shape values_s{migraphx::shape::float_type, {2}};
         auto inds_param   = mm->add_parameter("indices", inds_s);
-        auto depth_lit  = mm->add_literal(migraphx::literal{depth_s, {3}});
+        auto depth_lit    = mm->add_literal(migraphx::literal{depth_s, {3}});
         auto values_param = mm->add_parameter("values", values_s);
         mm->add_instruction(
             migraphx::make_op("onehot", {{"axis", 0}}), inds_param, depth_lit, values_param);

@@ -91,7 +91,7 @@ struct onehot
         {
             MIGRAPHX_THROW("ONEHOT: negative depth value");
         }
-        auto output_lens = indices_shape.lens();
+        auto output_lens     = indices_shape.lens();
         auto normalized_axis = (axis < 0) ? axis + indices_shape.ndim() + 1 : axis;
         output_lens.insert(output_lens.begin() + normalized_axis, depth);
         shape output_shape{args[2].get_shape().type(), output_lens};
@@ -105,7 +105,7 @@ struct onehot
             args[0].visit([&](auto indices) {
                 auto ind_s = indices.get_shape();
                 shape_for_each(ind_s, [&](const auto& idx) {
-                    auto index   = indices(idx.begin(), idx.end());
+                    auto index = indices(idx.begin(), idx.end());
                     // normalize negative indices
                     index = (index < 0) ? index + depth : index;
                     // no on_value if index is out of range

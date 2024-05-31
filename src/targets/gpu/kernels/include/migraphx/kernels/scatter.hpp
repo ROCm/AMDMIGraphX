@@ -37,7 +37,7 @@ __device__ void scatter(const T& indices_t, const U& updates_t, const V& output_
 {
     auto gpu_index     = make_index();
     auto indices_shape = indices_t.get_shape();
-    auto output_shape = output_t.get_shape();
+    auto output_shape  = output_t.get_shape();
     auto axis_dim_size = output_shape.lens[Axis];
 
     gpu_index.global_stride(indices_shape.elements(), [&](auto i) {

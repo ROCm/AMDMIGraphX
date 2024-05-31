@@ -47,21 +47,21 @@ TEST_CASE(skip_simplified_layer_normalization_test)
                         half{-4.1},
                         half{5.3}};
     std::vector<half> skip{half{1.2},
-                        half{-1.0},
-                        half{2.0},
-                        half{1.0},
-                        half{1.5},
-                        half{2.2},
-                        half{-3.3},
-                        half{2.6},
-                        half{1.0},
-                        half{-10.0},
-                        half{-1.0},
-                        half{2.0},
-                        half{-1.2},
-                        half{1.6},
-                        half{-1.1},
-                        half{1.3}};
+                           half{-1.0},
+                           half{2.0},
+                           half{1.0},
+                           half{1.5},
+                           half{2.2},
+                           half{-3.3},
+                           half{2.6},
+                           half{1.0},
+                           half{-10.0},
+                           half{-1.0},
+                           half{2.0},
+                           half{-1.2},
+                           half{1.6},
+                           half{-1.1},
+                           half{1.3}};
     std::vector<half> scale{half{0.1}, half{0.2}, half{4.0}, half{-2.2}};
 
     auto p = read_onnx("skip_simplified_layer_normalization_test.onnx");
@@ -72,7 +72,7 @@ TEST_CASE(skip_simplified_layer_normalization_test)
 
     migraphx::parameter_map pp;
     pp["x"]     = migraphx::argument(s_x, x.data());
-    pp["skip"]     = migraphx::argument(s_x, skip.data());
+    pp["skip"]  = migraphx::argument(s_x, skip.data());
     pp["gamma"] = migraphx::argument(s_s, scale.data());
 
     auto result = p.eval(pp).back();
@@ -81,21 +81,21 @@ TEST_CASE(skip_simplified_layer_normalization_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     std::vector<half> gold = {half{0.10596},
-                            half{-0.1589},
-                            half{4.24},
-                            half{-2.33},
-                            half{0.0838},
-                            half{0.2012},
-                            half{-5.03},
-                            half{-1.844},
-                            half{0.1385},
-                            half{-0.277},
-                            half{-0.504},
-                            half{-0.831},
-                            half{0.0},
-                            half{0.1984},
-                            half{-4.3},
-                            half{-3.0}};
+                              half{-0.1589},
+                              half{4.24},
+                              half{-2.33},
+                              half{0.0838},
+                              half{0.2012},
+                              half{-5.03},
+                              half{-1.844},
+                              half{0.1385},
+                              half{-0.277},
+                              half{-0.504},
+                              half{-0.831},
+                              half{0.0},
+                              half{0.1984},
+                              half{-4.3},
+                              half{-3.0}};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

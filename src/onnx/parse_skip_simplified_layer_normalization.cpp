@@ -34,7 +34,8 @@ namespace onnx {
 // Skip and Root Mean Square Layer Normalization
 
 // Version
-// This version of the operator has been available since version 1 of the 'com.microsoft' operator set.
+// This version of the operator has been available since version 1 of the 'com.microsoft' operator
+// set.
 
 // Type Constraints
 // T : tensor(float), tensor(float16)
@@ -42,7 +43,8 @@ namespace onnx {
 // U : tensor(float)
 // Constrain mean and inv_std_var to float tensors.
 
-struct parse_skip_simplified_layer_normalization : op_parser<parse_skip_simplified_layer_normalization>
+struct parse_skip_simplified_layer_normalization
+    : op_parser<parse_skip_simplified_layer_normalization>
 {
     std::vector<op_desc> operators() const { return {{"SkipSimplifiedLayerNormalization"}}; }
 
@@ -62,9 +64,9 @@ struct parse_skip_simplified_layer_normalization : op_parser<parse_skip_simplifi
 
         // Inputs (3 - 4)
         // input : T
-        // 3D input tensor with shape (batch_size, sequence_length, hidden_size) Or 2D input tensor with shape (token_count, hidden_size)
-        // skip : T
-        // 3D input tensor with shape (batch_size, sequence_length, hidden_size) Or 2D input tensor with shape (token_count, hidden_size)
+        // 3D input tensor with shape (batch_size, sequence_length, hidden_size) Or 2D input tensor
+        // with shape (token_count, hidden_size) skip : T 3D input tensor with shape (batch_size,
+        // sequence_length, hidden_size) Or 2D input tensor with shape (token_count, hidden_size)
         // gamma : T
         // 1D input tensor with shape (hidden_size)
         // bias (optional) : T
@@ -75,47 +77,43 @@ struct parse_skip_simplified_layer_normalization : op_parser<parse_skip_simplifi
             MIGRAPHX_THROW("PARSE_SKIPSIMPLIFIEDLAYERNORMALIZATION: invalid input count");
         }
 
-        auto x        = args.at(0);
-        auto skip     = args.at(1);
-        auto gamma    = args.at(2);
+        auto x     = args.at(0);
+        auto skip  = args.at(1);
+        auto gamma = args.at(2);
 
-        auto x_shape   = x->get_shape();
-        auto x_dtype   = x_shape.type();
-        int64_t x_rank = x_shape.ndim();
-        int64_t skip_rank = skip->get_shape().ndim();
+        auto x_shape       = x->get_shape();
+        auto x_dtype       = x_shape.type();
+        int64_t x_rank     = x_shape.ndim();
+        int64_t skip_rank  = skip->get_shape().ndim();
         int64_t gamma_rank = gamma->get_shape().ndim();
         // axis = hidden_size dim
-        int64_t axis = x_rank - 1; 
+        int64_t axis = x_rank - 1;
 
         if(x_rank < 2 or x_rank > 3 or x_rank != skip_rank or gamma_rank != 1)
         {
             MIGRAPHX_THROW("PARSE_SKIPSIMPLIFIEDLAYERNORMALIZATION: invalid input shape");
         }
-        
 
-        x = info.add_common_op("add", x, skip);
+        x         = info.add_common_op("add", x, skip);
         auto x_sq = info.add_common_op("mul", x, x);
-        auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
+        auto rms  = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
         auto mean = rms;
         epsilon =
             (x_dtype == migraphx::shape::half_type and std::abs(epsilon) < 1e-7) ? 1e-7 : epsilon;
-        auto eps     = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
-        rms = info.add_common_op("add", rms, eps);
-        auto rrms = info.add_instruction(make_op("rsqrt"), rms);
+        auto eps    = info.add_literal(migraphx::literal{migraphx::shape{x_dtype}, {epsilon}});
+        rms         = info.add_common_op("add", rms, eps);
+        auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
         auto result = info.add_common_op("mul", x, rrms);
-        result = info.add_common_op("mul", result, gamma);
-
-       
+        result      = info.add_common_op("mul", result, gamma);
 
         // Outputs (1 - 4)
         // output : T
-        // 3D output tensor with shape (batch_size, sequence_length, hidden_size)Or 2D output tensor with shape (token_count, hidden_size)
-        // mean (optional) : U
-        // Saved mean used during training to speed up gradient computation
-        // inv_std_var (optional) : U
-        // Saved inverse standard variance used during training to speed up gradient computation.
-        // input_skip_bias_sum (optional) : T
-        // Sum of the input and skip inputs (and bias if it exists)with shape (batch_size, sequence_length, hidden_size) or (token_count, hidden_size).
+        // 3D output tensor with shape (batch_size, sequence_length, hidden_size)Or 2D output tensor
+        // with shape (token_count, hidden_size) mean (optional) : U Saved mean used during training
+        // to speed up gradient computation inv_std_var (optional) : U Saved inverse standard
+        // variance used during training to speed up gradient computation. input_skip_bias_sum
+        // (optional) : T Sum of the input and skip inputs (and bias if it exists)with shape
+        // (batch_size, sequence_length, hidden_size) or (token_count, hidden_size).
 
         return {result, mean, rrms, x};
     }

@@ -10085,17 +10085,16 @@ def size_verify_test():
 @onnx_test()
 def skip_simplified_layer_normalization_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
-    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
     gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
 
-    node = onnx.helper.make_node(
-        'SkipSimplifiedLayerNormalization',
-        inputs=['x', 'skip', 'gamma'],
-        outputs=['y'],
-        epsilon=1e-5,
-        domain="com.microsoft"
-    )
+    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip', 'gamma'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
 
     return ([node], [x, skip, gamma], [y])
 
@@ -10103,18 +10102,18 @@ def skip_simplified_layer_normalization_test():
 @onnx_test()
 def skip_simplified_layer_normalization_invalid_n_args_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
-    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
     gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
-    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [2, 2, 4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16,
+                                         [2, 2, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
 
-    node = onnx.helper.make_node(
-        'SkipSimplifiedLayerNormalization',
-        inputs=['x', 'skip', 'gamma', 'bias'],
-        outputs=['y'],
-        epsilon=1e-5,
-        domain="com.microsoft"
-    )
+    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip', 'gamma', 'bias'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
 
     return ([node], [x, skip, gamma, bias], [y])
 
@@ -10122,17 +10121,16 @@ def skip_simplified_layer_normalization_invalid_n_args_test():
 @onnx_test()
 def skip_simplified_layer_normalization_invalid_input_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 2, 4])
-    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16, [2, 2, 4])
+    skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
+                                         [2, 2, 4])
     gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [2, 4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 2, 4])
 
-    node = onnx.helper.make_node(
-        'SkipSimplifiedLayerNormalization',
-        inputs=['x', 'skip', 'gamma'],
-        outputs=['y'],
-        epsilon=1e-5,
-        domain="com.microsoft"
-    )
+    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
+                                 inputs=['x', 'skip', 'gamma'],
+                                 outputs=['y'],
+                                 epsilon=1e-5,
+                                 domain="com.microsoft")
 
     return ([node], [x, skip, gamma], [y])
 

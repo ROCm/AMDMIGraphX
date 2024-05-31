@@ -171,7 +171,7 @@ make_layer_norm(const std::vector<int64_t>& input_shape,
     {
         bias = mm->add_parameter("bias", {dtype, scale_bias_shape});
     }
-    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
+    auto eps  = mm->add_literal(migraphx::literal{dtype, {eps_value}});
     auto mean = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", reduce_axes}}), x);
     auto x_sub_mean    = add_common_op(*mm, migraphx::make_op("sub"), {x, mean});
     auto x_sqdiff_mean = add_common_op(*mm, migraphx::make_op("sqdiff"), {x, mean});

@@ -579,9 +579,11 @@ struct parse_einsum : op_parser<parse_einsum>
 
         for(auto i = 0; i < cur_pair[1].size(); ++i)
         {
-            if(cur_pair[1][i] == -1) // unsqueeze the dimensions corresponding to the missing labels
+            if(cur_pair[1][i] == -1)
+                // unsqueeze the dimensions corresponding to the missing labels
                 unsq_axes.push_back(i);
-            else // permute the rest
+            else
+                // permute the rest
                 perm.push_back(cur_pair[1][i]);
         }
 
@@ -609,9 +611,11 @@ struct parse_einsum : op_parser<parse_einsum>
 
         for(auto i = 0; i < row_output.size(); ++i)
         {
-            if(row_output[i] == -1) // squeeze the dimensions corresponding to the missing labels
+            if(row_output[i] == -1)
+                // squeeze the dimensions corresponding to the missing labels
                 sq_axes.push_back(i);
-            else // permute the rest
+            else
+                // permute the rest
                 perm.push_back(row_output[i]);
         }
 

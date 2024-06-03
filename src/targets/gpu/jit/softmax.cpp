@@ -73,12 +73,13 @@ struct softmax_compiler : compiler<softmax_compiler>
         {
             vec = vectorize::elements(ctx, faxis, inputs);
         }
-        auto relements  = inputs[0].lens()[axis] / vec.size;
-        auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
-        auto block_size = compute_block_size(ctx, relements, 256);
+        auto relements      = inputs[0].lens()[axis] / vec.size;
+        auto nelements      = (inputs.back().elements() / inputs[0].lens()[axis]);
+        auto max_block_size = 1024;
+        auto block_size     = compute_block_size(ctx, relements, max_block_size);
         hip_compile_options options;
         options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            v, compute_global_for(ctx, nelements * block_size, max_block_size), block_size);
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = "softmax_kernel";

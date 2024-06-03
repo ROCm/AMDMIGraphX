@@ -41,7 +41,7 @@ void write_literals::apply(module& m) const
     std::size_t free;
     std::size_t total;
     std::size_t bytes_on_gpu = 0;
-    std::size_t bytes_total = 0;
+    std::size_t bytes_total  = 0;
 
     if(weight_streaming)
     {
@@ -59,7 +59,9 @@ void write_literals::apply(module& m) const
             bytes_total += ins->get_shape().bytes();
             if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
                (weight_streaming &&
-                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= streaming_budget) || (weight_streaming && static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= free))
+                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= streaming_budget) ||
+               (weight_streaming &&
+                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= free))
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);

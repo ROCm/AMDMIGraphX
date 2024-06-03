@@ -637,7 +637,8 @@ def binary_dyn_brcst_mul_test():
 def binary_dyn_brcst_mul_fp8_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
                                          [None, 3, 4, 5])
-    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ, [4, 1])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ,
+                                         [4, 1])
     arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT8E4M3FNUZ,
                                             [None, 3, 4, 5])
 
@@ -652,9 +653,12 @@ def binary_dyn_brcst_mul_fp8_test():
 
 @onnx_test()
 def div_fp8_test():
-    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ, [2, 3])
-    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ, [2, 3])
-    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT8E4M3FNUZ, [2, 3])
+    arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
+                                         [2, 3])
+    arg1 = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ,
+                                         [2, 3])
+    arg_out = helper.make_tensor_value_info('out', TensorProto.FLOAT8E4M3FNUZ,
+                                            [2, 3])
 
     node = onnx.helper.make_node(
         'Div',
@@ -3799,8 +3803,10 @@ def globalavgpool_test():
 
 @onnx_test()
 def globalavgpool_fp8_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ, [1, 3, 16, 16])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ, [1, 3, 1, 1])
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
+                                      [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ,
+                                      [1, 3, 1, 1])
 
     node = onnx.helper.make_node(
         'GlobalAveragePool',
@@ -3871,8 +3877,10 @@ def globalmaxpool_test():
 
 @onnx_test()
 def globalmaxpool_fp8_test():
-    x = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ, [1, 3, 16, 16])
-    y = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ, [1, 3, 1, 1])
+    x = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
+                                      [1, 3, 16, 16])
+    y = helper.make_tensor_value_info('1', TensorProto.FLOAT8E4M3FNUZ,
+                                      [1, 3, 1, 1])
 
     node = onnx.helper.make_node(
         'GlobalMaxPool',
@@ -8732,8 +8740,10 @@ def reducemax_test():
 
 @onnx_test()
 def reducemax_fp8_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ, [3, 4, 6])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ,
+                                      [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ,
+                                      [3, 4, 6])
 
     axes = [2]
 
@@ -8837,8 +8847,10 @@ def reducesum_test():
 
 @onnx_test()
 def reducesum_fp8_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ, [3, 4, 5, 6])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ, [3, 4, 1, 6])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ,
+                                      [3, 4, 5, 6])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ,
+                                      [3, 4, 1, 6])
 
     node = onnx.helper.make_node('ReduceSum',
                                  inputs=['x'],
@@ -11108,8 +11120,10 @@ def sqrt_test():
 
 @onnx_test()
 def sqrt_fp8_test():
-    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ, [10, 15])
-    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ, [10, 15])
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT8E4M3FNUZ,
+                                      [10, 15])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT8E4M3FNUZ,
+                                      [10, 15])
 
     node = onnx.helper.make_node(
         'Sqrt',

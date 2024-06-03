@@ -28,8 +28,9 @@ TEST_CASE(reducemax_fp8_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto l0  = mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {3, 4, 5, 6}});
-    auto l1  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
+    auto l0 =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {3, 4, 5, 6}});
+    auto l1 = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
     mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), l1);
     auto prog = optimize_onnx("reducemax_fp8_test.onnx");
 

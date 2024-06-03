@@ -28,10 +28,11 @@
 TEST_CASE(gemm_fp8_test)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto l0    = mm->add_parameter("A", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {8, 6}});
-    auto l1    = mm->add_parameter("B", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {8, 7}});
-    auto l2    = mm->add_parameter("C", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {6, 1}});
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("A", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {8, 6}});
+    auto l1  = mm->add_parameter("B", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {8, 7}});
+    auto l2  = mm->add_parameter("C", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {6, 1}});
+
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);

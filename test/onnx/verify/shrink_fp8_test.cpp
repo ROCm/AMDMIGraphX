@@ -29,7 +29,7 @@
 
 TEST_CASE(shrink_fp8_test)
 {
-    migraphx::program p = migraphx::parse_onnx("shrink_fp8_test.onnx");
+    migraphx::program p = optimize_onnx("shrink_fp8_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s{migraphx::shape::fp8e4m3fnuz_type, {3, 3}};

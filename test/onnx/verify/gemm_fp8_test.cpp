@@ -29,7 +29,7 @@
 
 TEST_CASE(gemm_fp8_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gemm_fp8_test.onnx");
+    migraphx::program p = optimize_onnx("gemm_fp8_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a_shape{migraphx::shape::fp8e4m3fnuz_type, {8, 6}};

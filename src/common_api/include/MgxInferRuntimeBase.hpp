@@ -61,6 +61,25 @@ enum class DataType : int32_t
     kINT4 = 9,
 };
 
+inline size_t sizeofDataType(DataType type)
+{
+    switch(type)
+    {
+    case mgxinfer1::DataType::kFLOAT: return 4;
+    case mgxinfer1::DataType::kHALF: return 2;
+    case mgxinfer1::DataType::kINT8: return 1;
+    case mgxinfer1::DataType::kINT32: return 4;
+    case mgxinfer1::DataType::kINT64: return 8;
+    case mgxinfer1::DataType::kBOOL: return 1;
+    case mgxinfer1::DataType::kUINT8: return 1;
+    case mgxinfer1::DataType::kFP8: return 1;
+    case mgxinfer1::DataType::kBF16: return 2;
+    // Not implemented in TRT
+    case mgxinfer1::DataType::kINT4: break;
+    }
+    return -1;
+}
+
 //!
 //! \class Dims
 //! \brief Structure to define the dimensions of a tensor.

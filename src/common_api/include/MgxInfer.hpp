@@ -241,7 +241,7 @@ class IHostMemory : public INoCopy
     virtual ~IHostMemory() noexcept = default;
 
     //! A pointer to the raw data that is owned by the library.
-    const void* data() const noexcept { return data_; }
+    void* data() const noexcept { return data_; }
 
     //! The size in bytes of the data that was allocated.
     std::size_t size() const noexcept { return size_; }
@@ -2776,7 +2776,6 @@ class IRuntime : public INoCopy
     //!
     ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
     {
-        std::cout << blob << std::endl;
         std::shared_ptr<migraphx::program> program;
         try
         {
@@ -6578,7 +6577,6 @@ class Parser : public IParser
         migraphx::onnx_options opts;
         network_.setProgram(std::make_shared<migraphx::program>(
             migraphx::parse_onnx_buffer(serialized_onnx_model, serialized_onnx_model_size, opts)));
-        std::cout << "Parsed onnx buffer" << std::endl;
         return true;
         pass("Not Implemented", true);
     }

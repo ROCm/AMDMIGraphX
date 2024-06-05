@@ -269,20 +269,6 @@ mgxinfer1::IRuntime* createInferRuntimeWrapper(mgxinfer1::ILogger& logger)
     return createInferRuntime(logger);
 }
 
-auto parse(mgxonnxparser::IParser& parser, const py::buffer& model, const char* path = nullptr)
-{
-    py::buffer_info info = model.request();
-    return parser.parse(info.ptr, info.size * info.itemsize, path);
-};
-
-auto runtime_deserialize_cuda_engine(mgxinfer1::IRuntime& runtime, py::buffer& serializedEngine)
-{
-    std::cout << "runtime_deserialize_cuda_engine" << std::endl;
-    py::buffer_info info = serializedEngine.request();
-    std::cout << info.ptr << " " << info.size << std::endl;
-    return runtime.deserializeCudaEngine(info.ptr, info.size * info.itemsize);
-};
-
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
     using namespace pybind11::literals;
@@ -353,13 +339,41 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     py::class_<mgxinfer1::INetworkDefinition>(
         common_api, "INetworkDefinition", "TODO docstring", py::module_local());
     /*INetworkDefinition end*/
-
+    // struct buffer_info {
+    //     void *ptr;
+    //     py::ssize_t itemsize;
+    //     std::string format;
+    //     py::ssize_t ndim;
+    //     std::vector<py::ssize_t> shape;
+    //     std::vector<py::ssize_t> strides;
+    // };
+    // static const auto host_memory_buffer_interface = [](IHostMemory& self) -> py::buffer_info {
+    //     return py::buffer_info(self.data(),         /* Pointer to buffer */
+    //         utils::size(self.type()),               /* Size of one scalar */
+    //         py::format_descriptor<float>::format(), /* Python struct-style format descriptor */
+    //         1,                                      /* Number of dimensions */
+    //         {self.size()},                          /* Buffer dimensions */
+    //         {utils::size(self.type())}              /* Strides (in bytes) for each index */
+    //     );
+    // };
     /*IBuilder start*/
     py::class_<mgxinfer1::IHostMemory>(
         common_api, "IHostMemory", py::buffer_protocol(), "TODO docstring", py::module_local())
-        .def_property_readonly("dtype", [](mgxinfer1::IHostMemory const& mem) { return mem.type(); })
+        .def_property_readonly("dtype",
+                               [](mgxinfer1::IHostMemory const& mem) { return mem.type(); })
         .def_property_readonly("nbytes",
-                               [](mgxinfer1::IHostMemory const& mem) { return mem.size(); });
+                               [](mgxinfer1::IHostMemory const& mem) { return mem.size(); })
+        .def_buffer([](mgxinfer1::IHostMemory& mem) {
+            py::buffer_info mem_info;
+            mem_info.ptr      = mem.data();
+            mem_info.itemsize = mgxinfer1::sizeofDataType(mem.type());
+            // TODO this should be based on mem.type
+            mem_info.format  = py::format_descriptor<char>::format();
+            mem_info.ndim    = 1;
+            mem_info.shape   = {static_cast<py::ssize_t>(mem.size())};
+            mem_info.strides = {mem_info.itemsize};
+            return mem_info;
+        });
 
     py::enum_<mgxinfer1::MemoryPoolType>(
         common_api, "MemoryPoolType", "TODO docstring", py::module_local())
@@ -402,14 +416,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              py::call_guard<py::gil_scoped_release>{});
     /*IBuilder end*/
 
+    /*ICudaEngine start*/
+    py::class_<mgxinfer1::ICudaEngine>(
+        common_api, "ICudaEngine", "TODO docstring", py::module_local());
+    /*ICudaEngine end*/
+
     /*Runtime start*/
+    const auto deserialize_engine_from_py_buffer = [](mgxinfer1::IRuntime& runtime,
+                                                      py::buffer& serializedEngine) {
+        py::buffer_info info = serializedEngine.request();
+        return runtime.deserializeCudaEngine(info.ptr, info.size * info.itemsize);
+    };
+
     py::class_<mgxinfer1::IRuntime>(common_api, "Runtime", "TODO docstring", py::module_local())
         .def(py::init(&createInferRuntimeWrapper),
              "logger"_a,
              "TODO docstring",
              py::keep_alive<1, 2>{})
         .def("deserialize_cuda_engine",
-             &runtime_deserialize_cuda_engine,
+             deserialize_engine_from_py_buffer,
              "serialized_engine"_a,
              "TODO docstring",
              py::call_guard<py::gil_scoped_release>{},
@@ -417,6 +442,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     /*Runtime end*/
 
     /*OnnxParser start*/
+    const auto parse_from_py_buffer =
+        [](mgxonnxparser::IParser& parser, const py::buffer& model, const char* path = nullptr) {
+            py::buffer_info info = model.request();
+            return parser.parse(info.ptr, info.size * info.itemsize, path);
+        };
+
     py::class_<mgxonnxparser::IParser>(
         common_api, "OnnxParser", "TODO docstring", py::module_local())
         .def(py::init(&mgxonnxparser::createParser),
@@ -426,7 +457,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              py::keep_alive<1, 3>{},
              py::keep_alive<2, 1>{})
         .def("parse",
-             &parse,
+             parse_from_py_buffer,
              "model"_a,
              "path"_a = nullptr,
              "TODO docstring",

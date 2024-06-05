@@ -46,12 +46,9 @@ def build_engine_onnx(model_file):
             return None
 
     engine_bytes = builder.build_serialized_network(network, config)
-    print("Built serialized network")
     runtime = trt.Runtime(TRT_LOGGER)
-    print("Created runtime")
-    engine = runtime.deserialize_cuda_engine(engine_bytes)
-    print("Created runtime engine");
-    return engine
+
+    return runtime.deserialize_cuda_engine(engine_bytes)
 
 
 def load_normalized_test_case(test_image, pagelocked_buffer):

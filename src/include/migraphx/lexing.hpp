@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_LEXING_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_LEXING_HPP
 
-#include <onnx_test.hpp>
+#include <functional>
+#include <string>
+#include <vector>
+#include <migraphx/errors.hpp>
 
-TEST_CASE(split_minus_axis_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+using lexer = std::function<const char*(const char* start, const char* end)>;
+
+template <class P>
+inline auto lex_while(P p)
 {
-    migraphx::program p;
-    auto* mm   = p.get_main_module();
-    auto input = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {10, 15}});
-    auto r1    = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {5}}}), input);
-    auto r2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {5}}, {"ends", {10}}}), input);
-    auto r3 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {10}}, {"ends", {15}}}), input);
-    mm->add_return({r1, r2, r3});
-
-    auto prog = read_onnx("split_minus_axis_test.onnx");
-
-    EXPECT(p == prog);
+    return [=](const char* start, const char* end) {
+        return std::find_if(start, end, [&](char c) { return not p(c); });
+    };
 }
+
+template <class P>
+inline auto lex_if(P p)
+{
+    return [=](const char* start, const char*) {
+        if(p(*start))
+            return start + 1;
+        return start;
+    };
+}
+
+MIGRAPHX_EXPORT std::function<const char*(const char*, const char*)>
+lex_equal(const std::string& s);
+
+MIGRAPHX_EXPORT std::vector<std::string_view>
+tokenize(const char* start, const char* end, const std::vector<lexer>& lexers);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

@@ -2776,6 +2776,7 @@ class IRuntime : public INoCopy
     //!
     ICudaEngine* deserializeCudaEngine(void const* blob, std::size_t size) noexcept
     {
+        std::cout << blob << std::endl;
         std::shared_ptr<migraphx::program> program;
         try
         {
@@ -5678,7 +5679,7 @@ class IBuilderConfig : public INoCopy
     //!
     void setMemoryPoolLimit(MemoryPoolType pool, std::size_t poolSize) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO log that setMemoryPoolLimit is a noop, pop up a warning, or do both
         // mImpl->setMemoryPoolLimit(pool, poolSize);
     }
 
@@ -6253,6 +6254,14 @@ class IBuilder : public INoCopy
 //!
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
 
+class PythonLogger : public ILogger
+{
+    public:
+    PythonLogger(Severity min = Severity::kWARNING) {}
+
+    void log(Severity, AsciiChar const*) noexcept override {}
+};
+
 } // namespace mgxinfer1
 
 //!
@@ -6565,6 +6574,12 @@ class Parser : public IParser
                size_t serialized_onnx_model_size,
                const char* model_path = nullptr) override
     {
+        // TODO complete implementation, figure out what model_path does
+        migraphx::onnx_options opts;
+        network_.setProgram(std::make_shared<migraphx::program>(
+            migraphx::parse_onnx_buffer(serialized_onnx_model, serialized_onnx_model_size, opts)));
+        std::cout << "Parsed onnx buffer" << std::endl;
+        return true;
         pass("Not Implemented", true);
     }
 
@@ -6595,7 +6610,10 @@ class Parser : public IParser
 
     bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
 
-    int getNbErrors() const override { pass("Not Implemented", true); }
+    int getNbErrors() const override
+    { // TODO implement actual error counting
+        return 0;
+    }
 
     IParserError const* getError(int index) const override { pass("Not Implemented", true); }
 

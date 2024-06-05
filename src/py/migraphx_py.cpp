@@ -43,6 +43,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include "../common_api/include/MgxInfer.hpp"
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -255,8 +256,188 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
+int test_fun(int i, int j) { return i * j; }
+
+// TODO, figure out why this is needed and get rid of it
+mgxinfer1::IBuilder* createInferBuilderWrapper(mgxinfer1::ILogger& logger)
+{
+    return createInferBuilder(logger);
+}
+
+mgxinfer1::IRuntime* createInferRuntimeWrapper(mgxinfer1::ILogger& logger)
+{
+    return createInferRuntime(logger);
+}
+
+auto parse(mgxonnxparser::IParser& parser, const py::buffer& model, const char* path = nullptr)
+{
+    py::buffer_info info = model.request();
+    return parser.parse(info.ptr, info.size * info.itemsize, path);
+};
+
+auto runtime_deserialize_cuda_engine(mgxinfer1::IRuntime& runtime, py::buffer& serializedEngine)
+{
+    std::cout << "runtime_deserialize_cuda_engine" << std::endl;
+    py::buffer_info info = serializedEngine.request();
+    std::cout << info.ptr << " " << info.size << std::endl;
+    return runtime.deserializeCudaEngine(info.ptr, info.size * info.itemsize);
+};
+
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
+    using namespace pybind11::literals;
+
+    auto common_api = m.def_submodule("common_api");
+
+    /*Types start*/
+    py::enum_<mgxinfer1::DataType>(common_api, "DataType", "TODO docstring", py::module_local())
+        .value("FLOAT", mgxinfer1::DataType::kFLOAT, "TODO docstring")
+        .value("HALF", mgxinfer1::DataType::kHALF, "TODO docstring")
+        .value("BF16", mgxinfer1::DataType::kBF16, "TODO dosctring")
+        .value("INT8", mgxinfer1::DataType::kINT8, "TODO dosctring")
+        .value("INT32", mgxinfer1::DataType::kINT32, "TODO dosctring")
+        .value("INT64", mgxinfer1::DataType::kINT64, "TODO dosctring")
+        .value("BOOL", mgxinfer1::DataType::kBOOL, "TODO dosctring")
+        .value("UINT8", mgxinfer1::DataType::kUINT8, "TODO dosctring")
+        .value("FP8", mgxinfer1::DataType::kFP8, "TODO dosctring")
+        .value("INT4", mgxinfer1::DataType::kINT4, "TODO dosctring");
+
+    common_api.attr("float32")  = mgxinfer1::DataType::kFLOAT;
+    common_api.attr("float16")  = mgxinfer1::DataType::kHALF;
+    common_api.attr("bfloat16") = mgxinfer1::DataType::kBF16;
+    common_api.attr("int8")     = mgxinfer1::DataType::kINT8;
+    common_api.attr("int32")    = mgxinfer1::DataType::kINT32;
+    common_api.attr("int64")    = mgxinfer1::DataType::kINT64;
+    common_api.attr("bool")     = mgxinfer1::DataType::kBOOL;
+    common_api.attr("uint8")    = mgxinfer1::DataType::kUINT8;
+    common_api.attr("fp8")      = mgxinfer1::DataType::kFP8;
+    common_api.attr("int4")     = mgxinfer1::DataType::kINT4;
+    /*Types end*/
+
+    /*Logger start*/
+    // Trampoline for ILogger
+    // https://pybind11.readthedocs.io/en/stable/advanced/classes.html
+    class PyLogger : public mgxinfer1::ILogger
+    {
+        public:
+        virtual void log(Severity severity, const char* msg) noexcept override
+        {
+            // TODO
+            PYBIND11_OVERRIDE_PURE_NAME(void, mgxinfer1::ILogger, "log", log, severity, msg);
+        }
+    };
+
+    auto ilogger =
+        py::class_<mgxinfer1::ILogger, PyLogger>(
+            common_api, "ILogger", "TODO dosctring", py::module_local())
+            .def(py::init<>())
+            .def("log", &mgxinfer1::ILogger::log, "severity"_a, "msg"_a, "TODO dosctring");
+
+    py::enum_<mgxinfer1::ILogger::Severity>(
+        ilogger, "Severity", py::arithmetic(), "TODO dosctring", py::module_local())
+        .value("INTERNAL_ERROR", mgxinfer1::ILogger::Severity::kINTERNAL_ERROR, "TODO dosctring")
+        .value("ERROR", mgxinfer1::ILogger::Severity::kERROR, "TODO dosctring")
+        .value("WARNING", mgxinfer1::ILogger::Severity::kWARNING, "TODO dosctring")
+        .value("INFO", mgxinfer1::ILogger::Severity::kINFO, "TODO dosctring")
+        .value("VERBOSE", mgxinfer1::ILogger::Severity::kVERBOSE, "TODO dosctring")
+        .export_values();
+
+    py::class_<mgxinfer1::PythonLogger, mgxinfer1::ILogger>(
+        common_api, "Logger", "TODO dosctring", py::module_local())
+        .def(py::init<mgxinfer1::ILogger::Severity>(),
+             "min_severity"_a = mgxinfer1::ILogger::Severity::kWARNING)
+        .def("log", &mgxinfer1::PythonLogger::log, "severity"_a, "msg"_a, "TODO dosctring");
+    /*Logger end*/
+
+    /*INetworkDefinition start*/
+    py::class_<mgxinfer1::INetworkDefinition>(
+        common_api, "INetworkDefinition", "TODO docstring", py::module_local());
+    /*INetworkDefinition end*/
+
+    /*IBuilder start*/
+    py::class_<mgxinfer1::IHostMemory>(
+        common_api, "IHostMemory", py::buffer_protocol(), "TODO docstring", py::module_local())
+        .def_property_readonly("dtype", [](mgxinfer1::IHostMemory const& mem) { return mem.type(); })
+        .def_property_readonly("nbytes",
+                               [](mgxinfer1::IHostMemory const& mem) { return mem.size(); });
+
+    py::enum_<mgxinfer1::MemoryPoolType>(
+        common_api, "MemoryPoolType", "TODO docstring", py::module_local())
+        .value("WORKSPACE", mgxinfer1::MemoryPoolType::kWORKSPACE, "TODO docstring")
+        .value("DLA_MANAGED_SRAM", mgxinfer1::MemoryPoolType::kDLA_MANAGED_SRAM, "TODO docstring")
+        .value("DLA_LOCAL_DRAM", mgxinfer1::MemoryPoolType::kDLA_LOCAL_DRAM, "TODO docstring")
+        .value("DLA_GLOBAL_DRAM", mgxinfer1::MemoryPoolType::kDLA_GLOBAL_DRAM, "TODO docstring")
+        .value("TACTIC_DRAM", mgxinfer1::MemoryPoolType::kTACTIC_DRAM, "TODO docstring")
+        .value("TACTIC_SHARED_MEMORY",
+               mgxinfer1::MemoryPoolType::kTACTIC_SHARED_MEMORY,
+               "TODO docstring");
+
+    py::class_<mgxinfer1::IBuilderConfig>(
+        common_api, "IBuilderConfig", "TODO docstring", py::module_local())
+        .def("set_memory_pool_limit",
+             &mgxinfer1::IBuilderConfig::setMemoryPoolLimit,
+             "pool"_a,
+             "pool_size"_a,
+             "TODO docstring");
+
+    py::class_<mgxinfer1::IBuilder>(common_api, "Builder", "TODO docstring", py::module_local())
+        .def(py::init(&createInferBuilderWrapper),
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 2>{})
+        .def("create_network",
+             &mgxinfer1::IBuilder::createNetworkV2,
+             "flags"_a = 0U,
+             "TODO docstring",
+             py::keep_alive<0, 1>{})
+        .def("create_builder_config",
+             &mgxinfer1::IBuilder::createBuilderConfig,
+             "TODO docstring",
+             py::keep_alive<0, 1>{})
+        .def("build_serialized_network",
+             &mgxinfer1::IBuilder::buildSerializedNetwork,
+             "network"_a,
+             "config"_a,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{});
+    /*IBuilder end*/
+
+    /*Runtime start*/
+    py::class_<mgxinfer1::IRuntime>(common_api, "Runtime", "TODO docstring", py::module_local())
+        .def(py::init(&createInferRuntimeWrapper),
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 2>{})
+        .def("deserialize_cuda_engine",
+             &runtime_deserialize_cuda_engine,
+             "serialized_engine"_a,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{},
+             py::keep_alive<0, 1>{});
+    /*Runtime end*/
+
+    /*OnnxParser start*/
+    py::class_<mgxonnxparser::IParser>(
+        common_api, "OnnxParser", "TODO docstring", py::module_local())
+        .def(py::init(&mgxonnxparser::createParser),
+             "network"_a,
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 3>{},
+             py::keep_alive<2, 1>{})
+        .def("parse",
+             &parse,
+             "model"_a,
+             "path"_a = nullptr,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{})
+        .def_property_readonly("num_errors", &mgxonnxparser::IParser::getNbErrors);
+    /*OnnxParser end*/
+
+    ////////////////////////////////
+    ////////////////////////////////
+    ////////////////////////////////
+    ////////////////////////////////
     py::class_<migraphx::shape> shape_cls(m, "shape");
     shape_cls
         .def(py::init([](py::kwargs kwargs) {

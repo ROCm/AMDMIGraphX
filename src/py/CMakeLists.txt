@@ -24,15 +24,15 @@
 
 add_library(migraphx_py py_loader.cpp)
 migraphx_generate_export_header(migraphx_py)
-target_include_directories(migraphx_py PRIVATE include)
-target_link_libraries(migraphx_py PUBLIC migraphx)
+target_include_directories(migraphx_py PRIVATE include ../common_api/ ../common_api/include)
+target_link_libraries(migraphx_py PUBLIC migraphx_onnx migraphx_ref migraphx_c migraphx)
 rocm_install_targets(TARGETS migraphx_py INCLUDE include)
 
 include(PythonModules)
 
 foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
     py_add_module(migraphx_pybind_${PYTHON_VERSION} migraphx_py.cpp PYTHON_VERSION ${PYTHON_VERSION} PYTHON_MODULE migraphx)
-    target_link_libraries(migraphx_pybind_${PYTHON_VERSION} PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets)
+    target_link_libraries(migraphx_pybind_${PYTHON_VERSION} PRIVATE migraphx migraphx_tf migraphx_onnx migraphx_all_targets migraphx_ref migraphx_c)
     rocm_install_targets(TARGETS migraphx_pybind_${PYTHON_VERSION})
     add_dependencies(migraphx_py migraphx_pybind_${PYTHON_VERSION})
 

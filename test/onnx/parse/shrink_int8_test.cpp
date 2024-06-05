@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,13 +44,8 @@ TEST_CASE(shrink_int8_test)
     auto cond2_b = add_common_op(*mm, migraphx::make_op("greater"), {x, lit_lambd});
     auto cond2   = add_common_op(*mm, migraphx::make_op("logical_and"), {cond2_a, cond2_b});
 
-    auto mul1 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), cond1);
-    auto mul2 = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}), cond2);
-
-    auto first  = add_common_op(*mm, migraphx::make_op("mul"), {mul1, x_plus_bias});
-    auto second = add_common_op(*mm, migraphx::make_op("mul"), {mul2, x_min_bias});
+    auto first  = add_common_op(*mm, migraphx::make_op("mul"), {cond1, x_plus_bias});
+    auto second = add_common_op(*mm, migraphx::make_op("mul"), {cond2, x_min_bias});
     auto ret    = add_common_op(*mm, migraphx::make_op("add"), {first, second});
     mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
                         ret);

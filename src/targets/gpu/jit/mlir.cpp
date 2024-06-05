@@ -135,7 +135,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto precompiled_inputs = precompile_ins->inputs();
         return {
             cobjs, [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
-                auto compiled_inputs    = ins->inputs();
+                auto compiled_inputs = ins->inputs();
                 std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map;
                 for(const auto i : range(precompiled_inputs.size()))
                 {

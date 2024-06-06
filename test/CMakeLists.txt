@@ -34,7 +34,7 @@ if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
 endif()
 
 add_library(register_targets STATIC register_target.cpp)
-target_link_libraries(register_targets PRIVATE migraphx)
+target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/register_target.cpp)

@@ -26,6 +26,9 @@ add_executable(migraphx-hiprtc-driver
     main.cpp
 )
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
+if(WIN32)
+    target_link_options(migraphx-hiprtc-driver PRIVATE -Xlinker /stack:4194304)
+endif()
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(

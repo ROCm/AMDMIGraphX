@@ -27,6 +27,7 @@ add_executable(migraphx-hiprtc-driver
 )
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
 if(WIN32)
+    # On Windows, the driver's default 1MB stack size is not enough - increasing to 4MB.
     set(STACK_SIZE 4194304)
     if(MSVC)
         target_link_options(migraphx-hiprtc-driver PRIVATE /STACK:${STACK_SIZE})

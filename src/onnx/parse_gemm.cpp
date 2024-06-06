@@ -71,6 +71,14 @@ struct parse_gemm : op_parser<parse_gemm>
 
         std::vector<int64_t> perm = {1, 0};
         auto dot_type             = a_arg->get_shape().type();
+
+        a_arg = (trans_a)
+                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), a_arg)
+                    : a_arg;
+        b_arg = (trans_b)
+                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
+                    : args[1];
+
         if(alpha != 1.0f)
         {
             auto alpha_literal = info.add_literal(alpha);
@@ -82,13 +90,6 @@ struct parse_gemm : op_parser<parse_gemm>
                     info.add_instruction(make_op("convert", {{"target_type", dot_type}}), a_arg);
             }
         }
-
-        a_arg = (trans_a)
-                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), a_arg)
-                    : a_arg;
-        b_arg = (trans_b)
-                    ? info.add_instruction(make_op("transpose", {{"permutation", perm}}), args[1])
-                    : args[1];
 
         auto dot_ins = info.add_instruction(make_op("dot"), a_arg, b_arg);
 

@@ -35,9 +35,9 @@ TEST_CASE(gemm_no_C_test)
     auto alpha = 2.f;
     auto beta  = 2.0f;
     auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
-    t_a      = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), t_a);
+    auto t_a   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l0);
     auto t1  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l1);
+    t_a        = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t_a});
     auto dot = migraphx::add_apply_alpha_beta(*mm, {t_a, t1}, migraphx::make_op("dot"), 1.0f, 0.0f);
     auto b_l = mm->add_literal(beta);
     auto l2_b =

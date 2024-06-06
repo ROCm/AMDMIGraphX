@@ -35,10 +35,10 @@ TEST_CASE(gemm_half_test)
     auto alpha = 0.5f;
     auto beta  = 0.8f;
     auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
+    auto t_a   = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l0);
+    t_a        = add_common_op(*mm, migraphx::make_op("mul"), {a_l, t_a});
     t_a        = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), t_a);
-    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), t_a);
     std::vector<std::size_t> lens = {6, 7};
     auto dot = migraphx::add_apply_alpha_beta(*mm, {t_a, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
     l2       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);

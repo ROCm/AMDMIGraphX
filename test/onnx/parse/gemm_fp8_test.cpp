@@ -35,23 +35,13 @@ TEST_CASE(gemm_fp8_test)
 
     auto alpha = 0.5f;
     auto beta  = 0.8f;
-    auto a_l   = mm->add_literal(alpha);
-    auto t_a   = add_common_op(*mm, migraphx::make_op("mul"), {a_l, l0});
-    t_a        = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), t_a);
-    t_a = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), t_a);
-    std::vector<std::size_t> lens = {6, 7};
-    auto dot = migraphx::add_apply_alpha_beta(*mm, {t_a, l1}, migraphx::make_op("dot"), 1.0f, 0.0f);
-    l2       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);
-    l2       = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l2);
-    auto b_l  = mm->add_literal(beta);
-    auto b_b  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), b_l);
-    auto l2_b = mm->add_instruction(migraphx::make_op("mul"), l2, b_b);
-    l2_b      = mm->add_instruction(
-        migraphx::make_op("convert", {{"target_type", migraphx::shape::fp8e4m3fnuz_type}}), l2_b);
-    mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
+
+    auto l0_transposed =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), l0);
+
+    add_apply_alpha_beta(*mm, {l0_transposed, l1, l2}, migraphx::make_op("dot"), alpha, beta);
 
     auto prog = optimize_onnx("gemm_fp8_test.onnx");
+
     EXPECT(p == prog);
 }

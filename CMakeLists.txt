@@ -61,11 +61,11 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
-# By default enable MIGraphX to build MIOpen
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
-
-# By default enable MIGraphX to build rocBLAS
+if(WIN32)
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
+else()
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
+endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)

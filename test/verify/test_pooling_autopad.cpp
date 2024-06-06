@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 struct test_pooling_autopad : verify_program<test_pooling_autopad>
 {
     migraphx::program create_program() const

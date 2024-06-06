@@ -27,8 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// gpu::lrn not supported when MIOpen is OFF
-
 struct test_relu_lrn : verify_program<test_relu_lrn>
 {
     migraphx::program create_program() const

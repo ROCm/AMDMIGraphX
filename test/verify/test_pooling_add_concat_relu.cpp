@@ -52,8 +52,6 @@ migraphx::program create_concat_fusion_program(bool post_pointwise)
     }
     return p;
 }
-
-
 struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_relu>
 {
     migraphx::program create_program() const { return create_concat_fusion_program(true); }

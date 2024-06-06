@@ -99,8 +99,8 @@ int main(int argc, const char* argv[])
                          "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
                          "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"
 #if !MIGRAPHX_USE_MIOPEN
-                         // gpu::pooling and backward convolution are not supported
-                         // when MIOpen is OFF
+                         // gpu::pooling, gpu::lrn, and backward convolution are
+                         // not supported when MIOpen is OFF
                          "quant_conv_1d<migraphx::shape::int8_type>", "test_avg_pooling_1d",
                          "test_avg_pooling_3d", "test_avg_pooling_3d_opt",
                          "test_avg_pooling_ceil_3d", "test_avg_pooling_pad", "test_conv3d",

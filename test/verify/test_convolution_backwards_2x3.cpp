@@ -27,8 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-
-
 struct test_convolution_backwards_2x3 : verify_program<test_convolution_backwards_2x3>
 {
     migraphx::program create_program() const

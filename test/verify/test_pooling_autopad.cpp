@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-// gpu::pooling not supported when MIOpen is OFF
 
 struct test_pooling_autopad : verify_program<test_pooling_autopad>
 {

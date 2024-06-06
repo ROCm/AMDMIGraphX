@@ -42,7 +42,6 @@ struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
     }
 };
 
-// gpu::pooling not supported when MIOpen is OFF
 
 template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
 

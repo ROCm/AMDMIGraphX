@@ -22,21 +22,31 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(onehot_test)
+struct test_scatter_skip_out_of_bounds : verify_program<test_scatter_skip_out_of_bounds>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto depth = mm->add_literal(
-        migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {1}, {0}}, {3}));
-    auto indices =
-        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {5, 2}});
-    auto values = mm->add_parameter("values", migraphx::shape{migraphx::shape::half_type, {2}});
-    auto ret =
-        mm->add_instruction(migraphx::make_op("onehot", {{"axis", 0}}), indices, depth, values);
-    mm->add_return({ret});
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape sd{migraphx::shape::float_type, {3, 1, 3}, {1, 3, 2}};
+        migraphx::shape si{migraphx::shape::int32_type, {2, 1, 3}, {1, 3, 2}};
+        std::vector<int> vi = {-1, 0, 20, 0, -8, 1};
+        migraphx::shape su{migraphx::shape::float_type, {2, 1, 3}, {1, 2, 3}};
 
-    auto prog = read_onnx("onehot_test.onnx");
-    EXPECT(p == prog);
-}
+        auto pd = mm->add_parameter("data", sd);
+        auto li = mm->add_literal(migraphx::literal{si, vi});
+        auto pu = mm->add_parameter("update", su);
+        auto r  = mm->add_instruction(
+            migraphx::make_op("scatter_none", {{"axis", -1}, {"skip_out_of_bounds", true}}),
+            pd,
+            li,
+            pu);
+        mm->add_return({r});
+        return p;
+    }
+};

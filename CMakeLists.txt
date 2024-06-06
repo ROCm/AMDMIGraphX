@@ -67,6 +67,12 @@ else()
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 endif()
 
+if(WIN32)
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
+else()
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+endif()
+
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
@@ -304,6 +310,7 @@ rocm_enable_cppcheck(
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        MIGRAPHX_USE_MIOPEN=1
         BUILD_DEV=
         __device__=
         __host__=

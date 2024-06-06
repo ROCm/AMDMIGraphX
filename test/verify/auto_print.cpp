@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ using handler_map = std::map<std::string, std::function<void()>>;
 static handler_map create_handlers()
 {
     handler_map m;
-    for(const auto& name : get_targets())
+    for(const auto& name : migraphx::get_targets())
         m[name] = [] {};
     return m;
 }
@@ -64,7 +64,7 @@ void auto_print::set_terminate_handler(const std::string& name)
             std::cout << "    what(): " << e.what() << std::endl;
         }
         std::cout << std::endl;
-        for(const auto& tname : get_targets())
+        for(const auto& tname : migraphx::get_targets())
             get_handler(tname)();
     });
 }
@@ -83,25 +83,8 @@ auto_print::~auto_print()
     if(in_exception())
     {
         std::cout << std::endl;
-        for(const auto& tname : get_targets())
+        for(const auto& tname : migraphx::get_targets())
             get_handler(tname)();
     }
     get_handler(name) = [] {};
-}
-
-std::vector<std::string> get_targets()
-{
-    static const std::vector<std::string> targets = {
-        "ref",
-#ifdef HAVE_CPU
-        "cpu",
-#endif
-#ifdef HAVE_GPU
-        "gpu",
-#endif
-#ifdef HAVE_FPGA
-        "fpga",
-#endif
-    };
-    return targets;
 }

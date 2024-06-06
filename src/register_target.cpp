@@ -84,5 +84,16 @@ target make_target(const std::string& name)
     return it->second;
 }
 
+std::vector<std::string> get_targets()
+{
+    std::vector<std::string> result;
+    std::transform(target_map().begin(),
+                   target_map().end(),
+                   std::back_inserter(result),
+                   [&](auto&& p) { return p.first; });
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

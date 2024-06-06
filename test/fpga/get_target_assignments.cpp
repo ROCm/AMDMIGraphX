@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,7 +44,9 @@ migraphx::program create_program()
 
 TEST_CASE(is_supported)
 {
-    auto p = create_program();
+    auto p       = create_program();
+    auto targets = migraphx::get_targets();
+    EXPECT(not targets.empty());
     auto t = migraphx::make_target("fpga");
 
     const auto assignments = p.get_target_assignments({t});

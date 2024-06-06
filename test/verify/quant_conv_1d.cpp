@@ -48,8 +48,6 @@ struct quant_conv_1d : verify_program<quant_conv_1d<DType>>
     std::string section() const { return "conv"; }
 };
 
-#if MIGRAPHX_USE_MIOPEN
 template struct quant_conv_1d<migraphx::shape::int8_type>;
 // MLIR 1D convolution is not supported in MIGraphX yet. Enable this through MIOpen route later.
 // template struct quant_conv_1d<migraphx::shape::fp8e4m3fnuz_type>;
-#endif

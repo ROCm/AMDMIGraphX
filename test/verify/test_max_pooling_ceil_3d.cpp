@@ -43,8 +43,8 @@ struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
 };
 
 // gpu::pooling not supported when MIOpen is OFF
-#if MIGRAPHX_USE_MIOPEN
+
 template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-#endif
+
 // TODO: uncomment once "Clang ASAN" CI is fixed.  See PR 2973 for details
 // template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;

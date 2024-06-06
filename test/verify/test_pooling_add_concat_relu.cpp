@@ -54,7 +54,7 @@ migraphx::program create_concat_fusion_program(bool post_pointwise)
 }
 
 // gpu::pooling not supported when MIOpen is OFF
-#if MIGRAPHX_USE_MIOPEN
+
 struct test_pooling_add_concat_relu : verify_program<test_pooling_add_concat_relu>
 {
     migraphx::program create_program() const { return create_concat_fusion_program(true); }
@@ -64,4 +64,3 @@ struct test_pooling_add_concat : verify_program<test_pooling_add_concat>
 {
     migraphx::program create_program() const { return create_concat_fusion_program(false); }
 };
-#endif

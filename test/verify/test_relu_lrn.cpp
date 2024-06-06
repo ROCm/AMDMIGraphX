@@ -28,7 +28,7 @@
 #include <migraphx/make_op.hpp>
 
 // gpu::lrn not supported when MIOpen is OFF
-#if MIGRAPHX_USE_MIOPEN
+
 struct test_relu_lrn : verify_program<test_relu_lrn>
 {
     migraphx::program create_program() const
@@ -44,4 +44,3 @@ struct test_relu_lrn : verify_program<test_relu_lrn>
         return p;
     }
 };
-#endif

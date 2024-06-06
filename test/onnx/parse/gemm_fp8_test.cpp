@@ -42,8 +42,8 @@ TEST_CASE(gemm_fp8_test)
     t_a = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), t_a);
     std::vector<std::size_t> lens = {6, 7};
     auto dot                      = mm->add_instruction(migraphx::make_op("dot"), t_a, l1);
-    l2       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);
-    l2       = mm->add_instruction(
+    l2 = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), l2);
+    l2 = mm->add_instruction(
         migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), l2);
     auto b_l  = mm->add_literal(beta);
     auto b_b  = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), b_l);

@@ -27,7 +27,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// backwards convolution not supported when MIOpen is OFF
+
 struct test_convolution_backwards_1d : verify_program<test_convolution_backwards_1d>
 {
     migraphx::program create_program() const

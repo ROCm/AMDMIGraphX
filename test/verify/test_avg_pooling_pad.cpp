@@ -27,7 +27,6 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/pooling.hpp>
 
-
 struct test_avg_pooling_pad : verify_program<test_avg_pooling_pad>
 {
     migraphx::program create_program() const

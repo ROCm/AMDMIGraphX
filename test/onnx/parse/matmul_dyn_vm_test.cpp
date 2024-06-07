@@ -39,7 +39,7 @@ TEST_CASE(matmul_dyn_vm_test)
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["2"] = {{7, 7}, {4, 10, {8}}};
-    auto prog                       = parse_onnx("matmul_dyn_vm_test.onnx", options);
+    auto prog                       = read_onnx("matmul_dyn_vm_test.onnx", options);
 
     EXPECT(p == prog);
 }

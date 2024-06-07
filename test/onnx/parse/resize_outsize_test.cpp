@@ -46,7 +46,7 @@ TEST_CASE(resize_outsize_test)
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("resize_outsize_test.onnx");
+    auto prog = read_onnx("resize_outsize_test.onnx");
 
     EXPECT(p == prog);
 }

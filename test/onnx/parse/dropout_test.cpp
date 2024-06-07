@@ -35,6 +35,6 @@ TEST_CASE(dropout_test)
     mm->add_literal(migraphx::literal(s, vec));
     mm->add_return({out});
 
-    auto prog = migraphx::parse_onnx("dropout_test.onnx");
+    auto prog = read_onnx("dropout_test.onnx");
     EXPECT(p == prog);
 }

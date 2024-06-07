@@ -1081,10 +1081,12 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+
 module* program::create_module(const std::string& name, module m)
 {
     assert(not contains(impl->modules, name));

@@ -29,7 +29,7 @@
 
 TEST_CASE(tril_test)
 {
-    migraphx::program p = migraphx::parse_onnx("tril_test.onnx");
+    migraphx::program p = read_onnx("tril_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {3, 4}}, p);
 

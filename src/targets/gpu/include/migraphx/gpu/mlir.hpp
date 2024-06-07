@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <string>
 #include <vector>
+#include <migraphx/value.hpp>
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -37,10 +38,21 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(const module& m);
-MIGRAPHX_GPU_EXPORT code_object_op compile_mlir(const context& migraphx_ctx,
-                                                module m,
-                                                const std::vector<instruction_ref>& inputs,
-                                                const value& solution);
+
+MIGRAPHX_GPU_EXPORT bool
+is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution);
+
+struct MIGRAPHX_GPU_EXPORT mlir_code_object
+{
+    code_object_op cop;
+    std::vector<size_t> prefill_indices = {};
+    std::vector<value> prefill_values   = {};
+};
+
+MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
+                                                  module m,
+                                                  const std::vector<shape>& in_shapes,
+                                                  const value& solution);
 
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,

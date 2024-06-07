@@ -29,7 +29,7 @@
 TEST_CASE(qlinearadd_test)
 {
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#com.microsoft.QLinearAdd
-    migraphx::program p = migraphx::parse_onnx("qlinearadd_test.onnx");
+    migraphx::program p = read_onnx("qlinearadd_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape a{migraphx::shape::uint8_type, {64}};

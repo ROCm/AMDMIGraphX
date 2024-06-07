@@ -36,7 +36,7 @@ TEST_CASE(clip_test_op11_max_only)
     auto r = mm->add_instruction(migraphx::make_op("min"), l0, max_val);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("clip_test_op11_max_only.onnx");
+    auto prog = read_onnx("clip_test_op11_max_only.onnx");
 
     EXPECT(p == prog);
 }

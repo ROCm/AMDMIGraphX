@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,6 +44,15 @@ struct tf_options
 /// Create a program from a tf pb file (default is nhwc format)
 MIGRAPHX_TF_EXPORT program parse_tf(const std::string& name,
                                     const tf_options& options = tf_options{});
+
+/// Create a program from an tf buffer
+MIGRAPHX_TF_EXPORT program parse_tf_buffer(const std::string& buffer,
+                                           const tf_options& options = tf_options{});
+
+/// Create a program from tf buffer
+MIGRAPHX_TF_EXPORT program parse_tf_buffer(const void* data,
+                                           std::size_t size,
+                                           const tf_options& options = tf_options{});
 
 MIGRAPHX_TF_EXPORT std::vector<std::string> get_tf_operators();
 

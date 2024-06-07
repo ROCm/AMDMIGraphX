@@ -289,6 +289,7 @@ struct array
         return result;
     }
 
+    /// Get the multi-dimensional index from the given 1D index.
     constexpr array multi(T idx) const
     {
         array result;

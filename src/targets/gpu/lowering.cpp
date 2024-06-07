@@ -106,7 +106,7 @@ struct miopen_apply
         add_convolution_op("quant_convolution");
         add_extend_op("lrn");
         add_extend_op("pooling");
-        
+
 #endif
 #if MIGRAPHX_USE_ROCBLAS
         add_gemm_op<op::dot>("dot");

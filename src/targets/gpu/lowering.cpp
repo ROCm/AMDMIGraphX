@@ -98,6 +98,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
+        add_generic_op("contiguous");
 
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
@@ -105,7 +106,7 @@ struct miopen_apply
         add_convolution_op("quant_convolution");
         add_extend_op("lrn");
         add_extend_op("pooling");
-        add_generic_op("contiguous");
+        
 #endif
 #if MIGRAPHX_USE_ROCBLAS
         add_gemm_op<op::dot>("dot");

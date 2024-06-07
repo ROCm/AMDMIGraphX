@@ -78,6 +78,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SCHEDULE_PASS)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_SPLIT_REDUCE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NHWC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_REWRITE_REDUCE)
 #ifndef _WIN32
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
@@ -154,7 +155,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         auto_contiguous{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
-        rewrite_reduce{},
+        enable_pass(!disabled(MIGRAPHX_DISABLE_REWRITE_REDUCE{}), rewrite_reduce{}),
+        // rewrite_reduce{},
         rewrite_low_precision{},
         dead_code_elimination{},
         optimize_module{},

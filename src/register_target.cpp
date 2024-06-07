@@ -32,26 +32,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-namespace {
-struct auto_load_targets
-{
-    auto_load_targets()
-    {
-        make_target("ref");
-#ifdef HAVE_CPU
-        make_target("cpu");
-#endif
-#ifdef HAVE_GPU
-        make_target("gpu");
-#endif
-#ifdef HAVE_FPGA
-        make_target("fpga");
-#endif
-    }
-};
-[[maybe_unused]] static auto load_targets = auto_load_targets{};
-}
-
 void store_target_lib(const dynamic_loader& lib)
 {
     static std::vector<dynamic_loader> target_loader;
@@ -63,6 +43,8 @@ std::unordered_map<std::string, target>& target_map()
     static std::unordered_map<std::string, target> m; // NOLINT
     return m;
 }
+
+void register_target_init() { (void)target_map(); }
 
 void unregister_target(const std::string& name)
 {

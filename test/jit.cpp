@@ -51,6 +51,7 @@ std::function<F> compile_function(std::string_view src, const std::string& symbo
     compiler.flags.emplace_back("-fPIC");
     compiler.flags.emplace_back("-DEXPORT=\"\"");
 #else
+    compiler.flags.emplace_back("-DEXPORT=__declspec(dllexport)");
 #endif
     compiler.flags.emplace_back("-shared");
     compiler.output = migraphx::make_shared_object_filename("simple");

@@ -22,21 +22,24 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include <migraphx/register_target.hpp>
 
-TEST_CASE(onehot_test)
+namespace {
+struct auto_load_targets
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto depth = mm->add_literal(
-        migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {1}, {0}}, {3}));
-    auto indices =
-        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {5, 2}});
-    auto values = mm->add_parameter("values", migraphx::shape{migraphx::shape::half_type, {2}});
-    auto ret =
-        mm->add_instruction(migraphx::make_op("onehot", {{"axis", 0}}), indices, depth, values);
-    mm->add_return({ret});
-
-    auto prog = read_onnx("onehot_test.onnx");
-    EXPECT(p == prog);
-}
+    auto_load_targets()
+    {
+        migraphx::make_target("ref");
+#ifdef HAVE_CPU
+        migraphx::make_target("cpu");
+#endif
+#ifdef HAVE_GPU
+        migraphx::make_target("gpu");
+#endif
+#ifdef HAVE_FPGA
+        migraphx::make_target("fpga");
+#endif
+    }
+};
+[[maybe_unused]] static auto load_targets{auto_load_targets{}};
+} // namespace

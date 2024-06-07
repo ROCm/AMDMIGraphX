@@ -182,7 +182,6 @@ TEST_CASE(gemm_tune_strided_lowered)
     EXPECT(0 == solution_idx.to<std::size_t>());
 #endif
 }
-#endif
 
 TEST_CASE(gemm_tune_invalid_sol_index)
 {
@@ -223,5 +222,6 @@ TEST_CASE(gemm_tune_invalid_sol_index)
     EXPECT(0 != solution_idx.to<std::size_t>());
 #endif
 }
+#endif
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

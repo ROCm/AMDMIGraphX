@@ -35,7 +35,7 @@ struct test_batch_quant_dot_2 : verify_program<test_batch_quant_dot_2<DType, CTy
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto dtype = migraphx::shape::get_type<DType>{};
         auto ctype = migraphx::shape::get_type<CType>{};
 

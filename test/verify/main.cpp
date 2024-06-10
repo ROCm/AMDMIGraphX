@@ -74,9 +74,12 @@ int main(int argc, const char* argv[])
             "test_instancenorm_large_3d<migraphx::shape::half_type>",
         // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
-            "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
-            "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
-            "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
+            "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
+            "float>",
+            "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
+            "float>",
+            "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
+            "float>",
 #else
                 "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                 "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",

@@ -52,5 +52,6 @@ struct test_gemm_add_broadcast2 : verify_program<test_gemm_add_broadcast2<DType>
 };
 
 template struct test_gemm_add_broadcast2<migraphx::shape::float_type>;
-// template struct test_gemm_add_broadcast2<migraphx::shape::half_type>; // fails with CK, issue#2514
+// template struct test_gemm_add_broadcast2<migraphx::shape::half_type>; // fails with CK,
+// issue#2514
 template struct test_gemm_add_broadcast2<migraphx::shape::fp8e4m3fnuz_type>;

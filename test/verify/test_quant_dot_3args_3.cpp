@@ -34,7 +34,7 @@ struct test_quant_dot_3args_3 : verify_program<test_quant_dot_3args_3<DType, CTy
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm   = p.get_main_module();
         auto ctype = migraphx::shape::get_type<CType>();
         auto dtype = migraphx::shape::get_type<DType>();
         migraphx::shape m1_shape{dtype, {2, 8}};

@@ -50,7 +50,7 @@ argument fill_argument(shape s, double value)
     return result;
 }
 
-argument generate_argument(shape s, unsigned long seed)
+argument generate_argument(shape s, unsigned long seed, normalize_range r)
 {
     argument result;
     if(s.type() == shape::tuple_type)
@@ -58,7 +58,7 @@ argument generate_argument(shape s, unsigned long seed)
         const auto& sub_ss = s.sub_shapes();
         std::vector<argument> sub_args;
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
-            return generate_argument(ss, seed);
+            return generate_argument(ss, seed, r);
         });
 
         result = argument(sub_args);
@@ -70,13 +70,13 @@ argument generate_argument(shape s, unsigned long seed)
             // needs special processing to generate data
             if(s.type() == shape::bool_type)
             {
-                auto v = generate_tensor_data<bool>(s, seed);
+                auto v = generate_tensor_data<bool>(s, seed, r);
                 result = {s, v};
             }
             else
             {
                 using type = typename decltype(as)::type;
-                auto v     = generate_tensor_data<type>(s, seed);
+                auto v     = generate_tensor_data<type>(s, seed, r);
                 result     = {s, v};
             }
         });

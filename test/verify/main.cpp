@@ -74,13 +74,13 @@ int main(int argc, const char* argv[])
             "test_instancenorm_large_3d<migraphx::shape::half_type>",
         // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
-            "batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
-            "quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
-            "quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
+            "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
+            "test_quant_dot_3args_4<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
+            "test_quant_dot_3args_5<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, float>",
 #else
-                "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
-                "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
-                "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
+                "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
+                "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
+                "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>",
 #endif
             "test_block_reduce_small<3, migraphx::shape::int8_type>",
             "test_block_reduce_small<4, migraphx::shape::int8_type>",
@@ -95,8 +95,8 @@ int main(int argc, const char* argv[])
     });
     rv.disable_test_for("gpu",
                         {// These passes on MI300 but fails on others, same issue as CPU.
-                         "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
-                         "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
-                         "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
+                         "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
+                         "test_quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
     rv.run(argc, argv);
 }

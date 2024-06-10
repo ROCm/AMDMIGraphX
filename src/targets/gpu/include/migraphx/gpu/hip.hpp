@@ -31,6 +31,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <miopen/miopen.h>
+#include <migraphx/module.hpp>
 
 #include <utility>
 
@@ -81,6 +82,7 @@ struct hip_allocate
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
     {
+        std::cout << "Attempting to allocate to gpu" << std::endl;
         return allocate_gpu(output_shape);
     }
 };
@@ -287,6 +289,44 @@ struct hip_copy_literal
         store_preallocated_param(ctx, id, a);
     }
     friend std::ostream& operator<<(std::ostream& os, const hip_copy_literal& x)
+    {
+        os << x.name() << "[id=" << x.id << "]";
+        return os;
+    }
+};
+
+struct hip_weight_streaming_literal
+{
+    instruction_ref ins;
+    literal l;
+    std::string id{};
+    module *m;
+    bool stream = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.l, "literal"), f(self.id, "id"));
+    }
+
+    std::string name() const { return "hip::hip_weight_streaming_literal"; }
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if (!stream) {
+            check_shapes{inputs, *this}.has(0);
+            return l.get_shape();
+        }
+        else {
+            check_shapes{inputs, *this, true}.has(1, 2).same_type();
+            return inputs.at(0);
+        }
+    }
+
+    argument compute(context& ctx, const shape&, const std::vector<argument>&) const;
+
+    void finalize(context& ctx, const shape&, const std::vector<shape>&);
+
+    friend std::ostream& operator<<(std::ostream& os, const hip_weight_streaming_literal& x)
     {
         os << x.name() << "[id=" << x.id << "]";
         return os;

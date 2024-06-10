@@ -540,7 +540,19 @@ struct find_inner_broadcast
                            return input;
                        });
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        // Find broadcast op on a non-scalar instruction if it exists
+        auto first =
+            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
+                return not broadcast->get_shape().scalar();
+            });
+        if(first != broadcasts.end())
+        {
+            m.replace_instruction(ins, (*first)->get_operator(), op);
+        }
+        else
+        {
+            m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        }
     }
 
     void apply_diff_broadcasts(module& m, instruction_ref ins) const

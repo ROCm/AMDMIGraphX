@@ -1623,7 +1623,10 @@ class IExecutionContext : public INoCopy
     //!
     bool enqueueV3(hipStream_t stream) noexcept
     {
-        pass("Not Implemented", true);
+        migraphx::execution_environment exec_env{
+            migraphx::any_ptr(reinterpret_cast<void*>(stream), "ihipStream_t"), true};
+        auto result = program_->eval(param_map_, exec_env);
+        return true;
         // return mImpl->enqueueV3(stream);
     }
 

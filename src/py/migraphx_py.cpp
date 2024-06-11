@@ -258,6 +258,39 @@ migraphx::shape to_shape(const py::buffer_info& info)
 
 int test_fun(int i, int j) { return i * j; }
 
+void throwPyError(PyObject* type, std::string const& message)
+{
+    PyErr_SetString(type, message.data());
+    throw py::error_already_set();
+}
+
+#define PY_ASSERT_RUNTIME_ERROR(assertion, msg)    \
+    do                                             \
+    {                                              \
+        if(!(assertion))                           \
+        {                                          \
+            throwPyError(PyExc_RuntimeError, msg); \
+        }                                          \
+    } while(false)
+
+#define PY_ASSERT_INDEX_ERROR(assertion)                     \
+    do                                                       \
+    {                                                        \
+        if(!(assertion))                                     \
+        {                                                    \
+            throwPyError(PyExc_IndexError, "Out of bounds"); \
+        }                                                    \
+    } while(false)
+
+#define PY_ASSERT_VALUE_ERROR(assertion, msg)    \
+    do                                           \
+    {                                            \
+        if(!(assertion))                         \
+        {                                        \
+            throwPyError(PyExc_ValueError, msg); \
+        }                                        \
+    } while(false)
+
 // TODO, figure out why this is needed and get rid of it
 mgxinfer1::IBuilder* createInferBuilderWrapper(mgxinfer1::ILogger& logger)
 {
@@ -298,7 +331,123 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     common_api.attr("uint8")    = mgxinfer1::DataType::kUINT8;
     common_api.attr("fp8")      = mgxinfer1::DataType::kFP8;
     common_api.attr("int4")     = mgxinfer1::DataType::kINT4;
+
+    py::enum_<mgxinfer1::TensorIOMode>(
+        common_api, "TensorIOMode", "TODO docstring", py::module_local())
+        .value("NONE", mgxinfer1::TensorIOMode::kNONE, "TODO docstring")
+        .value("INPUT", mgxinfer1::TensorIOMode::kINPUT, "TODO docstring")
+        .value("OUTPUT", mgxinfer1::TensorIOMode::kOUTPUT, "TODO docstring");
+
+    py::enum_<mgxinfer1::ExecutionContextAllocationStrategy>(common_api,
+                                                             "ExecutionContextAllocationStrategy",
+                                                             py::arithmetic{},
+                                                             "TODO docstring",
+                                                             py::module_local())
+        .value("STATIC", mgxinfer1::ExecutionContextAllocationStrategy::kSTATIC, "TODO docstring")
+        .value("ON_PROFILE_CHANGE",
+               mgxinfer1::ExecutionContextAllocationStrategy::kON_PROFILE_CHANGE,
+               "TODO docstring")
+        .value("USER_MANAGED",
+               mgxinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED,
+               "TODO docstring");
     /*Types end*/
+
+    /*Dims start*/
+    constexpr auto dims_from_vec = [](std::vector<int64_t> const& in) {
+        int32_t const maxDims{static_cast<int32_t>(mgxinfer1::Dims::MAX_DIMS)};
+        PY_ASSERT_VALUE_ERROR(in.size() <= maxDims,
+                              "Input length " + std::to_string(in.size()) +
+                                  ". Max expected length is " + std::to_string(maxDims));
+
+        mgxinfer1::Dims* dims = new mgxinfer1::Dims{};
+        dims->nbDims          = in.size();
+        for(int32_t i = 0; i < in.size(); ++i)
+            dims->d[i] = in[i];
+        return dims;
+    };
+
+    constexpr auto dims_getitem = [](const mgxinfer1::Dims& dims,
+                                     const int32_t py_idx) -> const int64_t& {
+        const int32_t idx{(py_idx < 0) ? static_cast<int32_t>(dims.nbDims) + py_idx : py_idx};
+        PY_ASSERT_INDEX_ERROR(idx >= 0 && idx < dims.nbDims);
+        return dims.d[idx];
+    };
+
+    constexpr auto dims_getitem_slice = [](const mgxinfer1::Dims& dims, py::slice slice) {
+        size_t start, stop, step, slice_len;
+        PY_ASSERT_VALUE_ERROR(slice.compute(dims.nbDims, &start, &stop, &step, &slice_len),
+                              "Incorrect getter slice dims");
+        PY_ASSERT_INDEX_ERROR(stop <= dims.nbDims);
+
+        py::tuple ret{slice_len};
+        for(int32_t i = start, idx = 0; i < stop; i += step, ++idx)
+            ret[idx] = dims.d[i];
+        return ret;
+    };
+
+    constexpr auto dims_to_str = [](const mgxinfer1::Dims& dims) {
+        if(dims.nbDims == 0)
+            return std::string("()");
+
+        if(dims.nbDims == 1)
+            return "(" + std::to_string(dims.d[0]) + ",)";
+
+        std::string temp = "(";
+        for(int32_t i = 0; i < dims.nbDims - 1; ++i)
+            temp += std::to_string(dims.d[i]) + ", ";
+        temp += std::to_string(dims.d[dims.nbDims - 1]) + ")";
+        return temp;
+    };
+
+    constexpr auto dims_setitem =
+        [](mgxinfer1::Dims& dims, const int32_t py_idx, const int64_t item) {
+            const int32_t idx{(py_idx < 0) ? static_cast<int32_t>(dims.nbDims) + py_idx : py_idx};
+            PY_ASSERT_INDEX_ERROR(idx >= 0 && idx < dims.nbDims);
+            dims.d[idx] = item;
+        };
+
+    constexpr auto dims_setitem_slice =
+        [](mgxinfer1::Dims& dims, py::slice slice, const mgxinfer1::Dims& other) {
+            size_t start, stop, step, slice_len;
+            PY_ASSERT_VALUE_ERROR(slice.compute(dims.nbDims, &start, &stop, &step, &slice_len),
+                                  "Incorrect setter slice dims");
+            // Disallow out-of-bounds things.
+            PY_ASSERT_INDEX_ERROR(stop < dims.nbDims);
+
+            for(int32_t i = start, index = 0; i < stop; i += step, ++index)
+                dims.d[i] = other.d[index];
+        };
+
+    py::class_<mgxinfer1::Dims>(common_api, "Dims", "TODO docstring", py::module_local())
+        .def(py::init<>())
+        // Allows for construction from python lists and tuples.
+        .def(py::init(dims_from_vec), "shape"_a)
+        // static_cast is required here, or MAX_DIMS does not get pulled in until LOAD time.
+        .def_property_readonly_static(
+            "MAX_DIMS",
+            [](py::object) { return static_cast<int32_t const>(mgxinfer1::Dims::MAX_DIMS); },
+            "TODO docstring")
+        .def("__len__", [](const mgxinfer1::Dims& dims) { return dims.nbDims; })
+        .def("__getitem__", dims_getitem)
+        .def("__getitem__", dims_getitem_slice)
+        .def("__setitem__", dims_setitem)
+        .def("__setitem__", dims_setitem_slice)
+        .def("__str__", dims_to_str)
+        .def("__repr__", dims_to_str);
+
+    // Make it possible to use tuples/lists in Python in place of Dims.
+    py::implicitly_convertible<std::vector<int64_t>, mgxinfer1::Dims>();
+
+    // TODO make this work for any python iterable
+    common_api.def("volume", [](const mgxinfer1::Dims& dims) {
+        size_t ret = 1;
+        for(auto i = 0; i < dims.nbDims; ++i)
+            ret *= dims.d[i];
+
+        return ret;
+    });
+
+    /*Dims end*/
 
     /*Logger start*/
     // Trampoline for ILogger
@@ -338,24 +487,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     /*INetworkDefinition start*/
     py::class_<mgxinfer1::INetworkDefinition>(
         common_api, "INetworkDefinition", "TODO docstring", py::module_local());
-    /*INetworkDefinition end*/
-    // struct buffer_info {
-    //     void *ptr;
-    //     py::ssize_t itemsize;
-    //     std::string format;
-    //     py::ssize_t ndim;
-    //     std::vector<py::ssize_t> shape;
-    //     std::vector<py::ssize_t> strides;
-    // };
-    // static const auto host_memory_buffer_interface = [](IHostMemory& self) -> py::buffer_info {
-    //     return py::buffer_info(self.data(),         /* Pointer to buffer */
-    //         utils::size(self.type()),               /* Size of one scalar */
-    //         py::format_descriptor<float>::format(), /* Python struct-style format descriptor */
-    //         1,                                      /* Number of dimensions */
-    //         {self.size()},                          /* Buffer dimensions */
-    //         {utils::size(self.type())}              /* Strides (in bytes) for each index */
-    //     );
-    // };
+
     /*IBuilder start*/
     py::class_<mgxinfer1::IHostMemory>(
         common_api, "IHostMemory", py::buffer_protocol(), "TODO docstring", py::module_local())
@@ -418,7 +550,26 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     /*ICudaEngine start*/
     py::class_<mgxinfer1::ICudaEngine>(
-        common_api, "ICudaEngine", "TODO docstring", py::module_local());
+        common_api, "ICudaEngine", "TODO docstring", py::module_local())
+        .def_property_readonly("num_io_tensors", &mgxinfer1::ICudaEngine::getNbIOTensors)
+        .def("get_tensor_name",
+             &mgxinfer1::ICudaEngine::getIOTensorName,
+             "index"_a,
+             "TODO docstring")
+        .def(
+            "get_tensor_shape", &mgxinfer1::ICudaEngine::getTensorShape, "name"_a, "TODO docstring")
+        .def("get_tensor_dtype",
+             &mgxinfer1::ICudaEngine::getTensorDataType,
+             "name"_a,
+             "TODO docstring")
+        .def(
+            "get_tensor_mode", &mgxinfer1::ICudaEngine::getTensorIOMode, "name"_a, "TODO docstring")
+        .def("create_execution_context",
+             &mgxinfer1::ICudaEngine::createExecutionContext,
+             "TODO docstring",
+             py::arg("strategy") = mgxinfer1::ExecutionContextAllocationStrategy::kSTATIC,
+             py::keep_alive<0, 1>{},
+             py::call_guard<py::gil_scoped_release>{});
     /*ICudaEngine end*/
 
     /*Runtime start*/
@@ -440,6 +591,27 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              py::call_guard<py::gil_scoped_release>{},
              py::keep_alive<0, 1>{});
     /*Runtime end*/
+
+    /*ExecutionContext start*/
+    py::class_<mgxinfer1::IExecutionContext>(
+        common_api, "IExecutionContext", "TODO docstring", py::module_local())
+        .def(
+            "execute_async_v3",
+            [](mgxinfer1::IExecutionContext& context, size_t streamHandle) {
+                return context.enqueueV3(reinterpret_cast<hipStream_t>(streamHandle));
+            },
+            "stream_handle"_a,
+            "TODO docstring",
+            py::call_guard<py::gil_scoped_release>{})
+        .def(
+            "set_tensor_address",
+            [](mgxinfer1::IExecutionContext& context, char const* tensor_name, size_t memory) {
+                return context.setTensorAddress(tensor_name, reinterpret_cast<void*>(memory));
+            },
+            "name"_a,
+            "memory"_a,
+            "TODO docstring");
+    /*ExecutionContext end*/
 
     /*OnnxParser start*/
     const auto parse_from_py_buffer =

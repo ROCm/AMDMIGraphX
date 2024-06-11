@@ -1085,4 +1085,19 @@ TEST_CASE(from_4d_permutation)
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
 }
 
+TEST_CASE(multi_within_bounds)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {3, 2, 2}};
+    std::vector<std::size_t> multi_0 = {3, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_0));
+    std::vector<std::size_t> multi_1 = {2, 1, 1};
+    EXPECT(in_shape.multi_within_bounds(multi_1));
+    std::vector<std::size_t> multi_2 = {0, 0, 0};
+    EXPECT(in_shape.multi_within_bounds(multi_2));
+    std::vector<std::size_t> multi_3 = {100, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_3));
+    std::vector<std::size_t> multi_4 = {1, 2, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_4));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

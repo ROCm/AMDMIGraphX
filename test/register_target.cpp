@@ -22,25 +22,24 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/register_target.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+namespace {
+struct auto_load_targets
 {
-    migraphx::program create_program() const
+    auto_load_targets()
     {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
-        return p;
+        migraphx::make_target("ref");
+#ifdef HAVE_CPU
+        migraphx::make_target("cpu");
+#endif
+#ifdef HAVE_GPU
+        migraphx::make_target("gpu");
+#endif
+#ifdef HAVE_FPGA
+        migraphx::make_target("fpga");
+#endif
     }
 };
-
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+[[maybe_unused]] static auto load_targets{auto_load_targets{}};
+} // namespace

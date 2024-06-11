@@ -47,11 +47,13 @@ template <typename Derived>
 struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
+    // skip scattering indicies that are out of bounds
+    bool skip_out_of_bounds = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.skip_out_of_bounds, "skip_out_of_bounds"));
     }
 
     value attributes() const
@@ -68,38 +70,52 @@ struct scatter_op : op_name<Derived>
         return inputs.front().with_lens(inputs.front().lens());
     }
 
+    // iterate through items in shape
+    template <class TensorView0, class TensorView1>
+    void scatter_reduce_iterate(TensorView0 indices, TensorView1 output, TensorView1 update) const
+    {
+        auto ind_s         = indices.get_shape();
+        auto output_shape  = output.get_shape();
+        auto axis_dim_size = output_shape.lens()[axis];
+        shape_for_each(ind_s, [&](const auto& idx) {
+            auto out_idx = idx;
+
+            // tensor_view::() invokes indexing logic of
+            // std::size_t shape::index(std::size_t i) const
+            auto index = indices(idx.begin(), idx.end());
+
+            // this addition doesn't necessarily make index positive if index was out of bounds
+            index = (index < 0) ? index + axis_dim_size : index;
+            assert(skip_out_of_bounds or index >= 0);
+            if(skip_out_of_bounds and index < 0)
+            {
+                return;
+            }
+            out_idx[axis] = index;
+            // skip index out of bounds if attribute on, else assert
+            assert(skip_out_of_bounds or output_shape.multi_within_bounds(out_idx));
+            if(skip_out_of_bounds)
+            {
+                if(not output_shape.multi_within_bounds(out_idx))
+                {
+                    return;
+                }
+            }
+            // look up the appropriate locations in output, using idx and out_idx.
+            // call reduction() method of derived struct to copy and reduce that element
+            derived().reduction()(output(out_idx.begin(), out_idx.end()),
+                                  update(idx.begin(), idx.end()));
+            return;
+        });
+    }
+
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
 
-        // max dimension in each axis
-        auto axis_dim_size = output_shape.lens()[axis];
-        // cast all arguments as correct type
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
-            // copy all of data to output
             std::copy(data.begin(), data.end(), output.begin());
-            args[1].visit([&](auto indices) {
-                auto ind_s = indices.get_shape();
-                // iterate through items in shape
-                shape_for_each(ind_s, [&](const auto& idx) {
-                    auto out_idx = idx;
-
-                    // Overloaded tensor_view::() invokes indexing logic of
-                    // std::size_t shape::index(std::size_t i) const
-                    // which handles nonstandard shapes correctly
-                    auto index = indices(idx.begin(), idx.end());
-
-                    // normalize negative indexes (may be redundant after using
-                    // normalize_compute_shape())
-                    index         = (index < 0) ? index + axis_dim_size : index;
-                    out_idx[axis] = index;
-
-                    // look up the appropriate locations in output, using idx and out_idx.
-                    // call reduction() method of derived struct to copy and reduce that element
-                    derived().reduction()(output(out_idx.begin(), out_idx.end()),
-                                          update(idx.begin(), idx.end()));
-                });
-            });
+            args[1].visit([&](auto indices) { scatter_reduce_iterate(indices, output, update); });
         });
 
         return result;

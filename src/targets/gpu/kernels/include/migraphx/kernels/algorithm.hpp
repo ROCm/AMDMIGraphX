@@ -200,6 +200,17 @@ constexpr T inner_product(InputIt1 first1, InputIt1 last1, InputIt2 first2, T in
         [](auto x, auto y) { return x * y; });
 }
 
+template <class Iterator1, class Iterator2, class BinaryPred>
+constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2, BinaryPred p)
+{
+    for(; first1 != last1; ++first1, ++first2)
+        if(not p(*first1, *first2))
+        {
+            return false;
+        }
+    return true;
+}
+
 } // namespace migraphx
 
 #endif

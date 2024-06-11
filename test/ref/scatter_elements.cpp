@@ -344,6 +344,53 @@ auto scatter_elements_3x3_duplicate_index_test(const std::string& reduction_mode
     return results_vector;
 }
 
+TEST_CASE(scatter_elements_skip_out_of_bounds_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape sd{migraphx::shape::float_type, {3, 3}};
+    std::vector<float> vd(sd.elements(), 0.0f);
+
+    migraphx::shape si{migraphx::shape::int32_type, {2, 3}};
+    // clang-format off
+    std::vector<int> vi = {
+        -1, 0, 20,
+        0, -8, 1
+    };
+    // clang-format on
+
+    migraphx::shape su{migraphx::shape::float_type, {2, 3}};
+    // clang-format off
+    std::vector<float> vu = {
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0
+    };
+    // clang-format on
+
+    auto lit_data    = mm->add_literal(migraphx::literal{sd, vd});
+    auto lit_inds    = mm->add_literal(migraphx::literal{si, vi});
+    auto lit_updates = mm->add_literal(migraphx::literal{su, vu});
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("scatter_none", {{"axis", 0}, {"skip_out_of_bounds", true}}),
+        lit_data,
+        lit_inds,
+        lit_updates);
+    mm->add_return({r});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // clang-format off
+    std::vector<float> gold = {
+        4.0, 2.0, 0.0,
+        0.0, 0.0, 6.0,
+        1.0, 0.0, 0.0
+    };
+    // clang-format on
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(scatter_elements_add_axis_0_3x3_duplicate_index_test)
 {
     const auto results            = scatter_elements_3x3_duplicate_index_test("add");

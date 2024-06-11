@@ -420,6 +420,12 @@ void shape::multi_copy(std::size_t idx, std::size_t* start, const std::size_t* e
     *start = tidx;
 }
 
+bool shape::multi_within_bounds(std::vector<std::size_t> multi) const
+{
+    assert(this->lens().size() == multi.size());
+    return std::equal(multi.begin(), multi.end(), this->lens().begin(), std::less<>{});
+}
+
 bool shape::packed() const
 {
     if(this->dynamic())

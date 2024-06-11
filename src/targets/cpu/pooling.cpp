@@ -42,12 +42,11 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_v2_forward, op:
     {
         switch(op.mode)
         {
-        case op::pooling_mode::max:
-            return dnnl::algorithm::pooling_max;
+        case op::pooling_mode::max: return dnnl::algorithm::pooling_max;
         case op::pooling_mode::average:
-            return op.count_include_pad ? dnnl::algorithm::pooling_avg_include_padding : dnnl::algorithm::pooling_avg_exclude_padding;
-        case op::pooling_mode::lpnorm:
-            MIGRAPHX_THROW("Lpnorn pooling mode not supported");
+            return op.count_include_pad ? dnnl::algorithm::pooling_avg_include_padding
+                                        : dnnl::algorithm::pooling_avg_exclude_padding;
+        case op::pooling_mode::lpnorm: MIGRAPHX_THROW("Lpnorn pooling mode not supported");
         }
         MIGRAPHX_THROW("Unknown pooling mode");
     }

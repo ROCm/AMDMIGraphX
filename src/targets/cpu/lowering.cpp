@@ -430,7 +430,8 @@ struct cpu_apply
         auto&& op = ins->get_operator();
         auto v    = op.to_value();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
-           not v["ceil_mode"].to<bool>() and v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
+           not v["ceil_mode"].to<bool>() and
+           v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
     }

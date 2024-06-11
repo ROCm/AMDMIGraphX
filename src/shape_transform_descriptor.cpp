@@ -392,6 +392,35 @@ static void renumber_axes(std::vector<dimension>& dimensions)
     auto axes_map = group_axes(dimensions);
     renumber_axes(axes_map);
 }
+static void collapse_1_dims(std::vector<dimension>& dimensions)
+{
+    // Find a dimension that ends with a subdimension of 1 with a single axis,
+    // and is followed by subdimension in the next dimension of 1 that has a
+    // split axis. It will remove the trailing subdimension and update the
+    // leading subdimension to use the axis from the trailing subdimension.
+    adjacent_for_each(dimensions.begin(), dimensions.end(), [&](dimension& d1, dimension& d2) {
+        if(d1.subdimensions.size() < 2)
+            return;
+        if(d2.subdimensions.empty())
+            return;
+        if(d2.len() != 1)
+            return;
+        const auto& sub1 = d1.subdimensions.back();
+        auto& sub2       = d2.subdimensions.front();
+        if(sub1.axis.size() != 1)
+            return;
+        if(sub2.axis.size() < 2)
+            return;
+        if(sub1.len != 1)
+            return;
+        if(sub2.len != 1)
+            return;
+        sub2.axis = sub1.axis;
+        d1.subdimensions.pop_back();
+    });
+
+    renumber_axes(dimensions);
+}
 
 void shape_transform_descriptor::simplify()
 {
@@ -507,32 +536,7 @@ void shape_transform_descriptor::simplify()
         }
     }
 
-    // Find a dimension that ends with a subdimension of 1 with a single axis,
-    // and is followed by subdimension in the next dimension of 1 that has a
-    // split axis. It will remove the trailing subdimension and update the
-    // leading subdimension to use the axis from the trailing subdimension.
-    adjacent_for_each(dimensions.begin(), dimensions.end(), [&](dimension& d1, dimension& d2) {
-        if(d1.subdimensions.size() < 2)
-            return;
-        if(d2.subdimensions.empty())
-            return;
-        if(d2.len() != 1)
-            return;
-        const auto& sub1 = d1.subdimensions.back();
-        auto& sub2       = d2.subdimensions.front();
-        if(sub1.axis.size() != 1)
-            return;
-        if(sub2.axis.size() < 2)
-            return;
-        if(sub1.len != 1)
-            return;
-        if(sub2.len != 1)
-            return;
-        sub2.axis = sub1.axis;
-        d1.subdimensions.pop_back();
-    });
-
-    renumber_axes(dimensions);
+    collapse_1_dims(dimensions);
 }
 
 static operation make_reshape_squeeze(const std::vector<dimension>& new_dims)

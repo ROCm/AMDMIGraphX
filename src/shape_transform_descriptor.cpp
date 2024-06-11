@@ -703,8 +703,8 @@ std::vector<operation> shape_transform_descriptor::generate() const
                        std::back_inserter(out_lens),
                        [](const dimension& d) { return d.len(); });
         auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
-        auto trailb = std::find_if_not(startb, new_dims.end(), &has_axes);
-        auto axis   = std::distance(new_dims.begin(), startb);
+        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+        auto axis       = std::distance(new_dims.begin(), startb);
         auto extra_dims = axis + std::distance(trailb, new_dims.end());
         // Use broadcast instead of multibroadcast
         if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and

@@ -8,6 +8,19 @@
 
 namespace mgxinfer1 {
 
+namespace impl {
+//! Declaration of EnumMaxImpl struct to store maximum number of elements in an enumeration type.
+template <typename T>
+struct EnumMaxImpl;
+} // namespace impl
+
+//! Maximum number of elements in an enumeration type.
+template <typename T>
+constexpr int32_t EnumMax() noexcept
+{
+    return impl::EnumMaxImpl<T>::kVALUE;
+}
+
 //! char_t is the type used by TensorRT to represent all valid characters.
 using char_t = char;
 
@@ -327,6 +340,30 @@ enum class TensorLocation : int32_t
     kDEVICE = 0, //!< Data stored on device.
     kHOST   = 1, //!< Data stored on host.
 };
+
+//!
+//! \enum WeightsRole
+//!
+//! \brief How a layer uses particular Weights.
+//!
+//! The power weights of an IScaleLayer are omitted.  Refitting those is not supported.
+//!
+enum class WeightsRole : int32_t
+{
+    kKERNEL = 0,   //!< kernel for IConvolutionLayer or IDeconvolutionLayer
+    kBIAS = 1,     //!< bias for IConvolutionLayer or IDeconvolutionLayer
+    kSHIFT = 2,    //!< shift part of IScaleLayer
+    kSCALE = 3,    //!< scale part of IScaleLayer
+    kCONSTANT = 4, //!< weights for IConstantLayer
+    kANY = 5,      //!< Any other weights role
+};
+
+//! Maximum number of elements in WeightsRole enum. \see WeightsRole
+template <>
+constexpr inline int32_t EnumMax<WeightsRole>() noexcept
+{
+    return 6;
+}
 
 inline DataType toDataType(const migraphx::shape::type_t& type)
 {

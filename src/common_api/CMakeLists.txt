@@ -32,3 +32,8 @@ add_executable(Network network.cpp)
 rocm_clang_tidy_check(Network)
 target_link_libraries(Network migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)
 target_include_directories(Network PUBLIC ../include include)
+
+add_executable(RNNSample rnn_sample.cpp)
+rocm_clang_tidy_check(RNNSample)
+target_link_libraries(RNNSample migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)
+target_include_directories(RNNSample PUBLIC ../include include)

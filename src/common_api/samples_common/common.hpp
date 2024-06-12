@@ -202,58 +202,58 @@ namespace samplesCommon {
 // //    return *reinterpret_cast<T*>(bytes);
 // //}
 
-// class HostMemory
-// {
-// public:
-//     HostMemory() = delete;
-//     virtual void* data() const noexcept
-//     {
-//         return mData;
-//     }
-//     virtual std::size_t size() const noexcept
-//     {
-//         return mSize;
-//     }
-//     virtual nvinfer1::DataType type() const noexcept
-//     {
-//         return mType;
-//     }
-//     virtual ~HostMemory() {}
+class HostMemory
+{
+public:
+    HostMemory() = delete;
+    virtual void* data() const noexcept
+    {
+        return mData;
+    }
+    virtual std::size_t size() const noexcept
+    {
+        return mSize;
+    }
+    virtual mgxinfer1::DataType type() const noexcept
+    {
+        return mType;
+    }
+    virtual ~HostMemory() {}
 
-// protected:
-//     HostMemory(std::size_t size, nvinfer1::DataType type)
-//         : mData{nullptr}
-//         , mSize(size)
-//         , mType(type)
-//     {
-//     }
-//     void* mData;
-//     std::size_t mSize;
-//     nvinfer1::DataType mType;
-// };
+protected:
+    HostMemory(std::size_t size, mgxinfer1::DataType type)
+        : mData{nullptr}
+        , mSize(size)
+        , mType(type)
+    {
+    }
+    void* mData;
+    std::size_t mSize;
+    mgxinfer1::DataType mType;
+};
 
-// template <typename ElemType, nvinfer1::DataType dataType>
-// class TypedHostMemory : public HostMemory
-// {
-// public:
-//     explicit TypedHostMemory(std::size_t size)
-//         : HostMemory(size, dataType)
-//     {
-//         mData = new ElemType[size];
-//     };
-//     ~TypedHostMemory() noexcept override
-//     {
-//         delete[](ElemType*) mData;
-//     }
-//     ElemType* raw() noexcept
-//     {
-//         return static_cast<ElemType*>(data());
-//     }
-// };
+template <typename ElemType, mgxinfer1::DataType dataType>
+class TypedHostMemory : public HostMemory
+{
+public:
+    explicit TypedHostMemory(std::size_t size)
+        : HostMemory(size, dataType)
+    {
+        mData = new ElemType[size];
+    };
+    ~TypedHostMemory() noexcept override
+    {
+        delete[](ElemType*) mData;
+    }
+    ElemType* raw() noexcept
+    {
+        return static_cast<ElemType*>(data());
+    }
+};
 
-// using FloatMemory = TypedHostMemory<float, nvinfer1::DataType::kFLOAT>;
-// using HalfMemory = TypedHostMemory<uint16_t, nvinfer1::DataType::kHALF>;
-// using ByteMemory = TypedHostMemory<uint8_t, nvinfer1::DataType::kINT8>;
+using FloatMemory = TypedHostMemory<float, mgxinfer1::DataType::kFLOAT>;
+using HalfMemory = TypedHostMemory<uint16_t, mgxinfer1::DataType::kHALF>;
+using ByteMemory = TypedHostMemory<uint8_t, mgxinfer1::DataType::kINT8>;
 
 // inline void* safeCudaMalloc(size_t memSize)
 // {
@@ -281,8 +281,8 @@ struct InferDeleter
     }
 };
 
-// template <typename T>
-// using SampleUniquePtr = std::unique_ptr<T, InferDeleter>;
+template <typename T>
+using SampleUniquePtr = std::unique_ptr<T, InferDeleter>;
 
 static auto StreamDeleter = [](hipStream_t* pStream) {
     if(pStream)

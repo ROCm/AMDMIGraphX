@@ -810,6 +810,16 @@ TEST_CASE(dot_dyn_static_test1)
                  s_m2);
 }
 
+TEST_CASE(dot_dyn_static_test2)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {3, 3}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {2, 3, 5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {3, 3}, {5, 5}, {8, 8}}},
+                 migraphx::make_op("dot"),
+                 s_m1,
+                 s_m2);
+}
+
 TEST_CASE(dot_dyn_test0)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
@@ -832,7 +842,7 @@ TEST_CASE(dot_dyn_test1)
 
 TEST_CASE(dot_dyn_test2)
 {
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 1}, {5, 5}, {5, 5}}};
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 20}, {5, 5}, {5, 5}}};
     migraphx::shape s_m2{migraphx::shape::float_type, {1, 5, 8}};
     expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 1}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
@@ -853,10 +863,10 @@ TEST_CASE(dot_dyn_test3)
 
 TEST_CASE(dot_dyn_test4)
 {
-    // Note how the inner dimensions have an intersection in range
-    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}, {4, 8}}};
-    migraphx::shape s_m2{migraphx::shape::float_type, {{1, 4}, {5, 9}, {8, 8}}};
-    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {5, 5}, {8, 8}}},
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape s_m1{migraphx::shape::float_type, {{0, max_val}, {5, 5}, {0, max_val}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{4, 8}, {5, 5}, {8, 8}}},
                  migraphx::make_op("dot"),
                  s_m1,
                  s_m2);
@@ -940,6 +950,43 @@ TEST_CASE(broadcast_for_dot_dyn2)
         migraphx::make_op("broadcast_for_dot"),
         s1,
         s0);
+}
+
+TEST_CASE(broadcast_with_dims0)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {2, 4}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(
+        shape{shape::float_type, dyn_dims}, migraphx::make_op("broadcast_with_dims"), s0, s1);
+}
+
+TEST_CASE(broadcast_with_dims1)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::int32_type, {1, 2, 4}};
+    shape s1{migraphx::shape::int64_type, {1}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(3, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::int32_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
+}
+
+TEST_CASE(broadcast_with_dims2)
+{
+    using migraphx::shape;
+    shape s0{migraphx::shape::float_type, {{1, 4}, {2, 2}, {4, 4}}};
+    shape s1{migraphx::shape::int64_type, {4}};
+    std::size_t max_int = std::numeric_limits<std::size_t>::max();
+    std::vector<shape::dynamic_dimension> dyn_dims(4, shape::dynamic_dimension{0, max_int});
+    expect_shape(shape{migraphx::shape::float_type, dyn_dims},
+                 migraphx::make_op("broadcast_with_dims"),
+                 s0,
+                 s1);
 }
 
 TEST_CASE(flatten_shape)
@@ -2279,6 +2326,181 @@ TEST_CASE(nms_shape)
                  score_thres_s);
 }
 
+TEST_CASE(onehot0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2}, {3, 3}, {0, max_val}}};
+    expect_shape(output, migraphx::make_op("onehot"), indices, depth, values);
+}
+
+TEST_CASE(onehot1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2}, {3, 3}, {0, max_val}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
+}
+
+TEST_CASE(onehot2)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2}, {0, max_val}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 1}}), indices, depth, values);
+}
+
+TEST_CASE(onehot3)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::float_type, {{0, max_val}, {2, 2}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", -3}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_error0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 3}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_error1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_dyn_indices)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {{1, 4}, {2, 2}, {3, 3}}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::int32_type, {2}};
+    std::size_t max_val = std::numeric_limits<std::size_t>::max();
+    migraphx::shape output{migraphx::shape::int32_type, {{1, 4}, {2, 2}, {0, max_val}, {3, 3}}};
+    expect_shape(output, migraphx::make_op("onehot", {{"axis", 2}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_out_of_range0)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 3}}), indices, depth, values);
+}
+
+TEST_CASE(onehot_axis_out_of_range1)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape depth{migraphx::shape::int64_type, {1}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
+}
+
+TEST_CASE(pack_int4)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 8}};
+    expect_shape(output, migraphx::make_op("pack_int4"), input);
+}
+
+TEST_CASE(pack_int4_axis1)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(pack_int4_axis2)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", -3}}), input);
+}
+
+TEST_CASE(pack_int4_invalid_axis)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 4}}), input);
+}
+
+TEST_CASE(pack_int4_nonstandard)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 8, 16, 4}};
+    expect_shape(output, migraphx::make_op("pack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(pack_int4_invalid_dtype)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(pack_int4_odd_lengths)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {3, 4, 16, 16}};
+    throws_shape(migraphx::make_op("pack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(unpack_int4)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 8}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4"), input);
+}
+
+TEST_CASE(unpack_int4_axis1)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_axis2)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 2, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", -3}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_axis)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 4}}), input);
+}
+
+TEST_CASE(unpack_int4_nonstandard)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {1, 16, 16, 4}, {1024, 16, 1, 256}};
+    migraphx::shape output{migraphx::shape::uint8_type, {1, 32, 16, 4}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 1}}), input);
+}
+
+TEST_CASE(unpack_int4_invalid_dtype)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 4, 16, 16}};
+    throws_shape(migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
+TEST_CASE(unpack_int4_odd_lengths)
+{
+    migraphx::shape input{migraphx::shape::uint8_type, {3, 4, 16, 16}};
+    migraphx::shape output{migraphx::shape::uint8_type, {6, 4, 16, 16}};
+    expect_shape(output, migraphx::make_op("unpack_int4", {{"axis", 0}}), input);
+}
+
 TEST_CASE(pad_shape0)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 3, 3}};
@@ -2334,6 +2556,20 @@ TEST_CASE(pointwise_no_output)
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args{};
     EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), args, {&m}); }));
+}
+
+TEST_CASE(pointwise_strict_type)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::module pm;
+    {
+        auto x = pm.add_parameter("x", s.with_type(migraphx::shape::half_type));
+        pm.add_return({x});
+    }
+    auto x = mm->add_parameter("x", s);
+    EXPECT(test::throws([&] { mm->add_instruction(migraphx::make_op("pointwise"), {x}, {&pm}); }));
 }
 
 TEST_CASE(pooling_shape0)
@@ -2722,13 +2958,6 @@ void test_reduce_ops(const std::string& name)
     {
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
-                     migraphx::make_op(name),
-                     input);
-    }
-
-    {
-        migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
-        expect_shape(migraphx::shape{migraphx::shape::float_type, {1, 1, 1, 1}},
                      migraphx::make_op(name, {{"axes", {0, 1, 2, 3}}}),
                      input);
     }
@@ -2776,12 +3005,11 @@ void test_dyn_reduce_ops(const std::string& name)
             input);
     }
     {
-        // Empty axis argument reduces all axes
         migraphx::shape input{migraphx::shape::float_type, {{2, 3, {3}}, {2, 4, {4}}}};
         expect_shape(
             migraphx::shape{migraphx::shape::float_type,
                             std::vector<migraphx::shape::dynamic_dimension>({{1, 1}, {1, 1}})},
-            migraphx::make_op(name),
+            migraphx::make_op(name, {{"axes", {0, 1}}}),
             input);
     }
     {
@@ -2790,15 +3018,40 @@ void test_dyn_reduce_ops(const std::string& name)
     }
 }
 
+void test_reduce_ops_variable_axes(const std::string& name)
+{
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
+        migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+        migraphx::shape expected_shape{migraphx::shape::float_type, {{1, 2}, {1, 3}, {1, 4}}};
+        expect_shape(expected_shape, migraphx::make_op(name), input_shape, axes_shape);
+    }
+
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {{2, 3}, {3, 4}}};
+        migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+        migraphx::shape expected_shape{migraphx::shape::float_type, {{1, 3}, {1, 4}}};
+        expect_shape(expected_shape, migraphx::make_op(name), input_shape, axes_shape);
+    }
+}
+
 TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_min) { test_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
+
+TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
+TEST_CASE(reduce_min_variable_axes) { test_reduce_ops_variable_axes("reduce_min"); }
+TEST_CASE(reduce_mean_variable_axes) { test_reduce_ops_variable_axes("reduce_mean"); }
+TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_prod"); }
+TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
 
 TEST_CASE(reshape_shape)
 {
@@ -4398,7 +4651,11 @@ TEST_CASE(test_squeeze_dyn)
     migraphx::shape s3{migraphx::shape::float_type, {{1, 4}, {3, 3}, {3, 3}}};
     expect_shape(s3, migraphx::make_op("squeeze"), s1);
 
-    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+    // allowing to squeeze dynamic_dimension that intersect with {1, 1}
+    migraphx::shape s4{migraphx::shape::float_type, {{1, 1}, {3, 3}, {1, 1}, {3, 3}}};
+    expect_shape(s4, migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
 }
 
 TEST_CASE(test_squeeze_dyn_neg_axes)
@@ -4462,7 +4719,8 @@ TEST_CASE(test_unique_axis_negative)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique", {{"axis", -3}}), x_shape);
+    expect_shape(
+        migraphx::shape(y_dyn_shape), migraphx::make_op("unique", {{"axis", -3}}), x_shape);
 }
 
 TEST_CASE(test_unique_axis_none)
@@ -4476,7 +4734,7 @@ TEST_CASE(test_unique_axis_none)
                                              {migraphx::shape::int64_type, idx_dims},
                                              {migraphx::shape::int64_type, idx_dims}};
 
-    expect_shape(y_dyn_shape, migraphx::make_op("unique"), x_shape);
+    expect_shape(migraphx::shape(y_dyn_shape), migraphx::make_op("unique"), x_shape);
 }
 
 TEST_CASE(test_unsqueeze)

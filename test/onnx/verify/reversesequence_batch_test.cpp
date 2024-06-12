@@ -28,7 +28,7 @@
 
 TEST_CASE(reversesequence_batch_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("reversesequence_batch_test.onnx");
+    migraphx::program p = read_onnx("reversesequence_batch_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape xs{migraphx::shape::float_type, {4, 4}};

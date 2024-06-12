@@ -35,6 +35,6 @@ TEST_CASE(pad_attr_dyn_test)
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["0"] = {{2, 4, {2}}, {2, 4, {2}}};
-    auto prog                       = parse_onnx("pad_attr_dyn_test.onnx", options);
+    auto prog                       = read_onnx("pad_attr_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

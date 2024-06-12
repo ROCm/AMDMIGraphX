@@ -41,6 +41,6 @@ TEST_CASE(averagepool_nt_cip_test)
                                    ins_pad);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("averagepool_nt_cip_test.onnx");
+    auto prog = read_onnx("averagepool_nt_cip_test.onnx");
     EXPECT(p == prog);
 }

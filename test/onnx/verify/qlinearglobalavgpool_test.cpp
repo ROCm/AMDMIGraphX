@@ -31,7 +31,7 @@ TEST_CASE(qlinearglobalavgpool_test)
     // github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md
     // #com.microsoft.QLinearGlobalAveragePool
 
-    migraphx::program p = migraphx::parse_onnx("qlinearglobalavgpool_test.onnx");
+    migraphx::program p = read_onnx("qlinearglobalavgpool_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sh_x{migraphx::shape::uint8_type, {1, 3, 4, 4}};

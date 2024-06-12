@@ -34,7 +34,7 @@ TEST_CASE(reducesum_empty_axes_test)
     auto r  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1, 2, 3}}}), l1);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("reducesum_empty_axes_test.onnx");
+    auto prog = read_onnx("reducesum_empty_axes_test.onnx");
 
     EXPECT(p == prog);
 }

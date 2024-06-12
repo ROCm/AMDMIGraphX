@@ -38,6 +38,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 cpp_generator::function&
 cpp_generator::function::set_body(const module& m, const cpp_generator::generate_module_callback& g)
 {
+    const std::string prefix = "zz";
     std::unordered_map<migraphx::instruction_ref, std::string> names;
     std::stringstream ss;
 
@@ -53,12 +54,13 @@ cpp_generator::function::set_body(const module& m, const cpp_generator::generate
         }
         else if(ins->name() == "@return")
         {
-            assert(ins->inputs().size() == 1);
-            return_ins = ins->inputs().front();
+            names[ins] = prefix + "return";
+            ss << "auto " << names[ins] << " = " << g(ins, names) << ";\n";
+            return_ins = ins;
         }
         else
         {
-            std::string n = "z" + std::to_string(names.size());
+            std::string n = prefix + std::to_string(names.size());
             names[ins]    = n;
             ss << "auto " << n << " = " << g(ins, names) << ";\n";
         }
@@ -125,6 +127,7 @@ struct cpp_generator_impl
     std::function<std::string(std::string)> fmap              = nullptr;
     std::function<std::string(shape)> fresult                 = nullptr;
     std::unordered_map<std::string, std::string> point_op_map = {};
+    bool always_return_tuple                                  = false;
 };
 cpp_generator::cpp_generator() : impl(std::make_unique<cpp_generator_impl>()) {}
 
@@ -141,6 +144,8 @@ cpp_generator::~cpp_generator() noexcept = default;
 void cpp_generator::fmap(const std::function<std::string(std::string)>& f) { impl->fmap = f; }
 
 void cpp_generator::fresult(const std::function<std::string(shape)>& f) { impl->fresult = f; }
+
+void cpp_generator::always_return_tuple(bool b) { impl->always_return_tuple = b; }
 
 void cpp_generator::add_point_op(const std::string& op_name, const std::string& code)
 {
@@ -221,6 +226,13 @@ cpp_generator::function cpp_generator::generate_module(const module& m,
                         string_literal = ins->get_literal().to_string();
                 });
                 return shape::cpp_type(ins->get_shape().type()) + "(" + string_literal + ")";
+            }
+            if(ins->name() == "@return")
+            {
+                // TODO: Customize the make_tuple call
+                if(impl->always_return_tuple or ins->inputs().size() != 1)
+                    return "make_tuple(" + join_strings(to_args(ins->inputs(), names), ", ") + ")";
+                return names.at(ins->inputs().front());
             }
             auto s = g(ins, names);
             if(impl->fresult)

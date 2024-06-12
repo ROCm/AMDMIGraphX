@@ -36,6 +36,7 @@ target_link_libraries(migraphx_ref PUBLIC migraphx)
 migraphx_generate_export_header(migraphx_ref)
 
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx_ref
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

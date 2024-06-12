@@ -28,7 +28,7 @@
 
 TEST_CASE(hardmax_axis_verify_test)
 {
-    migraphx::program p = migraphx::parse_onnx("hardmax_axis_test.onnx");
+    migraphx::program p = read_onnx("hardmax_axis_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<std::size_t> input_lens{1, 2, 3, 4};

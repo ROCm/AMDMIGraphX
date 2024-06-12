@@ -102,6 +102,7 @@ struct test_conv_bn_relu_pooling2 : verify_program<test_conv_bn_relu_pooling2<DT
                             relu);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
 template struct test_conv_bn_relu_pooling2<migraphx::shape::float_type>;

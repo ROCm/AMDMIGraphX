@@ -43,6 +43,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/common_api/bindings.hpp>
 #include "../common_api/include/MgxInfer.hpp"
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
@@ -256,8 +257,6 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
-int test_fun(int i, int j) { return i * j; }
-
 void throwPyError(PyObject* type, std::string const& message)
 {
     PyErr_SetString(type, message.data());
@@ -308,216 +307,16 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     auto common_api = m.def_submodule("common_api");
 
-    /*Types start*/
-    py::enum_<mgxinfer1::DataType>(common_api, "DataType", "TODO docstring", py::module_local())
-        .value("FLOAT", mgxinfer1::DataType::kFLOAT, "TODO docstring")
-        .value("HALF", mgxinfer1::DataType::kHALF, "TODO docstring")
-        .value("BF16", mgxinfer1::DataType::kBF16, "TODO dosctring")
-        .value("INT8", mgxinfer1::DataType::kINT8, "TODO dosctring")
-        .value("INT32", mgxinfer1::DataType::kINT32, "TODO dosctring")
-        .value("INT64", mgxinfer1::DataType::kINT64, "TODO dosctring")
-        .value("BOOL", mgxinfer1::DataType::kBOOL, "TODO dosctring")
-        .value("UINT8", mgxinfer1::DataType::kUINT8, "TODO dosctring")
-        .value("FP8", mgxinfer1::DataType::kFP8, "TODO dosctring")
-        .value("INT4", mgxinfer1::DataType::kINT4, "TODO dosctring");
-
-    common_api.attr("float32")  = mgxinfer1::DataType::kFLOAT;
-    common_api.attr("float16")  = mgxinfer1::DataType::kHALF;
-    common_api.attr("bfloat16") = mgxinfer1::DataType::kBF16;
-    common_api.attr("int8")     = mgxinfer1::DataType::kINT8;
-    common_api.attr("int32")    = mgxinfer1::DataType::kINT32;
-    common_api.attr("int64")    = mgxinfer1::DataType::kINT64;
-    common_api.attr("bool")     = mgxinfer1::DataType::kBOOL;
-    common_api.attr("uint8")    = mgxinfer1::DataType::kUINT8;
-    common_api.attr("fp8")      = mgxinfer1::DataType::kFP8;
-    common_api.attr("int4")     = mgxinfer1::DataType::kINT4;
-
-    py::enum_<mgxinfer1::TensorIOMode>(
-        common_api, "TensorIOMode", "TODO docstring", py::module_local())
-        .value("NONE", mgxinfer1::TensorIOMode::kNONE, "TODO docstring")
-        .value("INPUT", mgxinfer1::TensorIOMode::kINPUT, "TODO docstring")
-        .value("OUTPUT", mgxinfer1::TensorIOMode::kOUTPUT, "TODO docstring");
-
-    py::enum_<mgxinfer1::ExecutionContextAllocationStrategy>(common_api,
-                                                             "ExecutionContextAllocationStrategy",
-                                                             py::arithmetic{},
-                                                             "TODO docstring",
-                                                             py::module_local())
-        .value("STATIC", mgxinfer1::ExecutionContextAllocationStrategy::kSTATIC, "TODO docstring")
-        .value("ON_PROFILE_CHANGE",
-               mgxinfer1::ExecutionContextAllocationStrategy::kON_PROFILE_CHANGE,
-               "TODO docstring")
-        .value("USER_MANAGED",
-               mgxinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED,
-               "TODO docstring");
-    /*Types end*/
-
-    /*Dims start*/
-    constexpr auto dims_from_vec = [](std::vector<int64_t> const& in) {
-        int32_t const maxDims{static_cast<int32_t>(mgxinfer1::Dims::MAX_DIMS)};
-        PY_ASSERT_VALUE_ERROR(in.size() <= maxDims,
-                              "Input length " + std::to_string(in.size()) +
-                                  ". Max expected length is " + std::to_string(maxDims));
-
-        mgxinfer1::Dims* dims = new mgxinfer1::Dims{};
-        dims->nbDims          = in.size();
-        for(int32_t i = 0; i < in.size(); ++i)
-            dims->d[i] = in[i];
-        return dims;
-    };
-
-    constexpr auto dims_getitem = [](const mgxinfer1::Dims& dims,
-                                     const int32_t py_idx) -> const int64_t& {
-        const int32_t idx{(py_idx < 0) ? static_cast<int32_t>(dims.nbDims) + py_idx : py_idx};
-        PY_ASSERT_INDEX_ERROR(idx >= 0 && idx < dims.nbDims);
-        return dims.d[idx];
-    };
-
-    constexpr auto dims_getitem_slice = [](const mgxinfer1::Dims& dims, py::slice slice) {
-        size_t start, stop, step, slice_len;
-        PY_ASSERT_VALUE_ERROR(slice.compute(dims.nbDims, &start, &stop, &step, &slice_len),
-                              "Incorrect getter slice dims");
-        PY_ASSERT_INDEX_ERROR(stop <= dims.nbDims);
-
-        py::tuple ret{slice_len};
-        for(int32_t i = start, idx = 0; i < stop; i += step, ++idx)
-            ret[idx] = dims.d[i];
-        return ret;
-    };
-
-    constexpr auto dims_to_str = [](const mgxinfer1::Dims& dims) {
-        if(dims.nbDims == 0)
-            return std::string("()");
-
-        if(dims.nbDims == 1)
-            return "(" + std::to_string(dims.d[0]) + ",)";
-
-        std::string temp = "(";
-        for(int32_t i = 0; i < dims.nbDims - 1; ++i)
-            temp += std::to_string(dims.d[i]) + ", ";
-        temp += std::to_string(dims.d[dims.nbDims - 1]) + ")";
-        return temp;
-    };
-
-    constexpr auto dims_setitem =
-        [](mgxinfer1::Dims& dims, const int32_t py_idx, const int64_t item) {
-            const int32_t idx{(py_idx < 0) ? static_cast<int32_t>(dims.nbDims) + py_idx : py_idx};
-            PY_ASSERT_INDEX_ERROR(idx >= 0 && idx < dims.nbDims);
-            dims.d[idx] = item;
-        };
-
-    constexpr auto dims_setitem_slice =
-        [](mgxinfer1::Dims& dims, py::slice slice, const mgxinfer1::Dims& other) {
-            size_t start, stop, step, slice_len;
-            PY_ASSERT_VALUE_ERROR(slice.compute(dims.nbDims, &start, &stop, &step, &slice_len),
-                                  "Incorrect setter slice dims");
-            // Disallow out-of-bounds things.
-            PY_ASSERT_INDEX_ERROR(stop < dims.nbDims);
-
-            for(int32_t i = start, index = 0; i < stop; i += step, ++index)
-                dims.d[i] = other.d[index];
-        };
-
-    py::class_<mgxinfer1::Dims>(common_api, "Dims", "TODO docstring", py::module_local())
-        .def(py::init<>())
-        // Allows for construction from python lists and tuples.
-        .def(py::init(dims_from_vec), "shape"_a)
-        // static_cast is required here, or MAX_DIMS does not get pulled in until LOAD time.
-        .def_property_readonly_static(
-            "MAX_DIMS",
-            [](py::object) { return static_cast<int32_t const>(mgxinfer1::Dims::MAX_DIMS); },
-            "TODO docstring")
-        .def("__len__", [](const mgxinfer1::Dims& dims) { return dims.nbDims; })
-        .def("__getitem__", dims_getitem)
-        .def("__getitem__", dims_getitem_slice)
-        .def("__setitem__", dims_setitem)
-        .def("__setitem__", dims_setitem_slice)
-        .def("__str__", dims_to_str)
-        .def("__repr__", dims_to_str);
-
-    // Make it possible to use tuples/lists in Python in place of Dims.
-    py::implicitly_convertible<std::vector<int64_t>, mgxinfer1::Dims>();
-
-    // TODO make this work for any python iterable
-    common_api.def("volume", [](const mgxinfer1::Dims& dims) {
-        size_t ret = 1;
-        for(auto i = 0; i < dims.nbDims; ++i)
-            ret *= dims.d[i];
-
-        return ret;
-    });
-
-    /*Dims end*/
-
-    /*Logger start*/
-    // Trampoline for ILogger
-    // https://pybind11.readthedocs.io/en/stable/advanced/classes.html
-    class PyLogger : public mgxinfer1::ILogger
-    {
-        public:
-        virtual void log(Severity severity, const char* msg) noexcept override
-        {
-            // TODO
-            PYBIND11_OVERRIDE_PURE_NAME(void, mgxinfer1::ILogger, "log", log, severity, msg);
-        }
-    };
-
-    auto ilogger =
-        py::class_<mgxinfer1::ILogger, PyLogger>(
-            common_api, "ILogger", "TODO dosctring", py::module_local())
-            .def(py::init<>())
-            .def("log", &mgxinfer1::ILogger::log, "severity"_a, "msg"_a, "TODO dosctring");
-
-    py::enum_<mgxinfer1::ILogger::Severity>(
-        ilogger, "Severity", py::arithmetic(), "TODO dosctring", py::module_local())
-        .value("INTERNAL_ERROR", mgxinfer1::ILogger::Severity::kINTERNAL_ERROR, "TODO dosctring")
-        .value("ERROR", mgxinfer1::ILogger::Severity::kERROR, "TODO dosctring")
-        .value("WARNING", mgxinfer1::ILogger::Severity::kWARNING, "TODO dosctring")
-        .value("INFO", mgxinfer1::ILogger::Severity::kINFO, "TODO dosctring")
-        .value("VERBOSE", mgxinfer1::ILogger::Severity::kVERBOSE, "TODO dosctring")
-        .export_values();
-
-    py::class_<mgxinfer1::PythonLogger, mgxinfer1::ILogger>(
-        common_api, "Logger", "TODO dosctring", py::module_local())
-        .def(py::init<mgxinfer1::ILogger::Severity>(),
-             "min_severity"_a = mgxinfer1::ILogger::Severity::kWARNING)
-        .def("log", &mgxinfer1::PythonLogger::log, "severity"_a, "msg"_a, "TODO dosctring");
-    /*Logger end*/
+    mgxinfer1::pybinds::base_enum_bindings(common_api);
+    mgxinfer1::pybinds::base_type_bindings(common_api);
+    mgxinfer1::pybinds::logger_bindings(common_api);
 
     /*INetworkDefinition start*/
     py::class_<mgxinfer1::INetworkDefinition>(
         common_api, "INetworkDefinition", "TODO docstring", py::module_local());
+    /*INetworkDefinition ends*/
 
     /*IBuilder start*/
-    py::class_<mgxinfer1::IHostMemory>(
-        common_api, "IHostMemory", py::buffer_protocol(), "TODO docstring", py::module_local())
-        .def_property_readonly("dtype",
-                               [](mgxinfer1::IHostMemory const& mem) { return mem.type(); })
-        .def_property_readonly("nbytes",
-                               [](mgxinfer1::IHostMemory const& mem) { return mem.size(); })
-        .def_buffer([](mgxinfer1::IHostMemory& mem) {
-            py::buffer_info mem_info;
-            mem_info.ptr      = mem.data();
-            mem_info.itemsize = mgxinfer1::sizeofDataType(mem.type());
-            // TODO this should be based on mem.type
-            mem_info.format  = py::format_descriptor<char>::format();
-            mem_info.ndim    = 1;
-            mem_info.shape   = {static_cast<py::ssize_t>(mem.size())};
-            mem_info.strides = {mem_info.itemsize};
-            return mem_info;
-        });
-
-    py::enum_<mgxinfer1::MemoryPoolType>(
-        common_api, "MemoryPoolType", "TODO docstring", py::module_local())
-        .value("WORKSPACE", mgxinfer1::MemoryPoolType::kWORKSPACE, "TODO docstring")
-        .value("DLA_MANAGED_SRAM", mgxinfer1::MemoryPoolType::kDLA_MANAGED_SRAM, "TODO docstring")
-        .value("DLA_LOCAL_DRAM", mgxinfer1::MemoryPoolType::kDLA_LOCAL_DRAM, "TODO docstring")
-        .value("DLA_GLOBAL_DRAM", mgxinfer1::MemoryPoolType::kDLA_GLOBAL_DRAM, "TODO docstring")
-        .value("TACTIC_DRAM", mgxinfer1::MemoryPoolType::kTACTIC_DRAM, "TODO docstring")
-        .value("TACTIC_SHARED_MEMORY",
-               mgxinfer1::MemoryPoolType::kTACTIC_SHARED_MEMORY,
-               "TODO docstring");
-
     py::class_<mgxinfer1::IBuilderConfig>(
         common_api, "IBuilderConfig", "TODO docstring", py::module_local())
         .def("set_memory_pool_limit",

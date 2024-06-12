@@ -4,21 +4,16 @@ from typing import Optional, Union, List
 from hip import hip
 import ctypes
 
-
 import os
 import argparse
-
-# # This sample uses an ONNX ResNet50 Model to create a TensorRT Inference Engine
+# This sample uses an ONNX ResNet50 Model to create a TensorRT Inference Engine
 import random
 import sys
 
 import numpy as np
-
-# import tensorrt as trt
 from PIL import Image
 
 sys.path.insert(1, os.path.join(sys.path[0], ".."))
-# import common
 
 def nptype(trt_type):
 

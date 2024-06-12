@@ -6256,14 +6256,6 @@ class IBuilder : public INoCopy
 //!
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
 
-class PythonLogger : public ILogger
-{
-    public:
-    PythonLogger(Severity min = Severity::kWARNING) {}
-
-    void log(Severity, AsciiChar const*) noexcept override {}
-};
-
 } // namespace mgxinfer1
 
 //!

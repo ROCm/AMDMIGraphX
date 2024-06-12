@@ -37,8 +37,13 @@ struct test_lpnorm_pooling_ceil_3d : verify_program<test_lpnorm_pooling_ceil_3d<
 
         auto input =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::lpnorm, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true, N};
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm,
+                                        {1, 1, 1},
+                                        {3, 3, 3},
+                                        {3, 3, 3},
+                                        {1, 1, 1},
+                                        true,
+                                        N};
         mm->add_instruction(op, input);
         return p;
     }

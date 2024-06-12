@@ -104,6 +104,7 @@ struct min
 };
 } // namespace op
 
+// NOLINTNEXTLINE
 #define MIGRAPHX_OPS_DEFINE_COMMON_TYPE(T) \
     template <class U>                     \
     struct common_type<T, U>               \

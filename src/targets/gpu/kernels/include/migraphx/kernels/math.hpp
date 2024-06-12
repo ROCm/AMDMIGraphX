@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -256,6 +256,21 @@ constexpr auto min(const T& a, const U& b)
     return min<common_type_t<T, U>>(a, b);
 }
 
+template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr T mod(const T& a, const T& b)
+{
+    if constexpr(is_integral<T>{})
+        // onnx mod operator requires numpy style modulus
+        return ((a % b) + b) % b;
+    return static_cast<T>(fmod(remainder(a, b) + b, b));
+}
+
+template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+constexpr auto mod(const T& a, const U& b)
+{
+    return mod<common_type_t<T, U>>(a, b);
+}
+
 MIGRAPHX_DEVICE_MATH_VEC(abs)
 MIGRAPHX_DEVICE_MATH_VEC(acos)
 MIGRAPHX_DEVICE_MATH_VEC(acosh)
@@ -275,6 +290,7 @@ MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(max)
 MIGRAPHX_DEVICE_MATH_VEC(min)
+MIGRAPHX_DEVICE_MATH_VEC(mod)
 MIGRAPHX_DEVICE_MATH_VEC(nearbyint)
 MIGRAPHX_DEVICE_MATH_VEC(pow)
 MIGRAPHX_DEVICE_MATH_VEC(remainder)

@@ -28,7 +28,7 @@
 
 TEST_CASE(spacetodepth_simple_test)
 {
-    auto p = migraphx::parse_onnx("spacetodepth_simple_test.onnx");
+    auto p = read_onnx("spacetodepth_simple_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<float> data_in(48);
     std::iota(std::begin(data_in), std::end(data_in), 0);
@@ -47,7 +47,7 @@ TEST_CASE(spacetodepth_simple_test)
 TEST_CASE(spacetodepth_depthtospace_test)
 {
     // space to depth
-    auto p1 = migraphx::parse_onnx("spacetodepth_simple_test.onnx");
+    auto p1 = read_onnx("spacetodepth_simple_test.onnx");
     p1.compile(migraphx::make_target("ref"));
     std::vector<float> gold_data_in(48);
     std::iota(std::begin(gold_data_in), std::end(gold_data_in), 0);
@@ -56,7 +56,7 @@ TEST_CASE(spacetodepth_depthtospace_test)
     pp1["x"]     = migraphx::argument(s_x_1, gold_data_in.data());
     auto result1 = p1.eval(pp1).back();
     // depth to space
-    auto p2 = migraphx::parse_onnx("depthtospace_simple_test.onnx");
+    auto p2 = read_onnx("depthtospace_simple_test.onnx");
     p2.compile(migraphx::make_target("ref"));
     migraphx::parameter_map pp2;
     pp2["x"]     = result1;

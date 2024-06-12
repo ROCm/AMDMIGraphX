@@ -28,7 +28,7 @@
 
 TEST_CASE(round_half_test)
 {
-    migraphx::program p = migraphx::parse_onnx("round_half_test.onnx");
+    migraphx::program p = read_onnx("round_half_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape xs{migraphx::shape::half_type, {4, 4}};

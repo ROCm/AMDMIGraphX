@@ -393,6 +393,19 @@ void tf_parser::parse_from(std::istream& is)
     }
 }
 
+void tf_parser::parse_from(const void* data, std::size_t size)
+{
+    tensorflow::GraphDef graph;
+    if(graph.ParseFromArray(data, size))
+    {
+        this->parse_graph(graph);
+    }
+    else
+    {
+        throw std::runtime_error("Failed reading tf buffer array");
+    }
+}
+
 shape::type_t tf_parser::parse_type(const tensorflow::DataType t) const
 {
     shape::type_t shape_type{};

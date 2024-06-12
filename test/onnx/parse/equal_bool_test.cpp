@@ -40,7 +40,7 @@ TEST_CASE(equal_bool_test)
     auto ret = mm->add_instruction(migraphx::make_op("equal"), cin1, input2);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("equal_bool_test.onnx");
+    auto prog = read_onnx("equal_bool_test.onnx");
 
     EXPECT(p == prog);
 }

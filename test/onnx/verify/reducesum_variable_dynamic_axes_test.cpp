@@ -35,7 +35,7 @@ auto reducesum_variable_dynamic_axes_test_base(migraphx::shape axes_shape,
     migraphx::onnx_options options;
     const std::vector<migraphx::shape::dynamic_dimension> axes_dims{{0, 3}};
     options.map_dyn_input_dims["axes"] = axes_dims;
-    migraphx::program p                = parse_onnx(file, options);
+    migraphx::program p                = read_onnx(file, options);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map pm;

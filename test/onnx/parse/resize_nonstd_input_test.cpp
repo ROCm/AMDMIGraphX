@@ -48,7 +48,7 @@ TEST_CASE(resize_nonstd_input_test)
     auto r    = mm->add_instruction(migraphx::make_op("gather", {{"axis", 0}}), lrsp, li);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("resize_nonstd_input_test.onnx");
+    auto prog = read_onnx("resize_nonstd_input_test.onnx");
 
     EXPECT(p == prog);
 }

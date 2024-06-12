@@ -210,7 +210,14 @@ Operator Support Matrix
 |                          |           |                 | shape is not                 |
 |                          |           |                 | supported                    |
 +--------------------------+-----------+-----------------+------------------------------+
-| Einsum                   | 👷        | 👷              |                              |
+| Einsum                   | ✅        | Any             | more than 1 diagonal per     |
+|                          |           |                 | input is not supported       |
+|                          |           |                 | e.g. ``iijj->ij``            |
+|                          |           |                 |                              |
+|                          |           |                 | batch diagonal where batches |
+|                          |           |                 | are not the leading dims is  |
+|                          |           |                 | not supported                |
+|                          |           |                 | e.g. ``ii...->i...``         |
 +--------------------------+-----------+-----------------+------------------------------+
 | Elu                      | ✅        | FP8, FP16,      |                              |
 |                          |           | FP32, FP64      |                              |

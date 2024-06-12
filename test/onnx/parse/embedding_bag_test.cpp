@@ -40,7 +40,7 @@ TEST_CASE(embedding_bag_test)
     auto r3 = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {0}}}), l6);
     mm->add_return({r1, r2, r3});
 
-    auto prog = migraphx::parse_onnx("embedding_bag_test.onnx");
+    auto prog = read_onnx("embedding_bag_test.onnx");
 
     EXPECT(p == prog);
 }

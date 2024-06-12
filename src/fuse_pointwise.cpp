@@ -31,6 +31,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/param_utils.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <iterator>
 
@@ -41,7 +42,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 static literal get_scalar(instruction_ref ins)
 {
-    if(ins->name() == "contiguous")
+    if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
     if(s.elements() != 1 and not(s.scalar()))
@@ -88,7 +89,7 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =
-                    pm->add_parameter("x" + std::to_string(i), shape{input->get_shape().type()});
+                    pm->add_parameter(param_name(i), shape{input->get_shape().type()});
                 i++;
             }
             else
@@ -133,7 +134,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     for(auto i : range(inputs.size()))
     {
         auto input = inputs[i];
-        auto param = pm.get_parameter("x" + std::to_string(i));
+        auto param = pm.get_parameter(param_name(i));
         assert(param != pm.end());
         input_map[input] = param;
     }
@@ -141,7 +142,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     for(auto i : range(output->inputs().size()))
     {
         auto input = output->inputs()[i];
-        auto param = xm->get_parameter("x" + std::to_string(i));
+        auto param = xm->get_parameter(param_name(i));
         assert(param != xm->end());
         if(input == ins)
         {
@@ -156,7 +157,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
         else
         {
             map_ins[param] =
-                pm.add_parameter("x" + std::to_string(inputs.size()), {input->get_shape().type()});
+                pm.add_parameter(param_name(inputs.size()), {input->get_shape().type()});
             inputs.push_back(input);
             input_map[input] = map_ins[param];
         }

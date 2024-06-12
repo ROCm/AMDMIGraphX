@@ -74,7 +74,7 @@ TEST_CASE(qlinearconv_test)
 
     mm->add_return({y});
 
-    auto prog = migraphx::parse_onnx("qlinearconv_test.onnx");
+    auto prog = read_onnx("qlinearconv_test.onnx");
 
     EXPECT(p.sort() == prog.sort());
 }

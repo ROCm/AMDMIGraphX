@@ -26,5 +26,5 @@
 
 TEST_CASE(mvn_default_axes_rank_too_big_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("mvn_default_axes_rank_too_big_test.onnx"); }));
+    EXPECT(test::throws([&] { optimize_onnx("mvn_default_axes_rank_too_big_test.onnx"); }));
 }

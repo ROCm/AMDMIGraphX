@@ -28,8 +28,7 @@
 
 TEST_CASE(if_then_else_multi_output_shapes_inlined_test)
 {
-    migraphx::program p =
-        migraphx::parse_onnx("if_then_else_multi_output_shapes_inlined_test.onnx");
+    migraphx::program p = read_onnx("if_then_else_multi_output_shapes_inlined_test.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape x_data{migraphx::shape::float_type, {2, 3, 1}};
     migraphx::shape y_data{migraphx::shape::float_type, {2, 3}};

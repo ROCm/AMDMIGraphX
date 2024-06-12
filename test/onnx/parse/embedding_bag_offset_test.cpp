@@ -26,5 +26,5 @@
 
 TEST_CASE(embedding_bag_offset_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("embedding_bag_offset_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("embedding_bag_offset_test.onnx"); }));
 }

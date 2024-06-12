@@ -34,7 +34,7 @@ TEST_CASE(logsoftmax_nonstd_input_test)
     auto l2 = mm->add_instruction(migraphx::make_op("logsoftmax", {{"axis", -1}}), l1);
     mm->add_return({l2});
 
-    auto prog = migraphx::parse_onnx("logsoftmax_nonstd_input_test.onnx");
+    auto prog = read_onnx("logsoftmax_nonstd_input_test.onnx");
 
     EXPECT(p == prog);
 }

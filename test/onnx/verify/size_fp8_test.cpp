@@ -22,25 +22,22 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/float8.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+TEST_CASE(size_fp8_test)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
-        return p;
-    }
-};
+    migraphx::program p = read_onnx("size_fp8_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+    migraphx::shape s{migraphx::shape::fp8e4m3fnuz_type, {2, 5, 3}};
+    std::vector<float> data(30, 1.);
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(s, data.data());
+
+    auto result      = p.eval(pp).back();
+    auto size_result = result.at<int64_t>();
+    EXPECT(size_result == int64_t{30});
+}

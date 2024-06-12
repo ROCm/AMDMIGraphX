@@ -22,25 +22,18 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <onnx_test.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+TEST_CASE(div_fp8_test)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
-        return p;
-    }
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto p0  = mm->add_parameter("0", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {2, 3}});
+    auto p1  = mm->add_parameter("1", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {2, 3}});
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+    mm->add_instruction(migraphx::make_op("div"), p0, p1);
+
+    auto prog = optimize_onnx("div_fp8_test.onnx");
+
+    EXPECT(p == prog);
+}

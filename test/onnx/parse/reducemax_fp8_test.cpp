@@ -22,25 +22,17 @@
  * THE SOFTWARE.
  */
 
-#include "verify_program.hpp"
-#include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <onnx_test.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+TEST_CASE(reducemax_fp8_test)
 {
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
-        return p;
-    }
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_parameter("x", migraphx::shape{migraphx::shape::fp8e4m3fnuz_type, {3, 4, 5, 6}});
+    auto l1 = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), l0);
+    mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), l1);
+    auto prog = optimize_onnx("reducemax_fp8_test.onnx");
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+    EXPECT(p == prog);
+}

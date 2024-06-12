@@ -37,7 +37,7 @@ struct test_lpnorm_pooling : verify_program<test_lpnorm_pooling<N>>
         auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 3, 5, 5}});
         mm->add_instruction(migraphx::make_op("pooling",
                                               {{"mode", migraphx::op::pooling_mode::lpnorm},
-                                               {"padding", {2, 2}},
+                                               {"padding", {0, 0}},
                                                {"stride", {1, 1}},
                                                {"lengths", {3, 3}},
                                                {"lp_order", N}}),

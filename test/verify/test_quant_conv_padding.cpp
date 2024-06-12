@@ -25,22 +25,27 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+template <migraphx::shape::type_t DType>
+struct test_quant_conv_padding : verify_program<test_quant_conv_padding<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
+        migraphx::shape a_shape{DType, {2, 3, 4, 4}};
+        auto pa = mm->add_parameter("a", a_shape);
+        migraphx::shape c_shape{DType, {2, 3, 3, 3}};
+        auto pc = mm->add_parameter("c", c_shape);
+        mm->add_instruction(
+            migraphx::make_op("quant_convolution", {{"padding", {1, 1}}, {"stride", {1, 1}}}),
+            pa,
+            pc);
         return p;
     }
+    std::string section() const { return "conv"; }
 };
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+template struct test_quant_conv_padding<migraphx::shape::int8_type>;
+template struct test_quant_conv_padding<migraphx::shape::fp8e4m3fnuz_type>;

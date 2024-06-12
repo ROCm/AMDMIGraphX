@@ -22,25 +22,34 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/apply_alpha_beta.hpp>
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+template <migraphx::shape::type_t DType>
+struct test_gemm_multi_3args_beta0 : verify_program<test_gemm_multi_3args_beta0<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
+        migraphx::shape m1_shape{DType, {1, 2, 3}};
+        migraphx::shape m2_shape{DType, {1, 3, 4}};
+        migraphx::shape m3_shape{DType, {1, 2, 4}};
+        auto l1 = mm->add_parameter("1", m1_shape);
+        auto l2 = mm->add_parameter("2", m2_shape);
+        auto l3 = mm->add_parameter("3", m3_shape);
+
+        float alpha = 1.0f;
+        float beta  = 0.0f;
+        migraphx::add_apply_alpha_beta(*mm, {l1, l2, l3}, migraphx::make_op("dot"), alpha, beta);
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+template struct test_gemm_multi_3args_beta0<migraphx::shape::float_type>;
+template struct test_gemm_multi_3args_beta0<migraphx::shape::half_type>;
+template struct test_gemm_multi_3args_beta0<migraphx::shape::fp8e4m3fnuz_type>;

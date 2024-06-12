@@ -25,22 +25,27 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+template <migraphx::shape::type_t DType>
+struct test_gemm_literal : verify_program<test_gemm_literal<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
+        migraphx::shape a_shape{DType, {2, 4}};
+        migraphx::shape b_shape{DType, {4, 4}};
+
+        auto a = mm->add_literal(migraphx::generate_literal(a_shape));
+        auto b = mm->add_parameter("b", b_shape);
+        mm->add_instruction(migraphx::make_op("dot"), a, b);
+
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
 
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+template struct test_gemm_literal<migraphx::shape::float_type>;
+template struct test_gemm_literal<migraphx::shape::half_type>;
+template struct test_gemm_literal<migraphx::shape::fp8e4m3fnuz_type>;

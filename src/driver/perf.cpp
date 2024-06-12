@@ -55,6 +55,7 @@ parameter_map fill_param_map(parameter_map& m,
             arg = generate_argument(x.second, get_hash(x.first));
         }
         if(not offload)
+            std::cout << "Arg size: " << arg.get_shape().bytes() << std::endl;
             arg = t.copy_to(arg);
     }
     return m;

@@ -333,14 +333,36 @@ argument hip_weight_streaming_literal::compute(context& ctx, const shape&, const
 
 void hip_weight_streaming_literal::finalize(context& ctx, const shape&, const std::vector<shape>&)
 {
-    try {
+    size_t free;
+    size_t total;
+    hipMemGetInfo(&free, &total);
+    std::cout << "[Before] Free: " << free << " Total: " << total << std::endl;
+
+    size_t shape_size = 0;
+    for (auto shape : m->get_parameter_shapes()) {
+        shape_size += shape.second.bytes();
+    }
+
+    std::cout << "Literal size: " << l.get_argument().get_shape().bytes() << "\n";
+    if (shape_size + l.get_argument().get_shape().bytes() >= free) {
+        std::cout << "Literal does not fit; streaming at runtime instead" << "\n"; 
+        stream = true;
+    }
+    else {
         argument a = to_gpu(l.get_argument());
         store_preallocated_param(ctx, id, a);
     }
-    catch (migraphx::exception) {
-        std::cout << "No gpu mem left" << std::endl;
-        stream = true;
-    }
+    
+    hipMemGetInfo(&free, &total);
+    std::cout << "[After]  Free: " << free << " Total: " << total << "\n\n";
+    // try {
+    //     argument a = to_gpu(l.get_argument());
+    //     store_preallocated_param(ctx, id, a);
+    // }
+    // catch (migraphx::exception) {
+    //     std::cout << "No gpu mem left" << std::endl;
+    //     stream = true;
+    // }
 }
 
 

@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/liveness.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -42,6 +43,29 @@ void write_literals::apply(module& m) const
     std::size_t total;
     std::size_t bytes_on_gpu = 0;
     std::size_t bytes_total  = 0;
+
+    size_t scratch_size = 0;
+    liveness(m, [&](auto ins, auto live_set) {
+        if (ins->name() != "hip::allocate" || ins->get_shape().bytes() == 0) {
+            return;
+        } 
+        size_t temp_size = 0;
+        for (auto i : live_set) {
+            if (i->name() != "hip::allocate" || i->get_shape().bytes() == 0) {
+                continue;
+            } 
+            temp_size += i->get_shape().bytes();
+        }
+
+        if (temp_size > scratch_size) {
+            scratch_size = temp_size;
+        }
+
+        m.debug_print(ins);
+        std::cout << "Scratch size: " << temp_size << "\n\n";
+    });
+
+    std::cout << "Max Scratch Size: " << scratch_size << "\n";
 
     if(weight_streaming)
     {
@@ -60,26 +84,26 @@ void write_literals::apply(module& m) const
             // std::cout << "Free: " << free << " Total: " << total << std::endl;
             // std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
             bytes_total += ins->get_shape().bytes();
-            // if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
-            //    (weight_streaming &&
-            //     static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= streaming_budget))
-            // {
-                // literal l  = ins->get_literal();
-                // auto pre   = m.add_literal(l);
-                // auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
-                // m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
-            // }
-            // else
-            // {
-            //     bytes_on_gpu += ins->get_shape().bytes();
-            //     std::string id = m.name() + ":@literal:" + std::to_string(n);
-            //     m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
-            //     n++;
-            // }
+            if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
+               (weight_streaming &&
+                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= scratch_size * 2))
+            {
+                literal l  = ins->get_literal();
+                auto pre   = m.add_literal(l);
+                auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+                m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+            }
+            else
+            {
+                bytes_on_gpu += ins->get_shape().bytes();
+                std::string id = m.name() + ":@literal:" + std::to_string(n);
+                m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
+                n++;
+            }
 
-            std::string id = m.name() + ":@literal:" + std::to_string(n);
-            m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(), id, &m, false});
-            n++;
+            // std::string id = m.name() + ":@literal:" + std::to_string(n);
+            // m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(), id, &m, false});
+            // n++;
         }
     }
 

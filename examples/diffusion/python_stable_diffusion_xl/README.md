@@ -17,7 +17,10 @@ python3 -m venv sd_venv
 Install dependencies
 
 ```bash
+pip install -U pip
 pip install -r requirements.txt
+# hip-python needs to be installed separately to not conflict with test packages
+pip install -i https://test.pypi.org/simple hip-python
 ```
 
 Use MIGraphX Python Module
@@ -66,7 +69,8 @@ Set `pipeline-type` based on the version of models you downloaded: `sdxl` for ba
 ```bash
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output jungle_astro.jpg --pipeline-type <model-version>
 ```
-*Note: The first run will compile the models and cache them to make subsequent runs faster.*
+> [!NOTE]
+> The first run will compile the models and cache them to make subsequent runs faster.
 
 The result should look like this:
 
@@ -74,11 +78,13 @@ The result should look like this:
 
 ## (Optional) Refiner
 
-Note: requires `Console application` to work
+> [!IMPORTANT]
+> requires `Console application` to work
 
 Get models with huggingface-cli
 
-Note: Only the opt version provides an onnx model, but can be used for all 3 version (`sdxl`, `sdxl-opt`, `sdxl-turbo`)
+> [!NOTE]
+> Only the opt version provides an onnx model, but can be used for all 3 version (`sdxl`, `sdxl-opt`, `sdxl-turbo`)
 
 ```bash
 huggingface-cli download stabilityai/stable-diffusion-xl-1.0-tensorrt sdxl-1.0-refiner/clip2.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/model.onnx sdxl-1.0-refiner/unetxl.opt/6ed855ee-2d70-11ee-af8e-0242c0a80101 sdxl-1.0-refiner/unetxl.opt/6e186582-2d74-11ee-8aa7-0242c0a80102 --local-dir models/ --local-dir-use-symlinks False
@@ -99,9 +105,32 @@ Set `pipeline-type` based on which version of models you have: `sdxl` for base, 
 python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output refined_jungle_astro.jpg --pipeline-type <model-version> --use-refiner
 ```
 
+## (Optional) FP16 Quantization
+
+> [!IMPORTANT]
+> requires `Console application` to work
+
+Quantizing the StabilityAI VAE model produces NaNs in the output, so we need to download a modified version to fix this. Download and export the fp16 fixed version:
+
+```bash
+python vae_fp16.py
+```
+
+> [!NOTE]
+> By default, the path being saved to is `models/sdxl-1.0-base/vae_decoder_fp16_fix/model.onnx`. This can be changed by passing in `--output=<sdxl-directory>/vae_decoder_fp16_fix/model.onnx`.
+
+Run the same text-to-image script as before, except add `--fp16=all` to the command. For example:
+
+```bash
+python txt2img.py --prompt "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k" --seed 42 --output jungle_astro.jpg --pipeline-type <model-version> --fp16=all
+```
+
+Using the original StabilityAI VAE is still possible while quantizing the rest of the pipeline to fp16. To do this, set the flag to `--fp16="clip,clip2,unetxl"`.
+
 ## Gradio application
 
-Note: requires `Console application` to work
+> [!IMPORTANT]
+> requires `Console application` to work
 
 Install gradio dependencies
 

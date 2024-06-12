@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,11 +66,8 @@ struct parse_shrink : op_parser<parse_shrink>
         auto cond2_b = info.add_common_op("greater", x, lit_lambd);
         auto cond2   = info.add_common_op("logical_and", cond2_a, cond2_b);
 
-        auto mul1 = info.add_instruction(make_op("convert", {{"target_type", x_type}}), cond1);
-        auto mul2 = info.add_instruction(make_op("convert", {{"target_type", x_type}}), cond2);
-
-        auto first  = info.add_common_op("mul", mul1, x_plus_bias);
-        auto second = info.add_common_op("mul", mul2, x_min_bias);
+        auto first  = info.add_common_op("mul", cond1, x_plus_bias);
+        auto second = info.add_common_op("mul", cond2, x_min_bias);
         auto ret    = info.add_common_op("add", first, second);
         if(ret->get_shape().type() != x_type)
         {

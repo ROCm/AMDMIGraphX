@@ -59,6 +59,7 @@ add_library(migraphx
     fp_to_double.cpp
     fuse_concat.cpp
     fuse_pointwise.cpp
+    fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
     generate.cpp
     inline_module.cpp
@@ -66,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
@@ -197,6 +199,7 @@ register_migraphx_ops(
     neg
     nonmaxsuppression
     nonzero
+    onehot
     outline
     pack_int4
     pad
@@ -268,6 +271,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -330,7 +334,10 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
-list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen PACKAGE rocblas)
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
+    endif()
+    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)

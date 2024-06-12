@@ -72,7 +72,7 @@ TEST_CASE(qlinearconcat_test)
 
     mm->add_return({y});
 
-    auto prog = migraphx::parse_onnx("qlinearconcat_test.onnx");
+    auto prog = read_onnx("qlinearconcat_test.onnx");
 
     EXPECT(p == prog);
 }

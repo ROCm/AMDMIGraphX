@@ -50,6 +50,6 @@ TEST_CASE(reducesum_variable_dynamic_axes_test)
 
     migraphx::onnx_options options;
     options.map_dyn_input_dims["axes"] = axes->get_shape().dyn_dims();
-    auto prog = parse_onnx("reducesum_variable_dynamic_axes_test.onnx", options);
+    auto prog = read_onnx("reducesum_variable_dynamic_axes_test.onnx", options);
     EXPECT(p == prog);
 }

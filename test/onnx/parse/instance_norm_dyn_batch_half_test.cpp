@@ -69,6 +69,6 @@ TEST_CASE(instance_norm_dyn_batch_half_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 2, {2}};
-    auto prog = migraphx::parse_onnx("instance_norm_dyn_batch_half_test.onnx", options);
+    auto prog                     = read_onnx("instance_norm_dyn_batch_half_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -27,5 +27,5 @@
 TEST_CASE(resize_no_scale_test)
 {
     // input node has neither shapes nor scales
-    EXPECT(test::throws([&] { migraphx::parse_onnx("resize_no_scale_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("resize_no_scale_test.onnx"); }));
 }

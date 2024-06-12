@@ -28,7 +28,7 @@
 
 TEST_CASE(mod_test_different_types)
 {
-    migraphx::program p = migraphx::parse_onnx("mod_test_different_dtypes.onnx");
+    migraphx::program p = read_onnx("mod_test_different_dtypes.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s_int16{migraphx::shape::int16_type, {3, 3, 3}};

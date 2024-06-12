@@ -426,3 +426,10 @@ def useStlAlgorithms(cfg, data):
                                  "Use std::equal_range instead.")
         elif token.str == 'memchr':
             cppcheck.reportError(token, "style", "Use std::find instead.")
+
+@cppcheck.checker
+def NestedParentheses(cfg, data):
+    for token in cfg.tokenlist:
+        if not simpleMatch(token, ") ) ) )"):
+            continue
+        cppcheck.reportError(token, "style", "Too many nested parentheses can affect readability; consider using variables instead.")

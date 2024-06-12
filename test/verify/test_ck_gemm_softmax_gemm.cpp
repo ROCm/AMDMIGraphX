@@ -25,22 +25,33 @@
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/op/pooling.hpp>
+#include <migraphx/make_op.hpp>
 
-template <migraphx::shape::type_t T>
-struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
+struct test_ck_gemm_softmax_gemm : verify_program<test_ck_gemm_softmax_gemm>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto input = mm->add_parameter("x", migraphx::shape{T, {1, 3, 5, 5, 5}});
-        auto op = migraphx::op::pooling{
-            migraphx::op::pooling_mode::max, {1, 1, 1}, {3, 3, 3}, {3, 3, 3}, {1, 1, 1}, true};
-        mm->add_instruction(op, input);
+        migraphx::shape m1_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
+        migraphx::shape m2_shape{migraphx::shape::half_type, {1, 12, 256, 256}};
+        auto m2_elements = m2_shape.elements();
+        auto a           = mm->add_parameter("1", m1_shape);
+        auto b           = mm->add_parameter("2", m1_shape);
+        auto b1          = mm->add_parameter("3", m1_shape);
+        std::vector<float> eights(m2_elements, 0.125);
+        auto eight = mm->add_literal(migraphx::literal{m2_shape, eights});
+        std::vector<float> zeros(m2_elements, 0);
+        auto zero = mm->add_literal(migraphx::literal{m2_shape, zeros});
+
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto scale   = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+        auto bias    = mm->add_instruction(migraphx::make_op("add"), scale, zero);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", -1}}), bias);
+        mm->add_instruction(migraphx::make_op("dot"), softmax, b1);
+
         return p;
     }
+    std::string section() const { return "gemm"; }
 };
-
-template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;

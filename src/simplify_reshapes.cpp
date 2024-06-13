@@ -1127,11 +1127,11 @@ struct find_mul_add_shape_op_dot
 {
     auto matcher() const
     {
-        const std::unordered_set<std::string> shape_ops = {"transpose", "convert"};
-        auto const_mul_add                              = match::name("mul", "add")(
-            match::either_arg(0, 1)(match::is_constant().bind("const"), match::any().bind("inp")));
-        auto match_shape_op        = match::name(shape_ops)(match::args(const_mul_add.bind("pw")));
-        auto skip_shape_op_outputs = match::skip_output(match::any_of(match::name(shape_ops)));
+        auto shape_ops             = match::name("transpose", "convert");
+        auto const_mul_add         = match::name("mul", "add")(match::either_arg(0, 1)(
+            match::is_constant().bind("const"), match::any().bind("input")));
+        auto match_shape_op        = shape_ops(match::args(const_mul_add.bind("pw")));
+        auto skip_shape_op_outputs = match::skip_output(match::any_of(shape_ops));
         return match_shape_op(skip_shape_op_outputs(match::name("dot")));
     }
 
@@ -1140,11 +1140,11 @@ struct find_mul_add_shape_op_dot
         auto shape_ins = r.result;
         auto pw        = r.instructions["pw"];
         auto constant  = r.instructions["const"];
-        auto inp       = r.instructions["inp"];
+        auto input     = r.instructions["input"];
 
         auto shape_op  = shape_ins->get_operator();
         auto pw_op     = pw->get_operator();
-        auto new_inp   = m.insert_instruction(shape_ins, shape_op, inp);
+        auto new_inp   = m.insert_instruction(shape_ins, shape_op, input);
         auto new_const = m.insert_instruction(shape_ins, shape_op, constant);
 
         m.replace_instruction(shape_ins, pw_op, new_inp, new_const);

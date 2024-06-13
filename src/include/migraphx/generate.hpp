@@ -32,7 +32,8 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-enum class normalize_range
+
+enum class MIGRAPHX_EXPORT normalize_range
 {
     small,
     large
@@ -52,7 +53,7 @@ template <class T, MIGRAPHX_REQUIRES(is_signed<T>{} and not is_floating_point<T>
 constexpr T normalize(unsigned long z, normalize_range r)
 {
     const long long max =
-        (r == normalize_range::small) ? 1LL << (sizeof(T) * 5) : 1LL << (sizeof(T) * 6 - 1);
+        (r == normalize_range::small) ? 1ULL << (sizeof(T) * 5) : 1ULL << (sizeof(T) * 6 - 1);
     const auto half_max = max / 2;
     auto result         = half_max - (z % max);
     // Expected output: between -half_max and half_max

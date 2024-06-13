@@ -88,7 +88,7 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = v.get("kernel", "layernorm_kernel");
-        auto eps            = v.get("epsilon", 1e-5f);
+        auto eps            = v.get("epsilon", 1e-12f);
 
         auto src = interpolate_string(layernorm_kernel,
                                       {{"kernel", options.kernel_name},

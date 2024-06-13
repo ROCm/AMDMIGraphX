@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ namespace cpu {
 
 struct dnnl_layernorm : dnnl_op<dnnl_layernorm, dnnl::layer_normalization_forward>
 {
-    float epsilon = 1e-5f;
+    float epsilon = 1e-12f;
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {

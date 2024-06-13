@@ -42,7 +42,8 @@ optional arguments:
                         Max number of sum-samples generated for decoder models. Use 0 to ignore it. (Only for decoder models)
 ```
 
-Note: Some models require permission to access, use `huggingface-cli login`
+> [!NOTE]
+> Some models require permission to access, use `huggingface-cli login`.
 
 To generate everything:
 ```bash
@@ -66,7 +67,8 @@ python generate.py --image resnet50_v1.5 clip-vit-large-patch14 --text none --au
 ./test_models.sh generated/
 ```
 
-Note: `generated` is the default output folder, make sure to match `--output-folder-prefix` name
+> [!NOTE]
+> `generated` is the default output folder, make sure to match `--output-folder-prefix` name.
 
 ## Adding more models
 
@@ -105,11 +107,11 @@ The [generate](./generate.py) part will need further updating to include the mod
 
 ## Adding more datasets
 
-The 3 most common usecase are handled:
+The 3 most common use cases are handled:
 - `Image`:  with [imagenet](./sample_generator/dataset/imagenet.py)
 - `Text`:  with [squad](./sample_generator/dataset/squad.py)
 - `Audio`:  with [librispeech](./sample_generator/dataset/librispeech.py)
 
-To add a new, e.g. Video, create a new python file in dataset, and inherit a new class from Base.
+To add a new use case, e.g. Video, create a new python file in dataset, and inherit a new class from Base.
 
 The [generate](./generate.py) part will need further updating to include the dataset.

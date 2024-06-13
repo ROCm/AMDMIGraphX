@@ -4,7 +4,8 @@ Helper script to test [`ONNX Zoo models`](https://onnx.ai/models/) which have te
 
 ## Getting the repository
 
-*Important: make sure to enable git-lfs*
+> [!IMPORTANT]
+> Make sure to enable git-lfs.
 
 ```bash
 git clone https://github.com/onnx/models.git --depth 1
@@ -12,7 +13,8 @@ git clone https://github.com/onnx/models.git --depth 1
 
 ## Running the tests
 
-*Important: the argument must point to a folder, not a file*
+> [!IMPORTANT]
+> The argument must point to a folder, not a file.
 
 ```bash
 # VERBOSE=1 DEBUG=1 # use these for more log

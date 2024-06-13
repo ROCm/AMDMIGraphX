@@ -31,7 +31,7 @@ Our documentation is structured as follows:
 Contributing to this documentation
 =======================================================
 
-We welcome collaboration! If you'd like to contribute to our documentation, you can find instructions on our `Contribute to ROCm docs <https://rocm.docs.amd.com/en/latest/contribute/index.html>`_ page. Known issues are listed on `GitHub <https://github.com/RadeonOpenCompute/ROCm/labels/Verified%20Issue>`_.
+We welcome collaboration! If you'd like to contribute to our documentation, you can find instructions on our `Contribute to ROCm docs <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_ page. Known issues are listed on `GitHub <https://github.com/RadeonOpenCompute/ROCm/labels/Verified%20Issue>`_.
 Licensing information for all ROCm components is listed on our `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.
 
 

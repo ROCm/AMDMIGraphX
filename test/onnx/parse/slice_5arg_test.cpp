@@ -38,7 +38,7 @@ TEST_CASE(slice_5arg_test)
         l0);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("slice_5arg_test.onnx");
+    auto prog = read_onnx("slice_5arg_test.onnx");
 
     EXPECT(p == prog);
 }

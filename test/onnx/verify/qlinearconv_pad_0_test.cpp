@@ -30,7 +30,7 @@ TEST_CASE(qlinearconv_pad_0_test)
 {
     // https:xadupre.github.io/draft/onnx/onnx_doc_folder/onnx__Conv.html
 
-    migraphx::program p = migraphx::parse_onnx("qlinearconv_pad_0_test.onnx");
+    migraphx::program p = read_onnx("qlinearconv_pad_0_test.onnx");
 
     p.compile(migraphx::make_target("ref"));
 

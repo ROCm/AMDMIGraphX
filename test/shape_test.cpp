@@ -232,8 +232,8 @@ TEST_CASE(dynamic_dimension_add_sub_fixed)
 TEST_CASE(dynamic_dimension_intersection)
 {
     using migraphx::shape;
-    auto a = shape::dynamic_dimension{2, 5, {2, 5}};
-    auto b = shape::dynamic_dimension{3, 4};
+    auto a   = shape::dynamic_dimension{2, 5, {2, 5}};
+    auto b   = shape::dynamic_dimension{3, 4};
     auto aib = a.intersection(b);
     auto bia = b.intersection(a);
     EXPECT(aib.has_value());
@@ -1083,6 +1083,21 @@ TEST_CASE(from_4d_permutation)
         migraphx::shape::from_permutation(migraphx::shape::float_type, out_lens, permutation);
     EXPECT(out_shape.lens() == out_lens);
     EXPECT(migraphx::find_permutation(out_shape) == permutation);
+}
+
+TEST_CASE(multi_within_bounds)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {3, 2, 2}};
+    std::vector<std::size_t> multi_0 = {3, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_0));
+    std::vector<std::size_t> multi_1 = {2, 1, 1};
+    EXPECT(in_shape.multi_within_bounds(multi_1));
+    std::vector<std::size_t> multi_2 = {0, 0, 0};
+    EXPECT(in_shape.multi_within_bounds(multi_2));
+    std::vector<std::size_t> multi_3 = {100, 1, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_3));
+    std::vector<std::size_t> multi_4 = {1, 2, 1};
+    EXPECT(not in_shape.multi_within_bounds(multi_4));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

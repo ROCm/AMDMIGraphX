@@ -26,5 +26,5 @@
 
 TEST_CASE(scatternd_invalid_reduction_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("scatternd_invalid_reduction_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("scatternd_invalid_reduction_test.onnx"); }));
 }

@@ -186,7 +186,7 @@ TEST_CASE(optimize_transpose_transpose)
                      });
 }
 
-TEST_CASE(optimize_reshape_reshape)
+TEST_CASE(optimize_reshape_reshape1)
 {
     EXPECT(migraphx::optimize_shape_transforms({3, 5, 2},
                                                {
@@ -194,6 +194,17 @@ TEST_CASE(optimize_reshape_reshape)
                                                    make_op("reshape", {{"dims", {3, 10}}}),
                                                }) == ops{
                                                          make_op("reshape", {{"dims", {3, 10}}}),
+                                                     });
+}
+
+TEST_CASE(optimize_reshape_reshape2)
+{
+    EXPECT(migraphx::optimize_shape_transforms({15, 4},
+                                               {
+                                                   make_op("reshape", {{"dims", {3, 5, 2, 2}}}),
+                                                   make_op("reshape", {{"dims", {15, 2, 2}}}),
+                                               }) == ops{
+                                                   make_op("reshape", {{"dims", {15, 2, 2}}}),
                                                      });
 }
 

@@ -261,34 +261,43 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
     return true;
 }
 
-void dimension::simplify()
+// Remove subdimensions of 1
+void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
 {
-    if(subdimensions.size() < 2)
-        return;
-    // Remove dimensions of 1
     subdimensions.erase(std::remove_if(subdimensions.begin(),
                                        subdimensions.end(),
                                        [&](const sub& d) { return d.len == 1; }),
                         subdimensions.end());
-    // Remove adjacent dimensions
-    subdimensions.erase(adjacent_remove_if(subdimensions.begin(),
+}
+
+void dimension::simplify()
+{
+    if(subdimensions.size() < 2)
+        return;
+    remove_1_sub_dims(subdimensions);
+    // Flatten adjacent dimensions
+    adjacent_for_each(subdimensions.begin(),
                                            subdimensions.end(),
-                                           [&](const sub& d1, const sub& d2) {
+                                           [&](sub& d1, sub& d2) {
                                                if(d1.axis.size() < 2)
-                                                   return false;
+                                                   return;
                                                if(d2.axis.size() < 2)
-                                                   return false;
+                                                   return;
                                                if(not std::equal(d1.axis.begin(),
                                                                  d1.axis.end() - 1,
                                                                  d2.axis.begin(),
                                                                  d2.axis.end() - 1))
-                                                   return false;
+                                                   return;
                                                auto a1 = d1.axis.back();
                                                auto a2 = d2.axis.back();
-                                               return a2 > a1 and
-                                                      (std::max(a1, a2) - std::min(a1, a2)) == 1;
-                                           }),
-                        subdimensions.end());
+                                               if (a2 <= a1)
+                                                    return;
+                                                if((a2 - a1) != 1)
+                                                    return;
+                                                d2.len = d1.len * d2.len;
+                                                d1.len = 1;
+                                           });
+    remove_1_sub_dims(subdimensions);
 }
 
 // Search all subdimensions and return the subdimensions vector, an iterator

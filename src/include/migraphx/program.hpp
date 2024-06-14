@@ -57,7 +57,7 @@ struct marker;
 struct MIGRAPHX_EXPORT program
 {
     program();
-    
+
     explicit program(module m);
 
     // move constructor

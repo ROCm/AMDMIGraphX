@@ -77,7 +77,10 @@ struct program_impl
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
-program::program(module m) : impl(std::make_unique<program_impl>()) { this->create_module("main", std::move(m)); }
+program::program(module m) : impl(std::make_unique<program_impl>())
+{
+    this->create_module("main", std::move(m));
+}
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;

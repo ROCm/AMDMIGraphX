@@ -65,7 +65,8 @@ MIGRAPHX_GPU_EXPORT tuning_config get_tuning_config_mlir(const context& migraphx
                                                          const std::vector<shape>& inputs,
                                                          bool exhaustive);
 
-MIGRAPHX_GPU_EXPORT void dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);
+MIGRAPHX_GPU_EXPORT void
+dump_mlir_to_mxr(module m, const std::vector<instruction_ref>& inputs, const fs::path& location);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

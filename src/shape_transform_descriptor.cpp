@@ -276,27 +276,22 @@ void dimension::simplify()
         return;
     remove_1_sub_dims(subdimensions);
     // Flatten adjacent dimensions
-    adjacent_for_each(subdimensions.begin(),
-                                           subdimensions.end(),
-                                           [&](sub& d1, sub& d2) {
-                                               if(d1.axis.size() < 2)
-                                                   return;
-                                               if(d2.axis.size() < 2)
-                                                   return;
-                                               if(not std::equal(d1.axis.begin(),
-                                                                 d1.axis.end() - 1,
-                                                                 d2.axis.begin(),
-                                                                 d2.axis.end() - 1))
-                                                   return;
-                                               auto a1 = d1.axis.back();
-                                               auto a2 = d2.axis.back();
-                                               if (a2 <= a1)
-                                                    return;
-                                                if((a2 - a1) != 1)
-                                                    return;
-                                                d2.len = d1.len * d2.len;
-                                                d1.len = 1;
-                                           });
+    adjacent_for_each(subdimensions.begin(), subdimensions.end(), [&](sub& d1, sub& d2) {
+        if(d1.axis.size() < 2)
+            return;
+        if(d2.axis.size() < 2)
+            return;
+        if(not std::equal(d1.axis.begin(), d1.axis.end() - 1, d2.axis.begin(), d2.axis.end() - 1))
+            return;
+        auto a1 = d1.axis.back();
+        auto a2 = d2.axis.back();
+        if(a2 <= a1)
+            return;
+        if((a2 - a1) != 1)
+            return;
+        d2.len = d1.len * d2.len;
+        d1.len = 1;
+    });
     remove_1_sub_dims(subdimensions);
 }
 

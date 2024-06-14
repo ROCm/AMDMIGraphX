@@ -101,6 +101,7 @@ struct shape_transform_descriptor
         std::vector<sub> subdimensions;
     };
     std::vector<dimension> dimensions;
+    // Rank of the original dimensions
     std::size_t rank = 0;
 };
 

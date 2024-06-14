@@ -214,7 +214,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
             new_dims.push_back({{dimension::sub{1}}});
         }
     }
-
+    assert(rdims.size() == new_dims.size());
     if(rdims.size() != new_dims.size())
         return false;
     dimensions = new_dims;
@@ -257,6 +257,7 @@ bool shape_transform_descriptor::apply_broadcast(const std::vector<std::size_t>&
                    [&](auto len) -> dimension {
                        return {{dimension::sub{len, {}}}};
                    });
+    assert(out_lens.size() == new_dims.size());
     dimensions = new_dims;
     return true;
 }

@@ -266,7 +266,7 @@ void remove_1_sub_dims(std::vector<dimension::sub>& subdimensions)
 {
     subdimensions.erase(std::remove_if(subdimensions.begin(),
                                        subdimensions.end(),
-                                       [&](const sub& d) { return d.len == 1; }),
+                                       [&](const dimension::sub& d) { return d.len == 1; }),
                         subdimensions.end());
 }
 

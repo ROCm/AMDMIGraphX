@@ -746,6 +746,16 @@ struct find_dot_broadcast
             auto input = b_ins->inputs()[0];
             std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
                                           b_ins->get_shape().lens().end());
+
+            auto input_naxis  = input->get_shape().lens().size();
+            auto new_bc_naxis = lens.size();
+            if(input_naxis > new_bc_naxis)
+            {
+                std::vector<std::size_t> axes_to_sq(input_naxis - new_bc_naxis);
+                std::iota(axes_to_sq.begin(), axes_to_sq.end(), 0);
+                input =
+                    m.insert_instruction(ins, make_op("squeeze", {{"axes", axes_to_sq}}), input);
+            }
             if(b_ins->name() == "multibroadcast")
             {
                 return m.insert_instruction(

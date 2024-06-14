@@ -48,6 +48,7 @@ void transform_if(Iterator start, Iterator last, Output out, Predicate pred, F f
     }
 }
 
+/// Similiar to std::accumulate but a projection can be applied to the elements first
 template <class Iterator, class T, class BinaryOp, class UnaryOp>
 T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, UnaryOp unaryop)
 {
@@ -55,6 +56,7 @@ T transform_accumulate(Iterator first, Iterator last, T init, BinaryOp binop, Un
         first, last, first, init, binop, [&](auto&& x, auto&&) { return unaryop(x); });
 }
 
+/// Similiar to std::partial_sum but a projection can be applied to the elements first
 template <class Iterator, class OutputIterator, class BinaryOperation, class UnaryOp>
 OutputIterator transform_partial_sum(
     Iterator first, Iterator last, OutputIterator d_first, BinaryOperation binop, UnaryOp unaryop)
@@ -108,6 +110,7 @@ void group_find(Iterator start, Iterator last, Predicate pred, Output out)
     }
 }
 
+/// Similiar to std::remove_if but instead pass adjacent pairs to the predicate
 template <class Iterator, class Predicate>
 Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
 {
@@ -128,6 +131,7 @@ Iterator adjacent_remove_if(Iterator first, Iterator last, Predicate p)
     return first;
 }
 
+/// Similiar to std::for_each but instead pass adjacent pairs to the function
 template <class Iterator, class F>
 Iterator adjacent_for_each(Iterator first, Iterator last, F f)
 {

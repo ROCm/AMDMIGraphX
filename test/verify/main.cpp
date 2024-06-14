@@ -94,27 +94,11 @@ int main(int argc, const char* argv[])
         "test_block_reduce_small<128, migraphx::shape::int8_type>",
         "test_block_reduce_small<129, migraphx::shape::int8_type>",
     });
-    rv.disable_test_for("gpu", {
-        // These passes on MI300 but fails on others, same issue as CPU.
+    rv.disable_test_for("gpu",
+        {// These passes on MI300 but fails on others, same issue as CPU.
         "batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
         "quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",
-        "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"
-#if !MIGRAPHX_USE_MIOPEN
-        // gpu::pooling, gpu::lrn, and backward convolution are
-        // not supported when MIOpen is OFF
-        "quant_conv_1d<migraphx::shape::int8_type>",
-        "test_avg_pooling_1d", "test_avg_pooling_3d",
-        "test_avg_pooling_3d_opt", "test_avg_pooling_ceil_3d",
-        "test_avg_pooling_pad", "test_conv3d", "test_conv_bn_relu_pooling",
-        "test_conv_bn_relu_pooling2", "test_conv_pooling",
-        "test_convolution_backwards", "test_convolution_backwards_1d",
-        "test_convolution_backwards_2d_alt",
-        "test_convolution_backwards_2x3", "test_convolution_backwards_3d",
-        "test_max_pooling_ceil_3d<migraphx::shape::float_type>",
-        "test_pooling_add_concat_relu", "test_pooling_add_concat",
-        "test_pooling_autopad", "test_relu_lrn"
-#endif
-    });
+        "quant_dot_3args_5<migraphx::fp8::fp8e4m3fnuz, float>"});
     rv.run(argc, argv);
 }
 // clang-format on

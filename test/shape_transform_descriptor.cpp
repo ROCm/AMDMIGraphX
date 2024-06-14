@@ -131,6 +131,12 @@ TEST_CASE(record_reshape_squeeze_trailing_1s)
     EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}});
 }
 
+TEST_CASE(record_reshape_non_divisible_fail)
+{
+    auto desc = shape_transform_descriptor{{2, 3, 5}};
+    EXPECT(not desc.apply({make_op("reshape", {{"dims", {10, 3}}})}));
+}
+
 TEST_CASE(record_transpose)
 {
     auto desc =

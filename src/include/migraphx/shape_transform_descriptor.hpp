@@ -59,7 +59,7 @@ struct operation;
 //
 // When a reshape that would merge dimensions together then the subdimensions
 // are copied to the same subdimension. So if we reshape the dimensions as `
-// [x*y, z]` then it would become `[[x:0], [y:1]], [[z:1]]`. If the reshape
+// [x*y, z]` then it would become `[[x:0], [y:1]], [[z:2]]`. If the reshape
 // splits the dimension then the subdimension is copied to each dimension and
 // the axis is updated to maintain the order. So a reshape of `[2, x/2, y,
 // z]` would become: `[[2:0,0]], [[x/2:0,1]], [[y:1]], [[z:2]]`.

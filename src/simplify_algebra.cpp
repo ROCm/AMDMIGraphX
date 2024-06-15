@@ -745,7 +745,7 @@ struct find_dot_broadcast
             std::vector<std::size_t> lens(x_ins->get_shape().lens().begin() + naxes,
                                           x_ins->get_shape().lens().end());
 
-            if (input->get_shape().lens() == lens)
+            if(input->get_shape().lens() == lens)
                 return input;
 
             auto input_naxis  = input->get_shape().lens().size();

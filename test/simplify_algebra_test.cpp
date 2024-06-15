@@ -3589,7 +3589,7 @@ TEST_CASE(dot_broadcast_different_broadcast1)
         auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {64, 64}});
         auto xb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {4, 64}}}), x);
-        auto dot = m2.add_instruction(migraphx::make_op("dot"), xb, y);
+        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 4, 64}}}), dot);
         m2.add_return({broadcast});
@@ -3614,8 +3614,8 @@ TEST_CASE(dot_broadcast_different_broadcast2)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {384}});
-        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {384}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
         auto xb = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {384, 768}}}), x);
         auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
@@ -3627,7 +3627,6 @@ TEST_CASE(dot_broadcast_different_broadcast2)
     run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
-
 
 TEST_CASE(dot_broadcast_different_rank)
 {

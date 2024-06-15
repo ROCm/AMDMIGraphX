@@ -540,7 +540,19 @@ struct find_inner_broadcast
                            return input;
                        });
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        // Find broadcast op on a non-scalar instruction if it exists
+        auto first =
+            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
+                return not broadcast->get_shape().scalar();
+            });
+        if(first != broadcasts.end())
+        {
+            m.replace_instruction(ins, (*first)->get_operator(), op);
+        }
+        else
+        {
+            m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        }
     }
 
     void apply_diff_broadcasts(module& m, instruction_ref ins) const
@@ -734,6 +746,16 @@ struct find_dot_broadcast
             auto input = b_ins->inputs()[0];
             std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
                                           b_ins->get_shape().lens().end());
+
+            auto input_naxis  = input->get_shape().lens().size();
+            auto new_bc_naxis = lens.size();
+            if(input_naxis > new_bc_naxis)
+            {
+                std::vector<std::size_t> axes_to_sq(input_naxis - new_bc_naxis);
+                std::iota(axes_to_sq.begin(), axes_to_sq.end(), 0);
+                input =
+                    m.insert_instruction(ins, make_op("squeeze", {{"axes", axes_to_sq}}), input);
+            }
             if(b_ins->name() == "multibroadcast")
             {
                 return m.insert_instruction(

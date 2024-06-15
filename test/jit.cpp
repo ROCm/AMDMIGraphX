@@ -31,7 +31,7 @@
 
 // NOLINTNEXTLINE
 const std::string_view add_42_src = R"migraphx(
-extern "C" int add(int x)
+EXPORT extern "C" int add(int x)
 {
     return x+42;
 }
@@ -43,18 +43,21 @@ const std::string_view preamble = R"migraphx(
 )migraphx";
 
 template <class F>
-std::function<F> compile_function(std::string_view src, std::string_view symbol_name)
+std::function<F> compile_function(std::string_view src, const std::string& symbol_name)
 {
     migraphx::src_compiler compiler;
     compiler.flags.emplace_back("-std=c++14");
 #ifndef _WIN32
     compiler.flags.emplace_back("-fPIC");
+    compiler.flags.emplace_back("-DEXPORT=\"\"");
+#else
+    compiler.flags.emplace_back("-DEXPORT=__declspec(dllexport)");
 #endif
     compiler.flags.emplace_back("-shared");
     compiler.output = migraphx::make_shared_object_filename("simple");
     migraphx::src_file f{"main.cpp", src};
     auto image = compiler.compile({f});
-    return migraphx::dynamic_loader{image}.get_function<F>(std::string{symbol_name});
+    return migraphx::dynamic_loader{image}.get_function<F>(symbol_name);
 }
 
 template <class F>
@@ -62,9 +65,9 @@ std::function<F> compile_module(const migraphx::module& m)
 {
     migraphx::cpp_generator g;
     g.fmap([](auto&& name) { return "std::" + name; });
-    g.create_function(g.generate_module(m).set_attributes({"extern \"C\""}));
+    g.create_function(g.generate_module(m).set_attributes({"EXPORT extern \"C\""}));
 
-    return compile_function<F>(preamble.data() + g.str(), m.name());
+    return compile_function<F>(g.str().insert(0, preamble), m.name());
 }
 
 TEST_CASE(simple_run)

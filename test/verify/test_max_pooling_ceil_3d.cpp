@@ -43,5 +43,4 @@ struct test_max_pooling_ceil_3d : verify_program<test_max_pooling_ceil_3d<T>>
 };
 
 template struct test_max_pooling_ceil_3d<migraphx::shape::float_type>;
-// TODO: uncomment once "Clang ASAN" CI is fixed.  See PR 2973 for details
-// template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;
+template struct test_max_pooling_ceil_3d<migraphx::shape::uint8_type>;

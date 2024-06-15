@@ -3569,6 +3569,66 @@ TEST_CASE(reorder_slice_ins_deps)
     EXPECT(m == create_module());
 }
 
+TEST_CASE(dot_broadcast_different_broadcast1)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {64}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {64, 64}});
+        auto xb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {2, 4, 4, 64}}}), x);
+        auto yb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), y);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xb, yb);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {64}});
+        auto y  = m2.add_parameter("y", {migraphx::shape::float_type, {64, 64}});
+        auto xb = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {4, 64}}}), x);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), xb, y);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 4, 64}}}), dot);
+        m2.add_return({broadcast});
+    };
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_broadcast_different_broadcast2)
+{
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {384}});
+        auto y  = m1.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
+        auto xb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 384, 768}}}), x);
+        auto yb = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 768, 3072}}}), y);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), xb, yb);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {384}});
+        auto y = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
+        auto xb = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {384, 768}}}), x);
+        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
+        auto broadcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), dot);
+        m2.add_return({broadcast});
+    };
+
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+
 TEST_CASE(dot_broadcast_different_rank)
 {
     migraphx::module m1;
@@ -3589,9 +3649,7 @@ TEST_CASE(dot_broadcast_different_rank)
         auto y = m2.add_parameter("y", {migraphx::shape::float_type, {768, 3072}});
         auto xb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {384, 768}}}), x);
-        auto yb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {768, 3072}}}), y);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, yb);
+        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 384, 3072}}}), dot);
         m2.add_return({broadcast});
@@ -3622,9 +3680,7 @@ TEST_CASE(dot_broadcast_unsqueezed_input)
         auto x_sq = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0, 1}}}), x);
         auto xb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 8}}}), x_sq);
-        auto yb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {8, 8}}}), y);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, yb);
+        auto dot       = m2.add_instruction(migraphx::make_op("dot"), xb, y);
         auto broadcast = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 8, 8}}}), dot);
         m2.add_return({broadcast});

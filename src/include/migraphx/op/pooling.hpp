@@ -343,7 +343,6 @@ struct pooling
                 }
                 else
                 {
-                    // In non-ceiling mode, when
                     // count_include_pad is false, or for max pooling, clip off padding.
                     end = std::min(start + dilated_kernel_dim, in_lens[dim]);
                 }

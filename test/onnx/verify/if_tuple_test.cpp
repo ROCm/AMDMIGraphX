@@ -29,7 +29,7 @@
 TEST_CASE(if_tuple_test)
 {
     auto run_prog = [](bool cond) {
-        migraphx::program p = migraphx::parse_onnx("if_tuple_test.onnx");
+        migraphx::program p = read_onnx("if_tuple_test.onnx");
         p.compile(migraphx::make_target("ref"));
         migraphx::shape xs{migraphx::shape::float_type, {1, 4}};
         migraphx::shape ys{migraphx::shape::float_type, {3, 4}};

@@ -40,6 +40,6 @@ TEST_CASE(reducesum_variable_empty_axes_test)
 
     migraphx::onnx_options options;
     options.map_input_dims["axes"] = axes->get_shape().lens();
-    auto prog                      = parse_onnx("reducesum_variable_axes_test.onnx", options);
+    auto prog                      = read_onnx("reducesum_variable_axes_test.onnx", options);
     EXPECT(p == prog);
 }

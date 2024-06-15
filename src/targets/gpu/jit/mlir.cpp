@@ -48,19 +48,20 @@ static module create_pointwise_module(module_ref in_mod)
             pw_mod.add_parameter(any_cast<builtin::param>(param->get_operator()).parameter,
                                  shape{param->get_shape().type()});
     }
-    pw_mod.add_instructions(in_mod,
-                            &map_ins,
-                            [](module& m,
-                               instruction_ref ins,
-                               const operation& op,
-                               const std::vector<instruction_ref>& inputs,
-                               const std::vector<module_ref>& mod_args) -> instruction_ref {
-                                if(op.name() == "multibroadcast" and
-                                   inputs.front()->name() == "@literal")
-                                    return inputs.front();
-                                else
-                                    return m.insert_instruction(ins, op, inputs, mod_args);
-                            });
+    auto return_args = pw_mod.add_instructions(
+        in_mod,
+        &map_ins,
+        [](module& m,
+           instruction_ref ins,
+           const operation& op,
+           const std::vector<instruction_ref>& inputs,
+           const std::vector<module_ref>& mod_args) -> instruction_ref {
+            if(op.name() == "multibroadcast" and inputs.front()->name() == "@literal")
+                return inputs.front();
+            else
+                return m.insert_instruction(ins, op, inputs, mod_args);
+        });
+    pw_mod.add_return(return_args);
     return pw_mod;
 }
 
@@ -81,7 +82,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
         // allow fused module
         if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and
-           not is_module_fusible(*smod, solution))
+           not is_module_fusible(*smod, ctx, solution))
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
@@ -131,10 +132,10 @@ struct mlir_compiler : compiler<mlir_compiler>
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
+        auto precompiled_inputs = precompile_ins->inputs();
         return {
             cobjs, [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
-                auto compiled_inputs    = ins->inputs();
-                auto precompiled_inputs = precompile_ins->inputs();
+                auto compiled_inputs = ins->inputs();
                 std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map;
                 for(const auto i : range(precompiled_inputs.size()))
                 {

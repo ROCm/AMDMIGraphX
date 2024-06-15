@@ -38,7 +38,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpython3.8 \
     wget \
     rocm-device-libs \
-    hip-base \
+    hip-dev \
     libnuma-dev \
     miopen-hip \
     rocblas \

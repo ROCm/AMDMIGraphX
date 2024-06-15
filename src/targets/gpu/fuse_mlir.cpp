@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -200,8 +201,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
-                                                       upper_input->get_shape().as_standard());
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -256,8 +257,14 @@ auto is_mlir_conv(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
+#ifdef _WIN32
+        // Temporarily make it available only on Windows
+        if(ins->get_shape().lens().size() != 4 and group > 1)
+            return false;
+#else
         if(ins->get_shape().lens().size() != 4)
             return false;
+#endif
         if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;
         if(mode == mlir_mode::all)

@@ -46,7 +46,7 @@ TEST_CASE(variable_batch_user_input_test1)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {2, 2};
 
-    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+    auto prog = read_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -63,7 +63,7 @@ TEST_CASE(variable_batch_user_input_test2)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {2, 5};
 
-    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+    auto prog = read_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -80,7 +80,7 @@ TEST_CASE(variable_batch_user_input_test3)
     migraphx::onnx_options options;
     options.map_dyn_input_dims["0"] = {{2, 5}, {3, 3}, {16, 16}, {16, 16}};
 
-    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+    auto prog = read_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -96,7 +96,7 @@ TEST_CASE(variable_batch_user_input_test4)
     migraphx::onnx_options options;
     options.default_dim_value = 2;
 
-    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+    auto prog = read_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }
@@ -108,7 +108,7 @@ TEST_CASE(variable_batch_user_input_test5)
     options.default_dim_value     = 2;
     options.default_dyn_dim_value = {1, 2};
 
-    EXPECT(test::throws([&] { migraphx::parse_onnx("variable_batch_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("variable_batch_test.onnx", options); }));
 }
 
 TEST_CASE(variable_batch_user_input_test6)
@@ -118,7 +118,7 @@ TEST_CASE(variable_batch_user_input_test6)
     options.map_dyn_input_dims["0"] = {{2, 5}, {3, 3}, {16, 16}, {16, 16}};
     options.map_input_dims["0"]     = {2, 3, 16, 16};
 
-    EXPECT(test::throws([&] { migraphx::parse_onnx("variable_batch_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("variable_batch_test.onnx", options); }));
 }
 
 TEST_CASE(variable_batch_user_input_test7)
@@ -134,7 +134,7 @@ TEST_CASE(variable_batch_user_input_test7)
     migraphx::onnx_options options;
     options.map_dyn_input_dims["0"] = {{2, 2, {2}}, {3, 3}, {16, 16}, {16, 16}};
 
-    auto prog = migraphx::parse_onnx("variable_batch_test.onnx", options);
+    auto prog = read_onnx("variable_batch_test.onnx", options);
 
     EXPECT(p == prog);
 }

@@ -60,6 +60,7 @@ endif()
 target_link_libraries(migraphx_tf PUBLIC migraphx)
 
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx_tf
 )
 

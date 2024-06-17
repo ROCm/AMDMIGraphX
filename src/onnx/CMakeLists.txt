@@ -48,5 +48,6 @@ endif()
 target_link_libraries(migraphx_onnx PUBLIC migraphx)
 
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx_onnx
 )

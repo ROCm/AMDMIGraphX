@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/time_op.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
-struct compile_op : action<compile_op>
+struct test_avg_pooling_include_pad : verify_program<test_avg_pooling_include_pad>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << " -> " << op.compute_shape(inputs) << ": " << t << "ms" << std::endl;
-        std::cout << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}});
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::average},
+                                               {"padding", {2, 2}},
+                                               {"stride", {1, 1}},
+                                               {"lengths", {3, 3}},
+                                               {"count_include_pad", true}}),
+                            input);
+        return p;
     }
 };
-
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

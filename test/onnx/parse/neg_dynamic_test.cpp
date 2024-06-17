@@ -35,6 +35,6 @@ TEST_CASE(neg_dynamic_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
-    auto prog                     = migraphx::parse_onnx("neg_dynamic_test.onnx", options);
+    auto prog                     = read_onnx("neg_dynamic_test.onnx", options);
     EXPECT(p == prog);
 }

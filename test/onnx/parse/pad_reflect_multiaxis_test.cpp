@@ -42,7 +42,7 @@ TEST_CASE(pad_reflect_multiaxis_test)
     auto r = mm->add_instruction(migraphx::make_op("concat", {{"axis", 0}}), l3, l4, l5);
     mm->add_return({r});
 
-    auto prog = migraphx::parse_onnx("pad_reflect_multiaxis_test.onnx");
+    auto prog = read_onnx("pad_reflect_multiaxis_test.onnx");
 
     EXPECT(p == prog);
 }

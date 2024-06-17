@@ -36,7 +36,7 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_ROCBLAS
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
 as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
@@ -524,6 +524,7 @@ struct gemm_impl
         }
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }
 #endif
@@ -678,7 +679,7 @@ int32_t gemm_finalize(context& ctx,
     return gemm_finalize_impl(
         ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

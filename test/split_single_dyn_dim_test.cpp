@@ -28,7 +28,14 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/builtin.hpp>
 #include <test.hpp>
+
+// Forward declare any_cast
+template <class T>
+const T& any_cast(const T&);
 
 void run_pass(migraphx::program& p)
 {
@@ -285,6 +292,39 @@ TEST_CASE(different_non_fixed_dd)
     migraphx::program p1 = p0;
     run_pass(p0);
     EXPECT(p0 == p1);
+}
+
+// check that the parameter inputs into select_module are lexiographically ordered
+TEST_CASE(ordered_inputs_to_select_module)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    auto input0 = mm->add_parameter("breadfruit", s);
+    auto input1 = mm->add_parameter("Apricot", s);
+    auto input2 = mm->add_parameter("pineapple", s);
+    migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+    auto broadcast_lit =
+        mm->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
+    auto add_ins0 = mm->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
+    auto add_ins1 = mm->add_instruction(migraphx::make_op("add"), add_ins0, input1);
+    auto add_ins2 = mm->add_instruction(migraphx::make_op("add"), add_ins1, input2);
+    mm->add_return({add_ins2});
+    run_pass(p);
+
+    auto sm_ins = std::find_if(
+        mm->begin(), mm->end(), [&](auto&& ins) { return ins.name() == "select_module"; });
+    std::vector<std::string> sm_param_names;
+    for(auto&& ins : sm_ins->inputs())
+    {
+        if(ins->name() == "@param")
+        {
+            auto&& param = any_cast<migraphx::builtin::param>(ins->get_operator());
+            sm_param_names.push_back(param.parameter);
+        }
+    }
+    EXPECT(std::is_sorted(sm_param_names.begin(), sm_param_names.end()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

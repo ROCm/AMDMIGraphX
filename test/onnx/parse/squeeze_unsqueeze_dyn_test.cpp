@@ -41,7 +41,7 @@ TEST_CASE(squeeze_unsqueeze_dyn_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    auto prog                     = parse_onnx("squeeze_unsqueeze_dyn_test.onnx", options);
+    auto prog                     = read_onnx("squeeze_unsqueeze_dyn_test.onnx", options);
 
     EXPECT(p == prog);
 }

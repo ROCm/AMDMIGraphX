@@ -28,21 +28,13 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/iota_iterator.hpp>
-#include <migraphx/config.hpp>
+#include <migraphx/as_number.hpp>
 
 #include <iostream>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-T as_number(T x)
-{
-    return x;
-}
-inline int32_t as_number(int8_t x) { return static_cast<int32_t>(x); }
-inline uint32_t as_number(uint8_t x) { return static_cast<uint32_t>(x); }
 
 template <class T>
 struct tensor_view_iterator_read

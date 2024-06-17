@@ -108,9 +108,9 @@ struct find_concat_pointwise
 {
     auto matcher() const
     {
-        return match::name("concat")(
-            match::used_once(),
-            match::any_of[match::inputs()](match::name("pointwise")(match::used_once())));
+        auto pointwise_used_once = match::name("pointwise")(match::used_once());
+        return match::name("concat")(match::used_once(),
+                                     match::any_of[match::inputs()](pointwise_used_once));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const

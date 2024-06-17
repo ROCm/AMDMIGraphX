@@ -86,6 +86,15 @@ shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
     return desc;
 }
 
+TEST_CASE(dimension_len)
+{
+    using dimension = shape_transform_descriptor::dimension;
+    using sub       = dimension::sub;
+    dimension dim;
+    dim.subdimensions = std::vector<sub>{sub{4, {1}}, sub{5, {2}}};
+    EXPECT(dim.len() == 20);
+}
+
 TEST_CASE(record_reshape)
 {
     auto desc = make_descriptor({256, 3, 16, 16}, make_op("reshape", {{"dims", {16, 16, 48, 16}}}));
@@ -111,6 +120,22 @@ TEST_CASE(record_reshape_trailing_1s)
     EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {4}, {1}, {1}});
     EXPECT(get_all_axes(desc) ==
            all_axes{d_axes{{0}}, d_axes{{1}}, d_axes{{2}}, d_axes{{}}, d_axes{{}}});
+}
+
+TEST_CASE(record_reshape_merge)
+{
+    auto desc = make_descriptor({3, 4, 5}, make_op("reshape", {{"dims", {3, 20}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 20});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4, 5}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1}, {2}}});
+}
+
+TEST_CASE(record_reshape_split)
+{
+    auto desc = make_descriptor({3, 20}, make_op("reshape", {{"dims", {3, 4, 5}}}));
+    EXPECT(get_final_lens(desc) == final_lens{3, 4, 5});
+    EXPECT(get_all_lens(desc) == all_lens{{3}, {4}, {5}});
+    EXPECT(get_all_axes(desc) == all_axes{d_axes{{0}}, d_axes{{1, 0}}, d_axes{{1, 1}}});
 }
 
 TEST_CASE(record_squeeze_trailing_1s)

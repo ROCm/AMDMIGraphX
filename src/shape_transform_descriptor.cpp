@@ -220,6 +220,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
     dimensions = new_dims;
     return true;
 }
+
 bool shape_transform_descriptor::apply_transpose(const std::vector<std::int64_t>& permutation)
 {
     if(permutation.size() != dimensions.size())

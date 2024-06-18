@@ -2,7 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
- *
+ *s
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -21,29 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+TEST_CASE(gridsample_volumetric_nearest_align_corners_0_test)
 {
-    bool disable_fusion = enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{});
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
-
-    bool enable_rewrite_reshapes = true;
-};
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+    EXPECT(test::throws(
+        [&] { migraphx::parse_onnx("gridsample_volumetric_nearest_align_corners_0_test.onnx"); }));
+}

@@ -21,29 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/env.hpp>
-#include <string>
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_POINTWISE_FUSION)
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+TEST_CASE(gridsample_bicubic_align_corners_0_additional_1_test)
 {
-    bool disable_fusion = enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{});
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
+    migraphx::program p =
+        migraphx::parse_onnx("gridsample_bicubic_align_corners_0_additional_1_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-    bool enable_rewrite_reshapes = true;
-};
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
+    migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
+    std::vector<float> data = {0., 1., 2., 3., 4., 5.};
+    std::vector<float> grid = {
+        -1., -0.8, -0.6, -0.5, -0.1, -0.2, 0.7, 0., 0., 0.4, 0.2, -0.2, -0.3, 0.5, -1., 1.};
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(data_shape, data.data());
+    pp["grid"] = migraphx::argument(grid_shape, grid.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {
+        -0.173250, 0.284265, 1.923106, 2.568000, 5.170375, 2.284414, 4.744844, 1.046875};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

@@ -52,7 +52,7 @@ parameter_map fill_param_map(parameter_map& m,
         if(arg.empty())
         {
             assert(not x.second.dynamic());
-            arg = generate_argument(x.second, get_hash(x.first), normalize_range::large);
+            arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
         }
         if(not offload)
             arg = t.copy_to(arg);
@@ -65,7 +65,7 @@ parameter_map create_param_map(const program& p, const target& t, bool offload)
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        auto arg = generate_argument(x.second, get_hash(x.first), normalize_range::large);
+        auto arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
         if(offload)
             m[x.first] = arg;
         else
@@ -82,12 +82,12 @@ parameter_map create_param_map(const program& p, bool gpu)
 #ifdef HAVE_GPU
         if(gpu)
             m[x.first] =
-                gpu::to_gpu(generate_argument(x.second, get_hash(x.first), normalize_range::large));
+                gpu::to_gpu(generate_argument(x.second, get_hash(x.first), random_mode::random));
         else
 #else
         (void)gpu;
 #endif
-            m[x.first] = generate_argument(x.second, get_hash(x.first), normalize_range::large);
+            m[x.first] = generate_argument(x.second, get_hash(x.first), random_mode::random);
     }
     return m;
 }

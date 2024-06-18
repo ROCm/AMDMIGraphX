@@ -462,7 +462,7 @@ void shape_transform_descriptor::simplify()
     }
 
     // Find broadcasted dimensions. This will store a map from the next axis
-    // to the previous axes being broadcasted.
+    // to the indices of the previous dimensions that are being broadcasted.
     std::map<std::size_t, std::deque<std::size_t>> broadcast_dims_map;
     group_find(
         dimensions.begin(), dimensions.end(), &missing_leading_axis, [&](auto start, auto last) {

@@ -33,6 +33,8 @@ using final_lens = std::vector<std::size_t>;
 using all_axes   = std::vector<std::vector<std::vector<std::size_t>>>;
 using d_axes     = std::vector<std::vector<std::size_t>>;
 using ops        = std::vector<migraphx::operation>;
+using dimension = shape_transform_descriptor::dimension;
+using sub       = dimension::sub;
 
 all_lens get_all_lens(const shape_transform_descriptor& d)
 {
@@ -40,10 +42,10 @@ all_lens get_all_lens(const shape_transform_descriptor& d)
     std::transform(d.dimensions.begin(),
                    d.dimensions.end(),
                    std::back_inserter(result),
-                   [](const auto& dimension) {
+                   [](const auto& dim) {
                        std::vector<std::size_t> sub_lens;
-                       std::transform(dimension.subdimensions.begin(),
-                                      dimension.subdimensions.end(),
+                       std::transform(dim.subdimensions.begin(),
+                                      dim.subdimensions.end(),
                                       std::back_inserter(sub_lens),
                                       [](const auto& x) { return x.len; });
                        return sub_lens;
@@ -67,10 +69,10 @@ all_axes get_all_axes(const shape_transform_descriptor& d)
     std::transform(d.dimensions.begin(),
                    d.dimensions.end(),
                    std::back_inserter(result),
-                   [](const auto& dimension) {
+                   [](const auto& dim) {
                        std::vector<std::vector<std::size_t>> sub_axis;
-                       std::transform(dimension.subdimensions.begin(),
-                                      dimension.subdimensions.end(),
+                       std::transform(dim.subdimensions.begin(),
+                                      dim.subdimensions.end(),
                                       std::back_inserter(sub_axis),
                                       [](const auto& x) { return x.axis; });
                        return sub_axis;
@@ -88,8 +90,6 @@ shape_transform_descriptor make_descriptor(const std::vector<std::size_t>& dims,
 
 TEST_CASE(dimension_len)
 {
-    using dimension = shape_transform_descriptor::dimension;
-    using sub       = dimension::sub;
     dimension dim;
     dim.subdimensions = std::vector<sub>{sub{4, {1}}, sub{5, {2}}};
     EXPECT(dim.len() == 20);

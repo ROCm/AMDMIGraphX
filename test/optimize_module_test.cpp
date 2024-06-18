@@ -144,7 +144,7 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::module lit_mod;
     {
         auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_b = lit_mod.add_instruction(
+        auto lit1_b    = lit_mod.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);
@@ -171,8 +171,9 @@ TEST_CASE(mul_add_transpose_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), in1);
 
         auto lit13_ins = m2.add_literal(lit13);
-        auto lit13_b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), lit13_ins);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), in_tp, lit13_b);
+        auto lit13_b   = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), lit13_ins);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), in_tp, lit13_b);
 
         auto lit23_ins = m2.add_literal(lit23);
         auto lit23_mb  = m2.add_instruction(

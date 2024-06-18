@@ -979,6 +979,8 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
     return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
 }
 
+// Insert parameters into the module based on the input instructions and then
+// update the map_ins to map the input to the parameter.
 static void insert_params(module& m,
                           const std::vector<instruction_ref>& inputs,
                           std::unordered_map<instruction_ref, instruction_ref>& map_ins)

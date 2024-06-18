@@ -289,6 +289,7 @@ void dimension::simplify()
             return;
         auto a1 = d1.axis.back();
         auto a2 = d2.axis.back();
+        assert(a2 != a1);
         if(a2 <= a1)
             return;
         if((a2 - a1) != 1)

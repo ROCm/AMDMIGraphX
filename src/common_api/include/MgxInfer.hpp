@@ -699,20 +699,9 @@ enum class LayerType : int32_t
 class ILayer : public INoCopy
 {
     public:
-    ILayer(const std::shared_ptr<migraphx::program>& program,
-           const std::vector<migraphx::instruction_ref>& inputs,
-           const std::vector<migraphx::instruction_ref>& outputs)
-        : program_{program}
+    ILayer(LayerType type, const std::shared_ptr<migraphx::program>& program)
+        : type_{type}, program_{std::move(program)}
     {
-        for(auto ins : inputs)
-        {
-            inputs_.push_back(std::make_unique<ITensor>(ins));
-        }
-
-        for(auto ins : outputs)
-        {
-            outputs_.push_back(std::make_unique<ITensor>(ins));
-        }
     }
 
     //!
@@ -722,7 +711,7 @@ class ILayer : public INoCopy
     //!
     LayerType getType() const noexcept
     {
-        pass("Not Implemented", true);
+        return type_;
         // return mLayer->getType();
     }
 
@@ -758,7 +747,7 @@ class ILayer : public INoCopy
     //!
     int32_t getNbInputs() const noexcept
     {
-        pass("Not Implemented", true);
+        return inputs_.size();
         // return mLayer->getNbInputs();
     }
 
@@ -772,7 +761,8 @@ class ILayer : public INoCopy
     //!
     ITensor* getInput(int32_t index) const noexcept
     {
-        pass("Not Implemented", true);
+        // TODO Index checking
+        return inputs_.at(index);
         // return mLayer->getInput(index);
     }
 
@@ -781,7 +771,7 @@ class ILayer : public INoCopy
     //!
     int32_t getNbOutputs() const noexcept
     {
-        pass("Not Implemented", true);
+        return outputs_.size();
         // return mLayer->getNbOutputs();
     }
 
@@ -793,7 +783,8 @@ class ILayer : public INoCopy
     //!
     ITensor* getOutput(int32_t index) const noexcept
     {
-        return outputs_[index].get();
+        // TODO add index checking
+        return outputs_.at(index).get();
         // return mLayer->getOutput(index);
     }
 
@@ -811,7 +802,12 @@ class ILayer : public INoCopy
     //!
     void setInput(int32_t index, ITensor& tensor) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO add index checking
+        // TODO check if new input shape is different?
+        auto* old_input = inputs_.at(index);
+        inputs_[index]  = &tensor;
+        migraphx::instruction::replace_argument(
+            first_ins_, old_input->getInstruction(), tensor.getInstruction());
         // return mLayer->setInput(index, tensor);
     }
 
@@ -1023,9 +1019,11 @@ class ILayer : public INoCopy
 
     protected:
     // apiv::VLayer* mLayer;
+    LayerType type_;
     std::shared_ptr<migraphx::program> program_;
-    std::vector<std::unique_ptr<ITensor>> inputs_;
+    std::vector<ITensor*> inputs_;
     std::vector<std::unique_ptr<ITensor>> outputs_;
+    migraphx::instruction_ref first_ins_;
 };
 
 //!
@@ -1072,6 +1070,38 @@ enum class UnaryOperation : int32_t
     kISINF = 23, //!< Return true if input value equals +/- infinity for floating-point data type.
 };
 
+inline std::string trtUnaryOperationToMGXOp(const UnaryOperation op)
+{
+    switch(op)
+    {
+    case UnaryOperation::kEXP: return "exp";
+    case UnaryOperation::kLOG: return "log";
+    case UnaryOperation::kSQRT: return "sqrt";
+    case UnaryOperation::kRECIP: return "recip";
+    case UnaryOperation::kABS: return "abs";
+    case UnaryOperation::kNEG: return "neg";
+    case UnaryOperation::kSIN: return "sin";
+    case UnaryOperation::kCOS: return "cos";
+    case UnaryOperation::kTAN: return "tan";
+    case UnaryOperation::kSINH: return "sinh";
+    case UnaryOperation::kCOSH: return "cosh";
+    case UnaryOperation::kASIN: return "asin";
+    case UnaryOperation::kACOS: return "acos";
+    case UnaryOperation::kATAN: return "atan";
+    case UnaryOperation::kASINH: return "asinh";
+    case UnaryOperation::kACOSH: return "acosh";
+    case UnaryOperation::kATANH: return "atanh";
+    case UnaryOperation::kCEIL: return "ceil";
+    case UnaryOperation::kFLOOR: return "floor";
+    case UnaryOperation::kERF: return "erf";
+    case UnaryOperation::kNOT: return "unary_not";
+    case UnaryOperation::kSIGN: return "sign";
+    case UnaryOperation::kROUND: return "nearbyint";
+    // Not included in operators.hpp
+    case UnaryOperation::kISINF: return "isinf";
+    }
+}
+
 //!
 //! \class IUnaryLayer
 //!
@@ -1084,6 +1114,19 @@ class IUnaryLayer : public ILayer
 {
     public:
     using ILayer::ILayer;
+
+    IUnaryLayer(ITensor& input,
+                UnaryOperation operation,
+                const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kUNARY, program}, operation_{operation}
+    {
+        auto* mm             = program->get_main_module();
+        std::string unary_op = trtUnaryOperationToMGXOp(operation);
+        first_ins_ = mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction());
+        inputs_.push_back(&input);
+        outputs_.emplace_back(std::make_unique<ITensor>(first_ins_));
+    }
+
     //!
     //! \brief Set the unary operation for the layer.
     //!
@@ -1091,9 +1134,11 @@ class IUnaryLayer : public ILayer
     //!
     //! \see getOperation(), UnaryOperation
     //!
-    void setOperation(UnaryOperation op) noexcept
+    void setOperation(UnaryOperation operation) noexcept
     {
-        pass("Not Implemented", true);
+        auto* mm = program_->get_main_module();
+        auto op  = trtUnaryOperationToMGXOp(operation);
+        mm->replace_instruction(first_ins_, migraphx::make_op(op));
         // mImpl->setOperation(op);
     }
 
@@ -1104,13 +1149,14 @@ class IUnaryLayer : public ILayer
     //!
     UnaryOperation getOperation() const noexcept
     {
-        pass("Not Implemented", true);
+        return operation_;
         // return mImpl->getOperation();
     }
 
     virtual ~IUnaryLayer() noexcept = default;
 
     protected:
+    UnaryOperation operation_;
     // apiv::VUnaryLayer* mImpl;
 };
 
@@ -1248,6 +1294,11 @@ class IReduceLayer : public ILayer
     public:
     using ILayer::ILayer;
 
+    IReduceLayer(ReduceOperation operation, const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kREDUCE, program}, operation_{operation}
+    {
+    }
+
     //!
     //! \brief Set the reduce operation for the layer.
     //!
@@ -1320,6 +1371,7 @@ class IReduceLayer : public ILayer
     virtual ~IReduceLayer() noexcept = default;
 
     protected:
+    ReduceOperation operation_;
     // apiv::VReduceLayer* mImpl;
 };
 
@@ -1362,10 +1414,10 @@ class IHostMemory : public INoCopy
 //!
 //! \brief Flags used to control TensorRT's behavior when creating executable temporary files.
 //!
-//! On some platforms the TensorRT runtime may need to create files in a temporary directory or use platform-specific
-//! APIs to create files in-memory to load temporary DLLs that implement runtime code. These flags allow the
-//! application to explicitly control TensorRT's use of these files. This will preclude the use of certain TensorRT
-//! APIs for deserializing and loading lean runtimes.
+//! On some platforms the TensorRT runtime may need to create files in a temporary directory or use
+//! platform-specific APIs to create files in-memory to load temporary DLLs that implement runtime
+//! code. These flags allow the application to explicitly control TensorRT's use of these files.
+//! This will preclude the use of certain TensorRT APIs for deserializing and loading lean runtimes.
 //!
 enum class TempfileControlFlag : int32_t
 {
@@ -4170,24 +4222,25 @@ class INetworkDefinition : public INoCopy
     IElementWiseLayer*
     addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
     {
-        auto mm = program_->get_main_module();
+        // auto mm = program_->get_main_module();
 
-        std::string elem_wise_op;
-        switch(op)
-        {
-        case ElementWiseOperation::kSUM: elem_wise_op = "add"; break;
-        default: pass("Not Implemented", true);
-        }
+        // std::string elem_wise_op;
+        // switch(op)
+        // {
+        // case ElementWiseOperation::kSUM: elem_wise_op = "add"; break;
+        // default: pass("Not Implemented", true);
+        // }
 
-        auto elem_wise_ins = mm->add_instruction(
-            migraphx::make_op(elem_wise_op), input1.getInstruction(), input2.getInstruction());
+        // auto elem_wise_ins = mm->add_instruction(
+        //     migraphx::make_op(elem_wise_op), input1.getInstruction(), input2.getInstruction());
 
-        std::vector<migraphx::instruction_ref> input_instructions{elem_wise_ins};
-        std::vector<migraphx::instruction_ref> output_instructions{elem_wise_ins};
+        // std::vector<migraphx::instruction_ref> input_instructions{elem_wise_ins};
+        // std::vector<migraphx::instruction_ref> output_instructions{elem_wise_ins};
 
-        layers_.push_back(
-            std::make_unique<IElementWiseLayer>(program_, input_instructions, output_instructions));
-        return dynamic_cast<IElementWiseLayer*>(layers_.back().get());
+        // layers_.push_back(
+        //     std::make_unique<IElementWiseLayer>(program_, input_instructions,
+        //     output_instructions));
+        // return dynamic_cast<IElementWiseLayer*>(layers_.back().get());
         // return mImpl->addElementWise(input1, input2, op);
     }
 
@@ -4208,25 +4261,18 @@ class INetworkDefinition : public INoCopy
     //!
     //! \return The new unary layer, or nullptr if it could not be created
     //!
+
     IUnaryLayer* addUnary(ITensor& input, UnaryOperation operation) noexcept
     {
-        auto mm = program_->get_main_module();
 
-        std::string unary_op;
-        switch(operation)
-        {
-        case UnaryOperation::kABS: unary_op = "abs"; break;
-        case UnaryOperation::kSIN: unary_op = "sin"; break;
-        default: pass("Not Implemented", true);
-        }
+        // std::string unary_op = trtUnaryOperationToMGXOp(operation);
 
-        auto unary_ins = mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction());
+        // auto unary_ins = mm->add_instruction(migraphx::make_op(unary_op),
+        // input.getInstruction());
 
-        std::vector<migraphx::instruction_ref> input_instructions{unary_ins};
-        std::vector<migraphx::instruction_ref> output_instructions{unary_ins};
-
-        layers_.push_back(
-            std::make_unique<IUnaryLayer>(program_, input_instructions, output_instructions));
+        // std::vector<ITensor*> inputs{&input};
+        // std::vector<migraphx::instruction_ref> outputs{unary_ins};
+        layers_.push_back(std::make_unique<IUnaryLayer>(input, operation, program_));
         return dynamic_cast<IUnaryLayer*>(layers_.back().get());
         // return mImpl->addUnary(input, operation);
     }
@@ -4411,18 +4457,15 @@ class INetworkDefinition : public INoCopy
         auto reduce_ins = mm->add_instruction(migraphx::make_op(reduce_op, {{"axes", axes}}),
                                               input.getInstruction());
 
-        std::vector<migraphx::instruction_ref> input_instructions{reduce_ins};
-        std::vector<migraphx::instruction_ref> output_instructions;
-
         if(!keepDimensions)
         {
-            auto squeeze_ins =
+            reduce_ins =
                 mm->add_instruction(migraphx::make_op("squeeze", {{"axes", axes}}), reduce_ins);
-            output_instructions.push_back(squeeze_ins);
         }
 
-        layers_.push_back(
-            std::make_unique<IReduceLayer>(program_, input_instructions, output_instructions));
+        std::vector<ITensor*> inputs{&input};
+        std::vector<migraphx::instruction_ref> outputs{reduce_ins};
+        layers_.push_back(std::make_unique<IReduceLayer>(operation, program_));
         return dynamic_cast<IReduceLayer*>(layers_.back().get());
         //  return mImpl->addReduce(input, operation, reduceAxes, keepDimensions);
     }
@@ -6929,21 +6972,22 @@ class IBuilder : public INoCopy
 //!
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
 
-namespace consistency
-{
+namespace consistency {
 
 //!
 //! \class IConsistencyChecker
 //!
 //! \brief Validates a serialized engine blob.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
 //!
 class IConsistencyChecker
 {
-public:
+    public:
     //!
-    //! \brief Check that a blob that was input to createConsistencyChecker method represents a valid engine.
+    //! \brief Check that a blob that was input to createConsistencyChecker method represents a
+    //! valid engine.
     //!
     //! \return true if the original blob encoded an engine that belongs to valid engine domain with
     //! target capability EngineCapability::kSAFETY, false otherwise.
@@ -6959,13 +7003,13 @@ public:
     //!
     virtual ~IConsistencyChecker() = default;
 
-protected:
+    protected:
     // apiv::VConsistencyChecker* mImpl;
-    IConsistencyChecker() = default;
-    IConsistencyChecker(IConsistencyChecker const& other) = delete;
+    IConsistencyChecker()                                            = default;
+    IConsistencyChecker(IConsistencyChecker const& other)            = delete;
     IConsistencyChecker& operator=(IConsistencyChecker const& other) = delete;
-    IConsistencyChecker(IConsistencyChecker&& other) = delete;
-    IConsistencyChecker& operator=(IConsistencyChecker&& other) = delete;
+    IConsistencyChecker(IConsistencyChecker&& other)                 = delete;
+    IConsistencyChecker& operator=(IConsistencyChecker&& other)      = delete;
 };
 } // namespace consistency
 

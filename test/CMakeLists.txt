@@ -91,6 +91,7 @@ add_subdirectory(tf)
 add_subdirectory(api)
 add_subdirectory(verify)
 add_subdirectory(ref)
+add_subdirectory(common_api)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)

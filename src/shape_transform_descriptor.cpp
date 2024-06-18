@@ -528,7 +528,7 @@ void shape_transform_descriptor::simplify()
                 return s.axis.back() == 0;
             });
             bool in_order        = false;
-            if(prev.has_value() and not (*prev)->axis.empty())
+            if(prev.has_value() and not(*prev)->axis.empty())
                 in_order = (*prev)->axis.front() == missing_axis - 1;
             // If the axis is not inorder then see if we can find a broadcast axis to place it
             auto bdims =

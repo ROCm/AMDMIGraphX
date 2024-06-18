@@ -2381,7 +2381,10 @@ class IExecutionContext : public INoCopy
     //!
     bool enqueueV3(hipStream_t stream) noexcept
     {
-        pass("Not Implemented", true);
+        migraphx::execution_environment exec_env{
+            migraphx::any_ptr(reinterpret_cast<void*>(stream), "ihipStream_t"), true};
+        auto result = program_->eval(param_map_, exec_env);
+        return true;
         // return mImpl->enqueueV3(stream);
     }
 
@@ -6397,7 +6400,7 @@ class IBuilderConfig : public INoCopy
     //!
     void setMemoryPoolLimit(MemoryPoolType pool, std::size_t poolSize) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO log that setMemoryPoolLimit is a noop, pop up a warning, or do both
         // mImpl->setMemoryPoolLimit(pool, poolSize);
     }
 
@@ -7327,6 +7330,11 @@ class Parser : public IParser
                size_t serialized_onnx_model_size,
                const char* model_path = nullptr) override
     {
+        // TODO complete implementation, figure out what model_path does
+        migraphx::onnx_options opts;
+        network_.setProgram(std::make_shared<migraphx::program>(
+            migraphx::parse_onnx_buffer(serialized_onnx_model, serialized_onnx_model_size, opts)));
+        return true;
         pass("Not Implemented", true);
     }
 
@@ -7357,7 +7365,10 @@ class Parser : public IParser
 
     bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
 
-    int getNbErrors() const override { pass("Not Implemented", true); }
+    int getNbErrors() const override
+    { // TODO implement actual error counting
+        return 0;
+    }
 
     IParserError const* getError(int index) const override { pass("Not Implemented", true); }
 

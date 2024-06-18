@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/time_op.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
+#ifndef MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+#include <type_traits>
+#include <limits>
 
-struct compile_op : action<compile_op>
+template <class T>
+constexpr T mul_sat(T a, T b) noexcept
 {
-    static void apply(const parser& p, const value& v)
+    T c;
+    if(not __builtin_mul_overflow(a, b, &c))
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << " -> " << op.compute_shape(inputs) << ": " << t << "ms" << std::endl;
-        std::cout << std::endl;
+        return c;
     }
-};
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return std::numeric_limits<T>::max();
+    }
+    else if(a < 0 != b < 0)
+    {
+        return std::numeric_limits<T>::min();
+    }
+    return std::numeric_limits<T>::max();
+}
 
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+#endif

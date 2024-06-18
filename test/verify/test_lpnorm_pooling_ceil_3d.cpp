@@ -21,30 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/driver/action.hpp>
-#include <migraphx/gpu/time_op.hpp>
-#include <migraphx/gpu/compiler.hpp>
-#include <migraphx/gpu/context.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace driver {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/pooling.hpp>
 
-struct compile_op : action<compile_op>
+template <std::size_t N>
+struct test_lpnorm_pooling_ceil_3d : verify_program<test_lpnorm_pooling_ceil_3d<N>>
 {
-    static void apply(const parser& p, const value& v)
+    migraphx::program create_program() const
     {
-        context ctx;
-        auto inputs = p.parse_shapes(v.at("inputs"));
-        auto op     = gpu::compile_op(v.at("name").to<std::string>(), ctx, inputs, v);
-        auto t      = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        std::cout << op << " -> " << op.compute_shape(inputs) << ": " << t << "ms" << std::endl;
-        std::cout << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm,
+                                        {1, 1, 1},
+                                        {3, 3, 3},
+                                        {3, 3, 3},
+                                        {1, 1, 1},
+                                        true,
+                                        N};
+        mm->add_instruction(op, input);
+        return p;
     }
 };
 
-} // namespace driver
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template struct test_lpnorm_pooling_ceil_3d<0>;
+template struct test_lpnorm_pooling_ceil_3d<1>;
+template struct test_lpnorm_pooling_ceil_3d<2>;
+template struct test_lpnorm_pooling_ceil_3d<3>;

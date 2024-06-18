@@ -45,11 +45,11 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     std::size_t x = 1;
     auto it       = std::find_if(start, last, [&](auto d) {
         x *= proj(d);
-        return x >= dim;
+        return x == dim;
     });
-    if(x != dim)
-        return start;
-    return it;
+    if(it != last) 
+            return it;
+    return start;
 }
 
 void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)

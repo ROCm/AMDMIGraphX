@@ -33,23 +33,21 @@ using final_lens = std::vector<std::size_t>;
 using all_axes   = std::vector<std::vector<std::vector<std::size_t>>>;
 using d_axes     = std::vector<std::vector<std::size_t>>;
 using ops        = std::vector<migraphx::operation>;
-using dimension = shape_transform_descriptor::dimension;
-using sub       = dimension::sub;
+using dimension  = shape_transform_descriptor::dimension;
+using sub        = dimension::sub;
 
 all_lens get_all_lens(const shape_transform_descriptor& d)
 {
     all_lens result;
-    std::transform(d.dimensions.begin(),
-                   d.dimensions.end(),
-                   std::back_inserter(result),
-                   [](const auto& dim) {
-                       std::vector<std::size_t> sub_lens;
-                       std::transform(dim.subdimensions.begin(),
-                                      dim.subdimensions.end(),
-                                      std::back_inserter(sub_lens),
-                                      [](const auto& x) { return x.len; });
-                       return sub_lens;
-                   });
+    std::transform(
+        d.dimensions.begin(), d.dimensions.end(), std::back_inserter(result), [](const auto& dim) {
+            std::vector<std::size_t> sub_lens;
+            std::transform(dim.subdimensions.begin(),
+                           dim.subdimensions.end(),
+                           std::back_inserter(sub_lens),
+                           [](const auto& x) { return x.len; });
+            return sub_lens;
+        });
     return result;
 }
 
@@ -66,17 +64,15 @@ final_lens get_final_lens(const shape_transform_descriptor& d)
 all_axes get_all_axes(const shape_transform_descriptor& d)
 {
     all_axes result;
-    std::transform(d.dimensions.begin(),
-                   d.dimensions.end(),
-                   std::back_inserter(result),
-                   [](const auto& dim) {
-                       std::vector<std::vector<std::size_t>> sub_axis;
-                       std::transform(dim.subdimensions.begin(),
-                                      dim.subdimensions.end(),
-                                      std::back_inserter(sub_axis),
-                                      [](const auto& x) { return x.axis; });
-                       return sub_axis;
-                   });
+    std::transform(
+        d.dimensions.begin(), d.dimensions.end(), std::back_inserter(result), [](const auto& dim) {
+            std::vector<std::vector<std::size_t>> sub_axis;
+            std::transform(dim.subdimensions.begin(),
+                           dim.subdimensions.end(),
+                           std::back_inserter(sub_axis),
+                           [](const auto& x) { return x.axis; });
+            return sub_axis;
+        });
     return result;
 }
 

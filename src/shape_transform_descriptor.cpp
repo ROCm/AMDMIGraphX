@@ -179,6 +179,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
             auto it = compute_end_dim(start, subs.end(), rdim, std::mem_fn(&dimension::sub::len));
             if(it == start)
                 return false;
+            assert(it != subs.end());
             auto n = it - start;
             i += n;
             new_dims.push_back({{start, it + 1}});
@@ -190,6 +191,7 @@ bool shape_transform_descriptor::apply_reshape(const std::vector<std::size_t>& r
             auto it    = compute_end_dim(start, rdims.end(), idim, id{});
             if(it == start)
                 return false;
+            assert(it != rdims.end());
             auto n = it - start;
             r += n;
             transform(range(n + 1), std::back_inserter(new_dims), [&](auto j) -> dimension {

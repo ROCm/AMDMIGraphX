@@ -1138,7 +1138,7 @@ class IUnaryLayer : public ILayer
     {
         auto* mm = program_->get_main_module();
         auto op  = trtUnaryOperationToMGXOp(operation);
-        mm->replace_instruction(first_ins_, migraphx::make_op(op));
+        mm->replace_instruction(first_ins_, migraphx::make_op(op), first_ins_->inputs());
         // mImpl->setOperation(op);
     }
 
@@ -6857,7 +6857,9 @@ class IBuilder : public INoCopy
         migraphx::program p = *network.getProgram();
         try
         {
+            std::cout << p << std::endl;
             p.compile(migraphx::make_target("gpu"));
+            std::cout << p << std::endl;
         }
         catch(migraphx::exception& e)
         {

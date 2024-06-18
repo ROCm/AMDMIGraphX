@@ -27,6 +27,6 @@ file(GLOB LAYERS_SRC CONFIGURE_DEPENDS layers/*.cpp)
 
 rocm_add_test_executable(test_common_api ${REF} ${LAYERS_SRC})
 target_include_directories(test_common_api PUBLIC ../include ../../src/common_api/include)
-target_link_libraries(test_common_api migraphx migraphx_ref)
+target_link_libraries(test_common_api migraphx migraphx_ref migraphx_all_targets migraphx_c)
 rocm_clang_tidy_check(test_common_api)
 

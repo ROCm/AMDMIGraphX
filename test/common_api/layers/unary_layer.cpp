@@ -66,15 +66,19 @@ TEST_CASE(unary_layer_creation)
     std::vector<float> x_data{
         0.38335552, 0.99845273, 0.28325482, 0.57934947, 0.95479255, 0.49634385};
     // TODO replace with memcpy async
-    hipMemcpy(x_data_dev, x_data.data(), x_data.size() * sizeof(float), hipMemcpyHostToDevice);
+    hipMemcpyAsync(
+        x_data_dev, x_data.data(), x_data.size() * sizeof(float), hipMemcpyHostToDevice, stream);
 
     context->setTensorAddress("x", x_data_dev);
     context->setTensorAddress("output", output_data_dev);
-    context->executeV2(nullptr);
-    hipDeviceSynchronize();
-    hipStreamSynchronize(stream);
+    context->enqueueV3(stream);
 
-    hipMemcpy(x_data.data(), output_data_dev, x_data.size() * sizeof(float), hipMemcpyDeviceToHost);
+    hipMemcpyAsync(x_data.data(),
+                   output_data_dev,
+                   x_data.size() * sizeof(float),
+                   hipMemcpyDeviceToHost,
+                   stream);
+    hipStreamSynchronize(stream);
     std::vector<float> gold{0.37403453, 0.84063398, 0.27948225, 0.54747968, 0.8161939, 0.47621377};
     EXPECT(migraphx::verify::verify_rms_range(x_data, gold));
 
@@ -111,16 +115,19 @@ TEST_CASE(unary_layer_modification)
 
     std::vector<float> x_data{
         0.38335552, 0.99845273, 0.28325482, 0.57934947, 0.95479255, 0.49634385};
-    // TODO replace with memcpy async
-    hipMemcpy(x_data_dev, x_data.data(), x_data.size() * sizeof(float), hipMemcpyHostToDevice);
+    hipMemcpyAsync(
+        x_data_dev, x_data.data(), x_data.size() * sizeof(float), hipMemcpyHostToDevice, stream);
 
     context->setTensorAddress("x", x_data_dev);
     context->setTensorAddress("output", output_data_dev);
-    context->executeV2(nullptr);
-    hipDeviceSynchronize();
-    hipStreamSynchronize(stream);
+    context->enqueueV3(stream);
 
-    hipMemcpy(x_data.data(), output_data_dev, x_data.size() * sizeof(float), hipMemcpyDeviceToHost);
+    hipMemcpyAsync(x_data.data(),
+                   output_data_dev,
+                   x_data.size() * sizeof(float),
+                   hipMemcpyDeviceToHost,
+                   stream);
+    hipStreamSynchronize(stream);
     std::cout << migraphx::to_string_range(x_data) << std::endl;
     std::vector<float> gold{0.92741478, 0.54160364, 0.96015086, 0.83681898, 0.57777809, 0.87932954};
     EXPECT(migraphx::verify::verify_rms_range(x_data, gold));

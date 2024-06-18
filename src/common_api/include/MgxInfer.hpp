@@ -1340,7 +1340,7 @@ class IHostMemory : public INoCopy
     virtual ~IHostMemory() noexcept = default;
 
     //! A pointer to the raw data that is owned by the library.
-    const void* data() const noexcept { return data_; }
+    void* data() const noexcept { return data_; }
 
     //! The size in bytes of the data that was allocated.
     std::size_t size() const noexcept { return size_; }
@@ -1356,6 +1356,34 @@ class IHostMemory : public INoCopy
     size_t size_;
     DataType type_;
 };
+
+//!
+//! \enum TempfileControlFlag
+//!
+//! \brief Flags used to control TensorRT's behavior when creating executable temporary files.
+//!
+//! On some platforms the TensorRT runtime may need to create files in a temporary directory or use platform-specific
+//! APIs to create files in-memory to load temporary DLLs that implement runtime code. These flags allow the
+//! application to explicitly control TensorRT's use of these files. This will preclude the use of certain TensorRT
+//! APIs for deserializing and loading lean runtimes.
+//!
+enum class TempfileControlFlag : int32_t
+{
+    //! Allow creating and loading files in-memory (or unnamed files).
+    kALLOW_IN_MEMORY_FILES = 0,
+
+    //! Allow creating and loading named files in a temporary directory on the filesystem.
+    //!
+    //! \see IRuntime::setTemporaryDirectory()
+    kALLOW_TEMPORARY_FILES = 1,
+};
+
+//! Maximum number of elements in TempfileControlFlag enum. \see TempfileControlFlag
+template <>
+constexpr inline int32_t EnumMax<TempfileControlFlag>() noexcept
+{
+    return 2;
+}
 
 //!
 //! \brief Represents a collection of one or more TempfileControlFlag values combined using
@@ -1405,6 +1433,17 @@ enum class OptProfileSelector : int32_t
               //!< selection).
     kMAX = 2 //!< This is used to set or get the maximum permitted value for dynamic dimensions etc.
 };
+
+//!
+//! \brief Number of different values of OptProfileSelector enum.
+//!
+//! \see OptProfileSelector
+//!
+template <>
+constexpr inline int32_t EnumMax<OptProfileSelector>() noexcept
+{
+    return 3;
+}
 
 //!
 //! \enum EngineCapability
@@ -3653,6 +3692,13 @@ class IRuntime : public INoCopy
 //! \param logger The logging class for the runtime.
 //!
 inline IRuntime* createInferRuntime(ILogger& logger) noexcept { return new IRuntime{logger}; }
+
+namespace safe {
+
+using mgxinfer1::ICudaEngine;
+using mgxinfer1::IRuntime;
+
+} // namespace safe
 
 //!
 //! \brief Represents one or more NetworkDefinitionCreationFlag flags
@@ -6882,6 +6928,46 @@ class IBuilder : public INoCopy
 //! this header.
 //!
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
+
+namespace consistency
+{
+
+//!
+//! \class IConsistencyChecker
+//!
+//! \brief Validates a serialized engine blob.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//!
+class IConsistencyChecker
+{
+public:
+    //!
+    //! \brief Check that a blob that was input to createConsistencyChecker method represents a valid engine.
+    //!
+    //! \return true if the original blob encoded an engine that belongs to valid engine domain with
+    //! target capability EngineCapability::kSAFETY, false otherwise.
+    //!
+    bool validate() const noexcept
+    {
+        pass("Not Implemented", false);
+        return true;
+    }
+
+    //!
+    //! \brief De-allocates any internally allocated memory.
+    //!
+    virtual ~IConsistencyChecker() = default;
+
+protected:
+    // apiv::VConsistencyChecker* mImpl;
+    IConsistencyChecker() = default;
+    IConsistencyChecker(IConsistencyChecker const& other) = delete;
+    IConsistencyChecker& operator=(IConsistencyChecker const& other) = delete;
+    IConsistencyChecker(IConsistencyChecker&& other) = delete;
+    IConsistencyChecker& operator=(IConsistencyChecker&& other) = delete;
+};
+} // namespace consistency
 
 } // namespace mgxinfer1
 

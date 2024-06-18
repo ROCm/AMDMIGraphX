@@ -144,18 +144,12 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::module lit_mod;
     {
         auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_unsq = lit_mod.add_instruction(
-            migraphx::make_op("unsqueeze", {{"axes", {0, 2, 3}}}), lit1_ins);
-        auto lit1_tp = lit_mod.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), lit1_unsq);
-        auto lit1_mb = lit_mod.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), lit1_tp);
+        auto lit1_b = lit_mod.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);
-        auto lit3_mb  = lit_mod.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), lit3_ins);
 
-        auto mul_lit   = lit_mod.add_instruction(migraphx::make_op("mul"), lit1_mb, lit3_mb);
+        auto mul_lit   = lit_mod.add_instruction(migraphx::make_op("mul"), lit1_b, lit3_ins);
         auto lit13_arg = mul_lit->eval();
         lit13          = migraphx::literal(lit13_arg.get_shape(), lit13_arg.data());
 
@@ -177,7 +171,8 @@ TEST_CASE(mul_add_transpose_dot)
             migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), in1);
 
         auto lit13_ins = m2.add_literal(lit13);
-        auto dot       = m2.add_instruction(migraphx::make_op("dot"), in_tp, lit13_ins);
+        auto lit13_b = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 64, 64}}}), lit13_ins);
+        auto dot       = m2.add_instruction(migraphx::make_op("dot"), in_tp, lit13_b);
 
         auto lit23_ins = m2.add_literal(lit23);
         auto lit23_mb  = m2.add_instruction(

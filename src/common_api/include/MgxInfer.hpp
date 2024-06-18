@@ -54,9 +54,6 @@ class IDebugListener
 class IOptimizationProfile
 {
 };
-class IActivationLayer
-{
-};
 class ILRNLayer
 {
 };
@@ -1252,6 +1249,162 @@ class IElementWiseLayer : public ILayer
 
     protected:
     // apiv::VElementWiseLayer* mImpl;
+};
+
+//!
+//! \enum ActivationType
+//!
+//! \brief Enumerates the types of activation to perform in an activation layer.
+//!
+enum class ActivationType : int32_t
+{
+    kRELU             = 0,  //!< Rectified linear activation.
+    kSIGMOID          = 1,  //!< Sigmoid activation.
+    kTANH             = 2,  //!< TanH activation.
+    kLEAKY_RELU       = 3,  //!< LeakyRelu activation: x>=0 ? x : alpha * x.
+    kELU              = 4,  //!< Elu activation: x>=0 ? x : alpha * (exp(x) - 1).
+    kSELU             = 5,  //!< Selu activation: x>0 ? beta * x : beta * (alpha*exp(x) - alpha)
+    kSOFTSIGN         = 6,  //!< Softsign activation: x / (1+|x|)
+    kSOFTPLUS         = 7,  //!< Parametric softplus activation: alpha*log(exp(beta*x)+1)
+    kCLIP             = 8,  //!< Clip activation: max(alpha, min(beta, x))
+    kHARD_SIGMOID     = 9,  //!< Hard sigmoid activation: max(0, min(1, alpha*x+beta))
+    kSCALED_TANH      = 10, //!< Scaled tanh activation: alpha*tanh(beta*x)
+    kTHRESHOLDED_RELU = 11, //!< Thresholded ReLU activation: x>alpha ? x : 0
+    kGELU_ERF         = 12, //!< GELU erf activation: 0.5 * x * (1 + erf(sqrt(0.5) * x))
+    kGELU_TANH =
+        13 //!< GELU tanh activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (0.044715F * pow(x, 3) + x)))
+};
+
+//!
+//! \class IActivationLayer
+//!
+//! \brief An Activation layer in a network definition.
+//!
+//! This layer applies a per-element activation function to its input.
+//!
+//! The output has the same shape as the input.
+//!
+//! The input is a shape tensor if the output is a shape tensor.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IActivationLayer : public ILayer
+{
+    public:
+    IActivationLayer(ITensor& input,
+                     ActivationType activation,
+                     const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kACTIVATION, program}, activation_{activation}
+    {
+        auto* mm = program->get_main_module();
+        inputs_.push_back(&input);
+        switch(activation_)
+        {
+        case ActivationType::kRELU:
+            first_ins_ = last_ins_ =
+                mm->add_instruction(migraphx::make_op("relu"), input.getInstruction());
+            outputs_.push_back(std::make_unique<ITensor>(last_ins_));
+            break;
+        case ActivationType::kSIGMOID: return;
+        case ActivationType::kTANH: return;
+        case ActivationType::kLEAKY_RELU: return;
+        case ActivationType::kELU: return;
+        case ActivationType::kSELU: return;
+        case ActivationType::kSOFTSIGN: return;
+        case ActivationType::kSOFTPLUS: return;
+        case ActivationType::kCLIP: return;
+        case ActivationType::kHARD_SIGMOID: return;
+        case ActivationType::kSCALED_TANH: return;
+        case ActivationType::kTHRESHOLDED_RELU: return;
+        case ActivationType::kGELU_ERF: return;
+        case ActivationType::kGELU_TANH: return;
+        }
+    }
+
+    //!
+    //! \brief Set the type of activation to be performed.
+    //!
+    //! On the DLA, the valid activation types are kRELU, kSIGMOID, kTANH, and kCLIP.
+    //!
+    //! \see getActivationType(), ActivationType
+    //!
+    void setActivationType(ActivationType type) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setActivationType(type);
+    }
+
+    //!
+    //! \brief Get the type of activation to be performed.
+    //!
+    //! \see setActivationType(), ActivationType
+    //!
+    ActivationType getActivationType() const noexcept
+    {
+        return activation_;
+        // return mImpl->getActivationType();
+    }
+
+    //!
+    //! \brief Set the alpha parameter (must be finite).
+    //!
+    //! This parameter is used by the following activations:
+    //! LeakyRelu, Elu, Selu, Softplus, Clip, HardSigmoid, ScaledTanh,
+    //! ThresholdedRelu.
+    //!
+    //! It is ignored by the other activations.
+    //!
+    //! \see getAlpha(), setBeta()
+    void setAlpha(float alpha) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setAlpha(alpha);
+    }
+
+    //!
+    //! \brief Set the beta parameter (must be finite).
+    //!
+    //! This parameter is used by the following activations:
+    //! Selu, Softplus, Clip, HardSigmoid, ScaledTanh.
+    //!
+    //! It is ignored by the other activations.
+    //!
+    //! \see getBeta(), setAlpha()
+    void setBeta(float beta) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setBeta(beta);
+    }
+
+    //!
+    //! \brief Get the alpha parameter.
+    //!
+    //! \see getBeta(), setAlpha()
+    float getAlpha() const noexcept
+    {
+        return alpha_;
+        // return mImpl->getAlpha();
+    }
+
+    //!
+    //! \brief Get the beta parameter.
+    //!
+    //! \see getAlpha(), setBeta()
+    float getBeta() const noexcept
+    {
+        return beta_;
+        // return mImpl->getBeta();
+    }
+
+    virtual ~IActivationLayer() noexcept = default;
+
+    protected:
+    ActivationType activation_;
+    float alpha_ = 0.f;
+    float beta_  = 0.f;
+    migraphx::instruction_ref last_ins_;
+    // apiv::VActivationLayer* mImpl;
 };
 
 //!
@@ -3789,30 +3942,6 @@ enum class NetworkDefinitionCreationFlag : int32_t
 };
 
 //!
-//! \enum ActivationType
-//!
-//! \brief Enumerates the types of activation to perform in an activation layer.
-//!
-enum class ActivationType : int32_t
-{
-    kRELU             = 0,  //!< Rectified linear activation.
-    kSIGMOID          = 1,  //!< Sigmoid activation.
-    kTANH             = 2,  //!< TanH activation.
-    kLEAKY_RELU       = 3,  //!< LeakyRelu activation: x>=0 ? x : alpha * x.
-    kELU              = 4,  //!< Elu activation: x>=0 ? x : alpha * (exp(x) - 1).
-    kSELU             = 5,  //!< Selu activation: x>0 ? beta * x : beta * (alpha*exp(x) - alpha)
-    kSOFTSIGN         = 6,  //!< Softsign activation: x / (1+|x|)
-    kSOFTPLUS         = 7,  //!< Parametric softplus activation: alpha*log(exp(beta*x)+1)
-    kCLIP             = 8,  //!< Clip activation: max(alpha, min(beta, x))
-    kHARD_SIGMOID     = 9,  //!< Hard sigmoid activation: max(0, min(1, alpha*x+beta))
-    kSCALED_TANH      = 10, //!< Scaled tanh activation: alpha*tanh(beta*x)
-    kTHRESHOLDED_RELU = 11, //!< Thresholded ReLU activation: x>alpha ? x : 0
-    kGELU_ERF         = 12, //!< GELU erf activation: 0.5 * x * (1 + erf(sqrt(0.5) * x))
-    kGELU_TANH =
-        13 //!< GELU tanh activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (0.044715F * pow(x, 3) + x)))
-};
-
-//!
 //! \brief Controls how shift, scale and power are applied in a Scale layer.
 //!
 //! \see IScaleLayer
@@ -4115,7 +4244,8 @@ class INetworkDefinition : public INoCopy
     //!
     IActivationLayer* addActivation(ITensor& input, ActivationType type) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(std::make_unique<IActivationLayer>(input, type, program_));
+        return dynamic_cast<IActivationLayer*>(layers_.back().get());
         // return mImpl->addActivation(input, type);
     }
 
@@ -4267,14 +4397,6 @@ class INetworkDefinition : public INoCopy
 
     IUnaryLayer* addUnary(ITensor& input, UnaryOperation operation) noexcept
     {
-
-        // std::string unary_op = trtUnaryOperationToMGXOp(operation);
-
-        // auto unary_ins = mm->add_instruction(migraphx::make_op(unary_op),
-        // input.getInstruction());
-
-        // std::vector<ITensor*> inputs{&input};
-        // std::vector<migraphx::instruction_ref> outputs{unary_ins};
         layers_.push_back(std::make_unique<IUnaryLayer>(input, operation, program_));
         return dynamic_cast<IUnaryLayer*>(layers_.back().get());
         // return mImpl->addUnary(input, operation);

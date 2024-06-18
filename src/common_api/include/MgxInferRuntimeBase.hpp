@@ -124,6 +124,14 @@ class Dims64
 //!
 using Dims = Dims64;
 
+inline int64_t volume(const Dims& dims)
+{
+    int64_t vol = 1;
+    for(auto i = 0; i < dims.nbDims; ++i)
+        vol *= dims.d[i];
+    return vol;
+}
+
 //!
 //! \enum TensorFormat
 //!
@@ -369,12 +377,12 @@ enum class TensorLocation : int32_t
 //!
 enum class WeightsRole : int32_t
 {
-    kKERNEL = 0,   //!< kernel for IConvolutionLayer or IDeconvolutionLayer
-    kBIAS = 1,     //!< bias for IConvolutionLayer or IDeconvolutionLayer
-    kSHIFT = 2,    //!< shift part of IScaleLayer
-    kSCALE = 3,    //!< scale part of IScaleLayer
+    kKERNEL   = 0, //!< kernel for IConvolutionLayer or IDeconvolutionLayer
+    kBIAS     = 1, //!< bias for IConvolutionLayer or IDeconvolutionLayer
+    kSHIFT    = 2, //!< shift part of IScaleLayer
+    kSCALE    = 3, //!< scale part of IScaleLayer
     kCONSTANT = 4, //!< weights for IConstantLayer
-    kANY = 5,      //!< Any other weights role
+    kANY      = 5, //!< Any other weights role
 };
 
 //! Maximum number of elements in WeightsRole enum. \see WeightsRole

@@ -102,6 +102,24 @@ struct min
         return migraphx::min(x, y);
     }
 };
+
+struct logical_and
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x and y;
+    }
+};
+
+struct logical_or
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x or y;
+    }
+};
 } // namespace op
 
 struct lowest
@@ -121,5 +139,6 @@ struct highest
         return numeric_max<vec_type<T>>();
     }
 };
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPS_HPP

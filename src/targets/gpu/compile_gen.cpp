@@ -256,6 +256,16 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
         reduction = "op::product{}";
         init      = "1";
     }
+    else if(name == "reduce_any")
+    {
+        reduction = "op::or{}";
+        init      = "0";
+    }
+    else if(name == "reduce_all")
+    {
+        reduction = "op::and{}";
+        init      = "0";
+    }
     else
     {
         MIGRAPHX_THROW("Unsupported reduce");

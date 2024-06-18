@@ -701,8 +701,8 @@ static bool has_axes(const dimension& d)
 // 4. Reshape/squeeze
 // 5. Broadcast
 //
-// This will generate operators backwrds starting at 5 and going up. Steps 1-3
-// are generated from the subdimesions and steps 4-5 are generated with the
+// This will generate operators backwards starting at 5 and going up. Steps 1-3
+// are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation> shape_transform_descriptor::generate() const
 {

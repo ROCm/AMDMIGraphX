@@ -338,6 +338,7 @@ static bool is_broadcast_dim(const dimension& d)
     const auto& sub = d.subdimensions.front();
     return sub.axis.empty();
 }
+
 static bool missing_leading_axis(const dimension& d)
 {
     if(d.subdimensions.empty())

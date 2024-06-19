@@ -77,6 +77,25 @@ enum class DataType : int32_t
     kINT4 = 9,
 };
 
+inline size_t sizeofDataType(DataType type)
+{
+    switch(type)
+    {
+    case mgxinfer1::DataType::kFLOAT: return 4;
+    case mgxinfer1::DataType::kHALF: return 2;
+    case mgxinfer1::DataType::kINT8: return 1;
+    case mgxinfer1::DataType::kINT32: return 4;
+    case mgxinfer1::DataType::kINT64: return 8;
+    case mgxinfer1::DataType::kBOOL: return 1;
+    case mgxinfer1::DataType::kUINT8: return 1;
+    case mgxinfer1::DataType::kFP8: return 1;
+    case mgxinfer1::DataType::kBF16: return 2;
+    // Not implemented in TRT
+    case mgxinfer1::DataType::kINT4: break;
+    }
+    return -1;
+}
+
 //!
 //! \class Dims
 //! \brief Structure to define the dimensions of a tensor.
@@ -104,6 +123,14 @@ class Dims64
 //! Alias for Dims64.
 //!
 using Dims = Dims64;
+
+inline int64_t volume(const Dims& dims)
+{
+    int64_t vol = 1;
+    for(auto i = 0; i < dims.nbDims; ++i)
+        vol *= dims.d[i];
+    return vol;
+}
 
 //!
 //! \enum TensorFormat
@@ -350,12 +377,12 @@ enum class TensorLocation : int32_t
 //!
 enum class WeightsRole : int32_t
 {
-    kKERNEL = 0,   //!< kernel for IConvolutionLayer or IDeconvolutionLayer
-    kBIAS = 1,     //!< bias for IConvolutionLayer or IDeconvolutionLayer
-    kSHIFT = 2,    //!< shift part of IScaleLayer
-    kSCALE = 3,    //!< scale part of IScaleLayer
+    kKERNEL   = 0, //!< kernel for IConvolutionLayer or IDeconvolutionLayer
+    kBIAS     = 1, //!< bias for IConvolutionLayer or IDeconvolutionLayer
+    kSHIFT    = 2, //!< shift part of IScaleLayer
+    kSCALE    = 3, //!< scale part of IScaleLayer
     kCONSTANT = 4, //!< weights for IConstantLayer
-    kANY = 5,      //!< Any other weights role
+    kANY      = 5, //!< Any other weights role
 };
 
 //! Maximum number of elements in WeightsRole enum. \see WeightsRole

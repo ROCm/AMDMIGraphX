@@ -54,9 +54,6 @@ class IDebugListener
 class IOptimizationProfile
 {
 };
-class IActivationLayer
-{
-};
 class ILRNLayer
 {
 };
@@ -699,20 +696,9 @@ enum class LayerType : int32_t
 class ILayer : public INoCopy
 {
     public:
-    ILayer(const std::shared_ptr<migraphx::program>& program,
-           const std::vector<migraphx::instruction_ref>& inputs,
-           const std::vector<migraphx::instruction_ref>& outputs)
-        : program_{program}
+    ILayer(LayerType type, const std::shared_ptr<migraphx::program>& program)
+        : type_{type}, program_{std::move(program)}
     {
-        for(auto ins : inputs)
-        {
-            inputs_.push_back(std::make_unique<ITensor>(ins));
-        }
-
-        for(auto ins : outputs)
-        {
-            outputs_.push_back(std::make_unique<ITensor>(ins));
-        }
     }
 
     //!
@@ -722,7 +708,7 @@ class ILayer : public INoCopy
     //!
     LayerType getType() const noexcept
     {
-        pass("Not Implemented", true);
+        return type_;
         // return mLayer->getType();
     }
 
@@ -758,7 +744,7 @@ class ILayer : public INoCopy
     //!
     int32_t getNbInputs() const noexcept
     {
-        pass("Not Implemented", true);
+        return inputs_.size();
         // return mLayer->getNbInputs();
     }
 
@@ -772,7 +758,8 @@ class ILayer : public INoCopy
     //!
     ITensor* getInput(int32_t index) const noexcept
     {
-        pass("Not Implemented", true);
+        // TODO Index checking
+        return inputs_.at(index);
         // return mLayer->getInput(index);
     }
 
@@ -781,7 +768,7 @@ class ILayer : public INoCopy
     //!
     int32_t getNbOutputs() const noexcept
     {
-        pass("Not Implemented", true);
+        return outputs_.size();
         // return mLayer->getNbOutputs();
     }
 
@@ -793,7 +780,8 @@ class ILayer : public INoCopy
     //!
     ITensor* getOutput(int32_t index) const noexcept
     {
-        return outputs_[index].get();
+        // TODO add index checking
+        return outputs_.at(index).get();
         // return mLayer->getOutput(index);
     }
 
@@ -811,7 +799,12 @@ class ILayer : public INoCopy
     //!
     void setInput(int32_t index, ITensor& tensor) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO add index checking
+        // TODO check if new input shape is different?
+        auto* old_input = inputs_.at(index);
+        inputs_[index]  = &tensor;
+        migraphx::instruction::replace_argument(
+            first_ins_, old_input->getInstruction(), tensor.getInstruction());
         // return mLayer->setInput(index, tensor);
     }
 
@@ -1023,9 +1016,11 @@ class ILayer : public INoCopy
 
     protected:
     // apiv::VLayer* mLayer;
+    LayerType type_;
     std::shared_ptr<migraphx::program> program_;
-    std::vector<std::unique_ptr<ITensor>> inputs_;
+    std::vector<ITensor*> inputs_;
     std::vector<std::unique_ptr<ITensor>> outputs_;
+    migraphx::instruction_ref first_ins_;
 };
 
 //!
@@ -1072,6 +1067,38 @@ enum class UnaryOperation : int32_t
     kISINF = 23, //!< Return true if input value equals +/- infinity for floating-point data type.
 };
 
+inline std::string trtUnaryOperationToMGXOp(const UnaryOperation op)
+{
+    switch(op)
+    {
+    case UnaryOperation::kEXP: return "exp";
+    case UnaryOperation::kLOG: return "log";
+    case UnaryOperation::kSQRT: return "sqrt";
+    case UnaryOperation::kRECIP: return "recip";
+    case UnaryOperation::kABS: return "abs";
+    case UnaryOperation::kNEG: return "neg";
+    case UnaryOperation::kSIN: return "sin";
+    case UnaryOperation::kCOS: return "cos";
+    case UnaryOperation::kTAN: return "tan";
+    case UnaryOperation::kSINH: return "sinh";
+    case UnaryOperation::kCOSH: return "cosh";
+    case UnaryOperation::kASIN: return "asin";
+    case UnaryOperation::kACOS: return "acos";
+    case UnaryOperation::kATAN: return "atan";
+    case UnaryOperation::kASINH: return "asinh";
+    case UnaryOperation::kACOSH: return "acosh";
+    case UnaryOperation::kATANH: return "atanh";
+    case UnaryOperation::kCEIL: return "ceil";
+    case UnaryOperation::kFLOOR: return "floor";
+    case UnaryOperation::kERF: return "erf";
+    case UnaryOperation::kNOT: return "unary_not";
+    case UnaryOperation::kSIGN: return "sign";
+    case UnaryOperation::kROUND: return "nearbyint";
+    // Not included in operators.hpp
+    case UnaryOperation::kISINF: return "isinf";
+    }
+}
+
 //!
 //! \class IUnaryLayer
 //!
@@ -1084,6 +1111,19 @@ class IUnaryLayer : public ILayer
 {
     public:
     using ILayer::ILayer;
+
+    IUnaryLayer(ITensor& input,
+                UnaryOperation operation,
+                const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kUNARY, program}, operation_{operation}
+    {
+        auto* mm             = program->get_main_module();
+        std::string unary_op = trtUnaryOperationToMGXOp(operation);
+        first_ins_ = mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction());
+        inputs_.push_back(&input);
+        outputs_.emplace_back(std::make_unique<ITensor>(first_ins_));
+    }
+
     //!
     //! \brief Set the unary operation for the layer.
     //!
@@ -1091,9 +1131,11 @@ class IUnaryLayer : public ILayer
     //!
     //! \see getOperation(), UnaryOperation
     //!
-    void setOperation(UnaryOperation op) noexcept
+    void setOperation(UnaryOperation operation) noexcept
     {
-        pass("Not Implemented", true);
+        auto* mm = program_->get_main_module();
+        auto op  = trtUnaryOperationToMGXOp(operation);
+        mm->replace_instruction(first_ins_, migraphx::make_op(op), first_ins_->inputs());
         // mImpl->setOperation(op);
     }
 
@@ -1104,13 +1146,14 @@ class IUnaryLayer : public ILayer
     //!
     UnaryOperation getOperation() const noexcept
     {
-        pass("Not Implemented", true);
+        return operation_;
         // return mImpl->getOperation();
     }
 
     virtual ~IUnaryLayer() noexcept = default;
 
     protected:
+    UnaryOperation operation_;
     // apiv::VUnaryLayer* mImpl;
 };
 
@@ -1209,6 +1252,162 @@ class IElementWiseLayer : public ILayer
 };
 
 //!
+//! \enum ActivationType
+//!
+//! \brief Enumerates the types of activation to perform in an activation layer.
+//!
+enum class ActivationType : int32_t
+{
+    kRELU             = 0,  //!< Rectified linear activation.
+    kSIGMOID          = 1,  //!< Sigmoid activation.
+    kTANH             = 2,  //!< TanH activation.
+    kLEAKY_RELU       = 3,  //!< LeakyRelu activation: x>=0 ? x : alpha * x.
+    kELU              = 4,  //!< Elu activation: x>=0 ? x : alpha * (exp(x) - 1).
+    kSELU             = 5,  //!< Selu activation: x>0 ? beta * x : beta * (alpha*exp(x) - alpha)
+    kSOFTSIGN         = 6,  //!< Softsign activation: x / (1+|x|)
+    kSOFTPLUS         = 7,  //!< Parametric softplus activation: alpha*log(exp(beta*x)+1)
+    kCLIP             = 8,  //!< Clip activation: max(alpha, min(beta, x))
+    kHARD_SIGMOID     = 9,  //!< Hard sigmoid activation: max(0, min(1, alpha*x+beta))
+    kSCALED_TANH      = 10, //!< Scaled tanh activation: alpha*tanh(beta*x)
+    kTHRESHOLDED_RELU = 11, //!< Thresholded ReLU activation: x>alpha ? x : 0
+    kGELU_ERF         = 12, //!< GELU erf activation: 0.5 * x * (1 + erf(sqrt(0.5) * x))
+    kGELU_TANH =
+        13 //!< GELU tanh activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (0.044715F * pow(x, 3) + x)))
+};
+
+//!
+//! \class IActivationLayer
+//!
+//! \brief An Activation layer in a network definition.
+//!
+//! This layer applies a per-element activation function to its input.
+//!
+//! The output has the same shape as the input.
+//!
+//! The input is a shape tensor if the output is a shape tensor.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IActivationLayer : public ILayer
+{
+    public:
+    IActivationLayer(ITensor& input,
+                     ActivationType activation,
+                     const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kACTIVATION, program}, activation_{activation}
+    {
+        auto* mm = program->get_main_module();
+        inputs_.push_back(&input);
+        switch(activation_)
+        {
+        case ActivationType::kRELU:
+            first_ins_ = last_ins_ =
+                mm->add_instruction(migraphx::make_op("relu"), input.getInstruction());
+            outputs_.push_back(std::make_unique<ITensor>(last_ins_));
+            break;
+        case ActivationType::kSIGMOID: return;
+        case ActivationType::kTANH: return;
+        case ActivationType::kLEAKY_RELU: return;
+        case ActivationType::kELU: return;
+        case ActivationType::kSELU: return;
+        case ActivationType::kSOFTSIGN: return;
+        case ActivationType::kSOFTPLUS: return;
+        case ActivationType::kCLIP: return;
+        case ActivationType::kHARD_SIGMOID: return;
+        case ActivationType::kSCALED_TANH: return;
+        case ActivationType::kTHRESHOLDED_RELU: return;
+        case ActivationType::kGELU_ERF: return;
+        case ActivationType::kGELU_TANH: return;
+        }
+    }
+
+    //!
+    //! \brief Set the type of activation to be performed.
+    //!
+    //! On the DLA, the valid activation types are kRELU, kSIGMOID, kTANH, and kCLIP.
+    //!
+    //! \see getActivationType(), ActivationType
+    //!
+    void setActivationType(ActivationType type) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setActivationType(type);
+    }
+
+    //!
+    //! \brief Get the type of activation to be performed.
+    //!
+    //! \see setActivationType(), ActivationType
+    //!
+    ActivationType getActivationType() const noexcept
+    {
+        return activation_;
+        // return mImpl->getActivationType();
+    }
+
+    //!
+    //! \brief Set the alpha parameter (must be finite).
+    //!
+    //! This parameter is used by the following activations:
+    //! LeakyRelu, Elu, Selu, Softplus, Clip, HardSigmoid, ScaledTanh,
+    //! ThresholdedRelu.
+    //!
+    //! It is ignored by the other activations.
+    //!
+    //! \see getAlpha(), setBeta()
+    void setAlpha(float alpha) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setAlpha(alpha);
+    }
+
+    //!
+    //! \brief Set the beta parameter (must be finite).
+    //!
+    //! This parameter is used by the following activations:
+    //! Selu, Softplus, Clip, HardSigmoid, ScaledTanh.
+    //!
+    //! It is ignored by the other activations.
+    //!
+    //! \see getBeta(), setAlpha()
+    void setBeta(float beta) noexcept
+    {
+        pass("Not Implemented", true);
+        // mImpl->setBeta(beta);
+    }
+
+    //!
+    //! \brief Get the alpha parameter.
+    //!
+    //! \see getBeta(), setAlpha()
+    float getAlpha() const noexcept
+    {
+        return alpha_;
+        // return mImpl->getAlpha();
+    }
+
+    //!
+    //! \brief Get the beta parameter.
+    //!
+    //! \see getAlpha(), setBeta()
+    float getBeta() const noexcept
+    {
+        return beta_;
+        // return mImpl->getBeta();
+    }
+
+    virtual ~IActivationLayer() noexcept = default;
+
+    protected:
+    ActivationType activation_;
+    float alpha_ = 0.f;
+    float beta_  = 0.f;
+    migraphx::instruction_ref last_ins_;
+    // apiv::VActivationLayer* mImpl;
+};
+
+//!
 //! \enum ReduceOperation
 //!
 //! \brief Enumerates the reduce operations that may be performed by a Reduce layer.
@@ -1247,6 +1446,11 @@ class IReduceLayer : public ILayer
 {
     public:
     using ILayer::ILayer;
+
+    IReduceLayer(ReduceOperation operation, const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kREDUCE, program}, operation_{operation}
+    {
+    }
 
     //!
     //! \brief Set the reduce operation for the layer.
@@ -1320,6 +1524,7 @@ class IReduceLayer : public ILayer
     virtual ~IReduceLayer() noexcept = default;
 
     protected:
+    ReduceOperation operation_;
     // apiv::VReduceLayer* mImpl;
 };
 
@@ -1362,10 +1567,10 @@ class IHostMemory : public INoCopy
 //!
 //! \brief Flags used to control TensorRT's behavior when creating executable temporary files.
 //!
-//! On some platforms the TensorRT runtime may need to create files in a temporary directory or use platform-specific
-//! APIs to create files in-memory to load temporary DLLs that implement runtime code. These flags allow the
-//! application to explicitly control TensorRT's use of these files. This will preclude the use of certain TensorRT
-//! APIs for deserializing and loading lean runtimes.
+//! On some platforms the TensorRT runtime may need to create files in a temporary directory or use
+//! platform-specific APIs to create files in-memory to load temporary DLLs that implement runtime
+//! code. These flags allow the application to explicitly control TensorRT's use of these files.
+//! This will preclude the use of certain TensorRT APIs for deserializing and loading lean runtimes.
 //!
 enum class TempfileControlFlag : int32_t
 {
@@ -2329,7 +2534,10 @@ class IExecutionContext : public INoCopy
     //!
     bool enqueueV3(hipStream_t stream) noexcept
     {
-        pass("Not Implemented", true);
+        migraphx::execution_environment exec_env{
+            migraphx::any_ptr(reinterpret_cast<void*>(stream), "ihipStream_t"), true};
+        auto result = program_->eval(param_map_, exec_env);
+        return true;
         // return mImpl->enqueueV3(stream);
     }
 
@@ -3734,30 +3942,6 @@ enum class NetworkDefinitionCreationFlag : int32_t
 };
 
 //!
-//! \enum ActivationType
-//!
-//! \brief Enumerates the types of activation to perform in an activation layer.
-//!
-enum class ActivationType : int32_t
-{
-    kRELU             = 0,  //!< Rectified linear activation.
-    kSIGMOID          = 1,  //!< Sigmoid activation.
-    kTANH             = 2,  //!< TanH activation.
-    kLEAKY_RELU       = 3,  //!< LeakyRelu activation: x>=0 ? x : alpha * x.
-    kELU              = 4,  //!< Elu activation: x>=0 ? x : alpha * (exp(x) - 1).
-    kSELU             = 5,  //!< Selu activation: x>0 ? beta * x : beta * (alpha*exp(x) - alpha)
-    kSOFTSIGN         = 6,  //!< Softsign activation: x / (1+|x|)
-    kSOFTPLUS         = 7,  //!< Parametric softplus activation: alpha*log(exp(beta*x)+1)
-    kCLIP             = 8,  //!< Clip activation: max(alpha, min(beta, x))
-    kHARD_SIGMOID     = 9,  //!< Hard sigmoid activation: max(0, min(1, alpha*x+beta))
-    kSCALED_TANH      = 10, //!< Scaled tanh activation: alpha*tanh(beta*x)
-    kTHRESHOLDED_RELU = 11, //!< Thresholded ReLU activation: x>alpha ? x : 0
-    kGELU_ERF         = 12, //!< GELU erf activation: 0.5 * x * (1 + erf(sqrt(0.5) * x))
-    kGELU_TANH =
-        13 //!< GELU tanh activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (0.044715F * pow(x, 3) + x)))
-};
-
-//!
 //! \brief Controls how shift, scale and power are applied in a Scale layer.
 //!
 //! \see IScaleLayer
@@ -4060,7 +4244,8 @@ class INetworkDefinition : public INoCopy
     //!
     IActivationLayer* addActivation(ITensor& input, ActivationType type) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(std::make_unique<IActivationLayer>(input, type, program_));
+        return dynamic_cast<IActivationLayer*>(layers_.back().get());
         // return mImpl->addActivation(input, type);
     }
 
@@ -4170,24 +4355,25 @@ class INetworkDefinition : public INoCopy
     IElementWiseLayer*
     addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
     {
-        auto mm = program_->get_main_module();
+        // auto mm = program_->get_main_module();
 
-        std::string elem_wise_op;
-        switch(op)
-        {
-        case ElementWiseOperation::kSUM: elem_wise_op = "add"; break;
-        default: pass("Not Implemented", true);
-        }
+        // std::string elem_wise_op;
+        // switch(op)
+        // {
+        // case ElementWiseOperation::kSUM: elem_wise_op = "add"; break;
+        // default: pass("Not Implemented", true);
+        // }
 
-        auto elem_wise_ins = mm->add_instruction(
-            migraphx::make_op(elem_wise_op), input1.getInstruction(), input2.getInstruction());
+        // auto elem_wise_ins = mm->add_instruction(
+        //     migraphx::make_op(elem_wise_op), input1.getInstruction(), input2.getInstruction());
 
-        std::vector<migraphx::instruction_ref> input_instructions{elem_wise_ins};
-        std::vector<migraphx::instruction_ref> output_instructions{elem_wise_ins};
+        // std::vector<migraphx::instruction_ref> input_instructions{elem_wise_ins};
+        // std::vector<migraphx::instruction_ref> output_instructions{elem_wise_ins};
 
-        layers_.push_back(
-            std::make_unique<IElementWiseLayer>(program_, input_instructions, output_instructions));
-        return dynamic_cast<IElementWiseLayer*>(layers_.back().get());
+        // layers_.push_back(
+        //     std::make_unique<IElementWiseLayer>(program_, input_instructions,
+        //     output_instructions));
+        // return dynamic_cast<IElementWiseLayer*>(layers_.back().get());
         // return mImpl->addElementWise(input1, input2, op);
     }
 
@@ -4208,25 +4394,10 @@ class INetworkDefinition : public INoCopy
     //!
     //! \return The new unary layer, or nullptr if it could not be created
     //!
+
     IUnaryLayer* addUnary(ITensor& input, UnaryOperation operation) noexcept
     {
-        auto mm = program_->get_main_module();
-
-        std::string unary_op;
-        switch(operation)
-        {
-        case UnaryOperation::kABS: unary_op = "abs"; break;
-        case UnaryOperation::kSIN: unary_op = "sin"; break;
-        default: pass("Not Implemented", true);
-        }
-
-        auto unary_ins = mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction());
-
-        std::vector<migraphx::instruction_ref> input_instructions{unary_ins};
-        std::vector<migraphx::instruction_ref> output_instructions{unary_ins};
-
-        layers_.push_back(
-            std::make_unique<IUnaryLayer>(program_, input_instructions, output_instructions));
+        layers_.push_back(std::make_unique<IUnaryLayer>(input, operation, program_));
         return dynamic_cast<IUnaryLayer*>(layers_.back().get());
         // return mImpl->addUnary(input, operation);
     }
@@ -4411,18 +4582,15 @@ class INetworkDefinition : public INoCopy
         auto reduce_ins = mm->add_instruction(migraphx::make_op(reduce_op, {{"axes", axes}}),
                                               input.getInstruction());
 
-        std::vector<migraphx::instruction_ref> input_instructions{reduce_ins};
-        std::vector<migraphx::instruction_ref> output_instructions;
-
         if(!keepDimensions)
         {
-            auto squeeze_ins =
+            reduce_ins =
                 mm->add_instruction(migraphx::make_op("squeeze", {{"axes", axes}}), reduce_ins);
-            output_instructions.push_back(squeeze_ins);
         }
 
-        layers_.push_back(
-            std::make_unique<IReduceLayer>(program_, input_instructions, output_instructions));
+        std::vector<ITensor*> inputs{&input};
+        std::vector<migraphx::instruction_ref> outputs{reduce_ins};
+        layers_.push_back(std::make_unique<IReduceLayer>(operation, program_));
         return dynamic_cast<IReduceLayer*>(layers_.back().get());
         //  return mImpl->addReduce(input, operation, reduceAxes, keepDimensions);
     }
@@ -6354,7 +6522,7 @@ class IBuilderConfig : public INoCopy
     //!
     void setMemoryPoolLimit(MemoryPoolType pool, std::size_t poolSize) noexcept
     {
-        pass("Not Implemented", true);
+        // TODO log that setMemoryPoolLimit is a noop, pop up a warning, or do both
         // mImpl->setMemoryPoolLimit(pool, poolSize);
     }
 
@@ -6814,7 +6982,9 @@ class IBuilder : public INoCopy
         migraphx::program p = *network.getProgram();
         try
         {
+            std::cout << p << std::endl;
             p.compile(migraphx::make_target("gpu"));
+            std::cout << p << std::endl;
         }
         catch(migraphx::exception& e)
         {
@@ -6929,21 +7099,22 @@ class IBuilder : public INoCopy
 //!
 inline IBuilder* createInferBuilder(ILogger& logger) noexcept { return new IBuilder{}; }
 
-namespace consistency
-{
+namespace consistency {
 
 //!
 //! \class IConsistencyChecker
 //!
 //! \brief Validates a serialized engine blob.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
 //!
 class IConsistencyChecker
 {
-public:
+    public:
     //!
-    //! \brief Check that a blob that was input to createConsistencyChecker method represents a valid engine.
+    //! \brief Check that a blob that was input to createConsistencyChecker method represents a
+    //! valid engine.
     //!
     //! \return true if the original blob encoded an engine that belongs to valid engine domain with
     //! target capability EngineCapability::kSAFETY, false otherwise.
@@ -6959,13 +7130,13 @@ public:
     //!
     virtual ~IConsistencyChecker() = default;
 
-protected:
+    protected:
     // apiv::VConsistencyChecker* mImpl;
-    IConsistencyChecker() = default;
-    IConsistencyChecker(IConsistencyChecker const& other) = delete;
+    IConsistencyChecker()                                            = default;
+    IConsistencyChecker(IConsistencyChecker const& other)            = delete;
     IConsistencyChecker& operator=(IConsistencyChecker const& other) = delete;
-    IConsistencyChecker(IConsistencyChecker&& other) = delete;
-    IConsistencyChecker& operator=(IConsistencyChecker&& other) = delete;
+    IConsistencyChecker(IConsistencyChecker&& other)                 = delete;
+    IConsistencyChecker& operator=(IConsistencyChecker&& other)      = delete;
 };
 } // namespace consistency
 
@@ -7281,6 +7452,11 @@ class Parser : public IParser
                size_t serialized_onnx_model_size,
                const char* model_path = nullptr) override
     {
+        // TODO complete implementation, figure out what model_path does
+        migraphx::onnx_options opts;
+        network_.setProgram(std::make_shared<migraphx::program>(
+            migraphx::parse_onnx_buffer(serialized_onnx_model, serialized_onnx_model_size, opts)));
+        return true;
         pass("Not Implemented", true);
     }
 
@@ -7311,7 +7487,10 @@ class Parser : public IParser
 
     bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
 
-    int getNbErrors() const override { pass("Not Implemented", true); }
+    int getNbErrors() const override
+    { // TODO implement actual error counting
+        return 0;
+    }
 
     IParserError const* getError(int index) const override { pass("Not Implemented", true); }
 

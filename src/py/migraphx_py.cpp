@@ -43,6 +43,8 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/common_api/bindings.hpp>
+#include "../common_api/include/MgxInfer.hpp"
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -255,8 +257,189 @@ migraphx::shape to_shape(const py::buffer_info& info)
     }
 }
 
+void throwPyError(PyObject* type, std::string const& message)
+{
+    PyErr_SetString(type, message.data());
+    throw py::error_already_set();
+}
+
+#define PY_ASSERT_RUNTIME_ERROR(assertion, msg)    \
+    do                                             \
+    {                                              \
+        if(!(assertion))                           \
+        {                                          \
+            throwPyError(PyExc_RuntimeError, msg); \
+        }                                          \
+    } while(false)
+
+#define PY_ASSERT_INDEX_ERROR(assertion)                     \
+    do                                                       \
+    {                                                        \
+        if(!(assertion))                                     \
+        {                                                    \
+            throwPyError(PyExc_IndexError, "Out of bounds"); \
+        }                                                    \
+    } while(false)
+
+#define PY_ASSERT_VALUE_ERROR(assertion, msg)    \
+    do                                           \
+    {                                            \
+        if(!(assertion))                         \
+        {                                        \
+            throwPyError(PyExc_ValueError, msg); \
+        }                                        \
+    } while(false)
+
+// TODO, figure out why this is needed and get rid of it
+mgxinfer1::IBuilder* createInferBuilderWrapper(mgxinfer1::ILogger& logger)
+{
+    return createInferBuilder(logger);
+}
+
+mgxinfer1::IRuntime* createInferRuntimeWrapper(mgxinfer1::ILogger& logger)
+{
+    return createInferRuntime(logger);
+}
+
 MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 {
+    using namespace pybind11::literals;
+
+    auto common_api = m.def_submodule("common_api");
+
+    mgxinfer1::pybinds::base_enum_bindings(common_api);
+    mgxinfer1::pybinds::base_type_bindings(common_api);
+    mgxinfer1::pybinds::logger_bindings(common_api);
+
+    /*INetworkDefinition start*/
+    py::class_<mgxinfer1::INetworkDefinition>(
+        common_api, "INetworkDefinition", "TODO docstring", py::module_local());
+    /*INetworkDefinition ends*/
+
+    /*IBuilder start*/
+    py::class_<mgxinfer1::IBuilderConfig>(
+        common_api, "IBuilderConfig", "TODO docstring", py::module_local())
+        .def("set_memory_pool_limit",
+             &mgxinfer1::IBuilderConfig::setMemoryPoolLimit,
+             "pool"_a,
+             "pool_size"_a,
+             "TODO docstring");
+
+    py::class_<mgxinfer1::IBuilder>(common_api, "Builder", "TODO docstring", py::module_local())
+        .def(py::init(&createInferBuilderWrapper),
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 2>{})
+        .def("create_network",
+             &mgxinfer1::IBuilder::createNetworkV2,
+             "flags"_a = 0U,
+             "TODO docstring",
+             py::keep_alive<0, 1>{})
+        .def("create_builder_config",
+             &mgxinfer1::IBuilder::createBuilderConfig,
+             "TODO docstring",
+             py::keep_alive<0, 1>{})
+        .def("build_serialized_network",
+             &mgxinfer1::IBuilder::buildSerializedNetwork,
+             "network"_a,
+             "config"_a,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{});
+    /*IBuilder end*/
+
+    /*ICudaEngine start*/
+    py::class_<mgxinfer1::ICudaEngine>(
+        common_api, "ICudaEngine", "TODO docstring", py::module_local())
+        .def_property_readonly("num_io_tensors", &mgxinfer1::ICudaEngine::getNbIOTensors)
+        .def("get_tensor_name",
+             &mgxinfer1::ICudaEngine::getIOTensorName,
+             "index"_a,
+             "TODO docstring")
+        .def(
+            "get_tensor_shape", &mgxinfer1::ICudaEngine::getTensorShape, "name"_a, "TODO docstring")
+        .def("get_tensor_dtype",
+             &mgxinfer1::ICudaEngine::getTensorDataType,
+             "name"_a,
+             "TODO docstring")
+        .def(
+            "get_tensor_mode", &mgxinfer1::ICudaEngine::getTensorIOMode, "name"_a, "TODO docstring")
+        .def("create_execution_context",
+             &mgxinfer1::ICudaEngine::createExecutionContext,
+             "TODO docstring",
+             py::arg("strategy") = mgxinfer1::ExecutionContextAllocationStrategy::kSTATIC,
+             py::keep_alive<0, 1>{},
+             py::call_guard<py::gil_scoped_release>{});
+    /*ICudaEngine end*/
+
+    /*Runtime start*/
+    const auto deserialize_engine_from_py_buffer = [](mgxinfer1::IRuntime& runtime,
+                                                      py::buffer& serializedEngine) {
+        py::buffer_info info = serializedEngine.request();
+        return runtime.deserializeCudaEngine(info.ptr, info.size * info.itemsize);
+    };
+
+    py::class_<mgxinfer1::IRuntime>(common_api, "Runtime", "TODO docstring", py::module_local())
+        .def(py::init(&createInferRuntimeWrapper),
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 2>{})
+        .def("deserialize_cuda_engine",
+             deserialize_engine_from_py_buffer,
+             "serialized_engine"_a,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{},
+             py::keep_alive<0, 1>{});
+    /*Runtime end*/
+
+    /*ExecutionContext start*/
+    py::class_<mgxinfer1::IExecutionContext>(
+        common_api, "IExecutionContext", "TODO docstring", py::module_local())
+        .def(
+            "execute_async_v3",
+            [](mgxinfer1::IExecutionContext& context, size_t streamHandle) {
+                return context.enqueueV3(reinterpret_cast<hipStream_t>(streamHandle));
+            },
+            "stream_handle"_a,
+            "TODO docstring",
+            py::call_guard<py::gil_scoped_release>{})
+        .def(
+            "set_tensor_address",
+            [](mgxinfer1::IExecutionContext& context, char const* tensor_name, size_t memory) {
+                return context.setTensorAddress(tensor_name, reinterpret_cast<void*>(memory));
+            },
+            "name"_a,
+            "memory"_a,
+            "TODO docstring");
+    /*ExecutionContext end*/
+
+    /*OnnxParser start*/
+    const auto parse_from_py_buffer =
+        [](mgxonnxparser::IParser& parser, const py::buffer& model, const char* path = nullptr) {
+            py::buffer_info info = model.request();
+            return parser.parse(info.ptr, info.size * info.itemsize, path);
+        };
+
+    py::class_<mgxonnxparser::IParser>(
+        common_api, "OnnxParser", "TODO docstring", py::module_local())
+        .def(py::init(&mgxonnxparser::createParser),
+             "network"_a,
+             "logger"_a,
+             "TODO docstring",
+             py::keep_alive<1, 3>{},
+             py::keep_alive<2, 1>{})
+        .def("parse",
+             parse_from_py_buffer,
+             "model"_a,
+             "path"_a = nullptr,
+             "TODO docstring",
+             py::call_guard<py::gil_scoped_release>{})
+        .def_property_readonly("num_errors", &mgxonnxparser::IParser::getNbErrors);
+    /*OnnxParser end*/
+
+    ////////////////////////////////
+    ////////////////////////////////
+    ////////////////////////////////
+    ////////////////////////////////
     py::class_<migraphx::shape> shape_cls(m, "shape");
     shape_cls
         .def(py::init([](py::kwargs kwargs) {

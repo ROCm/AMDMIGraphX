@@ -43,7 +43,7 @@ TEST_CASE(reduce_all_axis0)
         1.0, 3.0, 2.4, 3.2
     }};
     // clang-format on
-    auto l0    = mm->add_literal(input);
+    auto l0 = mm->add_literal(input);
     mm->add_instruction(migraphx::make_op("reduce_all", {{"axes", {0}}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

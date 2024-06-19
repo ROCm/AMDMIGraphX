@@ -52,27 +52,14 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
     return start;
 }
 
-void debug_print(const std::vector<dimension::sub>& subs, bool new_line = true)
+void debug_print(const std::vector<dimension::sub>& subs)
 {
-    for(const auto& s : subs)
-    {
-        std::cout << s.len << ":" << to_string_range(s.axis, "x");
-        if(s.hidden_axis.has_value())
-            std::cout << "$" << s.hidden_axis.value();
-        std::cout << ",";
-    }
-    if(new_line)
-        std::cout << std::endl;
+    std::cout << '[' << stream_range(subs) << "]\n";
 }
 void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
 void debug_print(const std::vector<dimension>& dims)
 {
-    for(const auto& d : dims)
-    {
-        std::cout << "[";
-        debug_print(d.subdimensions, false);
-        std::cout << "],";
-    }
+    stream_write_value(std::cout, dims);
     std::cout << std::endl;
 }
 
@@ -822,6 +809,52 @@ std::size_t shape_transform_descriptor::elements() const
                                 std::size_t{1},
                                 std::multiplies<>{},
                                 [](const auto& s) { return s.len(); });
+}
+
+bool operator==(const dimension::sub& x, const dimension::sub& y)
+{
+    return by(std::equal_to<>{}, [](const dimension::sub& s) {
+        return std::tie(s.len, s.axis, s.hidden_axis);
+    })(x, y);
+}
+bool operator!=(const dimension::sub& x, const dimension::sub& y)
+{
+    return not(x == y);
+}
+std::ostream& operator<<(std::ostream& os, const dimension::sub& x)
+{
+    os << x.len << ":" << to_string_range(x.axis, "x");
+    if(x.hidden_axis.has_value())
+        os << "$" << x.hidden_axis.value();
+    return os;
+}
+bool operator==(const dimension& x, const dimension& y)
+{
+    return x.subdimensions == y.subdimensions;
+}
+bool operator!=(const dimension& x, const dimension& y)
+{
+    return not(x == y);
+}
+std::ostream& operator<<(std::ostream& os, const dimension& x)
+{
+    os << '[' << stream_range(x.subdimensions) << ']';
+    return os;
+}
+bool operator==(const shape_transform_descriptor& x, const shape_transform_descriptor& y)
+{
+    return by(std::equal_to<>{}, [](const shape_transform_descriptor& sd) {
+        return std::tie(sd.dimensions, sd.rank);
+    })(x, y);
+}
+bool operator!=(const shape_transform_descriptor& x, const shape_transform_descriptor& y)
+{
+    return not(x == y);
+}
+std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x)
+{
+    stream_write_value(os, x.dimensions);
+    return os;
 }
 
 std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>& dims,

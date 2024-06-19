@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/optional.hpp>
 #include <cstdint>
+#include <iosfwd>
 #include <vector>
 
 namespace migraphx {
@@ -97,9 +98,21 @@ struct shape_transform_descriptor
             // generate the broadcast we will set the axis to the hidden
             // axis, and then length to 1.
             optional<std::size_t> hidden_axis = nullopt;
+
+            friend bool operator==(const sub& x, const sub& y);
+            friend bool operator!=(const sub& x, const sub& y);
+            friend std::ostream& operator<<(std::ostream& os, const sub& x);
         };
+
+        friend bool operator==(const dimension& x, const dimension& y);
+        friend bool operator!=(const dimension& x, const dimension& y);
+        friend std::ostream& operator<<(std::ostream& os, const dimension& x);
+
         std::vector<sub> subdimensions;
     };
+    friend bool operator==(const shape_transform_descriptor& x, const shape_transform_descriptor& y);
+    friend bool operator!=(const shape_transform_descriptor& x, const shape_transform_descriptor& y);
+    friend std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x);
     std::vector<dimension> dimensions;
     // Rank of the original dimensions
     std::size_t rank = 0;

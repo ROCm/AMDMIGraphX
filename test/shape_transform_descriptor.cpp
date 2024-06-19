@@ -195,6 +195,34 @@ TEST_CASE(record_broadcast2)
            all_axes{d_axes{{}}, d_axes{{0}}, d_axes{{1}}, d_axes{{}}, d_axes{{}}});
 }
 
+TEST_CASE(simplify_dimension_merge_adjacent)
+{
+    auto d = dimension{{sub{2, {0, 0}}, sub{3, {0, 1}}}};
+    d.simplify();
+    EXPECT(d == dimension{{sub{6, {0, 1}}}});
+}
+
+TEST_CASE(simplify_dimension_no_merge_adjacent1)
+{
+    auto d = dimension{{sub{2, {0, 1}}, sub{3, {0, 0}}}};
+    d.simplify();
+    EXPECT(d == dimension{{sub{2, {0, 1}}, sub{3, {0, 0}}}});
+}
+
+TEST_CASE(simplify_dimension_no_merge_adjacent2)
+{
+    auto d = dimension{{sub{2, {0, 0, 0}}, sub{3, {0, 1, 1}}}};
+    d.simplify();
+    EXPECT(d == dimension{{sub{2, {0, 0, 0}}, sub{3, {0, 1, 1}}}});
+}
+
+TEST_CASE(simplify_dimension_remove_1_dim)
+{
+    auto d = dimension{{sub{2, {0, 1}}, sub{1, {1}}, sub{3, {0, 0}}}};
+    d.simplify();
+    EXPECT(d == dimension{{sub{2, {0, 1}}, sub{3, {0, 0}}}});
+}
+
 TEST_CASE(optimize_transpose_transpose)
 {
     EXPECT(migraphx::optimize_shape_transforms(

@@ -36,7 +36,7 @@ struct test_conv_add_tune : verify_program<test_conv_add_tune<DType>>
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm  = p.get_main_module();
+        auto* mm = p.get_main_module();
         // choose sizes such that, it would pick mlir for convolutions
         auto x1    = mm->add_parameter("x1", {DType, {2, 640, 64, 64}});
         auto w1    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 2}}, 1));

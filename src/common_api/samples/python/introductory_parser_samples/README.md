@@ -18,7 +18,7 @@ This can be done in one of two ways:
 ```bash
 # The two paths assume the migraphx docker is being used, if not they must be appropriately adjusted
 export PYTHONPATH=$PYTHONPATH:/code/AMDMIGraphX/build/lib
-export LD_LIB_PATH=$LD_LIB_PATH:/code/AMDMIGraphX/build/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/code/AMDMIGraphX/build/lib
 ```
 Alternately
 ```bash
@@ -26,7 +26,7 @@ Alternately
 make install
 
 export PYTHONPATH=$PYTHONPATH:/opt/rocm/lib
-export LD_LIB_PATH=$LD_LIB_PATH:/opt/rocm/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib
 ```
 
 ## Running the sample

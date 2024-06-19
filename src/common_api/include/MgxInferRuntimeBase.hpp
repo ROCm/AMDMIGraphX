@@ -124,6 +124,22 @@ class Dims64
 //!
 using Dims = Dims64;
 
+//!
+//! \struct Permutation
+//!
+//! \brief Represents a permutation of dimensions.
+//!
+struct Permutation
+{
+    //!
+    //! The elements of the permutation.
+    //! The permutation is applied as outputDimensionIndex = permutation.order[inputDimensionIndex], so to
+    //! permute from CHW order to HWC order, the required permutation is [1, 2, 0], and to permute
+    //! from HWC to CHW, the required permutation is [2, 0, 1].
+    //!
+    int32_t order[Dims::MAX_DIMS];
+};
+
 inline int64_t volume(const Dims& dims)
 {
     int64_t vol = 1;
@@ -438,6 +454,13 @@ inline std::vector<int64_t> dimsToVec(const Dims& dims)
 {
     std::vector<int64_t> ret;
     std::copy(dims.d, dims.d + dims.nbDims, std::back_inserter(ret));
+    return ret;
+}
+
+inline std::vector<int64_t> permToVec(const Permutation& perm, int n)
+{
+    std::vector<int64_t> ret;
+    std::copy(perm.order, perm.order + n, std::back_inserter(ret));
     return ret;
 }
 

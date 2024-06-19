@@ -26,22 +26,41 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
 template <migraphx::shape::type_t DType>
 struct test_conv_add_tune : verify_program<test_conv_add_tune<DType>>
 {
+    // this test is for testing MLIR split-k convolution perfConfigs and problemKey clash in problem
+    // cache
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm  = p.get_main_module();
-        auto x    = mm->add_parameter("x", {DType, {2, 640, 64, 64}});
-        auto w    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 3}}, 1));
-        auto y    = mm->add_parameter("y", {DType, {2, 640, 32, 32}});
-        auto conv = mm->add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}, {"stride", {2, 2}}}),
-            x,
-            w);
-        mm->add_instruction(migraphx::make_op("add"), conv, y);
+        // choose sizes such that, it would pick mlir for convolutions
+        auto x1    = mm->add_parameter("x1", {DType, {2, 640, 64, 64}});
+        auto w1    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 2}}, 1));
+        auto x2    = mm->add_parameter("x2", {DType, {2, 640, 64, 64}});
+        auto w2    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 2}}, 1));
+        auto conv1 = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 0}}, {"stride", {2, 2}}}),
+            x1,
+            w1);
+        // add pooling so that it doesn't get fused with conv1.
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::average},
+                                                   {"padding", {1, 1, 1, 1}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {3, 3}},
+                                                   {"count_include_pad", false}}),
+                                conv1);
+        // conv2 + pointwise-add
+        auto conv2 = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 0}}, {"stride", {2, 2}}}),
+            x2,
+            w2);
+        mm->add_instruction(migraphx::make_op("add"), pooling, conv2);
         return p;
     }
     // Turn on Exhaustive-tune to enable split-k perf-configs from MLIR

@@ -13,7 +13,7 @@ To install other required packages run
 ```bash
 pip install -r requirements.txt
 ```
-For the sample to be, the branch it is part of must first be built, after which the migraphx python module must be made visible to the python interpreter. 
+For the sample to be run, the branch it is part of must first be built, after which the migraphx python module must be made visible to the python interpreter. 
 This can be done in one of two ways:
 ```bash
 # The two paths assume the migraphx docker is being used, if not they must be appropriately adjusted

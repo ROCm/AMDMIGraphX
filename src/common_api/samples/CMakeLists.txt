@@ -22,4 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_subdirectory(samples)
+add_executable(MNISTSample sampleOnnxMNIST/sampleOnnxMNIST.cpp)
+rocm_clang_tidy_check(MNISTSample)
+target_link_libraries(MNISTSample migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)
+target_include_directories(MNISTSample PUBLIC ../include include common)

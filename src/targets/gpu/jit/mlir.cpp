@@ -121,7 +121,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                     }
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);
                     return m.replace_instruction(ins, mlir);
-                }};
+                },
+                &trace};
     }
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
@@ -132,10 +133,10 @@ struct mlir_compiler : compiler<mlir_compiler>
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
+        auto precompiled_inputs = precompile_ins->inputs();
         return {
             cobjs, [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
-                auto compiled_inputs    = ins->inputs();
-                auto precompiled_inputs = precompile_ins->inputs();
+                auto compiled_inputs = ins->inputs();
                 std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map;
                 for(const auto i : range(precompiled_inputs.size()))
                 {
@@ -201,6 +202,13 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
+    }
+
+    static void trace(std::ostream& os, instruction_ref ins)
+    {
+        auto shapes = to_shapes(ins->inputs());
+        auto* smod  = ins->module_inputs().front();
+        os << dump_mlir(*smod, shapes);
     }
 };
 

@@ -36,6 +36,7 @@ rocm_clang_tidy_check(migraphx_fpga)
 target_link_libraries(migraphx_fpga migraphx)
 
 rocm_install_targets(
+    PRIVATE
     TARGETS migraphx_fpga
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

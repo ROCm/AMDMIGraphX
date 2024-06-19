@@ -540,7 +540,19 @@ struct find_inner_broadcast
                            return input;
                        });
         auto op = insert_common_op(m, ins, ins->get_operator(), inputs);
-        m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        // Find broadcast op on a non-scalar instruction if it exists
+        auto first =
+            std::find_if(broadcasts.begin(), broadcasts.end(), [&](instruction_ref broadcast) {
+                return not broadcast->get_shape().scalar();
+            });
+        if(first != broadcasts.end())
+        {
+            m.replace_instruction(ins, (*first)->get_operator(), op);
+        }
+        else
+        {
+            m.replace_instruction(ins, broadcasts.front()->get_operator(), op);
+        }
     }
 
     void apply_diff_broadcasts(module& m, instruction_ref ins) const
@@ -711,8 +723,6 @@ struct find_dot_broadcast
         auto ins = r.result;
         auto a   = ins->inputs()[0];
         auto b   = ins->inputs()[1];
-        if(a->get_operator().name() != b->get_operator().name())
-            return;
         if(ins->get_shape().lens().size() < 3)
             return;
         auto nbatch_axes      = ins->get_shape().lens().size() - 2;
@@ -730,18 +740,32 @@ struct find_dot_broadcast
         std::vector<std::size_t> axes(naxes);
         std::iota(axes.begin(), axes.end(), 0);
 
-        auto insert_broadcast = [&](instruction_ref b_ins) -> instruction_ref {
-            auto input = b_ins->inputs()[0];
-            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
-                                          b_ins->get_shape().lens().end());
-            if(b_ins->name() == "multibroadcast")
+        auto insert_broadcast = [&](instruction_ref x_ins) -> instruction_ref {
+            auto input = x_ins->inputs()[0];
+            std::vector<std::size_t> lens(x_ins->get_shape().lens().begin() + naxes,
+                                          x_ins->get_shape().lens().end());
+
+            if(input->get_shape().lens() == lens)
+                return input;
+
+            auto input_naxis  = input->get_shape().lens().size();
+            auto new_bc_naxis = lens.size();
+            if(input_naxis > new_bc_naxis)
+            {
+                std::vector<std::size_t> axes_to_sq(input_naxis - new_bc_naxis);
+                std::iota(axes_to_sq.begin(), axes_to_sq.end(), 0);
+                input =
+                    m.insert_instruction(ins, make_op("squeeze", {{"axes", axes_to_sq}}), input);
+            }
+
+            if(x_ins->name() == "multibroadcast")
             {
                 return m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
             }
-            else if(b_ins->name() == "broadcast")
+            else if(x_ins->name() == "broadcast")
             {
-                auto v    = b_ins->get_operator().to_value();
+                auto v    = x_ins->get_operator().to_value();
                 auto axis = v.at("axis").to<std::size_t>() - naxes;
                 return m.insert_instruction(
                     ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);

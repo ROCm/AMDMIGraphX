@@ -110,8 +110,10 @@ struct shape_transform_descriptor
 
         std::vector<sub> subdimensions;
     };
-    friend bool operator==(const shape_transform_descriptor& x, const shape_transform_descriptor& y);
-    friend bool operator!=(const shape_transform_descriptor& x, const shape_transform_descriptor& y);
+    friend bool operator==(const shape_transform_descriptor& x,
+                           const shape_transform_descriptor& y);
+    friend bool operator!=(const shape_transform_descriptor& x,
+                           const shape_transform_descriptor& y);
     friend std::ostream& operator<<(std::ostream& os, const shape_transform_descriptor& x);
     std::vector<dimension> dimensions;
     // Rank of the original dimensions

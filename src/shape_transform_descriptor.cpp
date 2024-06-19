@@ -813,14 +813,10 @@ std::size_t shape_transform_descriptor::elements() const
 
 bool operator==(const dimension::sub& x, const dimension::sub& y)
 {
-    return by(std::equal_to<>{}, [](const dimension::sub& s) {
-        return std::tie(s.len, s.axis, s.hidden_axis);
-    })(x, y);
+    return by(std::equal_to<>{},
+              [](const dimension::sub& s) { return std::tie(s.len, s.axis, s.hidden_axis); })(x, y);
 }
-bool operator!=(const dimension::sub& x, const dimension::sub& y)
-{
-    return not(x == y);
-}
+bool operator!=(const dimension::sub& x, const dimension::sub& y) { return not(x == y); }
 std::ostream& operator<<(std::ostream& os, const dimension::sub& x)
 {
     os << x.len << ":" << to_string_range(x.axis, "x");
@@ -832,10 +828,7 @@ bool operator==(const dimension& x, const dimension& y)
 {
     return x.subdimensions == y.subdimensions;
 }
-bool operator!=(const dimension& x, const dimension& y)
-{
-    return not(x == y);
-}
+bool operator!=(const dimension& x, const dimension& y) { return not(x == y); }
 std::ostream& operator<<(std::ostream& os, const dimension& x)
 {
     os << '[' << stream_range(x.subdimensions) << ']';

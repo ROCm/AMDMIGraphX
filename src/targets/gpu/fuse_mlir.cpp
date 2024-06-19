@@ -400,7 +400,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
-// A seprate function so we can remove operators that are supported by mlir
+// A separate function so we can remove operators that are supported by mlir
 // but not supported for an input fusion.
 bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
 {

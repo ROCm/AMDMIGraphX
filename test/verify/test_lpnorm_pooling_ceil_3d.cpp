@@ -21,30 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
 
-#include <migraphx/op/reduce_op.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/op/pooling.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct reduce_all : reduce_op<reduce_all>
+template <std::size_t N>
+struct test_lpnorm_pooling_ceil_3d : verify_program<test_lpnorm_pooling_ceil_3d<N>>
 {
-    reduce_all() {}
-    reduce_all(std::vector<int64_t> ax) : reduce_op(std::move(ax)) {}
-
-    auto op() const
+    migraphx::program create_program() const
     {
-        return [=](auto x, auto y) { return static_cast<bool>(x) and static_cast<bool>(y); };
-    }
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-    auto init() const { return one(); }
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 5, 5, 5}});
+        auto op = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm,
+                                        {1, 1, 1},
+                                        {3, 3, 3},
+                                        {3, 3, 3},
+                                        {1, 1, 1},
+                                        true,
+                                        N};
+        mm->add_instruction(op, input);
+        return p;
+    }
 };
 
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_lpnorm_pooling_ceil_3d<0>;
+template struct test_lpnorm_pooling_ceil_3d<1>;
+template struct test_lpnorm_pooling_ceil_3d<2>;
+template struct test_lpnorm_pooling_ceil_3d<3>;

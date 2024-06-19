@@ -21,30 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
-#define MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
+#define MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 
-#include <migraphx/op/reduce_op.hpp>
+#include <type_traits>
+#include <limits>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
-
-struct reduce_all : reduce_op<reduce_all>
+template <class T>
+constexpr T mul_sat(T a, T b) noexcept
 {
-    reduce_all() {}
-    reduce_all(std::vector<int64_t> ax) : reduce_op(std::move(ax)) {}
-
-    auto op() const
+    T c;
+    if(not __builtin_mul_overflow(a, b, &c))
     {
-        return [=](auto x, auto y) { return static_cast<bool>(x) and static_cast<bool>(y); };
+        return c;
     }
-
-    auto init() const { return one(); }
-};
-
-} // namespace op
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return std::numeric_limits<T>::max();
+    }
+    else if(a < 0 != b < 0)
+    {
+        return std::numeric_limits<T>::min();
+    }
+    return std::numeric_limits<T>::max();
+}
 
 #endif

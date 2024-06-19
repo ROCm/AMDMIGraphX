@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -122,6 +122,19 @@ struct logical_or
 };
 } // namespace op
 
+// NOLINTNEXTLINE
+#define MIGRAPHX_OPS_DEFINE_COMMON_TYPE(T) \
+    template <class U>                     \
+    struct common_type<T, U>               \
+    {                                      \
+        using type = U;                    \
+    };                                     \
+    template <class U>                     \
+    struct common_type<U, T>               \
+    {                                      \
+        using type = U;                    \
+    };
+
 struct lowest
 {
     template <class T>
@@ -130,6 +143,7 @@ struct lowest
         return numeric_lowest<vec_type<T>>();
     }
 };
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(lowest)
 
 struct highest
 {
@@ -139,6 +153,10 @@ struct highest
         return numeric_max<vec_type<T>>();
     }
 };
+<<<<<<< HEAD
+=======
+MIGRAPHX_OPS_DEFINE_COMMON_TYPE(highest)
+>>>>>>> 2c4dd4a9e4af590539ddee7e021b99443cff9cda
 
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_OPS_HPP

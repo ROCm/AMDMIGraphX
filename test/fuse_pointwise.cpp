@@ -116,12 +116,10 @@ TEST_CASE(double_add_without_return)
         auto x   = mm->add_parameter("x", s);
         auto y   = mm->add_parameter("y", s);
         auto z   = mm->add_parameter("z", s);
-        auto fadd =
-            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
-                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
-            });
-        mm->add_instruction(migraphx::make_op("identity"), fadd);
+        add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+        });
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -228,6 +226,34 @@ TEST_CASE(scalar_input)
         auto one = mm->add_literal(1.0f);
         auto y =
             mm->add_instruction(migraphx::make_op("scalar", {{"scalar_bcst_dims", s.lens()}}), one);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x}, [=](auto* pm, const auto& inputs) {
+            auto y = pm->add_literal(1.0f);
+            return pm->add_instruction(migraphx::make_op("add"), inputs[0], y);
+        });
+        mm->add_return({add1});
+    }
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(scalar_like_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 1}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto one = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {1.0f}});
+        auto y =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), one);
         auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
         mm->add_return({add1});
     }

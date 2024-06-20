@@ -58,7 +58,7 @@ TEST_CASE(loop_default_test)
     auto r2 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), lp);
     mm->add_return({r0, r2});
 
-    auto prog = migraphx::parse_onnx("loop_default_test.onnx");
+    auto prog = read_onnx("loop_default_test.onnx");
 
     EXPECT(p == prog);
 }

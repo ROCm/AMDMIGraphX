@@ -200,7 +200,10 @@ static bool parse_args(const std::vector<instruction_ref>& args,
 
 struct parse_resize : op_parser<parse_resize>
 {
-    std::vector<op_desc> operators() const { return {{"Resize"}, {"Upsample"}}; }
+    std::vector<op_desc> operators() const
+    {
+        return {{"Resize", "resize"}, {"Upsample", "upsample"}};
+    }
 
     // Helper to add a "reshape" and "gather" instruction.  These can implement
     // Nearest mode resizing if all sizes are known at compile time.

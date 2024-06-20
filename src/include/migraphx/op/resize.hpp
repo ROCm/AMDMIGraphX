@@ -127,8 +127,7 @@ struct resize
     std::vector<float> scales;
     std::vector<size_t> sizes;
     // what integer rounding rule to use with Nearest mode.
-    std::string nearest_mode;
-
+    std::string nearest_mode{"floor"};
     // Resizing modes.  1: nearest 2: bilinear/linear 3: cubic
     // Only "nearest" currently supported.
     std::string mode{"nearest"};
@@ -199,7 +198,10 @@ struct resize
             if(inputs.front().ndim() != inputs.back().lens()[0])
                 MIGRAPHX_THROW("RESIZE: size/scale input's size must match rank of input X");
 
-            // The output shape is dynamic, with an unlimited size range.
+            // Note:  a shape with {0, max_val} ranges can't really be allocated.  For the reference
+            // target, this doesn't matter because the real output shape is determined in the
+            // compute() method.  For any other target, there must be a compiler pass that replaces
+            // this operation with a fixed-size output at runtime.
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
             std::vector<shape::dynamic_dimension> dyn_dims(inputs.back().lens().at(0),
                                                            shape::dynamic_dimension{0, max_val});

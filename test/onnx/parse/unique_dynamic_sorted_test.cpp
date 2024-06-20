@@ -39,7 +39,7 @@ TEST_CASE(unique_dynamic_sorted_test)
     auto count = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 3}}), out);
 
     mm->add_return({y, y_ind, x_ind, count});
-    auto prog = migraphx::parse_onnx("unique_dynamic_sorted_test.onnx");
+    auto prog = read_onnx("unique_dynamic_sorted_test.onnx");
 
     EXPECT(p == prog);
 }

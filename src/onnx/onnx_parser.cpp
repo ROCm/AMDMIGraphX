@@ -508,13 +508,21 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
         if(num_data_fields > 1) // if offset field is present
         {
-            offset = std::stoul(t.external_data().at(1).value());
+            offset = std::stoull(t.external_data().at(1).value());
         }
         if(num_data_fields > 2) // if nbytes field is present
         {
-            nbytes = std::stoul(t.external_data().at(2).value());
+            nbytes = std::stoull(t.external_data().at(2).value());
         }
-        auto raw_buffer = read_buffer(path / data_file, offset, nbytes);
+        std::vector<char> raw_buffer;
+        if(not external_data_path.empty())
+        {
+            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
+        }
+        else
+        {
+            raw_buffer = read_buffer(path / data_file, offset, nbytes);
+        }
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
     }

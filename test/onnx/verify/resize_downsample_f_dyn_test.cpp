@@ -31,12 +31,12 @@ TEST_CASE(resize_downsample_f_dyn_test)
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
 
-    auto p = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
+    auto p = read_onnx("resize_downsample_f_dyn_test.onnx", options);
     p.compile(migraphx::make_target("ref"));
 
     // A Resize op. with static input shape goes through a different code path
     // but should give same result
-    auto reference_p = migraphx::parse_onnx("resize_downsample_f_ref_test.onnx", options);
+    auto reference_p = read_onnx("resize_downsample_f_ref_test.onnx", options);
     reference_p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {2, 1, 5, 9}};

@@ -278,6 +278,9 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
+    /// Check if a multi-dimensional index is within bounds for the shape.
+    bool multi_within_bounds(std::vector<std::size_t> multi) const;
+
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
     bool packed() const;
@@ -427,6 +430,9 @@ struct MIGRAPHX_EXPORT shape
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;
 };
+
+/// Flatten subshapes to a single vector of non-tuple type of shapes
+MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

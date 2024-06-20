@@ -40,7 +40,7 @@ TEST_CASE(clip_dyn_min_only_test)
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {2, 8, {3}};
-    auto prog                     = parse_onnx("clip_dyn_min_only_test.onnx", options);
+    auto prog                     = read_onnx("clip_dyn_min_only_test.onnx", options);
 
     EXPECT(p == prog);
 }

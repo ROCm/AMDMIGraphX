@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -150,59 +151,11 @@ struct mlir_op
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
 
-        auto type       = mod->get_output_shapes().front().type();
-        auto mod_params = mod->get_parameter_names();
-        std::sort(mod_params.begin(), mod_params.end());
-        std::unordered_map<instruction_ref, shape> mod_ins_shapes;
-        std::unordered_map<std::string, shape> adjusted_mod_param_shapes;
-        std::transform(inputs.begin(),
-                       inputs.end(),
-                       mod_params.begin(),
-                       std::inserter(adjusted_mod_param_shapes, adjusted_mod_param_shapes.end()),
-                       [](auto ps, auto name) { return std::make_pair(name, ps); });
-        for(auto ins : iterator_for(*mod))
-        {
-            if(ins->name() == "@param")
-            {
-                mod_ins_shapes[ins] =
-                    adjusted_mod_param_shapes[any_cast<builtin::param>(ins->get_operator())
-                                                  .parameter];
-                if(ins->get_shape().type() != mod_ins_shapes[ins].type())
-                {
-                    MIGRAPHX_THROW(
-                        "MLIR_OP: adjusted mod parameter doesn't have the same type lens as "
-                        "original input. Type changed from : " +
-                        ins->get_shape().type_string() + " to " +
-                        mod_ins_shapes[ins].type_string());
-                }
-                if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
-                {
-                    MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
-                                   "original input. Lens changed from " +
-                                   to_string_range(ins->get_shape().lens()) + " to " +
-                                   to_string_range(mod_ins_shapes[ins].lens()));
-                }
-            }
-            else if(ins->name() == "@literal")
-            {
-                mod_ins_shapes[ins] = ins->get_shape();
-            }
-            else if(ins->name() == "@return")
-            {
-                return mod_ins_shapes[ins->inputs().at(0)].with_type(type);
-            }
-            else
-            {
-                std::vector<shape> input_shapes;
-                input_shapes.resize(ins->inputs().size());
-                std::transform(ins->inputs().begin(),
-                               ins->inputs().end(),
-                               input_shapes.begin(),
-                               [&](auto in) { return mod_ins_shapes[in]; });
-                mod_ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
-            }
-        }
-        MIGRAPHX_THROW("No return found in the submodule");
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
@@ -248,8 +201,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
-                                                       upper_input->get_shape().as_standard());
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -274,6 +227,10 @@ auto is_mlir_dot(mlir_mode mode)
         if(mode == mlir_mode::none)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
+            return false;
+        // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
+        // for it.
+        if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
             return false;
         if(mode != mlir_mode::fast)
             return true;
@@ -300,8 +257,14 @@ auto is_mlir_conv(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
+#ifdef _WIN32
+        // Temporarily make it available only on Windows
+        if(ins->get_shape().lens().size() != 4 and group > 1)
+            return false;
+#else
         if(ins->get_shape().lens().size() != 4)
             return false;
+#endif
         if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -358,7 +321,7 @@ fold_pointwise_mod(instruction_ref pm_ins,
                            pm->get_parameter(name),
                            parent_mod->add_parameter(name, input->get_shape().as_standard()));
                    });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, param_map);
+    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
 }
 
 // Whitelist supported fusion options, including imposing type constraints
@@ -444,6 +407,20 @@ MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
     });
 }
 
+std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
+                                             const std::vector<instruction_ref>& inputs)
+{
+    std::vector<instruction_ref> result;
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
+            if(input->get_shape().packed() or input->get_shape().broadcasted())
+                return input;
+            return mpm.get_module().insert_instruction(
+                std::next(input), make_op("contiguous"), input);
+        });
+    return result;
+}
+
 struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
@@ -476,7 +453,7 @@ struct find_mlir_fused_ops
                      [&](auto input) { return input != gemm_based_op; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+            ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 
@@ -505,8 +482,10 @@ struct find_mlir_standalone_op
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(
-            gemm_based_op, mlir_op{gemm_based_op->get_operator()}, top_inputs, {mm});
+        mpm.get_module().replace_instruction(gemm_based_op,
+                                             mlir_op{gemm_based_op->get_operator()},
+                                             mlir_contiguous(mpm, top_inputs),
+                                             {mm});
     }
 };
 
@@ -585,7 +564,7 @@ struct find_mlir_standalone_attention_op
         mm->add_return({ins_to_replace});
 
         mpm.get_module().replace_instruction(
-            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
+            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 
@@ -608,7 +587,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx110");
+    const bool is_navi      = starts_with(device_name, "gfx11");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))

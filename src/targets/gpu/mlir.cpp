@@ -956,14 +956,6 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-std::string dump_mlir(const module& m)
-{
-    mlir_program mp;
-    mp.parse(m);
-    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    return mlir_print(&mlirOperationPrint, mod_op);
-}
-
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
@@ -981,6 +973,24 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
         m.remove_instruction(param);
     }
 }
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    module mm;
+    const_module_ref mr = &m;
+    if(not inputs.empty())
+    {
+        mm = m;
+        mr = &mm;
+        adjust_param_shapes(mm, inputs);
+    }
+    mlir_program mp;
+    mp.parse(*mr);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    return mlir_print(&mlirOperationPrint, mod_op);
+}
+
+std::string dump_mlir(const module& m) { return dump_mlir(m, {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               module m,
@@ -1063,25 +1073,34 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+    auto tc = mp.get_tuning_config(exhaustive);
 
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << "Problem: " << tc.problem << std::endl;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
-    return mp.get_tuning_config(exhaustive);
+    return tc;
 }
 
 #else
 
-std::string dump_mlir(const module&) { return {}; }
-
 template <class T>
 void use(T&)
 {
+}
+
+std::string dump_mlir(const module&) { return {}; }
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    use(m);
+    use(inputs);
+    return {};
 }
 
 // Disabling clang-tidy warning on non-real useage.

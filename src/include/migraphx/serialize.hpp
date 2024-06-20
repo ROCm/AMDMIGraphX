@@ -145,7 +145,10 @@ auto to_value_impl(rank<12>, const T& x)
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, value>{})>
-value to_value_impl(rank<13>, const T& x) { return x; }
+value to_value_impl(rank<13>, const T& x)
+{
+    return x;
+}
 
 template <class T, MIGRAPHX_REQUIRES(std::is_empty<T>{})>
 void from_value_impl(rank<0>, const value& v, T& x)
@@ -207,7 +210,8 @@ auto from_value_impl(rank<4>, const value& v, T& x)
         {
             if(e.size() != 2)
                 MIGRAPHX_THROW("Expected a pair");
-            x.emplace(from_value<typename T::key_type>(e[0]), from_value<typename T::mapped_type>(e[1]));
+            x.emplace(from_value<typename T::key_type>(e[0]),
+                      from_value<typename T::mapped_type>(e[1]));
         }
     }
     else
@@ -254,7 +258,10 @@ auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(migraphx_from_v
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, value>{})>
-void from_value_impl(rank<11>, const value& v, T& x) { x = v; }
+void from_value_impl(rank<11>, const value& v, T& x)
+{
+    x = v;
+}
 
 } // namespace detail
 

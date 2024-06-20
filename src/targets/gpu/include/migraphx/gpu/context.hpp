@@ -202,14 +202,14 @@ struct context
 {
     struct auto_save_problem_cache : problem_cache
     {
-        auto_save_problem_cache() : problem_cache{}
-        {}
+        auto_save_problem_cache() : problem_cache{} {}
 
         bool auto_save = false;
 
-        auto_save_problem_cache(const auto_save_problem_cache&) = delete;
+        auto_save_problem_cache(const auto_save_problem_cache&)            = delete;
         auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
-        virtual ~auto_save_problem_cache() {
+        virtual ~auto_save_problem_cache()
+        {
             if(auto_save)
                 this->save();
         }
@@ -340,7 +340,11 @@ struct context
     }
 
     problem_cache& get_problem_cache() { return *pc; }
-    void load_problem_cache() { pc->load(); pc->auto_save = true; }
+    void load_problem_cache()
+    {
+        pc->load();
+        pc->auto_save = true;
+    }
 
     private:
     // TODO: Make this a vector to support multiple devices

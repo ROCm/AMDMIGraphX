@@ -43,7 +43,6 @@ void problem_cache::load()
     if(not fs::exists(pc_path))
         return;
     from_value(from_json_string(read_string(pc_path)), cache);
-
 }
 void problem_cache::save() const
 {

@@ -51,6 +51,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
 
+/**
+* Observer pattern for keeping track of if something has changed or been updated.
+* Can have up to `N` different subscribers.
+* Use by creating a `bit_signal` and adding subscribers with `bit_signal.subscribe()`.
+* Use `bit_signal.notify()` to set that subscribers should be notified.
+* Get the status of the subscription by checking the `slot` returned by `bit_signal.subscribe()`.
+*/
 template <std::size_t N>
 struct bit_signal
 {

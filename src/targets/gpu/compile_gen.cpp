@@ -258,13 +258,13 @@ void reduce_op::set(const std::string& name, const shape& input, const shape& ou
     }
     else if(name == "reduce_any")
     {
-        reduction = "op::logcal_or{}";
-        init      = "0";
+        reduction = "op::logical_or{}";
+        init      = "bool{false}";
     }
     else if(name == "reduce_all")
     {
         reduction = "op::logical_and{}";
-        init      = "1";
+        init      = "bool{true}";
     }
     else
     {

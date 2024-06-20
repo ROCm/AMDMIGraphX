@@ -429,11 +429,15 @@ def useStlAlgorithms(cfg, data):
 
 
 @cppcheck.checker
-def NestedParentheses(cfg, data):
+def MatcherNestedParentheses(cfg, data):
     for token in cfg.tokenlist:
-        if not simpleMatch(token, ") ) ) )"):
+        if not simpleMatch(token, 'matcher ( ) const {'):
             continue
-        cppcheck.reportError(
-            token, "style",
-            "Too many nested parentheses can affect readability; consider using variables instead."
-        )
+        for tok2 in token.tokAt(4, token.linkAt(4)):
+            if not simpleMatch(tok2, ") ) ) )"):
+                continue
+            cppcheck.reportError(
+                tok2, "style",
+                "Too many nested parentheses can affect readability; consider using variables instead."
+            )
+            break

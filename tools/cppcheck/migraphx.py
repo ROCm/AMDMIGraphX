@@ -433,9 +433,7 @@ def MatcherNestedParentheses(cfg, data):
     for token in cfg.tokenlist:
         if not simpleMatch(token, "matcher ( ) const {"):
             continue
-        for tok2 in cfg.tokenlist[cfg.tokenlist.index(token):]:
-            if simpleMatch(tok2, "}"):
-                break
+        for tok2 in token.tokAt(4).forward(token.linkAt(4)):
             if not simpleMatch(tok2, ") ) ) )"):
                 continue
             cppcheck.reportError(

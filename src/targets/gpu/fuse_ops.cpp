@@ -491,8 +491,7 @@ struct find_conv_bias
     auto matcher() const
     {
         auto relu = match::name(std::unordered_set<std::string>{"gpu::relu"});
-        return conv_bias(match::none_of(
-            match::output(relu)));
+        return conv_bias(match::none_of(match::output(relu)));
     }
 
     void apply(module& m, const match::matcher_result& r) const

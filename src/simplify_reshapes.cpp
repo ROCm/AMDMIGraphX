@@ -842,8 +842,7 @@ struct find_slice_transpose
     auto matcher() const
     {
         auto transpose = match::output(match::name("transpose"));
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(transpose)));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(transpose)));
     }
 
     static std::vector<int64_t> find_common_perm(const std::vector<instruction_ref>& transposes)
@@ -1019,12 +1018,9 @@ struct find_reshape_dot
 {
     auto matcher() const
     {
-        auto rsp = match::name("reshape").bind("rsp");
+        auto rsp   = match::name("reshape").bind("rsp");
         auto other = match::skip_broadcasts(match::any().bind("other"));
-        return match::name("dot")(
-            match::used_once(),
-            match::either_arg(0, 1)(rsp,
-                                    other));
+        return match::name("dot")(match::used_once(), match::either_arg(0, 1)(rsp, other));
     }
 
     // Gemm axis should not be altered by the reshape

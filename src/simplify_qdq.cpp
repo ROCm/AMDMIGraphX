@@ -126,11 +126,11 @@ struct match_find_quantizable_ops
 
     auto matcher() const
     {
-        auto dq1 = match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
-        auto dq2 = match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
-        return match::name(get_quantizable_op_names())(
-            dq1,
-            dq2);
+        auto dq1 =
+            match::arg(0)(skip_post_dq_ops(dequantizelinear_op("scale1", "zp1").bind("dq1")));
+        auto dq2 =
+            match::arg(1)(skip_post_dq_ops(dequantizelinear_op("scale2", "zp2").bind("dq2")));
+        return match::name(get_quantizable_op_names())(dq1, dq2);
     }
 
     void apply(module& m, const match::matcher_result& r) const

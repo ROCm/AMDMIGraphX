@@ -167,9 +167,10 @@ struct find_pointwise_concat_pointwise
 {
     auto matcher() const
     {
+        auto pointwise = match::name("pointwise")(match::used_once());
         auto concat = match::name("concat")(
             match::used_once(),
-            match::any_of[match::inputs()](match::name("pointwise")(match::used_once())));
+            match::any_of[match::inputs()](pointwise));
         return match::name("pointwise")(match::any_of[match::inputs()](concat.bind("concat")));
     }
 

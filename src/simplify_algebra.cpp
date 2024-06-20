@@ -982,9 +982,10 @@ struct find_splits
 {
     auto matcher() const
     {
+        auto pointwise_reduction = match::any_of[match::outputs()](match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
         return match::any(
-            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
-                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
+           match::any_of[match::outputs()](match::name("slice")(
+                pointwise_reduction)));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -1158,8 +1159,9 @@ struct find_split_concat
 {
     auto matcher() const
     {
+        auto concat = match::all_of[match::outputs()](match::name("concat"));
         return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+            match::name("slice")(concat)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1553,8 +1555,9 @@ struct find_rsqrt
 {
     auto matcher() const
     {
+        auto bind_x = match::args(match::any().bind("x"));
         return match::name("recip")(match::args(
-            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+            match::name("sqrt")(match::used_once(), bind_x)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1577,8 +1580,9 @@ struct find_split_reshape
 {
     auto matcher() const
     {
+        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
         return match::name("reshape")(match::arg(0)(match::name("contiguous")(
-                                          match::arg(0)(match::name("slice").bind("slice")))))
+                                          slice_bind_slice)))
             .bind("reshape");
     }
 

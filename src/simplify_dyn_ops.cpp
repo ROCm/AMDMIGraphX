@@ -400,8 +400,9 @@ struct find_const_alloc_reshapes
 {
     auto matcher() const
     {
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
         return match::name("reshape")(match::nargs(2),
-                                      match::arg(1)(match::name("allocate")(match::is_constant())));
+                                      const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -434,8 +435,9 @@ struct find_const_alloc_fill
 {
     auto matcher() const
     {
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
         return match::name("fill")(match::arg(0)(match::is_constant()),
-                                   match::arg(1)(match::name("allocate")(match::is_constant())));
+                                   const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const

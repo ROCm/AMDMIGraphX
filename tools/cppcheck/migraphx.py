@@ -431,9 +431,11 @@ def useStlAlgorithms(cfg, data):
 @cppcheck.checker
 def MatcherNestedParentheses(cfg, data):
     for token in cfg.tokenlist:
-        if not simpleMatch(token, 'matcher ( ) const {'):
+        if not simpleMatch(token, "matcher ( ) const {"):
             continue
-        for tok2 in token.tokAt(4, token.linkAt(4)):
+        for tok2 in cfg.tokenlist[cfg.tokenlist.index(token):]:
+            if simpleMatch(tok2, "}"):
+                break
             if not simpleMatch(tok2, ") ) ) )"):
                 continue
             cppcheck.reportError(

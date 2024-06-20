@@ -185,6 +185,18 @@ constexpr void each_args_unpack(F f, Ts&&... xs)
 {
     each_args([&](auto&& p) { p(f); }, static_cast<Ts&&>(xs)...);
 }
+  
+template <index_int N, class F>
+constexpr void repeat_c(F&& f)
+{
+    sequence_c<N>([&](auto... xs) { each_args(f, xs...); });
+}
+
+template <class IntegerConstant, class F>
+constexpr auto repeat(IntegerConstant ic, F&& f)
+{
+    return repeat_c<ic>(f);
+}
 
 template <class F, class T>
 constexpr auto fold_impl(F&&, T&& x)

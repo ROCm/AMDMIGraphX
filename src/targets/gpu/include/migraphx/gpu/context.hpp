@@ -200,10 +200,25 @@ struct hip_device
 
 struct context
 {
+    struct auto_save_problem_cache : problem_cache
+    {
+        auto_save_problem_cache() : problem_cache{}
+        {}
+
+        bool auto_save = false;
+
+        auto_save_problem_cache(const auto_save_problem_cache&) = delete;
+        auto_save_problem_cache& operator=(const auto_save_problem_cache&) = delete;
+        virtual ~auto_save_problem_cache() {
+            if(auto_save)
+                this->save();
+        }
+    };
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
-          finish_event(create_event())
+          finish_event(create_event()),
+          pc(std::make_shared<auto_save_problem_cache>())
     {
     }
 
@@ -324,7 +339,8 @@ struct context
         return result;
     }
 
-    problem_cache& get_problem_cache() { return pc; }
+    problem_cache& get_problem_cache() { return *pc; }
+    void load_problem_cache() { pc->load(); pc->auto_save = true; }
 
     private:
     // TODO: Make this a vector to support multiple devices
@@ -338,7 +354,7 @@ struct context
     // for stream syncronization
     shared<hip_event_ptr> begin_event  = nullptr;
     shared<hip_event_ptr> finish_event = nullptr;
-    problem_cache pc{};
+    std::shared_ptr<auto_save_problem_cache> pc = nullptr;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

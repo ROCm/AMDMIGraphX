@@ -144,6 +144,9 @@ auto to_value_impl(rank<12>, const T& x)
     return v;
 }
 
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, value>{})>
+value to_value_impl(rank<13>, const T& x) { return x; }
+
 template <class T, MIGRAPHX_REQUIRES(std::is_empty<T>{})>
 void from_value_impl(rank<0>, const value& v, T& x)
 {
@@ -191,9 +194,26 @@ template <class T>
 auto from_value_impl(rank<4>, const value& v, T& x)
     -> decltype(x.insert(*x.begin()), std::declval<typename T::mapped_type>(), void())
 {
-    x.clear();
-    for(auto&& e : v)
-        x.emplace(e.get_key(), from_value<typename T::mapped_type>(e));
+    if(v.is_object())
+    {
+        x.clear();
+        for(auto&& e : v)
+            x.emplace(e.get_key(), from_value<typename T::mapped_type>(e));
+    }
+    else if(v.is_array())
+    {
+        x.clear();
+        for(auto&& e : v)
+        {
+            if(e.size() != 2)
+                MIGRAPHX_THROW("Expected a pair");
+            x.emplace(from_value<typename T::key_type>(e[0]), from_value<typename T::mapped_type>(e[1]));
+        }
+    }
+    else
+    {
+        MIGRAPHX_THROW("Expected object or array");
+    }
 }
 
 template <class T, MIGRAPHX_REQUIRES(is_reflectable<T>{})>
@@ -233,18 +253,21 @@ auto from_value_impl(rank<10>, const value& v, T& x) -> decltype(migraphx_from_v
     migraphx_from_value(v, x);
 }
 
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, value>{})>
+void from_value_impl(rank<11>, const value& v, T& x) { x = v; }
+
 } // namespace detail
 
 template <class T>
 value to_value(const T& x)
 {
-    return detail::to_value_impl(rank<12>{}, x);
+    return detail::to_value_impl(rank<13>{}, x);
 }
 
 template <class T>
 void from_value(const value& v, T& x)
 {
-    detail::from_value_impl(rank<10>{}, v, x);
+    detail::from_value_impl(rank<11>{}, v, x);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

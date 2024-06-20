@@ -47,9 +47,9 @@ TEST_CASE(reduce_all_axis0)
     mm->add_instruction(migraphx::make_op("reduce_all", {{"axes", {0}}}), l0);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
-    std::vector<char> results_vector;
+    std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<char> gold{true, false, true, false};
+    std::vector<float> gold{1, 0, 1, 0};
     EXPECT(results_vector == gold);
 }
 

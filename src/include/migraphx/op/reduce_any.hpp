@@ -37,7 +37,11 @@ struct reduce_any : reduce_op<reduce_any>
 
     auto op() const
     {
-        return [=](auto x, auto y) { return static_cast<bool>(x) or static_cast<bool>(y); };
+        return [=](auto x, auto y) {
+            if(static_cast<bool>(x) or static_cast<bool>(y))
+                return decltype(x){1};
+            return decltype(x){0};
+        };
     }
 };
 

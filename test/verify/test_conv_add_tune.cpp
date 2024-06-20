@@ -38,10 +38,10 @@ struct test_conv_add_tune : verify_program<test_conv_add_tune<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         // choose sizes such that, it would pick mlir for convolutions
-        auto x1    = mm->add_parameter("x1", {DType, {2, 640, 64, 64}});
-        auto w1    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 2}}, 1));
-        auto x2    = mm->add_parameter("x2", {DType, {2, 640, 64, 64}});
-        auto w2    = mm->add_literal(migraphx::generate_literal({DType, {640, 640, 3, 2}}, 1));
+        auto x1    = mm->add_parameter("x1", {DType, {1, 256, 16, 16}});
+        auto w1    = mm->add_literal(migraphx::generate_literal({DType, {1, 256, 3, 2}}, 1));
+        auto x2    = mm->add_parameter("x2", {DType, {1, 256, 16, 16}});
+        auto w2    = mm->add_literal(migraphx::generate_literal({DType, {1, 256, 3, 2}}, 1));
         auto conv1 = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 0}}, {"stride", {2, 2}}}),
             x1,

@@ -441,7 +441,6 @@ struct miopen_apply
         });
     }
 
-
     /**
      * Adds dynamic allocation for submodule output parameter.
      */

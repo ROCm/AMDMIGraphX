@@ -88,4 +88,3 @@ struct bit_signal
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_BIT_SIGNAL_HPP
-

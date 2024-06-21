@@ -607,8 +607,10 @@ struct find_pointwise_mlir
                                             instruction_ref ins,
                                             const operation& op,
                                             const std::vector<instruction_ref>& inputs,
-                                            const std::vector<module_ref>&)
+                                            const std::vector<module_ref>& mod_args)
     {
+        // Only used in assert
+        (void)mod_args;
         assert(mod_args.empty());
         return insert_common_op(m, ins, op, inputs);
     }

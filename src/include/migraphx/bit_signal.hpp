@@ -67,10 +67,8 @@ struct bit_signal
 
     std::size_t allocate()
     {
-        auto i = *find_if(range(N), [&](auto x) {
-            return not allocated[x];
-        });
-        if (i == N)
+        auto i = *find_if(range(N), [&](auto x) { return not allocated[x]; });
+        if(i == N)
             MIGRAPHX_THROW("Too many signals allocated");
         slots[i]     = false;
         allocated[i] = true;

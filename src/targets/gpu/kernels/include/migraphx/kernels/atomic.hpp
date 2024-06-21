@@ -28,12 +28,12 @@ template <class T, class Op, MIGRAPHX_REQUIRES(sizeof(T) == 4 or sizeof(T) == 8)
 MIGRAPHX_DEVICE_CONSTEXPR void cas(rank<1>, T& x, T y, Op op)
 {
     MIGRAPHX_ATOMIC_CAS_WARNING();
-    using U    = conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
-    U* address = reinterpret_cast<U*>(&x);
-    U expected = __hip_atomic_load(address, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
+    using storage    = conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
+    storage* address = reinterpret_cast<storage*>(&x);
+    storage expected = __hip_atomic_load(address, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
     while(not __hip_atomic_compare_exchange_strong(address,
                                                    &expected,
-                                                   bit_cast<U>(op(bit_cast<T>(expected), y)),
+                                                   bit_cast<storage>(op(bit_cast<T>(expected), y)),
                                                    __ATOMIC_RELAXED,
                                                    __ATOMIC_RELAXED,
                                                    __HIP_MEMORY_SCOPE_AGENT))

@@ -38,7 +38,7 @@ void optimize_module::apply(module_pass_manager& mpm) const
 {
     mpm.get_module().repeat_while_changes(2, [&] {
         // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(2, [&] {
+        mpm.get_module().repeat_while_changes(3, [&] {
             mpm.run_pass(simplify_reshapes{});
             mpm.run_pass(eliminate_convert{});
             mpm.run_pass(dead_code_elimination{});

@@ -76,23 +76,23 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
-            return i.name() == "dot" or i.name() == "quant_dot";
+        auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
+            return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
         });
-        // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
-        // allow fused module
-        if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and
+        // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c) perfConfig
+        // can not allow fused module
+        if(gemm_like_ins != smod->end() and std::distance(gemm_like_ins, smod->end()) > 2 and
            not is_module_fusible(*smod, ctx, solution))
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
-            auto mod_splits      = smod->split(input_args, {gemm_ins});
+            auto mod_splits      = smod->split(input_args, {gemm_like_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_inputs        = mod_splits[1].inputs;
             auto dot_ins_idx      = std::distance(
-                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_ins), pw_inputs.begin());
+                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_like_ins), pw_inputs.begin());
             auto pw_shapes         = to_shapes(mod_splits[1].inputs);
             pw_shapes[dot_ins_idx] = cop1.cop.output;
             pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
@@ -101,7 +101,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
-            return insert(cops, mod_splits, ins, gemm_ins);
+            return insert(cops, mod_splits, ins, gemm_like_ins);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }

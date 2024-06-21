@@ -21,36 +21,32 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
+#include <onnx_test.hpp>
 
-void optimize_module::apply(module_pass_manager& mpm) const
+TEST_CASE(gridsample_border_padding_test)
 {
-    for(int i = 0; i < 2; i++)
-    {
-        // loop to further optimize after initial transformations
-        for(int j = 0; j < 3; j++)
-        {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        }
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    }
-}
+    migraphx::program p = read_onnx("gridsample_border_padding_test.onnx");
+    p.compile(migraphx::make_target("ref"));
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    auto input_type = migraphx::shape::float_type;
+    migraphx::shape data_shape{input_type, {1, 1, 3, 2}};
+    migraphx::shape grid_shape{input_type, {1, 2, 4, 2}};
+    std::vector<float> data = {0., 1., 2., 3., 4., 5.};
+    std::vector<float> grid = {
+        -10., -10., -5., -5., -0.2, -0.2, 10., 10., 10., 10., -0.2, -0.2, 5., 5., 10., 10.};
+
+    migraphx::parameter_map pp;
+    pp["x"]    = migraphx::argument(data_shape, data.data());
+    pp["grid"] = migraphx::argument(grid_shape, grid.data());
+
+    auto result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> gold = {0.0000, 0.0000, 1.7000, 5.0000, 5.0000, 1.7000, 5.0000, 5.0000};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

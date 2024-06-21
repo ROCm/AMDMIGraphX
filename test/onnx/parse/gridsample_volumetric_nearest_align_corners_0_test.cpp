@@ -2,7 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
- *
+ *s
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -21,36 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <onnx_test.hpp>
 
-void optimize_module::apply(module_pass_manager& mpm) const
+TEST_CASE(gridsample_volumetric_nearest_align_corners_0_test)
 {
-    for(int i = 0; i < 2; i++)
-    {
-        // loop to further optimize after initial transformations
-        for(int j = 0; j < 3; j++)
-        {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        }
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    }
+    EXPECT(test::throws(
+        [&] { read_onnx("gridsample_volumetric_nearest_align_corners_0_test.onnx"); }));
 }
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx

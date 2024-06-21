@@ -99,8 +99,6 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
         add_generic_op("contiguous");
-        add_extend_op("pooling");
-
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");

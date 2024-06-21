@@ -30,7 +30,7 @@ struct bit_signal
 
         slot(bit_signal* h, std::size_t x) : handler(h), i(x) {}
 
-        slot(slot&& rhs) : handler(rhs.handler), i(rhs.i)
+        slot(slot&& rhs) noexcept : handler(rhs.handler), i(rhs.i)
         {
             rhs.handler = nullptr;
             rhs.i       = N;

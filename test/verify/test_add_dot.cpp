@@ -35,9 +35,9 @@ struct test_add_dot : verify_program<test_add_dot<DType>>
         migraphx::program p;
         auto* mm = p.get_main_module();
         migraphx::shape s{DType, {256, 256}};
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("y", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("y", s);
         auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto dot = mm->add_instruction(migraphx::make_op("dot"), add, z);
         mm->add_return({dot});

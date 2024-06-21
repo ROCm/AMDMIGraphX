@@ -88,10 +88,11 @@ struct find_post_ops
         if(enabled(MIGRAPHX_DISABLE_DNNL_POST_OPS_WORKAROUND{}))
             return match::name("dnnl::eltwise",
                                "dnnl::binary")(match::arg(0)(has_post_ops(), match::used_once()));
-        else
-            auto dnnl_binary =
-                match::arg(0)(match::name("dnnl::binary")(without_post_ops(), match::used_once()));
-        return match::name("dnnl::eltwise")(without_post_ops(), dnnl_binary);
+        else 
+        {
+            auto dnnl_binary = match::name("dnnl::binary")(without_post_ops(), match::used_once());
+            return match::name("dnnl::eltwise")(without_post_ops(), match::arg(0)(dnnl_binary));
+        }
     }
 
     void apply(module& m, const match::matcher_result& r) const

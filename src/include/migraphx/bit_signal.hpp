@@ -5,6 +5,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
 #include <bitset>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +37,7 @@ struct bit_signal
             rhs.i       = N;
         }
 
-        slot(const slot& rhs) : handler(rhs.handler), i(rhs.handler.allocate()) {}
+        slot(const slot& rhs) : handler(rhs.handler), i(rhs.handler->allocate()) {}
 
         slot& operator=(slot rhs)
         {
@@ -47,11 +48,19 @@ struct bit_signal
 
         ~slot() noexcept
         {
-            if(i < N and handler != nullptr)
+            if(valid())
                 handler->deallocate(i);
         }
 
-        bool triggered() const { return handler->triggered(i); }
+        bool valid() const
+        {
+            return i < N and handler != nullptr;
+        }
+
+        bool triggered() const { 
+            assert(valid());
+            return handler->triggered(i); 
+        }
 
         operator bool() const { return triggered(); }
     };
@@ -82,6 +91,11 @@ struct bit_signal
     {
         slots.reset();
         allocated.reset();
+    }
+
+    std::size_t nslots() const
+    {
+        return allocated.count();
     }
 };
 

@@ -666,24 +666,24 @@ TEST_CASE(fuse_module)
     migraphx::module m1;
     {
         migraphx::program p;
-        auto* mm  = p.get_main_module();
-        auto x    = mm->add_parameter("x", s);
-        auto y    = mm->add_parameter("y", s);
-        auto z    = mm->add_parameter("z", s);
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
         auto add = add_pointwise(p, "main:pointwise0", {x, y}, single_pointwise("add"));
         auto mul = add_pointwise(p, "main:pointwise1", {add, z}, single_pointwise("mul"));
 
         std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
-        auto rins = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
+        auto rins    = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
         map_ins[add] = rins;
-        auto ret = m1.fuse(*mul->module_inputs().front(), mul->inputs(), &map_ins);
+        auto ret     = m1.fuse(*mul->module_inputs().front(), mul->inputs(), &map_ins);
         m1.add_return(ret);
     }
     migraphx::module m2;
     {
-        auto x    = m2.add_parameter("x0", s);
-        auto y    = m2.add_parameter("x1", s);
-        auto z    = m2.add_parameter("x2", s);
+        auto x   = m2.add_parameter("x0", s);
+        auto y   = m2.add_parameter("x1", s);
+        auto z   = m2.add_parameter("x2", s);
         auto add = m2.add_instruction(migraphx::make_op("add"), x, y);
         auto mul = m2.add_instruction(migraphx::make_op("mul"), add, z);
         m2.add_return({mul});

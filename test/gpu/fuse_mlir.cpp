@@ -128,9 +128,9 @@ TEST_CASE(add_dot)
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {
-                         auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
-                         auto dot =
-                             pm->add_instruction(migraphx::make_op("dot"), add, inputs[2]);
+                         auto add =
+                             pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                         auto dot = pm->add_instruction(migraphx::make_op("dot"), add, inputs[2]);
                          return std::make_tuple(dot, dot);
                      });
         mm->add_return({fused});

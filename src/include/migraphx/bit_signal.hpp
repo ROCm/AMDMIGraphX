@@ -52,14 +52,12 @@ struct bit_signal
                 handler->deallocate(i);
         }
 
-        bool valid() const
-        {
-            return i < N and handler != nullptr;
-        }
+        bool valid() const { return i < N and handler != nullptr; }
 
-        bool triggered() const { 
+        bool triggered() const
+        {
             assert(valid());
-            return handler->triggered(i); 
+            return handler->triggered(i);
         }
 
         operator bool() const { return triggered(); }
@@ -93,10 +91,7 @@ struct bit_signal
         allocated.reset();
     }
 
-    std::size_t nslots() const
-    {
-        return allocated.count();
-    }
+    std::size_t nslots() const { return allocated.count(); }
 };
 
 } // namespace MIGRAPHX_INLINE_NS

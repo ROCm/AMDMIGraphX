@@ -84,14 +84,14 @@ static std::vector<dimension::sub> get_all_subdimensions(const std::vector<dimen
     return result;
 }
 
-static std::vector<std::size_t> compute_dims(const operation& op,
+std::vector<std::size_t> compute_dims(const operation& op,
                                              const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};
     return op.compute_shape({s}).lens();
 }
 
-static std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
+std::vector<std::size_t> compute_dims(const std::vector<operation>& ops,
                                              const std::vector<std::size_t>& idims)
 {
     shape s{shape::float_type, idims};

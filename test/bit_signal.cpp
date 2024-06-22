@@ -43,7 +43,7 @@ TEST_CASE(move_slot)
     auto slot1 = signals.subscribe();
     auto slot2 = std::move(slot1);
     EXPECT(signals.nslots() == 1);
-    EXPECT(not slot1.valid());
+    EXPECT(not slot1.valid()); // cppcheck-suppress accessMoved
     EXPECT(slot2.valid());
     EXPECT(not slot2.triggered());
     signals.notify();

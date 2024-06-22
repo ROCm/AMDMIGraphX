@@ -66,7 +66,7 @@ void auto_add_return(migraphx::module_ref m, migraphx::instruction_ref ins)
 
 void auto_add_return(migraphx::module_ref m, std::vector<migraphx::instruction_ref> inss)
 {
-    m->add_return(inss);
+    m->add_return(std::move(inss));
 }
 
 template <class F>

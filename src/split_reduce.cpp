@@ -87,7 +87,7 @@ struct splitter
         return dom->strictly_dominate(a, b);
     }
 
-    std::vector<instruction_ref> find_splits()
+    std::vector<instruction_ref> find_splits() const
     {
         std::vector<instruction_ref> result;
         copy_if(iterator_for(*rm), std::back_inserter(result), [](auto ins) {

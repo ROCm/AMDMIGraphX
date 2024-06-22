@@ -749,10 +749,7 @@ __device__ void fused_reduce(Output output_pack, Assign assign, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
         auto result_tuple = f(r, out_idx);
-        output_pack([&](auto... outputs) {
-            result_tuple([&](auto... results) {
-                each_args_unpack(
-                    [&](auto output, auto result) {
+        unpack_each([&](auto output, auto result) {
                         if constexpr(reduce::is_inner_storage<decltype(result)>{})
                         {
                             r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
@@ -761,10 +758,7 @@ __device__ void fused_reduce(Output output_pack, Assign assign, F f)
                         {
                             r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
                         }
-                    },
-                    pack(outputs, results)...);
-            });
-        });
+                    }, output_pack, result_tuple);
     });
 }
 

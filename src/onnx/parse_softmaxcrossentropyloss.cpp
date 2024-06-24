@@ -128,6 +128,38 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 {
     std::vector<op_desc> operators() const { return {{"SoftmaxCrossEntropyLoss"}}; }
 
+    // Handle ignore index if it's within range of allowable classes
+    // return false if ignore index out of bounds and never add literal to graph
+    // return true if ignore index is in bound and pass back literal
+    bool normalize_input_index(const onnx_parser& parser,
+                               const onnx_parser::node_info& info,
+                               const int64_t input_classes,
+                               instruction_ref& ignore_index) const
+    {
+        bool has_ignore_index = contains(info.attributes, "ignore_index");
+        if(has_ignore_index)
+        {
+            auto ignore_index_val =
+                parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
+
+            if(ignore_index_val >= input_classes || abs(ignore_index_val) > input_classes)
+            {
+                return false;
+            }
+
+            if(ignore_index_val < 0)
+            {
+                ignore_index_val = input_classes + ignore_index_val;
+            }
+
+            ignore_index = info.add_literal(migraphx::literal(
+                migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {ignore_index_val}));
+
+            return true;
+        }
+        return false;
+    }
+
     std::vector<instruction_ref> parse(const op_desc& /*opd */,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -143,18 +175,6 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
                 MIGRAPHX_THROW("Invalid reduction mode: " + reduction +
                                "\n Valid options are [none, mean, sum]");
             }
-        }
-
-        // ignore_index is optional attribute, assign this as a scalar literal input to the op
-        auto ignore_index =
-            info.add_literal(migraphx::literal(migraphx::shape(shape::int64_type, {1}, {0}), {-1}));
-        bool has_ignore_index = contains(info.attributes, "ignore_index");
-        if(has_ignore_index)
-        {
-            auto ignore_index_val =
-                parser.parse_value(info.attributes.at("ignore_index")).at<int64_t>();
-            ignore_index = info.add_literal(migraphx::literal(
-                migraphx::shape(migraphx::shape::int64_type, {1}, {0}), {ignore_index_val}));
         }
 
         // Get and validate Inputs
@@ -190,6 +210,11 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
         bool is_k_dim  = (scores_shape.ndim() > 3);
         size_t batch_size = scores_shape.lens().at(0);
         size_t class_size = scores_shape.lens().at(1);
+
+        // ignore_index is optional attribute, assign this as a scalar literal input to the op
+        instruction_ref ignore_index;
+        auto has_ignore_index =
+            normalize_input_index(parser, info, static_cast<int64_t>(class_size), ignore_index);
 
         auto loss_tensor = info.add_instruction(
             migraphx::make_op("convert", {{"target_type", scores_shape.type()}}), labels);

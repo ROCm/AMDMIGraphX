@@ -87,11 +87,9 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_generic_op("contiguous");
         add_extend_op("argmax");
         add_extend_op("argmin");
         add_extend_op("logsoftmax");
-        add_extend_op("lrn");
         add_extend_op("multinomial");
         add_extend_op("nonzero");
         add_extend_op("pooling");
@@ -101,10 +99,13 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
-
+        add_generic_op("contiguous");
+#if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");
+        add_extend_op("lrn");
+#endif
 #if MIGRAPHX_USE_ROCBLAS
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
@@ -113,6 +114,8 @@ struct miopen_apply
         add_loop_op();
         add_neg_op();
         add_nms_op();
+        add_lrn_op();
+        add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
     }
@@ -249,6 +252,7 @@ struct miopen_apply
     }
 #endif
 
+#if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
@@ -262,7 +266,7 @@ struct miopen_apply
                                             output);
         });
     }
-
+#endif
     // add_generic_op just constructs the operator with no fields whereas add_extend_op copies over
     // the fields Since it doesn't have fields its default constructed
 
@@ -358,6 +362,46 @@ struct miopen_apply
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    void add_lrn_op()
+    {
+        apply_map.emplace("lrn", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            std::vector<instruction_ref> cpu_inputs;
+            auto inputs = ins->inputs();
+            std::transform(
+                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+                });
+            cpu_inputs.front() =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
+            return mod->replace_instruction(ins, gpu_out);
+        });
+    }
+
+    void add_convolution_backwards_op()
+    {
+        apply_map.emplace("convolution_backwards", [=](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;

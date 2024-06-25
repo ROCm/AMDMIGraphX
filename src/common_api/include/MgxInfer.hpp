@@ -1610,8 +1610,6 @@ class IShuffleLayer : public ILayer
     Permutation getFirstTranspose() const noexcept
     {
         return first_perm_;
-
-        // return mImpl->getFirstTranspose();
     }
 
     //!
@@ -1658,8 +1656,6 @@ class IShuffleLayer : public ILayer
     Dims getReshapeDimensions() const noexcept
     {
         return reshape_dims_;
-
-        // return mImpl->getReshapeDimensions();
     }
 
     //!
@@ -1690,7 +1686,23 @@ class IShuffleLayer : public ILayer
     //!
     //! \see setReshapeDimensions.
     //!
-    using ILayer::setInput; // TODO
+    // using ILayer::setInput; // TODO
+    void setInput(int32_t index, ITensor& tensor) noexcept
+    {
+        if(index == 0)
+        {
+            ILayer::setInput(index, tensor);
+        }
+        else if(index == 1)
+        {
+            auto args = instructions_.at(1)->inputs();
+            args.push_back(tensor.getInstruction());
+            auto* mm = program_->get_main_module();
+            mm->replace_instruction(
+                instructions_.at(1), migraphx::make_op("reshape"), std::move(args));
+            inputs_.push_back(&tensor);
+        }
+    }
 
     //!
     //! \brief Set the permutation applied by the second transpose operation.
@@ -1727,8 +1739,6 @@ class IShuffleLayer : public ILayer
     Permutation getSecondTranspose() const noexcept
     {
         return second_perm_;
-
-        // return mImpl->getSecondTranspose();
     }
 
     //!
@@ -1746,7 +1756,6 @@ class IShuffleLayer : public ILayer
     {
         placeholder_ = zeroIsPlaceholder;
         pass("Not Implemented", false);
-        // return mImpl->setZeroIsPlaceholder(zeroIsPlaceholder);
     }
 
     //!
@@ -1760,7 +1769,6 @@ class IShuffleLayer : public ILayer
     bool getZeroIsPlaceholder() const noexcept
     {
         return placeholder_;
-        // return mImpl->getZeroIsPlaceholder();
     }
 
     virtual ~IShuffleLayer() noexcept = default;

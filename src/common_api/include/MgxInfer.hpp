@@ -2170,6 +2170,10 @@ class IConvolutionLayer : public ILayer
         instructions_.push_back(mm->add_instruction(
             migraphx::make_op("convolution"),
             {input.getInstruction(), instructions_.at(0), instructions_.at(1)}));
+
+        
+        inputs_.push_back(&input);
+        outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
 
     //!
@@ -2558,6 +2562,9 @@ public:
         instructions_.push_back(mm->add_instruction(
             migraphx::make_op("pooling", {{"mode", pooling_mode}, {"lengths", dimsToVec(windowSize_)}}),
             input.getInstruction()));
+        
+        inputs_.push_back(&input);
+        outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
 
     //!
@@ -2851,6 +2858,8 @@ class IConstantLayer : public ILayer
         instructions_.push_back(
             mm->add_literal(migraphx::shape{fromDataType(weights.type), dimsToVec(dimensions)},
                             reinterpret_cast<const uint8_t*>(weights.values)));
+        
+        outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
 
     //!

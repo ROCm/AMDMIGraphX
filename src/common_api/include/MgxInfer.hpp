@@ -6930,7 +6930,6 @@ class INetworkDefinition : public INoCopy
     void setProgram(std::shared_ptr<migraphx::program> program)
     {
         program_ = program;
-        std::cout << *program_ << std::endl;
 
         for(auto param : program_->get_main_module()->get_parameters())
         {
@@ -8297,9 +8296,7 @@ class IBuilder : public INoCopy
         migraphx::program p = *network.getProgram();
         try
         {
-            std::cout << p << std::endl;
             p.compile(migraphx::make_target("gpu"));
-            std::cout << p << std::endl;
         }
         catch(migraphx::exception& e)
         {
@@ -8769,10 +8766,16 @@ class Parser : public IParser
     {
         // TODO complete implementation, figure out what model_path does
         migraphx::onnx_options opts;
-        network_.setProgram(std::make_shared<migraphx::program>(
-            migraphx::parse_onnx_buffer(serialized_onnx_model, serialized_onnx_model_size, opts)));
+        try
+        {
+            network_.setProgram(std::make_shared<migraphx::program>(migraphx::parse_onnx_buffer(
+                serialized_onnx_model, serialized_onnx_model_size, opts)));
+        }
+        catch(...)
+        {
+            return false;
+        }
         return true;
-        pass("Not Implemented", true);
     }
 
     bool parseFromFile(const char* onnxModelFile, int verbosity) override
@@ -8781,8 +8784,15 @@ class Parser : public IParser
         // network. Due to how different the approach is MGX, (for now atleast) the parser will hand
         // the network the program, which required expanding the INetwork signature.
         // TODO error handling
-        network_.setProgram(
-            std::make_shared<migraphx::program>(migraphx::parse_onnx(onnxModelFile)));
+        try
+        {
+            network_.setProgram(
+                std::make_shared<migraphx::program>(migraphx::parse_onnx(onnxModelFile)));
+        }
+        catch(...)
+        {
+            return false;
+        }
         return true;
     }
 
@@ -8803,7 +8813,7 @@ class Parser : public IParser
     bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
 
     int getNbErrors() const override
-    { // TODO implement actual error counting
+    {
         return 0;
     }
 

@@ -1,20 +1,14 @@
-import migraphx as mgx
-import migraphx.common_api as trt
-from typing import Optional, Union, List
-from hip import hip
-import ctypes
-
 import os
+from typing import Optional, Union, List
 import argparse
-# This sample uses an ONNX ResNet50 Model to create a TensorRT Inference Engine
-import random
-import sys
-
+import ctypes
 import numpy as np
-from PIL import Image
 
-sys.path.insert(1, os.path.join(sys.path[0], ".."))
+from hip import hip
+import migraphx.common_api as trt
 
+
+# NOTE: Defined here until an __init__.py is created for the migraphx module
 def nptype(trt_type):
 
     mapping = {
@@ -30,57 +24,6 @@ def nptype(trt_type):
         return mapping[trt_type]
     raise TypeError("Could not resolve TensorRT datatype to an equivalent numpy datatype.")
 
-class ModelData(object):
-    MODEL_PATH = "ResNet50.onnx"
-    INPUT_SHAPE = (3, 224, 224)
-    # We can convert TensorRT data types to numpy types with trt.nptype()
-    DTYPE = trt.float32
-
-
-# # You can set the logger severity higher to suppress messages (or lower to display more messages).
-TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-
-
-# # The Onnx path is used for Onnx models.
-def build_engine_onnx(model_file):
-    builder = trt.Builder(TRT_LOGGER)
-    network = builder.create_network(0)
-    config = builder.create_builder_config()
-    parser = trt.OnnxParser(network, TRT_LOGGER)
-
-    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1)
-#     # Load the Onnx model and parse it in order to populate the TensorRT network.
-    with open(model_file, "rb") as model:
-        if not parser.parse(model.read()):
-            print("ERROR: Failed to parse the ONNX file.")
-            print("Num errors: ", parser.num_errors)
-            # for error in range(parser.num_errors):
-            #     print(parser.get_error(error))
-            return None
-
-    engine_bytes = builder.build_serialized_network(network, config)
-    runtime = trt.Runtime(TRT_LOGGER)
-
-    return runtime.deserialize_cuda_engine(engine_bytes)
-
-
-def load_normalized_test_case(test_image, pagelocked_buffer):
-    # Converts the input image to a CHW Numpy array
-    def normalize_image(image):
-        # Resize, antialias and transpose the image to CHW.
-        c, h, w = ModelData.INPUT_SHAPE
-        image_arr = (
-            np.asarray(image.resize((w, h), Image.LANCZOS))
-            .transpose([2, 0, 1])
-            .astype(nptype(ModelData.DTYPE))
-            .ravel()
-        )
-        # This particular ResNet50 model requires some preprocessing, specifically, mean normalization.
-        return (image_arr / 255.0 - 0.45) / 0.225
-
-    # Normalize the image and copy to pagelocked memory.
-    np.copyto(pagelocked_buffer, normalize_image(Image.open(test_image)))
-    return test_image
 
 def locate_files(data_paths, filenames, err_msg=""):
     """
@@ -132,7 +75,7 @@ def find_sample_data(
     """
 
     # Standard command-line arguments for all samples.
-    kDEFAULT_DATA_ROOT = os.path.join(os.sep, "usr", "src", "tensorrt", "data")
+    kDEFAULT_DATA_ROOT = os.path.join(os.sep, "code", "AMDMIGraphX", "src", "common_api", "samples_data")
     parser = argparse.ArgumentParser(
         description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -189,6 +132,8 @@ class HostDeviceMem:
     def __init__(self, size: int, dtype: Optional[np.dtype] = None):
         dtype = dtype or np.dtype(np.uint8)
         nbytes = size * dtype.itemsize
+        # NOTE: The cast to int is required to circumvent a difference in the hip and cuda python packages
+        #       Cuda returns an int, which trt expects, while hip returns a hip._util.types.Pointer
         host_mem = int(cuda_call(hip.hipMallocHost(nbytes)))
         pointer_type = ctypes.POINTER(np.ctypeslib.as_ctypes_type(dtype))
 
@@ -239,11 +184,9 @@ def allocate_buffers(engine: trt.ICudaEngine, profile_idx: Optional[int] = None)
     stream = cuda_call(hip.hipStreamCreate())
     tensor_names = [engine.get_tensor_name(i) for i in range(engine.num_io_tensors)]
     for binding in tensor_names:
-        print(binding)
         # get_tensor_profile_shape returns (min_shape, optimal_shape, max_shape)
         # Pick out the max shape to allocate enough memory for the binding.
         shape = engine.get_tensor_shape(binding) #if profile_idx is None else engine.get_tensor_profile_shape(binding, profile_idx)[-1]
-        print(shape)
         shape_valid = np.all([s >= 0 for s in shape])
         if not shape_valid and profile_idx is None:
             raise ValueError(f"Binding {binding} has dynamic shape, " +\
@@ -300,54 +243,3 @@ def do_inference(context, engine, bindings, inputs, outputs, stream):
     for i in range(num_io):
         context.set_tensor_address(engine.get_tensor_name(i), bindings[i])
     return _do_inference_base(inputs, outputs, stream, execute_async_func)
-
-def main():
-    # Set the data path to the directory that contains the trained models and test images for inference.
-    _, data_files = find_sample_data(
-        description="Runs a ResNet50 network with a TensorRT inference engine.",
-        subfolder="resnet50",
-        find_files=[
-            "binoculars.jpeg",
-            "reflex_camera.jpeg",
-            "tabby_tiger_cat.jpg",
-            ModelData.MODEL_PATH,
-            "class_labels.txt",
-        ],
-    )
-#     # Get test images, models and labels.
-    test_images = data_files[0:3]
-    onnx_model_file, labels_file = data_files[3:]
-    labels = open(labels_file, "r").read().split("\n")
-
-#     # Build a TensorRT engine.
-    engine = build_engine_onnx(onnx_model_file)
-#     # Inference is the same regardless of which parser is used to build the engine, since the model architecture is the same.
-#     # Allocate buffers and create a CUDA stream.
-    inputs, outputs, bindings, stream = allocate_buffers(engine)
-#     # Contexts are used to perform inference.
-    context = engine.create_execution_context()
-
-#     # Load a normalized test case into the host input page-locked buffer.
-    test_image = random.choice(test_images)
-    test_case = load_normalized_test_case(test_image, inputs[0].host)
-#     # Run the engine. The output will be a 1D tensor of length 1000, where each value represents the
-#     # probability that the image corresponds to that label
-    trt_outputs = do_inference(
-        context,
-        engine=engine,
-        bindings=bindings,
-        inputs=inputs,
-        outputs=outputs,
-        stream=stream,
-    )
-#     # We use the highest probability as our prediction. Its index corresponds to the predicted label.
-    pred = labels[np.argmax(trt_outputs[0])]
-    free_buffers(inputs, outputs, stream)
-    if "_".join(pred.split()) in os.path.splitext(os.path.basename(test_case))[0]:
-        print("Correctly recognized " + test_case + " as " + pred)
-    else:
-        print("Incorrectly recognized " + test_case + " as " + pred)
-
-
-if __name__ == "__main__":
-    main()

@@ -3,9 +3,9 @@
 // #define DEFINE_TRT_LEGACY_PARSER_ENTRYPOINT 0
 
 #include "migraphx/stringutils.hpp"
-#include "samples_common/argsParser.hpp"
-#include "samples_common/buffers.hpp"
-#include "samples_common/common.hpp"
+#include "argsParser.hpp"
+#include "buffers.hpp"
+#include "common.hpp"
 
 #include "MgxInfer.hpp"
 #include <hip/hip_runtime_api.h>
@@ -128,7 +128,7 @@ bool SampleOnnxMNIST::build()
     {
         return false;
     }
-    config->setProfileStream(*profileStream);
+    // config->setProfileStream(*profileStream);
 
     std::unique_ptr<IHostMemory> plan{builder->buildSerializedNetwork(*network, *config)};
     if(!plan)
@@ -149,13 +149,10 @@ bool SampleOnnxMNIST::build()
         return false;
     }
     
-    std::cout << "BLA" << std::endl;
 
     ASSERT(network->getNbInputs() == 1);
     mInputDims = network->getInput(0)->getDimensions();
     ASSERT(mInputDims.nbDims == 4);
-
-        std::cout << "ABA" << std::endl;
 
     ASSERT(network->getNbOutputs() == 1);
     mOutputDims = network->getOutput(0)->getDimensions();
@@ -226,8 +223,6 @@ bool SampleOnnxMNIST::infer()
     }
 
     // Read the input data into the managed buffers
-    std::cout << mParams.inputTensorNames.size() << std::endl;
-    std::cout << migraphx::to_string_range(mParams.inputTensorNames) << std::endl;
     // ASSERT(mParams.inputTensorNames.size() == 1);
     if (!processInput(buffers))
     {
@@ -339,8 +334,8 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
     samplesCommon::OnnxSampleParams params;
     if(args.dataDirs.empty()) // Use default directories if user hasn't provided directory paths
     {
-        params.dataDirs.push_back("data/mnist/");
-        params.dataDirs.push_back("data/samples/mnist/");
+        params.dataDirs.push_back("/code/AMDMIGraphX/src/common_api/samples_data/mnist/");
+        // params.dataDirs.push_back("data/samples/mnist/");
     }
     else // Use the data directory provided by the user
     {

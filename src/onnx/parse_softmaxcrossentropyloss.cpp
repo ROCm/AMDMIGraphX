@@ -301,26 +301,24 @@ struct parse_softmaxcrossentropyloss : op_parser<parse_softmaxcrossentropyloss>
 
         // Add reduction step after we're generated crossentropyloss tensor and rearragned weight
         // scaling tensor
-        if(reduction == "mean" and not has_weights)
+        if(reduction == "mean" and has_weights)
+        {
+            loss_tensor =
+                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), loss_tensor);
+            auto reduced_weights = info.add_instruction(
+                migraphx::make_op("reduce_sum", {{"axes", {0}}}), weight_tensor);
+            loss_tensor =
+                info.add_instruction(migraphx::make_op("div"), loss_tensor, reduced_weights);
+        }
+        else if(reduction == "mean" and not has_weights)
         {
             loss_tensor = info.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}),
                                                loss_tensor);
         }
-        else if(reduction == "sum" or has_weights)
+        else if(reduction == "sum")
         {
-            if(reduction != "none")
-            {
-                loss_tensor = info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}),
-                                                   loss_tensor);
-            }
-
-            if(reduction == "mean")
-            {
-                auto reduced_weights = info.add_instruction(
-                    migraphx::make_op("reduce_sum", {{"axes", {0}}}), weight_tensor);
-                loss_tensor =
-                    info.add_instruction(migraphx::make_op("div"), loss_tensor, reduced_weights);
-            }
+            loss_tensor =
+                info.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), loss_tensor);
         }
 
         return {loss_tensor, log_sm_scores};

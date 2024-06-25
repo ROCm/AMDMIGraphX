@@ -408,6 +408,19 @@ TEST_CASE(test_nan_2)
     EXPECT(std::isnan(float(fp8_nan)));
 }
 
+TEST_CASE(test_bool)
+{
+    float zero  = 0.0;
+    float two   = 2.0;
+    float other = -0.375;
+    migraphx::fp8::fp8e5m2 fp8_zero(zero);
+    migraphx::fp8::fp8e5m2 fp8_two(two);
+    migraphx::fp8::fp8e5m2 fp8_other(other);
+    EXPECT(not static_cast<bool>(fp8_zero));
+    EXPECT(static_cast<bool>(fp8_two));
+    EXPECT(static_cast<bool>(fp8_other));
+}
+
 TEST_CASE(test_infinity_1)
 {
     // float infinity should get clipped to max

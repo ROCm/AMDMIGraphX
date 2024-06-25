@@ -80,6 +80,6 @@ TEST_CASE(reduce_any_variable_axis0)
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
 
-    std::vector<char> gold{true, true, true, false};
+    std::vector<char> gold{1, 1, 1, 0};
     EXPECT(results_vector == gold);
 }

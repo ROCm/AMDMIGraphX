@@ -19,6 +19,7 @@
 
 #include "MgxInferRuntimeBase.hpp"
 #include "migraphx/migraphx.h"
+#include "migraphx/op/common.hpp"
 #include "pass.hpp"
 
 namespace mgxinfer1 {
@@ -103,12 +104,6 @@ class IShapeLayer
 {
 };
 class IParametricReLULayer
-{
-};
-class IConvolutionLayer
-{
-};
-class IPoolingLayer
 {
 };
 class IDeconvolutionLayer
@@ -1157,7 +1152,8 @@ class IUnaryLayer : public ILayer
     {
         auto* mm             = program->get_main_module();
         std::string unary_op = trtUnaryOperationToMGXOp(operation);
-        instructions_.push_back(mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction()));
+        instructions_.push_back(
+            mm->add_instruction(migraphx::make_op(unary_op), input.getInstruction()));
         inputs_.push_back(&input);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.front()));
     }
@@ -1173,7 +1169,8 @@ class IUnaryLayer : public ILayer
     {
         auto* mm = program_->get_main_module();
         auto op  = trtUnaryOperationToMGXOp(operation);
-        mm->replace_instruction(instructions_.front(), migraphx::make_op(op), instructions_.front()->inputs());
+        mm->replace_instruction(
+            instructions_.front(), migraphx::make_op(op), instructions_.front()->inputs());
         // mImpl->setOperation(op);
     }
 
@@ -1221,14 +1218,16 @@ class IElementWiseLayer : public ILayer
     public:
     using ILayer::ILayer;
 
-    IElementWiseLayer(ITensor& input1, ITensor& input2,
-                ElementWiseOperation operation,
-                const std::shared_ptr<migraphx::program>& program)
+    IElementWiseLayer(ITensor& input1,
+                      ITensor& input2,
+                      ElementWiseOperation operation,
+                      const std::shared_ptr<migraphx::program>& program)
         : ILayer{LayerType::kELEMENTWISE, program}, operation_{operation}
     {
-        auto* mm             = program->get_main_module();
+        auto* mm                = program->get_main_module();
         std::string elemwise_op = trtElementWiseOperationToMGXOp(operation);
-        instructions_.push_back(mm->add_instruction(migraphx::make_op(elemwise_op), input1.getInstruction(), input2.getInstruction()));
+        instructions_.push_back(mm->add_instruction(
+            migraphx::make_op(elemwise_op), input1.getInstruction(), input2.getInstruction()));
         inputs_.push_back(&input1);
         inputs_.push_back(&input2);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.front()));
@@ -1245,9 +1244,10 @@ class IElementWiseLayer : public ILayer
     //!
     void setOperation(ElementWiseOperation op) noexcept
     {
-        auto* mm = program_->get_main_module();
-        auto elemwise_op  = trtElementWiseOperationToMGXOp(op);
-        mm->replace_instruction(instructions_.front(), migraphx::make_op(elemwise_op), instructions_.front()->inputs());
+        auto* mm         = program_->get_main_module();
+        auto elemwise_op = trtElementWiseOperationToMGXOp(op);
+        mm->replace_instruction(
+            instructions_.front(), migraphx::make_op(elemwise_op), instructions_.front()->inputs());
         // return mImpl->setOperation(op);
     }
 
@@ -1322,8 +1322,7 @@ class IActivationLayer : public ILayer
         switch(activation_)
         {
         case ActivationType::kRELU:
-            last_ins_ =
-                mm->add_instruction(migraphx::make_op("relu"), input.getInstruction());
+            last_ins_ = mm->add_instruction(migraphx::make_op("relu"), input.getInstruction());
             instructions_.push_back(last_ins_);
             outputs_.push_back(std::make_unique<ITensor>(last_ins_));
             break;
@@ -1833,7 +1832,8 @@ enum class MatrixOperation : int32_t
 //! the former tensor is broadcast along that dimension to match the dimension of the latter tensor.
 //! The number of these extra dimensions for A and B must match.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
 //!
 class IMatrixMultiplyLayer : public ILayer
 {
@@ -1932,6 +1932,904 @@ class IMatrixMultiplyLayer : public ILayer
     MatrixOperation op1_;
     MatrixOperation op2_;
     // apiv::VMatrixMultiplyLayer* mImpl;
+};
+
+//!
+//! \enum PaddingMode
+//!
+//! \brief Enumerates the modes of padding to perform in convolution, deconvolution and pooling
+//! layer, padding mode takes precedence if setPaddingMode() and setPrePadding() are also used.
+//!
+//! There are two padding styles, EXPLICIT and SAME with each style having two variants.
+//! The EXPLICIT style determine if the final sampling location is used or not.
+//! The SAME style determine if the asymmetry in the padding is on the pre or post padding.
+//!
+//! \code
+//! Shorthand:
+//!     I = dimensions of input image.
+//!     B = prePadding, before the image data. For deconvolution, prePadding is set before output.
+//!     A = postPadding, after the image data. For deconvolution, postPadding is set after output.
+//!     P = delta between input and output
+//!     S = stride
+//!     F = filter
+//!     O = output
+//!     D = dilation
+//!     M = I + B + A ; The image data plus any padding
+//!     DK = 1 + D * (F - 1)
+//! \endcode
+//!
+//! Formulas for Convolution:
+//!     - EXPLICIT_ROUND_DOWN:
+//! \code
+//!         O = floor((M - DK) / S) + 1
+//! \endcode
+//!     - EXPLICIT_ROUND_UP:
+//! \code
+//!         O = ceil((M - DK) / S) + 1
+//! \endcode
+//!     - SAME_UPPER:
+//! \code
+//!         O = ceil(I / S)
+//!         P = floor((I - 1) / S) * S + DK - I;
+//!         B = floor(P / 2)
+//!         A = P - B
+//! \endcode
+//!     - SAME_LOWER:
+//! \code
+//!         O = ceil(I / S)
+//!         P = floor((I - 1) / S) * S + DK - I;
+//!         A = floor(P / 2)
+//!         B = P - A
+//! \endcode
+//!
+//! Formulas for Deconvolution:
+//!     - EXPLICIT_ROUND_DOWN:
+//!     - EXPLICIT_ROUND_UP:
+//! \code
+//!         O = (I - 1) * S + DK - (B + A)
+//! \endcode
+//!     - SAME_UPPER:
+//! \code
+//!         O = min(I * S, (I - 1) * S + DK)
+//!         P = max(DK - S, 0)
+//!         B = floor(P / 2)
+//!         A = P - B
+//! \endcode
+//!     - SAME_LOWER:
+//! \code
+//!         O = min(I * S, (I - 1) * S + DK)
+//!         P = max(DK - S, 0)
+//!         A = floor(P / 2)
+//!         B = P - A
+//! \endcode
+//!
+//! Formulas for Pooling:
+//!     - EXPLICIT_ROUND_DOWN:
+//! \code
+//!         O = floor((M - F) / S) + 1
+//! \endcode
+//!     - EXPLICIT_ROUND_UP:
+//! \code
+//!         O = ceil((M - F) / S) + 1
+//! \endcode
+//!     - SAME_UPPER:
+//! \code
+//!         O = ceil(I / S)
+//!         P = floor((I - 1) / S) * S + F - I;
+//!         B = floor(P / 2)
+//!         A = P - B
+//! \endcode
+//!     - SAME_LOWER:
+//! \code
+//!         O = ceil(I / S)
+//!         P = floor((I - 1) / S) * S + F - I;
+//!         A = floor(P / 2)
+//!         B = P - A
+//! \endcode
+//!
+//! Pooling Example 1:
+//! \code
+//!     Given I = {6, 6}, B = {3, 3}, A = {2, 2}, S = {2, 2}, F = {3, 3}. What is O?
+//!     (B, A can be calculated for SAME_UPPER and SAME_LOWER mode)
+//! \endcode
+//!
+//! - EXPLICIT_ROUND_DOWN:
+//! \code
+//!     Computation:
+//!         M = {6, 6} + {3, 3} + {2, 2} ==> {11, 11}
+//!         O ==> floor((M - F) / S) + 1
+//!           ==> floor(({11, 11} - {3, 3}) / {2, 2}) + {1, 1}
+//!           ==> floor({8, 8} / {2, 2}) + {1, 1}
+//!           ==> {5, 5}
+//! \endcode
+//! - EXPLICIT_ROUND_UP:
+//! \code
+//!     Computation:
+//!         M = {6, 6} + {3, 3} + {2, 2} ==> {11, 11}
+//!         O ==> ceil((M - F) / S) + 1
+//!           ==> ceil(({11, 11} - {3, 3}) / {2, 2}) + {1, 1}
+//!           ==> ceil({8, 8} / {2, 2}) + {1, 1}
+//!           ==> {5, 5}
+//! \endcode
+//!     The sample points are {0, 2, 4, 6, 8} in each dimension.
+//!
+//! - SAME_UPPER:
+//! \code
+//!     Computation:
+//!         I = {6, 6}
+//!         S = {2, 2}
+//!         O = ceil(I / S) = {3, 3}
+//!         P = floor((I - 1) / S) * S + F - I
+//!             ==> floor(({6, 6} - {1, 1}) / {2, 2}) * {2, 2} + {3, 3} - {6, 6}
+//!             ==> {4, 4} + {3, 3} - {6, 6}
+//!             ==> {1, 1}
+//!         B = floor({1, 1} / {2, 2})
+//!             ==> {0, 0}
+//!         A = {1, 1} - {0, 0}
+//!             ==> {1, 1}
+//! \endcode
+//! - SAME_LOWER:
+//! \code
+//!     Computation:
+//!         I = {6, 6}
+//!         S = {2, 2}
+//!         O = ceil(I / S) = {3, 3}
+//!         P = floor((I - 1) / S) * S + F - I
+//!           ==> {1, 1}
+//!         A = floor({1, 1} / {2, 2})
+//!           ==> {0, 0}
+//!         B = {1, 1} - {0, 0}
+//!           ==> {1, 1}
+//! \endcode
+//!     The sample pointers are {0, 2, 4} in each dimension.
+//!     SAMPLE_UPPER has {O0, O1, O2, pad} in output in each dimension.
+//!     SAMPLE_LOWER has {pad, O0, O1, O2} in output in each dimension.
+//!
+//! Pooling Example 2:
+//! \code
+//!     Given I = {6, 6}, B = {3, 3}, A = {3, 3}, S = {2, 2}, F = {3, 3}. What is O?
+//! \endcode
+//!
+enum class PaddingMode : int32_t
+{
+    kEXPLICIT_ROUND_DOWN = 0, //!< Use explicit padding, rounding output size down.
+    kEXPLICIT_ROUND_UP   = 1, //!< Use explicit padding, rounding output size up.
+    kSAME_UPPER          = 2, //!< Use SAME padding, with prePadding <= postPadding.
+    kSAME_LOWER          = 3, //!< Use SAME padding, with prePadding >= postPadding.
+};
+
+//!
+//! \class Weights
+//!
+//! \brief An array of weights used as a layer parameter.
+//!
+//! When using the DLA, the cumulative size of all Weights used in a network
+//! must be less than 512MB in size. If the build option kGPU_FALLBACK is specified,
+//! then multiple DLA sub-networks may be generated from the single original network.
+//!
+//! The weights are held by reference until the engine has been built. Therefore the data referenced
+//! by \p values field should be preserved until the build is complete.
+//!
+//! The term "empty weights" refers to Weights with weight coefficients ( \p count == 0 and \p
+//! values == nullptr).
+//!
+class Weights
+{
+    public:
+    DataType type;      //!< The type of the weights.
+    void const* values; //!< The weight values, in a contiguous array.
+    int64_t count;      //!< The number of weights in the array.
+};
+
+//!
+//! \class IConvolutionLayer
+//!
+//! \brief A convolution layer in a network definition.
+//!
+//! This layer performs a correlation operation between 3-dimensional filter with a 4-dimensional
+//! tensor to produce another 4-dimensional tensor.
+//!
+//! An optional bias argument is supported, which adds a per-channel constant to each value in the
+//! output.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
+//!
+class IConvolutionLayer : public ILayer
+{
+    public:
+    using ILayer::ILayer;
+
+    IConvolutionLayer(ITensor& input,
+                      int64_t nbOutputMaps,
+                      Dims const& kernelSize,
+                      Weights kernelWeights,
+                      Weights biasWeights,
+                      const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kCONVOLUTION, program},
+          nbOutputMaps_{nbOutputMaps},
+          kernelSize_{kernelSize},
+          kernelWeights_{kernelWeights},
+          biasWeights_{biasWeights}
+    {
+        auto* mm = program->get_main_module();
+
+        if(volume(kernelSize) != kernelWeights.count)
+        {
+            // TODO emit error to logger
+        }
+
+        // TODO check if kernel and bias weights are empty
+        // TODO check kernelWeights.count against nbOutputMaps * volume(kernelSize)
+        // TODO check if 4d or 5d input based on kernelSize
+
+        instructions_.push_back(mm->add_literal(
+            migraphx::shape{fromDataType(kernelWeights_.type), dimsToVec(kernelSize_)},
+            reinterpret_cast<const uint8_t*>(kernelWeights_.values)));
+        instructions_.push_back(
+            mm->add_literal(migraphx::shape{fromDataType(biasWeights_.type),
+                                            {static_cast<unsigned long>(nbOutputMaps_)}},
+                            reinterpret_cast<const uint8_t*>(biasWeights_.values)));
+        instructions_.push_back(mm->add_instruction(
+            migraphx::make_op("convolution"),
+            {input.getInstruction(), instructions_.at(0), instructions_.at(1)}));
+    }
+
+    //!
+    //! \brief Set the number of output maps for the convolution.
+    //!
+    //! If executing this layer on DLA, the number of output maps must be in the range [1,8192].
+    //!
+    //! \see getNbOutputMaps()
+    //!
+    void setNbOutputMaps(int64_t nbOutputMaps) noexcept
+    {
+        // mImpl->setNbOutputMaps(nbOutputMaps);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the number of output maps for the convolution.
+    //!
+    //! \see setNbOutputMaps()
+    //!
+    int64_t getNbOutputMaps() const noexcept
+    {
+        // return mImpl->getNbOutputMaps();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the number of groups for a convolution.
+    //!
+    //! The input tensor channels are  divided into \p nbGroups groups, and a convolution is
+    //! executed for each group, using a filter per group. The results of the group convolutions are
+    //! concatenated to form the output.
+    //!
+    //! \note When using groups in int8 mode, the size of the groups (i.e. the channel count divided
+    //! by the group count) must be a multiple of 4 for both input and output.
+    //!
+    //! Default: 1
+    //!
+    //! If executing this layer on DLA, the max number of groups is 8192.
+    //!
+    //! \see getNbGroups()
+    //!
+    void setNbGroups(int64_t nbGroups) noexcept
+    {
+        // mImpl->setNbGroups(nbGroups);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the number of groups of the convolution.
+    //!
+    //! \see setNbGroups()
+    //!
+    int64_t getNbGroups() const noexcept
+    {
+        // return mImpl->getNbGroups();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the kernel weights for the convolution.
+    //!
+    //! The weights are specified as a contiguous array in \p GKCRS order, where \p G is the number
+    //! of groups, \p K the number of output feature maps, \p C the number of input channels, and \p
+    //! R and \p S are the height and width of the filter.
+    //!
+    //! \see getKernelWeights()
+    //!
+    void setKernelWeights(Weights weights) noexcept
+    {
+        // mImpl->setKernelWeights(weights);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the kernel weights of the convolution.
+    //!
+    //! \see setKernelWeights()
+    //!
+    Weights getKernelWeights() const noexcept
+    {
+        // return mImpl->getKernelWeights();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the bias weights for the convolution.
+    //!
+    //! Bias is optional. To omit bias, set the count value of the weights structure to zero.
+    //!
+    //! The bias is applied per-channel, so the number of weights (if non-zero) must be equal to the
+    //! number of output feature maps.
+    //!
+    //! \see getBiasWeights()
+    //!
+    void setBiasWeights(Weights weights) noexcept
+    {
+        //  mImpl->setBiasWeights(weights);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the bias weights for the convolution.
+    //!
+    //! \see setBiasWeights()
+    //!
+    Weights getBiasWeights() const noexcept
+    {
+        // return mImpl->getBiasWeights();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension pre-padding of the convolution.
+    //!
+    //! The start of the input will be zero-padded by this number of elements in each dimension.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,31], and the padding must be less than the kernel size.
+    //!
+    //! \see getPrePadding()
+    //!
+    void setPrePadding(Dims const& padding) noexcept
+    {
+        // mImpl->setPrePadding(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the pre-padding.
+    //!
+    //! \see setPrePadding()
+    //!
+    Dims getPrePadding() const noexcept
+    {
+        // return mImpl->getPrePadding();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension post-padding of the convolution.
+    //!
+    //! The end of the input will be zero-padded by this number of elements in each dimension.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,31], and the padding must be less than the kernel size.
+    //!
+    //! \see getPostPadding()
+    //!
+    void setPostPadding(Dims const& padding) noexcept
+    {
+        // mImpl->setPostPadding(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the post-padding.
+    //!
+    //! \see setPostPadding()
+    //!
+    Dims getPostPadding() const noexcept
+    {
+        // return mImpl->getPostPadding();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the padding mode.
+    //!
+    //! Padding mode takes precedence if both setPaddingMode and setPre/PostPadding are used.
+    //!
+    //! Default: kEXPLICIT_ROUND_DOWN
+    //!
+    //! \see getPaddingMode()
+    //!
+    void setPaddingMode(PaddingMode paddingMode) noexcept
+    {
+        // mImpl->setPaddingMode(paddingMode);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the padding mode.
+    //!
+    //! Default: kEXPLICIT_ROUND_DOWN
+    //!
+    //! \see setPaddingMode()
+    //!
+    PaddingMode getPaddingMode() const noexcept
+    {
+        // return mImpl->getPaddingMode();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension kernel size of the convolution.
+    //!
+    //! If executing this layer on DLA, only support 2D kernel size, both height and width of kernel
+    //! size must be in the range [1,32].
+    //!
+    //! \see getKernelSizeNd()
+    //!
+    void setKernelSizeNd(Dims const& kernelSize) noexcept
+    {
+        // mImpl->setKernelSizeNd(kernelSize);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the multi-dimension kernel size of the convolution.
+    //!
+    //! \see setKernelSizeNd()
+    //!
+    Dims getKernelSizeNd() const noexcept
+    {
+        // return mImpl->getKernelSizeNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension stride of the convolution.
+    //!
+    //! Default: (1, 1, ..., 1)
+    //!
+    //! If executing this layer on DLA, only support 2D stride, both height and width of stride must
+    //! be in the range [1,8].
+    //!
+    //! \see getStrideNd()
+    //!
+    void setStrideNd(Dims const& stride) noexcept
+    {
+        // mImpl->setStrideNd(stride);
+        auto* mm         = program_->get_main_module();
+        auto op          = instructions_.at(2)->get_operator();
+        auto values      = op.to_value();
+        values["stride"] = dimsToVec(stride);
+        op.from_value(values);
+        mm->replace_instruction(instructions_.at(2), std::move(op), instructions_.at(2)->inputs());
+    }
+
+    //!
+    //! \brief Get the multi-dimension stride of the convolution.
+    //!
+    //! \see setStrideNd()
+    //!
+    Dims getStrideNd() const noexcept
+    {
+        // return mImpl->getStrideNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension padding of the convolution.
+    //!
+    //! The input will be zero-padded by this number of elements in each dimension.
+    //! Padding is symmetric.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,31], and the padding must be less than the kernel size.
+    //!
+    //! \see getPaddingNd() setPadding() getPadding()
+    //!
+    void setPaddingNd(Dims const& padding) noexcept
+    {
+        //  mImpl->setPaddingNd(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the multi-dimension padding of the convolution.
+    //!
+    //! If the padding is asymmetric, the pre-padding is returned.
+    //!
+    //! \see setPaddingNd()
+    //!
+    Dims getPaddingNd() const noexcept
+    {
+        // return mImpl->getPaddingNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension dilation of the convolution.
+    //!
+    //! Default: (1, 1, ..., 1)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width must be in
+    //! the range [1,32].
+    //!
+    //! \see getDilationNd()
+    //!
+    void setDilationNd(Dims const& dilation) noexcept
+    {
+        // mImpl->setDilationNd(dilation);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the multi-dimension dilation of the convolution.
+    //!
+    //! \see setDilationNd()
+    //!
+    Dims getDilationNd() const noexcept
+    {
+        // return mImpl->getDilationNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Append or replace an input of this layer with a specific tensor
+    //!
+    //! \param index the index of the input to modify.
+    //! \param tensor the new input tensor
+    //!
+    //! The indices are as follows:
+    //!
+    //! Input 0 is the input activation tensor.
+    //! Input 1 is the kernel tensor. If used, the kernel weights parameter must be set to empty
+    //! weights. Input 2 is the bias tensor. If used, the bias parameter must be set to empty
+    //! weights.
+    //!
+    //! \see getKernelWeights(), setKernelWeights(), getBiasWeights(), setBiasWeights()
+    //!
+    using ILayer::setInput;
+
+    virtual ~IConvolutionLayer() noexcept = default;
+
+    protected:
+    int64_t nbOutputMaps_;
+    Dims kernelSize_;
+    Weights kernelWeights_;
+    Weights biasWeights_;
+    // apiv::VConvolutionLayer* mImpl;
+};
+
+//!
+//! \enum PoolingType
+//!
+//! \brief The type of pooling to perform in a pooling layer.
+//!
+enum class PoolingType : int32_t
+{
+    kMAX = 0,              //!< Maximum over elements
+    kAVERAGE = 1,          //!< Average over elements. If the tensor is padded, the count includes the padding
+    kMAX_AVERAGE_BLEND = 2 //!< Blending between max and average pooling: (1-blendFactor)*maxPool + blendFactor*avgPool
+};
+
+//! \class IPoolingLayer
+//!
+//! \brief A Pooling layer in a network definition.
+//!
+//! The layer applies a reduction operation within a window over the input.
+//!
+//! \warning When running pooling layer with DeviceType::kDLA in Int8 mode, the dynamic ranges
+//! for input and output tensors must be equal.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//!
+class IPoolingLayer : public ILayer
+{
+public:
+    using ILayer::ILayer;
+
+    IPoolingLayer(ITensor& input,
+                  PoolingType type,
+                  Dims const& windowSize,
+                  const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kPOOLING, program}, poolingType_{type}, windowSize_{windowSize}
+    {
+        auto* mm = program->get_main_module();
+
+        migraphx::op::pooling_mode pooling_mode;
+        switch(type)
+        {
+        case PoolingType::kMAX: pooling_mode = migraphx::op::pooling_mode::max; break;
+        case PoolingType::kAVERAGE: pooling_mode = migraphx::op::pooling_mode::average; break;
+        case PoolingType::kMAX_AVERAGE_BLEND: pass("Not Implemented", true);
+        }
+
+        instructions_.push_back(mm->add_instruction(
+            migraphx::make_op("pooling", {{"mode", pooling_mode}, {"lengths", dimsToVec(windowSize_)}}),
+            input.getInstruction()));
+    }
+
+    //!
+    //! \brief Set the type of activation to be performed.
+    //!
+    //! DLA only supports kMAX and kAVERAGE pooling types.
+    //!
+    //! \see getPoolingType(), PoolingType
+    //!
+    void setPoolingType(PoolingType type) noexcept
+    {
+        // mImpl->setPoolingType(type);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the type of activation to be performed.
+    //!
+    //! \see setPoolingType(), PoolingType
+    //!
+    PoolingType getPoolingType() const noexcept
+    {
+        // return mImpl->getPoolingType();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the blending factor for the max_average_blend mode:
+    //! max_average_blendPool = (1-blendFactor)*maxPool + blendFactor*avgPool
+    //! blendFactor is a user value in [0,1] with the default value of 0.0
+    //! This value only applies for the kMAX_AVERAGE_BLEND mode.
+    //!
+    //! Since DLA does not support kMAX_AVERAGE_BLEND, blendFactor is ignored on the DLA.
+    //!
+    //! \see getBlendFactor()
+    //!
+    void setBlendFactor(float blendFactor) noexcept
+    {
+        // mImpl->setBlendFactor(blendFactor);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the blending factor for the max_average_blend mode:
+    //! max_average_blendPool = (1-blendFactor)*maxPool + blendFactor*avgPool
+    //! blendFactor is a user value in [0,1] with the default value of 0.0
+    //! In modes other than kMAX_AVERAGE_BLEND, blendFactor is ignored.
+    //!
+    //! \see setBlendFactor()
+    //!
+    float getBlendFactor() const noexcept
+    {
+        // return mImpl->getBlendFactor();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set whether average pooling uses as a denominator the overlap area between the window
+    //! and the unpadded input.
+    //! If this is not set, the denominator is the overlap between the pooling window and the padded
+    //! input.
+    //!
+    //! Default: true
+    //!
+    //! \see getAverageCountExcludesPadding()
+    //!
+    void setAverageCountExcludesPadding(bool exclusive) noexcept
+    {
+        // mImpl->setAverageCountExcludesPadding(exclusive);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get whether average pooling uses as a denominator the overlap area between the window
+    //! and the unpadded input.
+    //!
+    //! \see setAverageCountExcludesPadding()
+    //!
+    bool getAverageCountExcludesPadding() const noexcept
+    {
+        // return mImpl->getAverageCountExcludesPadding();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension pre-padding for pooling.
+    //!
+    //! The start of the input will be padded by this number of elements in each dimension.
+    //! Padding value depends on pooling type, -inf is used for max pooling and zero padding for
+    //! average pooling.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,7].
+    //!
+    //! \see getPrePadding()
+    //!
+    void setPrePadding(Dims const& padding) noexcept
+    {
+        // mImpl->setPrePadding(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the pre-padding.
+    //!
+    //! \see setPrePadding()
+    //!
+    Dims getPrePadding() const noexcept
+    {
+        // return mImpl->getPrePadding();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension post-padding for pooling.
+    //!
+    //! The end of the input will be padded by this number of elements in each dimension.
+    //! Padding value depends on pooling type, -inf is used for max pooling and zero padding for
+    //! average pooling.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,7].
+    //!
+    //! \see getPostPadding()
+    //!
+    void setPostPadding(Dims const& padding) noexcept
+    {
+        // mImpl->setPostPadding(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the padding.
+    //!
+    //! \see setPostPadding()
+    //!
+    Dims getPostPadding() const noexcept
+    {
+        // return mImpl->getPostPadding();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the padding mode.
+    //!
+    //! Padding mode takes precedence if both setPaddingMode and setPre/PostPadding are used.
+    //!
+    //! Default: kEXPLICIT_ROUND_DOWN
+    //!
+    //! \see getPaddingMode()
+    void setPaddingMode(PaddingMode paddingMode) noexcept
+    {
+        // mImpl->setPaddingMode(paddingMode);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the padding mode.
+    //!
+    //! Default: kEXPLICIT_ROUND_DOWN
+    //!
+    //! \see setPaddingMode()
+    PaddingMode getPaddingMode() const noexcept
+    {
+        // return mImpl->getPaddingMode();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension window size for pooling.
+    //!
+    //! If executing this layer on DLA, only support 2D window size, both height and width of window
+    //! size must be in the range [1,8].
+    //!
+    //! \see getWindowSizeNd() setWindowSize() getWindowSize()
+    //!
+    void setWindowSizeNd(Dims const& windowSize) noexcept
+    {
+        // mImpl->setWindowSizeNd(windowSize);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the multi-dimension window size for pooling.
+    //!
+    //! \see setWindowSizeNd()
+    //!
+    Dims getWindowSizeNd() const noexcept
+    {
+        // return mImpl->getWindowSizeNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension stride for pooling.
+    //!
+    //! Default: (1, 1, ..., 1)
+    //!
+    //! If executing this layer on DLA, only support 2D stride, both height and width of stride must
+    //! be in the range [1,16].
+    //!
+    //! \see getStrideNd()
+    //!
+    void setStrideNd(Dims const& stride) noexcept
+    {
+        // mImpl->setStrideNd(stride);
+        auto* mm         = program_->get_main_module();
+        auto op          = instructions_.at(0)->get_operator();
+        auto values      = op.to_value();
+        values["stride"] = dimsToVec(stride);
+        op.from_value(values);
+        mm->replace_instruction(instructions_.at(0), std::move(op), instructions_.at(0)->inputs());
+    }
+
+    //!
+    //! \brief Get the multi-dimension stride for pooling.
+    //!
+    //! \see setStrideNd()
+    //!
+    Dims getStrideNd() const noexcept
+    {
+        // return mImpl->getStrideNd();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the multi-dimension padding for pooling.
+    //!
+    //! The input will be padded by this number of elements in each dimension.
+    //! Padding is symmetric.
+    //! Padding value depends on pooling type, -inf is used for max pooling and zero padding for
+    //! average pooling.
+    //!
+    //! Default: (0, 0, ..., 0)
+    //!
+    //! If executing this layer on DLA, only support 2D padding, both height and width of padding
+    //! must be in the range [0,7].
+    //!
+    //! \see getPaddingNd() setPadding() getPadding()
+    //!
+    void setPaddingNd(Dims const& padding) noexcept
+    {
+        // mImpl->setPaddingNd(padding);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the multi-dimension padding for pooling.
+    //!
+    //! If the padding is asymmetric, the pre-padding is returned.
+    //!
+    //! \see setPaddingNd()
+    //!
+    Dims getPaddingNd() const noexcept
+    {
+        // return mImpl->getPaddingNd();
+        pass("Not Implemented", true);
+    }
+
+    virtual ~IPoolingLayer() noexcept = default;
+
+protected:
+    // apiv::VPoolingLayer* mImpl;
+    PoolingType poolingType_;
+    Dims windowSize_;
 };
 
 //!
@@ -4360,29 +5258,6 @@ enum class ScaleMode : int32_t
 };
 
 //!
-//! \class Weights
-//!
-//! \brief An array of weights used as a layer parameter.
-//!
-//! When using the DLA, the cumulative size of all Weights used in a network
-//! must be less than 512MB in size. If the build option kGPU_FALLBACK is specified,
-//! then multiple DLA sub-networks may be generated from the single original network.
-//!
-//! The weights are held by reference until the engine has been built. Therefore the data referenced
-//! by \p values field should be preserved until the build is complete.
-//!
-//! The term "empty weights" refers to Weights with weight coefficients ( \p count == 0 and \p
-//! values == nullptr).
-//!
-class Weights
-{
-    public:
-    DataType type;      //!< The type of the weights.
-    void const* values; //!< The weight values, in a contiguous array.
-    int64_t count;      //!< The number of weights in the array.
-};
-
-//!
 //! \enum TopKOperation
 //!
 //! \brief Enumerates the operations that may be performed by a TopK layer.
@@ -4403,20 +5278,6 @@ enum class GatherMode : int32_t
     kDEFAULT = 0, //!< Similar to ONNX Gather
     kELEMENT = 1, //!< Similar to ONNX GatherElements
     kND      = 2  //!< Similar to ONNX GatherND
-};
-
-//!
-//! \enum PoolingType
-//!
-//! \brief The type of pooling to perform in a pooling layer.
-//!
-enum class PoolingType : int32_t
-{
-    kMAX = 0, //!< Maximum over elements
-    kAVERAGE =
-        1, //!< Average over elements. If the tensor is padded, the count includes the padding
-    kMAX_AVERAGE_BLEND = 2 //!< Blending between max and average pooling: (1-blendFactor)*maxPool +
-                           //!< blendFactor*avgPool
 };
 
 //!
@@ -5408,9 +6269,9 @@ class INetworkDefinition : public INoCopy
                                         Weights kernelWeights,
                                         Weights biasWeights) noexcept
     {
-        pass("Not Implemented", true);
-        // return mImpl->addConvolutionNd(input, nbOutputMaps, kernelSize, kernelWeights,
-        // biasWeights);
+        layers_.push_back(std::make_unique<IConvolutionLayer>(
+            input, nbOutputMaps, kernelSize, kernelWeights, biasWeights, program_));
+        return dynamic_cast<IConvolutionLayer*>(layers_.back().get());
     }
 
     //!
@@ -5429,7 +6290,8 @@ class INetworkDefinition : public INoCopy
     //!
     IPoolingLayer* addPoolingNd(ITensor& input, PoolingType type, Dims const& windowSize) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(std::make_unique<IPoolingLayer>(input, type, windowSize, program_));
+        return dynamic_cast<IPoolingLayer*>(layers_.back().get());
         // return mImpl->addPoolingNd(input, type, windowSize);
     }
 

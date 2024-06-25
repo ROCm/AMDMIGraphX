@@ -82,9 +82,6 @@ class IRaggedSoftMaxLayer
 class INonZeroLayer
 {
 };
-class IConstantLayer
-{
-};
 class IIdentityLayer
 {
 };
@@ -2830,6 +2827,87 @@ protected:
     // apiv::VPoolingLayer* mImpl;
     PoolingType poolingType_;
     Dims windowSize_;
+};
+
+//! \class IConstantLayer
+//!
+//! \brief Layer that represents a constant value.
+//!
+//! \note This layer does not support boolean types.
+//!
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//!
+class IConstantLayer : public ILayer
+{
+    public:
+    using ILayer::ILayer;
+
+    IConstantLayer(Dims const& dimensions,
+                   Weights weights,
+                   const std::shared_ptr<migraphx::program>& program)
+        : ILayer{LayerType::kCONSTANT, program}
+    {
+        auto* mm = program->get_main_module();
+        instructions_.push_back(
+            mm->add_literal(migraphx::shape{fromDataType(weights.type), dimsToVec(dimensions)},
+                            reinterpret_cast<const uint8_t*>(weights.values)));
+    }
+
+    //!
+    //! \brief Set the weights for the layer.
+    //!
+    //! The output type is weights.type. If the network is weakly typed and the weights have a real
+    //! type, the output type might be different per TensorRT's type conversion rules.
+    //!
+    //! \see getWeights()
+    //!
+    void setWeights(Weights weights) noexcept
+    {
+        // mImpl->setWeights(weights);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the weights for the layer.
+    //!
+    //! \see setWeights
+    //!
+    Weights getWeights() const noexcept
+    {
+        // return mImpl->getWeights();
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Set the dimensions for the layer.
+    //!
+    //! \param dimensions The dimensions of the layer
+    //!
+    //! \see setDimensions
+    //!
+    void setDimensions(Dims const& dimensions) noexcept
+    {
+        // mImpl->setDimensions(dimensions);
+        pass("Not Implemented", true);
+    }
+
+    //!
+    //! \brief Get the dimensions for the layer.
+    //!
+    //! \return the dimensions for the layer
+    //!
+    //! \see getDimensions
+    //!
+    Dims getDimensions() const noexcept
+    {
+        // return mImpl->getDimensions();
+        pass("Not Implemented", true);
+    }
+
+    virtual ~IConstantLayer() noexcept = default;
+
+    protected:
+    // apiv::VConstantLayer* mImpl;
 };
 
 //!
@@ -5965,7 +6043,8 @@ class INetworkDefinition : public INoCopy
     //!
     IConstantLayer* addConstant(Dims const& dimensions, Weights weights) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(std::make_unique<IConstantLayer>(dimensions, weights, program_));
+        return dynamic_cast<IConstantLayer*>(layers_.back().get());
         // return mImpl->addConstant(dimensions, weights);
     }
 

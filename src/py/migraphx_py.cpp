@@ -310,11 +310,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     mgxinfer1::pybinds::base_enum_bindings(common_api);
     mgxinfer1::pybinds::base_type_bindings(common_api);
     mgxinfer1::pybinds::logger_bindings(common_api);
-
-    /*INetworkDefinition start*/
-    py::class_<mgxinfer1::INetworkDefinition>(
-        common_api, "INetworkDefinition", "TODO docstring", py::module_local());
-    /*INetworkDefinition ends*/
+    mgxinfer1::pybinds::network_bindings(common_api);
 
     /*IBuilder start*/
     py::class_<mgxinfer1::IBuilderConfig>(

@@ -29,13 +29,17 @@
 namespace mgxinfer1 {
 namespace pybinds {
 
+using namespace py::literals;
+
 void dims(py::module&);
 void host_memory(py::module&);
+void weights(py::module&);
 
 void base_type_bindings(py::module& m)
 {
     host_memory(m);
     dims(m);
+    weights(m);
 }
 
 void dims(py::module& m)
@@ -147,6 +151,45 @@ void host_memory(py::module& m)
             mem_info.strides = {mem_info.itemsize};
             return mem_info;
         });
+}
+
+void weights(py::module& m)
+{
+    py::class_<Weights>(m, "Weights", "TODO docstring", py::module_local())
+        .def(py::init([](const DataType& t) {
+                 return new Weights{t, nullptr, 0};
+             }),
+             "type"_a = DataType::kFLOAT,
+             "TODO docstring")
+        .def(py::init([](const DataType& t, const size_t vals, int64_t count) {
+                 return new Weights{t, reinterpret_cast<void*>(vals), count};
+             }),
+             "type"_a,
+             "ptr"_a,
+             "count"_a,
+             "TODO docstring")
+        .def(py::init([](py::array& arr) {
+                 arr = py::array::ensure(arr);
+                 PY_ASSERT_VALUE_ERROR(arr,
+                                       "Could not convert NumPy array to Weights. Is it using a "
+                                       "data type supported by TensorRT?");
+                 PY_ASSERT_VALUE_ERROR((arr.flags() & py::array::c_style),
+                                       "Could not convert non-contiguous NumPy array to Weights. "
+                                       "Please use numpy.ascontiguousarray() to fix this.");
+                 return new Weights{dtype_to_type(arr.dtype()), arr.data(), arr.size()};
+             }),
+             "a"_a,
+             py::keep_alive<1, 2>(),
+             "TODO docstring")
+        .def_property_readonly("dtype", [](const Weights& self) { return self.type; })
+        .def_property_readonly("size", [](const Weights& self) { return self.count; })
+        .def_property_readonly(
+            "nbytes", [](const Weights& self) { return sizeofDataType(self.type) * self.count; })
+        .def("numpy",
+             &weights_to_numpy,
+             py::return_value_policy::reference_internal,
+             "TODO docstring")
+        .def("__len__", [](Weights const& self) { return static_cast<size_t>(self.count); });
 }
 
 } // namespace pybinds

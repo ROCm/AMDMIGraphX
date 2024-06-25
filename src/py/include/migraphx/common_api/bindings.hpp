@@ -39,5 +39,7 @@ void logger_bindings(py::module&);
 
 void build_time_bindings(py::module&);
 
+void network_bindings(py::module&);
+
 } // namespace pybinds
 } // namespace mgxinfer1

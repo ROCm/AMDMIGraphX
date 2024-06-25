@@ -34,12 +34,79 @@ using namespace py::literals;
 void ilayer(py::module&);
 void layers(py::module&);
 
+Weights optional_weights(Weights*);
+
 void network_bindings(py::module& m)
 {
     ilayer(m);
     layers(m);
 
-    py::class_<INetworkDefinition>(m, "INetworkDefinition", "TODO docstring", py::module_local());
+    py::class_<INetworkDefinition>(m, "INetworkDefinition", "TODO docstring", py::module_local())
+        .def_property("name", &INetworkDefinition::getName, &INetworkDefinition::setName)
+        .def_property_readonly("num_layers", &INetworkDefinition::getNbLayers)
+        .def_property_readonly("num_inputs", &INetworkDefinition::getNbInputs)
+        .def_property_readonly("num_outputs", &INetworkDefinition::getNbOutputs)
+        .def("mark_output", &INetworkDefinition::markOutput, "tensor"_a, "TODO docstring")
+        .def("add_input",
+             &INetworkDefinition::addInput,
+             "name"_a,
+             "dtype"_a,
+             "shape"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
+        .def(
+            "add_convolution_nd",
+            [](INetworkDefinition& self,
+               ITensor& input,
+               int32_t num_output_maps,
+               Dims kernel_size,
+               Weights kernel,
+               Weights* bias) {
+                return self.addConvolutionNd(
+                    input, num_output_maps, kernel_size, kernel, optional_weights(bias));
+            },
+            "input"_a,
+            "num_output_maps"_a,
+            "kernel_shape"_a,
+            "kernel"_a,
+            "bias"_a = nullptr,
+            py::keep_alive<1, 5>{},
+            py::keep_alive<1, 6>{},
+            "TODO docstring",
+            py::return_value_policy::reference_internal)
+        .def("add_activation",
+             &INetworkDefinition::addActivation,
+             "input"_a,
+             "type"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
+        .def("add_pooling_nd",
+             &INetworkDefinition::addPoolingNd,
+             "input"_a,
+             "type"_a,
+             "window_size"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
+        .def("add_shuffle",
+             &INetworkDefinition::addShuffle,
+             "input"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
+        .def("add_matrix_multiply",
+             &INetworkDefinition::addMatrixMultiply,
+             "input0"_a,
+             "op0"_a,
+             "input1"_a,
+             "op1"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
+        .def("add_constant",
+             &INetworkDefinition::addConstant,
+             "shape"_a,
+             "weights"_a,
+             py::keep_alive<1, 3>{},
+             INetworkDefinitionDoc::add_constant,
+             py::return_value_policy::reference_internal);
 }
 
 void ilayer(py::module& m)
@@ -217,6 +284,8 @@ void layers(py::module& m)
             });
     /*IMatrixMultiplyLayer*/
 }
+
+Weights optional_weights(Weights* w) { return w ? *w : Weights{DataType::kFLOAT, nullptr, 0}; }
 
 } // namespace pybinds
 } // namespace mgxinfer1

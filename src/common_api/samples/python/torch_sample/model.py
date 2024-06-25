@@ -158,14 +158,3 @@ class MnistModel(object):
         test_name = target.cpu().numpy()[case_num]
         return test_case, test_name
     
-
-def main():
-    # Train the PyTorch model
-    mnist_model = MnistModel()
-    mnist_model.learn()
-    weights = mnist_model.get_weights()
-
-    print(weights)
-
-if __name__ == "__main__":
-    main()

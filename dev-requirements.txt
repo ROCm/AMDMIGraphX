@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,5 +26,5 @@ facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 ccache@v4.1 -DENABLE_TESTING=OFF
 pcre,pfultz2/pcre@8.45 -H sha256:d6f7182602a775a7d500a0cedca6449af0400c6493951513046d17615ed0bf11
 danmar/cppcheck@bb2711c22a0be09efe7f1a8da3030876471026c8 -DHAVE_RULES=1 # 2.11
-RadeonOpenCompute/rocm-cmake@a83c5075d85f1fd28d657a9277eb21c834d76f3f --build
+RadeonOpenCompute/rocm-cmake@dfaa4ddba4dbb2e1c6e9964ce610e2a12fd93f39 --build
 -f requirements.txt

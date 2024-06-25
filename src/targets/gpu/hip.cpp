@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,9 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
+#endif
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -37,6 +39,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_REGISTER_OP(hip_allocate)
+MIGRAPHX_REGISTER_OP(hip_fill)
 MIGRAPHX_REGISTER_OP(hip_sync_stream)
 MIGRAPHX_REGISTER_OP(hip_copy_to_gpu)
 MIGRAPHX_REGISTER_OP(hip_copy_from_gpu)
@@ -246,6 +249,14 @@ void gpu_sync()
 
 void gpu_sync(const context& ctx) { ctx.finish(); }
 
+void hip_async_memset(context& ctx, const argument& dst, int value)
+{
+    std::size_t dst_size = dst.get_shape().bytes();
+    auto status          = hipMemsetAsync(dst.data(), value, dst_size, ctx.get_stream().get());
+    if(status != hipSuccess)
+        MIGRAPHX_THROW("Gpu fill failed: " + hip_error(status));
+}
+
 void hip_async_copy(context& ctx, const argument& src, const argument& dst, hipMemcpyKind kind)
 {
     std::size_t src_size = src.get_shape().bytes();
@@ -291,6 +302,13 @@ void copy_from_gpu(context& ctx, const argument& src, const argument& dst)
 argument get_preallocation(context& ctx, const std::string& id)
 {
     return ctx.get_current_device().preallocations.at(id);
+}
+
+void gpu_fill(context& ctx, const argument& dst, int value)
+{
+    // TODO: Handle non-packed tensor when value is not 0
+    assert(dst.get_shape().packed() and value == 0);
+    hip_async_memset(ctx, dst, value);
 }
 
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)

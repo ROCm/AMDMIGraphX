@@ -28,7 +28,7 @@
 
 TEST_CASE(if_then_else_multi_output_shapes_test)
 {
-    migraphx::program p = migraphx::parse_onnx("if_then_else_multi_output_shapes_test.onnx");
+    migraphx::program p = read_onnx("if_then_else_multi_output_shapes_test.onnx");
     p.compile(migraphx::make_target("ref"));
     migraphx::shape s_data{migraphx::shape::float_type, {2, 3, 1}};
     std::vector<float> data = {0.0625, 0.75, -0.0625, 0.125, -0.125, -0.5625};

@@ -52,7 +52,7 @@ inline shape reshape_if_1d(const shape& input)
     }
     return new_shape;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 template <class Op>
 struct miopen_convolution
 {
@@ -341,7 +341,7 @@ struct miopen_convolution
         return shapes.size() - 1;
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

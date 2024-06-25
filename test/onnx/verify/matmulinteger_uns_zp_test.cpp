@@ -28,7 +28,7 @@
 
 TEST_CASE(matmulinteger_uns_zp_test)
 {
-    migraphx::program p = migraphx::parse_onnx("matmulinteger_uns_zp_test.onnx");
+    migraphx::program p = read_onnx("matmulinteger_uns_zp_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape s0{migraphx::shape::uint8_type, {4, 3}};
@@ -43,6 +43,6 @@ TEST_CASE(matmulinteger_uns_zp_test)
     auto result = p.eval(pp).back();
     std::vector<int32_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<int32_t> gold = {-38, -83, -44, -98, -50, -113, -56, -128};
+    std::vector<int32_t> gold = {13, 76, 10, 64, 7, 52, 4, 40};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

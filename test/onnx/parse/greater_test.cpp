@@ -40,6 +40,6 @@ TEST_CASE(greater_test)
         gr);
     mm->add_return({ret});
 
-    auto prog = migraphx::parse_onnx("greater_test.onnx");
+    auto prog = read_onnx("greater_test.onnx");
     EXPECT(p == prog);
 }

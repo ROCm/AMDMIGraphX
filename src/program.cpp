@@ -523,6 +523,13 @@ std::vector<argument> generic_eval(const program& p,
     return generic_eval(mm, ctx, params, {}, trace);
 }
 
+std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
+                                                 parameter_map params) const
+{
+    const module* mm = this->get_main_module();
+    return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
+}
+
 std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
@@ -1074,10 +1081,12 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+
 module* program::create_module(const std::string& name, module m)
 {
     assert(not contains(impl->modules, name));
@@ -1200,6 +1209,17 @@ void program::remove_module(const std::string& name)
     }
 
     impl->modules.erase(name);
+}
+
+void program::rename_module(const std::string& old_name, const std::string& new_name)
+{
+    assert(old_name != new_name);
+    assert(contains(impl->modules, old_name));
+    assert(not contains(impl->modules, new_name));
+    auto node  = impl->modules.extract(old_name);
+    node.key() = new_name;
+    node.mapped().set_name(new_name);
+    impl->modules.insert(std::move(node));
 }
 
 void program::remove_unused_modules()

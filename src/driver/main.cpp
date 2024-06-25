@@ -70,11 +70,11 @@ inline std::string get_version()
 
 struct loader
 {
-    std::string model;
     std::string file;
     std::string file_type;
     unsigned batch              = 1;
     bool is_nhwc                = true;
+    bool is_test                = false;
     unsigned trim               = 0;
     bool optimize               = false;
     bool skip_unknown_operators = false;
@@ -91,11 +91,10 @@ struct loader
     void parse(argument_parser& ap)
     {
         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
-        ap(model,
-           {"--model"},
-           ap.help("Load model"),
-           ap.type("resnet50|inceptionv3|alexnet"),
-           ap.matches({"resnet50", "inceptionv3", "alexnet"}),
+        ap(is_test,
+           {"--test"},
+           ap.help("Run a single GEMM to test MIGraphX"),
+           ap.set_value(true),
            ap.group("input"));
         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
@@ -312,7 +311,11 @@ struct loader
     program load()
     {
         program p;
-        if(model.empty())
+        if(is_test)
+        {
+            p = test_gemm();
+        }
+        else
         {
             if(file_type.empty())
             {
@@ -343,17 +346,6 @@ struct loader
             {
                 p = migraphx::load(file);
             }
-        }
-        else
-        {
-            if(model == "resnet50")
-                p = resnet50(batch);
-            else if(model == "inceptionv3")
-                p = inceptionv3(batch);
-            else if(model == "alexnet")
-                p = alexnet(batch);
-            else
-                MIGRAPHX_THROW("Unknown model: " + model);
         }
         if(trim > 0)
         {
@@ -396,7 +388,7 @@ struct loader
         std::ofstream fs;
         if(not output.empty())
         {
-            fs.open(output);
+            fs.open(output, std::ios::binary);
             os = &fs;
         }
 
@@ -690,7 +682,7 @@ struct run_cmd : command<run_cmd>
 struct perf : command<perf>
 {
     compiler c;
-    unsigned n = 100;
+    unsigned n    = 100;
     bool detailed = false;
     void parse(argument_parser& ap)
     {

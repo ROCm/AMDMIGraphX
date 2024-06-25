@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -116,6 +116,8 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     shape m_shape;
     data_t m_data{};
 };
+
+MIGRAPHX_EXPORT std::vector<argument> flatten(const std::vector<argument>& args);
 
 MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<argument>& args);
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const argument& a);

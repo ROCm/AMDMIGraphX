@@ -28,7 +28,7 @@
 
 TEST_CASE(gelu_tanh_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gelu_tanh_test.onnx");
+    migraphx::program p = read_onnx("gelu_tanh_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     std::vector<std::size_t> input_lens{3, 3};

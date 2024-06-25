@@ -27,7 +27,9 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
+#endif
 #include <memory>
 #include <mutex>
 #include <vector>

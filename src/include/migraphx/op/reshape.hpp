@@ -24,11 +24,13 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_RESHAPE_HPP
 
+#include <numeric>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
+#include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
 
@@ -64,45 +66,67 @@ struct reshape
 
     std::string name() const { return "reshape"; }
 
-    shape dyn_compute_shape(shape s0) const
+    // Assumes that the shape from the `dims` attribute will be valid at run-time.
+    // Makes no checks for the validity of the `dims` attribute for the given input shape.
+    shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto dyn_dims = s0.dyn_dims();
-        // track number of fixed elements in input and output
-        std::size_t num_dims_ele = 1;
-        std::size_t num_dd_ele   = 1;
-        for(std::size_t i = 0; i < dyn_dims.size(); ++i)
-        {
-            if(dyn_dims[i].is_fixed())
-            {
-                num_dims_ele *= dims[i];
-                num_dd_ele *= dyn_dims[i].min;
-            }
-            else
-            {
-                if(dims[i] != 0 and dims[i] != -1)
-                {
-                    MIGRAPHX_THROW(
-                        "Reshape: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
-                        "output dimension");
-                }
-            }
-        }
-        if(num_dims_ele != num_dd_ele)
-        {
-            MIGRAPHX_THROW("Reshape: Number of fixed elements must match. Input: " +
-                           std::to_string(num_dd_ele) + " Output: " + std::to_string(num_dims_ele));
-        }
+        auto input_dyn_dims = s0.dyn_dims();
+        const auto neg_dim_num =
+            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+        const bool has_negative_dim_attr = neg_dim_num < dims.size();
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        std::transform(dims.cbegin(),
-                       dims.cend(),
-                       dyn_dims.cbegin(),
+        std::transform(dims.begin(),
+                       dims.end(),
+                       input_dyn_dims.begin(),
                        output_dyn_dims.begin(),
-                       [](std::size_t dim, auto dyn_dim) {
-                           if(not dyn_dim.is_fixed())
-                               return dyn_dim;
-                           return shape::dynamic_dimension{dim, dim};
+                       [](auto dim, auto input_dyn_dim) -> shape::dynamic_dimension {
+                           if(dim == 0)
+                           {
+                               return input_dyn_dim;
+                           }
+                           if(dim == -1)
+                           {
+                               return {1, 1};
+                           }
+                           std::size_t u_dim = dim;
+                           return {u_dim, u_dim};
                        });
+
+        if(has_negative_dim_attr)
+        {
+            // comparing the -1 dimension against the other dimensions
+
+            // accumulate the minimum and maximum elements in the dimensions before the -1 dimension
+            std::size_t min_cur_elements = 1;
+            std::size_t max_cur_elements = 1;
+            for(const auto& dd : output_dyn_dims)
+            {
+                min_cur_elements = mul_sat(min_cur_elements, dd.min);
+                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+            }
+            // accumulate the elements in the input dimensions
+            std::size_t min_input_elements = 1;
+            std::size_t max_input_elements = 1;
+            for(const auto& dd : input_dyn_dims)
+            {
+                min_input_elements = mul_sat(min_input_elements, dd.min);
+                max_input_elements = mul_sat(max_input_elements, dd.max);
+            }
+
+            // maximum dimensions should never accumulate to zero
+            assert(max_cur_elements != 0);
+
+            std::size_t max_int = std::numeric_limits<std::size_t>::max();
+            // handle 0 dimension value (keep unknown lower bound)
+            std::size_t min_dim =
+                (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
+            // handle maximum dimension value (keep unknown upper bound)
+            std::size_t max_dim =
+                (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
+            shape::dynamic_dimension x_dd   = {min_dim, max_dim};
+            output_dyn_dims.at(neg_dim_num) = x_dd;
+        }
         return {s0.type(), output_dyn_dims};
     }
 
@@ -157,7 +181,7 @@ struct reshape
         {
             if(s0.dynamic())
             {
-                return dyn_compute_shape(s0);
+                return dyn_1arg_compute_shape(s0);
             }
             else
             {

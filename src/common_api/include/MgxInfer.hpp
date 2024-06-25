@@ -218,6 +218,7 @@ class ITensor : public INoCopy
 {
     public:
     ITensor(migraphx::instruction_ref ins) : ins_{ins} {}
+
     //!
     //! \brief Set the tensor name.
     //!
@@ -1597,8 +1598,6 @@ class IShuffleLayer : public ILayer
                 "transpose",
                 {{"permutation", permToVec(first_perm_, inputs_.front()->getDimensions().nbDims)}}),
             instructions_.at(0)->inputs());
-
-        // mImpl->setFirstTranspose(permutation);
     }
 
     //!
@@ -1761,7 +1760,6 @@ class IShuffleLayer : public ILayer
     bool getZeroIsPlaceholder() const noexcept
     {
         return placeholder_;
-
         // return mImpl->getZeroIsPlaceholder();
     }
 
@@ -1863,6 +1861,8 @@ class IMatrixMultiplyLayer : public ILayer
         : ILayer{LayerType::kSHUFFLE, program}, op1_{op1}, op2_{op2}
     {
         auto* mm = program->get_main_module();
+        
+        // TODO broadcasting
 
         instructions_.push_back(
             mm->add_instruction(getPreOp(op1, input1.getInstruction()->get_shape().lens().size()),
@@ -2170,7 +2170,6 @@ class IConvolutionLayer : public ILayer
         instructions_.push_back(mm->add_instruction(
             migraphx::make_op("convolution"),
             {input.getInstruction(), instructions_.at(0), instructions_.at(1)}));
-
         
         inputs_.push_back(&input);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
@@ -5499,7 +5498,7 @@ class INetworkDefinition : public INoCopy
     //!
     void markOutput(ITensor& tensor) noexcept
     {
-        pass("Not Implemented", false);
+        output_tensors_.push_back(std::make_unique<ITensor>(tensor.getInstruction()));
         // mImpl->markOutput(tensor);
     }
 

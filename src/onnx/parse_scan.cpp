@@ -21,12 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/argument.hpp"
-#include "migraphx/errors.hpp"
-#include "migraphx/instruction_ref.hpp"
-#include "migraphx/iterator_for.hpp"
-#include "migraphx/module_ref.hpp"
-#include "migraphx/onnx/onnx_parser.hpp"
+#include <migraphx/argument.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/module_ref.hpp>
+#include <migraphx/onnx/onnx_parser.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <ios>
@@ -74,8 +74,8 @@ struct parse_scan : op_parser<parse_scan>
                   std::back_inserter(body_params),
                   [&](const auto& name) { return body->get_parameter(name); });
 
-        if(auto num_body_ins = body_params.size(); num_body_ins != n + m)
-            MIGRAPHX_THROW("Scan: Number of inputs to body {" + std::to_string(num_body_ins) +
+        if(auto num_body_params = body_params.size(); num_body_params != n + m)
+            MIGRAPHX_THROW("Scan: Number of inputs to body {" + std::to_string(num_body_params) +
                            "} does not match number of inputs to Scan {" + std::to_string(n + m) +
                            "}");
 
@@ -184,11 +184,11 @@ struct parse_scan : op_parser<parse_scan>
     }
 
     std::vector<int64_t>
-    parse_dirs(onnx_parser::node_info& info, const std::string& name, long expected_size) const
+    parse_dirs(onnx_parser::node_info& info, const std::string& name, size_t expected_size) const
     {
         auto dirs = parse_vector_attribute(info, name, expected_size);
         if(dirs.empty())
-            return {expected_size, 0};
+            return std::vector<int64_t>(expected_size, 0);
 
         if(any_of(dirs, [](auto i) { return i != 0 and i != 1; }))
             MIGRAPHX_THROW("Scan: " + name +
@@ -270,25 +270,22 @@ struct parse_scan : op_parser<parse_scan>
 
         for(auto i = 0; i < params.size(); ++i)
         {
-            for(auto ins : iterator_for(*mod))
+            if(i < n)
             {
-                if(not contains(ins->inputs(), params[i]))
-                    continue;
-
-                auto new_ins = i < n ? new_params[i] : args[i];
-                if(i >= n)
-                {
-                    auto scan_axis = scan_input_axes[i - n];
-                    auto scan_dir  = scan_input_directions[i - n];
-                    new_ins        = mod->insert_instruction(
-                        params[i],
-                        make_op("scan_slice", {{"axis", scan_axis}, {"direction", scan_dir}}),
-                        new_ins,
-                        iter_param);
-                    new_ins = mod->insert_instruction(
-                        params[i], make_op("squeeze", {{"axes", {scan_axis}}}), new_ins);
-                }
-                ins->replace_argument(ins, params[i], new_ins);
+                mod->replace_instruction(params[i], new_params[i]);
+            }
+            else
+            {
+                auto scan_axis = scan_input_axes[i - n];
+                auto scan_dir  = scan_input_directions[i - n];
+                auto new_ins   = mod->insert_instruction(
+                    params[i],
+                    make_op("scan_slice", {{"axis", scan_axis}, {"direction", scan_dir}}),
+                    args[i],
+                    iter_param);
+                new_ins = mod->insert_instruction(
+                    params[i], make_op("squeeze", {{"axes", {scan_axis}}}), new_ins);
+                mod->replace_instruction(params[i], new_ins);
             }
             mod->remove_instruction(params[i]);
         }

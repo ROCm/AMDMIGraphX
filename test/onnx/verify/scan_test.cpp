@@ -22,12 +22,12 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/argument.hpp"
-#include "migraphx/compile_options.hpp"
-#include "migraphx/generate.hpp"
-#include "migraphx/module.hpp"
-#include "migraphx/onnx.hpp"
-#include "migraphx/shape.hpp"
+#include <migraphx/argument.hpp>
+#include <migraphx/compile_options.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/onnx.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
@@ -48,7 +48,7 @@ auto scan_test(const std::string& test_file,
                migraphx::shape scan_ins1_sh,
                migraphx::shape scan_ins2_sh)
 {
-    auto prog = migraphx::parse_onnx(test_file);
+    auto prog = read_onnx(test_file);
     prog.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map pm;
@@ -176,4 +176,31 @@ TEST_CASE(scan_test6)
     EXPECT(scan_out2.get_shape() == make_shape({2, 3}));
     std::vector<float> scan_out2_gold{42, 26, 12, 48, 30, 14};
     EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+}
+
+TEST_CASE(scan_test7)
+{
+    auto prog = read_onnx("scan_test7.onnx");
+    prog.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pm;
+
+    migraphx::shape init_state_sh{migraphx::shape::float_type, {2, 2}};
+    std::vector<float> init_state(init_state_sh.elements(), 0);
+    pm["init_state"] = migraphx::argument(init_state_sh, init_state.data());
+
+    migraphx::shape scan_ins_sh{migraphx::shape::float_type, {3, 2, 2}};
+    std::vector<float> scan_ins(scan_ins_sh.elements());
+    std::iota(scan_ins.begin(), scan_ins.end(), 1);
+    pm["scan_ins"] = migraphx::argument(scan_ins_sh, scan_ins.data());
+
+    auto result = prog.eval(pm);
+    EXPECT(result.size() == 2);
+
+    EXPECT(result[0].get_shape() == make_shape({2, 2}));
+    std::vector<float> final_state_gold{30, 36, 42, 48};
+    EXPECT(arg_to_vec(result[0]) == final_state_gold);
+
+    EXPECT(result[1].get_shape() == make_shape({3, 2, 2}));
+    EXPECT(arg_to_vec(result[1]) == scan_ins);
 }

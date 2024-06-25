@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/compile_options.hpp"
-#include "migraphx/module.hpp"
+#include <migraphx/compile_options.hpp>
+#include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
@@ -35,13 +35,6 @@
 static migraphx::shape make_shape(const std::vector<size_t>& lens)
 {
     return migraphx::shape{migraphx::shape::int32_type, lens};
-}
-
-static std::vector<int> arg_to_vec(const migraphx::argument& arg)
-{
-    std::vector<int> ret;
-    arg.visit([&](auto output) { ret.assign(output.begin(), output.end()); });
-    return ret;
 }
 
 migraphx::program make_scan_slice_program(int64_t axis, int64_t direction)
@@ -76,12 +69,12 @@ TEST_CASE(scan_slice_test_1)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 1, 2, 3});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 1, 2, 3});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{4, 5, 6, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{4, 5, 6, 7});
 }
 
 TEST_CASE(scan_slice_test_2)
@@ -94,12 +87,12 @@ TEST_CASE(scan_slice_test_2)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 1, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 1, 4, 5});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 1, 4, 5});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 1, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{2, 3, 6, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{2, 3, 6, 7});
 }
 
 TEST_CASE(scan_slice_test_3)
@@ -112,12 +105,12 @@ TEST_CASE(scan_slice_test_3)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 2, 1}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 2, 4, 6});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 2, 4, 6});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 2, 1}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{1, 3, 5, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{1, 3, 5, 7});
 }
 
 TEST_CASE(scan_slice_test_4)
@@ -130,12 +123,12 @@ TEST_CASE(scan_slice_test_4)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 1, 2, 3});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 1, 2, 3});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{4, 5, 6, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{4, 5, 6, 7});
 }
 
 TEST_CASE(scan_slice_test_5)
@@ -148,12 +141,12 @@ TEST_CASE(scan_slice_test_5)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{4, 5, 6, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{4, 5, 6, 7});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({1, 2, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 1, 2, 3});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 1, 2, 3});
 }
 
 TEST_CASE(scan_slice_test_6)
@@ -166,12 +159,12 @@ TEST_CASE(scan_slice_test_6)
     pm["idx"]   = migraphx::argument{idx_sh, &idx};
     auto result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 1, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{2, 3, 6, 7});
+    EXPECT(result.to_vector<int>() == std::vector<int>{2, 3, 6, 7});
 
     idx    = 1;
     result = p.eval(pm).back();
     EXPECT(result.get_shape() == make_shape({2, 1, 2}));
-    EXPECT(arg_to_vec(result) == std::vector<int>{0, 1, 4, 5});
+    EXPECT(result.to_vector<int>() == std::vector<int>{0, 1, 4, 5});
 }
 
 TEST_CASE(scan_slice_test_7)

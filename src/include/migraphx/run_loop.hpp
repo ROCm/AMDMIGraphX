@@ -24,7 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 #define MIGRAPHX_GUARD_RTGLIB_RUN_LOOP_HPP
 
-#include "stringutils.hpp"
+#include <migraphx/stringutils.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>

@@ -22,8 +22,8 @@
  * THE SOFTWARE.
  */
 
-#include "migraphx/common.hpp"
-#include "migraphx/literal.hpp"
+#include <migraphx/common.hpp>
+#include <migraphx/literal.hpp>
 #include <onnx_test.hpp>
 
 TEST_CASE(scan_test)
@@ -70,75 +70,69 @@ TEST_CASE(scan_test)
         mm->add_instruction(mgx::make_op("transpose", {{"permutation", {1, 0}}}), scan_outs2);
     mm->add_return({final_state, scan_outs1, scan_outs2});
 
-    auto prog_gold = migraphx::parse_onnx("scan_test6.onnx");
+    auto prog_gold = read_onnx("scan_test6.onnx");
     EXPECT(prog == prog_gold);
 }
 
 TEST_CASE(scan_invalid_input_axes_len_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_input_axes_len_test.onnx"); }, "scan_input_axes"));
+        [] { read_onnx("scan_invalid_input_axes_len_test.onnx"); }, "scan_input_axes"));
 }
 
 TEST_CASE(scan_invalid_input_dirs_len_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_input_dirs_len_test.onnx"); },
-        "scan_input_directions"));
+        [] { read_onnx("scan_invalid_input_dirs_len_test.onnx"); }, "scan_input_directions"));
 }
 
 TEST_CASE(scan_invalid_output_axes_len_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_output_axes_len_test.onnx"); },
-        "scan_output_axes"));
+        [] { read_onnx("scan_invalid_output_axes_len_test.onnx"); }, "scan_output_axes"));
 }
 
 TEST_CASE(scan_invalid_output_dirs_len_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_output_dirs_len_test.onnx"); },
-        "scan_output_directions"));
+        [] { read_onnx("scan_invalid_output_dirs_len_test.onnx"); }, "scan_output_directions"));
 }
 
 TEST_CASE(scan_invalid_input_axes_vals_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_input_axes_vals_test.onnx"); }, "scan_input_axes"));
+        [] { read_onnx("scan_invalid_input_axes_vals_test.onnx"); }, "scan_input_axes"));
 }
 
 TEST_CASE(scan_invalid_input_dirs_vals_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_input_dirs_vals_test.onnx"); },
-        "scan_input_directions"));
+        [] { read_onnx("scan_invalid_input_dirs_vals_test.onnx"); }, "scan_input_directions"));
 }
 
 TEST_CASE(scan_invalid_output_axes_vals_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_output_axes_vals_test.onnx"); },
-        "scan_output_axes"));
+        [] { read_onnx("scan_invalid_output_axes_vals_test.onnx"); }, "scan_output_axes"));
 }
 
 TEST_CASE(scan_invalid_output_dirs_vals_test)
 {
     EXPECT(test::throws<migraphx::exception>(
-        [] { migraphx::parse_onnx("scan_invalid_output_dirs_vals_test.onnx"); },
-        "scan_output_directions"));
+        [] { read_onnx("scan_invalid_output_dirs_vals_test.onnx"); }, "scan_output_directions"));
 }
 
 TEST_CASE(scan_arg_count_mismatch_test)
 {
-    EXPECT(test::throws([] { migraphx::parse_onnx("scan_arg_count_mismatch_test.onnx"); }));
+    EXPECT(test::throws([] { read_onnx("scan_arg_count_mismatch_test.onnx"); }));
 }
 
 TEST_CASE(scan_arg_shapes_mismatch_test)
 {
-    EXPECT(test::throws([] { migraphx::parse_onnx("scan_arg_shapes_mismatch_test.onnx"); }));
+    EXPECT(test::throws([] { read_onnx("scan_arg_shapes_mismatch_test.onnx"); }));
 }
 
 TEST_CASE(scan_input_axes_lens_mismatch_test)
 {
-    EXPECT(test::throws([] { migraphx::parse_onnx("scan_input_axes_lens_mismatch_test.onnx"); }));
+    EXPECT(test::throws([] { read_onnx("scan_input_axes_lens_mismatch_test.onnx"); }));
 }

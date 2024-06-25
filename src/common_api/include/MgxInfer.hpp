@@ -1607,10 +1607,7 @@ class IShuffleLayer : public ILayer
     //!
     //! \see setFirstTranspose
     //!
-    Permutation getFirstTranspose() const noexcept
-    {
-        return first_perm_;
-    }
+    Permutation getFirstTranspose() const noexcept { return first_perm_; }
 
     //!
     //! \brief Set the reshaped dimensions.
@@ -1653,10 +1650,7 @@ class IShuffleLayer : public ILayer
     //! If a second input is present and non-null, or setReshapeDimensions has
     //! not yet been called, this function returns Dims with nbDims == -1.
     //!
-    Dims getReshapeDimensions() const noexcept
-    {
-        return reshape_dims_;
-    }
+    Dims getReshapeDimensions() const noexcept { return reshape_dims_; }
 
     //!
     //! \brief Append or replace an input of this layer with a specific tensor
@@ -1736,10 +1730,7 @@ class IShuffleLayer : public ILayer
     //!
     //! \see setSecondTranspose
     //!
-    Permutation getSecondTranspose() const noexcept
-    {
-        return second_perm_;
-    }
+    Permutation getSecondTranspose() const noexcept { return second_perm_; }
 
     //!
     //! \brief Set meaning of 0 in reshape dimensions.
@@ -1766,10 +1757,7 @@ class IShuffleLayer : public ILayer
     //!
     //! \see setZeroIsPlaceholder
     //!
-    bool getZeroIsPlaceholder() const noexcept
-    {
-        return placeholder_;
-    }
+    bool getZeroIsPlaceholder() const noexcept { return placeholder_; }
 
     virtual ~IShuffleLayer() noexcept = default;
 
@@ -1869,7 +1857,7 @@ class IMatrixMultiplyLayer : public ILayer
         : ILayer{LayerType::kSHUFFLE, program}, op1_{op1}, op2_{op2}
     {
         auto* mm = program->get_main_module();
-        
+
         // TODO broadcasting
 
         instructions_.push_back(
@@ -2174,11 +2162,28 @@ class IConvolutionLayer : public ILayer
         instructions_.push_back(
             mm->add_literal(migraphx::shape{fromDataType(biasWeights_.type),
                                             {static_cast<unsigned long>(nbOutputMaps_)}},
+
                             reinterpret_cast<const uint8_t*>(biasWeights_.values)));
-        instructions_.push_back(mm->add_instruction(
-            migraphx::make_op("convolution"),
-            {input.getInstruction(), instructions_.at(0), instructions_.at(1)}));
-        
+
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"),
+                                        {input.getInstruction(), instructions_.at(0)});
+        instructions_.push_back(conv);
+
+        // TODO When a convolution attribute is changed, this needs to be changed also, not just the
+        // convolution instruction
+        // The layer should keep an instruction_ref to the kernel and bias literals, and
+        // instruction_refs to the first and last instructions of the convolution sequence of
+        // instructions When a change occurs for one of the attributes, the entire sequence of
+        // convolution instructions needs to be replaced The layer should also maintain all of the
+        // possible trt attributes as data members
+        auto bias_bcast = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
+            instructions_.at(1));
+        instructions_.push_back(bias_bcast);
+
+        auto add = mm->add_instruction(migraphx::make_op("add"), conv, bias_bcast);
+        instructions_.push_back(bias_bcast);
+
         inputs_.push_back(&input);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
@@ -2529,9 +2534,11 @@ class IConvolutionLayer : public ILayer
 //!
 enum class PoolingType : int32_t
 {
-    kMAX = 0,              //!< Maximum over elements
-    kAVERAGE = 1,          //!< Average over elements. If the tensor is padded, the count includes the padding
-    kMAX_AVERAGE_BLEND = 2 //!< Blending between max and average pooling: (1-blendFactor)*maxPool + blendFactor*avgPool
+    kMAX = 0, //!< Maximum over elements
+    kAVERAGE =
+        1, //!< Average over elements. If the tensor is padded, the count includes the padding
+    kMAX_AVERAGE_BLEND = 2 //!< Blending between max and average pooling: (1-blendFactor)*maxPool +
+                           //!< blendFactor*avgPool
 };
 
 //! \class IPoolingLayer
@@ -2543,11 +2550,12 @@ enum class PoolingType : int32_t
 //! \warning When running pooling layer with DeviceType::kDLA in Int8 mode, the dynamic ranges
 //! for input and output tensors must be equal.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
 //!
 class IPoolingLayer : public ILayer
 {
-public:
+    public:
     using ILayer::ILayer;
 
     IPoolingLayer(ITensor& input,
@@ -2567,9 +2575,10 @@ public:
         }
 
         instructions_.push_back(mm->add_instruction(
-            migraphx::make_op("pooling", {{"mode", pooling_mode}, {"lengths", dimsToVec(windowSize_)}}),
+            migraphx::make_op("pooling",
+                              {{"mode", pooling_mode}, {"lengths", dimsToVec(windowSize_)}}),
             input.getInstruction()));
-        
+
         inputs_.push_back(&input);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
@@ -2837,7 +2846,7 @@ public:
 
     virtual ~IPoolingLayer() noexcept = default;
 
-protected:
+    protected:
     // apiv::VPoolingLayer* mImpl;
     PoolingType poolingType_;
     Dims windowSize_;
@@ -2849,7 +2858,8 @@ protected:
 //!
 //! \note This layer does not support boolean types.
 //!
-//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API and ABI.
+//! \warning Do not inherit from this class, as doing so will break forward-compatibility of the API
+//! and ABI.
 //!
 class IConstantLayer : public ILayer
 {
@@ -2865,7 +2875,7 @@ class IConstantLayer : public ILayer
         instructions_.push_back(
             mm->add_literal(migraphx::shape{fromDataType(weights.type), dimsToVec(dimensions)},
                             reinterpret_cast<const uint8_t*>(weights.values)));
-        
+
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
     }
 
@@ -8812,10 +8822,7 @@ class Parser : public IParser
 
     bool supportsOperator(const char* op_name) const override { pass("Not Implemented", true); }
 
-    int getNbErrors() const override
-    {
-        return 0;
-    }
+    int getNbErrors() const override { return 0; }
 
     IParserError const* getError(int index) const override { pass("Not Implemented", true); }
 

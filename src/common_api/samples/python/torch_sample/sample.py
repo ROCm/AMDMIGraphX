@@ -5,7 +5,7 @@ import sys
 import model
 import numpy as np
 
-import tensorrt as trt
+import migraphx.common_api as trt
 
 sys.path.insert(1, os.path.join(sys.path[0], ".."))
 import common
@@ -156,5 +156,14 @@ def main():
     print("Prediction: " + str(pred))
 
 
+def foo(w: trt.Weights):
+    print(type(w)) 
+
 if __name__ == "__main__":
+    # d = trt.Dims((2, 2))
+    # print(d)
+    # print(type(d))
+    # w = trt.Weights(np.array([2, 2]))
+    # print(w)
+    # print(type(w))
     main()

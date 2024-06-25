@@ -25,6 +25,16 @@ def nptype(trt_type):
     raise TypeError("Could not resolve TensorRT datatype to an equivalent numpy datatype.")
 
 
+def GiB(val):
+    return val * 1 << 30
+
+
+def add_help(description):
+    parser = argparse.ArgumentParser(
+        description=description, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    args, _ = parser.parse_known_args()
+
 def locate_files(data_paths, filenames, err_msg=""):
     """
     Locates the specified files in the specified data directories.

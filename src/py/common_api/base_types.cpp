@@ -34,12 +34,14 @@ using namespace py::literals;
 void dims(py::module&);
 void host_memory(py::module&);
 void weights(py::module&);
+void tensor(py::module&);
 
 void base_type_bindings(py::module& m)
 {
     host_memory(m);
     dims(m);
     weights(m);
+    tensor(m);
 }
 
 void dims(py::module& m)
@@ -190,6 +192,40 @@ void weights(py::module& m)
              py::return_value_policy::reference_internal,
              "TODO docstring")
         .def("__len__", [](Weights const& self) { return static_cast<size_t>(self.count); });
+
+    py::implicitly_convertible<py::array, Weights>();
+}
+
+void tensor(py::module& m)
+{
+    py::enum_<TensorFormat>(
+        m, "TensorFormat", "TODO docstring", py::arithmetic{}, py::module_local())
+        .value("LINEAR", TensorFormat::kLINEAR, "TODO docstring")
+        .value("CHW2", TensorFormat::kCHW2, "TODO docstring")
+        .value("HWC8", TensorFormat::kHWC8, "TODO docstring")
+        .value("CHW4", TensorFormat::kCHW4, "TODO docstring")
+        .value("CHW16", TensorFormat::kCHW16, "TODO docstring")
+        .value("CHW32", TensorFormat::kCHW32, "TODO docstring")
+        .value("DHWC8", TensorFormat::kDHWC8, "TODO docstring")
+        .value("CDHW32", TensorFormat::kCDHW32, "TODO docstring")
+        .value("HWC", TensorFormat::kHWC, "TODO docstring")
+        .value("DLA_LINEAR", TensorFormat::kDLA_LINEAR, "TODO docstring")
+        .value("DLA_HWC4", TensorFormat::kDLA_HWC4, "TODO docstring")
+        .value("HWC16", TensorFormat::kHWC16, "TODO docstring")
+        .value("DHWC", TensorFormat::kDHWC, "TODO docstring");
+
+    py::class_<ITensor, std::unique_ptr<ITensor, py::nodelete>>(
+        m, "ITensor", "TODO docstring", py::module_local())
+        .def_property("name", &ITensor::getName, &ITensor::setName)
+        .def_property("shape", &ITensor::getDimensions, &ITensor::setDimensions)
+        .def_property("dtype", &ITensor::getType, &ITensor::setType)
+        .def_property("location", &ITensor::getLocation, &ITensor::setLocation)
+        .def_property("allowed_formats", &ITensor::getAllowedFormats, &ITensor::setAllowedFormats)
+        .def_property_readonly("is_network_input", &ITensor::isNetworkInput)
+        .def_property_readonly("is_network_output", &ITensor::isNetworkOutput)
+        .def_property_readonly("is_shape_tensor", &ITensor::isShapeTensor)
+        .def_property_readonly("is_execution_tensor", &ITensor::isExecutionTensor)
+        .def_property("allowed_formats", &ITensor::getAllowedFormats, &ITensor::setAllowedFormats);
 }
 
 } // namespace pybinds

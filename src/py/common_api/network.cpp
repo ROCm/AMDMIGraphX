@@ -105,12 +105,61 @@ void network_bindings(py::module& m)
              "shape"_a,
              "weights"_a,
              py::keep_alive<1, 3>{},
-             INetworkDefinitionDoc::add_constant,
+             "TODO docstring",
              py::return_value_policy::reference_internal);
 }
 
 void ilayer(py::module& m)
 {
+    py::enum_<LayerType>(m, "LayerType", "TODO docstring", py::module_local())
+        .value("CONVOLUTION", LayerType::kCONVOLUTION, "TODO docstring")
+        .value("GRID_SAMPLE", LayerType::kGRID_SAMPLE, "TODO docstring")
+        .value("NMS", LayerType::kNMS, "TODO docstring")
+        .value("ACTIVATION", LayerType::kACTIVATION, "TODO docstring")
+        .value("POOLING", LayerType::kPOOLING, "TODO docstring")
+        .value("LRN", LayerType::kLRN, "TODO docstring")
+        .value("SCALE", LayerType::kSCALE, "TODO docstring")
+        .value("SOFTMAX", LayerType::kSOFTMAX, "TODO docstring")
+        .value("DECONVOLUTION", LayerType::kDECONVOLUTION, "TODO docstring")
+        .value("CONCATENATION", LayerType::kCONCATENATION, "TODO docstring")
+        .value("ELEMENTWISE", LayerType::kELEMENTWISE, "TODO docstring")
+        .value("PLUGIN", LayerType::kPLUGIN, "TODO docstring")
+        .value("UNARY", LayerType::kUNARY, "TODO docstring")
+        .value("PADDING", LayerType::kPADDING, "TODO docstring")
+        .value("SHUFFLE", LayerType::kSHUFFLE, "TODO docstring")
+        .value("REDUCE", LayerType::kREDUCE, "TODO docstring")
+        .value("TOPK", LayerType::kTOPK, "TODO docstring")
+        .value("GATHER", LayerType::kGATHER, "TODO docstring")
+        .value("MATRIX_MULTIPLY", LayerType::kMATRIX_MULTIPLY, "TODO docstring")
+        .value("RAGGED_SOFTMAX", LayerType::kRAGGED_SOFTMAX, "TODO docstring")
+        .value("CONSTANT", LayerType::kCONSTANT, "TODO docstring")
+        .value("IDENTITY", LayerType::kIDENTITY, "TODO docstring")
+        .value("CAST", LayerType::kCAST, "TODO docstring")
+        .value("PLUGIN_V2", LayerType::kPLUGIN_V2, "TODO docstring")
+        .value("SLICE", LayerType::kSLICE, "TODO docstring")
+        .value("SHAPE", LayerType::kSHAPE, "TODO docstring")
+        .value("PARAMETRIC_RELU", LayerType::kPARAMETRIC_RELU, "TODO docstring")
+        .value("RESIZE", LayerType::kRESIZE, "TODO docstring")
+        .value("TRIP_LIMIT", LayerType::kTRIP_LIMIT, "TODO docstring")
+        .value("RECURRENCE", LayerType::kRECURRENCE, "TODO docstring")
+        .value("ITERATOR", LayerType::kITERATOR, "TODO docstring")
+        .value("LOOP_OUTPUT", LayerType::kLOOP_OUTPUT, "TODO docstring")
+        .value("SELECT", LayerType::kSELECT, "TODO docstring")
+        .value("ASSERTION", LayerType::kASSERTION, "TODO docstring")
+        .value("FILL", LayerType::kFILL, "TODO docstring")
+        .value("QUANTIZE", LayerType::kQUANTIZE, "TODO docstring")
+        .value("DEQUANTIZE", LayerType::kDEQUANTIZE, "TODO docstring")
+        .value("CONDITION", LayerType::kCONDITION, "TODO docstring")
+        .value("CONDITIONAL_INPUT", LayerType::kCONDITIONAL_INPUT, "TODO docstring")
+        .value("CONDITIONAL_OUTPUT", LayerType::kCONDITIONAL_OUTPUT, "TODO docstring")
+        .value("SCATTER", LayerType::kSCATTER, "TODO docstring")
+        .value("EINSUM", LayerType::kEINSUM, "TODO docstring")
+        .value("ONE_HOT", LayerType::kONE_HOT, "TODO docstring")
+        .value("NON_ZERO", LayerType::kNON_ZERO, "TODO docstring")
+        .value("REVERSE_SEQUENCE", LayerType::kREVERSE_SEQUENCE, "TODO docstring")
+        .value("NORMALIZATION", LayerType::kNORMALIZATION, "TODO docstring")
+        .value("PLUGIN_V3", LayerType::kPLUGIN_V3, "TODO docstring");
+
     py::class_<ILayer, std::unique_ptr<ILayer>>(m, "ILayer", "TODO docstring", py::module_local())
         .def_property("name", &ILayer::getName, &ILayer::setName)
         .def_property("metadata", &ILayer::getMetadata, &ILayer::setMetadata)
@@ -119,14 +168,14 @@ void ilayer(py::module& m)
         .def_property_readonly("num_outputs", &ILayer::getNbOutputs)
         .def_property("precision", &ILayer::getPrecision, &ILayer::setPrecision)
         .def_property_readonly("precision_is_set", &ILayer::precisionIsSet)
-        .def("set_input", &ILayer::setInput, "index"_a, "tensor"_a, ILayerDoc::set_input)
+        .def("set_input", &ILayer::setInput, "index"_a, "tensor"_a, "TODO docstring")
         .def("get_input", &ILayer::getInput, "index"_a, "TODO docstring")
         .def("get_output", &ILayer::getOutput, "index"_a, "TODO docstring")
         .def("reset_precision", &ILayer::resetPrecision, "TODO docstring")
         .def("set_output_type", &ILayer::setOutputType, "index"_a, "dtype"_a, "TODO docstring")
         .def("get_output_type", &ILayer::getOutputType, "index"_a, "TODO docstring")
         .def("output_type_is_set", &ILayer::outputTypeIsSet, "index"_a, "TODO docstring")
-        .def("reset_output_type", &ILayer::resetOutputType, "index"_a, "TODO docstring")
+        .def("reset_output_type", &ILayer::resetOutputType, "index"_a, "TODO docstring");
 }
 
 void layers(py::module& m)
@@ -224,7 +273,7 @@ void layers(py::module& m)
                                       std::to_string(maxDims));
             Permutation* perm = new Permutation{};
             for(int32_t i = 0; i < in.size(); ++i)
-                self->order[i] = in[i];
+                perm->order[i] = in[i];
             return perm;
         }));
     // Allow for string representations (displays like a python tuple).

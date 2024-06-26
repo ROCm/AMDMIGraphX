@@ -12446,40 +12446,38 @@ def scan_test6():
                      scan_output_directions=[1, 1],
                      scan_output_axes=[2, 1])
 
+
 @onnx_test()
 def scan_test7():
     sum_in = helper.make_tensor_value_info("sum_in", TensorProto.FLOAT, [2, 2])
     scan_in = helper.make_tensor_value_info("scan_in", TensorProto.FLOAT,
-                                             [2, 2])
+                                            [2, 2])
     sum_out = helper.make_tensor_value_info("sum_out", TensorProto.FLOAT,
                                             [2, 2])
     scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT,
-                                              [2, 2])
+                                             [2, 2])
     add1 = helper.make_node("Add",
                             inputs=["sum_in", "scan_in"],
                             outputs=["add1_out"])
     add2 = helper.make_node("Add",
                             inputs=["add1_out", "scan_in"],
                             outputs=["sum_out"])
-    id = helper.make_node("Identity",
-                          inputs=["scan_in"],
-                          outputs=["scan_out"])
+    id = helper.make_node("Identity", inputs=["scan_in"], outputs=["scan_out"])
 
     scan_body = helper.make_graph([add1, add2, id], "scan_body",
-                                  [sum_in, scan_in],
-                                  [sum_out, scan_out])
+                                  [sum_in, scan_in], [sum_out, scan_out])
 
     init_state = helper.make_tensor_value_info("init_state", TensorProto.FLOAT,
                                                [2, 2])
     scan_ins_sh = [3, 2, 2]
     scan_ins = helper.make_tensor_value_info("scan_ins", TensorProto.FLOAT,
-                                              scan_ins_sh)
+                                             scan_ins_sh)
 
     final_state = helper.make_tensor_value_info("final_state",
                                                 TensorProto.FLOAT, [2, 2])
     scan_outs_sh = [3, 2, 2]
     scan_outs = helper.make_tensor_value_info("scan_outs", TensorProto.FLOAT,
-                                               scan_outs_sh)
+                                              scan_outs_sh)
     node = helper.make_node(
         "Scan",
         inputs=["init_state", "scan_ins"],

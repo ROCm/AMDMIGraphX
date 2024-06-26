@@ -100,8 +100,8 @@ struct loop
         void append(const std::vector<argument>& iter_state,
                     const std::vector<argument>& concatenated_outputs,
                     const std::vector<int64_t>& scan_output_dirs,
-                    int64_t iter,
-                    int64_t iter_num) const
+                    int64_t curr_iter,
+                    int64_t num_iters) const
         {
             assert(iter_state.size() == concatenated_outputs.size());
             for(auto i : range(iter_state.size()))
@@ -110,7 +110,7 @@ struct loop
                 const auto& scan_out  = concatenated_outputs.at(i);
 
                 auto dir = scan_output_dirs.empty() ? 0 : scan_output_dirs[i];
-                auto idx = (1 - dir) * iter + dir * (iter_num - 1 - iter);
+                auto idx = (1 - dir) * curr_iter + dir * (num_iters - 1 - curr_iter);
 
                 auto* in_data        = iter_stat.data();
                 auto* out_data       = scan_out.data();

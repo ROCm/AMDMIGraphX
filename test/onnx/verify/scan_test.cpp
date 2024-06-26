@@ -37,13 +37,6 @@ static migraphx::shape make_shape(const std::vector<size_t>& lens)
     return migraphx::shape{migraphx::shape::float_type, lens};
 }
 
-static std::vector<float> arg_to_vec(const migraphx::argument& arg)
-{
-    std::vector<float> ret;
-    arg.visit([&](auto output) { ret.assign(output.begin(), output.end()); });
-    return ret;
-}
-
 auto scan_test(const std::string& test_file,
                migraphx::shape scan_ins1_sh,
                migraphx::shape scan_ins2_sh)
@@ -77,15 +70,15 @@ TEST_CASE(scan_test1)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{18, 21, 24, 27};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
     std::vector<float> scan_out1_gold{1, 2, 3, 4, 7, 9, 11, 13, 18, 21, 24, 27};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
     std::vector<float> scan_out2_gold{4, 6, 18, 22, 42, 48};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test2)
@@ -95,15 +88,15 @@ TEST_CASE(scan_test2)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{18, 21, 24, 27};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
     std::vector<float> scan_out1_gold{18, 21, 24, 27, 7, 9, 11, 13, 1, 2, 3, 4};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
     std::vector<float> scan_out2_gold{4, 6, 18, 22, 42, 48};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test3)
@@ -113,15 +106,15 @@ TEST_CASE(scan_test3)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{18, 21, 24, 27};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({2, 3, 2}));
     std::vector<float> scan_out1_gold{1, 2, 7, 9, 18, 21, 3, 4, 11, 13, 24, 27};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({2, 3}));
     std::vector<float> scan_out2_gold{4, 18, 42, 6, 22, 48};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test4)
@@ -131,15 +124,15 @@ TEST_CASE(scan_test4)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{18, 21, 24, 27};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
     std::vector<float> scan_out1_gold{9, 10, 11, 12, 15, 17, 19, 21, 18, 21, 24, 27};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
     std::vector<float> scan_out2_gold{20, 22, 34, 38, 42, 48};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test5)
@@ -149,15 +142,15 @@ TEST_CASE(scan_test5)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{9, 18, 27, 36};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({3, 2, 2}));
     std::vector<float> scan_out1_gold{1, 4, 7, 10, 4, 10, 16, 22, 9, 18, 27, 36};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({3, 2}));
     std::vector<float> scan_out2_gold{8, 14, 20, 32, 36, 54};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test6)
@@ -167,15 +160,15 @@ TEST_CASE(scan_test6)
 
     EXPECT(final_state.get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{12, 15, 30, 33};
-    EXPECT(arg_to_vec(final_state) == final_state_gold);
+    EXPECT(final_state.to_vector<float>() == final_state_gold);
 
     EXPECT(scan_out1.get_shape() == make_shape({2, 2, 3}));
     std::vector<float> scan_out1_gold{12, 7, 3, 15, 9, 4, 30, 19, 9, 33, 21, 10};
-    EXPECT(arg_to_vec(scan_out1) == scan_out1_gold);
+    EXPECT(scan_out1.to_vector<float>() == scan_out1_gold);
 
     EXPECT(scan_out2.get_shape() == make_shape({2, 3}));
     std::vector<float> scan_out2_gold{42, 26, 12, 48, 30, 14};
-    EXPECT(arg_to_vec(scan_out2) == scan_out2_gold);
+    EXPECT(scan_out2.to_vector<float>() == scan_out2_gold);
 }
 
 TEST_CASE(scan_test7)
@@ -199,8 +192,8 @@ TEST_CASE(scan_test7)
 
     EXPECT(result[0].get_shape() == make_shape({2, 2}));
     std::vector<float> final_state_gold{30, 36, 42, 48};
-    EXPECT(arg_to_vec(result[0]) == final_state_gold);
+    EXPECT(result[0].to_vector<float>() == final_state_gold);
 
     EXPECT(result[1].get_shape() == make_shape({3, 2, 2}));
-    EXPECT(arg_to_vec(result[1]) == scan_ins);
+    EXPECT(result[1].to_vector<float>() == scan_ins);
 }

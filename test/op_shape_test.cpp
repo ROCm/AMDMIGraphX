@@ -4192,6 +4192,50 @@ TEST_CASE(slice_dyn_shape5)
         input);
 }
 
+TEST_CASE(test_scan_slice1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 3, 4}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", 0}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 6, 5}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {4, 1, 5}, {30, 5, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", 1}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 5, 7}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {2, 5, 1}, {35, 7, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", -1}, {"direction", 0}}),
+                 input,
+                 axis_input);
+}
+
+TEST_CASE(test_scan_slice4)
+{
+    migraphx::shape input{migraphx::shape::float_type, {2, 5, 7}};
+    migraphx::shape axis_input{migraphx::shape::int64_type};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 5, 7}, {35, 7, 1}};
+    expect_shape(expected,
+                 migraphx::make_op("scan_slice", {{"axis", -3}, {"direction", 1}}),
+                 input,
+                 axis_input);
+}
+
 TEST_CASE(softmax_dyn0)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}};

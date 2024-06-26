@@ -146,8 +146,18 @@ struct parse_scan : op_parser<parse_scan>
         for(auto i = 0; i < k; ++i)
         {
             auto o = info.add_instruction(make_op("get_tuple_elem", {{"index", i + n}}), loop);
-            // Loop scan_outputs are concatenated along axis 0, so it must be transposed to the
-            // index specified by the corresponding scan_output_axis
+            // Loop concatenates scan axes along axis 0 which is inserted/unsqueezed, e.g. a body
+            // scan output(from a single iteration) of shape {2, 2} is first expanded to {1, 2, 2},
+            // and then concatenated with body scan outputs from previous iterations. For n
+            // iterations of the loop, this will end up producing a scan output of shape {n, 2, 2}.
+            //
+            // The scan_output_axes attribute of Scan can define an axis other than zero as the
+            // concatenation axis. Using the previous scenario, for a body scan output of
+            // shape {2,2}, with the scan output axis being 1, it is unsqueezed to {2, 1, 2}. The
+            // final concatenation is then of shape {2, n, 2}.
+            //
+            // Since Loop only concatenates along the unsqueezed axis 0, a transpose is necessary to
+            // place axis 0 in the appropriate scan_output_axis position
             auto perm = make_perm_for_scan_out(o->get_shape().ndim(), scan_output_axes[i]);
             ret.push_back(info.add_instruction(make_op("transpose", {{"permutation", perm}}), o));
         }
@@ -295,6 +305,9 @@ struct parse_scan : op_parser<parse_scan>
         mod->replace_return(returns);
     }
 
+    // Creates permutation so that axis 0 will be permuted to position axis, while maintaining the
+    // relative ordering of all the other axes.
+    // e.g. for rank = 4, axis = 2, the created perm is: [1, 2, 0, 3]
     std::vector<int64_t> make_perm_for_scan_out(int64_t rank, int64_t axis) const
     {
         std::vector<int64_t> perm(rank);

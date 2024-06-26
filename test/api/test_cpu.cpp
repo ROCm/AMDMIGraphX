@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
+#include <migraphx/file_buffer.hpp>
 #include "test.hpp"
 
 TEST_CASE(load_and_run)
@@ -221,6 +222,30 @@ TEST_CASE(set_loop_limit_iterations2)
     EXPECT(out_shapes[0].lengths() == out_lens0);
     std::vector<std::size_t> out_lens1 = {10, 1};
     EXPECT(out_shapes[1].lengths() == out_lens1);
+}
+
+TEST_CASE(set_external_data_path)
+{
+    migraphx::onnx_options options;
+    std::string model_path = "ext_path/external_data_test.onnx";
+    auto onnx_buffer       = migraphx::read_string(model_path);
+    options.set_external_data_path(migraphx::fs::path(model_path).parent_path());
+    auto p             = migraphx::parse_onnx_buffer(onnx_buffer, options);
+    auto shapes_before = p.get_output_shapes();
+    p.compile(migraphx::target("ref"));
+    auto shapes_after = p.get_output_shapes();
+    CHECK(shapes_before.size() == 1);
+    CHECK(shapes_before.size() == shapes_after.size());
+    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    migraphx::program_parameters pp;
+    auto param_shapes = p.get_parameter_shapes();
+    for(auto&& name : param_shapes.names())
+    {
+        pp.add(name, migraphx::argument::generate(param_shapes[name]));
+    }
+    auto outputs = p.eval(pp);
+    CHECK(shapes_before.size() == outputs.size());
+    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

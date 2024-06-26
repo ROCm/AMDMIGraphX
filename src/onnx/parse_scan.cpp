@@ -198,7 +198,7 @@ struct parse_scan : op_parser<parse_scan>
     {
         auto dirs = parse_vector_attribute(info, name, expected_size);
         if(dirs.empty())
-            return std::vector<int64_t>(expected_size, 0);
+            return std::vector<int64_t>(expected_size, 0); // NOLINT
 
         if(any_of(dirs, [](auto i) { return i != 0 and i != 1; }))
             MIGRAPHX_THROW("Scan: " + name +

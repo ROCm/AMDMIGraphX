@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,16 +34,16 @@ __device__ void softmax(Input input1, Output output)
 {
     using block = reduce::auto_block<reduce::reduce_elements_with_axis<Input, Axis>()>;
     block::template run<reduce::with_axis<Input, Axis>>([&](auto, auto r) {
-        auto input = r.inner(op::id{})(input1);
+        auto x = r.inner(op::id{})(input1);
 #ifdef MIGRAPHX_USE_FAST_SOFTMAX
         const auto c = vec_at(r.slice(input1)[0], 0);
 #else
-        const auto c = r.reduce(op::max{}, lowest{}, op::id{})(input);
+        const auto c = r.reduce(op::max{}, lowest{}, op::id{})(x);
 #endif
-        auto exp_in = r.inner([&](auto x) { return migraphx::exp(x - c); })(input);
+        r.inner([&](auto& x1) { x1 = migraphx::exp(x1 - c); })(x);
         auto batch_sum =
-            r.reduce(op::sum{}, 0, [](auto x) { return migraphx::convert<float>(x); })(exp_in);
-        r.inner([&](auto& y, auto x) { y = implicit_conversion(x / batch_sum); })(output, exp_in);
+            r.reduce(op::sum{}, 0, [](auto x1) { return migraphx::convert<float>(x1); })(x);
+        r.inner([&](auto& y, auto x1) { y = implicit_conversion(x1 / batch_sum); })(output, x);
     });
 }
 

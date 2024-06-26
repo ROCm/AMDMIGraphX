@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,44 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_ABS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_ABS_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
+#define MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/gpu/miopen.hpp>
-#include <migraphx/op/abs.hpp>
+#include <migraphx/op/reduce_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-struct context;
-#if MIGRAPHX_USE_MIOPEN
-
-struct miopen_abs
+struct reduce_all : reduce_op<reduce_all>
 {
-    op::abs op;
-    shared<activation_descriptor> ad;
+    reduce_all() {}
+    reduce_all(std::vector<int64_t> ax) : reduce_op(std::move(ax)) {}
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    auto op() const
     {
-        return migraphx::reflect(self.op, f);
+        return [=](auto x, auto y) {
+            if(static_cast<bool>(x) and static_cast<bool>(y))
+                return decltype(x){1};
+            return decltype(x){0};
+        };
     }
 
-    std::string name() const { return "gpu::abs"; }
-    shape compute_shape(const std::vector<shape>& inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    void finalize(context&, const shape&, const std::vector<shape>&);
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
-    {
-        return shapes.size() - 1;
-    }
+    auto init() const { return one(); }
 };
-#endif
-} // namespace gpu
+
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

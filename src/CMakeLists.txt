@@ -214,6 +214,8 @@ register_migraphx_ops(
     random_uniform
     random_seed
     recip
+    reduce_all
+    reduce_any
     reduce_max
     reduce_mean
     reduce_min

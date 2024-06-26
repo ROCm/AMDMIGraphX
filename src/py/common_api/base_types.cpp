@@ -126,6 +126,66 @@ void dims(py::module& m)
 
     py::implicitly_convertible<std::vector<int64_t>, Dims>();
 
+    py::class_<Dims2, Dims>(m, "Dims2", "TODO docstring", py::module_local())
+        .def(py::init<>())
+        .def(py::init<int64_t, int64_t>(), "dim0"_a, "dim1"_a)
+        .def(py::init([](const std::vector<int64_t>& in) {
+                 PY_ASSERT_VALUE_ERROR(in.size() == 2,
+                                       "Input length " + std::to_string(in.size()) +
+                                           " not equal to expected Dims2 length, which is 2");
+                 return new Dims2{in[0], in[1]};
+             }),
+             "shape"_a);
+
+    py::implicitly_convertible<std::vector<int64_t>, Dims2>();
+
+    py::class_<DimsHW, Dims2>(m, "DimsHW", "TODO docstring", py::module_local())
+        .def(py::init<>())
+        .def(py::init<int64_t, int64_t>(), "h"_a, "w"_a)
+        .def(py::init([](const std::vector<int64_t>& in) {
+                 PY_ASSERT_VALUE_ERROR(in.size() == 2,
+                                       "Input length " + std::to_string(in.size()) +
+                                           " not equal to expected DimsHW length, which is 2");
+                 return new DimsHW{in[0], in[1]};
+             }),
+             "shape"_a)
+        .def_property(
+            "h",
+            [](const DimsHW& dims) { return dims.h(); },
+            [](DimsHW& dims, int64_t i) { dims.h() = i; })
+        .def_property(
+            "w",
+            [](DimsHW const& dims) { return dims.w(); },
+            [](DimsHW& dims, int64_t i) { dims.w() = i; });
+
+    py::implicitly_convertible<std::vector<int64_t>, DimsHW>();
+
+    py::class_<Dims3, Dims>(m, "Dims3", "TODO docstring", py::module_local())
+        .def(py::init<>())
+        .def(py::init<int64_t, int64_t, int64_t>(), "dim0"_a, "dim1"_a, "dim2"_a)
+        .def(py::init([](const std::vector<int64_t>& in) {
+                 PY_ASSERT_VALUE_ERROR(in.size() == 3,
+                                       "Input length " + std::to_string(in.size()) +
+                                           " not equal to expected Dims3 length, which is 3");
+                 return new Dims3{in[0], in[1], in[2]};
+             }),
+             "shape"_a);
+
+    py::implicitly_convertible<std::vector<int64_t>, Dims3>();
+
+    py::class_<Dims4, Dims>(m, "Dims4", "TODO docstring", py::module_local())
+        .def(py::init<>())
+        .def(py::init<int64_t, int64_t, int64_t, int64_t>(), "dim0"_a, "dim1"_a, "dim2"_a, "dim3"_a)
+        .def(py::init([](const std::vector<int64_t>& in) {
+                 PY_ASSERT_VALUE_ERROR(in.size() == 4,
+                                       "Input length " + std::to_string(in.size()) +
+                                           " not equal to expected Dims4 length, which is 4");
+                 return new Dims4{in[0], in[1], in[2], in[3]};
+             }),
+             "shape"_a);
+
+    py::implicitly_convertible<std::vector<int64_t>, Dims4>();
+
     // TODO make this work for any python iterable
     m.def("volume", [](const Dims& dims) {
         size_t ret = 1;

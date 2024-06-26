@@ -65,6 +65,15 @@ inline void throwPyError(PyObject* type, std::string const& message)
         }                                        \
     } while(false)
 
+#define PY_ASSERT_TYPE_ERROR(assertion, msg)    \
+    do                                          \
+    {                                           \
+        if(!(assertion))                        \
+        {                                       \
+            throwPyError(PyExc_TypeError, msg); \
+        }                                       \
+    } while(false)
+
 inline DataType dtype_to_type(pybind11::dtype const& type)
 {
     if(type.is(pybind11::dtype("f4")))

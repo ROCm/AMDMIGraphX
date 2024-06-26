@@ -124,6 +124,166 @@ class Dims64
 //!
 using Dims = Dims64;
 
+class Dims2 : public Dims
+{
+public:
+    //!
+    //! \brief Construct an empty Dims2 object.
+    //!
+    Dims2()
+        : Dims2(0, 0)
+    {
+    }
+
+    //!
+    //! \brief Construct a Dims2 from 2 elements.
+    //!
+    //! \param d0 The first element.
+    //! \param d1 The second element.
+    //!
+    Dims2(int64_t d0, int64_t d1)
+    {
+        nbDims = 2;
+        d[0] = d0;
+        d[1] = d1;
+        for (int64_t i{nbDims}; i < Dims::MAX_DIMS; ++i)
+        {
+            d[i] = 0;
+        }
+    }
+};
+
+//!
+//! \class DimsHW
+//!
+//! \brief Descriptor for two-dimensional spatial data.
+//!
+class DimsHW : public Dims2
+{
+public:
+    //!
+    //! \brief Construct an empty DimsHW object.
+    //!
+    DimsHW()
+        : Dims2()
+    {
+    }
+
+    //!
+    //! \brief Construct a DimsHW given height and width.
+    //!
+    //! \param height the height of the data
+    //! \param width the width of the data
+    //!
+    DimsHW(int64_t height, int64_t width)
+        : Dims2(height, width)
+    {
+    }
+
+    //!
+    //! \brief Get the height.
+    //!
+    //! \return The height.
+    //!
+    int64_t& h()
+    {
+        return d[0];
+    }
+
+    //!
+    //! \brief Get the height.
+    //!
+    //! \return The height.
+    //!
+    int64_t h() const
+    {
+        return d[0];
+    }
+
+    //!
+    //! \brief Get the width.
+    //!
+    //! \return The width.
+    //!
+    int64_t& w()
+    {
+        return d[1];
+    }
+
+    //!
+    //! \brief Get the width.
+    //!
+    //! \return The width.
+    //!
+    int64_t w() const
+    {
+        return d[1];
+    }
+};
+
+//!
+//! \class Dims3
+//!
+//! \brief Descriptor for three-dimensional data.
+//!
+class Dims3 : public Dims2
+{
+public:
+    //!
+    //! \brief Construct an empty Dims3 object.
+    //!
+    Dims3()
+        : Dims3(0, 0, 0)
+    {
+    }
+
+    //!
+    //! \brief Construct a Dims3 from 3 elements.
+    //!
+    //! \param d0 The first element.
+    //! \param d1 The second element.
+    //! \param d2 The third element.
+    //!
+    Dims3(int64_t d0, int64_t d1, int64_t d2)
+        : Dims2(d0, d1)
+    {
+        nbDims = 3;
+        d[2] = d2;
+    }
+};
+
+//!
+//! \class Dims4
+//!
+//! \brief Descriptor for four-dimensional data.
+//!
+class Dims4 : public Dims3
+{
+public:
+    //!
+    //! \brief Construct an empty Dims4 object.
+    //!
+    Dims4()
+        : Dims4(0, 0, 0, 0)
+    {
+    }
+
+    //!
+    //! \brief Construct a Dims4 from 4 elements.
+    //!
+    //! \param d0 The first element.
+    //! \param d1 The second element.
+    //! \param d2 The third element.
+    //! \param d3 The fourth element.
+    //!
+    Dims4(int64_t d0, int64_t d1, int64_t d2, int64_t d3)
+        : Dims3(d0, d1, d2)
+    {
+        nbDims = 4;
+        d[3] = d3;
+    }
+};
+
 //!
 //! \struct Permutation
 //!

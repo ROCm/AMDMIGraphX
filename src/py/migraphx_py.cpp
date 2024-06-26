@@ -45,6 +45,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/common_api/bindings.hpp>
 #include "../common_api/include/MgxInfer.hpp"
+#include <migraphx/common_api/utils.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -311,6 +312,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     mgxinfer1::pybinds::base_type_bindings(common_api);
     mgxinfer1::pybinds::logger_bindings(common_api);
     mgxinfer1::pybinds::network_bindings(common_api);
+    common_api.def(
+        "nptype",
+        [](mgxinfer1::DataType type) {
+            auto dtype = mgxinfer1::pybinds::type_to_dtype(type);
+            if(not dtype)
+            {
+                PY_ASSERT_TYPE_ERROR(
+                    false, "Could not resolve TRT datatype to an equivalent numpy datatype.");
+            }
+            return *dtype;
+        },
+        "TODO docstring",
+        "trt_type"_a);
 
     /*IBuilder start*/
     py::class_<mgxinfer1::IBuilderConfig>(

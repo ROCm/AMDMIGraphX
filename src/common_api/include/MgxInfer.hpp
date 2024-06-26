@@ -2165,9 +2165,9 @@ class IConvolutionLayer : public ILayer
         auto kernel_size = dimsToVec(kernelSize_);
         kernel_dims.insert(kernel_dims.end(), kernel_size.begin(), kernel_size.end());
 
-        instructions_.push_back(mm->add_literal(
-            migraphx::shape{fromDataType(kernelWeights_.type), kernel_dims},
-            reinterpret_cast<const uint8_t*>(kernelWeights_.values)));
+        instructions_.push_back(
+            mm->add_literal(migraphx::shape{fromDataType(kernelWeights_.type), kernel_dims},
+                            reinterpret_cast<const uint8_t*>(kernelWeights_.values)));
         instructions_.push_back(
             mm->add_literal(migraphx::shape{fromDataType(biasWeights_.type),
                                             {static_cast<unsigned long>(nbOutputMaps_)}},
@@ -5102,9 +5102,6 @@ class IRuntime : public INoCopy
             // TODO write to error recorder if set, otherwise to logger
             return nullptr;
         }
-
-        std::cout << "DESERIALIZE" << std::endl;
-        std::cout << *program << std::endl;
 
         auto* engine = new ICudaEngine{std::move(program)};
         if(error_recorder_)
@@ -8321,9 +8318,6 @@ class IBuilder : public INoCopy
     {
         migraphx::program p = *network.getProgram();
 
-        std::cout << "SERIALIZE PRE COMPILE" << std::endl;
-        std::cout << p << std::endl;
-
         try
         {
             p.compile(migraphx::make_target("gpu"));
@@ -8333,9 +8327,6 @@ class IBuilder : public INoCopy
             // TODO write to error recorder/logger
             return nullptr;
         }
-
-        std::cout << "SERIALIZE POST COMPILE" << std::endl;
-        std::cout << p << std::endl;
 
         serialized_networks_.push_back(migraphx::save_buffer(p));
         auto&& current_network = serialized_networks_.back();

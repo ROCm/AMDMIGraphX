@@ -62,7 +62,7 @@ def load_normalized_test_case(test_image, pagelocked_buffer):
         image_arr = (
             np.asarray(image.resize((w, h), Image.LANCZOS))
             .transpose([2, 0, 1])
-            .astype(common.nptype(ModelData.DTYPE))
+            .astype(trt.nptype(ModelData.DTYPE))
             .ravel()
         )
         # This particular ResNet50 model requires some preprocessing, specifically, mean normalization.

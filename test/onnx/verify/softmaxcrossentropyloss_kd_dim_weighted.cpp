@@ -40,7 +40,7 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_even_weighted_ones_test)
                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
                                      1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
     migraphx::shape label_shape{migraphx::shape::int32_type, {4, 2, 2}};
-    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
+    std::vector<int32_t> label_data = {0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2, 0, 3, 1, 2};
     migraphx::shape weight_shape{migraphx::shape::float_type, {4}};
     std::vector<float> weight_data = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -52,7 +52,17 @@ TEST_CASE(softmaxcrossentropyloss_kd_no_reduction_even_weighted_ones_test)
     auto result = p.eval(pp).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-    std::vector<float> gold = {1.38629436, 1.38629436, 1.38629436, 1.38629436};
+    std::vector<float> gold = {
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436, 1.38629436,
+        1.38629436};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
 

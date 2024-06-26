@@ -5,16 +5,30 @@ from onnx.reference import ReferenceEvaluator
 #X = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]],
 #             dtype=float)
 #X = np.array([[1, 1, 1, 1], [1, 1, 1, 1],[1, 1, 1, 1]], dtype=float)
-X = np.array([[1, 1, 1], [1, 1, 1],[1, 1, 1], [1, 1, 1]], dtype=float)
+#X = np.array([[1, 1, 1], [1, 1, 1],[1, 1, 1], [1, 1, 1]], dtype=float)
 #X = np.array([[1, 1, 1, 1], [2, 2, 2, 2],[3, 3, 3, 3]], dtype=float)
 
 #X = np.array([[0, 0, 0, 0], [0 ,0 ,0 ,0], [0, 0, 0, 0], [0 ,0 ,0 ,0]], dtype=float)
+X = np.array([[[[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]],
+               [[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]]],
+              [[[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]],
+               [[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]]],
+              [[[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]],
+               [[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]]],
+              [[[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]],
+               [[1., 1.], [1., 1.]], [[1., 1.], [1., 1.]]]],
+             dtype=float)
 
 #label_data = np.array([0, 3, 1])
-label_data = np.array([0, 2, 1, 0])
+#label_data = np.array([0, 2, 1, 0])
+label_data = np.array([[[0, 3], [1, 2]], [[0, 3], [1, 2]], [[0, 3], [1, 2]],
+                       [[0, 3], [1, 2]]])
 #weights = np.array([1., 0.5, 2., 3.], dtype=float)
-weights = np.array([1., 0.5, 2.], dtype=float)
+#weights = np.array([1., 0.5, 2.], dtype=float)
+weights = np.array([1., 1., 1., 1.], dtype=float)
 
+print(label_data.shape)
+print(X.shape)
 #sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx", verbose=1)
 #sess = ReferenceEvaluator("softmaxcrossentropyloss_2d_no_reduction_weighted_test.onnx",
 #                          verbose=1)
@@ -39,6 +53,7 @@ sm = (e_x / np.sum(e_x, axis=1, keepdims=True))
 print(sm)
 logsm = np.log(sm)
 print(-logsm)
+print(logsm.shape)
 
 print("Sum reduction")
 print(np.sum(-logsm[0]))

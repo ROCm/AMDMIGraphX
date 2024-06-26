@@ -82,7 +82,7 @@ struct hip_allocate
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
     {
-        std::cout << "Attempting to allocate to gpu" << std::endl;
+        // std::cout << "Attempting to allocate to gpu" << std::endl;
         return allocate_gpu(output_shape);
     }
 };

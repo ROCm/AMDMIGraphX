@@ -55,7 +55,7 @@ parameter_map fill_param_map(parameter_map& m,
             arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
         }
         if(not offload)
-            std::cout << "Arg size: " << arg.get_shape().bytes() << std::endl;
+            // std::cout << "Arg size: " << arg.get_shape().bytes() << std::endl;
             arg = t.copy_to(arg);
     }
     return m;
@@ -66,8 +66,8 @@ parameter_map create_param_map(const program& p, const target& t, bool offload)
     parameter_map m;
     for(auto&& x : p.get_parameter_shapes())
     {
-        auto arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
-        if(offload)
+            auto arg = generate_argument(x.second, get_hash(x.first), random_mode::random);
+            if(offload)
             m[x.first] = arg;
         else
             m[x.first] = t.copy_to(arg);

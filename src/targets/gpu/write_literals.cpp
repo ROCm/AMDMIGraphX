@@ -65,22 +65,22 @@ void write_literals::apply(module& m) const
         // std::cout << "Scratch size: " << temp_size << "\n\n";
     });
 
-    std::cout << "Max Scratch Size: " << scratch_size << "\n";
+    // std::cout << "Max Scratch Size: " << scratch_size << "\n";
 
-    if(weight_streaming)
-    {
-        std::cout << "Using weight streaming..." << std::endl;
-        std::cout << "Streaming budget: " << streaming_budget << std::endl;
-    }
+    // if(weight_streaming)
+    // {
+    //     std::cout << "Using weight streaming..." << std::endl;
+    //     std::cout << "Streaming budget: " << streaming_budget << std::endl;
+    // }
 
-    hipMemGetInfo(&free, &total);
-    std::cout << "Free: " << free << " Total: " << total << std::endl;
+    // hipMemGetInfo(&free, &total);
+    // std::cout << "Free: " << free << " Total: " << total << std::endl;
 
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            hipMemGetInfo(&free, &total);
+            // hipMemGetInfo(&free, &total);
             // std::cout << "Free: " << free << " Total: " << total << std::endl;
             // std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
             bytes_total += ins->get_shape().bytes();
@@ -90,8 +90,9 @@ void write_literals::apply(module& m) const
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
-                auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
-                m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                // auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+                // m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+                m.replace_instruction(ins, hip_copy_to_gpu{}, pre);
             }
             else
             {
@@ -107,9 +108,9 @@ void write_literals::apply(module& m) const
         }
     }
 
-    std::cout << "Free: " << free << " Total: " << total << std::endl;
-    std::cout << "Literal size on gpu (bytes): " << bytes_on_gpu << std::endl;
-    std::cout << "Total size of literals (bytes): " << bytes_total << std::endl;
+    // std::cout << "Free: " << free << " Total: " << total << std::endl;
+    // std::cout << "Literal size on gpu (bytes): " << bytes_on_gpu << std::endl;
+    // std::cout << "Total size of literals (bytes): " << bytes_total << std::endl;
 }
 
 } // namespace gpu

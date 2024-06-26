@@ -147,6 +147,7 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
+            // std::cout << "ins: " << ins->name() << std::endl;
             assert(not is_end(ins, m.end()));
             if(not m.has_instruction(ins))
                 return;

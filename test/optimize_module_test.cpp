@@ -143,8 +143,8 @@ TEST_CASE(mul_add_transpose_dot)
     migraphx::literal lit23;
     migraphx::module lit_mod;
     {
-        auto lit1_ins  = lit_mod.add_literal(lit1);
-        auto lit1_b    = lit_mod.add_instruction(
+        auto lit1_ins = lit_mod.add_literal(lit1);
+        auto lit1_b   = lit_mod.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {64, 64}}}), lit1_ins);
 
         auto lit3_ins = lit_mod.add_literal(lit3);

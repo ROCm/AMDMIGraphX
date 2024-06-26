@@ -2156,8 +2156,17 @@ class IConvolutionLayer : public ILayer
         // TODO check kernelWeights.count against nbOutputMaps * volume(kernelSize)
         // TODO check if 4d or 5d input based on kernelSize
 
+        auto input_dims = input.getDimensions();
+
+        std::vector<int64_t> kernel_dims;
+        kernel_dims.push_back(nbOutputMaps_);
+        kernel_dims.push_back(dimsToVec(input_dims).at(1) / 1); // TODO number of groups
+
+        auto kernel_size = dimsToVec(kernelSize_);
+        kernel_dims.insert(kernel_dims.end(), kernel_size.begin(), kernel_size.end());
+
         instructions_.push_back(mm->add_literal(
-            migraphx::shape{fromDataType(kernelWeights_.type), dimsToVec(kernelSize_)},
+            migraphx::shape{fromDataType(kernelWeights_.type), kernel_dims},
             reinterpret_cast<const uint8_t*>(kernelWeights_.values)));
         instructions_.push_back(
             mm->add_literal(migraphx::shape{fromDataType(biasWeights_.type),
@@ -2182,7 +2191,7 @@ class IConvolutionLayer : public ILayer
         instructions_.push_back(bias_bcast);
 
         auto add = mm->add_instruction(migraphx::make_op("add"), conv, bias_bcast);
-        instructions_.push_back(bias_bcast);
+        instructions_.push_back(add);
 
         inputs_.push_back(&input);
         outputs_.emplace_back(std::make_unique<ITensor>(instructions_.back()));
@@ -5093,6 +5102,10 @@ class IRuntime : public INoCopy
             // TODO write to error recorder if set, otherwise to logger
             return nullptr;
         }
+
+        std::cout << "DESERIALIZE" << std::endl;
+        std::cout << *program << std::endl;
+
         auto* engine = new ICudaEngine{std::move(program)};
         if(error_recorder_)
             engine->setErrorRecorder(error_recorder_);
@@ -5736,7 +5749,8 @@ class INetworkDefinition : public INoCopy
     //!
     IShuffleLayer* addShuffle(ITensor& input) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(std::make_unique<IShuffleLayer>(input, program_));
+        return dynamic_cast<IShuffleLayer*>(layers_.back().get());
         // return mImpl->addShuffle(input);
     }
 
@@ -6029,7 +6043,9 @@ class INetworkDefinition : public INoCopy
                                             ITensor& input1,
                                             MatrixOperation op1) noexcept
     {
-        pass("Not Implemented", true);
+        layers_.push_back(
+            std::make_unique<IMatrixMultiplyLayer>(input0, op0, input1, op1, program_));
+        return dynamic_cast<IMatrixMultiplyLayer*>(layers_.back().get());
         // return mImpl->addMatrixMultiply(input0, op0, input1, op1);
     }
 
@@ -8304,6 +8320,10 @@ class IBuilder : public INoCopy
                                         IBuilderConfig& config) noexcept
     {
         migraphx::program p = *network.getProgram();
+
+        std::cout << "SERIALIZE PRE COMPILE" << std::endl;
+        std::cout << p << std::endl;
+
         try
         {
             p.compile(migraphx::make_target("gpu"));
@@ -8313,6 +8333,10 @@ class IBuilder : public INoCopy
             // TODO write to error recorder/logger
             return nullptr;
         }
+
+        std::cout << "SERIALIZE POST COMPILE" << std::endl;
+        std::cout << p << std::endl;
+
         serialized_networks_.push_back(migraphx::save_buffer(p));
         auto&& current_network = serialized_networks_.back();
         return new IHostMemory{reinterpret_cast<void*>(current_network.data()),

@@ -38,9 +38,9 @@ def populate_network(network, weights):
         assert b.size == n
 
         input_reshape = net.add_shuffle(input)
-        input_reshape.reshape_dims = trt.Dims2(m, k)
+        input_reshape.reshape_dims = trt.Dims([m, k])
 
-        filter_const = net.add_constant(trt.Dims2(n, k), w)
+        filter_const = net.add_constant(trt.Dims([n, k]), w)
         mm = net.add_matrix_multiply(
             input_reshape.get_output(0),
             trt.MatrixOperation.NONE,
@@ -48,13 +48,13 @@ def populate_network(network, weights):
             trt.MatrixOperation.TRANSPOSE,
         )
 
-        bias_const = net.add_constant(trt.Dims2(1, n), b)
+        bias_const = net.add_constant(trt.Dims([1, n]), b)
         bias_add = net.add_elementwise(
             mm.get_output(0), bias_const.get_output(0), trt.ElementWiseOperation.SUM
         )
 
         output_reshape = net.add_shuffle(bias_add.get_output(0))
-        output_reshape.reshape_dims = trt.Dims4(m, n, 1, 1)
+        output_reshape.reshape_dims = trt.Dims([m, n, 1, 1])
         return output_reshape
 
     conv1_w = weights["conv1.weight"].cpu().numpy()
@@ -71,7 +71,7 @@ def populate_network(network, weights):
     pool1 = network.add_pooling_nd(
         input=conv1.get_output(0), type=trt.PoolingType.MAX, window_size=(2, 2)
     )
-    pool1.stride_nd = trt.Dims2(2, 2)
+    pool1.stride_nd = trt.Dims([2, 2])
 
     conv2_w = weights["conv2.weight"].cpu().numpy()
     conv2_b = weights["conv2.bias"].cpu().numpy()
@@ -81,7 +81,7 @@ def populate_network(network, weights):
     conv2.stride_nd = (1, 1)
 
     pool2 = network.add_pooling_nd(conv2.get_output(0), trt.PoolingType.MAX, (2, 2))
-    pool2.stride_nd = trt.Dims2(2, 2)
+    pool2.stride_nd = trt.Dims([2, 2])
 
     fc1_w = weights["fc1.weight"].cpu().numpy()
     fc1_b = weights["fc1.bias"].cpu().numpy()
@@ -97,7 +97,7 @@ def populate_network(network, weights):
         network, relu1.get_output(0), ModelData.OUTPUT_SIZE, fc2_w, fc2_b
     )
 
-    fc2.get_output(0).name = ModelData.OUTPUT_NAME
+    # TODO fc2.get_output(0).name = ModelData.OUTPUT_NAME
     network.mark_output(tensor=fc2.get_output(0))
 
 

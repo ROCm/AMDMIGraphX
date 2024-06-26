@@ -100,6 +100,13 @@ void network_bindings(py::module& m)
              "op1"_a,
              "TODO docstring",
              py::return_value_policy::reference_internal)
+        .def("add_elementwise",
+             &INetworkDefinition::addElementWise,
+             "input0"_a,
+             "input1"_a,
+             "op"_a,
+             "TODO docstring",
+             py::return_value_policy::reference_internal)
         .def("add_constant",
              &INetworkDefinition::addConstant,
              "shape"_a,
@@ -332,6 +339,30 @@ void layers(py::module& m)
                 return self.setOperation(1, op);
             });
     /*IMatrixMultiplyLayer*/
+
+    /*IElementWiseLayer*/
+    py::enum_<ElementWiseOperation>(m, "ElementWiseOperation", "TODO docstring", py::module_local())
+        .value("SUM", ElementWiseOperation::kSUM, "TODO docstring")
+        .value("PROD", ElementWiseOperation::kPROD, "TODO docstring")
+        .value("MAX", ElementWiseOperation::kMAX, "TODO docstring")
+        .value("MIN", ElementWiseOperation::kMIN, "TODO docstring")
+        .value("SUB", ElementWiseOperation::kSUB, "TODO docstring")
+        .value("DIV", ElementWiseOperation::kDIV, "TODO docstring")
+        .value("POW", ElementWiseOperation::kPOW, "TODO docstring")
+        .value("FLOOR_DIV", ElementWiseOperation::kFLOOR_DIV, "TODO docstring")
+        .value("OR", ElementWiseOperation::kOR, "TODO docstring")
+        .value("XOR", ElementWiseOperation::kXOR, "TODO docstring")
+        .value("EQUAL", ElementWiseOperation::kEQUAL, "TODO docstring")
+        .value("GREATER", ElementWiseOperation::kGREATER, "TODO docstring")
+        .value("LESS", ElementWiseOperation::kLESS, "TODO docstring");
+
+    py::class_<IElementWiseLayer, ILayer, std::unique_ptr<IElementWiseLayer>>(
+        m, "IElementWiseLayer", "TODO docstring", py::module_local())
+        .def_property(
+            "op",
+            [](IElementWiseLayer& self) { return self.getOperation(); },
+            [](IElementWiseLayer& self, ElementWiseOperation op) { return self.setOperation(op); });
+    /*IElementWiseLayer*/
 }
 
 Weights optional_weights(Weights* w) { return w ? *w : Weights{DataType::kFLOAT, nullptr, 0}; }

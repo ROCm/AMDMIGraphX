@@ -40,8 +40,10 @@ TEST_CASE(batchnorm_half_test)
     auto eps   = mm->add_literal(migraphx::literal{migraphx::shape::half_type, {1e-4f}});
 
     auto usq_scale = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), scale);
-    auto usq_bias  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), bias);
-    auto usq_mean  = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), mean);
+    auto usq_bias  = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), bias);
+    auto usq_mean = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x->get_shape().lens()}}), mean);
     auto usq_var   = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1, 2}}}), var);
 
     auto x_sub_mean = add_common_op(*mm, migraphx::make_op("sub"), {x, usq_mean});
@@ -52,5 +54,5 @@ TEST_CASE(batchnorm_half_test)
     add_common_op(*mm, migraphx::make_op("add"), {r0, usq_bias});
 
     auto prog = optimize_tf("batchnorm_half_test.pb", true);
-    EXPECT(p == prog);
+    EXPECT(p.sort() == prog.sort());
 }

@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/op/common.hpp"
 #include <iterator>
 #include <utility>
 #include <functional>
@@ -37,6 +36,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 
+#include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>

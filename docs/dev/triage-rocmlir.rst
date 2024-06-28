@@ -10,9 +10,6 @@ There are broadly 3 categories of bugs that can be due to rocMLIR.
 2. [B2]rocMLIR runtime failure
 3. [B3]accuracy issue from rocMLIR
 
-Quick start; TLDR;
-------------------
-
 Step 1 - Use MIGRAPHX_DISABLE_MLIR=1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

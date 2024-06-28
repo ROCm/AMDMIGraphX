@@ -100,6 +100,7 @@ struct miopen_apply
         add_extend_op("topk");
         add_generic_op("contiguous");
 #if MIGRAPHX_USE_MIOPEN
+        add_extend_op("pooling");
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
         add_convolution_op("quant_convolution");

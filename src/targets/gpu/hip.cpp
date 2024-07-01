@@ -319,7 +319,6 @@ void store_preallocated_param(context& ctx, const std::string& id, const argumen
     ctx.get_current_device().preallocations[id] = a;
 }
 
-
 // clang-format off
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

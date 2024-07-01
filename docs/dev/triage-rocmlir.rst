@@ -56,7 +56,7 @@ NOTE 1 : Currently MIGraphX does not run applicability pipeline of
 rocMLIR. Therefore, you will see them for inapplicable tuning params as
 well.
 
-NOTE 2 : Ignore ``MLIR backend compilation failed: "`` if dont see
+NOTE 2 : Ignore ``MLIR backend compilation failed: "`` if you don't see
 ``No solutions provided for mlir_*``
 
 If the above is present, please disable threading first using

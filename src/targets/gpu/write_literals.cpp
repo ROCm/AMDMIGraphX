@@ -90,9 +90,8 @@ void write_literals::apply(module& m) const
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
-                // auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
-                // m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
-                m.replace_instruction(ins, hip_copy_to_gpu{}, pre);
+                auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+                m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
             }
             else
             {

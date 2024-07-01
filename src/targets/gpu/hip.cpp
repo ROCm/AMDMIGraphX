@@ -319,54 +319,6 @@ void store_preallocated_param(context& ctx, const std::string& id, const argumen
     ctx.get_current_device().preallocations[id] = a;
 }
 
-// argument hip_weight_streaming_literal::compute(context& ctx, const shape&, const std::vector<argument>&) const
-// {
-//     if (!stream) {
-//         return get_preallocation(ctx, id);
-//     }
-
-//     else {
-//         auto alloc = m->insert_instruction(std::next(ins), hip_allocate{l.get_shape()});
-//         m->insert_instruction(std::next(alloc), hip_copy_to_gpu{}, ins, alloc);
-
-//         return l.get_argument();
-//     }
-// }
-
-// void hip_weight_streaming_literal::finalize(context& ctx, const shape&, const std::vector<shape>&)
-// {
-//     size_t free;
-//     size_t total;
-//     hipMemGetInfo(&free, &total);
-//     std::cout << "[Before] Free: " << free << " Total: " << total << std::endl;
-
-//     size_t shape_size = 0;
-//     for (auto shape : m->get_parameter_shapes()) {
-//         shape_size += shape.second.bytes();
-//     }
-
-//     std::cout << "Literal size: " << l.get_argument().get_shape().bytes() << "\n";
-//     if (shape_size + l.get_argument().get_shape().bytes() >= free) {
-//         std::cout << "Literal does not fit; streaming at runtime instead" << "\n"; 
-//         stream = true;
-//     }
-//     else {
-//         argument a = to_gpu(l.get_argument());
-//         store_preallocated_param(ctx, id, a);
-//     }
-    
-//     hipMemGetInfo(&free, &total);
-//     std::cout << "[After]  Free: " << free << " Total: " << total << "\n\n";
-//     // try {
-//     //     argument a = to_gpu(l.get_argument());
-//     //     store_preallocated_param(ctx, id, a);
-//     // }
-//     // catch (migraphx::exception) {
-//     //     std::cout << "No gpu mem left" << std::endl;
-//     //     stream = true;
-//     // }
-// }
-
 
 // clang-format off
 } // namespace gpu

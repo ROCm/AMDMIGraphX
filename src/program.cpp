@@ -437,8 +437,6 @@ std::vector<argument> generic_eval(const module* mod,
     results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
-    // for (auto ins = mod->begin(); ins != mod->end(); ++ins) 
-    // {
     for(auto ins : iterator_for(*mod))
     {
         assert(results.find(ins) == results.end());

@@ -147,14 +147,14 @@ struct stream_info
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
         fix([&](auto self, auto ins, auto& part) {
-            // std::cout << "ins: " << ins->name() << std::endl;
             assert(not is_end(ins, m.end()));
             if(not m.has_instruction(ins))
                 return;
             if(contains(partitions, ins))
                 return;
 
-            if(ins->name() == "hip::copy_to_gpu") {
+            if(ins->name() == "hip::copy_to_gpu")
+            {
                 copies.add(ins, this->iweights[ins]);
                 return;
             }
@@ -185,7 +185,6 @@ struct stream_info
 
         // Set the critical partition to stream 0
         set_stream(critical, 0);
-        set_stream(copies, 1);
         if(n == 1)
         {
             // Assign streams for the other partitions
@@ -196,7 +195,8 @@ struct stream_info
         }
         else
         {
-            std::vector<std::size_t> streams(n - 2);
+            set_stream(copies, 1);
+            std::vector<std::size_t> streams(n - 1);
             // Assign streams for the other partitions
             for(auto&& ins_part : partitions)
             {
@@ -209,11 +209,11 @@ struct stream_info
                 {
                     auto stream =
                         std::min_element(streams.begin(), streams.end()) - streams.begin();
-                    set_stream(part, stream + 2);
+                    set_stream(part, stream + 1);
                     streams[stream] += part.weight;
                 }
             }
-            return 2 + std::count_if(streams.begin(), streams.end(), [](auto x) { return x > 0; });
+            return 1 + std::count_if(streams.begin(), streams.end(), [](auto x) { return x > 0; });
         }
     }
 

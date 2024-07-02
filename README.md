@@ -188,7 +188,7 @@ Where `myApp` is the CMake target in your project.
 Using `rbuild`, you can install the dependencies for development with:
 
 ```bash
-rbuild develop
+rbuild develop -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
 ```
 
 This installs development dependencies in the `deps` directory and configures `cmake` to use those

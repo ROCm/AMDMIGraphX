@@ -35,6 +35,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/param_utils.hpp>
 
@@ -236,6 +237,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
         assert(replaced.size() == 1);
         mpm.get_module().replace_instruction(ins, replaced.front());
     }
+
+    mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

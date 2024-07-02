@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,6 +79,8 @@ struct stream_info
                 // This will ensure a stream will be assigned to return
                 if(op.name() == "@return")
                     weight = 1;
+                if (op.name() == "@literal")
+                    weight = 2;
                 iweights[ins] = weight;
                 auto inputs   = ins->inputs();
                 if(contains(mod_implicit_deps, ins))
@@ -146,6 +148,15 @@ struct stream_info
         partition copies;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
+        for (auto ins : iterator_for(m)) 
+        {
+            if (ins->name() == "@literal") 
+            {
+                partitions[ins];
+                copies.add(ins, 2);
+            }
+        }
+
         fix([&](auto self, auto ins, auto& part) {
             assert(not is_end(ins, m.end()));
             if(not m.has_instruction(ins))
@@ -153,13 +164,14 @@ struct stream_info
             if(contains(partitions, ins))
                 return;
 
+            // Add an entry so we know the instruction was visited
+            partitions[ins];
+
             if(ins->name() == "hip::copy_to_gpu")
             {
                 copies.add(ins, this->iweights[ins]);
                 return;
             }
-            // Add an entry so we know the instruction was visited
-            partitions[ins];
             part.add(ins, this->iweights[ins]);
 
             auto args         = ins->inputs();

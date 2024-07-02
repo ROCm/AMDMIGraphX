@@ -186,6 +186,12 @@ bool none_of(detail::empty, const Predicate&)
     return true;
 }
 
+template <class C, class Predicate>
+auto find_if(const C& c, const Predicate& p)
+{
+    return std::find_if(c.begin(), c.end(), p);
+}
+
 template <class Range, class Iterator>
 void copy(Range&& r, Iterator it)
 {

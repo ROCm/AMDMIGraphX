@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -162,6 +162,11 @@ void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimen
 void set_default_loop_iterations(onnx_options& options, int64_t value)
 {
     options.max_loop_iterations = value;
+}
+
+void set_external_data_path(onnx_options& options, const char* external_data_path)
+{
+    options.external_data_path = std::string(external_data_path);
 }
 
 void set_limit_loop_iterations(onnx_options& options, int64_t value)
@@ -1916,6 +1921,18 @@ migraphx_onnx_options_set_limit_loop_iterations(migraphx_onnx_options_t onnx_opt
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_limit_loop_iterations((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_options,
+                                             const char* external_data_path)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_external_data_path((onnx_options->object), (external_data_path));
     });
     return api_error_result;
 }

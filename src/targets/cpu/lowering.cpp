@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -415,12 +415,23 @@ struct cpu_apply
                        {ins->inputs().front()});
     }
 
+    // TODO:  update lowering to run the reference
+    // code when OneDNN can't execute pooling for a CPU
+
+    // OneDNN has a limitation on padding size for pooling.  see
+    // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
+
+    // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
+    // padding = {2}; stride = {1}; lengths = {2} fails.
+    // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
+    // ("weights tensor") that MIGraphX doesn't enforce.
     instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = ins->get_operator();
         auto v    = op.to_value();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
-           not v["ceil_mode"].to<bool>())
+           not v["ceil_mode"].to<bool>() and
+           v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
     }

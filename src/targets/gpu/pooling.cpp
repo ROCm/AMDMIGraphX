@@ -27,7 +27,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).standard();
@@ -84,7 +84,7 @@ void miopen_pooling::finalize(context&, const shape&, const std::vector<shape>&)
     if(pd == nullptr)
         pd = make_pooling(op);
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

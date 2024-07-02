@@ -27,7 +27,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_MIOPEN
 shape miopen_abs::compute_shape(const std::vector<shape>& inputs) const
 {
     check_shapes{inputs, *this}.has(2).packed();
@@ -55,7 +55,7 @@ argument miopen_abs::compute(context& ctx,
 }
 
 void miopen_abs::finalize(context&, const shape&, const std::vector<shape>&) { ad = make_abs(); }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

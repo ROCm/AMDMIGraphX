@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '0 7 * * sun'
   pull_request:
-    branches: [develop]
+    branches: [rocMLIR-sync-*]
     types: [synchronize, closed]
   workflow_dispatch:
     inputs:

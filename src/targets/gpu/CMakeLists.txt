@@ -30,8 +30,13 @@ if(NOT GPU_TARGETS)
     endif()
     message(FATAL_ERROR ${fatal_msg})
 endif()
-find_package(miopen REQUIRED)
-message(STATUS "MIGraphX is using MIOpen")
+
+if(MIGRAPHX_USE_MIOPEN)
+    find_package(miopen REQUIRED)
+    message(STATUS "MIGraphX is using MIOpen")
+else()
+    message(STATUS "MIGraphX is not using MIOpen")
+endif()
 
 if(MIGRAPHX_USE_ROCBLAS)
     # rocblas
@@ -85,6 +90,9 @@ rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
+if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
+    target_link_libraries(migraphx_device INTERFACE hip::host)
+endif()
 target_include_directories(migraphx_device PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINAR_DIR}/include>)
 target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/device/include>)
@@ -116,8 +124,11 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
+if(MIGRAPHX_USE_MIOPEN)
+    set(MIOPEN_SRCS abs.cpp)
+endif()
+
 add_library(migraphx_gpu
-    abs.cpp
     analyze_streams.cpp
     allocation_model.cpp
     argmax.cpp
@@ -161,6 +172,7 @@ add_library(migraphx_gpu
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}
+    ${MIOPEN_SRCS}
 )
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
@@ -183,12 +195,18 @@ register_migraphx_gpu_ops(hip_
     reverse
     topk
 )
+if (MIGRAPHX_USE_MIOPEN)
 register_migraphx_gpu_ops(miopen_
     abs
     contiguous
     lrn
     pooling
 )
+else()
+register_migraphx_gpu_ops(miopen_
+    contiguous
+)
+endif()
 register_op(migraphx_gpu
     HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
     OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
@@ -199,9 +217,11 @@ if(MIGRAPHX_USE_ROCBLAS)
         OPERATORS gpu::rocblas_gemm<op::dot> gpu::rocblas_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
-register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
-    OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
-    INCLUDES migraphx/gpu/context.hpp)
+if (MIGRAPHX_USE_MIOPEN)
+    register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
+        OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>
+        INCLUDES migraphx/gpu/context.hpp)
+endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_gpu)
 
@@ -265,9 +285,14 @@ target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CX
 # Check miopen find mode api
 
 include(CheckLibraryExists)
-get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
-check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
-check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+if (MIGRAPHX_USE_MIOPEN)
+    get_target_property(MIOPEN_LOCATION MIOpen LOCATION)
+    target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_MIOPEN=1)
+    check_library_exists(MIOpen "miopenHiddenSetConvolutionFindMode" "${MIOPEN_LOCATION}" HAS_FIND_MODE_API)
+    check_library_exists(MIOpen "miopenFindSolutions" "${MIOPEN_LOCATION}" HAS_FIND_2_API)
+else()
+target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_MIOPEN=0)
+endif()
 
 if(MIGRAPHX_USE_ROCBLAS)
     get_target_property(ROCBLAS_LOCATION roc::rocblas LOCATION)
@@ -280,25 +305,29 @@ else()
     target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_USE_ROCBLAS=0)
 endif()
 
-set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
+if(MIGRAPHX_USE_MIOPEN)
+    set(MIGRAPHX_USE_FIND_2_API "${HAS_FIND_2_API}" CACHE BOOL "")
 
-if(MIGRAPHX_USE_FIND_2_API)
-    check_library_exists(MIOpen "miopenSetFindOptionPreallocatedTensor" "${MIOPEN_LOCATION}" HAS_PREALLOCATION_API)
-    if(HAS_PREALLOCATION_API)
-        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API -DMIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS)
+    if(MIGRAPHX_USE_FIND_2_API)
+        check_library_exists(MIOpen "miopenSetFindOptionPreallocatedTensor" "${MIOPEN_LOCATION}" HAS_PREALLOCATION_API)
+        if(HAS_PREALLOCATION_API)
+            target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API -DMIGRAPHX_PREALLOCATE_MIOPEN_BUFFERS)
+        else()
+            target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+        endif()
+        message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
     else()
-        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_2_API)
+        message(STATUS "MIGraphx is using legacy Find API in MIOpen")
     endif()
-    message(STATUS "MIGraphx is using Find-2.0 API of MIOpen")
-else()
-    message(STATUS "MIGraphx is using legacy Find API in MIOpen")
-endif()
 
-if(HAS_FIND_MODE_API)
-    target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
-    message(STATUS "MIGraphx is using Find Mode API of MIOpen")
-else()
-    message(STATUS "MIOpen does not have find mode api")
+    if(HAS_FIND_MODE_API)
+        target_compile_definitions(migraphx_gpu PUBLIC -DMIGRAPHX_HAS_FIND_MODE_API)
+        message(STATUS "MIGraphx is using Find Mode API of MIOpen")
+    else()
+        message(STATUS "MIOpen does not have find mode api")
+    endif()
+
+    target_link_libraries(migraphx_gpu PUBLIC MIOpen)
 endif()
 
 if(MIGRAPHX_USE_ROCBLAS)
@@ -320,9 +349,13 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
 endif()
 
-target_link_libraries(migraphx_gpu PUBLIC migraphx MIOpen)
-
-target_link_libraries(migraphx_gpu PRIVATE migraphx_device migraphx_kernels)
+target_link_libraries(migraphx_gpu PUBLIC migraphx)
+if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
+    target_link_libraries(migraphx_gpu PUBLIC migraphx_device)
+else()
+    target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
+endif()
+target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)

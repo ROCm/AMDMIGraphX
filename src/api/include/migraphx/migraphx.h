@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -517,6 +517,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_default_loop_iterati
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iterations(
     migraphx_onnx_options_t onnx_options, int64_t value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
+    migraphx_onnx_options_t onnx_options, const char* external_data_path);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);

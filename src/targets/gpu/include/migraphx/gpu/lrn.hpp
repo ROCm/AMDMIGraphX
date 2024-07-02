@@ -33,7 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_lrn
 {
     op::lrn op;
@@ -55,7 +55,7 @@ struct miopen_lrn
         return shapes.size() - 1;
     }
 };
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

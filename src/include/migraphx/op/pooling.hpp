@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -86,10 +86,7 @@ struct pooling
     // Global pooling with dynamic shape input
     bool dyn_global = false;
 
-    // an attribute of the Onnx pooling operator, not currently enabled here because MIOpen can't
-    // support it. We currently implement padding for average pooling by inserting a Padding
-    // operator during Onnx parsing. But to support dynamic shape inputs and count_include_pad
-    // together, it would be necessary to do this calculation at runtime in MIOpen.
+    // Whether padding elements are included in the average count
     bool count_include_pad = false;
 
     template <class Self, class F>
@@ -102,6 +99,7 @@ struct pooling
                     f(self.lengths, "lengths"),
                     f(self.dilations, "dilations"),
                     f(self.ceil_mode, "ceil_mode"),
+                    f(self.count_include_pad, "count_include_pad"),
                     f(self.lp_order, "lp_order"),
                     f(self.dyn_global, "dyn_global"));
     }
@@ -126,17 +124,6 @@ struct pooling
         {
             MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations");
         }
-
-        // TODO:  update lowering to run the reference
-        // code when OneDNN can't execute pooling for a CPU
-
-        // OneDNN has a limitation on padding size for pooling.  see
-        // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
-
-        // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
-        // padding = {2}; stride = {1}; lengths = {2} fails.
-        // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
-        // ("weights tensor") that MIGraphX doesn't enforce.
     }
 
     size_t kdims() const
@@ -344,9 +331,8 @@ struct pooling
                 int end;
                 std::size_t dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
                 // NOLINT
-                if(count_include_pad and ceil_mode and (mode != pooling_mode::max))
+                if(count_include_pad and (mode != pooling_mode::max))
                 {
-                    // TODO: this block can't execute until we enable count_include_pad
                     // Even when using padding, if in ceil_mode a window
                     // could extend beyond the end of both input and
                     // padding.  Clip out-of-bounds indexes but not padding.
@@ -357,7 +343,6 @@ struct pooling
                 }
                 else
                 {
-                    // In non-ceiling mode, when
                     // count_include_pad is false, or for max pooling, clip off padding.
                     end = std::min(start + dilated_kernel_dim, in_lens[dim]);
                 }
@@ -398,13 +383,13 @@ struct pooling
                                idx.begin() + 2,
                                [](auto ii, auto jj) { return ii + jj; });
                 // Check if any of coordinates are out of input tensor's range
-                if(std::mismatch(idx.begin() + 2,
-                                 idx.end(),
-                                 in_lens.begin() + 2,
-                                 in_lens.end(),
-                                 std::less<>{}) == std::make_pair(idx.end(), in_lens.end()))
+                if(std::equal(idx.begin() + 2,
+                              idx.end(),
+                              in_lens.begin() + 2,
+                              in_lens.end(),
+                              std::less<>{}))
                 {
-                    output_val = op(output_val, input[in_s.index(idx)]);
+                    output_val = op(output_val, input[idx]);
                 }
                 else
                 {
@@ -415,7 +400,7 @@ struct pooling
                     {
                         output_val = op(output_val, op.template init<Type>());
                     }
-                    if(mode == pooling_mode::average)
+                    if(mode == pooling_mode::average and not count_include_pad)
                     {
                         // Ignore padding
                         pool_size -= 1;

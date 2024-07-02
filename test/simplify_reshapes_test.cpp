@@ -2266,4 +2266,170 @@ TEST_CASE(reshape_reshape_dot_gemm_axis)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(reshape_dot)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
+    migraphx::shape s_w{migraphx::shape::float_type, {32, 32}};
+
+    migraphx::module m1;
+    {
+        auto inp = m1.add_parameter("inp", s_inp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64, 32}}}), inp);
+        auto w   = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), rsp, w_bc);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp  = m2.add_parameter("inp", s_inp);
+        auto w    = m2.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 32, 32}}}), w);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), inp, w_bc);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64, 32}}}), dot);
+        m2.add_return({rsp});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_flipped)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
+    migraphx::shape s_w{migraphx::shape::float_type, {16, 8}};
+
+    migraphx::module m1;
+    {
+        auto inp = m1.add_parameter("inp", s_inp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {16, 8, 32}}}), inp);
+        auto w   = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {16, 16, 8}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), w_bc, rsp);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp  = m2.add_parameter("inp", s_inp);
+        auto w    = m2.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 16, 8}}}), w);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), w_bc, inp);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {16, 16, 32}}}), dot);
+        m2.add_return({rsp});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_dot_axis)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 4}};
+    migraphx::shape s_w{migraphx::shape::float_type, {32, 32}};
+
+    migraphx::module m1;
+    {
+        auto inp = m1.add_parameter("inp", s_inp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 8, 32}}}), inp);
+        auto w   = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 32, 32}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), rsp, w_bc);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_flipped_dot_axis)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
+    migraphx::shape s_w{migraphx::shape::float_type, {8, 64}};
+
+    migraphx::module m1;
+    {
+        auto inp = m1.add_parameter("inp", s_inp);
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64, 32}}}), inp);
+        auto w   = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 8, 64}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), w_bc, rsp);
+        m1.add_return({dot});
+    };
+
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_broadcast)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
+    migraphx::shape s_w{migraphx::shape::float_type, {32}};
+
+    migraphx::module m1;
+    {
+        auto inp  = m1.add_parameter("inp", s_inp);
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64, 32}}}), inp);
+        auto w    = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 32}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), rsp, w_bc);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp  = m2.add_parameter("inp", s_inp);
+        auto w    = m2.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", {2, 8, 32, 32}}}), w);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), inp, w_bc);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 64, 32}}}), dot);
+        m2.add_return({rsp});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(reshape_dot_broadcast_2)
+{
+    migraphx::shape s_inp{migraphx::shape::float_type, {2, 8, 8, 32}};
+    migraphx::shape s_w{migraphx::shape::float_type, {32}};
+
+    migraphx::module m1;
+    {
+        auto inp  = m1.add_parameter("inp", s_inp);
+        auto rsp  = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {128, 32}}}), inp);
+        auto w    = m1.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {32, 32}}}), w);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), rsp, w_bc);
+        m1.add_return({dot});
+    };
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto inp  = m2.add_parameter("inp", s_inp);
+        auto w    = m2.add_literal(migraphx::generate_literal(s_w));
+        auto w_bc = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 3}, {"out_lens", {2, 8, 32, 32}}}), w);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), inp, w_bc);
+        auto rsp = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {128, 32}}}), dot);
+        m2.add_return({rsp});
+    };
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

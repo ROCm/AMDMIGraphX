@@ -26,11 +26,12 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/config.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/op/lrn.hpp>
 #include <miopen/miopen.h>
-#include <migraphx/config.hpp>
 
 #include <sstream>
 
@@ -43,7 +44,6 @@ miopenHiddenSetConvolutionFindMode(miopenConvolutionDescriptor_t convDesc, // NO
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
 using miopen_handle          = MIGRAPHX_MANAGE_PTR(miopenHandle_t, miopenDestroy);
 using tensor_descriptor      = MIGRAPHX_MANAGE_PTR(miopenTensorDescriptor_t,
                                               miopenDestroyTensorDescriptor);
@@ -337,5 +337,5 @@ auto reflect(miopenLRNDescriptor_t lrnd, F f)
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
+#endif
 #endif

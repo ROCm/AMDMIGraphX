@@ -18,6 +18,10 @@ on:
         description: Docker image name for rocm Docker build
         required: true
         default: "rocm-migraphx"
+      branch_name:
+        description: branch to use for building base ROCm image
+        required: true
+        default: "develop"
       build_navi:
         description: Build navi number
         required: true
@@ -35,6 +39,7 @@ jobs:
       benchmark-utils_repo: ${{ github.event.inputs.benchmark-utils_repo || 'ROCm/migraphx-benchmark-utils' }}
       base_image: ${{ github.event.inputs.base_image || 'rocm/dev-ubuntu-20.04' }}
       docker_image: ${{ github.event.inputs.docker_image || 'rocm-migraphx' }}
+      branch_name: ${{ github.event.inputs.branch_name || 'develop' }}
       build_navi: ${{ github.event.inputs.build_navi || '0' }}
       overwrite: ${{ github.event.inputs.overwrite == 'true' }}
     secrets:

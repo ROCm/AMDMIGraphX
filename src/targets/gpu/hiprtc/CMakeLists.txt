@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,13 @@ add_executable(migraphx-hiprtc-driver
     main.cpp
 )
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
+# On Windows, the driver's default 1MB stack size is not enough - increasing to 4MB.
+set(STACK_SIZE 4194304)
+if(MSVC)
+    target_link_options(migraphx-hiprtc-driver PRIVATE /STACK:${STACK_SIZE})
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_SIMULATE_ID MATCHES "MSVC")
+    target_link_options(migraphx-hiprtc-driver PRIVATE -Xlinker /stack:${STACK_SIZE})
+endif()
 target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
 add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
 rocm_install_targets(

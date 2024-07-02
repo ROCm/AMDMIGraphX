@@ -28,13 +28,12 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/gpu/miopen.hpp>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_pooling
 {
     op::pooling op;
@@ -56,6 +55,7 @@ struct miopen_pooling
         return shapes.size() - 1;
     }
 };
+#endif
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

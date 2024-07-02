@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,7 @@ def tf_test(op_test):
         g1 = tf.Graph()
         op_test(g1)
         tf.io.write_graph(g1,
-                          '.',
+                          './models',
                           '{}.pb'.format(op_test.__name__),
                           as_text=False)
 

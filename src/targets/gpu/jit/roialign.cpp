@@ -25,6 +25,9 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#if !MIGRAPHX_USE_MIOPEN
+#include <migraphx/op/pooling.hpp>
+#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

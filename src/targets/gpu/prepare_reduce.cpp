@@ -71,18 +71,6 @@ std::vector<instruction_ref> find_reduce(module& m)
     return result;
 }
 
-bool reaches(instruction_ref start, instruction_ref end)
-{
-    std::unordered_set<instruction_ref> visited;
-    return fix<bool>([&](auto self, auto ins) -> bool {
-        if(ins == start)
-            return true;
-        if(not visited.insert(ins).second)
-            return false;
-        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
-    })(end);
-}
-
 std::vector<instruction_ref> find_parallel_reduce(const std::vector<instruction_ref>& r)
 {
     std::vector<instruction_ref> result;

@@ -48,8 +48,8 @@ bool dominator_info::strictly_dominate(instruction_ref ins1, instruction_ref ins
 
 struct module_visitor
 {
-    module* mm;
-    module& get_nodes() const { return *mm; }
+    const module* mm;
+    const module& get_nodes() const { return *mm; }
 
     const std::vector<instruction_ref>& get_children(instruction_ref ins) { return ins->inputs(); }
 };
@@ -91,7 +91,7 @@ dominator_info compute_dominator_generic(Visitor v)
     return info;
 }
 
-dominator_info compute_dominator(module& m)
+dominator_info compute_dominator(const module& m)
 {
     return compute_dominator_generic(module_visitor{&m});
 }

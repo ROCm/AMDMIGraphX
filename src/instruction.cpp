@@ -517,5 +517,17 @@ migraphx::instruction* as_address(const instruction_ref& ins) noexcept
     return std::addressof(*ins);
 }
 
+bool reaches(instruction_ref start, instruction_ref end)
+{
+    std::unordered_set<instruction_ref> visited;
+    return fix<bool>([&](auto self, auto ins) -> bool {
+        if(ins == start)
+            return true;
+        if(not visited.insert(ins).second)
+            return false;
+        return std::any_of(ins->inputs().begin(), ins->inputs().end(), self);
+    })(end);
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

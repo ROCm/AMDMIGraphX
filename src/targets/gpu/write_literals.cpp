@@ -65,16 +65,17 @@ void write_literals::apply(module& m) const
     if(weight_streaming)
     {
         long budget = streaming_budget;
-        if (budget == LONG_MAX)
+        if(budget == LONG_MAX)
         {
             budget = static_cast<long>(scratch_size * 2);
         }
-        std::cout << "Using weight streaming..." << "\n";
+        std::cout << "Using weight streaming..."
+                  << "\n";
         std::cout << "Streaming budget: " << budget << "\n";
         std::cout << "Scratch size: " << scratch_size << std::endl;
 
         std::vector<instruction_ref> ins_list;
-        for (auto ins : iterator_for(m))
+        for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@literal")
             {
@@ -82,13 +83,15 @@ void write_literals::apply(module& m) const
             }
         }
 
-        std::sort(ins_list.begin(), ins_list.end(), [](const instruction_ref& a, const instruction_ref& b) {
-            return a->get_shape().bytes() > b->get_shape().bytes();
-        });
+        std::sort(ins_list.begin(),
+                  ins_list.end(),
+                  [](const instruction_ref& a, const instruction_ref& b) {
+                      return a->get_shape().bytes() > b->get_shape().bytes();
+                  });
 
-        for (auto ins : ins_list)
+        for(auto ins : ins_list)
         {
-            if (bytes_on_gpu + ins->get_shape().bytes() > budget)
+            if(bytes_on_gpu + ins->get_shape().bytes() > budget)
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
@@ -102,11 +105,8 @@ void write_literals::apply(module& m) const
                 std::string id = m.name() + ":@literal:" + std::to_string(n);
                 m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
             }
-
         }
     }
-
-
 
     // hipMemGetInfo(&free, &total);
     // std::cout << "Free: " << free << " Total: " << total << std::endl;
@@ -137,7 +137,8 @@ void write_literals::apply(module& m) const
     //         }
 
     //         // std::string id = m.name() + ":@literal:" + std::to_string(n);
-    //         // m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(), id, &m, false});
+    //         // m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(),
+    //         id, &m, false});
     //         // n++;
     //     }
     // }

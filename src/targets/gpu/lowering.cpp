@@ -36,6 +36,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/program.hpp>
 
+#include <migraphx/op/common.hpp>
 #include <migraphx/op/dot.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/reshape.hpp>
@@ -99,6 +100,7 @@ struct miopen_apply
         add_extend_op("rnn_var_sl_shift_sequence");
         add_extend_op("topk");
         add_generic_op("contiguous");
+        add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
         add_convolution_op("convolution");
         add_convolution_op("convolution_backwards");
@@ -293,6 +295,30 @@ struct miopen_apply
             refs.push_back(output);
 
             return mod->replace_instruction(ins, make_op(gpu_name, op.to_value()), refs);
+        });
+    }
+
+    void add_pooling_op()
+    {
+        apply_map.emplace("pooling", [=](instruction_ref ins) {
+            auto&& op   = ins->get_operator();
+            auto op_val = op.to_value();
+            if(op_val.at("count_include_pad").to<bool>())
+            {
+                return insert_precompile_op(ins);
+            }
+            if(op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::lpnorm)
+            {
+                return insert_precompile_op(ins);
+            }
+#if MIGRAPHX_USE_MIOPEN
+            auto output                       = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(output);
+            return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
+#else 
+            return insert_precompile_op(ins);
+#endif
         });
     }
 

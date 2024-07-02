@@ -152,8 +152,7 @@ struct stream_info
         {
             if(ins->name() == "@literal")
             {
-                partitions[ins];
-                copies.add(ins, 2);
+                copies.add(ins, this->iweights[ins]);
             }
         }
 

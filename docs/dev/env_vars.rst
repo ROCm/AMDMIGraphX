@@ -273,6 +273,11 @@ Performs exhaustive tuning for MLIR.
 Set to an integer greater than 1.
 Limits the number of solutions available to MLIR for tuning.
 
+.. envvar:: MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable input fusions in MLIR.
+
 CK vars
 -----------
 

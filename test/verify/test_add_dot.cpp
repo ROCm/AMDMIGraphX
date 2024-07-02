@@ -20,31 +20,30 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_PARAM_UTILS_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_PARAM_UTILS_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/module_ref.hpp>
-#include <vector>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+template <migraphx::shape::type_t DType>
+struct test_add_dot : verify_program<test_add_dot<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {256, 256}};
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), add, z);
+        mm->add_return({dot});
+        return p;
+    }
+};
 
-MIGRAPHX_EXPORT std::string param_name(std::size_t i, const std::string& prefix = "x");
-
-void sort_params(std::vector<instruction_ref>& params);
-
-// Find the inputs for a module by finding instructions that are mapped to the
-// parameters in the module
-std::vector<instruction_ref>
-find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
-            const_module_ref parent,
-            const_module_ref sub);
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_PARAM_UTILS_HPP
+template struct test_add_dot<migraphx::shape::half_type>;
+template struct test_add_dot<migraphx::shape::float_type>;

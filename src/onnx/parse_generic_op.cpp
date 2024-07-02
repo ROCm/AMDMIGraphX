@@ -58,7 +58,6 @@ struct parse_generic_op : op_parser<parse_generic_op>
                 {"Log", "log"},
                 {"LRN", "lrn"},
                 {"Neg", "neg"},
-                {"OneHot", "onehot"},
                 {"Reciprocal", "recip"},
                 {"Relu", "relu"},
                 {"Round", "nearbyint"},

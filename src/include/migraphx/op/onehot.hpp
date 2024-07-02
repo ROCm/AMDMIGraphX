@@ -38,66 +38,112 @@ namespace op {
 /**
  * Produces a one-hot tensor.
  * Called with `axis` attribute that defaults to the last output axis
- * `onehot(indices, depth, values)`;
- * `onehot(indices, values)`;
+ * Constant depth: `onehot(indices, values), depth attribute must be set;
+ * Variable depth: `onehot(indices, depth, values)`;
  * `indicies` as a N rank tensor of indices where value is `on_value`
  * `depth` scalar with the number of classes for the one-hot dimension
  * `values` `[off_value, on_value]`
  * `axis` which axis to add the one-hot dimension to
  * For axis = 0 and rank(indices) = 2:
  * output is A[indicies[j, k], j, k] = on_value; A[i, j, k] = off_value otherwise
- * Can be simplified to others operators when `indices` has a static shape and
+ * Can be simplified to other operators when `indices` has a static shape and
  * `depth` is constant at compile-time.
  */
 struct onehot
 {
     // cannot use normalize_attribute here since rank(output_shape) = rank(indices) + 1
     int64_t axis = -1;
+    // optional depth attribute for static output shape
+    std::optional<int64_t> depth;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.axis, "axis"), f(self.depth, "depth"));
     }
 
     std::string name() const { return "onehot"; }
 
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this, true}.has(3);
-        // `depth` and `values` should have static shape
-        (void)check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
+        check_shapes{inputs, *this, true}.has(2, 3);
         const auto& indices_shape = inputs[0];
-        const auto& values_shape  = inputs[2];
-        auto output_dds           = indices_shape.to_dynamic().dyn_dims();
-        std::size_t max_val       = std::numeric_limits<std::size_t>::max();
         auto normalized_axis =
             (this->axis < 0) ? this->axis + indices_shape.ndim() + 1 : this->axis;
         if(normalized_axis > indices_shape.ndim())
         {
             MIGRAPHX_THROW("ONEHOT: axis is out of range");
         }
-        output_dds.insert(output_dds.begin() + normalized_axis,
-                          shape::dynamic_dimension{0, max_val});
-        return {values_shape.type(), output_dds};
+        if(depth.has_value())
+        {
+            if(depth.value() < 0)
+            {
+                MIGRAPHX_THROW("ONEHOT: negative depth attribute value");
+            }
+            check_shapes{inputs, *this, true}.has(2);
+            // `values` should have static shape
+            (void)check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
+            const auto& values_shape = inputs[1];
+            if(not indices_shape.dynamic())
+            {
+                // static output shape
+                auto output_lens = indices_shape.lens();
+                output_lens.insert(output_lens.begin() + normalized_axis, depth.value());
+                return {values_shape.type(), output_lens};
+            }
+            else
+            {
+                // dynamic output shape
+                auto output_dds       = indices_shape.to_dynamic().dyn_dims();
+                std::size_t depth_val = depth.value();
+                output_dds.insert(output_dds.begin() + normalized_axis,
+                                  shape::dynamic_dimension{depth_val, depth_val});
+                return {values_shape.type(), output_dds};
+            }
+        }
+        else
+        {
+            // dynamic output shape
+            check_shapes{inputs, *this, true}.has(3);
+            // `depth` and `values` should have static shape
+            (void)check_shapes{inputs.begin() + 1, inputs.end(), *this, false};
+            const auto& values_shape = inputs[2];
+            auto output_dds          = indices_shape.to_dynamic().dyn_dims();
+            std::size_t max_val      = std::numeric_limits<std::size_t>::max();
+            output_dds.insert(output_dds.begin() + normalized_axis,
+                              shape::dynamic_dimension{0, max_val});
+            return {values_shape.type(), output_dds};
+        }
     }
 
     argument compute(const shape&, std::vector<argument> args) const
     {
         auto indices_shape = args[0].get_shape();
-        int64_t depth;
-        args[1].visit([&](auto d) { depth = d(0); });
-        if(depth < 0)
+        int64_t depth_val;
+        auto values_iter = args.begin();
+        if(this->depth.has_value())
+        {
+            assert(args.size() == 2);
+            depth_val = depth.value();
+            values_iter += 1;
+        }
+        else
+        {
+            assert(args.size() == 3);
+            args[1].visit([&](auto d) { depth_val = d(0); });
+            values_iter += 2;
+        }
+        if(depth_val < 0)
         {
             MIGRAPHX_THROW("ONEHOT: negative depth value");
         }
         auto output_lens     = indices_shape.lens();
         auto normalized_axis = (axis < 0) ? axis + indices_shape.ndim() + 1 : axis;
-        output_lens.insert(output_lens.begin() + normalized_axis, depth);
-        shape output_shape{args[2].get_shape().type(), output_lens};
+        output_lens.insert(output_lens.begin() + normalized_axis, depth_val);
+        shape output_shape{values_iter->get_shape().type(), output_lens};
 
         argument result{output_shape};
-        visit_all(result, args[2])([&](auto output, auto values) {
+        visit_all(result, *values_iter)([&](auto output, auto values) {
             auto off_value = values(0);
             auto on_value  = values(1);
             // fill result with off_value
@@ -107,9 +153,9 @@ struct onehot
                 shape_for_each(ind_s, [&](const auto& idx) {
                     auto index = indices(idx.begin(), idx.end());
                     // normalize negative indices
-                    index = (index < 0) ? index + depth : index;
+                    index = (index < 0) ? index + depth_val : index;
                     // no on_value if index is out of range
-                    if(index >= 0 and index < depth)
+                    if(index >= 0 and index < depth_val)
                     {
                         std::vector<std::size_t> out_idx = idx;
                         out_idx.insert(out_idx.begin() + normalized_axis, index);

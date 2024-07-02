@@ -79,7 +79,7 @@ struct stream_info
                 // This will ensure a stream will be assigned to return
                 if(op.name() == "@return")
                     weight = 1;
-                if (op.name() == "@literal")
+                if(op.name() == "@literal")
                     weight = 2;
                 iweights[ins] = weight;
                 auto inputs   = ins->inputs();
@@ -148,9 +148,9 @@ struct stream_info
         partition copies;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
-        for (auto ins : iterator_for(m)) 
+        for(auto ins : iterator_for(m))
         {
-            if (ins->name() == "@literal") 
+            if(ins->name() == "@literal")
             {
                 partitions[ins];
                 copies.add(ins, 2);

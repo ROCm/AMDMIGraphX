@@ -60,52 +60,87 @@ void write_literals::apply(module& m) const
         if (temp_size > scratch_size) {
             scratch_size = temp_size;
         }
-
-        // m.debug_print(ins);
-        // std::cout << "Scratch size: " << temp_size << "\n\n";
     });
 
-    // std::cout << "Max Scratch Size: " << scratch_size << "\n";
-
-    // if(weight_streaming)
-    // {
-    //     std::cout << "Using weight streaming..." << std::endl;
-    //     std::cout << "Streaming budget: " << streaming_budget << std::endl;
-    // }
-
-    // hipMemGetInfo(&free, &total);
-    // std::cout << "Free: " << free << " Total: " << total << std::endl;
-
-    for(auto ins : iterator_for(m))
+    if(weight_streaming)
     {
-        if(ins->name() == "@literal")
+        long budget = streaming_budget;
+        if (budget == LONG_MAX)
         {
-            // hipMemGetInfo(&free, &total);
-            // std::cout << "Free: " << free << " Total: " << total << std::endl;
-            // std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
-            bytes_total += ins->get_shape().bytes();
-            if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
-               (weight_streaming &&
-                static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= scratch_size * 2))
+            budget = static_cast<long>(scratch_size * 2);
+        }
+        std::cout << "Using weight streaming..." << "\n";
+        std::cout << "Streaming budget: " << budget << "\n";
+        std::cout << "Scratch size: " << scratch_size << std::endl;
+
+        std::vector<instruction_ref> ins_list;
+        for (auto ins : iterator_for(m))
+        {
+            if(ins->name() == "@literal")
+            {
+                ins_list.push_back(ins);
+            }
+        }
+
+        std::sort(ins_list.begin(), ins_list.end(), [](const instruction_ref& a, const instruction_ref& b) {
+            return a->get_shape().bytes() > b->get_shape().bytes();
+        });
+
+        for (auto ins : ins_list)
+        {
+            if (bytes_on_gpu + ins->get_shape().bytes() > budget)
             {
                 literal l  = ins->get_literal();
                 auto pre   = m.add_literal(l);
                 auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                 m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
             }
+
             else
             {
                 bytes_on_gpu += ins->get_shape().bytes();
                 std::string id = m.name() + ":@literal:" + std::to_string(n);
                 m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
-                n++;
             }
 
-            // std::string id = m.name() + ":@literal:" + std::to_string(n);
-            // m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(), id, &m, false});
-            // n++;
         }
     }
+
+
+
+    // hipMemGetInfo(&free, &total);
+    // std::cout << "Free: " << free << " Total: " << total << std::endl;
+
+    // for(auto ins : iterator_for(m))
+    // {
+    //     if(ins->name() == "@literal")
+    //     {
+    //         // hipMemGetInfo(&free, &total);
+    //         // std::cout << "Free: " << free << " Total: " << total << std::endl;
+    //         // std::cout << n << ": " << ins->get_shape().bytes() << " bytes" << std::endl;
+    //         bytes_total += ins->get_shape().bytes();
+    //         if(enabled(MIGRAPHX_COPY_LITERALS{}) ||
+    //            (weight_streaming &&
+    //             static_cast<long>(bytes_on_gpu + ins->get_shape().bytes()) >= scratch_size * 2))
+    //         {
+    //             literal l  = ins->get_literal();
+    //             auto pre   = m.add_literal(l);
+    //             auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
+    //             m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
+    //         }
+    //         else
+    //         {
+    //             bytes_on_gpu += ins->get_shape().bytes();
+    //             std::string id = m.name() + ":@literal:" + std::to_string(n);
+    //             m.replace_instruction(ins, hip_copy_literal{ins->get_literal(), id});
+    //             n++;
+    //         }
+
+    //         // std::string id = m.name() + ":@literal:" + std::to_string(n);
+    //         // m.replace_instruction(ins, hip_weight_streaming_literal{ins, ins->get_literal(), id, &m, false});
+    //         // n++;
+    //     }
+    // }
 
     // std::cout << "Free: " << free << " Total: " << total << std::endl;
     // std::cout << "Literal size on gpu (bytes): " << bytes_on_gpu << std::endl;

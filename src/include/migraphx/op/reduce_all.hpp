@@ -21,26 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
+#define MIGRAPHX_GUARD_OPERATORS_REDUCE_ALL_HPP
 
-#include <migraphx/config.hpp>
-#include <string>
+#include <migraphx/op/reduce_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
 
-struct module_pass_manager;
-
-struct MIGRAPHX_EXPORT fuse_pointwise
+struct reduce_all : reduce_op<reduce_all>
 {
-    std::string name() const { return "fuse_pointwise"; }
-    void apply(module_pass_manager& mpm) const;
+    reduce_all() {}
+    reduce_all(std::vector<int64_t> ax) : reduce_op(std::move(ax)) {}
 
-    bool enable_rewrite_reshapes = true;
-    bool enable_rewrite_broadcasts = false;
+    auto op() const
+    {
+        return [=](auto x, auto y) {
+            if(static_cast<bool>(x) and static_cast<bool>(y))
+                return decltype(x){1};
+            return decltype(x){0};
+        };
+    }
+
+    auto init() const { return one(); }
 };
 
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_FUSE_POINTWISE_HPP
+
+#endif

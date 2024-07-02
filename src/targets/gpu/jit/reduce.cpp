@@ -203,7 +203,9 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                 "reduce_mean",
                 "reduce_max",
                 "reduce_min",
-                "reduce_prod"};
+                "reduce_prod",
+                "reduce_any",
+                "reduce_all"};
     }
 
     static std::size_t get_reduce_elements(const std::vector<shape>& inputs)

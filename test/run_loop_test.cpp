@@ -156,7 +156,7 @@ struct test_loop_op
         cpy_args.push_back(migraphx::argument(s_cond));
         cpy_args.push_back(migraphx::argument(out_shape));
         // run loop
-        return run_loop(test_loop{max_iterations}, ctx, cpy_args, mods, run);
+        return run_loop(test_loop{max_iterations}, {}, ctx, cpy_args, mods, run);
     }
 };
 

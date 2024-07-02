@@ -705,7 +705,13 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | STFT                     | ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| Scan                     | 👷        | 👷              |                              |
+| Scan                     | ✅        | UINT8, UINT16,  | ``identity``,                |
+|                          |           | UINT32, UINT64, | ``sequence``                 |
+|                          |           | INT8, INT16,    | datatypes are                |
+|                          |           | INT32, INT64,   | not supported,               |
+|                          |           | FP8, FP16,      | Number of iterations has     |
+|                          |           | FP32, FP64      | upper-bound                  |
+|                          |           |                 | Version 8 not supported      |
 +--------------------------+-----------+-----------------+------------------------------+
 | Scatter (deprecated)     | ✅        | BOOL, UINT8,    |                              |
 |                          |           | UINT16, UINT32, |                              |

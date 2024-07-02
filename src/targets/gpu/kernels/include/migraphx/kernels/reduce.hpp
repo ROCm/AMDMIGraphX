@@ -331,7 +331,7 @@ template <class Derived>
 struct reducer_base
 {
     template <class T>
-    __device__ auto make_inner_slice(T x) const
+    __device__ decltype(auto) make_inner_slice(T&& x) const
     {
         if constexpr(is_inner_storage<T>{})
         {

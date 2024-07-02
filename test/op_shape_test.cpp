@@ -3230,7 +3230,7 @@ TEST_CASE(reshape_dyn_1in)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
     for(auto&& new_shape : std::vector<std::vector<int64_t>>{
-            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}})
+            {-1, 1, 1, 24}, {0, 8, 3, 1}, {-1, 3, 4, 2}, {0, 2, 4, 3}, {2, 2, 12, 0}})
     {
         std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{};
         for(std::size_t i = 0; i < new_shape.size(); ++i)
@@ -3248,6 +3248,52 @@ TEST_CASE(reshape_dyn_1in)
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
         expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
     }
+}
+
+// more -1 dims attribute testing
+TEST_CASE(reshape_dyn_1in_negative_1_dims_0)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {
+        {1, 4}, {12, 12}, {2, 8}, {4, 16}};
+    migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 12, 0, -1}}}), input);
+}
+
+// output dynamic shape is surprising but that's how the calculation works out
+TEST_CASE(reshape_dyn_1in_negative_1_dims_1)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {
+        {1, 4}, {24, 384}, {2, 2}, {2, 2}};
+    migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, -1, 2, 2}}}), input);
+}
+
+TEST_CASE(reshape_dyn_1in_negative_1_dims_2)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {{1, 4}, {24, 24}, {4, 64}};
+    migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 0, -1}}}), input);
+}
+
+TEST_CASE(reshape_dyn_1in_negative_1_dims_3)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}}};
+    std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {{1, 4}, {4, 4}, {3, 3}, {2, 2}};
+    migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 4, 3, 2}}}), input);
+}
+
+// note how non-fixed dynamic dimension on axis=0 goes to 2 from `dims` attribute
+// code assumes that this will work at run-time
+TEST_CASE(reshape_dyn_1in_dyn_to_fixed)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    std::vector<int64_t> dims_attr = {2, 1, 1, 24};
+    migraphx::shape output{migraphx::shape::float_type, {{2, 2}, {1, 1}, {1, 1}, {24, 24}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", dims_attr}}), input);
 }
 
 TEST_CASE(reshape_dyn_2in_0)
@@ -3285,20 +3331,6 @@ TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
     migraphx::shape output{migraphx::shape::float_type, {{1, 8}, {1, 1}, {10, 20}, {24, 24}}};
     std::vector<int64_t> new_shape = {-1, 1, 0, 24};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
-}
-
-TEST_CASE(reshape_dyn_fixed_ele_not_matching_error)
-{
-    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 10}, {1, 1}}};
-    std::vector<int64_t> new_shape = {0, 1, 5, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
-}
-
-TEST_CASE(reshape_dyn_non_fixed_not_matching_error)
-{
-    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
-    std::vector<int64_t> new_shape = {2, 1, 1, 24};
-    throws_shape(migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
 TEST_CASE(reshape_lazy_shape)

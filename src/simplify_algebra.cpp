@@ -723,8 +723,6 @@ struct find_dot_broadcast
         auto ins = r.result;
         auto a   = ins->inputs()[0];
         auto b   = ins->inputs()[1];
-        if(a->get_operator().name() != b->get_operator().name())
-            return;
         if(ins->get_shape().lens().size() < 3)
             return;
         auto nbatch_axes      = ins->get_shape().lens().size() - 2;
@@ -742,18 +740,32 @@ struct find_dot_broadcast
         std::vector<std::size_t> axes(naxes);
         std::iota(axes.begin(), axes.end(), 0);
 
-        auto insert_broadcast = [&](instruction_ref b_ins) -> instruction_ref {
-            auto input = b_ins->inputs()[0];
-            std::vector<std::size_t> lens(b_ins->get_shape().lens().begin() + naxes,
-                                          b_ins->get_shape().lens().end());
-            if(b_ins->name() == "multibroadcast")
+        auto insert_broadcast = [&](instruction_ref x_ins) -> instruction_ref {
+            auto input = x_ins->inputs()[0];
+            std::vector<std::size_t> lens(x_ins->get_shape().lens().begin() + naxes,
+                                          x_ins->get_shape().lens().end());
+
+            if(input->get_shape().lens() == lens)
+                return input;
+
+            auto input_naxis  = input->get_shape().lens().size();
+            auto new_bc_naxis = lens.size();
+            if(input_naxis > new_bc_naxis)
+            {
+                std::vector<std::size_t> axes_to_sq(input_naxis - new_bc_naxis);
+                std::iota(axes_to_sq.begin(), axes_to_sq.end(), 0);
+                input =
+                    m.insert_instruction(ins, make_op("squeeze", {{"axes", axes_to_sq}}), input);
+            }
+
+            if(x_ins->name() == "multibroadcast")
             {
                 return m.insert_instruction(
                     ins, make_op("multibroadcast", {{"out_lens", lens}}), input);
             }
-            else if(b_ins->name() == "broadcast")
+            else if(x_ins->name() == "broadcast")
             {
-                auto v    = b_ins->get_operator().to_value();
+                auto v    = x_ins->get_operator().to_value();
                 auto axis = v.at("axis").to<std::size_t>() - naxes;
                 return m.insert_instruction(
                     ins, make_op("broadcast", {{"axis", axis}, {"out_lens", lens}}), input);
@@ -982,9 +994,10 @@ struct find_splits
 {
     auto matcher() const
     {
+        auto pointwise_reduction = match::any_of[match::outputs()](
+            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
         return match::any(
-            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
-                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
+            match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -1158,8 +1171,8 @@ struct find_split_concat
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+        auto concat = match::all_of[match::outputs()](match::name("concat"));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(concat)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1553,8 +1566,8 @@ struct find_rsqrt
 {
     auto matcher() const
     {
-        return match::name("recip")(match::args(
-            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+        auto bind_x = match::args(match::any().bind("x"));
+        return match::name("recip")(match::args(match::name("sqrt")(match::used_once(), bind_x)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1577,8 +1590,8 @@ struct find_split_reshape
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
-                                          match::arg(0)(match::name("slice").bind("slice")))))
+        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
             .bind("reshape");
     }
 

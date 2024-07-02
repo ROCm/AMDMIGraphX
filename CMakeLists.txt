@@ -362,7 +362,7 @@ rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX
-    DESCRIPTION "AMD's graph optimizer"
+    DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH

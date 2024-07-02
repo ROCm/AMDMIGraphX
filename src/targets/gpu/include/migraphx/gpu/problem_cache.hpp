@@ -38,6 +38,8 @@ struct problem_cache
     void insert(const std::string& name, const value& problem, const value& solution);
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
+    void load();
+    void save() const;
     std::unordered_map<value, value> cache;
 };
 

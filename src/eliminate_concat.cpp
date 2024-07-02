@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,10 +49,49 @@ void eliminate_concat::apply(module& m) const
         if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto arg) {
                return arg->name().front() == '@' or
                       (arg->get_operator().is_context_free() and
-                       not contains({"concat", "identity"}, arg->name())) or
-                      arg->outputs().size() > 1;
+                       not contains({"concat", "identity"}, arg->name()));
            }))
             continue;
+
+        // check if only one input has multiple uses
+        int num_uses = 0;
+        for(auto input : ins->inputs())
+        {
+            if(input->outputs().size() > 1)
+                num_uses++;
+        }
+
+        if(num_uses > 1)
+            continue;
+
+        // Last input should be an allocation
+        auto last = ins->inputs().back();
+        if(last->name() != concat_opt.allocate())
+            continue;
+        // Where are the allocations for the tensors to be concatenated?
+        std::vector<instruction_ref> allocations;
+
+        std::transform(
+            ins->inputs().begin(),
+            std::prev(ins->inputs().end()),
+            std::back_inserter(allocations),
+            [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
+
+        if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
+                return x->name() != concat_opt.allocate();
+            }))
+            continue;
+
+        // Need to sort the allocations, so that we know where to
+        // insert the "super"-allocation
+        auto sorted_allocations = allocations;
+        std::sort(sorted_allocations.begin(),
+                    sorted_allocations.end(),
+                    [&](instruction_ref x, instruction_ref y) {
+                        return std::distance(m.begin(), x) < std::distance(m.begin(), y);
+                    });
+        
+
         // We can only do this optimization when concat axis is either the leftmost
         // axis OR the sizes to the left of this axis are all equal to 1
         // Since we've already checked that the non-axis dimensions are identical
@@ -60,38 +99,14 @@ void eliminate_concat::apply(module& m) const
         auto lens              = ins->inputs().front()->get_shape().lens();
         auto concat_op         = concat_opt.get_concat(ins->get_operator());
         std::size_t axis_index = tune_axis(lens.size(), concat_op.axis, concat_op.name());
-        if(axis_index == 0 or
-           std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; }))
+        if(num_uses == 0 and
+           (axis_index == 0 or
+            std::all_of(lens.begin(), lens.begin() + axis_index, [](auto x) { return x == 1; })))
         {
-            // Last input should be an allocation
-            auto last = ins->inputs().back();
-            if(last->name() != concat_opt.allocate())
-                continue;
-            // Where are the allocations for the tensors to be concatenated?
-            std::vector<instruction_ref> allocations;
-
-            std::transform(
-                ins->inputs().begin(),
-                std::prev(ins->inputs().end()),
-                std::back_inserter(allocations),
-                [&](instruction_ref x) { return instruction::get_output_alias(x, true); });
-
-            if(std::any_of(allocations.begin(), allocations.end(), [&](auto x) {
-                   return x->name() != concat_opt.allocate();
-               }))
-                continue;
-
-            // Need to sort the allocations, so that we know where to
-            // insert the "super"-allocation
-            auto sorted_allocations = allocations;
-            std::sort(sorted_allocations.begin(),
-                      sorted_allocations.end(),
-                      [&](instruction_ref x, instruction_ref y) {
-                          return std::distance(m.begin(), x) < std::distance(m.begin(), y);
-                      });
             // Move "super" allocation to the front
             auto first = sorted_allocations.front();
             auto super = m.move_instruction(last, first);
+            
             // Replace each allocation with a load
             std::size_t offset = 0;
             for(auto alloc : allocations)
@@ -102,6 +117,30 @@ void eliminate_concat::apply(module& m) const
             }
             std::vector<instruction_ref> args = {super};
             std::copy(ins->inputs().begin(), ins->inputs().end() - 1, std::back_inserter(args));
+            m.replace_instruction(ins, migraphx::make_op("identity"), args);
+        }
+        else
+        {
+            // Move "super" allocation to the front
+            auto first = sorted_allocations.front();
+            auto super = m.move_instruction(last, first);
+
+            std::vector<instruction_ref> concat_inputs(ins->inputs().begin(),
+                                                       std::prev(ins->inputs().end()));
+
+            std::vector<instruction_ref> copy_instructions;
+            std::size_t offset = 0;
+            for(auto concat_input : concat_inputs)
+            {
+                op::load op{concat_input->get_shape(), offset};
+                auto load_ins = m.insert_instruction(std::next(concat_input), op, {super});
+                auto copy_ins =
+                    m.insert_instruction(std::next(load_ins), make_op(concat_opt.copy()), concat_input, load_ins);
+                copy_instructions.push_back(copy_ins);
+                offset += concat_input->get_shape().bytes();
+            }
+            std::vector<instruction_ref> args{super};
+            std::copy(copy_instructions.begin(), copy_instructions.end(), std::back_inserter(args));
             m.replace_instruction(ins, migraphx::make_op("identity"), args);
         }
     }

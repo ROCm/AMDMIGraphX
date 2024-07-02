@@ -45,6 +45,8 @@ struct concat_optimization
 {
     /// The name of the target-dependent concat operator
     std::string name() const;
+    /// A name of the target-dependent copy operator
+    std::string copy() const;
     /// A name of the target-dependent allocate operator
     std::string allocate() const;
     /// Return the target-independent concat operator
@@ -60,6 +62,8 @@ struct MIGRAPHX_EXPORT concat_optimization
 {
     //
     std::string name() const;
+    //
+    std::string copy() const;
     //
     std::string allocate() const;
     //
@@ -137,6 +141,12 @@ struct concat_optimization
         return (*this).private_detail_te_get_handle().name();
     }
 
+    std::string copy() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().copy();
+    }
+
     std::string allocate() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -164,6 +174,7 @@ struct concat_optimization
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::string name() const                         = 0;
+        virtual std::string copy() const                         = 0;
         virtual std::string allocate() const                     = 0;
         virtual op::concat get_concat(const operation& op) const = 0;
     };
@@ -197,6 +208,8 @@ struct concat_optimization
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::string name() const override { return private_detail_te_value.name(); }
+
+        std::string copy() const override { return private_detail_te_value.copy(); }
 
         std::string allocate() const override { return private_detail_te_value.allocate(); }
 

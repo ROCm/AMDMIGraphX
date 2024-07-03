@@ -21,8 +21,8 @@ If you dont see a failure, please proceed.
 Step 2 - See if its a B1 - rocMLIR compilation bug
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-So MLIR has two pipelines that is used to generate a kernel: - highlevel
-pipeline - backend pipeline
+MLIR has two pipelines that are used to generate a kernel: highlevel
+pipeline and backend pipeline
 
 Step 2.1 If the highlevel pipeline fails, you should see error that starts with
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

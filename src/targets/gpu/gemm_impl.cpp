@@ -432,6 +432,41 @@ struct gemm_impl
                     ldd,
                     compute_type);
     }
+    
+    /**
+     * Helper method to create that subset of a long rocBLAS argument list that is common
+     * to multiple "gemm_ex..." calls.
+     *
+     * The rocblas_gemm API handles inputs and output matrices as
+     *  column-major format. When doing a C = A * B, we actually do
+     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
+     *   A and args[0] as B in calling the rocblas_gemm.
+     *
+     * */
+    auto create_gemm_ex_args_common_fp8(context& ctx, const std::vector<argument>& args) const
+    {
+        return pack(ctx.get_stream().get_rocblas(),
+                    transb ? rocblas_operation_transpose : rocblas_operation_none,
+                    transa ? rocblas_operation_transpose : rocblas_operation_none,
+                    n,
+                    m,
+                    k,
+                    get_alpha(),
+                    args[1].data(),
+                    arg_type,
+                    ldb,
+                    args[0].data(),
+                    arg_type,
+                    lda,
+                    get_beta(),
+                    args[2].data(),
+                    output_type,
+                    ldc,
+                    is_3inputs ? args[3].data() : args[2].data(),
+                    output_type,
+                    ldd,
+                    rocblas_datatype_f32_r);
+    }
 
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
     /**
@@ -455,7 +490,29 @@ struct gemm_impl
         //
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
-        if(strided_batched)
+        bool is_fp8 = std::any_of(input_shapes.begin(), input_shapes.end(), [](auto s) {return s.type() == migraphx::shape::fp8e4m3fnuz_type;});
+        if(is_fp8) {
+            std::cout << "is fp8\n";
+            auto common_args = create_gemm_ex_args_common_fp8(ctx, input_args);
+            rocblas_invoke(&rocblas_gemm_ex_get_solutions,
+                           common_args,
+                           rocblas_gemm_algo_solution_index,
+                           gemm_flags,
+                           nullptr,
+                           &list_size);
+            solution_indices.resize(list_size);
+            std::cout << "received size\n";
+            auto common_sol_args = create_gemm_ex_args_common_fp8(ctx, input_args);
+            rocblas_invoke(&rocblas_gemm_ex_get_solutions,
+                           common_sol_args,
+                           rocblas_gemm_algo_solution_index,
+                           gemm_flags,
+                           solution_indices.data(),
+                           &list_size);
+            std::cout << "received indices\n";
+
+        }
+        else if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,

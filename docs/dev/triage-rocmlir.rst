@@ -13,7 +13,7 @@ There are broadly 3 categories of bugs that can be due to rocMLIR.
 Step 1 - Use MIGRAPHX_DISABLE_MLIR=1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First see if the bug persist disabling MLIR. If so, it is highly likely
+First see if the bug persists after disabling MLIR. If so, it is highly likely
 it is not a MLIR bug but rather a MIGraphX bug.
 
 If you dont see a failure, please proceed.

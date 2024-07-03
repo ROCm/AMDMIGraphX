@@ -43,20 +43,24 @@ void write_literals::apply(module& m) const
     if(weight_streaming)
     {
         std::size_t bytes_on_gpu = 0;
-        size_t scratch_size = 0;
+        size_t scratch_size      = 0;
         liveness(m, [&](auto ins, auto live_set) {
-            if (ins->name() != "hip::allocate" || ins->get_shape().bytes() == 0) {
+            if(ins->name() != "hip::allocate" or ins->get_shape().bytes() == 0)
+            {
                 return;
-            } 
+            }
             size_t temp_size = 0;
-            for (auto i : live_set) {
-                if (i->name() != "hip::allocate" || i->get_shape().bytes() == 0) {
+            for(auto i : live_set)
+            {
+                if(i->name() != "hip::allocate" or i->get_shape().bytes() == 0)
+                {
                     continue;
-                } 
+                }
                 temp_size += i->get_shape().bytes();
             }
 
-            if (temp_size > scratch_size) {
+            if(temp_size > scratch_size)
+            {
                 scratch_size = temp_size;
             }
         });
@@ -106,7 +110,7 @@ void write_literals::apply(module& m) const
         }
     }
 
-    else 
+    else
     {
         for(auto ins : iterator_for(m))
         {

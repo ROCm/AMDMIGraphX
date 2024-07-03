@@ -473,7 +473,7 @@ struct gemm_impl
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-    int tune(context& ctx, const std::vector<shape>& input_shapes) const
+    int tune(context& ctx, const std::vector<shape>& input_shapes) 
     {
         // tuning meta parameters
         const int hot_calls = 40;
@@ -490,29 +490,10 @@ struct gemm_impl
         //
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
-        bool is_fp8 = std::any_of(input_shapes.begin(), input_shapes.end(), [](auto s) {return s.type() == migraphx::shape::fp8e4m3fnuz_type;});
-        if(is_fp8) {
-            std::cout << "is fp8\n";
-            auto common_args = create_gemm_ex_args_common_fp8(ctx, input_args);
-            rocblas_invoke(&rocblas_gemm_ex_get_solutions,
-                           common_args,
-                           rocblas_gemm_algo_solution_index,
-                           gemm_flags,
-                           nullptr,
-                           &list_size);
-            solution_indices.resize(list_size);
-            std::cout << "received size\n";
-            auto common_sol_args = create_gemm_ex_args_common_fp8(ctx, input_args);
-            rocblas_invoke(&rocblas_gemm_ex_get_solutions,
-                           common_sol_args,
-                           rocblas_gemm_algo_solution_index,
-                           gemm_flags,
-                           solution_indices.data(),
-                           &list_size);
-            std::cout << "received indices\n";
-
+        if(rocblas_computetype(compute_type) == rocblas_compute_type_f32) {
+            compute_type = rocblas_datatype_f32_r;
         }
-        else if(strided_batched)
+        if(strided_batched)
         {
             auto common_args = create_strided_batched_args_common(ctx, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
@@ -551,6 +532,9 @@ struct gemm_impl
                            &list_size);
         }
 
+        if(compute_type == rocblas_datatype_f32_r and arg_type == rocblas_datatype_f8_r) {
+            compute_type = rocblas_compute_type_f32;
+        }
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
         // Initialize to default solution index

@@ -229,7 +229,7 @@ TEST_CASE(set_external_data_path)
     migraphx::onnx_options options;
     std::string model_path = "ext_path/external_data_test.onnx";
     auto onnx_buffer       = migraphx::read_string(model_path);
-    options.set_external_data_path(migraphx::fs::path(model_path).parent_path());
+    options.set_external_data_path(migraphx::fs::path(model_path).parent_path().string());
     auto p             = migraphx::parse_onnx_buffer(onnx_buffer, options);
     auto shapes_before = p.get_output_shapes();
     p.compile(migraphx::target("ref"));

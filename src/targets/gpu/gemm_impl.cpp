@@ -263,7 +263,7 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -272,7 +272,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -285,7 +285,7 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -294,7 +294,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -333,7 +333,7 @@ struct gemm_impl
 
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -342,7 +342,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -369,7 +369,7 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      */
-    auto create_strided_batched_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_strided_batched_args_common(context& ctx, rb_compute_type rbcompute_type, const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -396,7 +396,7 @@ struct gemm_impl
                     ldd,
                     d_stride,
                     num_matrices,
-                    compute_type);
+                    rbcompute_type);
     }
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
@@ -408,7 +408,7 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      * */
-    auto create_gemm_ex_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_gemm_ex_args_common(context& ctx, rb_compute_type rbcompute_type, const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -430,42 +430,7 @@ struct gemm_impl
                     is_3inputs ? args[3].data() : args[2].data(),
                     output_type,
                     ldd,
-                    compute_type);
-    }
-    
-    /**
-     * Helper method to create that subset of a long rocBLAS argument list that is common
-     * to multiple "gemm_ex..." calls.
-     *
-     * The rocblas_gemm API handles inputs and output matrices as
-     *  column-major format. When doing a C = A * B, we actually do
-     *   C^T = (B^T) * (A^T). That is the reason we input args[1] as
-     *   A and args[0] as B in calling the rocblas_gemm.
-     *
-     * */
-    auto create_gemm_ex_args_common_fp8(context& ctx, const std::vector<argument>& args) const
-    {
-        return pack(ctx.get_stream().get_rocblas(),
-                    transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    n,
-                    m,
-                    k,
-                    get_alpha(),
-                    args[1].data(),
-                    arg_type,
-                    ldb,
-                    args[0].data(),
-                    arg_type,
-                    lda,
-                    get_beta(),
-                    args[2].data(),
-                    output_type,
-                    ldc,
-                    is_3inputs ? args[3].data() : args[2].data(),
-                    output_type,
-                    ldd,
-                    rocblas_datatype_f32_r);
+                    rbcompute_type);
     }
 
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
@@ -473,7 +438,9 @@ struct gemm_impl
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-    int tune(context& ctx, const std::vector<shape>& input_shapes) 
+
+    
+    int tune(context& ctx, const std::vector<shape>& input_shapes)  const 
     {
         // tuning meta parameters
         const int hot_calls = 40;
@@ -490,12 +457,13 @@ struct gemm_impl
         //
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
-        if(rocblas_computetype(compute_type) == rocblas_compute_type_f32) {
-            compute_type = rocblas_datatype_f32_r;
+        rb_compute_type rbcompute_type = compute_type;
+        if(arg_type == rocblas_datatype_f8_r) {
+            rbcompute_type = rocblas_datatype_f32_r;
         }
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -504,7 +472,7 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_sol_args = create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -514,7 +482,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -523,7 +491,7 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_sol_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -532,9 +500,7 @@ struct gemm_impl
                            &list_size);
         }
 
-        if(compute_type == rocblas_datatype_f32_r and arg_type == rocblas_datatype_f8_r) {
-            compute_type = rocblas_compute_type_f32;
-        }
+        
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
         // Initialize to default solution index

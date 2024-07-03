@@ -438,8 +438,6 @@ struct gemm_impl
      * Find best rocBLAS solution:  Get list of solutions and try them all, returning the index
      * of the fastest one.
      */
-
-    
     int tune(context& ctx, const std::vector<shape>& input_shapes)  const 
     {
         // tuning meta parameters
@@ -458,6 +456,7 @@ struct gemm_impl
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
         rb_compute_type rbcompute_type = compute_type;
+        // rocblas_gemm_get_solutions() API requires compute_type as rocblas_datatype. Convert manually for FP8 
         if(arg_type == rocblas_datatype_f8_r) {
             rbcompute_type = rocblas_datatype_f32_r;
         }
@@ -500,7 +499,6 @@ struct gemm_impl
                            &list_size);
         }
 
-        
         double best_time  = std::numeric_limits<double>::max();
         double first_time = -1;
         // Initialize to default solution index

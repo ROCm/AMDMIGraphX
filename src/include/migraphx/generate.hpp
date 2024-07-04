@@ -33,7 +33,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-enum class MIGRAPHX_EXPORT random_mode
+enum class random_mode
 {
     legacy,
     random

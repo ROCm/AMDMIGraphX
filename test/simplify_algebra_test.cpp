@@ -4060,13 +4060,13 @@ TEST_CASE(find_concat_different_broadcast_axes)
     migraphx::shape s2{migraphx::shape::float_type, {1, 3, 1, 1, 1}};
     migraphx::module m1;
     {
-        auto l1      = m1.add_literal(migraphx::generate_literal(s1, 1));
-        auto l2      = m1.add_literal(migraphx::generate_literal(s2, 2));
+        auto l1  = m1.add_literal(migraphx::generate_literal(s1, 1));
+        auto l2  = m1.add_literal(migraphx::generate_literal(s2, 2));
         auto bc1 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {128, 3, 224, 224, 1}}}), l1);
         auto bc2 = m1.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {128, 3, 224, 224, 1}}}), l2);
-        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 4}}), bc1, bc2);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 4}}), bc1, bc2);
         m1.add_return({cat});
     };
 

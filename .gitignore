@@ -86,8 +86,3 @@ depend*/
 
 # local Python virtual environment
 .venv/
-
-examples/
-models/
-logs/
-.gitignore

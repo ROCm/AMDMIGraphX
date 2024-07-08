@@ -280,7 +280,7 @@ TEST_CASE(single_entry)
     auto onem2  = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(nary_op{}, onem1, onem2);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     EXPECT(t.get_stream(binary) == 0);
     EXPECT(get_wait_for(binary) ==
@@ -298,7 +298,7 @@ TEST_CASE(stream_free)
     auto onem2  = m.add_instruction(stream_free_op{}, one);
     auto binary = m.add_instruction(nary_op{}, onem1, onem2);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(onem1));
     EXPECT(not t.has_stream(onem2));
     EXPECT(not t.has_stream(binary));
@@ -316,7 +316,7 @@ TEST_CASE(zero_record)
     auto onei2  = m.add_instruction(migraphx::make_op("identity"), onem2);
     auto binary = m.add_instruction(nary_op{}, onei1, onei2);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     EXPECT(t.has_stream(binary));
     EXPECT(get_wait_for(binary) ==
@@ -335,7 +335,7 @@ TEST_CASE(zero_merge1)
     auto onem2  = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(migraphx::make_op("identity"), onem1, onem2);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     // No stream assignment
     EXPECT(not t.has_stream(binary));
@@ -356,7 +356,7 @@ TEST_CASE(zero_merge2)
                                     m.add_instruction(migraphx::make_op("identity"), onem1),
                                     m.add_instruction(migraphx::make_op("identity"), onem2));
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     // No stream assignment
     EXPECT(not t.has_stream(binary));
@@ -376,7 +376,7 @@ TEST_CASE(zero_merge3)
     auto id    = m.add_instruction(migraphx::make_op("identity"), onem1, onem2);
     auto final = m.add_instruction(unary_op{}, id);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     // No stream assignment
     EXPECT(not t.has_stream(id));
@@ -402,7 +402,7 @@ TEST_CASE(zero_merge4)
                                 m.add_instruction(migraphx::make_op("identity"), onem2));
     auto final = m.add_instruction(unary_op{}, id);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(onem1) != t.get_stream(onem2));
     // No stream assignment
     EXPECT(not t.has_stream(id));
@@ -426,7 +426,7 @@ TEST_CASE(double_entry)
     auto twop   = m.add_instruction(unary_op{}, two);
     auto binary = m.add_instruction(nary_op{}, onep, twop);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(not t.has_stream(two));
     EXPECT(t.get_stream(onep) != t.get_stream(twop));
     EXPECT(t.get_stream(binary) == 0);
@@ -445,7 +445,7 @@ TEST_CASE(two_branches)
     auto i1     = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(nary_op{}, i1, c1.back());
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 1);
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
@@ -467,7 +467,7 @@ TEST_CASE(four_branches)
     auto i1     = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back());
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
@@ -497,7 +497,7 @@ TEST_CASE(five_branches)
     auto i1     = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(nary_op{}, i1, c1.back(), c2.back(), c3.back(), c4.back());
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) == 3);
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
@@ -529,7 +529,7 @@ TEST_CASE(four_branches_eq)
     auto onep4  = m.add_instruction(unary_op{}, one);
     auto binary = m.add_instruction(nary_op{}, onem1, onem2, onep3, onep4);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(
         sorted<std::size_t>(
             {t.get_stream(onem1), t.get_stream(onem2), t.get_stream(onep3), t.get_stream(onep4)}) ==
@@ -559,7 +559,7 @@ TEST_CASE(seq_merge)
     auto binary2 = m.add_instruction(nary_op{}, i2, c2.back());
 
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
 
     EXPECT(t.get_stream(i1) != t.get_stream(c1.back()));
     for(auto ins : c1)
@@ -597,7 +597,7 @@ TEST_CASE(par_merge)
     auto binary3 = m.add_instruction(nary_op{}, binary1, binary2);
 
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(binary3) == 0);
 
     EXPECT(t.get_stream(i1) != t.get_stream(i2));
@@ -642,7 +642,7 @@ TEST_CASE(inner_par_merge)
     auto output = m.add_instruction(nary_op{}, binary1, binary2, outer1, outer2);
 
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(output) == 0);
     EXPECT(get_wait_for(output) == get_wait_for(t.get_stream(output),
                                                 {t.get_stream(binary1),
@@ -694,8 +694,8 @@ TEST_CASE(par_merge_multi_entry)
     auto binary3 = m.add_instruction(nary_op{}, binary1, binary2);
 
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
-    // EXPECT(not t.has_stream(two));
+    EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(two));
     EXPECT(t.get_stream(binary3) == 0);
 
     EXPECT(t.get_stream(i1) != t.get_stream(i2));
@@ -730,7 +730,7 @@ TEST_CASE(inner_split1)
     auto s2     = m.add_instruction(unary_op{}, c1);
     auto output = m.add_instruction(nary_op{}, i1, s1, s2);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1));
     EXPECT(t.get_stream(i1) != t.get_stream(s2));
     for(auto ins : c1)
@@ -758,7 +758,7 @@ TEST_CASE(inner_split2)
     auto s2     = chain(m, 4, unary_op{}, c1.back());
     auto output = m.add_instruction(nary_op{}, i1, s1.back(), s2.back());
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != t.get_stream(s1.back()));
     EXPECT(t.get_stream(i1) != t.get_stream(s2.back()));
     for(auto ins : c1)
@@ -785,7 +785,7 @@ TEST_CASE(inception_resnet)
     auto binary = m.add_instruction(nary_op{}, i1, c1.back());
     auto output = m.add_instruction(nary_op{}, binary, input);
     t.run_pass(m);
-    // EXPECT(not t.has_stream(one));
+    EXPECT(not t.has_stream(one));
     EXPECT(t.get_stream(i1) != 0);
     for(auto ins : c1)
         EXPECT(t.get_stream(ins) == 0);
@@ -934,7 +934,7 @@ TEST_CASE(inception1)
 
     EXPECT(get_wait_for(i80) == get_wait_for({t.get_stream(i39)}));
     EXPECT(get_wait_for(i69) == get_wait_for({t.get_stream(i39)}));
-    // EXPECT(get_wait_for(i94) == get_wait_for({t.get_stream(i39)}));
+    EXPECT(get_wait_for(i94) == get_wait_for({t.get_stream(i39)}));
     EXPECT(
         get_wait_for(output) ==
         get_wait_for(t.get_stream(output),

@@ -193,7 +193,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         promote_literals{},
         dead_code_elimination{},
         write_literals{&ctx, options.weight_streaming, options.streaming_budget},
-        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
+        schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{}), options.weight_streaming},
         memory_coloring{"hip::allocate"},
         sync_device{},
         preallocate_param{"scratch", gpu_allocation_model{}},

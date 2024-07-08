@@ -67,7 +67,7 @@ struct stream_info
 
     void calc_implicit_deps(const module& m) { mod_implicit_deps = m.calc_implicit_deps(); }
 
-    void accumulate_weights(instruction_ref last, const schedule_model& model)
+    void accumulate_weights(instruction_ref last, const schedule_model& model, bool stream_literals)
     {
         fix<std::size_t>([&](auto self, auto ins) -> std::size_t {
             if(not contains(weights, ins))
@@ -79,7 +79,7 @@ struct stream_info
                 // This will ensure a stream will be assigned to return
                 if(op.name() == "@return")
                     weight = 1;
-                if(op.name() == "@literal")
+                if(stream_literals and op.name() == "@literal")
                     weight = 2;
                 iweights[ins] = weight;
                 auto inputs   = ins->inputs();
@@ -141,18 +141,21 @@ struct stream_info
         }
     };
 
-    std::size_t assign_streams(module& m, std::size_t n)
+    std::size_t assign_streams(module& m, std::size_t n, bool stream_literals)
     {
         assert(n > 0);
         partition critical;
         partition copies;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
-        for(auto ins : iterator_for(m))
+        if(stream_literals) 
         {
-            if(ins->name() == "@literal")
+            for(auto ins : iterator_for(m))
             {
-                copies.add(ins, this->iweights[ins]);
+                if(ins->name() == "@literal")
+                {
+                    copies.add(ins, this->iweights[ins]);
+                }
             }
         }
 
@@ -166,7 +169,7 @@ struct stream_info
             // Add an entry so we know the instruction was visited
             partitions[ins];
 
-            if(ins->name() == "hip::copy_to_gpu")
+            if(stream_literals and ins->name() == "hip::copy_to_gpu")
             {
                 copies.add(ins, this->iweights[ins]);
                 return;
@@ -206,7 +209,8 @@ struct stream_info
         }
         else
         {
-            set_stream(copies, 1);
+            if(stream_literals)
+                set_stream(copies, 1);
             std::vector<std::size_t> streams(n - 1);
             // Assign streams for the other partitions
             for(auto&& ins_part : partitions)
@@ -556,8 +560,8 @@ void schedule::apply(module& m) const
     stream_info si;
     si.calc_implicit_deps(m);
     auto last = std::prev(m.end());
-    si.accumulate_weights(last, model);
-    auto nstreams = si.assign_streams(m, model.concurrency());
+    si.accumulate_weights(last, model, weight_streaming);
+    auto nstreams = si.assign_streams(m, model.concurrency(), weight_streaming);
     si.sort(m, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))

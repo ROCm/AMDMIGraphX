@@ -1115,6 +1115,7 @@ struct find_splits
             if(std::find(splits.begin(), splits.end(), i->inputs().at(split_idx)) == splits.end())
             {
                 auto args = i->inputs();
+                assert(args.size() == 2);
                 std::reverse(args.begin(), args.end());
                 m.replace_instruction(i, i->get_operator(), args);
             }

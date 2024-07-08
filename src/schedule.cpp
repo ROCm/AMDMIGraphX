@@ -148,7 +148,7 @@ struct stream_info
         partition copies;
         std::unordered_map<instruction_ref, std::deque<partition>> partitions;
         partitions.reserve(weights.size());
-        if(stream_literals) 
+        if(stream_literals)
         {
             for(auto ins : iterator_for(m))
             {

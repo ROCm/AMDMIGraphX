@@ -201,7 +201,6 @@ argument to_gpu(const argument& arg, bool host)
     argument result;
     arg.visit(
         [&](auto x) {
-            // std::cout << "Bytes requested: " << arg.get_shape().bytes() << std::endl;
             auto p = write_to_gpu(arg.data(), arg.get_shape().bytes(), host);
             result = {x.get_shape(), p};
         },

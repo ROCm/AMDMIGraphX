@@ -80,7 +80,6 @@ struct hip_allocate
     }
     argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
     {
-        // std::cout << "Attempting to allocate to gpu" << std::endl;
         return allocate_gpu(output_shape);
     }
 };
@@ -273,17 +272,7 @@ struct hip_copy_literal
 
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
-        // std::size_t free_before;
-        // std::size_t free_after;
-        // std::size_t total;
-        // auto status = hipMemGetInfo(&free_before, &total);
-        // std::cout << "[Before] Free: " << free_before << " Total: " << total << std::endl;
         argument a = to_gpu(l.get_argument());
-        // status     = hipMemGetInfo(&free_after, &total);
-        // if(status != hipSuccess) {}
-        // std::cout << "[After]  Free: " << free_after << " Total: " << total
-        //           << " Change: " << free_before - free_after << std::endl;
-
         store_preallocated_param(ctx, id, a);
     }
     friend std::ostream& operator<<(std::ostream& os, const hip_copy_literal& x)

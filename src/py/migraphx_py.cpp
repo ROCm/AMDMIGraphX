@@ -520,7 +520,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
            bool skip_unknown_operators,
-           bool print_program_on_error) {
+           bool print_program_on_error,
+           const std::string& external_data_path) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -528,6 +529,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
+            options.external_data_path     = external_data_path;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -538,7 +540,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
-        py::arg("print_program_on_error") = false);
+        py::arg("print_program_on_error") = false,
+        py::arg("external_data_path")     = "");
 
     m.def(
         "load",
@@ -571,7 +574,15 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         a.fill(values.begin(), values.end());
         return a;
     });
-    m.def("generate_argument", &migraphx::generate_argument, py::arg("s"), py::arg("seed") = 0);
+
+    m.def(
+        "generate_argument",
+        [](const migraphx::shape& s, unsigned long seed) {
+            return migraphx::generate_argument(s, seed);
+        },
+        py::arg("s"),
+        py::arg("seed") = 0);
+
     m.def("fill_argument", &migraphx::fill_argument, py::arg("s"), py::arg("value"));
     m.def("quantize_fp16",
           &migraphx::quantize_fp16,

@@ -34,7 +34,7 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
 
-    instruction_ref parse(const op_desc& /*opd*/,
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
                                        std::vector<instruction_ref> args) const
@@ -76,7 +76,7 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
         }
         else
         {
-            scale = 1 / sqrt(head_size);
+            scale = 0.0;//scale = 1 / sqrt(head_size);
         }
 
 
@@ -84,7 +84,8 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
         {
             MIGRAPHX_THROW("GroupQueryAttention: Wrong number of inputs provided");
         }
-        return info.add_instruction(make_op("group_query_attention", 
+
+        auto ret = info.add_instruction(make_op("group_query_attention", 
                                         {{"do_rotary", do_rotary}, 
                                         {"kv_num_heads", kv_num_heads},
                                         {"local_window_size", local_window_size},
@@ -92,6 +93,12 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
                                         {"rotary_interleaved", rotary_interleaved},
                                         {"scale", scale}}), 
                                             args);
+        auto ret_result = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), ret);
+        auto ret_present_key = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), ret);
+        auto ret_present_value = info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), ret);
+
+        return {ret_result, ret_present_key, ret_present_value};
+
     }
 };
 

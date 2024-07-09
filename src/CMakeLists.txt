@@ -112,6 +112,7 @@ add_library(migraphx
     split_single_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
+    use_padded_attention_mask.cpp
     value.cpp
     verify_args.cpp
 )

@@ -57,19 +57,13 @@ struct parse_simplifiedlayernorm : op_parser<parse_simplifiedlayernorm>
             std::cerr << "WARNING: LAYERNORM does not support stash_type, it will be ignored.\n";
         }
 
-        if(args.size() < 2 or args.size() > 3)
+        if(args.size() != 2)
         {
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input count");
         }
 
         auto x        = args.at(0);
         auto scale     = args.at(1);
-        bool has_bias = args.size() == 3;
-        instruction_ref bias;
-        if(has_bias)
-        {
-            bias = args.at(2);
-        }
 
         auto x_shape   = x->get_shape();
         auto x_dtype   = x_shape.type();
@@ -81,11 +75,6 @@ struct parse_simplifiedlayernorm : op_parser<parse_simplifiedlayernorm>
             MIGRAPHX_THROW("PARSE_LAYERNORM: invalid input shape");
         }
         
-        
-        // Contrip Op has bias as a specified input, but simplified code path does not use. 
-        // Current assumption is that it should be applied to input to mirror SkipSimplifiedLayerNormalization implementation.
-        if(has_bias)
-            x = info.add_common_op("add", x, bias);
         auto x_sq = info.add_common_op("mul", x, x);
         auto rms = info.add_instruction(make_op("reduce_mean", {{"axes", {axis}}}), x_sq);
         auto mean = rms;

@@ -127,7 +127,15 @@ struct dot
     {
         argument result = argument{dyn_out.computed_shape};
         visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
+            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f);
+            // std::size_t n_dims = cmat.get_shape().lens().size();
+            // std::size_t dim_0  = n_dims - 2;
+            // std::size_t dim_1  = n_dims - 1;
+            // auto m = amat.get_shape().lens()[dim_0];
+            // auto k  = amat.get_shape().lens()[dim_1];
+            // auto n = bmat.get_shape().lens()[dim_1];
+            // gemm(m, n, k, cmat.begin(), amat.begin(), bmat.begin(), 1.0f, 0.0f, amat.get_shape().type());
+        });
         return result;
     }
 };

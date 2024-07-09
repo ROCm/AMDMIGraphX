@@ -811,6 +811,18 @@ struct find_concat_op
                op.attributes().contains("pointwise");
     }
 
+    static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
+    {
+        auto concat_lens = ins.front()->get_shape().lens();
+        concat_lens.erase(concat_lens.begin() + axis);
+
+        return std::all_of(ins.begin(), ins.end(), [&](auto i) {
+            auto lens = i->get_shape().lens();
+            lens.erase(lens.begin() + axis);
+            return lens == concat_lens;
+        });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -854,6 +866,8 @@ struct find_concat_op
                 std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
                     return j->inputs().at(i);
                 });
+                if(not is_valid_concat(inputs, iaxis))
+                    return {start, last};
                 auto concat =
                     m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
                 concats.push_back(concat);
@@ -994,9 +1008,10 @@ struct find_splits
 {
     auto matcher() const
     {
+        auto pointwise_reduction = match::any_of[match::outputs()](
+            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
         return match::any(
-            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
-                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
+            match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -1170,8 +1185,8 @@ struct find_split_concat
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+        auto concat = match::all_of[match::outputs()](match::name("concat"));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(concat)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1565,8 +1580,8 @@ struct find_rsqrt
 {
     auto matcher() const
     {
-        return match::name("recip")(match::args(
-            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+        auto bind_x = match::args(match::any().bind("x"));
+        return match::name("recip")(match::args(match::name("sqrt")(match::used_once(), bind_x)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1589,8 +1604,8 @@ struct find_split_reshape
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
-                                          match::arg(0)(match::name("slice").bind("slice")))))
+        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
             .bind("reshape");
     }
 

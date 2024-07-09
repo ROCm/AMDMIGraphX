@@ -116,6 +116,8 @@ struct float8
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
 
+    inline explicit constexpr operator bool() const { return not is_zero(); }
+
     inline constexpr bool is_zero() const
     {
         if constexpr(FNUZ)

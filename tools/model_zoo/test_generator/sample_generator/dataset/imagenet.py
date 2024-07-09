@@ -20,12 +20,40 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+#
 #####################################################################################
-google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
-nlohmann/json@v3.8.0
-ROCm/half@rocm-5.6.0
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
-sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/composable_kernel@57cdd70b7cb14e5e3b60cd9a5f96ba8dc343763e -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocMLIR@da8969573d2ad408c7ad129126679838d82d9350 -DBUILD_FAT_LIBROCKCOMPILER=On
+from .base import BaseDataset
+from datasets import load_dataset
+
+
+class ImageNet2012Val(BaseDataset):
+    @property
+    def url(self):
+        return "https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar"
+
+    @property
+    def split(self):
+        return "val"
+
+    @staticmethod
+    def name():
+        return "imagenet-2012-val"
+
+    def __iter__(self):
+        print(f"Load dataset from {self.url}")
+        self.dataset = iter(
+            load_dataset("webdataset",
+                         data_files={self.split: self.url},
+                         split=self.split,
+                         streaming=True))
+        return self.dataset
+
+    def __next__(self):
+        return next(self.dataset)
+
+    def transform(self, inputs, data, prepocess_fn):
+        result = prepocess_fn(data["jpeg"])
+        inputs, keys = sorted(inputs), sorted(list(result.keys()))
+        assert inputs == keys, f"{inputs = } == {keys = }"
+        # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
+        return dict(result)

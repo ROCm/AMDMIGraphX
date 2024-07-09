@@ -30,8 +30,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
-#include <miopen/miopen.h>
-#include <migraphx/module.hpp>
 
 #include <utility>
 

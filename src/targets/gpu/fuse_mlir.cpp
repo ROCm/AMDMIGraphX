@@ -165,21 +165,30 @@ MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
+static const auto& reshaper_names()
+{
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "slice",
+        "transpose",
+        "multibroadcast",
+        "broadcast",
+        "contiguous",
+        "reshape",
+        "squeeze",
+        "flatten",
+        "unsqueeze"
+    };
+    // clang-format on
+    return names;
+}
+
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(contains({"slice",
-                    "transpose",
-                    "multibroadcast",
-                    "broadcast",
-                    "contiguous",
-                    "reshape",
-                    "squeeze",
-                    "flatten",
-                    "unsqueeze"},
-                   upper_input->name()))
+    while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
         if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
@@ -443,7 +452,7 @@ struct find_mlir_fused_ops
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name("contiguous"))(
+        auto dot_or_conv = match::skip(match::name(reshaper_names()))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
@@ -452,7 +461,7 @@ struct find_mlir_fused_ops
     {
         auto ins           = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input after contiguous
+        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper stream
         auto* pm           = ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());

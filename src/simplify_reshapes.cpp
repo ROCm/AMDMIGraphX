@@ -44,7 +44,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-const auto& reshaper_names()
+static const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {

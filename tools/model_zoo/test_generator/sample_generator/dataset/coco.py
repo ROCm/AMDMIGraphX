@@ -20,12 +20,27 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+#
 #####################################################################################
-google/protobuf@v3.19.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -X subdir -Dprotobuf_BUILD_TESTS=Off
-nlohmann/json@v3.8.0
-ROCm/half@rocm-5.6.0
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off
-sqlite3@3.43.2 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/composable_kernel@57cdd70b7cb14e5e3b60cd9a5f96ba8dc343763e -DCK_BUILD_JIT_LIB=On -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocMLIR@da8969573d2ad408c7ad129126679838d82d9350 -DBUILD_FAT_LIBROCKCOMPILER=On
+from .base import BaseDataset, ValidationDatasetHFIteratorMixin
+
+
+class COCO2017Val(ValidationDatasetHFIteratorMixin, BaseDataset):
+    @property
+    def url(self):
+        return "lmms-lab/COCO-Caption2017"
+
+    @property
+    def split(self):
+        return "val"
+
+    @staticmethod
+    def name():
+        return "coco-2017-val"
+
+    def transform(self, inputs, data, prepocess_fn):
+        result = prepocess_fn(data["image"])
+        inputs, keys = sorted(inputs), sorted(list(result.keys()))
+        assert inputs == keys, f"{inputs = } == {keys = }"
+        # The result should be a simple dict, the preproc returns a wrapped class, dict() will remove it
+        return dict(result)

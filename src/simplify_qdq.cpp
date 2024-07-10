@@ -324,38 +324,39 @@ bool precedes(Iterator x, Iterator y, Iterator last)
     return any_of(iterator_for(r), [&](auto it) { return it == y; });
 }
 
-struct match_qlinear_reused
-{
-    auto matcher() const
-    {
-        return match::name("quantizelinear")(
-            match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
-    }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins   = r.result;
-        auto x_ins = r.instructions["x"];
-        assert(ins != x_ins);
-
-        auto dq_inputs = ins->inputs();
-        dq_inputs[0]   = ins;
-        auto outputs   = x_ins->outputs();
-        if(outputs.size() != 2)
-            return;
-        for(auto output : outputs)
-        {
-            if(output->name() == "quantizelinear")
-                continue;
-            if(not output->get_operator().attributes().contains("pointwise"))
-                continue;
-            if(not precedes(ins, output, m.end()))
-                continue;
-            auto dq = m.insert_instruction(std::next(ins), make_op("dequantizelinear"), dq_inputs);
-            instruction::replace_argument(output, x_ins, dq);
-        }
-    }
-};
+// TODO: disabled for 6.2 release due to accuracy bug for quantized resnet50
+// struct match_qlinear_reused
+//{
+//     auto matcher() const
+//     {
+//         return match::name("quantizelinear")(
+//             match::used_once(), match::arg(0)(match::none_of(match::used_once()).bind("x")));
+//     }
+//
+//     void apply(module& m, const match::matcher_result& r) const
+//     {
+//         auto ins   = r.result;
+//         auto x_ins = r.instructions["x"];
+//         assert(ins != x_ins);
+//
+//         auto dq_inputs = ins->inputs();
+//         dq_inputs[0]   = ins;
+//         auto outputs   = x_ins->outputs();
+//         if(outputs.size() != 2)
+//             return;
+//         for(auto output : outputs)
+//         {
+//             if(output->name() == "quantizelinear")
+//                 continue;
+//             if(not output->get_operator().attributes().contains("pointwise"))
+//                 continue;
+//             if(not precedes(ins, output, m.end()))
+//                 continue;
+//             auto dq = m.insert_instruction(std::next(ins), make_op("dequantizelinear"),
+//             dq_inputs); instruction::replace_argument(output, x_ins, dq);
+//         }
+//     }
+// };
 
 bool is_same_value(instruction_ref a, instruction_ref b)
 {
@@ -401,7 +402,8 @@ void simplify_qdq::apply(module& m) const
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
     remove_qdq_pairs(m);
     migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
-    match::find_matches(m, match_qlinear_reused{});
+    // TODO: disabled for 6.2 release due to accuracy bug for quantized resnet50
+    // match::find_matches(m, match_qlinear_reused{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

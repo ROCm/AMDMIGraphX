@@ -14,7 +14,7 @@ Full documentation for MIGraphX is available at
 * Added a `--test` flag in migraphx-driver to validate the installation
 * Added support for ONNX Operator: Einsum
 * Added uint8 support in ONNX Operators
-* Introduced Split-K as a performance option
+* Enabled Split-k kernel configurations for performance improvements
 * Added fusion for group convolutions
 * Added rocMLIR conv3d support 
 * Added rocgdb to the Dockerfile

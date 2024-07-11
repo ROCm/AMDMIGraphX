@@ -428,17 +428,20 @@ struct find_mlir_fused_ops
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name("contiguous"))(
+        auto reshapes = reshaper_names();
+        // slice is not supported
+        reshapes.erase("slice");
+        auto dot_or_conv = match::skip(match::name(reshapes))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins           = r.result;
+        auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper stream
-        auto* pm           = ins->module_inputs().front();
+        auto x_ins            = r.instructions["x"]; // input to pointwise after reshaper op stream
+        auto* pm              = pw_ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
@@ -446,18 +449,27 @@ struct find_mlir_fused_ops
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         std::unordered_map<instruction_ref, instruction_ref> param_map =
-            create_param_map_with_literals(mm, pm, ins->get_shape());
-        param_map[x_ins] = anchor_op;
-        mm->add_return(mm->fuse(*pm, ins->inputs(), &param_map));
+            create_param_map_with_literals(mm, pm, pw_ins->get_shape());
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(x_ins);
+        assert(upper_input == gemm_based_op);
+        auto prev_input = anchor_op;
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        assert(prev_input->get_shape() == x_ins->get_shape());
+        param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
+                                       // input to pointwise in new fused module
+        mm->add_return(mm->fuse(*pm, pw_ins->inputs(), &param_map));
 
         std::vector<instruction_ref> inputs;
-        std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
+        std::copy_if(pw_ins->inputs().begin(),
+                     pw_ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op; });
+                     [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 

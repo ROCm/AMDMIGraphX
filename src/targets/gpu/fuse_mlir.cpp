@@ -312,30 +312,6 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
     return ins_map;
 }
 
-std::vector<instruction_ref>
-fold_pointwise_mod(instruction_ref pm_ins,
-                   module_ref parent_mod,
-                   const std::unordered_map<instruction_ref, instruction_ref>& ins_map)
-{
-    auto* pm   = pm_ins->module_inputs().front();
-    auto names = pm->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    std::unordered_map<instruction_ref, instruction_ref> param_map =
-        create_param_map_with_literals(parent_mod, pm, pm_ins->get_shape());
-    std::transform(names.begin(),
-                   names.end(),
-                   pm_ins->inputs().begin(),
-                   std::inserter(param_map, param_map.end()),
-                   [&](auto name, auto input) {
-                       if(ins_map.count(input))
-                           return std::make_pair(pm->get_parameter(name), ins_map.at(input));
-                       return std::make_pair(
-                           pm->get_parameter(name),
-                           parent_mod->add_parameter(name, input->get_shape().as_standard()));
-                   });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
-}
-
 // Whitelist supported fusion options, including imposing type constraints
 // for cases where MLIR only supports an operation (usually a pointwise function)
 // on particular types.
@@ -452,7 +428,7 @@ struct find_mlir_fused_ops
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name(reshaper_names()))(
+        auto dot_or_conv = match::skip(match::name("contiguous"))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
@@ -469,7 +445,10 @@ struct find_mlir_fused_ops
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
-        mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            create_param_map_with_literals(mm, pm, ins->get_shape());
+        param_map[x_ins] = anchor_op;
+        mm->add_return(mm->fuse(*pm, ins->inputs(), &param_map));
 
         std::vector<instruction_ref> inputs;
         std::copy_if(ins->inputs().begin(),
@@ -573,20 +552,23 @@ struct find_mlir_standalone_attention_op
 
         auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
 
-        std::unordered_map<instruction_ref, instruction_ref> ins_map;
-        ins_map[gemm_softmax_gemm] = gemm1;
-        auto ins_to_replace        = gemm1;
+        std::vector<instruction_ref> ins_to_replace = {gemm1};
         auto ins_to_be_replaced    = gemm_softmax_gemm;
         if(r.instructions.find("trailing_pm") != r.instructions.end())
         {
-            ins_to_replace = fold_pointwise_mod(r.instructions["trailing_pm"], mm, ins_map)[0];
-            std::copy_if(r.instructions["trailing_pm"]->inputs().begin(),
-                         r.instructions["trailing_pm"]->inputs().end(),
+            auto trailing_pm_ins = r.instructions["trailing_pm"];
+            auto ins_map         = create_param_map_with_literals(
+                mm, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
+            ins_map[gemm_softmax_gemm] = gemm1;
+            ins_to_replace             = mm->fuse(
+                *trailing_pm_ins->module_inputs().front(), trailing_pm_ins->inputs(), &ins_map);
+            std::copy_if(trailing_pm_ins->inputs().begin(),
+                         trailing_pm_ins->inputs().end(),
                          std::back_inserter(inputs),
                          [&](auto input) { return input != gemm_softmax_gemm; });
-            ins_to_be_replaced = r.instructions["trailing_pm"];
+            ins_to_be_replaced = trailing_pm_ins;
         }
-        mm->add_return({ins_to_replace});
+        mm->add_return(ins_to_replace);
 
         mpm.get_module().replace_instruction(
             ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});

@@ -90,7 +90,7 @@ TEST_CASE(dot_add)
             add_mlir(p2,
                      "mlir_main:pointwise0",
                      {x, a, b},
-                     {"x1", "y0", "y1"},
+                     {"x2", "y0", "y1"},
                      [=](auto* pm, const auto& inputs) {
                          auto dot =
                              pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);

@@ -108,8 +108,10 @@ static host_ptr_cache& get_host_ptr_cache()
 
 std::shared_ptr<void> allocate_gpu(std::size_t sz, bool host = false)
 {
+#ifndef _WIN32
     if(sz > get_available_gpu_memory())
         MIGRAPHX_THROW("Memory not available to allocate buffer: " + std::to_string(sz));
+#endif
     void* alloc_ptr = nullptr;
     auto status     = host ? hipHostMalloc(&alloc_ptr, sz) : hipMalloc(&alloc_ptr, sz);
     if(status != hipSuccess)

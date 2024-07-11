@@ -317,12 +317,13 @@ bool compare_literals(instruction_ref ins1, instruction_ref ins2)
     return (x == y) or diff_shapes_equal_vals;
 }
 
-template <class Iterator>
-bool precedes(Iterator x, Iterator y, Iterator last)
-{
-    auto r = range(std::next(x), last);
-    return any_of(iterator_for(r), [&](auto it) { return it == y; });
-}
+// TODO: disabled for 6.2 release due to accuracy bug for quantized resnet50
+// template <class Iterator>
+// bool precedes(Iterator x, Iterator y, Iterator last)
+//{
+//    auto r = range(std::next(x), last);
+//    return any_of(iterator_for(r), [&](auto it) { return it == y; });
+//}
 
 // TODO: disabled for 6.2 release due to accuracy bug for quantized resnet50
 // struct match_qlinear_reused

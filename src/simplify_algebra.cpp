@@ -266,6 +266,84 @@ struct find_mul_dot
     }
 };
 
+struct find_dot_slice
+{
+    auto matcher() const
+    {
+        return match::name("slice")(
+            match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto slice_ins = r.result;
+        auto dot_ins   = r.instructions["dot_ins"];
+        auto slice_op  = slice_ins->get_operator().to_value();
+        auto axes      = slice_op["axes"].to_vector<int64_t>();
+        auto starts    = slice_op["starts"].to_vector<int64_t>();
+        auto ends      = slice_op["ends"].to_vector<int64_t>();
+        assert(starts.size() == ends.size() and starts.size() == axes.size());
+        auto has_neg_vals = [](auto vec) {
+            return std::any_of(vec.begin(), vec.end(), [](auto i) { return i < 0; });
+        };
+        if(has_neg_vals(starts) or has_neg_vals(ends) or has_neg_vals(axes))
+        {
+            return;
+        }
+        auto dot_inputs     = dot_ins->inputs();
+        auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;
+        std::vector<int64_t> slice_axes_1, starts_1, ends_1;
+        std::vector<int64_t> slice_axes_2, starts_2, ends_2;
+        for(auto i : range(axes.size()))
+        {
+            if(axes[i] < num_batch_dims)
+            {
+                slice_axes_1.push_back(axes[i]);
+                starts_1.push_back(starts[i]);
+                ends_1.push_back(ends[i]);
+                slice_axes_2.push_back(axes[i]);
+                starts_2.push_back(starts[i]);
+                ends_2.push_back(ends[i]);
+            }
+            else if(axes[i] == num_batch_dims)
+            {
+                slice_axes_1.push_back(axes[i]);
+                starts_1.push_back(starts[i]);
+                ends_1.push_back(ends[i]);
+            }
+            else if(axes[i] == num_batch_dims + 1)
+            {
+                slice_axes_2.push_back(axes[i]);
+                starts_2.push_back(starts[i]);
+                ends_2.push_back(ends[i]);
+            }
+            else
+            {
+                MIGRAPHX_THROW("FIND_DOT_SLICE: invalid case");
+            }
+        }
+        auto slice_1 = dot_inputs.at(0);
+        if(not slice_axes_1.empty())
+        {
+            slice_1 = m.insert_instruction(
+                slice_ins,
+                migraphx::make_op("slice",
+                                  {{"axes", slice_axes_1}, {"starts", starts_1}, {"ends", ends_1}}),
+                dot_inputs.at(0));
+        }
+        auto slice_2 = dot_inputs.at(1);
+        if(not slice_axes_2.empty())
+        {
+            slice_2 = m.insert_instruction(
+                slice_ins,
+                migraphx::make_op("slice",
+                                  {{"axes", slice_axes_2}, {"starts", starts_2}, {"ends", ends_2}}),
+                dot_inputs.at(1));
+        }
+        m.replace_instruction(slice_ins, dot_ins->get_operator(), {slice_1, slice_2});
+    }
+};
+
 struct find_dot_mul
 {
     auto matcher() const
@@ -1896,6 +1974,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
+                            find_dot_slice{},
                             find_dot_mul{},
                             find_mul_add{},
                             find_unit_ops{},

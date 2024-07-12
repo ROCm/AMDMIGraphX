@@ -32,9 +32,7 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
-
     def create_onnx_test(op_test):
-
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:

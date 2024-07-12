@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/op/slice.hpp>
+#include <migraphx/op/onehot.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
@@ -399,8 +400,8 @@ struct find_const_alloc_reshapes
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::nargs(2),
-                                      match::arg(1)(match::name("allocate")(match::is_constant())));
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
+        return match::name("reshape")(match::nargs(2), const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -433,8 +434,8 @@ struct find_const_alloc_fill
 {
     auto matcher() const
     {
-        return match::name("fill")(match::arg(0)(match::is_constant()),
-                                   match::arg(1)(match::name("allocate")(match::is_constant())));
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
+        return match::name("fill")(match::arg(0)(match::is_constant()), const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -476,6 +477,79 @@ struct find_static_broadcast_for_dot
         m.replace_instruction(broadcast_for_dot_ins,
                               make_op("multibroadcast", {{"out_lens", output_lens}}),
                               inputs.at(0));
+    }
+};
+
+/**
+ * Simplify onehot instructions with static shape `indices` input and
+ * a compile-time constant `depth` input.
+ * From:
+ * onehot(static_shape_arg, constant_arg, values)
+ * To:
+ * A = literal(shape = onehot_output_shape, value = 0)
+ * B = unsqueeze(literal(lens = indices_lens, strides = broadcasted scalar, value = 1),
+ * axis=onehot_axis) C = scatter(A, unsqueeze(indices, axis=onehot_axis), B) diff = on_value -
+ * off_value D = mul(diff, C); return = add(D, off_value);
+ *
+ * NOTE: It might be cleaner to use some form of `fill` instead of
+ * (on_value - off_value) * mask + off_value when we have `fill` working
+ * on the GPU.
+ */
+struct find_static_onehot
+{
+    auto matcher() const
+    {
+        return match::name("onehot")(match::arg(0)(match::static_shape()),
+                                     match::arg(1)(match::is_constant()),
+                                     match::arg(2)(match::static_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto onehot_ins     = mr.result;
+        auto onehot_inputs  = onehot_ins->inputs();
+        auto onehot_op      = any_cast<op::onehot>(onehot_ins->get_operator());
+        auto indices_ins    = onehot_inputs[0];
+        shape indices_shape = indices_ins->get_shape();
+        auto depth_ins      = onehot_inputs[1];
+        auto values_ins     = onehot_inputs[2];
+        shape values_shape  = values_ins->get_shape();
+        std::vector<std::size_t> static_output_lens = indices_shape.lens();
+        auto normalized_axis =
+            (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
+        depth_ins->eval().visit([&](auto d) {
+            static_output_lens.insert(static_output_lens.begin() + normalized_axis, d[0]);
+        });
+        shape output_shape{values_shape.type(), static_output_lens};
+        std::vector<float> zeros(output_shape.elements(), 0);
+        auto zeros_lit      = m.add_literal(literal(output_shape, zeros));
+        auto unsqueeze_inds = m.insert_instruction(
+            onehot_ins, migraphx::make_op("unsqueeze", {{"axes", {normalized_axis}}}), indices_ins);
+        // broadcast the one scalar to the correct shape
+        auto ones_lit = m.add_literal(literal(shape{values_shape.type(), {1}, {0}}, {1}));
+        auto mb_ones  = m.insert_instruction(
+            onehot_ins,
+            migraphx::make_op("multibroadcast", {{"out_lens", unsqueeze_inds->get_shape().lens()}}),
+            ones_lit);
+        auto mask = m.insert_instruction(
+            onehot_ins,
+            make_op("scatter_none", {{"axis", normalized_axis}, {"skip_out_of_bounds", true}}),
+            zeros_lit,
+            unsqueeze_inds,
+            mb_ones);
+        auto off_val =
+            m.insert_instruction(onehot_ins,
+                                 make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}),
+                                 values_ins);
+        auto on_val =
+            m.insert_instruction(onehot_ins,
+                                 make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}),
+                                 values_ins);
+        auto diff_val      = m.insert_instruction(onehot_ins, make_op("sub"), on_val, off_val);
+        auto mul_diff_mask = insert_common_op(m, onehot_ins, make_op("mul"), {diff_val, mask});
+        auto mb_off_val    = m.insert_instruction(
+            onehot_ins, make_op("multibroadcast", {{"out_lens", output_shape.lens()}}), off_val);
+        m.replace_instruction(onehot_ins, make_op("add"), mb_off_val, mul_diff_mask);
     }
 };
 
@@ -624,7 +698,8 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_3in_slice{},
                         find_const_4in_slice{},
                         find_const_alloc_fill{},
-                        find_static_broadcast_for_dot{});
+                        find_static_broadcast_for_dot{},
+                        find_static_onehot{});
     match::find_matches(m, simplify_select_module_output_shape{});
 }
 

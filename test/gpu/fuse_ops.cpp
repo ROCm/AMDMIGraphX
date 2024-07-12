@@ -271,6 +271,8 @@ TEST_CASE(contiguous_pointwise)
     };
 }
 
+// gpu::convolution not supported since MIOpen is OFF
+#if MIGRAPHX_USE_MIOPEN
 TEST_CASE(pointwise_layout_convolution)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 320, 128, 128}};
@@ -353,6 +355,7 @@ TEST_CASE(pointwise_layout_convolution)
     migraphx::program p2 = create_fused_program();
     EXPECT(p1 == p2);
 }
+#endif
 
 TEST_CASE(concat_pointwise_contiguous)
 {

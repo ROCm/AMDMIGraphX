@@ -1,8 +1,8 @@
-	(skip_simplified_layer_normalization_test:æ
-W
+	(skip_simplified_layer_normalization_test:ø
+
 x
 skip
-gammay" SkipSimplifiedLayerNormalization*
+gammaymeaninv_std_varinput_skip_bias_sum" SkipSimplifiedLayerNormalization*
 epsilon¬Å'7 :com.microsoft(skip_simplified_layer_normalization_testZ
 x
 
@@ -22,6 +22,22 @@ W
 
 b
 y
+
+
+
+
+b
+mean
+
+
+
+b!
+inv_std_var
+
+
+
+b)
+input_skip_bias_sum
 
 
 

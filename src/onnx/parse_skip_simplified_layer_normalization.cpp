@@ -81,7 +81,7 @@ struct parse_skip_simplified_layer_normalization
         auto skip  = args.at(1);
         auto gamma = args.at(2);
         instruction_ref bias;
-        if (args.size() == 4)
+        if(args.size() == 4)
         {
             bias = args.at(3);
         }
@@ -110,22 +110,23 @@ struct parse_skip_simplified_layer_normalization
         auto rrms   = info.add_instruction(make_op("rsqrt"), rms);
         auto result = info.add_common_op("mul", x, rrms);
         result      = info.add_common_op("mul", result, gamma);
-        if (args.size() == 4)
+        if(args.size() == 4)
         {
             result = info.add_common_op("add", result, bias);
-            x = info.add_common_op("add", x, bias);
+            x      = info.add_common_op("add", x, bias);
         }
 
         // Outputs (1 - 4)
         // output : T
         // 3D output tensor with shape (batch_size, sequence_length, hidden_size)Or 2D output tensor
-        // with shape (token_count, hidden_size) 
+        // with shape (token_count, hidden_size)
         // mean (optional) : U Saved mean used during training
-        // to speed up gradient computation 
+        // to speed up gradient computation
         // inv_std_var (optional) : U Saved inverse standard
-        // variance used during training to speed up gradient computation. 
-        // input_skip_bias_sum (optional) : T Sum of the input and skip inputs (and bias if it exists)with shape
-        // (batch_size, sequence_length, hidden_size) or (token_count, hidden_size).
+        // variance used during training to speed up gradient computation.
+        // input_skip_bias_sum (optional) : T Sum of the input and skip inputs (and bias if it
+        // exists)with shape (batch_size, sequence_length, hidden_size) or (token_count,
+        // hidden_size).
 
         return {result, mean, rrms, x};
     }

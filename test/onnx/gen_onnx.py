@@ -32,7 +32,9 @@ from onnx.numpy_helper import from_array
 
 
 def onnx_test(external_data=False):
+
     def create_onnx_test(op_test):
+
         def run_test():
             op_info = op_test()
             if len(op_info) > 3:
@@ -10090,16 +10092,20 @@ def skip_simplified_layer_normalization_test():
     gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
     mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
-    inv_std_var = helper.make_tensor_value_info('inv_std_var', TensorProto.FLOAT, [2, 2, 1])
-    input_skip_bias_sum = helper.make_tensor_value_info('input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
 
-    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
-                                 inputs=['x', 'skip', 'gamma'],
-                                 outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
-                                 epsilon=1e-5,
-                                 domain="com.microsoft")
+    node = onnx.helper.make_node(
+        'SkipSimplifiedLayerNormalization',
+        inputs=['x', 'skip', 'gamma'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
 
-    return ([node], [x, skip, gamma], [y, mean, inv_std_var, input_skip_bias_sum])
+    return ([node], [x, skip,
+                     gamma], [y, mean, inv_std_var, input_skip_bias_sum])
 
 
 @onnx_test()
@@ -10108,19 +10114,23 @@ def skip_simplified_layer_normalization_bias_test():
     skip = helper.make_tensor_value_info('skip', TensorProto.FLOAT16,
                                          [2, 2, 4])
     gamma = helper.make_tensor_value_info('gamma', TensorProto.FLOAT16, [4])
-    bias  = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16, [4])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
     mean = helper.make_tensor_value_info('mean', TensorProto.FLOAT, [2, 2, 1])
-    inv_std_var = helper.make_tensor_value_info('inv_std_var', TensorProto.FLOAT, [2, 2, 1])
-    input_skip_bias_sum = helper.make_tensor_value_info('input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
+    inv_std_var = helper.make_tensor_value_info('inv_std_var',
+                                                TensorProto.FLOAT, [2, 2, 1])
+    input_skip_bias_sum = helper.make_tensor_value_info(
+        'input_skip_bias_sum', TensorProto.FLOAT16, [2, 2, 4])
 
-    node = onnx.helper.make_node('SkipSimplifiedLayerNormalization',
-                                 inputs=['x', 'skip', 'gamma', 'bias'],
-                                 outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
-                                 epsilon=1e-5,
-                                 domain="com.microsoft")
+    node = onnx.helper.make_node(
+        'SkipSimplifiedLayerNormalization',
+        inputs=['x', 'skip', 'gamma', 'bias'],
+        outputs=['y', 'mean', 'inv_std_var', 'input_skip_bias_sum'],
+        epsilon=1e-5,
+        domain="com.microsoft")
 
-    return ([node], [x, skip, gamma, bias], [y, mean, inv_std_var, input_skip_bias_sum])
+    return ([node], [x, skip, gamma,
+                     bias], [y, mean, inv_std_var, input_skip_bias_sum])
 
 
 @onnx_test()

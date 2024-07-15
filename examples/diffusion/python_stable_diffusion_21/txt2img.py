@@ -25,15 +25,9 @@ from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
 
-
+import migraphx as mgx
 import os
 import sys
-
-mgx_lib_path = "/code/AMDMIGraphX/build/lib/"
-if mgx_lib_path not in sys.path:
-    sys.path.append(mgx_lib_path)
-import migraphx as mgx
-
 import torch
 import time
 from functools import wraps

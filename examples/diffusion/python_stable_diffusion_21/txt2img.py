@@ -25,13 +25,22 @@ from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
 
-import migraphx as mgx
+
 import os
 import sys
+
+mgx_lib_path = "/code/AMDMIGraphX/build/lib/"
+if mgx_lib_path not in sys.path:
+    sys.path.append(mgx_lib_path)
+import migraphx as mgx
+
 import torch
 import time
 from functools import wraps
 
+from hip import hip
+from collections import namedtuple
+HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
 # measurement helper
 def measure(fn):
@@ -258,10 +267,46 @@ class StableDiffusionMGX():
             "vae": tensors_to_args(self.tensors['vae']),
         }
 
+        self.events = {
+            "warmup":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "run":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "clip":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "denoise":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+            "decode":
+            HipEventPair(start=hip.hipEventCreate()[1],
+                         end=hip.hipEventCreate()[1]),
+        }
+
+        self.stream = hip.hipStreamCreate()[1]
+
+    def cleanup(self):
+        for event in self.events.values():
+            hip.hipEventDestroy(event.start)
+            hip.hipEventDestroy(event.end)
+        hip.hipStreamDestroy(self.stream)
+
+    def profile_start(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].start, None)
+
+    def profile_end(self, name):
+        if name in self.events:
+            hip.hipEventRecord(self.events[name].end, None)
+
     @measure
     @torch.no_grad()
     def run(self, prompt, negative_prompt, steps, seed, scale):
         torch.cuda.synchronize()
+        self.profile_start("run")
+
         # need to set this for each run
         self.scheduler.set_timesteps(steps, device="cuda")
 
@@ -269,7 +314,9 @@ class StableDiffusionMGX():
         prompt_tokens = self.tokenize(prompt, negative_prompt)
 
         print("Creating text embeddings...")
+        self.profile_start("clip")
         text_embeddings = self.get_embeddings(prompt_tokens)
+        self.profile_end("clip")
 
         print(
             f"Creating random input data ({1}x{4}x{64}x{64}) (latents) with seed={seed}..."
@@ -282,18 +329,41 @@ class StableDiffusionMGX():
         latents = latents * self.scheduler.init_noise_sigma
 
         print("Running denoising loop...")
+        self.profile_start("denoise")
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
             latents = self.denoise_step(text_embeddings, latents, t, scale)
+        self.profile_end("denoise")
 
         print("Scale denoised result...")
         latents = 1 / 0.18215 * latents
 
+        self.profile_start("decode")
         print("Decode denoised result...")
         image = self.decode(latents)
+        self.profile_end("decode")
 
         torch.cuda.synchronize()
+        self.profile_end("run")
         return image
+    
+    def print_summary(self, denoise_steps):
+        print('WARMUP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['warmup'].start,
+                                    self.events['warmup'].end)[1]))
+        print('CLIP\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['clip'].start,
+                                    self.events['clip'].end)[1]))
+        print('UNetx{}\t{:>9.2f} ms'.format(
+            str(denoise_steps),
+            hip.hipEventElapsedTime(self.events['denoise'].start,
+                                    self.events['denoise'].end)[1]))
+        print('VAE-Dec\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['decode'].start,
+                                    self.events['decode'].end)[1]))
+        print('RUN\t{:>9.2f} ms'.format(
+            hip.hipEventElapsedTime(self.events['run'].start,
+                                    self.events['run'].end)[1]))
 
     @staticmethod
     @measure
@@ -390,7 +460,7 @@ class StableDiffusionMGX():
 
     @measure
     def warmup(self, num_runs):
-
+        self.profile_start("warmup")
         copy_tensor_sync(self.tensors["clip"]["input_ids"],
                          torch.ones((2, 77)).to(torch.int32))
         copy_tensor_sync(self.tensors["unet"]["sample"],
@@ -406,6 +476,7 @@ class StableDiffusionMGX():
             run_model_sync(self.models["clip"], self.model_args["clip"])
             run_model_sync(self.models["unet"], self.model_args["unet"])
             run_model_sync(self.models["vae"], self.model_args["vae"])
+        self.profile_end("warmup")
 
 
 if __name__ == "__main__":
@@ -417,6 +488,11 @@ if __name__ == "__main__":
     sd.warmup(5)
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
+
+    print("Summary")
+    sd.print_summary(args.steps)
+    print("Cleanup")
+    sd.cleanup()
 
     print("Convert result to rgb image...")
     image = StableDiffusionMGX.convert_to_rgb_image(result)

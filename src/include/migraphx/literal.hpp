@@ -102,6 +102,8 @@ struct literal : raw_data<literal>
     {
         auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
         return {m_shape, [b]() { return b.get(); }};
+
+        return {m_shape, buffer.get()};
     }
 
     private:

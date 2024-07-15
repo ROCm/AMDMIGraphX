@@ -100,7 +100,7 @@ struct literal : raw_data<literal>
     /// Convert the data to an argument
     argument get_argument(bool weight_streaming = false) const
     {
-        if (not weight_streaming)
+        if(not weight_streaming)
         {
             auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
             return {m_shape, [b]() { return b.get(); }};

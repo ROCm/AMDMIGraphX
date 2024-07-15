@@ -444,7 +444,8 @@ std::vector<argument> generic_eval(const module* mod,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(weight_streaming); }));
+            results.emplace(
+                ins, trace(ins, [&] { return ins->get_literal().get_argument(weight_streaming); }));
         }
         else if(name == "@param")
         {
@@ -532,7 +533,8 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
     return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument> program::eval(parameter_map params, execution_environment exec_env, bool weight_streaming) const
+std::vector<argument>
+program::eval(parameter_map params, execution_environment exec_env, bool weight_streaming) const
 {
     auto& contexts = this->impl->contexts;
 
@@ -554,54 +556,65 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
-        ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
-            const auto& ctx = contexts[ins->get_target_id()];
-            ctx.finish();
-            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-            timer t{};
-            auto result = f();
-            double t1   = t.record<milliseconds>();
-            ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               not result.empty())
-            {
-                migraphx::argument buffer;
-                try
+        ret = generic_eval(
+            *this,
+            contexts,
+            std::move(params),
+            [&](instruction_ref ins, auto f) {
+                const auto& ctx = contexts[ins->get_target_id()];
+                ctx.finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                timer t{};
+                auto result = f();
+                double t1   = t.record<milliseconds>();
+                ctx.finish();
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
+                   not result.empty())
                 {
-                    const target& tgt = this->impl->targets.at(ins->get_target_id());
-                    buffer            = tgt.copy_from(result);
+                    migraphx::argument buffer;
+                    try
+                    {
+                        const target& tgt = this->impl->targets.at(ins->get_target_id());
+                        buffer            = tgt.copy_from(result);
+                    }
+                    catch(const migraphx::exception&)
+                    {
+                        // instruction was run on host then no need to copy buffer from target
+                        buffer = result;
+                    }
+                    catch(...)
+                    {
+                        MIGRAPHX_THROW(
+                            "MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
+                    }
+                    if(trace_level == 2)
+                    {
+                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                                  << std::endl;
+                        std::cout << "Output: ";
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                        print_statistics(std::cout, buffer);
+                    }
+                    else
+                    {
+                        std::cout << "Output: " << buffer << std::endl;
+                    }
                 }
-                catch(const migraphx::exception&)
-                {
-                    // instruction was run on host then no need to copy buffer from target
-                    buffer = result;
-                }
-                catch(...)
-                {
-                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                }
-                if(trace_level == 2)
-                {
-                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                              << std::endl;
-                    std::cout << "Output: ";
-                    preview_argument(std::cout, buffer);
-                    std::cout << std::endl;
-                    print_statistics(std::cout, buffer);
-                }
-                else
-                {
-                    std::cout << "Output: " << buffer << std::endl;
-                }
-            }
-            return result;
-        }, weight_streaming);
+                return result;
+            },
+            weight_streaming);
     }
     else
     {
-        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); }, weight_streaming);
+        ret = generic_eval(
+            *this,
+            contexts,
+            std::move(params),
+            [&](auto&&, auto f) { return f(); },
+            weight_streaming);
     }
 
     if(exec_env.async)
@@ -851,18 +864,27 @@ void program::mark(const parameter_map& params, marker&& m, bool weight_streamin
     this->finish();
     // Start marking
     m.mark_start(*this);
-    generic_eval(*this, ctx, params, [&](auto ins, auto f) {
-        argument result;
-        m.mark_start(ins);
-        result = f();
-        m.mark_stop(ins);
-        return result;
-    }, weight_streaming);
+    generic_eval(
+        *this,
+        ctx,
+        params,
+        [&](auto ins, auto f) {
+            argument result;
+            m.mark_start(ins);
+            result = f();
+            m.mark_stop(ins);
+            return result;
+        },
+        weight_streaming);
     m.mark_stop(*this);
 }
 
-void program::perf_report(
-    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed, bool weight_streaming) const
+void program::perf_report(std::ostream& os,
+                          std::size_t n,
+                          parameter_map params,
+                          std::size_t batch,
+                          bool detailed,
+                          bool weight_streaming) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
@@ -881,22 +903,32 @@ void program::perf_report(
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(*this, ctx, params, [&](auto ins, auto) {
-        ins_vec[ins].reserve(n);
-        return argument{ins->get_shape(), nullptr};
-    }, weight_streaming);
+    generic_eval(
+        *this,
+        ctx,
+        params,
+        [&](auto ins, auto) {
+            ins_vec[ins].reserve(n);
+            return argument{ins->get_shape(), nullptr};
+        },
+        weight_streaming);
 
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
-        generic_eval(*this, ctx, params, [&](auto ins, auto f) {
-            argument result;
-            ins_vec[ins].push_back(time<milliseconds>([&] {
-                result = f();
-                this->impl->contexts[ins->get_target_id()].finish();
-            }));
-            return result;
-        }, weight_streaming);
+        generic_eval(
+            *this,
+            ctx,
+            params,
+            [&](auto ins, auto f) {
+                argument result;
+                ins_vec[ins].push_back(time<milliseconds>([&] {
+                    result = f();
+                    this->impl->contexts[ins->get_target_id()].finish();
+                }));
+                return result;
+            },
+            weight_streaming);
     }
     for(auto&& p : ins_vec)
         std::sort(p.second.begin(), p.second.end());

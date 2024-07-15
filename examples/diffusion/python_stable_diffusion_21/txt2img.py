@@ -485,7 +485,9 @@ if __name__ == "__main__":
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
                             args.fp16, args.force_compile,
                             args.exhaustive_tune)
+    print("Warmup")
     sd.warmup(5)
+    print("Run")
     result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
                     args.scale)
 

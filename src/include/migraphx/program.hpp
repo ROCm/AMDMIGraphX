@@ -78,7 +78,8 @@ struct MIGRAPHX_EXPORT program
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
     std::vector<argument> eval(parameter_map params,
-                               execution_environment exec_env = execution_environment{}) const;
+                               execution_environment exec_env = execution_environment{},
+                               bool weight_streaming = false) const;
 
     std::vector<argument> eval_with_context(std::vector<context>& ctx, parameter_map params) const;
 
@@ -108,9 +109,10 @@ struct MIGRAPHX_EXPORT program
                      std::size_t n,
                      parameter_map params,
                      std::size_t batch = 1,
-                     bool detailed     = false) const;
+                     bool detailed     = false,
+                     bool weight_streaming = false) const;
 
-    void mark(const parameter_map& params, marker&& m);
+    void mark(const parameter_map& params, marker&& m, bool weight_streaming = false) const;
 
     value to_value() const;
     void from_value(const value& v);

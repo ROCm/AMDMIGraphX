@@ -79,9 +79,13 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
         });
-        // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c) perfConfig
-        // can not allow fused module
-        if(gemm_like_ins != smod->end() and std::distance(gemm_like_ins, smod->end()) > 2 and
+        auto pointwise_ins = std::find_if(gemm_like_ins, smod->end(), [&](const auto& i) {
+            return i.get_operator().attributes().get("pointwise", false) == true;
+        });
+      
+        // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
+        // perfConfig can not allow fused module
+        if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
             auto input_args = ins->inputs();

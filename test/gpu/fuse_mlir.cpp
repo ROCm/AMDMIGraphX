@@ -67,7 +67,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
         {pm});
 }
 
-TEST_CASE(dot_reshape_add)
+TEST_CASE(dot_reshapes_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
     migraphx::program p1;

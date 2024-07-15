@@ -43,6 +43,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/version.h>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -612,6 +613,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
 #else
-    m.attr("__version__") = "dev";
+    m.attr("__version__") = std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+                            std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                            std::to_string(MIGRAPHX_VERSION_PATCH) + ".dev";
 #endif
 }

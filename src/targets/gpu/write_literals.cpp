@@ -84,11 +84,11 @@ void write_literals::apply(module& m) const
             }
         }
 
-        std::sort(ins_list.begin(),
-                  ins_list.end(),
-                  [](const instruction_ref& a, const instruction_ref& b) {
-                      return a->get_shape().bytes() > b->get_shape().bytes();
-                  });
+        // std::sort(ins_list.begin(),
+        //           ins_list.end(),
+        //           [](const instruction_ref& a, const instruction_ref& b) {
+        //               return a->get_shape().bytes() > b->get_shape().bytes();
+        //           });
 
         for(auto ins : ins_list)
         {

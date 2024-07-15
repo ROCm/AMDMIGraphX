@@ -457,7 +457,7 @@ struct find_mlir_fused_ops
         {
             prev_input = mm->add_instruction(op, {prev_input});
         }
-        assert(prev_input->get_shape() == x_ins->get_shape());
+        assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
         param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
                                        // input to pointwise in new fused module
         mm->add_return(mm->fuse(*pm, pw_ins->inputs(), &param_map));

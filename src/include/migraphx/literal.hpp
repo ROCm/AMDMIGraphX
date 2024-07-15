@@ -100,8 +100,8 @@ struct literal : raw_data<literal>
     /// Convert the data to an argument
     argument get_argument() const
     {
-        auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
-        return {m_shape, [b]() { return b.get(); }};
+        // auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
+        // return {m_shape, [b]() { return b.get(); }};
 
         return {m_shape, buffer.get()};
     }

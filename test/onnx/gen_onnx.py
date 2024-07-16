@@ -7435,7 +7435,7 @@ def nonzero_int_test():
 
 
 @onnx_test()
-def onehot_test():
+def onehot_static_test():
     axis_value = 0
     depth = np.array([3])
     indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
@@ -7447,6 +7447,24 @@ def onehot_test():
                                       data_type=TensorProto.INT32,
                                       dims=None,
                                       vals=depth.astype(int))
+
+    node = onnx.helper.make_node('OneHot',
+                                 inputs=['indices', 'depth', 'values'],
+                                 outputs=['y'],
+                                 axis=axis_value)
+
+    return ([node], [indices, values], [y], [depth_tensor])
+
+
+@onnx_test()
+def onehot_dyn_test():
+    axis_value = 0
+    depth = np.array([3])
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [None, 2])
+    depth = helper.make_tensor_value_info("depth", TensorProto.INT32, [1])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT16, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 5, 2])
 
     node = onnx.helper.make_node('OneHot',
                                  inputs=['indices', 'depth', 'values'],

@@ -24,7 +24,7 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(onehot_test)
+TEST_CASE(onehot_static_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -33,10 +33,27 @@ TEST_CASE(onehot_test)
     auto indices =
         mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {5, 2}});
     auto values = mm->add_parameter("values", migraphx::shape{migraphx::shape::half_type, {2}});
-    auto ret =
-        mm->add_instruction(migraphx::make_op("onehot", {{"axis", 0}}), indices, depth, values);
+    auto ret    = mm->add_instruction(
+        migraphx::make_op("onehot", {{"axis", 0}, {"depth", 3}}), indices, values);
     mm->add_return({ret});
 
-    auto prog = read_onnx("onehot_test.onnx");
+    auto prog = read_onnx("onehot_static_test.onnx");
+    EXPECT(p == prog);
+}
+
+TEST_CASE(onehot_dyn_test)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto depth = mm->add_literal(
+        migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {1}, {0}}, {3}));
+    auto indices =
+        mm->add_parameter("indices", migraphx::shape{migraphx::shape::int32_type, {5, 2}});
+    auto values = mm->add_parameter("values", migraphx::shape{migraphx::shape::half_type, {2}});
+    auto ret    = mm->add_instruction(
+        migraphx::make_op("onehot", {{"axis", 0}, {"depth", 3}}), indices, values);
+    mm->add_return({ret});
+
+    auto prog = read_onnx("onehot_static_test.onnx");
     EXPECT(p == prog);
 }

@@ -102,26 +102,13 @@ struct mlir_compiler : compiler<mlir_compiler>
                 mod_splits = smod->split(input_args, {gemm_like_ins}, {});
             else
                 mod_splits = smod->split(input_args, {gemm_like_ins}, {split_ins_pw});
-            std::cout << "gemm mod\n";
-            mod_splits[0].mod.debug_print();
-            std::cout << "reshapes mod\n";
-            mod_splits[1].mod.debug_print();
-            std::cout << "pointwise mod\n";
-            mod_splits[2].mod.debug_print();
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_shapes        = to_shapes(mod_splits[2].inputs);
-            std::cout << "pointwise module inputs\n";
-            for(const auto i : mod_splits[2].inputs)
-            {
-                i->debug_print();
-            }
             pw_shapes.push_back(mod_splits[2].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
             auto pw_mod                        = create_pointwise_module(&mod_splits[2].mod);
-            std::cout << "pointwise module that is created\n";
-            pw_mod.debug_print();
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
@@ -218,21 +205,26 @@ struct mlir_compiler : compiler<mlir_compiler>
                                 const operation& op,
                                 const std::vector<instruction_ref>& inputs,
                                 const std::vector<module_ref>& mod_args) -> instruction_ref {
-                                 if(op.name() == "contiguous")
+                                 if(op.name() == "reshape")
                                  {
                                      return insert_mod.insert_instruction(
-                                         insert_loc, make_op("identity"), inputs);
-                                     //  auto contiguous_alloc = insert_mod.insert_instruction(
-                                     //      insert_loc,
-                                     //      make_op(
-                                     //          "hip::allocate",
-                                     //          {{"shape",
-                                     //            to_value(op.compute_shape(to_shapes(inputs)))}}));
-                                     //  auto contiguous_inputs = inputs;
-                                     //  contiguous_inputs.push_back(contiguous_alloc);
-                                     //  return insert_mod.insert_instruction(
-                                     //      insert_loc, make_op("gpu::contiguous"),
-                                     //      contiguous_inputs);
+                                         insert_loc,
+                                         make_op("reshape_lazy",
+                                                 {{"dims",
+                                                   op.compute_shape(to_shapes(inputs)).lens()}}),
+                                         inputs);
+                                 } else if(op.name() == "contiguous")
+                                 {
+                                     auto contiguous_alloc = insert_mod.insert_instruction(
+                                         insert_loc,
+                                         make_op(
+                                             "hip::allocate",
+                                             {{"shape",
+                                               to_value(op.compute_shape(to_shapes(inputs)))}}));
+                                     auto contiguous_inputs = inputs;
+                                     contiguous_inputs.push_back(contiguous_alloc);
+                                     return insert_mod.insert_instruction(
+                                         insert_loc, make_op("gpu::contiguous"), contiguous_inputs);
                                  }
                                  else
                                      return insert_mod.insert_instruction(

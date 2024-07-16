@@ -197,7 +197,33 @@ struct mlir_compiler : compiler<mlir_compiler>
                         }
                     }
                     reshape_ins =
-                        m.insert_instructions(ins, &mods[1].mod, &reshape_mod_map).front();
+                        m.insert_instructions(
+                             ins,
+                             &mods[1].mod,
+                             &reshape_mod_map,
+                             [](module& insert_mod,
+                                instruction_ref insert_loc,
+                                const operation& op,
+                                const std::vector<instruction_ref>& inputs,
+                                const std::vector<module_ref>& mod_args) -> instruction_ref {
+                                 if(op.name() == "contiguous")
+                                 {
+                                     auto contiguous_alloc = insert_mod.insert_instruction(
+                                         insert_loc,
+                                         make_op(
+                                             "hip::allocate",
+                                             {{"shape",
+                                               to_value(op.compute_shape(to_shapes(inputs)))}}));
+                                     auto contiguous_inputs = inputs;
+                                     contiguous_inputs.push_back(contiguous_alloc);
+                                     return insert_mod.insert_instruction(
+                                         insert_loc, make_op("gpu::contiguous"), contiguous_inputs);
+                                 }
+                                 else
+                                     return insert_mod.insert_instruction(
+                                         insert_loc, op, inputs, mod_args);
+                             })
+                            .front();
                 }
                 auto pwm = mods[2];
                 pwm.replace(split_pw, reshape_ins);

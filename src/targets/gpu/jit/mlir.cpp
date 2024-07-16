@@ -90,22 +90,29 @@ struct mlir_compiler : compiler<mlir_compiler>
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
-            auto mod_splits      = smod->split(input_args, {gemm_like_ins});
+            auto split_ins_pw = std::prev(pointwise_ins);
+            std::array<module_with_inputs, 3> mod_splits;
+            if(split_ins_pw == gemm_like_ins)
+                mod_splits = smod->split(input_args, {gemm_like_ins}, {});
+            else
+                mod_splits = smod->split(input_args, {gemm_like_ins}, {split_ins_pw});
+            std::cout << "gemm mod\n";
+            mod_splits[0].mod.debug_print();
+            std::cout << "reshapes mod\n";
+            mod_splits[1].mod.debug_print();
+            std::cout << "pointwise mod\n";
+            mod_splits[2].mod.debug_print();
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
-            auto pw_inputs        = mod_splits[1].inputs;
-            auto dot_ins_idx      = std::distance(
-                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_like_ins), pw_inputs.begin());
-            auto pw_shapes         = to_shapes(mod_splits[1].inputs);
-            pw_shapes[dot_ins_idx] = cop1.cop.output;
-            pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+            auto pw_shapes        = to_shapes(mod_splits[2].inputs);
+            pw_shapes.push_back(mod_splits[2].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
-            auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
+            auto pw_mod                        = create_pointwise_module(&mod_splits[2].mod);
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
-            return insert(cops, mod_splits, ins, gemm_like_ins);
+            return insert(cops, mod_splits, ins, gemm_like_ins, split_ins_pw);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
@@ -130,9 +137,10 @@ struct mlir_compiler : compiler<mlir_compiler>
     }
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
-                            const std::array<module_with_inputs, 2>& mods,
+                            const std::array<module_with_inputs, 3>& mods,
                             instruction_ref precompile_ins,
-                            instruction_ref split_ins) const
+                            instruction_ref split_ins,
+                            instruction_ref split_pw) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
@@ -175,9 +183,24 @@ struct mlir_compiler : compiler<mlir_compiler>
                                });
                 auto mlir =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
-                assert(contains(mods[1].inputs, split_ins));
-                auto pwm = mods[1];
-                pwm.replace(split_ins, mlir);
+                auto reshape_ins = mlir;
+                if(mods[1].mod.size() > 0)
+                {
+                    assert(contains(mods[1].inputs, split_ins));
+                    std::unordered_map<instruction_ref, instruction_ref> reshape_mod_map;
+                    for(const auto i : iterator_for(mods[1].mod))
+                    {
+                        if(i->name() == "@param")
+                        {
+                            reshape_mod_map[i] = mlir;
+                            break;
+                        }
+                    }
+                    reshape_ins =
+                        m.insert_instructions(ins, &mods[1].mod, &reshape_mod_map).front();
+                }
+                auto pwm = mods[2];
+                pwm.replace(split_pw, reshape_ins);
                 auto pw_inputs = pwm.inputs;
                 pw_inputs.push_back(ins->inputs().back());
                 std::vector<instruction_ref> pw_inputs_updated;

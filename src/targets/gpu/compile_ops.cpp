@@ -227,6 +227,7 @@ struct compile_plan
                            cr->replace.replace(*bench_mm, bench_ins);
                            // do dead code elimination by directly removing instruction
                            bench_mm->remove_instruction(bench_ins);
+                           bench_prog.debug_print();
                            auto t = time_program(*ctx, bench_prog, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;

@@ -37,17 +37,16 @@ struct test_gemm_reshapes_add : verify_program<test_gemm_reshapes_add<DType>>
         auto* mm = p.get_main_module();
         migraphx::shape m1_shape{DType, {1, 2, 1024}};
         migraphx::shape m2_shape{DType, {1, 1024, 320}};
-        migraphx::shape m3_shape{DType, {1, 2, 320}};
+        migraphx::shape m3_shape{DType, {320, 2}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        // auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot);
-        // auto dot_trans =
-        //     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}),
-        //     dot_sq);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot_sq);
+        mm->add_instruction(migraphx::make_op("add"), dot_trans, l3);
         return p;
     }
 

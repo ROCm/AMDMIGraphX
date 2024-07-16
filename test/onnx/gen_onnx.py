@@ -7445,7 +7445,7 @@ def onehot_static_test():
 
     depth_tensor = helper.make_tensor(name="depth",
                                       data_type=TensorProto.INT32,
-                                      dims=None,
+                                      dims=depth.shape,
                                       vals=depth.astype(int))
 
     node = onnx.helper.make_node('OneHot',
@@ -7457,14 +7457,18 @@ def onehot_static_test():
 
 
 @onnx_test()
-def onehot_dyn_test():
-    axis_value = 0
+def onehot_dyn_test0():
+    axis_value = -1
     depth = np.array([3])
     indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
                                             [None, 2])
-    depth = helper.make_tensor_value_info("depth", TensorProto.INT32, [1])
     values = helper.make_tensor_value_info("values", TensorProto.FLOAT16, [2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [3, 5, 2])
+
+    depth_tensor = helper.make_tensor(name="depth",
+                                      data_type=TensorProto.INT32,
+                                      dims=depth.shape,
+                                      vals=depth.astype(int))
 
     node = onnx.helper.make_node('OneHot',
                                  inputs=['indices', 'depth', 'values'],
@@ -7472,6 +7476,23 @@ def onehot_dyn_test():
                                  axis=axis_value)
 
     return ([node], [indices, values], [y], [depth_tensor])
+
+
+@onnx_test()
+def onehot_dyn_test1():
+    axis_value = 1
+    indices = helper.make_tensor_value_info("indices", TensorProto.INT32,
+                                            [None, 2])
+    depth = helper.make_tensor_value_info("depth", TensorProto.INT64, [1])
+    values = helper.make_tensor_value_info("values", TensorProto.FLOAT, [2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 5, 2])
+
+    node = onnx.helper.make_node('OneHot',
+                                 inputs=['indices', 'depth', 'values'],
+                                 outputs=['y'],
+                                 axis=axis_value)
+
+    return ([node], [indices, values, depth], [y])
 
 
 @onnx_test()

@@ -618,7 +618,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                           std::to_string(MIGRAPHX_VERSION_PATCH) + ".dev";
 
     std::string tweak(MIGRAPHX_VERSION_TWEAK);
-    if(!tweak.empty())
+    if(not tweak.empty())
         version_string += "+" + tweak;
 
     m.attr("__version__") = version_string;

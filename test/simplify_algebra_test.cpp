@@ -4233,8 +4233,18 @@ TEST_CASE(dot_slice_not_applicable_2)
             dot);
         m1.add_return({slice});
     };
-    migraphx::module m2 = m1;
     run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto a_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {128}}}), a);
+        auto b_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {128}}}), b);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_slice, b_slice);
+        m2.add_return({dot});
+    };
     EXPECT(m1.sort() == m2.sort());
 }
 

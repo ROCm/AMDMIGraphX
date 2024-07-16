@@ -187,6 +187,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                 if(mods[1].mod.size() > 0)
                 {
                     assert(contains(mods[1].inputs, split_ins));
+                    (void)(split_ins);
                     assert(mods[1].mod.get_parameters().size() == 1);
                     auto param_ins =
                         std::find_if(mods[1].mod.begin(), mods[1].mod.end(), [](const auto& i) {

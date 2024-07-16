@@ -4081,6 +4081,173 @@ TEST_CASE(dot_mul_b_non_const)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(dot_slice_b)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", as);
+        auto b     = m1.add_parameter("b", bs);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {128}}}), dot);
+        m1.add_return({slice});
+    };
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto b_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {128}}}), b);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, b_slice);
+        m2.add_return({dot});
+    };
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_slice_a)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", as);
+        auto b     = m1.add_parameter("b", bs);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {128}}}), dot);
+        m1.add_return({slice});
+    };
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto a_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {128}}}), a);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_slice, b);
+        m2.add_return({dot});
+    };
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_slice_ab)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", as);
+        auto b     = m1.add_parameter("b", bs);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice",
+                              {{"axes", {1, 2}}, {"starts", {64, 64}}, {"ends", {128, 128}}}),
+            dot);
+        m1.add_return({slice});
+    };
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto a_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {128}}}), a);
+        auto b_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {128}}}), b);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_slice, b_slice);
+        m2.add_return({dot});
+    };
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_slice_batch_dims)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", as);
+        auto b     = m1.add_parameter("b", bs);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice = m1.add_instruction(
+            migraphx::make_op(
+                "slice", {{"axes", {0, 1, 2}}, {"starts", {0, 64, 64}}, {"ends", {1, 128, 128}}}),
+            dot);
+        m1.add_return({slice});
+    };
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto a_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {0, 64}}, {"ends", {1, 128}}}),
+            a);
+        auto b_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {0, 64}}, {"ends", {1, 128}}}),
+            b);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_slice, b_slice);
+        m2.add_return({dot});
+    };
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_slice_not_applicable_1)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", as);
+        auto b      = m1.add_parameter("b", bs);
+        auto dot    = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice1 = m1.add_instruction(
+            migraphx::make_op("slice",
+                              {{"axes", {1, 2}}, {"starts", {64, 64}}, {"ends", {128, 128}}}),
+            dot);
+        auto slice2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), dot);
+
+        m1.add_return({slice1, slice2});
+    };
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(dot_slice_not_applicable_2)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 256, 32}};
+    migraphx::shape bs{migraphx::shape::float_type, {2, 32, 128}};
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", as);
+        auto b     = m1.add_parameter("b", bs);
+        auto dot   = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto slice = m1.add_instruction(
+            migraphx::make_op("slice",
+                              {{"axes", {-2, -1}}, {"starts", {64, 64}}, {"ends", {128, 128}}}),
+            dot);
+        m1.add_return({slice});
+    };
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto a       = m2.add_parameter("a", as);
+        auto b       = m2.add_parameter("b", bs);
+        auto a_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {64}}, {"ends", {128}}}), a);
+        auto b_slice = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {64}}, {"ends", {128}}}), b);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_slice, b_slice);
+        m2.add_return({dot});
+    };
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_concat)
 {
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};

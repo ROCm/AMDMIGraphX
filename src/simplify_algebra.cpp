@@ -293,7 +293,7 @@ struct find_dot_slice
         };
         if(has_neg_vals(starts) or has_neg_vals(ends) or has_neg_vals(axes))
         {
-            MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized inside.");
+            MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
         }
         auto dot_inputs     = dot_ins->inputs();
         auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;

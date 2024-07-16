@@ -266,6 +266,11 @@ struct find_mul_dot
     }
 };
 
+/*
+Moves the slice on the output of the Dot operation to slices on the inputs of the Dot operation to
+avoid computing redundant values.
+e.g. slice(gemm(a, b)) --> gemm(slice(a), slice(b))
+*/
 struct find_dot_slice
 {
     auto matcher() const

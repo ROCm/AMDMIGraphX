@@ -245,6 +245,21 @@ struct MIGRAPHX_EXPORT module
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
 
+    // Fuse the instruction into the module by inserting the instructions and
+    // parameters for any missing inputs.
+    std::vector<instruction_ref>
+    fuse(const std::vector<instruction_ref>& inss,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
+
+    // Fuse another module into this module by inserting the instructions and
+    // parameters from the module
+    std::vector<instruction_ref>
+    fuse(const module& m,
+         const std::vector<instruction_ref>& inputs,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
+
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
     void debug_print(instruction_ref ins,

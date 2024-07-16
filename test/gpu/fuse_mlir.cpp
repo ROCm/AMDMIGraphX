@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/shape.hpp"
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>

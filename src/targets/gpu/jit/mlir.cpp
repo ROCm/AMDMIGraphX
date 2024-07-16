@@ -205,6 +205,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                                 const std::vector<module_ref>& mod_args) -> instruction_ref {
                                  if(op.name() == "reshape")
                                  {
+                                     // TODO: Add proper lowering for the reshape op
                                      return insert_mod.insert_instruction(
                                          insert_loc,
                                          make_op("reshape_lazy",

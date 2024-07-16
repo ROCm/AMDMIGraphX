@@ -440,8 +440,8 @@ struct find_mlir_fused_ops
     {
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins            = r.instructions["x"]; // input to pointwise after reshaper op stream
-        auto* pm              = pw_ins->module_inputs().front();
+        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
+        auto* pm           = pw_ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());

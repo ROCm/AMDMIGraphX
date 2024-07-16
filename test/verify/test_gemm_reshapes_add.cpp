@@ -42,7 +42,7 @@ struct test_gemm_reshapes_add : verify_program<test_gemm_reshapes_add<DType>>
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        auto dot    = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
         auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot);
         auto dot_trans =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot_sq);

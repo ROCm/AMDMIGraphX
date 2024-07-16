@@ -85,7 +85,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto pointwise_ins = std::find_if(gemm_like_ins, smod->end(), [&](const auto& i) {
             return i.get_operator().attributes().get("pointwise", false) == true;
         });
-      
+
         // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
         // perfConfig can not allow fused module
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
@@ -212,7 +212,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                  {{"dims",
                                                    op.compute_shape(to_shapes(inputs)).lens()}}),
                                          inputs);
-                                 } else if(op.name() == "contiguous")
+                                 }
+                                 else if(op.name() == "contiguous")
                                  {
                                      auto contiguous_alloc = insert_mod.insert_instruction(
                                          insert_loc,

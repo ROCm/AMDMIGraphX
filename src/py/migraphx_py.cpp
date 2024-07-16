@@ -613,8 +613,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;
 #else
-    m.attr("__version__") = std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
-                            std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
-                            std::to_string(MIGRAPHX_VERSION_PATCH) + ".dev";
+    auto version_string = std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_MINOR) + "." +
+                          std::to_string(MIGRAPHX_VERSION_PATCH) + ".dev";
+
+    if(*MIGRAPHX_VERSION_TWEAK)
+        version_string += "+" MIGRAPHX_VERSION_TWEAK;
+
+    m.attr("__version__") = version_string;
 #endif
 }

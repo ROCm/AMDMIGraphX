@@ -36,6 +36,7 @@ from hip import hip
 from collections import namedtuple
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
+
 # measurement helper
 def measure(fn):
     @wraps(fn)
@@ -340,7 +341,7 @@ class StableDiffusionMGX():
         torch.cuda.synchronize()
         self.profile_end("run")
         return image
-    
+
     def print_summary(self, denoise_steps):
         print('WARMUP\t{:>9.2f} ms'.format(
             hip.hipEventElapsedTime(self.events['warmup'].start,

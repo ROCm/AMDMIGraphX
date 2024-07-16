@@ -266,6 +266,89 @@ struct find_mul_dot
     }
 };
 
+/*
+Moves the slice on the output of the Dot operation to slices on the inputs of the Dot operation to
+avoid computing redundant values.
+e.g. slice(gemm(a, b)) --> gemm(slice(a), slice(b))
+*/
+struct find_dot_slice
+{
+    auto matcher() const
+    {
+        return match::name("slice")(
+            match::args(match::name("dot", "quant_dot")(match::used_once()).bind("dot_ins")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto slice_ins = r.result;
+        auto dot_ins   = r.instructions["dot_ins"];
+        auto slice_op  = slice_ins->normalized_operator().to_value();
+        auto axes      = slice_op["axes"].to_vector<int64_t>();
+        auto starts    = slice_op["starts"].to_vector<int64_t>();
+        auto ends      = slice_op["ends"].to_vector<int64_t>();
+        assert(starts.size() == ends.size() and starts.size() == axes.size());
+        auto has_neg_vals = [](auto vec) {
+            return std::any_of(vec.begin(), vec.end(), [](auto i) { return i < 0; });
+        };
+        if(has_neg_vals(starts) or has_neg_vals(ends) or has_neg_vals(axes))
+        {
+            MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
+        }
+        auto dot_inputs     = dot_ins->inputs();
+        auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;
+        std::vector<int64_t> slice_axes_1, starts_1, ends_1; // NOLINT
+        std::vector<int64_t> slice_axes_2, starts_2, ends_2; // NOLINT
+        for(auto i : range(axes.size()))
+        {
+            if(axes[i] < num_batch_dims)
+            {
+                slice_axes_1.push_back(axes[i]);
+                starts_1.push_back(starts[i]);
+                ends_1.push_back(ends[i]);
+                slice_axes_2.push_back(axes[i]);
+                starts_2.push_back(starts[i]);
+                ends_2.push_back(ends[i]);
+            }
+            else if(axes[i] == num_batch_dims)
+            {
+                slice_axes_1.push_back(axes[i]);
+                starts_1.push_back(starts[i]);
+                ends_1.push_back(ends[i]);
+            }
+            else if(axes[i] == num_batch_dims + 1)
+            {
+                slice_axes_2.push_back(axes[i]);
+                starts_2.push_back(starts[i]);
+                ends_2.push_back(ends[i]);
+            }
+            else
+            {
+                MIGRAPHX_THROW("FIND_DOT_SLICE: invalid case");
+            }
+        }
+        auto slice_1 = dot_inputs.at(0);
+        if(not slice_axes_1.empty())
+        {
+            slice_1 = m.insert_instruction(
+                slice_ins,
+                migraphx::make_op("slice",
+                                  {{"axes", slice_axes_1}, {"starts", starts_1}, {"ends", ends_1}}),
+                dot_inputs.at(0));
+        }
+        auto slice_2 = dot_inputs.at(1);
+        if(not slice_axes_2.empty())
+        {
+            slice_2 = m.insert_instruction(
+                slice_ins,
+                migraphx::make_op("slice",
+                                  {{"axes", slice_axes_2}, {"starts", starts_2}, {"ends", ends_2}}),
+                dot_inputs.at(1));
+        }
+        m.replace_instruction(slice_ins, dot_ins->get_operator(), {slice_1, slice_2});
+    }
+};
+
 struct find_dot_mul
 {
     auto matcher() const
@@ -811,6 +894,18 @@ struct find_concat_op
                op.attributes().contains("pointwise");
     }
 
+    static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
+    {
+        auto concat_lens = ins.front()->get_shape().lens();
+        concat_lens.erase(concat_lens.begin() + axis);
+
+        return std::all_of(ins.begin(), ins.end(), [&](auto i) {
+            auto lens = i->get_shape().lens();
+            lens.erase(lens.begin() + axis);
+            return lens == concat_lens;
+        });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -854,6 +949,8 @@ struct find_concat_op
                 std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
                     return j->inputs().at(i);
                 });
+                if(not is_valid_concat(inputs, iaxis))
+                    return {start, last};
                 auto concat =
                     m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
                 concats.push_back(concat);
@@ -994,9 +1091,10 @@ struct find_splits
 {
     auto matcher() const
     {
+        auto pointwise_reduction = match::any_of[match::outputs()](
+            match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction());
         return match::any(
-            match::any_of[match::outputs()](match::name("slice")(match::any_of[match::outputs()](
-                match::pointwise(match::any_of(match::nargs(1), match::nargs(2))), reduction()))));
+            match::any_of[match::outputs()](match::name("slice")(pointwise_reduction)));
     }
 
     static bool is_dependent(const module& m, instruction_ref ins1, instruction_ref ins2)
@@ -1080,6 +1178,47 @@ struct find_splits
         return true;
     }
 
+    int get_binary_op_split_idx(std::vector<instruction_ref> group,
+                                std::vector<instruction_ref> splits) const
+    {
+        auto first_group_inputs = group.front()->inputs();
+        auto arg_it =
+            std::find_if(first_group_inputs.begin(), first_group_inputs.end(), [&](auto i) {
+                return std::find(splits.begin(), splits.end(), i) != splits.end();
+            });
+        auto split_idx = arg_it - first_group_inputs.begin();
+
+        // All splits are at the same input index
+        if(std::all_of(group.begin() + 1, group.end(), [&](auto i) {
+               auto split_idx_input = i->inputs().at(split_idx);
+               return std::find(splits.begin(), splits.end(), split_idx_input) != splits.end();
+           }))
+            return split_idx;
+
+        return -1;
+    }
+
+    void align_commutative_op_args(module& m,
+                                   std::vector<instruction_ref> group,
+                                   std::vector<instruction_ref> splits,
+                                   size_t split_idx) const
+    {
+        auto group_op = group.front()->get_operator();
+        assert(std::all_of(
+            group.begin(), group.end(), [&](auto i) { return i->get_operator() == group_op; }));
+
+        for(auto i : group)
+        {
+            if(std::find(splits.begin(), splits.end(), i->inputs().at(split_idx)) == splits.end())
+            {
+                auto args = i->inputs();
+                assert(args.size() == 2);
+                std::reverse(args.begin(), args.end());
+                m.replace_instruction(i, i->get_operator(), args);
+            }
+        }
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
@@ -1112,11 +1251,23 @@ struct find_splits
                 assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
                     return i->name() == "slice";
                 }) && "one argument must be a split");
-                auto data_idx = 1;
-                if(start->inputs().back()->name() == "slice")
+
+                split_idx = get_binary_op_split_idx(group, splits);
+                assert(split_idx < 2);
+                size_t data_idx;
+                if(split_idx < 0 and op.attributes().contains("commutative"))
                 {
-                    split_idx = 1;
-                    data_idx  = 0;
+                    split_idx = 0;
+                    data_idx  = 1;
+                    align_commutative_op_args(m, group, splits, split_idx);
+                }
+                else if(split_idx < 0)
+                {
+                    return;
+                }
+                else
+                {
+                    data_idx = split_idx == 0 ? 1 : 0;
                 }
 
                 std::vector<instruction_ref> data_args;
@@ -1170,8 +1321,8 @@ struct find_split_concat
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::all_of[match::outputs()](match::name("concat")))));
+        auto concat = match::all_of[match::outputs()](match::name("concat"));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(concat)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1565,8 +1716,8 @@ struct find_rsqrt
 {
     auto matcher() const
     {
-        return match::name("recip")(match::args(
-            match::name("sqrt")(match::used_once(), match::args(match::any().bind("x")))));
+        auto bind_x = match::args(match::any().bind("x"));
+        return match::name("recip")(match::args(match::name("sqrt")(match::used_once(), bind_x)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -1589,8 +1740,8 @@ struct find_split_reshape
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(
-                                          match::arg(0)(match::name("slice").bind("slice")))))
+        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
+        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
             .bind("reshape");
     }
 
@@ -1828,6 +1979,7 @@ void simplify_algebra::apply(module& m) const
                             find_mul_conv{},
                             find_mul_slice_conv{},
                             find_mul_dot{},
+                            find_dot_slice{},
                             find_dot_mul{},
                             find_mul_add{},
                             find_unit_ops{},

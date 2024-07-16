@@ -22,18 +22,28 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(squeeze_empty_axes_test)
+template <migraphx::shape::type_t DType>
+struct test_add_dot : verify_program<test_add_dot<DType>>
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    mm->add_literal(migraphx::literal{migraphx::shape::int64_type});
-    auto l0 = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 1, 5, 1}});
-    auto l1 = mm->add_instruction(migraphx::make_op("squeeze"), l0);
-    mm->add_return({l1});
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{DType, {256, 256}};
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), add, z);
+        mm->add_return({dot});
+        return p;
+    }
+};
 
-    auto prog = read_onnx("squeeze_empty_axes_test.onnx");
-
-    EXPECT(p == prog);
-}
+template struct test_add_dot<migraphx::shape::half_type>;
+template struct test_add_dot<migraphx::shape::float_type>;

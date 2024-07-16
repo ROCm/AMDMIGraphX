@@ -187,14 +187,12 @@ struct mlir_compiler : compiler<mlir_compiler>
                 if(mods[1].mod.size() > 0)
                 {
                     assert(contains(mods[1].inputs, split_ins));
-                    for(const auto i : iterator_for(mods[1].mod))
-                    {
-                        if(i->name() == "@param")
-                        {
-                            inputs_rep_map[i] = mlir;
-                            break;
-                        }
-                    }
+                    assert(mods[1].mod.get_parameters().size() == 1);
+                    auto param_ins =
+                        std::find_if(mods[1].mod.begin(), mods[1].mod.end(), [](const auto& i) {
+                            return i->name() == "@param";
+                        });
+                    inputs_rep_map[param_ins] = mlir;
                     reshape_ins =
                         m.insert_instructions(
                              ins,

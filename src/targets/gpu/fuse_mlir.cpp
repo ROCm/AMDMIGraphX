@@ -165,7 +165,7 @@ MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
-static const auto& reshaper_names()
+const auto& reshaper_names()
 {
     // clang-format off
     static const std::unordered_set<std::string> names = {

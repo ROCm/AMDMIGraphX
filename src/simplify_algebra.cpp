@@ -266,6 +266,11 @@ struct find_mul_dot
     }
 };
 
+/*
+Moves the slice on the output of the Dot operation to slices on the inputs of the Dot operation to
+avoid computing redundant values.
+e.g. slice(gemm(a, b)) --> gemm(slice(a), slice(b))
+*/
 struct find_dot_slice
 {
     auto matcher() const
@@ -278,7 +283,7 @@ struct find_dot_slice
     {
         auto slice_ins = r.result;
         auto dot_ins   = r.instructions["dot_ins"];
-        auto slice_op  = slice_ins->get_operator().to_value();
+        auto slice_op  = slice_ins->normalized_operator().to_value();
         auto axes      = slice_op["axes"].to_vector<int64_t>();
         auto starts    = slice_op["starts"].to_vector<int64_t>();
         auto ends      = slice_op["ends"].to_vector<int64_t>();
@@ -288,7 +293,7 @@ struct find_dot_slice
         };
         if(has_neg_vals(starts) or has_neg_vals(ends) or has_neg_vals(axes))
         {
-            return;
+            MIGRAPHX_THROW("FIND_DOT_SLICE: slice is not normalized.");
         }
         auto dot_inputs     = dot_ins->inputs();
         auto num_batch_dims = dot_ins->get_shape().lens().size() - 2;

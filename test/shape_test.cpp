@@ -86,6 +86,17 @@ TEST_CASE(test_shape_standard_singleton_dim)
     EXPECT(not s.broadcasted());
 }
 
+TEST_CASE(test_shape_standard_stray_singleton_dim)
+{
+    // A shape can be transposed (nonzero strides out of order) but still be considered
+    // standard if the only out-of-order strides are on axes with a length of 1.
+    migraphx::shape s{migraphx::shape::float_type, {5, 1, 1, 8}, {8, 3, 4, 1}};
+    EXPECT(s.standard());
+    EXPECT(s.packed());
+    EXPECT(s.transposed());
+    EXPECT(not s.broadcasted());
+}
+
 TEST_CASE(test_shape_min_max_opt)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2, 3}, {6, 3, 1}};

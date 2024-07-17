@@ -63,8 +63,14 @@ struct shape_impl
     {
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
+
+        std::vector<size_t> filtered_strides;
+        for(size_t ind = 0; ind < m_strides.size(); ind++)
+            if(m_lens[ind] != 1)
+                filtered_strides.push_back(m_strides[ind]);
+
         m_standard = this->elements() == this->element_space() and not skips() and
-                     std::is_sorted(m_strides.rbegin(), m_strides.rend());
+                     std::is_sorted(filtered_strides.rbegin(), filtered_strides.rend());
     }
 
     shape_impl(shape::type_t t, std::vector<shape::dynamic_dimension> dims)

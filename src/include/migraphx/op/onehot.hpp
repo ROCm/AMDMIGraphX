@@ -91,15 +91,12 @@ struct onehot
                 output_lens.insert(output_lens.begin() + normalized_axis, depth.value());
                 return {values_shape.type(), output_lens};
             }
-            else
-            {
-                // dynamic output shape
-                auto output_dds       = indices_shape.to_dynamic().dyn_dims();
-                std::size_t depth_val = depth.value();
-                output_dds.insert(output_dds.begin() + normalized_axis,
-                                  shape::dynamic_dimension{depth_val, depth_val});
-                return {values_shape.type(), output_dds};
-            }
+            // dynamic output shape
+            auto output_dds       = indices_shape.to_dynamic().dyn_dims();
+            std::size_t depth_val = depth.value();
+            output_dds.insert(output_dds.begin() + normalized_axis,
+                              shape::dynamic_dimension{depth_val, depth_val});
+            return {values_shape.type(), output_dds};
         }
         else
         {

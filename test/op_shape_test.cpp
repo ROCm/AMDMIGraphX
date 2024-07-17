@@ -2432,6 +2432,13 @@ TEST_CASE(onehot_axis_out_of_range1)
     throws_shape(migraphx::make_op("onehot", {{"axis", -4}}), indices, depth, values);
 }
 
+TEST_CASE(onehot_neg_depth_attr)
+{
+    migraphx::shape indices{migraphx::shape::int64_type, {2, 3}};
+    migraphx::shape values{migraphx::shape::float_type, {2}};
+    throws_shape(migraphx::make_op("onehot", {{"axis", 1}, {"depth", -3}}), indices, values);
+}
+
 TEST_CASE(pack_int4)
 {
     migraphx::shape input{migraphx::shape::uint8_type, {1, 4, 16, 16}};

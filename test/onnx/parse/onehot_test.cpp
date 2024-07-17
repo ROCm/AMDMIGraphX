@@ -44,7 +44,7 @@ TEST_CASE(onehot_static_test)
 TEST_CASE(onehot_dyn_test0)
 {
     migraphx::program p;
-    auto* mm   = p.get_main_module();
+    auto* mm = p.get_main_module();
     // depth literal that is parsed but not used
     mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {1}, {1}}, {3}));
     auto indices = mm->add_parameter(

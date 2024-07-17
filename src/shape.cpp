@@ -69,9 +69,6 @@ struct shape_impl
         for(size_t ind = 0; ind < m_strides.size(); ind++)
             if(m_lens[ind] != 1)
                 filtered_strides.push_back(m_strides[ind]);
-auto asdf = std::is_sorted(filtered_strides.begin(), filtered_strides.end());
-auto asdf2 = std::is_sorted(filtered_strides.rbegin(), filtered_strides.rend());
-auto asdf3 = skips();
         m_standard = this->elements() == this->element_space() and not skips() and
                      std::is_sorted(filtered_strides.rbegin(), filtered_strides.rend());
     }

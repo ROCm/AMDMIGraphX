@@ -596,7 +596,7 @@ struct mlir_program
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
                             {"num_cu", num_cu},
-                            {"enable_splitk_for_tuning", true}});
+                            {"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 

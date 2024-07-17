@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/module_ref.hpp>
 #include <vector>
 #include <string>
 
@@ -36,6 +37,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_EXPORT std::string param_name(std::size_t i, const std::string& prefix = "x");
 
 void sort_params(std::vector<instruction_ref>& params);
+
+// Find the inputs for a module by finding instructions that are mapped to the
+// parameters in the module
+std::vector<instruction_ref>
+find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+            const_module_ref parent,
+            const_module_ref sub);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

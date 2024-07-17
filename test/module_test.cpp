@@ -28,10 +28,11 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <sstream>
-#include "test.hpp"
 #include <migraphx/make_op.hpp>
 
 #include <basic_ops.hpp>
+#include <pointwise.hpp>
+#include <test.hpp>
 
 migraphx::program create_program()
 {
@@ -657,6 +658,37 @@ TEST_CASE(module_split3)
 
     EXPECT(bool{mods[2].inputs[0] == splits2.front()});
     EXPECT(bool{mods[2].inputs[1] == splits1.front()});
+}
+
+TEST_CASE(fuse_module)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto add = add_pointwise(p, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto mul = add_pointwise(p, "main:pointwise1", {add, z}, single_pointwise("mul"));
+
+        std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
+        auto rins    = m1.fuse(*add->module_inputs().front(), add->inputs(), &map_ins).front();
+        map_ins[add] = rins;
+        auto ret     = m1.fuse(*mul->module_inputs().front(), mul->inputs(), &map_ins);
+        m1.add_return(ret);
+    }
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x0", s);
+        auto y   = m2.add_parameter("x1", s);
+        auto z   = m2.add_parameter("x2", s);
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, y);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), add, z);
+        m2.add_return({mul});
+    }
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

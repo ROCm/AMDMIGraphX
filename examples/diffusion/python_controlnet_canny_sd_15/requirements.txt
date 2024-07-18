@@ -25,7 +25,6 @@
 torch==2.1.1
 accelerate
 diffusers
-optimum[onnxruntime]
 transformers
 torchvision
 

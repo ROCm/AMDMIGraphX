@@ -166,7 +166,7 @@ TEST_CASE(add_dot)
         auto y   = mm->add_parameter("y", s);
         auto fused =
             add_mlir(p2,
-                     "main:pointwise0:mlir_dot1",
+                     "main:pointwise0:mlir_dot2",
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {

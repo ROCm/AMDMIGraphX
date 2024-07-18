@@ -34,11 +34,15 @@ struct test_reduce_mean_variance : verify_program<test_reduce_mean_variance>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::half_type, {1, 32, 128}};
-        auto x        = mm->add_parameter("x", s);
-        auto mean     = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x);
-        auto x2       = mm->add_instruction(migraphx::make_op("mul"), x, x);
-        auto mean_x2  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), x2);
+        migraphx::shape s1{migraphx::shape::half_type, {1, 32, 128}};
+        migraphx::shape s2{migraphx::shape::half_type, {1, 128, 32}};
+        auto x     = mm->add_parameter("x", s1);
+        auto y     = mm->add_parameter("y", s2);
+        auto gemm  = mm->add_instruction(migraphx::make_op("dot"), {x, y});
+        auto mean  = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), gemm);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("mul"), gemm, gemm);
+        auto mean_x2 =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2}}}), gemm2);
         auto mean_2   = mm->add_instruction(migraphx::make_op("mul"), mean, mean);
         auto variance = mm->add_instruction(migraphx::make_op("sub"), mean_x2, mean_2);
         auto add      = mm->add_instruction(migraphx::make_op("add"), mean, variance);

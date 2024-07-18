@@ -37,6 +37,7 @@ from argparse import ArgumentParser
 from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
+import torchvision.transforms as transforms
 
 import numpy as np
 
@@ -138,6 +139,14 @@ def get_args():
     )
 
     parser.add_argument(
+        "-i",
+        "--control_image",
+        type=str,
+        required=True,
+        help="Control Image",
+    )
+
+    parser.add_argument(
         "-n",
         "--negative-prompt",
         type=str,
@@ -217,6 +226,15 @@ def allocate_torch_tensors(model):
     }
     return data_mapping
 
+def image_to_tensor(image_path):
+    image = Image.open(image_path)
+    image = image.resize((512, 512))
+
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+    tensor = transform(image)
+    return tensor
 
 class StableDiffusionMGX():
     def __init__(self, onnx_model_path, compiled_model_path, fp16,
@@ -272,7 +290,7 @@ class StableDiffusionMGX():
                     "encoder_hidden_states": [2, 77, 768],
                     "timestep": [1],
                     "controlnet_conds": [1, 1, 3, 512, 512],
-                    "conditioning_scales": [1, 1]
+                    "conditioning_scales": [1]
                 },
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
@@ -332,7 +350,7 @@ class StableDiffusionMGX():
 
     @measure
     @torch.no_grad()
-    def run(self, prompt, negative_prompt, steps, seed, scale):
+    def run(self, prompt, negative_prompt, control_image, steps, seed, scale):
         torch.cuda.synchronize()
         self.profile_start("run")
 
@@ -353,19 +371,12 @@ class StableDiffusionMGX():
         latents = torch.randn(
             (1, 4, 64, 64),
             generator=torch.manual_seed(seed)).to(device="cuda")
-        
 
-        img_path = 'bird_canny.png'
-        qr_image = Image.open(img_path)
-        qr_image = qr_image.resize((512, 512))
-        image_np = np.array(qr_image)
-        image_tensor = torch.from_numpy(image_np)
-        if image_tensor.ndimension() == 3:
-            image_tensor = image_tensor.permute(2, 0, 1)
-        qr_image = image_tensor.float() / 255.0
-        copy_tensor_sync(self.tensors["vae_encoder"]["sample"], qr_image)
-        run_model_sync(self.models["vae_encoder"], self.model_args['vae_encoder'])
-        latents = self.tensors["vae_encoder"][get_output_name(0)]
+
+        # copy_tensor_sync(self.tensors["vae_encoder"]["sample"], image_tensor)
+        # run_model_sync(self.models["vae_encoder"],
+        #                self.model_args['vae_encoder'])
+        # latents = self.tensors["vae_encoder"][get_output_name(0)]
 
         print("Apply initial noise sigma\n")
         latents = latents * self.scheduler.init_noise_sigma
@@ -374,7 +385,8 @@ class StableDiffusionMGX():
         self.profile_start("denoise")
         for step, t in enumerate(self.scheduler.timesteps):
             print(f"#{step}/{len(self.scheduler.timesteps)} step")
-            latents = self.denoise_step(text_embeddings, latents, t, scale, qr_image)
+            latents = self.denoise_step(text_embeddings, latents, t, scale,
+                                        control_image)
         self.profile_end("denoise")
 
         print("Scale denoised result...")
@@ -472,8 +484,6 @@ class StableDiffusionMGX():
 
     @measure
     def denoise_step(self, text_embeddings, latents, t, scale, control_image):
-        control_images = torch.unsqueeze(torch.cat([torch.unsqueeze(control_image, 0)] * 2), 0)
-        control_images = torch.unsqueeze(control_image, 0)
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
             latents_model_input, t).to(torch.float32).to(device="cuda")
@@ -484,9 +494,10 @@ class StableDiffusionMGX():
         copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
                          text_embeddings)
         copy_tensor_sync(self.tensors["unet"]["timestep"], timestep)
-        import pdb; pdb.set_trace()
-        copy_tensor_sync(self.tensors["unet"]["controlnet_conds"], control_image)
-        copy_tensor_sync(self.tensors["unet"]["conditioning_scales"], torch.tensor(0.8))
+        copy_tensor_sync(self.tensors["unet"]["controlnet_conds"],
+                         control_image)
+        copy_tensor_sync(self.tensors["unet"]["conditioning_scales"],
+                         torch.ones(1))
 
         run_model_sync(self.models["unet"], self.model_args['unet'])
 
@@ -503,7 +514,8 @@ class StableDiffusionMGX():
     @measure
     def decode(self, latents):
         copy_tensor_sync(self.tensors["vae_decoder"]["latent_sample"], latents)
-        run_model_sync(self.models["vae_decoder"], self.model_args["vae_decoder"])
+        run_model_sync(self.models["vae_decoder"],
+                       self.model_args["vae_decoder"])
         return self.tensors["vae_decoder"][get_output_name(0)]
 
     @measure
@@ -525,7 +537,8 @@ class StableDiffusionMGX():
         for _ in range(num_runs):
             run_model_sync(self.models["clip"], self.model_args["clip"])
             run_model_sync(self.models["unet"], self.model_args["unet"])
-            run_model_sync(self.models["vae_decoder"], self.model_args["vae_decoder"])
+            run_model_sync(self.models["vae_decoder"],
+                           self.model_args["vae_decoder"])
         self.profile_end("warmup")
 
 
@@ -538,7 +551,7 @@ if __name__ == "__main__":
     print("Warmup")
     sd.warmup(5)
     print("Run")
-    result = sd.run(args.prompt, args.negative_prompt, args.steps, args.seed,
+    result = sd.run(args.prompt, args.negative_prompt, image_to_tensor(args.control_image), args.steps, args.seed,
                     args.scale)
 
     print("Summary")

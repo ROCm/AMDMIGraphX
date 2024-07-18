@@ -41,7 +41,7 @@ void sort_params(std::vector<instruction_ref>& params);
 // Find the inputs for a module by finding instructions that are mapped to the
 // parameters in the module
 std::vector<instruction_ref>
-find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
+MIGRAPHX_EXPORT find_inputs(const std::unordered_map<instruction_ref, instruction_ref>& map_ins,
             const_module_ref parent,
             const_module_ref sub);
 

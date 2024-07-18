@@ -34,8 +34,8 @@ struct test_reduce_mean_variance : verify_program<test_reduce_mean_variance>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s1{migraphx::shape::half_type, {1, 32, 128}};
-        migraphx::shape s2{migraphx::shape::half_type, {1, 128, 32}};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 32, 128}};
+        migraphx::shape s2{migraphx::shape::float_type, {1, 128, 32}};
         auto x     = mm->add_parameter("x", s1);
         auto y     = mm->add_parameter("y", s2);
         auto gemm  = mm->add_instruction(migraphx::make_op("dot"), {x, y});

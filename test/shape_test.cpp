@@ -537,7 +537,7 @@ TEST_CASE(test_shape_broadcasted)
 TEST_CASE(test_shape_broadcasted2)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 2}, {0, 1}};
-    EXPECT(not s.standard());
+    EXPECT(s.standard());
     EXPECT(s.packed());
     EXPECT(not s.transposed());
     EXPECT(s.broadcasted());

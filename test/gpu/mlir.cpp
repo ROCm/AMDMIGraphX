@@ -161,12 +161,11 @@ std::string get_attrs()
 {
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
     {
-        return std::string{R("{arch = "", enable_splitk_for_tuning, kernel = "mixr", num_cu = 0 : i64}")};
+        return R"({arch = "", enable_splitk_for_tuning, kernel = "mixr", num_cu = 0 : i64})";
     }
-    ");
+    return R"({arch = "", kernel = "mixr", num_cu = 0 : i64})";
 }
-return std::string{"{arch = \"\", kernel = \"mixr\", num_cu = 0 : i64}"};
-}
+
 TEST_CASE(conv)
 {
     std::string mlir_output = R"__migraphx__(

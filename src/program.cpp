@@ -787,9 +787,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version
+        std::cout << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
                   << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.";
+                  << ", operators implementation could be mismatched.\n";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);

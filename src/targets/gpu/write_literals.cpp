@@ -76,13 +76,20 @@ void write_literals::apply(module& m) const
         std::cout << "Scratch size: " << scratch_size << std::endl;
 
         std::vector<instruction_ref> ins_list;
+        size_t size_of_literals = 0;
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@literal")
             {
                 ins_list.push_back(ins);
+                size_of_literals += ins->get_shape().bytes();
             }
         }
+
+        size_t free_memory = 0;
+        hipMemGetInfo(&free_memory, nullptr);
+        std::cout << "Total size of literals: " << size_of_literals << "\n";
+        std::cout << "Free memory: " << free_memory << "\n";
 
         // std::sort(ins_list.begin(),
         //           ins_list.end(),

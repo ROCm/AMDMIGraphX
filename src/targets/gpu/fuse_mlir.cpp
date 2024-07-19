@@ -444,7 +444,9 @@ struct find_mlir_fused_ops
         // slice is not supported
         reshapes.erase("slice");
         auto dot_or_conv = match::skip(match::name(reshapes))(
-            match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
+            match::any_of(is_mlir_dot(dot_mode)(match::used_once()),
+                          is_mlir_conv(conv_mode)(match::used_once()))
+                .bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
@@ -477,48 +479,112 @@ struct find_mlir_fused_ops
         assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
         param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
                                        // input to pointwise in new fused module
-        mm->add_return(mm->fuse(*pm,
-                                pw_ins->inputs(),
-                                &param_map,
-                                [&](module& main_mod,
-                                    instruction_ref pos,
-                                    const operation& op,
-                                    const std::vector<instruction_ref>& inputs,
-                                    const std::vector<module_ref>& mod_args) {
-                                    if(op.name() == "pointwise" or op.name() == "fused_reduce")
-                                    {
-                                        for(const auto& skip_param : inputs)
-                                        {
-                                            param_map[skip_param] =
-                                                skip_param; // skip adding parameter for inputs to
-                                                            // pointwise/fused_reduce
-                                        }
-                                        auto sub_pm = mod_args.front();
-                                        return main_mod.fuse(*sub_pm, inputs, &param_map).front();
-                                    }
-                                    return main_mod.insert_instruction(pos, op, inputs, mod_args);
-                                }));
+        auto reduce_ins = std::find_if(pm->begin(), pm->end(), [](const auto i) {
+            return i.get_operator().attributes().get("reduce", false);
+        });
+        if(reduce_ins != pm->end())
+        {
+            auto mod_splits = pm->split(pw_ins->inputs(), {reduce_ins});
+            std::cout << "second mod inputs\n";
+            for(const auto& i : mod_splits[1].inputs)
+            {
+                i->debug_print();
+            }
+            auto second_reduce =
+                std::find_if(mod_splits[1].mod.begin(), mod_splits[1].mod.end(), [](const auto i) {
+                    return i.get_operator().attributes().get("reduce", false);
+                });
+            mm->add_return(mm->fuse(
+                mod_splits[0].mod,
+                mod_splits[0].inputs,
+                &param_map,
+                [&](module& main_mod,
+                    instruction_ref pos,
+                    const operation& op,
+                    const std::vector<instruction_ref>& inputs,
+                    const std::vector<module_ref>& mod_args) {
+                    if(op.name() == "pointwise")
+                    {
+                        for(const auto& skip_param : inputs)
+                        {
+                            param_map[skip_param] = skip_param; // skip adding parameter for inputs
+                                                                // to pointwise/fused_reduce
+                        }
+                        auto sub_pm = mod_args.front();
+                        return main_mod.fuse(*sub_pm, inputs, &param_map).front();
+                    }
+                    return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                }));
+            std::vector<instruction_ref> inputs;
+            std::copy_if(mod_splits[0].inputs.begin(),
+                         mod_splits[0].inputs.end(),
+                         std::back_inserter(inputs),
+                         [&](auto input) { return input != x_ins; });
+            inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
+            auto fused_mlir_ins = mpm.get_module().add_instruction(
+                mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            std::cout << "mlir module: \n";
+            mm->debug_print();
+            mod_splits[1].mod.set_bypass();
+            if(second_reduce != mod_splits[1].mod.end())
+            {
+                mod_splits[1].replace(reduce_ins, fused_mlir_ins);
 
-        std::vector<instruction_ref> inputs;
-        std::copy_if(pw_ins->inputs().begin(),
-                     pw_ins->inputs().end(),
-                     std::back_inserter(inputs),
-                     [&](auto input) { return input != x_ins; });
-        std::cout << "new module\n";
-        mm->debug_print();
-        std::cout << "============\n";
-        inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        std::cout << "inputs\n";
-        for(const auto& i : inputs)
-        {
-            i->debug_print();
+                std::cout << "second module split\n";
+                mod_splits[1].mod.debug_print();
+                std::cout << "second mod inputs\n";
+                for(const auto& i : mod_splits[1].inputs)
+                {
+                    i->debug_print();
+                }
+                auto second_reduce_op = second_reduce->get_operator().to_value();
+                mpm.get_module().replace_instruction(
+                    pw_ins,
+                    make_op("fused_reduce", {{"axes", second_reduce_op["axes"]}}),
+                    mod_splits[1].inputs,
+                    {&mod_splits[1].mod});
+                mpm.get_module().debug_print();
+            }
+            else
+            {
+                mod_splits[1].replace(reduce_ins, fused_mlir_ins);
+                mpm.get_module().replace_instruction(
+                    pw_ins, make_op("pointwise"), mod_splits[1].inputs, {&mod_splits[1].mod});
+            }
         }
-        if(inputs.size() != mm->get_parameters().size())
+        else
         {
-            std::cout << "parameters mismatched\n";
+            mm->add_return(mm->fuse(
+                *pm,
+                pw_ins->inputs(),
+                &param_map,
+                [&](module& main_mod,
+                    instruction_ref pos,
+                    const operation& op,
+                    const std::vector<instruction_ref>& inputs,
+                    const std::vector<module_ref>& mod_args) {
+                    if(op.name() == "pointwise")
+                    {
+                        for(const auto& skip_param : inputs)
+                        {
+                            param_map[skip_param] = skip_param; // skip adding parameter for inputs
+                                                                // to pointwise/fused_reduce
+                        }
+                        auto sub_pm = mod_args.front();
+                        return main_mod.fuse(*sub_pm, inputs, &param_map).front();
+                    }
+                    return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                }));
+
+            std::vector<instruction_ref> inputs;
+            std::copy_if(pw_ins->inputs().begin(),
+                         pw_ins->inputs().end(),
+                         std::back_inserter(inputs),
+                         [&](auto input) { return input != x_ins; });
+            inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
+            mpm.get_module().replace_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
         }
-        mpm.get_module().replace_instruction(
-            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 
@@ -614,7 +680,7 @@ struct find_mlir_standalone_attention_op
         auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
 
         std::vector<instruction_ref> ins_to_replace = {gemm1};
-        auto ins_to_be_replaced    = gemm_softmax_gemm;
+        auto ins_to_be_replaced                     = gemm_softmax_gemm;
         if(r.instructions.find("trailing_pm") != r.instructions.end())
         {
             auto trailing_pm_ins = r.instructions["trailing_pm"];
@@ -728,6 +794,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
 
+    mpm.get_module().debug_print();
     mpm.run_pass(dead_code_elimination{});
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))

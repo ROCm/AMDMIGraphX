@@ -133,9 +133,8 @@ struct window
         auto win_start = generate_array<diff_int>(rank{}, [&](auto j) {
             diff_int w   = win[j];
             diff_int dim = i[j];
+	    (void) w;
             MIGRAPHX_ASSERT(w >= 1);
-            if(w == 1)
-                return dim;
             diff_int s = stride[j];
             diff_int p = padding[j];
             return (dim * s) - p;

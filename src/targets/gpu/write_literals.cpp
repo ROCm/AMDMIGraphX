@@ -87,7 +87,7 @@ void write_literals::apply(module& m) const
         }
 
         size_t free_memory = 0;
-        auto status = hipMemGetInfo(&free_memory, nullptr);
+        auto status        = hipMemGetInfo(&free_memory, nullptr);
         std::cout << "Total size of literals: " << size_of_literals << "\n";
         std::cout << "Free memory: " << free_memory << " Status: " << status << "\n";
 

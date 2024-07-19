@@ -33,7 +33,6 @@ from transformers import CLIPTokenizer
 from PIL import Image
 import torchvision.transforms as transforms
 
-import numpy as np
 import migraphx as mgx
 import os
 import sys

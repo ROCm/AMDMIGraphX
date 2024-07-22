@@ -85,7 +85,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     size_t free_mem = 0;
-    auto status = hipMemGetInfo(&free_mem, nullptr);
+    auto status     = hipMemGetInfo(&free_mem, nullptr);
     std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
     
     auto& ctx = any_cast<context>(gctx);
@@ -218,7 +218,7 @@ migraphx::context target::get_context() const { return context(gpu::get_device_i
 argument target::copy_to(const argument& arg) const 
 { 
     size_t free_mem = 0;
-    auto status = hipMemGetInfo(&free_mem, nullptr);
+    auto status     = hipMemGetInfo(&free_mem, nullptr);
     std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
     return gpu::to_gpu(arg); 
 }

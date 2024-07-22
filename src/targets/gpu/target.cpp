@@ -215,7 +215,7 @@ std::string target::name() const { return "gpu"; }
 migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
 
 argument target::copy_to(const argument& arg) const
-{ 
+{
     size_t free_mem = 0;
     auto status     = hipMemGetInfo(&free_mem, nullptr);
     std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;

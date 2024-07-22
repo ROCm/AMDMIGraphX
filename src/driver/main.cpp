@@ -437,6 +437,14 @@ struct program_params
             param_shapes.cend(),
             std::inserter(static_param_shapes, static_param_shapes.end()),
             [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
+
+        size_t shape_size = 0;
+        for (auto const& x : static_param_shapes)
+        {
+            shape_size += x.second.bytes();
+        }
+        std::cout << "Total parameter size: " << shape_size << " bytes" << std::endl;
+
         for(auto&& s : fill0)
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
@@ -683,6 +691,7 @@ struct run_cmd : command<run_cmd>
         auto p = c.compile();
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
+        std::cout << "Executing ... " << std::endl;
         p.eval(m, execution_environment{}, c.co.weight_streaming);
         std::cout << p << std::endl;
     }

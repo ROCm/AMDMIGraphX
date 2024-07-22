@@ -139,6 +139,10 @@ void write_literals::apply(module& m) const
             }
         }
     }
+
+    size_t free_mem = 0;
+    auto status = hipMemGetInfo(&free_mem, nullptr);
+    std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
 }
 
 } // namespace gpu

@@ -76,22 +76,24 @@ struct reshape
         const bool has_negative_dim_attr = neg_dim_num < dims.size();
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        std::transform(dims.begin(),
-                       dims.end(),
-                       input_dyn_dims.begin(),
-                       output_dyn_dims.begin(),
-                       [](auto dim, auto input_dyn_dim) -> shape::dynamic_dimension {
-                           if(dim == 0)
-                           {
-                               return input_dyn_dim;
-                           }
-                           if(dim == -1)
-                           {
-                               return {1, 1};
-                           }
-                           std::size_t u_dim = dim;
-                           return {u_dim, u_dim};
-                       });
+        // NOTE: input_dyn_dims.size() may not equal dims.size()
+        for(std::size_t i = 0; i < dims.size(); ++i)
+        {
+            auto d = dims.at(i);
+            if(d == 0)
+            {
+                output_dyn_dims.at(i) = input_dyn_dims.at(i);
+            }
+            else if(d == -1)
+            {
+                output_dyn_dims.at(i) = {1, 1};
+            }
+            else
+            {
+                std::size_t u_dim     = d;
+                output_dyn_dims.at(i) = {u_dim, u_dim};
+            }
+        }
 
         if(has_negative_dim_attr)
         {

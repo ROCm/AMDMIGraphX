@@ -78,7 +78,6 @@ struct scan_slice : op_name<scan_slice>
             MIGRAPHX_THROW("ScanSlice: index {" + std::to_string(idx) + "} out of range [0, " +
                            std::to_string(max_idx) + "]");
         idx = (1 - direction) * idx + direction * (max_idx - idx);
-        std::cout << idx << std::endl;
 
         auto offset = idx * input_sh.strides().at(axis) * input_sh.type_size();
         return {output_shape, [=] { return input.data() + offset; }};

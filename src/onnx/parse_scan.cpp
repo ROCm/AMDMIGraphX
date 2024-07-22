@@ -224,7 +224,7 @@ struct parse_scan : op_parser<parse_scan>
     {
         auto axes = parse_vector_attribute(info, name, expected_size);
         if(axes.empty())
-            return {expected_size, 0};
+            return std::vector<int64_t>(expected_size, 0); // NOLINT
 
         std::transform(axes.begin(),
                        axes.end(),

@@ -809,6 +809,18 @@ struct find_concat_op
                op.attributes().contains("pointwise");
     }
 
+    static bool is_valid_concat(std::vector<instruction_ref> ins, size_t axis)
+    {
+        auto concat_lens = ins.front()->get_shape().lens();
+        concat_lens.erase(concat_lens.begin() + axis);
+
+        return std::all_of(ins.begin(), ins.end(), [&](auto i) {
+            auto lens = i->get_shape().lens();
+            lens.erase(lens.begin() + axis);
+            return lens == concat_lens;
+        });
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -852,6 +864,8 @@ struct find_concat_op
                 std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
                     return j->inputs().at(i);
                 });
+                if(not is_valid_concat(inputs, iaxis))
+                    return {start, last};
                 auto concat =
                     m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
                 concats.push_back(concat);

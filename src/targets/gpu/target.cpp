@@ -87,7 +87,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     size_t free_mem = 0;
     auto status     = hipMemGetInfo(&free_mem, nullptr);
     std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
-    
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
@@ -215,12 +214,12 @@ std::string target::name() const { return "gpu"; }
 
 migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
 
-argument target::copy_to(const argument& arg) const 
+argument target::copy_to(const argument& arg) const
 { 
     size_t free_mem = 0;
     auto status     = hipMemGetInfo(&free_mem, nullptr);
     std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
-    return gpu::to_gpu(arg); 
+    return gpu::to_gpu(arg);
 }
 
 argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }

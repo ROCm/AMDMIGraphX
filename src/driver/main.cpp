@@ -438,10 +438,10 @@ struct program_params
             std::inserter(static_param_shapes, static_param_shapes.end()),
             [&](const auto& x) { return std::make_pair(x.first, x.second.to_static(batch)); });
 
-        size_t shape_size = std::accumulate(
-            static_param_shapes.begin(), static_param_shapes.end(), 0, [](auto s, auto x) {
-                return s + x.second.bytes();
-            });
+        size_t shape_size = std::accumulate(static_param_shapes.begin(), 
+                                            static_param_shapes.end(), 
+                                            0, 
+                                            [](auto s, auto x) { return s + x.second.bytes(); });
         std::cout << "Total parameter size: " << shape_size << " bytes" << std::endl;
 
         for(auto&& s : fill0)

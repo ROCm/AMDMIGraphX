@@ -36,7 +36,7 @@ struct test_max_pooling_1x1_s2 : verify_program<test_max_pooling_1x1_s2>
         auto* mm = p.get_main_module();
 
         auto input =
-            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 112, 112}});
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
         mm->add_instruction(migraphx::make_op("pooling",
                                               {{"mode", migraphx::op::pooling_mode::max},
                                                {"padding", {0, 0}},

@@ -97,7 +97,7 @@ struct parse_layernorm : op_parser<parse_layernorm>
 
         auto mean          = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x);
         auto x_sub_mean    = info.add_common_op("sub", x, mean);
-        auto x_sqdiff_mean = info.add_common_op("sqdiff", x, mean);
+        auto x_sqdiff_mean = info.add_common_op("mul", x_sub_mean, x_sub_mean);
         auto variance =
             info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), x_sqdiff_mean);
         epsilon =

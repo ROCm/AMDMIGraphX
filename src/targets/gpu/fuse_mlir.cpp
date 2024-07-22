@@ -333,7 +333,8 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     {
         return false;
     }
-    const std::initializer_list<std::string> any_type_ops = {"@literal", "@param", "@return"};
+    const std::initializer_list<std::string> any_type_ops = {
+        "@literal", "@param", "@return", "multibroadcast"};
     const std::initializer_list<std::string> no_bool_ops  = {
         "convolution",
         "quant_convolution",
@@ -361,6 +362,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "log",
         "recip",
         "rsqrt",
+        "sqrt",
         "sigmoid",
         "reduce_mean",
         "softmax",
@@ -444,9 +446,7 @@ struct find_mlir_fused_ops
         // slice is not supported
         reshapes.erase("slice");
         auto dot_or_conv = match::skip(match::name(reshapes))(
-            match::any_of(is_mlir_dot(dot_mode)(match::used_once()),
-                          is_mlir_conv(conv_mode)(match::used_once()))
-                .bind("gemm_based_op"));
+            match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
@@ -494,27 +494,31 @@ struct find_mlir_fused_ops
                 std::find_if(mod_splits[1].mod.begin(), mod_splits[1].mod.end(), [](const auto i) {
                     return i.get_operator().attributes().get("reduce", false);
                 });
-            mm->add_return(mm->fuse(
-                mod_splits[0].mod,
-                mod_splits[0].inputs,
-                &param_map,
-                [&](module& main_mod,
-                    instruction_ref pos,
-                    const operation& op,
-                    const std::vector<instruction_ref>& inputs,
-                    const std::vector<module_ref>& mod_args) {
-                    if(op.name() == "pointwise")
-                    {
-                        for(const auto& skip_param : inputs)
-                        {
-                            param_map[skip_param] = skip_param; // skip adding parameter for inputs
-                                                                // to pointwise/fused_reduce
-                        }
-                        auto sub_pm = mod_args.front();
-                        return main_mod.fuse(*sub_pm, inputs, &param_map).front();
-                    }
-                    return main_mod.insert_instruction(pos, op, inputs, mod_args);
-                }));
+            auto fuse_returns =
+                mm->fuse(mod_splits[0].mod,
+                         mod_splits[0].inputs,
+                         &param_map,
+                         [&](module& main_mod,
+                             instruction_ref pos,
+                             const operation& op,
+                             const std::vector<instruction_ref>& inputs,
+                             const std::vector<module_ref>& mod_args) {
+                             if(op.name() == "pointwise")
+                             {
+                                 for(const auto& skip_param : inputs)
+                                 {
+                                     param_map[skip_param] =
+                                         skip_param; // skip adding parameter for inputs
+                                                     // to pointwise/fused_reduce
+                                 }
+                                 auto sub_pm = mod_args.front();
+                                 return main_mod.fuse(*sub_pm, inputs, &param_map).front();
+                             }
+                             return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                         });
+
+            fuse_returns.push_back(prev_input);
+            mm->add_return(fuse_returns);
             std::vector<instruction_ref> inputs;
             std::copy_if(mod_splits[0].inputs.begin(),
                          mod_splits[0].inputs.end(),

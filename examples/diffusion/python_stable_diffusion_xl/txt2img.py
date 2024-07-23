@@ -152,6 +152,14 @@ def get_args():
     )
 
     parser.add_argument(
+        "-b",
+        "--batch",
+        type=int,
+        default=1,
+        help="Batch count or number of images to produce"
+    )
+
+    parser.add_argument(
         "-p",
         "--prompt",
         type=str,
@@ -212,22 +220,22 @@ model_shapes = {
     "clip2": {
         "input_ids": [2, 77]
     },
-    "unetxl": {
-        "sample": [2, 4, 128, 128],
-        "encoder_hidden_states": [2, 77, 2048],
-        "text_embeds": [2, 1280],
-        "time_ids": [2, 6],
+    "unetxl": lambda b : {
+        "sample": [2*b, 4, 128, 128],
+        "encoder_hidden_states": [2*b, 77, 2048],
+        "text_embeds": [2*b, 1280],
+        "time_ids": [2*b, 6],
         "timestep": [1],
     },
-    "refiner_unetxl": {
-        "sample": [2, 4, 128, 128],
-        "encoder_hidden_states": [2, 77, 1280],
-        "text_embeds": [2, 1280],
-        "time_ids": [2, 5],
+    "refiner_unetxl": lambda b: {
+        "sample": [2*b, 4, 128, 128],
+        "encoder_hidden_states": [2*b, 77, 1280],
+        "text_embeds": [2*b, 1280],
+        "time_ids": [2*b, 5],
         "timestep": [1],
     },
-    "vae": {
-        "latent_sample": [1, 4, 128, 128]
+    "vae": lambda b: {
+        "latent_sample": [b, 4, 128, 128]
     },
 }
 
@@ -330,7 +338,7 @@ def allocate_torch_tensors(model):
 class StableDiffusionMGX():
     def __init__(self, pipeline_type, onnx_model_path, compiled_model_path,
                  use_refiner, refiner_onnx_model_path,
-                 refiner_compiled_model_path, fp16, force_compile,
+                 refiner_compiled_model_path, fp16, batch, force_compile,
                  exhaustive_tune):
         if not (onnx_model_path or compiled_model_path):
             onnx_model_path = default_model_paths[pipeline_type]
@@ -372,18 +380,21 @@ class StableDiffusionMGX():
         if "vae" in fp16:
             model_names[pipeline_type]["vae"] = "vae_decoder_fp16_fix"
 
+        self.batch = batch
+
         print("Load models...")
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
                 model_names[pipeline_type]["vae"],
-                model_shapes["vae"],
+                model_shapes["vae"](self.batch),
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False),
+                offload_copy=False,
+                batch=self.batch),
             "clip":
             StableDiffusionMGX.load_mgx_model(
                 model_names[pipeline_type]["clip"],
@@ -407,13 +418,14 @@ class StableDiffusionMGX():
             "unetxl":
             StableDiffusionMGX.load_mgx_model(
                 model_names[pipeline_type]["unetxl"],
-                model_shapes["unetxl"],
+                model_shapes["unetxl"](self.batch),
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="unetxl" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False)
+                offload_copy=False,
+                batch=self.batch)
         }
 
         self.tensors = {
@@ -434,7 +446,7 @@ class StableDiffusionMGX():
             # Note: there is no clip for refiner, only clip2
             self.models["refiner_clip2"] = StableDiffusionMGX.load_mgx_model(
                 model_names["refiner"]["clip2"],
-                model_shapes["clip2"],
+                model_shapes["clip2"](self.batch),
                 refiner_onnx_model_path,
                 compiled_model_path=refiner_compiled_model_path,
                 use_fp16="refiner_clip2" in fp16,
@@ -444,13 +456,14 @@ class StableDiffusionMGX():
             self.models["refiner_unetxl"] = StableDiffusionMGX.load_mgx_model(
                 model_names["refiner"]["unetxl"],
                 model_shapes[
-                    "refiner_unetxl"],  # this differ from the original unetxl
+                    "refiner_unetxl"](self.batch),  # this differ from the original unetxl
                 refiner_onnx_model_path,
                 compiled_model_path=refiner_compiled_model_path,
                 use_fp16="refiner_unetxl" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False)
+                offload_copy=False,
+                batch=self.batch)
 
             self.tensors["refiner_clip2"] = allocate_torch_tensors(
                 self.models["refiner_clip2"])
@@ -617,18 +630,20 @@ class StableDiffusionMGX():
                        use_fp16=False,
                        force_compile=False,
                        exhaustive_tune=False,
-                       offload_copy=True):
+                       offload_copy=True,
+                       batch=1):
         print(f"Loading {name} model...")
         if compiled_model_path is None:
             compiled_model_path = onnx_model_path
         onnx_file = f"{onnx_model_path}/{name}/model.onnx"
-        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_{'gpu' if not offload_copy else 'oc'}.mxr"
+        mxr_file = f"{compiled_model_path}/{name}/model_{'fp16' if use_fp16 else 'fp32'}_b{batch}_{'gpu' if not offload_copy else 'oc'}.mxr"
         if not force_compile and os.path.isfile(mxr_file):
             print(f"Found mxr, loading it from {mxr_file}")
             model = mgx.load(mxr_file, format="msgpack")
         elif os.path.isfile(onnx_file):
             print(f"No mxr found at {mxr_file}")
             print(f"Parsing from {onnx_file}")
+            print(shapes)
             model = mgx.parse_onnx(onnx_file, map_input_dims=shapes)
             if use_fp16:
                 mgx.quantize_fp16(model)
@@ -678,6 +693,8 @@ class StableDiffusionMGX():
             axis=2) if not is_refiner else self.tensors[clip2][get_output_name(
                 1)]
         text_embeds = self.tensors[clip2][get_output_name(0)]
+        hidden_states = torch.cat([hidden_states]*self.batch)
+        text_embeds = torch.cat([text_embeds]*self.batch)
         return (hidden_states, text_embeds)
 
     @staticmethod
@@ -685,7 +702,7 @@ class StableDiffusionMGX():
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
         images = (image * 255).round().astype("uint8")
-        return Image.fromarray(images[0])
+        return [Image.fromarray(images[i]) for i in range(images.shape[0])]
 
     @staticmethod
     def save_image(pil_image, filename="output.png"):
@@ -747,6 +764,7 @@ if __name__ == "__main__":
                             args.compiled_model_path, args.use_refiner,
                             args.refiner_onnx_model_path,
                             args.refiner_compiled_model_path, args.fp16,
+                            args.batch,
                             args.force_compile, args.exhaustive_tune)
     print("Warmup")
     sd.warmup(5)
@@ -762,7 +780,8 @@ if __name__ == "__main__":
     sd.cleanup()
 
     print("Convert result to rgb image...")
-    image = StableDiffusionMGX.convert_to_rgb_image(result)
-    filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    StableDiffusionMGX.save_image(image, filename)
-    print(f"Image saved to {filename}")
+    images = StableDiffusionMGX.convert_to_rgb_image(result)
+    for i,image in enumerate(images):
+        filename = f"{args.batch}_{args.output}" if args.output else f"output_s{args.seed}_t{args.steps}_{i}.png"
+        StableDiffusionMGX.save_image(image, filename)
+        print(f"Image saved to {filename}")

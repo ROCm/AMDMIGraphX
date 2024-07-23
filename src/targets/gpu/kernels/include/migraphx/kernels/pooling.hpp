@@ -131,10 +131,8 @@ struct window
     constexpr void visit(Index i, F f) const
     {
         auto win_start = generate_array<diff_int>(rank{}, [&](auto j) {
-            diff_int w   = win[j];
             diff_int dim = i[j];
-            (void)w;
-            MIGRAPHX_ASSERT(w >= 1);
+            MIGRAPHX_ASSERT(win[j] >= 1);
             diff_int s = stride[j];
             diff_int p = padding[j];
             return (dim * s) - p;

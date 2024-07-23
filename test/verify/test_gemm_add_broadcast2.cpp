@@ -45,13 +45,7 @@ struct test_gemm_add_broadcast2 : verify_program<test_gemm_add_broadcast2<DType>
             mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        auto add = mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
-        auto reduce_mean =
-            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {-1}}}), dot);
-        auto mlb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), reduce_mean);
-        auto sub = mm->add_instruction(migraphx::make_op("sub"), dot, mlb);
-        mm->add_instruction(migraphx::make_op("div"), sub, add);
+        mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
         return p;
     }
     std::string section() const { return "gemm"; }

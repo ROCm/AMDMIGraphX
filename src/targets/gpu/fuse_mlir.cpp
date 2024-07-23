@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/instruction_ref.hpp"
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/matcher.hpp>

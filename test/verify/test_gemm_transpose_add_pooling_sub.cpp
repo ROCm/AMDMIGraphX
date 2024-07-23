@@ -56,6 +56,7 @@ struct test_gemm_transpose_add_pooling_sub
                                 add);
         auto sub = mm->add_instruction(migraphx::make_op("sub"), dot_trans, pooling);
         mm->add_return({sub});
+        return p;
     }
     std::string section() const { return "gemm"; }
 };

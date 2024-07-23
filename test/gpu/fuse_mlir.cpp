@@ -154,7 +154,7 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot       = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto dot_trans = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);
         auto add = add_pointwise(p1, "main:pointwise0", {dot_trans, x}, single_pointwise("add"));
@@ -236,9 +236,9 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto a     = mm->add_parameter("a", s1);
-        auto b     = mm->add_parameter("b", s2);
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
         auto fused = add_mlir(
             p2,

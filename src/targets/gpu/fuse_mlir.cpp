@@ -480,15 +480,17 @@ struct find_mlir_fused_ops
             auto fused_ins = mpm.get_module().insert_instruction(
                 pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
             mpm.get_module().replace_instruction(
-                gemm_based_op, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
-            mpm.get_module().replace_instruction(
                 pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
+            auto dot_ins = mpm.get_module().insert_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
         }
         else
         {
             mpm.get_module().replace_instruction(
                 pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
         }
+        mpm.get_module().debug_print();
     }
 };
 

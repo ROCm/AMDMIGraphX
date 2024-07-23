@@ -144,6 +144,67 @@ TEST_CASE(dot_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_multi_use_add_reduce_sub)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot, x}, single_pointwise("add"));
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {0, 0}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {3, 3}},
+                                                   {"lp_order", 2}}),
+                                add);
+        auto pooling_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), pooling);
+        auto sub = add_pointwise(p1, "main:pointwise1", {dot, pooling_mb}, single_pointwise("sub"));
+        mm->add_return({sub});
+    }
+    p1.debug_print();
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto x     = mm->add_parameter("x", s);
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[0]);
+                return std::make_tuple(dot, std::vector<migraphx::instruction_ref>{dot, add});
+            });
+        auto fused_dot_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {0, 0}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {3, 3}},
+                                                   {"lp_order", 2}}),
+                                fused_dot_add);
+        auto pooling_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), pooling);
+        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto sub = add_pointwise(p2, "main:pointwise1", {dot, pooling_mb}, single_pointwise("sub"));
+        mm->add_return({sub});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(add_dot)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};

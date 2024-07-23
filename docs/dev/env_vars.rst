@@ -239,6 +239,7 @@ Defaults to 1.
 
 Set to "1" to print benchmarking trace.
 Set to "2" to print detailed benchmarking trace.
+Set to "3" to print compiled traces.
 
 MLIR vars
 -------------
@@ -271,6 +272,16 @@ Performs exhaustive tuning for MLIR.
 
 Set to an integer greater than 1.
 Limits the number of solutions available to MLIR for tuning.
+
+.. envvar:: MIGRAPHX_ENABLE_MLIR_INPUT_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable input fusions in MLIR.
+
+.. envvar:: MIGRAPHX_MLIR_ENABLE_SPLITK
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable Split-k perf configs when tuning with MLIR.
 
 CK vars
 -----------

@@ -441,8 +441,6 @@ struct find_mlir_fused_ops
     {
         auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
-        std::cout << "gemm has multi outs: " << gemm_has_multi_outs << std::endl;
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
         auto* pm           = pw_ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
@@ -464,15 +462,10 @@ struct find_mlir_fused_ops
         param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
                                        // input to pointwise in new fused module
         auto return_vals            = mm->fuse(*pm, pw_ins->inputs(), &param_map);
-        instruction_ref reshape_out = x_ins;
+        bool gemm_has_multi_outs    = gemm_based_op->outputs().size() > 1;
         if(gemm_has_multi_outs)
         {
-            while(x_ins != gemm_based_op && reshape_out->inputs().at(0) != gemm_based_op)
-            {
-                reshape_out = reshape_out->inputs().at(0);
-            }
             return_vals.insert(return_vals.begin(), anchor_op);
-            reshape_out->debug_print();
         }
         mm->add_return(return_vals);
 

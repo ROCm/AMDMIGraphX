@@ -901,7 +901,10 @@ generic_split(const module& m,
                    splits.end(),
                    std::back_inserter(outputs),
                    [&](instruction_ref ins) { return map_ins1.at(ins); });
-    m1.add_return(outputs);
+    if(not outputs.empty())
+    {
+        m1.add_return(outputs);
+    }
 
     std::vector<instruction_ref> instructions2;
     for(auto ins : iterator_for(m))
@@ -977,6 +980,63 @@ std::array<module::with_inputs, 3> module::split(const std::vector<instruction_r
     }));
 
     return {{std::move(mods1[0]), std::move(mods2[0]), std::move(mods2[1])}};
+}
+
+// Insert parameters into the module based on the input instructions and then
+// update the map_ins to map the input to the parameter.
+static void insert_params(module& m,
+                          const std::vector<instruction_ref>& inputs,
+                          std::unordered_map<instruction_ref, instruction_ref>& map_ins)
+{
+    auto n = m.get_parameter_shapes().size();
+    for(auto input : inputs)
+    {
+        if(contains(map_ins, input))
+            continue;
+        map_ins[input] = m.add_parameter(param_name(n++), input->get_shape().as_standard());
+    }
+}
+
+std::vector<instruction_ref>
+module::fuse(const std::vector<instruction_ref>& inss,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    std::vector<instruction_ref> inputs;
+    for(auto ins : inss)
+    {
+        for(auto input : ins->inputs())
+        {
+            if(contains(inss, input))
+                continue;
+            if(contains(inputs, input))
+                continue;
+            inputs.push_back(input);
+        }
+    }
+    insert_params(*this, inputs, *map_ins);
+    return this->add_instructions(inss, map_ins, std::move(insert));
+}
+
+std::vector<instruction_ref>
+module::fuse(const module& m,
+             const std::vector<instruction_ref>& inputs,
+             std::unordered_map<instruction_ref, instruction_ref>* map_ins,
+             module::inserter insert)
+{
+    std::unordered_map<instruction_ref, instruction_ref> default_map_ins;
+    if(map_ins == nullptr)
+        map_ins = &default_map_ins;
+    insert_params(*this, inputs, *map_ins);
+    auto param_map = m.get_ins_param_map(inputs);
+    for(auto&& [input, param] : param_map)
+    {
+        (*map_ins)[param] = map_ins->at(input);
+    }
+    return this->add_instructions(&m, map_ins, std::move(insert));
 }
 
 void module_with_inputs::replace(instruction_ref ins, instruction_ref rep)

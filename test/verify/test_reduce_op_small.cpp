@@ -50,6 +50,7 @@ struct test_reduce_op_small : verify_program<test_reduce_op_small<Op, Axis, T>>
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 1, migraphx::shape::float_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 3, migraphx::shape::float_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::int32_type>;
+template struct test_reduce_op_small<migraphx::op::reduce_sum, 2, migraphx::shape::uint32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_mean, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_max, 2, migraphx::shape::int32_type>;
 template struct test_reduce_op_small<migraphx::op::reduce_min, 2, migraphx::shape::int32_type>;

@@ -323,7 +323,7 @@ TEST_CASE(double_split_live)
                 auto sqrtb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
                 auto mul = add_pointwise(
-                    p1, rm, "main:pointwise1", {inputs[0], inputs[0]}, single_pointwise("mul"));
+                    p1, rm, "main:pointwise1", {inputs[0]}, squared());
                 auto rsum2 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
                 auto add = add_pointwise(

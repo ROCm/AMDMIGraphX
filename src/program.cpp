@@ -431,8 +431,7 @@ std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
                                    std::unordered_map<instruction_ref, argument> results,
-                                   F trace,
-                                   bool weight_streaming = false)
+                                   F trace)
 {
     assert(mod->validate() == mod->end());
     results.reserve(mod->size() * 2);
@@ -445,8 +444,13 @@ std::vector<argument> generic_eval(const module* mod,
         if(name == "@literal")
         {
             results.emplace(
-                ins, trace(ins, [&] { return ins->get_literal().get_argument(weight_streaming); }));
+                ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
+        // else if(name == "gpu::literal_as_argument")
+        // {
+        //     results.emplace(
+        //         ins, trace(ins, [&] { return ins->get_literal(); }));
+        // }
         else if(name == "@param")
         {
             results.emplace(
@@ -519,11 +523,10 @@ template <class F>
 std::vector<argument> generic_eval(const program& p,
                                    std::vector<context>& ctx,
                                    std::unordered_map<std::string, argument> params,
-                                   F trace,
-                                   bool weight_streaming = false)
+                                   F trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, params, {}, trace, weight_streaming);
+    return generic_eval(mm, ctx, params, {}, trace);
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
@@ -534,7 +537,7 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
 }
 
 std::vector<argument>
-program::eval(parameter_map params, execution_environment exec_env, bool weight_streaming) const
+program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
 
@@ -604,8 +607,7 @@ program::eval(parameter_map params, execution_environment exec_env, bool weight_
                     }
                 }
                 return result;
-            },
-            weight_streaming);
+            });
     }
     else
     {
@@ -613,8 +615,7 @@ program::eval(parameter_map params, execution_environment exec_env, bool weight_
             *this,
             contexts,
             std::move(params),
-            [&](auto&&, auto f) { return f(); },
-            weight_streaming);
+            [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -856,11 +857,11 @@ std::string perf_group(instruction_ref ins, bool detailed)
     return result;
 }
 
-void program::mark(const parameter_map& params, marker&& m, bool weight_streaming) const
+void program::mark(const parameter_map& params, marker&& m) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
-    eval(params, execution_environment{}, weight_streaming);
+    eval(params);
     this->finish();
     // Start marking
     m.mark_start(*this);
@@ -874,8 +875,7 @@ void program::mark(const parameter_map& params, marker&& m, bool weight_streamin
             result = f();
             m.mark_stop(ins);
             return result;
-        },
-        weight_streaming);
+        });
     m.mark_stop(*this);
 }
 
@@ -883,12 +883,11 @@ void program::perf_report(std::ostream& os,
                           std::size_t n,
                           parameter_map params,
                           std::size_t batch,
-                          bool detailed,
-                          bool weight_streaming) const
+                          bool detailed) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
-    eval(params, execution_environment{}, weight_streaming);
+    eval(params);
     this->finish();
     // Run and time entire program
     std::vector<double> total_vec;
@@ -896,7 +895,7 @@ void program::perf_report(std::ostream& os,
     for(std::size_t i = 0; i < n; i++)
     {
         total_vec.push_back(time<milliseconds>([&] {
-            eval(params, execution_environment{}, weight_streaming);
+            eval(params);
             this->finish();
         }));
     }
@@ -910,8 +909,7 @@ void program::perf_report(std::ostream& os,
         [&](auto ins, auto) {
             ins_vec[ins].reserve(n);
             return argument{ins->get_shape(), nullptr};
-        },
-        weight_streaming);
+        });
 
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
@@ -927,8 +925,7 @@ void program::perf_report(std::ostream& os,
                     this->impl->contexts[ins->get_target_id()].finish();
                 }));
                 return result;
-            },
-            weight_streaming);
+            });
     }
     for(auto&& p : ins_vec)
         std::sort(p.second.begin(), p.second.end());

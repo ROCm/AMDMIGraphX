@@ -98,18 +98,10 @@ struct literal : raw_data<literal>
     std::vector<literal> get_sub_objects() const { return {}; }
 
     /// Convert the data to an argument
-    argument get_argument(bool weight_streaming = false) const
+    argument get_argument() const
     {
-        if(weight_streaming)
-        {
-            return {m_shape, buffer.get()};
-        }
-
-        else
-        {
-            auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
-            return {m_shape, [b]() { return b.get(); }};
-        }
+        auto b = make_shared_array<char>(buffer.get(), buffer.get() + m_shape.bytes());
+        return {m_shape, [b]() { return b.get(); }};
     }
 
     private:

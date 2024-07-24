@@ -183,16 +183,16 @@ TEST_CASE(literal_to_string_float_precision)
     EXPECT(x.to_string() != "127");
 }
 
-TEST_CASE(weight_streaming_literal)
-{
-    migraphx::literal l1{1};
-    migraphx::literal l2{1};
-    migraphx::literal l3{2};
-    migraphx::literal l4{};
+// TEST_CASE(weight_streaming_literal)
+// {
+//     migraphx::literal l1{1};
+//     migraphx::literal l2{1};
+//     migraphx::literal l3{2};
+//     migraphx::literal l4{};
 
-    EXPECT(l1.get_argument(true) == l2.get_argument(true));
-    EXPECT(l1.get_argument(true) != l3.get_argument(true));
-    EXPECT(l1.get_argument(true) != l4.get_argument(true));
-}
+//     EXPECT(l1.get_argument(true) == l2.get_argument(true));
+//     EXPECT(l1.get_argument(true) != l3.get_argument(true));
+//     EXPECT(l1.get_argument(true) != l4.get_argument(true));
+// }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

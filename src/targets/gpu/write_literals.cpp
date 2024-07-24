@@ -28,12 +28,36 @@
 #include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/liveness.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
+
+struct literal_as_argument
+{
+    std::string name() const { return "gpu::literal_as_argument"; }
+    argument data;
+    std::string data_name = "{ ... }";
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.data_name, "data"));
+    }
+
+    shape compute_shape(const std::vector<shape>&) const
+    {
+        return data.get_shape();
+    }
+    argument compute(const std::vector<argument>&) const
+    {
+        return data;
+    }
+};
+MIGRAPHX_REGISTER_OP(literal_as_argument);
 
 void write_literals::apply(module& m) const
 {
@@ -65,16 +89,6 @@ void write_literals::apply(module& m) const
             }
         });
 
-        long budget = streaming_budget;
-        if(budget == LONG_MAX)
-        {
-            budget = static_cast<long>(scratch_size * 2);
-        }
-        std::cout << "Using weight streaming..."
-                  << "\n";
-        std::cout << "Streaming budget: " << budget << "\n";
-        std::cout << "Scratch size: " << scratch_size << std::endl;
-
         std::vector<instruction_ref> ins_list;
         size_t size_of_literals = 0;
         for(auto ins : iterator_for(m))
@@ -86,10 +100,22 @@ void write_literals::apply(module& m) const
             }
         }
 
+        long budget = streaming_budget;
+        if(budget == LONG_MAX)
+        {
+            // budget = static_cast<long>(scratch_size * 2);
+            budget = static_cast<long>(size_of_literals / 4);
+        }
+
         size_t free_memory = 0;
         auto status        = hipMemGetInfo(&free_memory, nullptr);
-        std::cout << "Total size of literals: " << size_of_literals << "\n";
-        std::cout << "Free memory: " << free_memory << " Status: " << status << "\n";
+
+        std::cout << "Using weight streaming..."
+                  << "\n"
+                  << "Streaming budget: " << budget << "\n"
+                  << "Scratch size: " << scratch_size << "\n"
+                  << "Total size of literals: " << size_of_literals << "\n"
+                  << "Free memory: " << free_memory << " Status: " << status << std::endl;
 
         // std::sort(ins_list.begin(),
         //           ins_list.end(),
@@ -102,7 +128,8 @@ void write_literals::apply(module& m) const
             if(bytes_on_gpu + ins->get_shape().bytes() > budget)
             {
                 literal l  = ins->get_literal();
-                auto pre   = m.add_literal(l);
+                // auto pre   = m.add_literal(l);
+                auto pre = m.insert_instruction(ins, literal_as_argument{l.get_argument()});
                 auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                 m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
             }

@@ -691,7 +691,7 @@ struct run_cmd : command<run_cmd>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Executing ... " << std::endl;
-        p.eval(m, execution_environment{}, c.co.weight_streaming);
+        p.eval(m);
         std::cout << p << std::endl;
     }
 };
@@ -718,7 +718,7 @@ struct perf : command<perf>
         std::cout << "Allocating params ... " << std::endl;
         auto m = c.params(p);
         std::cout << "Running performance report ... " << std::endl;
-        p.perf_report(std::cout, n, m, c.l.batch, detailed, c.co.weight_streaming);
+        p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
 
@@ -735,7 +735,7 @@ struct roctx : command<roctx>
         auto m = c.params(p);
         std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         auto rtx = create_marker_roctx();
-        p.mark(m, std::move(rtx), c.co.weight_streaming);
+        p.mark(m, std::move(rtx));
     }
 };
 

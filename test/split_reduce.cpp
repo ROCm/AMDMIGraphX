@@ -361,16 +361,18 @@ TEST_CASE(double_split_live)
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), rsums);
         auto rsum2 =
             mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), rsums);
-        auto sqrt  = add_pointwise(p2, "main:pointwise0", {rsum1}, single_pointwise("sqrt"));
-        auto sqrtb = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-        auto add = add_pointwise(p2, "main:pointwise2", {rsum2, sqrt}, single_pointwise("add"));
-        auto addb =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), add);
-        auto mul = add_pointwise(p2, "main:pointwise3", {addb, sqrtb}, single_pointwise("mul"));
-        mm->add_return({mul});
+        auto rsum1b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
+        auto rsum2b = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum2);
+        auto sqrt_add_mul = add_pointwise(p2, "main:pointwise0", {rsum1b, rsum2b}, [](auto* pm, const auto& inputs) {
+            auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
+            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[1], sqrt);
+            return pm->add_instruction(migraphx::make_op("mul"), add, sqrt);
+        });
+        mm->add_return({sqrt_add_mul});
     }
-    EXPECT(p1 == p2);
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

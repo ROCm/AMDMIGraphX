@@ -27,3 +27,6 @@ accelerate
 diffusers
 optimum[onnxruntime]
 transformers
+
+--extra-index-url https://test.pypi.org/simple
+hip-python

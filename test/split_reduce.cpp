@@ -352,7 +352,7 @@ TEST_CASE(double_split_live)
                 auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                                  inputs[0]);
                 auto mul   = add_pointwise(
-                    p2, rm, "main:pointwise1", {inputs[0], inputs[0]}, single_pointwise("mul"));
+                    p2, rm, "main:pointwise1", {inputs[0]}, squared());
                 auto rsum2 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
                 return {rsum1, rsum2};

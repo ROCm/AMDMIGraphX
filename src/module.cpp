@@ -1031,8 +1031,8 @@ module::fuse(const module& m,
     if(map_ins == nullptr)
         map_ins = &default_map_ins;
     insert_params(*this, inputs, *map_ins);
-    auto param_map = m.get_ins_param_map(inputs);
-    for(auto&& [input, param] : param_map)
+    auto param_map = m.get_ins_param_map(inputs, true);
+    for(auto&& [param, input] : param_map)
     {
         (*map_ins)[param] = map_ins->at(input);
     }

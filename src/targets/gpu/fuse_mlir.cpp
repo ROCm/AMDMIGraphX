@@ -355,8 +355,10 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "erf",
         "exp",
         "floor",
+        "reduce_sum",
         "log",
         "recip",
+        "sqrt",
         "rsqrt",
         "sigmoid",
         "softmax",
@@ -392,6 +394,22 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
     return is_pointwise_op_supported_by_mlir(i);
 }
 
+MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
+{
+    if(ins->name() != "split_fused_reduce")
+        return false;
+    std::vector<module_ref> sub_mods = ins->module_inputs().front()->get_sub_modules(true);
+    sub_mods.insert(sub_mods.begin(), ins->module_inputs().front());
+    // for(const auto& mod : sub_mods)
+    // {
+    //     if(not std::all_of(mod->begin(), mod->end(), &is_pointwise_op_supported_by_mlir))
+    //     {
+    //         return false;
+    //     }
+    // }
+    return true;
+}
+
 MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
 {
     if(ins->name() != "pointwise")
@@ -421,6 +439,99 @@ std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
         });
     return result;
 }
+
+struct find_mlir_split_reduce
+{
+    mlir_mode conv_mode = mlir_mode::none;
+    mlir_mode dot_mode  = mlir_mode::none;
+    auto matcher() const
+    {
+        auto dot_or_conv = match::name("gpu::mlir_op");
+        return mlir_split_reduce()(match::any_of[match::inputs()](dot_or_conv.bind("gemm")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto reduce_ins = r.result;
+        auto gemm_ins   = r.instructions["gemm"];
+        auto* rm        = reduce_ins->module_inputs().front();
+        auto names      = rm->get_parameter_names();
+        std::sort(names.begin(), names.end());
+        module_ref gemm_old_mm = gemm_ins->module_inputs().front();
+        module_ref mm          = mpm.create_module(gemm_old_mm->name() + "_split_fused_reduce");
+        mm->add_instructions(gemm_old_mm);
+        mm->set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> param_map;
+        param_map[gemm_ins]      = std::prev(mm->end())->inputs().front();
+        bool gemm_has_multi_outs = gemm_ins->outputs().size() > 1;
+        mm->remove_instruction(std::prev(mm->end()));
+        auto return_vals =
+            mm->fuse(*rm,
+                     reduce_ins->inputs(),
+                     &param_map,
+                     [&](module& main_mod,
+                         instruction_ref pos,
+                         const operation& op,
+                         const std::vector<instruction_ref>& inputs,
+                         const std::vector<module_ref>& mod_args) {
+                         // todo handle broadcasted literals inside reduce mod
+                         if(op.name() == "pointwise")
+                         {
+                             for(const auto& skip_param : inputs)
+                             {
+                                 if(not contains(param_map, skip_param))
+                                 {
+                                     param_map[skip_param] =
+                                         skip_param; // skip adding parameter for inputs of
+                                                     // pointwise inside split_fused_reduce
+                                 }
+                             }
+                             auto sub_pm = mod_args.front();
+                             // todo: handle literals inside pointwise
+                             auto param_map_2 = create_param_map_with_literals(
+                                 &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
+                             for(const auto& i : param_map_2)
+                             {
+                                 param_map.insert(i);
+                             }
+                             return main_mod.fuse(*sub_pm, inputs, &param_map).front();
+                         }
+                         return main_mod.insert_instruction(pos, op, inputs, mod_args);
+                     });
+        if(gemm_has_multi_outs)
+        {
+            return_vals.insert(return_vals.end(), param_map[gemm_ins]);
+        }
+        mm->add_return(return_vals);
+        std::vector<instruction_ref> inputs;
+        std::copy_if(reduce_ins->inputs().begin(),
+                     reduce_ins->inputs().end(),
+                     std::back_inserter(inputs),
+                     [&](auto input) { return input != gemm_ins; });
+        inputs.insert(inputs.end(), gemm_ins->inputs().begin(), gemm_ins->inputs().end());
+        if(gemm_has_multi_outs)
+        {
+            auto fused_ins = mpm.get_module().insert_instruction(
+                reduce_ins, mlir_op{gemm_ins->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            auto dot_ins = mpm.get_module().insert_instruction(
+                reduce_ins,
+                migraphx::make_op("get_tuple_elem", {{"index", return_vals.size() - 1}}),
+                fused_ins);
+
+            mpm.get_module().replace_instruction(gemm_ins, dot_ins);
+            for(const auto outs : reduce_ins->outputs())
+            {
+                assert(outs->get_operator().name() == "get_tuple_elem");
+                mpm.get_module().replace_instruction(outs, outs->get_operator(), fused_ins);
+            }
+        }
+        else
+        {
+            mpm.get_module().replace_instruction(
+                reduce_ins, mlir_op{gemm_ins->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        }
+    }
+};
 
 struct find_mlir_fused_ops
 {
@@ -700,6 +811,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+
     match::find_matches(
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
@@ -708,7 +820,13 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
         match::find_matches(mpm, find_pointwise_mlir{});
+    }
 #else
     (void)mpm;
 #endif

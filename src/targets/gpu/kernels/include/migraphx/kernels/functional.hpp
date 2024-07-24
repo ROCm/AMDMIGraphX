@@ -196,7 +196,7 @@ template <class F, class Pack1, class Pack2>
 constexpr void unpack_each(F f, Pack1 p1, Pack2 p2)
 {
     p1([&](auto&&... xs) {
-        p2([&](auto&& ys) {
+        p2([&](auto&&... ys) {
             each_args(
                 [&](auto&& p) { p(f); },
                 pack_forward(static_cast<decltype(xs)>(xs), static_cast<decltype(ys)>(ys))...);

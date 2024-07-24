@@ -365,11 +365,12 @@ TEST_CASE(double_split_live)
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum1);
         auto rsum2b = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), rsum2);
-        auto sqrt_add_mul = add_pointwise(p2, "main:pointwise0", {rsum1b, rsum2b}, [](auto* pm, const auto& inputs) {
-            auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
-            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[1], sqrt);
-            return pm->add_instruction(migraphx::make_op("mul"), add, sqrt);
-        });
+        auto sqrt_add_mul = add_pointwise(
+            p2, "main:pointwise0", {rsum1b, rsum2b}, [](auto* pm, const auto& inputs) {
+                auto sqrt = pm->add_instruction(migraphx::make_op("sqrt"), inputs[0]);
+                auto add  = pm->add_instruction(migraphx::make_op("add"), inputs[1], sqrt);
+                return pm->add_instruction(migraphx::make_op("mul"), add, sqrt);
+            });
         mm->add_return({sqrt_add_mul});
     }
     EXPECT(p1.sort() == p2.sort());

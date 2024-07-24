@@ -508,10 +508,6 @@ if __name__ == "__main__":
     sd.cleanup()
 
     print("Convert result to rgb image...")
-    # image = StableDiffusionMGX.convert_to_rgb_image(result)
-    # filename = args.output if args.output else f"output_s{args.seed}_t{args.steps}.png"
-    # StableDiffusionMGX.save_image(image, filename)
-    # print(f"Image saved to {filename}")
     images = StableDiffusionMGX.convert_to_rgb_image(result)
     for i, image in enumerate(images):
         filename = f"{args.batch}_{args.output}" if args.output else f"output_s{args.seed}_t{args.steps}_{i}.png"

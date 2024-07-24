@@ -72,6 +72,7 @@
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
+#include <migraphx/op/log2.hpp>
 #include <migraphx/op/logical_and.hpp>
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>

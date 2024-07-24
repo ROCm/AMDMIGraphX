@@ -1,6 +1,6 @@
 # Stable Diffusion 1.5 + Control Net (Canny)
 
-This version was tested with [rocm 6.0](https://github.com/ROCmSoftwarePlatform/AMDMIGraphX/tree/rocm-6.0.0) revision.
+This version was tested with [rocm 6.0](https://github.com/ROCm/AMDMIGraphX/tree/rocm-6.0.0) revision.
 
 ## Console application
 

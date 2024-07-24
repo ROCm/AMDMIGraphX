@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -426,3 +426,18 @@ def useStlAlgorithms(cfg, data):
                                  "Use std::equal_range instead.")
         elif token.str == 'memchr':
             cppcheck.reportError(token, "style", "Use std::find instead.")
+
+
+@cppcheck.checker
+def MatcherNestedParentheses(cfg, data):
+    for token in cfg.tokenlist:
+        if not simpleMatch(token, "matcher ( ) const {"):
+            continue
+        for tok2 in token.tokAt(4).forward(token.linkAt(4)):
+            if not simpleMatch(tok2, ") ) ) )"):
+                continue
+            cppcheck.reportError(
+                tok2, "style",
+                "Too many nested parentheses can affect readability; consider using variables instead."
+            )
+            break

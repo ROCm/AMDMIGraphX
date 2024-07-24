@@ -705,8 +705,9 @@ struct find_unary_shape_transforms
     {
         auto output_not_pointwise =
             match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto shape_transform = match::name(shape_transforms());
         auto input_has_shape_transform =
-            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+            match::args(match::skip(match::name("contiguous"))(shape_transform));
         return match::pointwise(
             match::used_once(), input_has_shape_transform, output_not_pointwise);
     }
@@ -795,8 +796,8 @@ struct find_slice_transpose
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::output(match::name("transpose")))));
+        auto transpose = match::output(match::name("transpose"));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(transpose)));
     }
 
     static std::vector<int64_t> find_common_perm(const std::vector<instruction_ref>& transposes)
@@ -950,10 +951,9 @@ struct find_reshape_dot
 {
     auto matcher() const
     {
-        return match::name("dot")(
-            match::used_once(),
-            match::either_arg(0, 1)(match::name("reshape").bind("rsp"),
-                                    match::skip_broadcasts(match::any().bind("other"))));
+        auto rsp   = match::name("reshape").bind("rsp");
+        auto other = match::skip_broadcasts(match::any().bind("other"));
+        return match::name("dot")(match::used_once(), match::either_arg(0, 1)(rsp, other));
     }
 
     // Gemm axis should not be altered by the reshape
@@ -1087,8 +1087,7 @@ struct find_mul_add_shape_op_dot
 
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < depth; i++)
-    {
+    m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
@@ -1106,7 +1105,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{});
         dead_code_elimination{}.apply(m);
-    }
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

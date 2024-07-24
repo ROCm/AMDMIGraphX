@@ -142,6 +142,15 @@ __device__ void dpp_reduce(T& in, Op op)
     }
 #endif
 
+// Navi21 doesn't support int32 dpp
+#if defined(__gfx1030__)
+// NOLINTNEXTLINE
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
@@ -149,6 +158,7 @@ __device__ void dpp_reduce(T& in, Op op)
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#endif
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
@@ -331,7 +341,7 @@ template <class Derived>
 struct reducer_base
 {
     template <class T>
-    __device__ auto make_inner_slice(T x) const
+    __device__ decltype(auto) make_inner_slice(T&& x) const
     {
         if constexpr(is_inner_storage<T>{})
         {

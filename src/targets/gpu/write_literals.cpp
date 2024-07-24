@@ -48,14 +48,8 @@ struct literal_as_argument
         return pack(f(self.data_name, "data"));
     }
 
-    shape compute_shape(const std::vector<shape>&) const
-    {
-        return data.get_shape();
-    }
-    argument compute(const std::vector<argument>&) const
-    {
-        return data;
-    }
+    shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
+    argument compute(const std::vector<argument>&) const { return data; }
 };
 MIGRAPHX_REGISTER_OP(literal_as_argument);
 
@@ -129,7 +123,7 @@ void write_literals::apply(module& m) const
             {
                 literal l  = ins->get_literal();
                 // auto pre   = m.add_literal(l);
-                auto pre = m.insert_instruction(ins, literal_as_argument{l.get_argument()});
+                auto pre   = m.insert_instruction(ins, literal_as_argument{l.get_argument()});
                 auto alloc = m.insert_instruction(std::next(pre), hip_allocate{l.get_shape()});
                 m.replace_instruction(ins, hip_copy_to_gpu{}, pre, alloc);
             }

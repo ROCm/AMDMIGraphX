@@ -107,8 +107,8 @@ struct MIGRAPHX_EXPORT program
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,
-                     std::size_t batch     = 1,
-                     bool detailed         = false) const;
+                     std::size_t batch = 1,
+                     bool detailed     = false) const;
 
     void mark(const parameter_map& params, marker&& m) const;
 

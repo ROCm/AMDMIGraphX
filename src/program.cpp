@@ -443,8 +443,7 @@ std::vector<argument> generic_eval(const module* mod,
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(
-                ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         // else if(name == "gpu::literal_as_argument")
         // {
@@ -536,8 +535,7 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
     return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument>
-program::eval(parameter_map params, execution_environment exec_env) const
+std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
 
@@ -559,11 +557,8 @@ program::eval(parameter_map params, execution_environment exec_env) const
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
-        ret = generic_eval(
-            *this,
-            contexts,
-            std::move(params),
-            [&](instruction_ref ins, auto f) {
+        ret =
+            generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
                 const auto& ctx = contexts[ins->get_target_id()];
                 ctx.finish();
                 std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
@@ -611,11 +606,7 @@ program::eval(parameter_map params, execution_environment exec_env) const
     }
     else
     {
-        ret = generic_eval(
-            *this,
-            contexts,
-            std::move(params),
-            [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -865,25 +856,18 @@ void program::mark(const parameter_map& params, marker&& m) const
     this->finish();
     // Start marking
     m.mark_start(*this);
-    generic_eval(
-        *this,
-        ctx,
-        params,
-        [&](auto ins, auto f) {
-            argument result;
-            m.mark_start(ins);
-            result = f();
-            m.mark_stop(ins);
-            return result;
-        });
+    generic_eval(*this, ctx, params, [&](auto ins, auto f) {
+        argument result;
+        m.mark_start(ins);
+        result = f();
+        m.mark_stop(ins);
+        return result;
+    });
     m.mark_stop(*this);
 }
 
-void program::perf_report(std::ostream& os,
-                          std::size_t n,
-                          parameter_map params,
-                          std::size_t batch,
-                          bool detailed) const
+void program::perf_report(
+    std::ostream& os, std::size_t n, parameter_map params, std::size_t batch, bool detailed) const
 {
     auto& ctx = this->impl->contexts;
     // Run once by itself
@@ -902,23 +886,16 @@ void program::perf_report(std::ostream& os,
     std::sort(total_vec.begin(), total_vec.end());
     std::unordered_map<instruction_ref, std::vector<double>> ins_vec;
     // Fill the map
-    generic_eval(
-        *this,
-        ctx,
-        params,
-        [&](auto ins, auto) {
-            ins_vec[ins].reserve(n);
-            return argument{ins->get_shape(), nullptr};
-        });
+    generic_eval(*this, ctx, params, [&](auto ins, auto) {
+        ins_vec[ins].reserve(n);
+        return argument{ins->get_shape(), nullptr};
+    });
 
     // Run and time each instruction
     for(std::size_t i = 0; i < n; i++)
     {
         generic_eval(
-            *this,
-            ctx,
-            params,
-            [&](auto ins, auto f) {
+            *this, ctx, params, [&](auto ins, auto f) {
                 argument result;
                 ins_vec[ins].push_back(time<milliseconds>([&] {
                     result = f();

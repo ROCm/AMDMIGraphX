@@ -432,7 +432,7 @@ class StableDiffusionMGX():
                          prompt_tokens.input_ids.to(torch.int32))
         run_model_sync(self.models["clip"], self.model_args["clip"])
         text_embeds = self.tensors["clip"][get_output_name(0)]
-        return torch.cat([text_embeds]*self.batch)
+        return torch.cat([torch.cat([i]*self.batch) for i in text_embeds.split(1)])
 
     @staticmethod
     def convert_to_rgb_image(image):

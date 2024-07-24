@@ -36,9 +36,8 @@ struct log2 : unary<log2>
 {
     auto apply() const
     {
-        const double ln2 = std::log(2.0);
 
-        return [ln2](auto x) { return std::log(x)/ln2; };
+        return [](auto x) { return std::log2(x); };
     }
 };
 

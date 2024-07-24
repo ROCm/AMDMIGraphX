@@ -114,13 +114,11 @@ def get_args():
         help="Number of steps",
     )
 
-    parser.add_argument(
-        "-b",
-        "--batch",
-        type=int,
-        default=1,
-        help="Batch count or number of images to produce"
-    )
+    parser.add_argument("-b",
+                        "--batch",
+                        type=int,
+                        default=1,
+                        help="Batch count or number of images to produce")
 
     parser.add_argument(
         "-p",
@@ -235,8 +233,7 @@ class StableDiffusionMGX():
         self.models = {
             "vae":
             StableDiffusionMGX.load_mgx_model(
-                "vae_decoder", 
-                {"latent_sample": [self.batch, 4, 64, 64]},
+                "vae_decoder", {"latent_sample": [self.batch, 4, 64, 64]},
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
                 use_fp16="vae" in fp16,
@@ -255,10 +252,9 @@ class StableDiffusionMGX():
                 offload_copy=False),
             "unet":
             StableDiffusionMGX.load_mgx_model(
-                "unet", 
-                {
-                    "sample": [2*self.batch, 4, 64, 64],
-                    "encoder_hidden_states": [2*self.batch, 77, 1024],
+                "unet", {
+                    "sample": [2 * self.batch, 4, 64, 64],
+                    "encoder_hidden_states": [2 * self.batch, 77, 1024],
                     "timestep": [1],
                 },
                 onnx_model_path,
@@ -266,7 +262,7 @@ class StableDiffusionMGX():
                 use_fp16="unet" in fp16,
                 force_compile=force_compile,
                 exhaustive_tune=exhaustive_tune,
-                offload_copy=False, 
+                offload_copy=False,
                 batch=self.batch)
         }
 
@@ -432,7 +428,8 @@ class StableDiffusionMGX():
                          prompt_tokens.input_ids.to(torch.int32))
         run_model_sync(self.models["clip"], self.model_args["clip"])
         text_embeds = self.tensors["clip"][get_output_name(0)]
-        return torch.cat([torch.cat([i]*self.batch) for i in text_embeds.split(1)])
+        return torch.cat(
+            [torch.cat([i] * self.batch) for i in text_embeds.split(1)])
 
     @staticmethod
     def convert_to_rgb_image(image):
@@ -480,14 +477,17 @@ class StableDiffusionMGX():
         self.profile_start("warmup")
         copy_tensor_sync(self.tensors["clip"]["input_ids"],
                          torch.ones((2, 77)).to(torch.int32))
-        copy_tensor_sync(self.tensors["unet"]["sample"],
-                         torch.randn((2*self.batch, 4, 64, 64)).to(torch.float32))
-        copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
-                         torch.randn((2*self.batch, 77, 1024)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["unet"]["sample"],
+            torch.randn((2 * self.batch, 4, 64, 64)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["unet"]["encoder_hidden_states"],
+            torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
         copy_tensor_sync(self.tensors["unet"]["timestep"],
                          torch.atleast_1d(torch.randn(1).to(torch.int64)))
-        copy_tensor_sync(self.tensors["vae"]["latent_sample"],
-                         torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
+        copy_tensor_sync(
+            self.tensors["vae"]["latent_sample"],
+            torch.randn((self.batch, 4, 64, 64)).to(torch.float32))
 
         for _ in range(num_runs):
             run_model_sync(self.models["clip"], self.model_args["clip"])
@@ -519,7 +519,7 @@ if __name__ == "__main__":
     # StableDiffusionMGX.save_image(image, filename)
     # print(f"Image saved to {filename}")
     images = StableDiffusionMGX.convert_to_rgb_image(result)
-    for i,image in enumerate(images):
+    for i, image in enumerate(images):
         filename = f"{args.batch}_{args.output}" if args.output else f"output_s{args.seed}_t{args.steps}_{i}.png"
         StableDiffusionMGX.save_image(image, filename)
         print(f"Image saved to {filename}")

@@ -28,3 +28,6 @@ diffusers
 transformers
 huggingface_hub[cli]
 onnx
+
+--extra-index-url https://test.pypi.org/simple
+hip-python

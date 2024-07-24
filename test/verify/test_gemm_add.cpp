@@ -57,6 +57,4 @@ struct test_gemm_add : verify_program<test_gemm_add<DType>>
 
 template struct test_gemm_add<migraphx::shape::float_type>;
 template struct test_gemm_add<migraphx::shape::half_type>;
-// TODO: Investigate failure: rocblas_invoke: rocBLAS call failed with status 2
-//       Github Issue: #3199
 // template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;

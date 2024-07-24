@@ -372,6 +372,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "floor",
         "log",
         "recip",
+        "sqrt",
         "rsqrt",
         "sigmoid",
         "softmax",

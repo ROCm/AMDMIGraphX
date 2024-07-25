@@ -990,12 +990,6 @@ static void rewrite_reduce(module& m)
                     new_reduce_axes.push_back(axis);
                 }
             }
-            for(const auto& rsp_dim : new_rsp_dims)
-            {
-                std::cout << rsp_dim << " ";
-            }
-            std::cout << "\n";
-            m.debug_print();
             auto rsp_ins = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
             auto collapsed_reduce = m.insert_instruction(

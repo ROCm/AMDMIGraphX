@@ -871,6 +871,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_lrn.*')
         backend_test.include(r'.*test_lstm.*')
         backend_test.include(r'.*test_log.*')
+        backend_test.include(r'.*test_log2.*')
         backend_test.include(r'.*test_loop.*')
         backend_test.include(r'.*test_lpnorm.*')
         backend_test.include(r'.*test_lppool.*')

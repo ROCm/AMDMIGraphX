@@ -89,7 +89,7 @@ bool is_no_transpose(const std::vector<int64_t>& dims)
 
 struct find_nested_shape_transforms
 {
-    static const auto& shape_transforms()
+    static const auto& shape_transform_ops()
     {
         static const std::unordered_set<std::string> names = {
             "flatten",
@@ -104,11 +104,12 @@ struct find_nested_shape_transforms
     }
     auto matcher() const
     {
+        auto shape_transform = match::name(shape_transform_ops());
         auto output_not_shape_transform = match::none_of(
-            match::skip_output(match::name("contiguous"))(match::name(shape_transforms())));
+            match::skip_output(match::name("contiguous"))(shape_transform));
         auto input_has_shape_transform =
-            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
-        return match::name(shape_transforms())(output_not_shape_transform,
+            match::args(match::skip(match::name("contiguous"))(shape_transform));
+        return shape_transform(output_not_shape_transform,
                                                input_has_shape_transform);
     }
 
@@ -118,7 +119,7 @@ struct find_nested_shape_transforms
 
         std::vector<operation> ops;
         auto x = ins;
-        while(contains(shape_transforms(), x->get_operator().name()) or
+        while(contains(shape_transform_ops(), x->get_operator().name()) or
               x->get_operator().name() == "contiguous")
         {
             ops.push_back(x->get_operator());

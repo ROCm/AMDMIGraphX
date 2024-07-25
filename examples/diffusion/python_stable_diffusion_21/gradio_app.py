@@ -51,7 +51,7 @@ def main():
             gr.Slider(
                 1, 20, step=0.1, value=args.scale, label="Guidance scale"),
         ],
-        gr.Gallery(), 
+        gr.Gallery(),
     )
     demo.launch()
 

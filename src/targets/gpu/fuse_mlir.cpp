@@ -476,6 +476,7 @@ struct find_mlir_split_reduce
     auto matcher() const
     {
         auto dot_or_conv = match::name("gpu::mlir_op");
+        // TODO: Handle reshapes inbetween
         return mlir_split_reduce()(match::any_of[match::inputs()](dot_or_conv.bind("gemm")));
     }
 

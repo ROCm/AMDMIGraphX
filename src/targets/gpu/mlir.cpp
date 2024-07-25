@@ -672,8 +672,6 @@ struct mlir_program
     void parse(const module& m)
     {
         validate(m);
-        std::cout << "parsing:\n";
-        m.debug_print();
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
@@ -971,7 +969,6 @@ void rewrite_reduce(module& m)
             auto in_shape    = i->inputs().front()->get_shape();
             auto in_lens     = in_shape.lens();
             assert(in_shape.standard());
-            assert(std::is_sorted(reduce_axes.begin(), reduce_axes.end()));
             assert(reduce_lens.size() == in_lens.size());
             assert(std::adjacent_find(
                        reduce_axes.begin(), reduce_axes.end(), [](auto axis_1, auto axis_2) {
@@ -1003,7 +1000,9 @@ void rewrite_reduce(module& m)
             ins_to_remove.push_back(i);
         }
     }
-    std::for_each(ins_to_remove.begin(), ins_to_remove.end(), [&](const auto& remove_ins) { m.remove_instruction(remove_ins);});
+    std::for_each(ins_to_remove.begin(), ins_to_remove.end(), [&](const auto& remove_ins) {
+        m.remove_instruction(remove_ins);
+    });
 }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
@@ -1059,17 +1058,14 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
-    std::cout << "inside compile\n";
     adjust_param_shapes(m, in_shapes);
     rewrite_reduce(m);
-    m.debug_print();
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        std::cout << "compiling module\n";
         std::cout << m << std::endl;
     }
 
@@ -1136,8 +1132,6 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
 {
     adjust_param_shapes(m, inputs);
     rewrite_reduce(m);
-    std::cout << "getting tuning\n";
-    m.debug_print();
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);

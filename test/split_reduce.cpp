@@ -322,8 +322,7 @@ TEST_CASE(double_split_live)
                     add_pointwise(p1, rm, "main:pointwise0", {rsum1}, single_pointwise("sqrt"));
                 auto sqrtb = rm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sqrt);
-                auto mul = add_pointwise(
-                    p1, rm, "main:pointwise1", {inputs[0]}, squared());
+                auto mul = add_pointwise(p1, rm, "main:pointwise1", {inputs[0]}, squared());
                 auto rsum2 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
                 auto add = add_pointwise(
@@ -351,8 +350,7 @@ TEST_CASE(double_split_live)
                 const auto& axes) -> std::vector<migraphx::instruction_ref> {
                 auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
                                                  inputs[0]);
-                auto mul   = add_pointwise(
-                    p2, rm, "main:pointwise1", {inputs[0]}, squared());
+                auto mul   = add_pointwise(p2, rm, "main:pointwise1", {inputs[0]}, squared());
                 auto rsum2 =
                     rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), mul);
                 return {rsum1, rsum2};

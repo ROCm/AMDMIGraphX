@@ -992,10 +992,10 @@ void rewrite_reduce(module& m)
             }
             auto rsp_ins = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", rsp_lens}}), i->inputs().front());
-            auto new_reduce = m.insert_instruction(
+            auto collapsed_reduce = m.insert_instruction(
                 i, migraphx::make_op("reduce_sum", {{"axes", new_reduce_axes}}), rsp_ins);
             auto rsp_back = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), new_reduce);
+                i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
             m.replace_instruction(i, rsp_back);
             ins_to_remove.push_back(i);
         }

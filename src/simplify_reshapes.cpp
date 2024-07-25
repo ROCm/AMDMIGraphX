@@ -105,12 +105,11 @@ struct find_nested_shape_transforms
     auto matcher() const
     {
         auto shape_transform = match::name(shape_transform_ops());
-        auto output_not_shape_transform = match::none_of(
-            match::skip_output(match::name("contiguous"))(shape_transform));
+        auto output_not_shape_transform =
+            match::none_of(match::skip_output(match::name("contiguous"))(shape_transform));
         auto input_has_shape_transform =
             match::args(match::skip(match::name("contiguous"))(shape_transform));
-        return shape_transform(output_not_shape_transform,
-                                               input_has_shape_transform);
+        return shape_transform(output_not_shape_transform, input_has_shape_transform);
     }
 
     void apply(module& m, const match::matcher_result& mr) const

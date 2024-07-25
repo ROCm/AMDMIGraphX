@@ -50,6 +50,8 @@ struct MIGRAPHX_GPU_EXPORT mlir_code_object
     std::vector<value> prefill_values   = {};
 };
 
+MIGRAPHX_GPU_EXPORT bool is_reduce(const instruction& i);
+
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   module m,
                                                   const std::vector<shape>& in_shapes,

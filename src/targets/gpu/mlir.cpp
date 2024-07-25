@@ -954,7 +954,7 @@ struct mlir_program
     std::string sym_name;
 };
 
-static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 static void rewrite_reduce(module& m)
 {

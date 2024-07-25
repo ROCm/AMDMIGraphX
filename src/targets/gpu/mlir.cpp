@@ -21,11 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
+#include <cstdint>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
+#include <numeric>
 #include <ostream>
 
 #ifdef MIGRAPHX_MLIR
@@ -669,6 +672,8 @@ struct mlir_program
     void parse(const module& m)
     {
         validate(m);
+        std::cout << "parsing:\n";
+        m.debug_print();
         sym_name   = get_symbol_name(m);
         auto mbody = mlirModuleGetBody(mmodule.get());
         std::unordered_map<instruction_ref, MlirValue> ins_map;
@@ -951,11 +956,63 @@ struct mlir_program
     std::string sym_name;
 };
 
+static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
+
+void rewrite_reduce(module& m)
+{
+    std::vector<instruction_ref> ins_to_remove;
+    for(auto i : iterator_for(m))
+    {
+        if(is_reduce(*i))
+        {
+            auto reduce_op   = i->get_operator().to_value();
+            auto reduce_axes = reduce_op["axes"].to_vector<size_t>();
+            auto reduce_lens = i->get_shape().lens();
+            auto in_shape    = i->inputs().front()->get_shape();
+            auto in_lens     = in_shape.lens();
+            assert(in_shape.standard());
+            assert(std::is_sorted(reduce_axes.begin(), reduce_axes.end()));
+            assert(reduce_lens.size() == in_lens.size());
+            assert(std::adjacent_find(
+                       reduce_axes.begin(), reduce_axes.end(), [](auto axis_1, auto axis_2) {
+                           return axis_2 - axis_1 > 1;
+                       }) == reduce_axes.end());
+
+            std::vector<int64_t> rsp_lens;
+            std::vector<int64_t> new_reduce_axes;
+            for(const auto axis : range(in_shape.ndim()))
+            {
+                if(reduce_lens[axis] != in_lens[axis] and new_reduce_axes.empty())
+                {
+                    assert(reduce_lens[axis] == 1);
+                    rsp_lens.push_back(-1);
+                    new_reduce_axes.push_back(axis);
+                }
+                else
+                {
+                    rsp_lens.push_back(in_lens[axis]);
+                }
+            }
+            auto rsp_ins = m.insert_instruction(
+                i, migraphx::make_op("reshape", {{"dims", rsp_lens}}), i->inputs().front());
+            auto new_reduce = m.insert_instruction(
+                i, migraphx::make_op("reduce_sum", {{"axes", new_reduce_axes}}), rsp_ins);
+            auto rsp_back = m.insert_instruction(
+                i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), new_reduce);
+            m.replace_instruction(i, rsp_back);
+            ins_to_remove.push_back(i);
+        }
+    }
+    std::for_each(ins_to_remove.begin(), ins_to_remove.end(), [&](const auto& remove_ins) { m.remove_instruction(remove_ins);});
+}
+
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
+    auto mm = m;
+    rewrite_reduce(mm);
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m);
+    mp.parse(mm);
     mp.run_high_level_pipeline();
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
@@ -988,6 +1045,7 @@ std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
         mr = &mm;
         adjust_param_shapes(mm, inputs);
     }
+    rewrite_reduce(mm);
     mlir_program mp;
     mp.parse(*mr);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
@@ -1001,13 +1059,17 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               const std::vector<shape>& in_shapes,
                               const value& solution)
 {
+    std::cout << "inside compile\n";
     adjust_param_shapes(m, in_shapes);
+    rewrite_reduce(m);
+    m.debug_print();
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << "compiling module\n";
         std::cout << m << std::endl;
     }
 
@@ -1073,7 +1135,9 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
                                      bool exhaustive)
 {
     adjust_param_shapes(m, inputs);
-
+    rewrite_reduce(m);
+    std::cout << "getting tuning\n";
+    m.debug_print();
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);

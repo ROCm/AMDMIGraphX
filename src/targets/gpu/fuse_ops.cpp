@@ -167,7 +167,7 @@ struct fusion
 const std::unordered_set<std::string>& get_supported_archs()
 {
     static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940", "gfx941", "gfx942"};
+        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
     return supported_archs;
 }
 #if MIGRAPHX_USE_MIOPEN
@@ -495,8 +495,8 @@ struct find_conv_bias
     context* ctx = nullptr;
     auto matcher() const
     {
-        return conv_bias(match::none_of(
-            match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
+        auto relu = match::name(std::unordered_set<std::string>{"gpu::relu"});
+        return conv_bias(match::none_of(match::output(relu)));
     }
 
     void apply(module& m, const match::matcher_result& r) const

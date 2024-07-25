@@ -124,8 +124,11 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
+if(MIGRAPHX_USE_MIOPEN)
+    set(MIOPEN_SRCS abs.cpp)
+endif()
+
 add_library(migraphx_gpu
-    abs.cpp
     analyze_streams.cpp
     allocation_model.cpp
     argmax.cpp
@@ -169,6 +172,7 @@ add_library(migraphx_gpu
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}
+    ${MIOPEN_SRCS}
 )
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)

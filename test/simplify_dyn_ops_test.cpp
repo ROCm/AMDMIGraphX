@@ -732,6 +732,7 @@ TEST_CASE(static_broadcast_for_dot)
 
 TEST_CASE(static_onehot)
 {
+    // depth as a literal
     migraphx::module m0;
     {
         migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
@@ -779,6 +780,20 @@ TEST_CASE(static_onehot)
         m1.add_return({ret});
     }
     EXPECT(m0 == m1);
+
+    // depth as an attribute
+    migraphx::module m2;
+    {
+        migraphx::shape inds_s{migraphx::shape::int64_type, {4}};
+        migraphx::shape values_s{migraphx::shape::float_type, {2}};
+        auto inds_param   = m2.add_parameter("indices", inds_s);
+        auto values_param = m2.add_parameter("values", values_s);
+        auto onehot_ins   = m2.add_instruction(
+            migraphx::make_op("onehot", {{"axis", -1}, {"depth", 3}}), inds_param, values_param);
+        m2.add_return({onehot_ins});
+    }
+    run_pass(m2);
+    EXPECT(m2 == m1);
 }
 
 TEST_CASE(onehot_cannot_simplify)

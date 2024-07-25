@@ -1,5 +1,5 @@
 /* ************************************************************************
- * Copyright (C) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -115,6 +115,8 @@ struct float8
         } // else
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
+
+    inline explicit constexpr operator bool() const { return not is_zero(); }
 
     inline constexpr bool is_zero() const
     {

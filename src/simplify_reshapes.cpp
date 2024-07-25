@@ -710,8 +710,9 @@ struct find_unary_shape_transforms
     {
         auto output_not_pointwise =
             match::none_of(match::skip_output(match::name("contiguous"))(match::pointwise()));
+        auto shape_transform = match::name(shape_transforms());
         auto input_has_shape_transform =
-            match::args(match::skip(match::name("contiguous"))(match::name(shape_transforms())));
+            match::args(match::skip(match::name("contiguous"))(shape_transform));
         return match::pointwise(
             match::used_once(), input_has_shape_transform, output_not_pointwise);
     }
@@ -840,8 +841,8 @@ struct find_slice_transpose
 {
     auto matcher() const
     {
-        return match::any(match::any_of[match::outputs()](
-            match::name("slice")(match::output(match::name("transpose")))));
+        auto transpose = match::output(match::name("transpose"));
+        return match::any(match::any_of[match::outputs()](match::name("slice")(transpose)));
     }
 
     static std::vector<int64_t> find_common_perm(const std::vector<instruction_ref>& transposes)
@@ -999,7 +1000,8 @@ struct find_scalar_multibroadcast_reshape_or_transpose
         auto contiguous = match::name("contiguous");
         auto scalar_mbr = match::name("multibroadcast")(match::scalar_shape());
         auto reshapes   = match::name("flatten", "reshape", "squeeze", "transpose", "unsqueeze");
-        return reshapes(match::arg(0)(match::skip(contiguous)(scalar_mbr.bind("multibroadcast"))));
+        auto bind_mbr   = scalar_mbr.bind("multibroadcast");
+        return reshapes(match::arg(0)(match::skip(contiguous)(bind_mbr)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -1016,10 +1018,9 @@ struct find_reshape_dot
 {
     auto matcher() const
     {
-        return match::name("dot")(
-            match::used_once(),
-            match::either_arg(0, 1)(match::name("reshape").bind("rsp"),
-                                    match::skip_broadcasts(match::any().bind("other"))));
+        auto rsp   = match::name("reshape").bind("rsp");
+        auto other = match::skip_broadcasts(match::any().bind("other"));
+        return match::name("dot")(match::used_once(), match::either_arg(0, 1)(rsp, other));
     }
 
     // Gemm axis should not be altered by the reshape
@@ -1121,10 +1122,39 @@ struct find_reshape_dot
     }
 };
 
+// Remove transposes and converts between mul/add -> dot so simplify_algebra can perform
+// const folding simplifications
+struct find_mul_add_shape_op_dot
+{
+    auto matcher() const
+    {
+        auto shape_ops             = match::name("transpose", "convert");
+        auto const_mul_add         = match::name("mul", "add")(match::either_arg(0, 1)(
+            match::is_constant().bind("const"), match::any().bind("input")));
+        auto match_shape_op        = shape_ops(match::args(const_mul_add.bind("pw")));
+        auto skip_shape_op_outputs = match::skip_output(match::any_of(shape_ops));
+        return match_shape_op(skip_shape_op_outputs(match::name("dot")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto shape_ins = r.result;
+        auto pw        = r.instructions["pw"];
+        auto constant  = r.instructions["const"];
+        auto input     = r.instructions["input"];
+
+        auto shape_op  = shape_ins->get_operator();
+        auto pw_op     = pw->get_operator();
+        auto new_inp   = m.insert_instruction(shape_ins, shape_op, input);
+        auto new_const = m.insert_instruction(shape_ins, shape_op, constant);
+
+        m.replace_instruction(shape_ins, pw_op, new_inp, new_const);
+    }
+};
+
 void simplify_reshapes::apply(module& m) const
 {
-    for(int i = 0; i < depth; i++)
-    {
+    m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_where_op{},
                             find_resize{},
@@ -1142,9 +1172,10 @@ void simplify_reshapes::apply(module& m) const
                             find_slice_transpose{},
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
+                            find_mul_add_shape_op_dot{},
                             find_scalar_multibroadcast_reshape_or_transpose{});
         dead_code_elimination{}.apply(m);
-    }
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

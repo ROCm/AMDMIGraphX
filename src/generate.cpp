@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,7 +50,7 @@ argument fill_argument(shape s, double value)
     return result;
 }
 
-argument generate_argument(shape s, unsigned long seed)
+argument generate_argument(shape s, unsigned long seed, random_mode m)
 {
     argument result;
     if(s.type() == shape::tuple_type)
@@ -58,7 +58,7 @@ argument generate_argument(shape s, unsigned long seed)
         const auto& sub_ss = s.sub_shapes();
         std::vector<argument> sub_args;
         std::transform(sub_ss.begin(), sub_ss.end(), std::back_inserter(sub_args), [&](auto ss) {
-            return generate_argument(ss, seed);
+            return generate_argument(ss, seed, m);
         });
 
         result = argument(sub_args);
@@ -70,13 +70,13 @@ argument generate_argument(shape s, unsigned long seed)
             // needs special processing to generate data
             if(s.type() == shape::bool_type)
             {
-                auto v = generate_tensor_data<bool>(s, seed);
+                auto v = generate_tensor_data<bool>(s, seed, m);
                 result = {s, v};
             }
             else
             {
                 using type = typename decltype(as)::type;
-                auto v     = generate_tensor_data<type>(s, seed);
+                auto v     = generate_tensor_data<type>(s, seed, m);
                 result     = {s, v};
             }
         });

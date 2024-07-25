@@ -30,7 +30,7 @@ def main():
     args = get_args()
     # Note: This will load the models, which can take several minutes
     sd = StableDiffusionMGX(args.onnx_model_path, args.compiled_model_path,
-                            args.fp16, args.force_compile,
+                            args.fp16, args.batch, args.force_compile,
                             args.exhaustive_tune)
     sd.warmup(5)
 
@@ -51,7 +51,7 @@ def main():
             gr.Slider(
                 1, 20, step=0.1, value=args.scale, label="Guidance scale"),
         ],
-        "image",
+        gr.Gallery(), 
     )
     demo.launch()
 

@@ -47,8 +47,8 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
         x *= proj(d);
         return x == dim;
     });
-    if(it != last) 
-            return it;
+    if(it != last)
+        return it;
     return start;
 }
 

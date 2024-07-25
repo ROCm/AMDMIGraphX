@@ -956,7 +956,7 @@ struct mlir_program
 
 static bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
-void rewrite_reduce(module& m)
+static void rewrite_reduce(module& m)
 {
     std::vector<instruction_ref> ins_to_remove;
     for(auto i : iterator_for(m))
@@ -975,23 +975,29 @@ void rewrite_reduce(module& m)
                            return axis_2 - axis_1 > 1;
                        }) == reduce_axes.end());
 
-            std::vector<int64_t> rsp_lens;
+            std::vector<int64_t> new_rsp_dims;
             std::vector<int64_t> new_reduce_axes;
             for(const auto axis : range(in_shape.ndim()))
             {
-                if(reduce_lens[axis] != in_lens[axis] and new_reduce_axes.empty())
+                if(reduce_lens[axis] == in_lens[axis])
+                {
+                    new_rsp_dims.push_back(in_lens[axis]);
+                }
+                else if(new_reduce_axes.empty())
                 {
                     assert(reduce_lens[axis] == 1);
-                    rsp_lens.push_back(-1);
+                    new_rsp_dims.push_back(-1);
                     new_reduce_axes.push_back(axis);
                 }
-                else
-                {
-                    rsp_lens.push_back(in_lens[axis]);
-                }
             }
+            for(const auto& rsp_dim : new_rsp_dims)
+            {
+                std::cout << rsp_dim << " ";
+            }
+            std::cout << "\n";
+            m.debug_print();
             auto rsp_ins = m.insert_instruction(
-                i, migraphx::make_op("reshape", {{"dims", rsp_lens}}), i->inputs().front());
+                i, migraphx::make_op("reshape", {{"dims", new_rsp_dims}}), i->inputs().front());
             auto collapsed_reduce = m.insert_instruction(
                 i, migraphx::make_op("reduce_sum", {{"axes", new_reduce_axes}}), rsp_ins);
             auto rsp_back = m.insert_instruction(

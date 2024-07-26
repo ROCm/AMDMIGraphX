@@ -49,7 +49,7 @@ struct literal_as_argument
     }
 
     shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
-    argument compute(const std::vector<argument>&) const { return data; }
+    argument compute(context&, const shape&, const std::vector<argument>&) const { return data; }
 };
 MIGRAPHX_REGISTER_OP(literal_as_argument);
 
@@ -108,7 +108,7 @@ void write_literals::apply(module& m) const
                   << "Streaming budget: " << budget << "\n"
                   << "Scratch size: " << scratch_size << "\n"
                   << "Total size of literals: " << size_of_literals << "\n"
-                  << "Free memory: " << free_memory << " Status: " << status << std::endl;
+                  << "[Before] Free memory: " << free_memory << " Status: " << status << std::endl;
 
         // std::sort(ins_list.begin(),
         //           ins_list.end(),

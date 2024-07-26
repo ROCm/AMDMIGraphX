@@ -215,7 +215,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                    op.compute_shape(to_shapes(inputs)).lens()}}),
                                          inputs);
                                  }
-                                 else if(op.name() == "contiguous")
+                                 if(op.name() == "contiguous")
                                  {
                                      auto contiguous_alloc = insert_mod.insert_instruction(
                                          insert_loc,

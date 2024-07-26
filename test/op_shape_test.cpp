@@ -201,6 +201,13 @@ TEST_CASE(binary_dyn_static_error)
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
 }
 
+TEST_CASE(bitwise_and_not_integral_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape b_shape{migraphx::shape::int32_type, {1, 4, 4}};
+    throws_shape(migraphx::make_op("bitwise_and"), a_shape, b_shape);
+}
+
 TEST_CASE(broadcast)
 {
     {

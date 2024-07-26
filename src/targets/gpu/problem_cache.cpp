@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +42,10 @@ void problem_cache::load()
     if(pc_path.empty())
         return;
     if(not fs::exists(pc_path))
+    {
+        std::cout << "Problem cache not found. Creating new file.\n";
         return;
+    }
     from_value(from_json_string(read_string(pc_path)), cache);
 }
 void problem_cache::save() const

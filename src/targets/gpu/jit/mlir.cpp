@@ -228,9 +228,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                      return insert_mod.insert_instruction(
                                          insert_loc, make_op("gpu::contiguous"), contiguous_inputs);
                                  }
-                                 else
-                                     return insert_mod.insert_instruction(
-                                         insert_loc, op, inputs, mod_args);
+                                 return insert_mod.insert_instruction(
+                                     insert_loc, op, inputs, mod_args);
                              })
                             .front();
                 }

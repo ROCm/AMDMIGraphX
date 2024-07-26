@@ -120,6 +120,15 @@ inline Stream& operator<<(Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class T, class U>
+inline Stream& operator<<(Stream& s, const std::pair<T, U>& p)
+{
+    s << "{";
+    s << p.first << ", " << p.second;
+    s << "}";
+    return s;
+}
+
 template <class Stream,
           class Range,
           class = typename std::enable_if<not std::is_convertible<Range, std::string>{}>::type>

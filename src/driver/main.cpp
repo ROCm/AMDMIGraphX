@@ -440,7 +440,7 @@ struct program_params
 
         size_t shape_size = std::accumulate(static_param_shapes.begin(),
                                             static_param_shapes.end(),
-                                            0,
+                                            static_cast<unsigned long long>(0),
                                             [](auto s, auto x) { return s + x.second.bytes(); });
         std::cout << "Total parameter size: " << shape_size << " bytes" << std::endl;
 

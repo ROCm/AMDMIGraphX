@@ -97,7 +97,6 @@ void write_literals::apply(module& m) const
         long budget = streaming_budget;
         if(budget == LONG_MAX)
         {
-            // budget = static_cast<long>(scratch_size * 2);
             budget = static_cast<long>(size_of_literals / 4);
         }
 
@@ -163,7 +162,7 @@ void write_literals::apply(module& m) const
 
     size_t free_mem = 0;
     auto status     = hipMemGetInfo(&free_mem, nullptr);
-    std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
+    std::cout << "[After]  Free memory: " << free_mem << " status: " << status << std::endl;
 }
 
 } // namespace gpu

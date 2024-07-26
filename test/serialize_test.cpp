@@ -155,6 +155,18 @@ TEST_CASE(serialize_map)
     EXPECT(m == migraphx::from_value<std::map<int, int>>(v));
 }
 
+TEST_CASE(serialize_invalid_map1)
+{
+    migraphx::value v = {{1, 1}, {2, 4}, {3, 9, 27}};
+    EXPECT(test::throws([&] { migraphx::from_value<std::map<int, int>>(v); }));
+}
+
+TEST_CASE(serialize_invalid_map2)
+{
+    migraphx::value v = 2;
+    EXPECT(test::throws([&] { migraphx::from_value<std::map<int, int>>(v); }));
+}
+
 TEST_CASE(serialize_struct_to_map)
 {
     migraphx::value v = migraphx::to_value(reflectable_type{});

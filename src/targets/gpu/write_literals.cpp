@@ -40,12 +40,11 @@ struct literal_as_argument
 {
     std::string name() const { return "gpu::literal_as_argument"; }
     argument data;
-    std::string data_name = "{ ... }";
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.data_name, "data"));
+        return pack(f(self.data, "data"));
     }
 
     shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }

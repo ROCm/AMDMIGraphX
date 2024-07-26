@@ -319,3 +319,8 @@ Prints the reference and target programs even if the verify tests pass.
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Dumps verify tests to ``.mxr`` files.
+
+.. envvar:: MIGRAPHX_VERIFY_DUMP_DIFF
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Dumps the output of the test (and the reference) results when they differ.

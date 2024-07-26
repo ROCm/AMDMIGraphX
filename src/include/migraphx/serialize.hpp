@@ -201,7 +201,8 @@ auto from_value_impl(rank<4>, const value& v, T& x)
     {
         x.clear();
         for(auto&& e : v)
-            x.emplace(from_value<typename T::key_type>(e.get_key()), from_value<typename T::mapped_type>(e));
+            x.emplace(from_value<typename T::key_type>(e.get_key()),
+                      from_value<typename T::mapped_type>(e));
     }
     else if(v.is_array())
     {

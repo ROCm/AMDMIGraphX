@@ -150,7 +150,7 @@ TEST_CASE(serialize_optional)
 TEST_CASE(serialize_map)
 {
     std::map<int, int> m = {{1, 1}, {2, 4}, {3, 9}};
-    migraphx::value v = migraphx::to_value(m);
+    migraphx::value v    = migraphx::to_value(m);
     EXPECT(v.is_array());
     EXPECT(m == migraphx::from_value<std::map<int, int>>(v));
 }
@@ -167,7 +167,7 @@ TEST_CASE(serialize_struct_to_map)
 TEST_CASE(serialize_vector_value)
 {
     std::vector<migraphx::value> x = {{1}, {2}};
-    migraphx::value v = migraphx::to_value(x);
+    migraphx::value v              = migraphx::to_value(x);
     EXPECT(x == migraphx::from_value<std::vector<migraphx::value>>(v));
 }
 

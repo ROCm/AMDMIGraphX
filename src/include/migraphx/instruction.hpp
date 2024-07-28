@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,6 +44,8 @@ MIGRAPHX_EXPORT shape compute_shape(const operation& op,
 MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<instruction_ref>& args);
 MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
                                                      const std::vector<shape>& inputs);
+
+bool reaches(instruction_ref start, instruction_ref end);
 
 struct MIGRAPHX_EXPORT instruction
 {

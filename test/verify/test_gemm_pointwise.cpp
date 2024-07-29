@@ -29,32 +29,30 @@
 #include <migraphx/apply_alpha_beta.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_gemm_add : verify_program<test_gemm_add<DType>>
+struct test_gemm_pointwise : verify_program<test_gemm_pointwise<DType>>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 1280}};
-        migraphx::shape m2_shape{DType, {1, 1280, 320}};
-        migraphx::shape m3_shape{DType, {1, 2, 320}};
+        migraphx::shape m1_shape{DType, {1, 2, 3}};
+        migraphx::shape m2_shape{DType, {1, 3, 4}};
+        migraphx::shape m3_shape{DType, {1, 1, 4}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
+        auto l3_b =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4}}}), l3);
 
         auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        auto add = mm->add_instruction(migraphx::make_op("add"), dot, l3_b);
+        auto abs = mm->add_instruction(migraphx::make_op("abs"), add);
+        mm->add_instruction(migraphx::make_op("sqrt"), abs);
         return p;
     }
     std::string section() const { return "gemm"; }
-
-    // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
-    migraphx::compile_options get_compile_options() const
-    {
-        return migraphx::compile_options{.exhaustive_tune = true};
-    }
 };
 
-template struct test_gemm_add<migraphx::shape::float_type>;
-template struct test_gemm_add<migraphx::shape::half_type>;
-// template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_pointwise<migraphx::shape::float_type>;
+template struct test_gemm_pointwise<migraphx::shape::half_type>;
+template struct test_gemm_pointwise<migraphx::shape::fp8e4m3fnuz_type>;

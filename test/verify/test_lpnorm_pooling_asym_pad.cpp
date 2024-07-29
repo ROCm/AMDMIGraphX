@@ -24,37 +24,23 @@
 
 #include "verify_program.hpp"
 #include <migraphx/program.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
+#include <migraphx/op/common.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_gemm_add : verify_program<test_gemm_add<DType>>
+struct test_lpnorm_pooling_asym_pad : verify_program<test_lpnorm_pooling_asym_pad>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 1280}};
-        migraphx::shape m2_shape{DType, {1, 1280, 320}};
-        migraphx::shape m3_shape{DType, {1, 2, 320}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
-        auto l3 = mm->add_parameter("3", m3_shape);
-
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 5, 4}});
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                               {"padding", {1, 0, 0, 0}},
+                                               {"stride", {1, 1}},
+                                               {"lengths", {2, 1}},
+                                               {"lp_order", 2}}),
+                            x);
         return p;
     }
-    std::string section() const { return "gemm"; }
-
-    // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
-    migraphx::compile_options get_compile_options() const
-    {
-        return migraphx::compile_options{.exhaustive_tune = true};
-    }
 };
-
-template struct test_gemm_add<migraphx::shape::float_type>;
-template struct test_gemm_add<migraphx::shape::half_type>;
-// template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;

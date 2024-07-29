@@ -49,6 +49,20 @@ struct literal_as_argument
 
     shape compute_shape(const std::vector<shape>&) const { return data.get_shape(); }
     argument compute(context&, const shape&, const std::vector<argument>&) const { return data; }
+    friend std::ostream& operator<<(std::ostream& os, const literal_as_argument& x)
+    {
+        os << x.name() << "[data=";
+        if (x.compute_shape(std::vector<shape>{}).elements() < 10)
+        {
+            os << x.data;
+        }
+        else
+        {
+            os << "{ ... }";
+        }
+        os << "]";
+        return os;
+    }
 };
 MIGRAPHX_REGISTER_OP(literal_as_argument);
 

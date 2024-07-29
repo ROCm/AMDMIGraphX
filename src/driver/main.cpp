@@ -479,6 +479,7 @@ struct compiler
     bool to_fp16 = false;
     bool to_fp8  = false;
     bool to_int8 = false;
+    bool to_int4 = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -502,6 +503,7 @@ struct compiler
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
+        ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -555,6 +557,10 @@ struct compiler
         if(to_fp8)
         {
             quantize_fp8(p, t, {host_params(p)});
+        }
+        if(to_int4)
+        {
+            quantize_int4(p);
         }
         p.compile(t, co);
         l.save(p);

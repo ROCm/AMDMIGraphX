@@ -41,6 +41,7 @@
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
+#include <migraphx/propagate_constant.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_gelu.hpp>
@@ -161,14 +162,20 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         normalize_ops{},
         dead_code_elimination{},
+        // 1. For int4 ops: first remove the identity op next to packed int4 data.
+        eliminate_identity{},
+        // 2. Next: (pack/unpack)_int4 handling in simplyfy_qdq.
         simplify_qdq{},
+        // 3. Next: pruning of pack_int4 related const branches.
+        propagate_constant{{}},
+        // 4. Last for int4: dce.
+        dead_code_elimination{},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution & pooling
         eliminate_data_type{{migraphx::shape::uint8_type}, shape::float_type, {"quant_convolution", "quant_dot", "pooling"}},
         eliminate_data_type{unsupported_types, shape::type_t::float_type},
         simplify_reshapes{},
-        eliminate_identity{},
         eliminate_pad{},
         dead_code_elimination{},
         insert_pad{{"convolution"}},

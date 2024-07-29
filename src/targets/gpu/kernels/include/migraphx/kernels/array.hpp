@@ -333,10 +333,7 @@ struct integral_const_array : array<T, sizeof...(Xs)>
     using base_array = array<T, sizeof...(Xs)>;
     MIGRAPHX_DEVICE_CONSTEXPR integral_const_array() : base_array({Xs...}) {}
 
-    const base_array& base() const
-    {
-        return *this;
-    }
+    const base_array& base() const { return *this; }
 };
 
 template <class T, class... Ts>
@@ -376,13 +373,11 @@ constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U,
     return integral_const_array<T, f(Xs, Ys)...>{};
 }
 
-template<class F>
+template <class F>
 constexpr auto return_array_c(F f)
 {
     constexpr auto r = f();
-    return sequence(r.size(), [](auto... is) {
-        return make_const_array(r[is]...);
-    });
+    return sequence(r.size(), [](auto... is) { return make_const_array(r[is]...); });
 }
 
 template <index_int... Ns>

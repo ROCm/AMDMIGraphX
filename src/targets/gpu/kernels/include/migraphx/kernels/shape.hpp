@@ -135,9 +135,9 @@ constexpr auto calculate_strides(Lens)
     return return_array_c([] {
         Lens lens{};
         array<typename Lens::value_type, Lens{}.size()> strides{1};
-        const auto n = lens.size() - 1;
+        const auto n           = lens.size() - 1;
         const index_int stride = 1;
-        for(index_int i = 0; i < n;i++)
+        for(index_int i = 0; i < n; i++)
         {
             auto ri = n - i;
             stride *= lens[ri];
@@ -159,17 +159,13 @@ constexpr auto make_shape(Lens lens)
     return make_shape(lens, calculate_strides(lens));
 }
 
-template<class Shape, class Array>
+template <class Shape, class Array>
 constexpr auto reorder_shape(Shape, Array)
 {
     constexpr Shape s{};
     constexpr Array permutation{};
-    constexpr auto lens = return_array_c([]{
-        return reorder_dims(s.lens, permutation);
-    });
-    constexpr auto strides = return_array_c([]{
-        return reorder_dims(s.strides, permutation);
-    });
+    constexpr auto lens    = return_array_c([] { return reorder_dims(s.lens, permutation); });
+    constexpr auto strides = return_array_c([] { return reorder_dims(s.strides, permutation); });
     return make_shape(lens, strides);
 }
 

@@ -8,7 +8,7 @@
 
 namespace migraphx {
 
-template<class T, class Shape>
+template <class T, class Shape>
 constexpr auto make_packed_tensor(T* x, Shape)
 {
     constexpr auto s = Shape{};
@@ -20,7 +20,6 @@ constexpr auto make_packed_tensor(T* x, Shape)
     {
         return make_tensor_view(x, make_shape_from_permutation(s.lens, find_permutation(s)));
     }
-
 }
 
 template <bool B, class T>

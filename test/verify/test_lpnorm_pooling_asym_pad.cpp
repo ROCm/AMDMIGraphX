@@ -21,35 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
-#include <migraphx/module.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
-void optimize_module::apply(module_pass_manager& mpm) const
+struct test_lpnorm_pooling_asym_pad : verify_program<test_lpnorm_pooling_asym_pad>
 {
-    mpm.get_module().repeat_while_changes(2, [&] {
-        // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(3, [&] {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        });
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    });
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {1, 1, 5, 4}});
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                               {"padding", {1, 0, 0, 0}},
+                                               {"stride", {1, 1}},
+                                               {"lengths", {2, 1}},
+                                               {"lp_order", 2}}),
+                            x);
+        return p;
+    }
+};

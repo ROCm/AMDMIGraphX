@@ -605,7 +605,6 @@ TEST_CASE(lppool_l2_norm_test)
 
 TEST_CASE(lppool_l2_norm_test_asym_padding)
 {
-    // L2 norm test
     migraphx::program p;
     auto* mm     = p.get_main_module();
     auto s       = migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}};

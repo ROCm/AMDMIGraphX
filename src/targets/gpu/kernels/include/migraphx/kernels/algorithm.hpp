@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,12 @@
 #define MIGRAPHX_GUARD_AMDMIGRAPHX_KERNELS_ALGORITHM_HPP
 
 namespace migraphx {
+
+template<class Iterator1, class Iterator2>
+constexpr void iter_swap(Iterator1 a, Iterator2 b)
+{
+    swap(*a, *b);
+}
 
 struct less
 {
@@ -209,6 +215,41 @@ constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2, Binary
             return false;
         }
     return true;
+}
+
+template<class Iterator, class T>
+constexpr void iota(Iterator first, Iterator last, T value)
+{
+    for (; first != last; ++first, ++value)
+        *first = value;
+}
+
+template<class Iterator, class Compare>
+constexpr Iterator min_element(Iterator first, Iterator last, Compare comp)
+{
+    if (first == last)
+        return last;
+ 
+    Iterator smallest = first;
+ 
+    while (++first != last)
+        if (comp(*first, *smallest))
+            smallest = first;
+ 
+    return smallest;
+}
+
+template<class Iterator, class Compare>
+constexpr void sort(Iterator first, Iterator last, Compare comp)
+{
+    for (Iterator it = first; it != last; ++it)
+        iter_swap(it, min_element(it, last, comp));
+}
+
+template<class Iterator>
+constexpr void sort(Iterator first, Iterator last)
+{
+    sort(first, last, less{});
 }
 
 } // namespace migraphx

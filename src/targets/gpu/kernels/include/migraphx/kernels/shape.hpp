@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/permutation.hpp>
 
 namespace migraphx {
 
@@ -128,10 +129,55 @@ struct shape
     }
 };
 
+template <class Lens>
+constexpr auto calculate_strides(Lens)
+{
+    return return_array_c([] {
+        Lens lens{};
+        array<typename Lens::value_type, Lens{}.size()> strides{1};
+        const auto n = lens.size() - 1;
+        const index_int stride = 1;
+        for(index_int i = 0; i < n;i++)
+        {
+            auto ri = n - i;
+            stride *= lens[ri];
+            strides[ri - 1] = stride;
+        }
+        return strides;
+    });
+}
+
 template <class Lens, class Strides>
 constexpr shape<Lens, Strides> make_shape(Lens lens, Strides strides)
 {
     return {lens, strides};
+}
+
+template <class Lens>
+constexpr auto make_shape(Lens lens)
+{
+    return make_shape(lens, calculate_strides(lens));
+}
+
+template<class Shape, class Array>
+constexpr auto reorder_shape(Shape, Array)
+{
+    constexpr Shape s{};
+    constexpr Array permutation{};
+    constexpr auto lens = return_array_c([]{
+        return reorder_dims(s.lens, permutation);
+    });
+    constexpr auto strides = return_array_c([]{
+        return reorder_dims(s.strides, permutation);
+    });
+    return make_shape(lens, strides);
+}
+
+template <class Lens, class Permutation>
+constexpr auto make_shape_from_permutation(Lens lens, Permutation perm)
+{
+    constexpr auto new_lens = reorder_dims(lens, perm);
+    return reorder_shape(make_shape(new_lens), invert_permutation(perm));
 }
 
 } // namespace migraphx

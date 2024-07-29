@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/op/common.hpp"
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>

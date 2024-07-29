@@ -206,7 +206,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                 const std::vector<module_ref>& mod_args) -> instruction_ref {
                                  if(op.name() == "reshape")
                                  {
-                                     // TODO: Add proper lowering for the reshape op
+                                     // TODO: Add support for non-standard shapes
+                                     assert(inputs.front()->get_shape().standard());
                                      return insert_mod.insert_instruction(
                                          insert_loc,
                                          make_op("reshape_lazy",
@@ -214,7 +215,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                                                    op.compute_shape(to_shapes(inputs)).lens()}}),
                                          inputs);
                                  }
-                                 else if(op.name() == "contiguous")
+                                 if(op.name() == "contiguous")
                                  {
                                      auto contiguous_alloc = insert_mod.insert_instruction(
                                          insert_loc,
@@ -227,9 +228,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                                      return insert_mod.insert_instruction(
                                          insert_loc, make_op("gpu::contiguous"), contiguous_inputs);
                                  }
-                                 else
-                                     return insert_mod.insert_instruction(
-                                         insert_loc, op, inputs, mod_args);
+                                 return insert_mod.insert_instruction(
+                                     insert_loc, op, inputs, mod_args);
                              })
                             .front();
                 }

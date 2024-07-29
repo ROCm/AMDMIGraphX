@@ -52,7 +52,7 @@ struct literal_as_argument
     friend std::ostream& operator<<(std::ostream& os, const literal_as_argument& x)
     {
         os << x.name() << "[data=";
-        if (x.compute_shape(std::vector<shape>{}).elements() < 10)
+        if(x.compute_shape(std::vector<shape>{}).elements() < 10)
         {
             os << x.data;
         }

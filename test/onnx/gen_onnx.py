@@ -652,6 +652,19 @@ def binary_dyn_brcst_mul_fp8_test():
 
 
 @onnx_test()
+def bitwise_and_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT32, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('BitwiseAnd',
+                                 inputs=['0', '1'],
+                                 outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def div_fp8_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
                                          [2, 3])

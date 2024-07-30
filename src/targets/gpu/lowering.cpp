@@ -303,7 +303,8 @@ struct miopen_apply
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             auto&& op   = ins->get_operator();
             auto op_val = op.to_value();
-            if(op_val.at("count_include_pad").to<bool>())
+            if(op_val.at("count_include_pad").to<bool>() and
+               op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::average)
             {
                 return insert_precompile_op(ins);
             }

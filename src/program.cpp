@@ -508,7 +508,7 @@ std::vector<argument> generic_eval(const module* mod,
         }
         assert(results.find(ins) != results.end());
         assert(ins->get_shape().any_of_dynamic() or
-               results.at(ins).get_shape() == ins->get_shape());
+               results.at(ins).get_shape().compatible_lens(ins->get_shape()));
     }
     return {results.at(std::prev(mod->end()))};
 }

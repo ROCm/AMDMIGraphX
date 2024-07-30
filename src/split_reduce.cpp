@@ -188,7 +188,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         }
         // Only use split reduce with float for now
-        // TODO: Support half and other data types
+        // TODO: Support other data types
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
                return contains({shape::float_type, shape::half_type}, split->get_shape().type());
            }))

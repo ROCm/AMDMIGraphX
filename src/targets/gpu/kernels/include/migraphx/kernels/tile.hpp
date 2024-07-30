@@ -6,17 +6,20 @@
 
 namespace migraphx {
 
-
 struct tile
 {
-    struct load {};
-    struct store {};
-    
+    struct load
+    {
+    };
+    struct store
+    {
+    };
+
     static constexpr auto outer()
     {
         return [](auto axis, auto a) {
             return transform_i(a, [=](auto i) {
-                if constexpr (i <= axis)
+                if constexpr(i <= axis)
                     return a[i];
                 else
                     return 1;
@@ -28,7 +31,7 @@ struct tile
     {
         return [](auto axis, auto a) {
             return transform_i(a, [=](auto i) {
-                if constexpr (i > axis)
+                if constexpr(i > axis)
                     return a[i];
                 else
                     return 1;
@@ -36,22 +39,22 @@ struct tile
         };
     }
 
-    template<index_int Axis, class Select, class Shape>
+    template <index_int Axis, class Select, class Shape>
     static constexpr auto slice(Select select, Shape)
     {
         constexpr Shape s{};
         return make_shape(select(_c<Axis>, s.lens), select(_c<Axis>, s.strides));
     }
 
-    template<index_int Axis, class T>
+    template <index_int Axis, class T>
     static constexpr auto slice_tensor(index_int i, T x)
     {
         constexpr auto s = get_shape_c<T>{};
-        auto offset = slice(outer(), s).index(i);
-        return make_tensor_view(x.data()+offset, slice(inner(), s));
+        auto offset      = slice(outer(), s).index(i);
+        return make_tensor_view(x.data() + offset, slice(inner(), s));
     }
 
-    template<class T, class... Ts>
+    template <class T, class... Ts>
     static constexpr auto get_size(T, Ts...)
     {
         // TODO: Assert all slices are the same size
@@ -59,22 +62,23 @@ struct tile
         return size;
     }
 
-    template<index_int Axis>
+    template <index_int Axis>
     static __device__ auto auto_slice(index idx)
     {
         return make_transform([=](auto f, auto... xs) {
-            idx.group_stride(get_size(xs...), [=](auto group) {
-                f(slice_tensor<Axis>(group, xs)...);
-            });
+            idx.group_stride(get_size(xs...),
+                             [=](auto group) { f(slice_tensor<Axis>(group, xs)...); });
         });
     }
 };
 
-template<index_int Axis, class... Mode>
+template <index_int Axis, class... Mode>
 __device__ auto auto_tile()
 {
     auto idx = make_index();
-    return transform_args(tile::auto_slice<Axis>(idx), auto_prestore<is_same<Mode, tile::store>{}...>(idx), auto_preload<is_same<Mode, tile::load>{}...>(idx));
+    return transform_args(tile::auto_slice<Axis>(idx),
+                          auto_prestore<is_same<Mode, tile::store>{}...>(idx),
+                          auto_preload<is_same<Mode, tile::load>{}...>(idx));
 }
 
 } // namespace migraphx

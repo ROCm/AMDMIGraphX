@@ -28,9 +28,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>

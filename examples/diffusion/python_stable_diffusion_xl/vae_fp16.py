@@ -57,7 +57,10 @@ def export_vae_fp16(output_path):
                       output_path,
                       export_params=True,
                       do_constant_folding=True,
-                      input_names=['latent_sample'])
+                      input_names=['latent_sample'],
+                      dynamic_axes={
+                        'latent_sample': {0: "batch"}
+                      })
 
 
 if __name__ == "__main__":

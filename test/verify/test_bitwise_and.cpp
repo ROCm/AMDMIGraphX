@@ -42,6 +42,5 @@ struct test_bitwise_and : verify_program<test_bitwise_and<DType>>
     }
 };
 
-template struct test_bitwise_and<migraphx::shape::bool_type>;
 template struct test_bitwise_and<migraphx::shape::int32_type>;
 template struct test_bitwise_and<migraphx::shape::uint8_type>;

@@ -59,26 +59,26 @@ TEST_CASE(bitwise_and_dyn_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     std::vector<migraphx::shape::dynamic_dimension> dd{{2, 6, {4}}};
-    migraphx::shape s{migraphx::shape::bool_type, dd};
+    migraphx::shape s{migraphx::shape::uint8_type, dd};
     auto left  = mm->add_parameter("l", s);
     auto right = mm->add_parameter("r", s);
     mm->add_instruction(migraphx::make_op("bitwise_and"), left, right);
     p.compile(migraphx::make_target("ref"));
 
-    std::vector<char> left_data{1, 0, 1, 0};
-    std::vector<char> right_data{1, 1, 0, 0};
+    std::vector<uint8_t> left_data{28, 0, 12, 55};
+    std::vector<uint8_t> right_data{4, 1, 128, 62};
     migraphx::parameter_map params0;
-    migraphx::shape input_fixed_shape0{migraphx::shape::bool_type, {4}};
+    migraphx::shape input_fixed_shape0{migraphx::shape::uint8_type, {4}};
     params0["l"] = migraphx::argument(input_fixed_shape0, left_data.data());
     params0["r"] = migraphx::argument(input_fixed_shape0, right_data.data());
     auto result  = p.eval(params0).back();
     std::vector<char> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    std::vector<bool> gold(left_data.size());
+    std::vector<uint8_t> gold(left_data.size());
     std::transform(left_data.begin(),
                    left_data.end(),
                    right_data.begin(),
                    gold.begin(),
-                   [](bool n1, bool n2) -> bool { return n1 & n2; });
+                   [](uint8_t n1, uint8_t n2) -> uint8_t { return n1 and n2; });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

@@ -43,7 +43,7 @@ struct bitwise_and : binary<bitwise_and>
 
     std::string point_function() const { return "&"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         auto result = binary<bitwise_and>::compute_shape(inputs);
         if(not shape::is_integral(result.type()))

@@ -99,7 +99,7 @@ struct splitter
         // Only handle reduce_sum for now
         // TODO: Support other reduction types
         if(not std::all_of(result.begin(), result.end(), [](instruction_ref ins) {
-               return ins->name() == "reduce_sum";
+               return ins->name() == "reduce_sum" or ins->name() == "reduce_mean";
            }))
             return {};
         if(result.size() < 2)
@@ -183,13 +183,19 @@ void split_reduce::apply(module_pass_manager& mpm) const
         splitter s{rm};
         auto splits = s.find_splits();
         if(splits.empty())
+        {
+            std::cout << "split are empty\n";
             continue;
+        }
         // Only use split reduce with float for now
         // TODO: Support half and other data types
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
                return contains({shape::float_type, shape::half_type}, split->get_shape().type());
            }))
+        {
+            std::cout << "not supported now\n";
             continue;
+        }
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 

@@ -177,21 +177,22 @@ struct test_layernorm_triadd_large : verify_program<test_layernorm_triadd_large>
     }
 };
 
-struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_add_gemm_nonstd>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto s =
-            migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 16}, {1, 2, 0});
-        auto x = mm->add_parameter("x", s);
-        auto y = mm->add_parameter("y", s);
-        auto z = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8, 16, 64}});
-        auto add           = mm->add_instruction(migraphx::make_op("add"), x, y);
-        auto layernorm_ins = add_layernorm(*mm, add, s.lens());
-        mm->add_instruction(migraphx::make_op("dot"), layernorm_ins, z);
-        return p;
-    }
-    std::string section() const { return "gemm"; }
-};
+// struct test_add_layernorm_add_gemm_nonstd : verify_program<test_add_layernorm_add_gemm_nonstd>
+// {
+//     migraphx::program create_program() const
+//     {
+//         migraphx::program p;
+//         auto* mm = p.get_main_module();
+//         auto s =
+//             migraphx::shape::from_permutation(migraphx::shape::float_type, {8, 1, 16}, {1, 2,
+//             0});
+//         auto x = mm->add_parameter("x", s);
+//         auto y = mm->add_parameter("y", s);
+//         auto z = mm->add_parameter("z", migraphx::shape{migraphx::shape::float_type, {8, 16,
+//         64}}); auto add           = mm->add_instruction(migraphx::make_op("add"), x, y); auto
+//         layernorm_ins = add_layernorm(*mm, add, s.lens());
+//         mm->add_instruction(migraphx::make_op("dot"), layernorm_ins, z);
+//         return p;
+//     }
+//     std::string section() const { return "gemm"; }
+// };

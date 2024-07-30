@@ -49,11 +49,11 @@ __device__ auto auto_prestore(index idx)
 {
     return make_transform([=](auto f, auto... xs) {
         auto invoke = [=](auto... ys) {
+            f(ys...);
             if constexpr((Bs or ...))
                 __syncthreads();
-            f(ys...);
         };
-        join(prestore_copy<Bs>(idx, xs)..., invoke);
+        join(invoke, prestore_copy<Bs>(idx, xs)...);
     });
 }
 

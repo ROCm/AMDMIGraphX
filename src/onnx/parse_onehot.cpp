@@ -21,35 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/optimize_module.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/simplify_reshapes.hpp>
-#include <migraphx/simplify_algebra.hpp>
-#include <migraphx/eliminate_common_subexpression.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/propagate_constant.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace onnx {
 
-void optimize_module::apply(module_pass_manager& mpm) const
+struct parse_onehot : op_parser<parse_onehot>
 {
-    mpm.get_module().repeat_while_changes(2, [&] {
-        // loop to further optimize after initial transformations
-        mpm.get_module().repeat_while_changes(3, [&] {
-            mpm.run_pass(simplify_reshapes{});
-            mpm.run_pass(eliminate_convert{});
-            mpm.run_pass(dead_code_elimination{});
-            mpm.run_pass(simplify_algebra{});
-        });
-        mpm.run_pass(eliminate_common_subexpression{});
-        mpm.run_pass(dead_code_elimination{});
-        mpm.run_pass(propagate_constant{propagate_constant_skip_ops});
-        mpm.run_pass(dead_code_elimination{});
-    });
-}
+    std::vector<op_desc> operators() const { return {{"OneHot"}}; }
 
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          onnx_parser::node_info info,
+                          std::vector<instruction_ref> args) const
+    {
+        int64_t axis = -1;
+        if(contains(info.attributes, "axis"))
+        {
+            axis = info.attributes.at("axis").i();
+        }
+
+        migraphx::argument depth_arg = args[1]->eval();
+        if(depth_arg.empty())
+        {
+            return info.add_instruction(make_op("onehot", {{"axis", axis}}), args);
+        }
+        else
+        {
+            size_t depth_val = depth_arg.at<size_t>();
+            return info.add_instruction(make_op("onehot", {{"axis", axis}, {"depth", depth_val}}),
+                                        {args[0], args[2]});
+        }
+    }
+};
+
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

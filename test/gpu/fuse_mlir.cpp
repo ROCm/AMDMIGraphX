@@ -170,7 +170,6 @@ TEST_CASE(multi_use_dot_trans_add_pooling_sub)
         mm->add_return({sub});
     }
     run_pass(p1);
-    p1.debug_print();
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();

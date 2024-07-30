@@ -28,9 +28,6 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
@@ -91,28 +88,24 @@ struct mlir_compiler : compiler<mlir_compiler>
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
-            migraphx::run_passes(
-                *smod,
-                {migraphx::eliminate_contiguous{"contiguous"}, migraphx::dead_code_elimination{}});
             auto input_args = ins->inputs();
+            // remove alloc buffer
             input_args.pop_back();
-            auto split_ins_pw = std::prev(pointwise_ins);
-            std::array<module_with_inputs, 3> mod_splits;
-            if(split_ins_pw == gemm_like_ins)
-                mod_splits = smod->split(input_args, {gemm_like_ins}, {});
-            else
-                mod_splits = smod->split(input_args, {gemm_like_ins}, {split_ins_pw});
+            auto split_ins = std::prev(pointwise_ins);
+            std::array<module_with_inputs, 2> mod_splits;
+            mod_splits           = smod->split(input_args, {split_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
+            // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
-            auto pw_shapes        = to_shapes(mod_splits[2].inputs);
-            pw_shapes.push_back(mod_splits[2].mod.get_output_shapes().front());
+            auto pw_shapes        = to_shapes(mod_splits[1].inputs);
+            pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
             assert(pw_shapes.back() == ins->get_shape());
-            auto pw_mod                        = create_pointwise_module(&mod_splits[2].mod);
+            auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
-            return insert(cops, mod_splits, ins, gemm_like_ins, split_ins_pw);
+            return insert(cops, mod_splits, ins, split_ins);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
@@ -137,10 +130,9 @@ struct mlir_compiler : compiler<mlir_compiler>
     }
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
-                            const std::array<module_with_inputs, 3>& mods,
+                            const std::array<module_with_inputs, 2>& mods,
                             instruction_ref precompile_ins,
-                            instruction_ref split_ins,
-                            instruction_ref split_pw) const
+                            instruction_ref split_ins) const
     {
         std::vector<operation> cobjs(mcos.size());
         std::transform(
@@ -181,60 +173,10 @@ struct mlir_compiler : compiler<mlir_compiler>
                                    }
                                    return i;
                                });
-                auto mlir =
+                auto mlir_ins =
                     insert_mlir(m, ins, any_cast<code_object_op>(ops[0]), dot_inputs_updated);
-                auto reshape_ins = mlir;
-                if(mods[1].mod.size() > 0)
-                {
-                    assert(contains(mods[1].inputs, split_ins));
-                    (void)(split_ins);
-                    assert(mods[1].mod.get_parameters().size() == 1);
-                    auto param_ins =
-                        std::find_if(mods[1].mod.begin(), mods[1].mod.end(), [](const auto& i) {
-                            return i.name() == "@param";
-                        });
-                    inputs_rep_map[param_ins] = mlir;
-                    reshape_ins =
-                        m.insert_instructions(
-                             ins,
-                             &mods[1].mod,
-                             &inputs_rep_map,
-                             [](module& insert_mod,
-                                instruction_ref insert_loc,
-                                const operation& op,
-                                const std::vector<instruction_ref>& inputs,
-                                const std::vector<module_ref>& mod_args) -> instruction_ref {
-                                 if(op.name() == "reshape")
-                                 {
-                                     // TODO: Add proper lowering for the reshape op
-                                     return insert_mod.insert_instruction(
-                                         insert_loc,
-                                         make_op("reshape_lazy",
-                                                 {{"dims",
-                                                   op.compute_shape(to_shapes(inputs)).lens()}}),
-                                         inputs);
-                                 }
-                                 else if(op.name() == "contiguous")
-                                 {
-                                     auto contiguous_alloc = insert_mod.insert_instruction(
-                                         insert_loc,
-                                         make_op(
-                                             "hip::allocate",
-                                             {{"shape",
-                                               to_value(op.compute_shape(to_shapes(inputs)))}}));
-                                     auto contiguous_inputs = inputs;
-                                     contiguous_inputs.push_back(contiguous_alloc);
-                                     return insert_mod.insert_instruction(
-                                         insert_loc, make_op("gpu::contiguous"), contiguous_inputs);
-                                 }
-                                 else
-                                     return insert_mod.insert_instruction(
-                                         insert_loc, op, inputs, mod_args);
-                             })
-                            .front();
-                }
-                auto pwm = mods[2];
-                pwm.replace(split_pw, reshape_ins);
+                auto pwm = mods[1];
+                pwm.replace(split_ins, mlir_ins);
                 auto pw_inputs = pwm.inputs;
                 pw_inputs.push_back(ins->inputs().back());
                 std::vector<instruction_ref> pw_inputs_updated;

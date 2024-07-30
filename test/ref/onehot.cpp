@@ -81,7 +81,7 @@ TEST_CASE(onehot1)
     auto depth_lit    = mm->add_literal(migraphx::literal{depth_s, {3}});
     auto values_param = mm->add_parameter("values", values_s);
     mm->add_instruction(
-        migraphx::make_op("onehot", {{"axis", 0}}), inds_param, depth_lit, values_param);
+        migraphx::make_op("onehot", {{"axis", -1}}), inds_param, depth_lit, values_param);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -93,14 +93,44 @@ TEST_CASE(onehot1)
     // clang-format off
     std::vector<float> gold =
     {
-        1.0, 0.0,
-        0.0, 0.0,
+        1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0,
 
-        0.0, 0.0,
-        1.0, 0.0,
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1.0
+    };
+    // clang-format on
+    std::vector<float> results_vector(2 * 2 * 3);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
 
-        0.0, 1.0,
-        0.0, 1.0
+TEST_CASE(onehot_depth_attr)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape inds_s{migraphx::shape::int64_type, {2, 2}};
+    migraphx::shape values_s{migraphx::shape::float_type, {2}};
+    auto inds_param   = mm->add_parameter("indices", inds_s);
+    auto values_param = mm->add_parameter("values", values_s);
+    mm->add_instruction(
+        migraphx::make_op("onehot", {{"axis", -1}, {"depth", 3}}), inds_param, values_param);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int64_t> indices_data = {0, 2, 1, -1};
+    std::vector<float> values_data    = {0.0, 1.0};
+    params["indices"]                 = migraphx::argument(inds_s, indices_data.data());
+    params["values"]                  = migraphx::argument(values_s, values_data.data());
+    auto result                       = p.eval(params).back();
+    // clang-format off
+    std::vector<float> gold =
+    {
+        1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0,
+
+        0.0, 1.0, 0.0,
+        0.0, 0.0, 1.0
     };
     // clang-format on
     std::vector<float> results_vector(2 * 2 * 3);

@@ -914,10 +914,7 @@ generic_split(const module& m,
                    splits.end(),
                    std::back_inserter(outputs),
                    [&](instruction_ref ins) { return map_ins1.at(ins); });
-    if(not outputs.empty())
-    {
-        m1.add_return(outputs);
-    }
+    m1.add_return(outputs);
 
     std::vector<instruction_ref> instructions2;
     for(auto ins : iterator_for(m))

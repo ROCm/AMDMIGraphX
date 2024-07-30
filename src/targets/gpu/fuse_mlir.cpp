@@ -504,7 +504,6 @@ struct find_mlir_split_reduce
                          const operation& op,
                          const std::vector<instruction_ref>& inputs,
                          const std::vector<module_ref>& mod_args) {
-                         // todo handle broadcasted literals inside reduce mod
                          if(op.name() == "pointwise")
                          {
                              for(const auto& skip_param : inputs)
@@ -516,8 +515,7 @@ struct find_mlir_split_reduce
                                                      // pointwise inside split_fused_reduce
                                  }
                              }
-                             auto sub_pm = mod_args.front();
-                             // todo: handle literals inside pointwise
+                             auto sub_pm      = mod_args.front();
                              auto param_map_2 = create_param_map_with_literals(
                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
                              for(const auto& i : param_map_2)

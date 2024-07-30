@@ -668,7 +668,7 @@ struct lane
         template <class Op, class T, class Read, class N, class U, class... Us>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
         {
-            using type = remove_reference_t<decltype(x(0, _c<0>))>;
+            using type = remove_reference_t<decltype(read(x(0, _c<0>), xs(0, _c<0>)...))>;
             type r     = type(init);
             for(index_int j = 0; j < n; j++)
             {

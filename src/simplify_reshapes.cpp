@@ -45,6 +45,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+namespace {
 const auto& reshaper_names()
 {
     // clang-format off
@@ -58,6 +59,7 @@ const auto& reshaper_names()
     // clang-format on
     return names;
 }
+} // namespace
 
 bool is_reshaper(instruction_ref ins) { return contains(reshaper_names(), ins->name()); }
 

@@ -235,6 +235,7 @@ register_migraphx_ops(
     rsqrt
     run_on_target
     scalar
+    scan_slice
     scatter_none
     scatter_add
     scatter_mul
@@ -311,8 +312,8 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpack-cxx QUIET)
-if(NOT msgpack-cxx_FOUND)
+find_package(msgpackc-cxx QUIET)
+if(NOT msgpackc-cxx_FOUND)
     find_package(msgpack REQUIRED)
 endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)

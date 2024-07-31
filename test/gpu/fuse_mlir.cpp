@@ -66,6 +66,48 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
         {pm});
 }
 
+TEST_CASE(dot_reshapes_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+        auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot_trans);
+        auto add    = add_pointwise(p1, "main:pointwise0", {dot_sq, x}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot_trans = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+                auto dot_rsp = pm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3}}}),
+                                                   dot_trans);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
+                return std::make_tuple(dot, add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
@@ -90,7 +132,7 @@ TEST_CASE(dot_add)
             add_mlir(p2,
                      "mlir_main:pointwise0",
                      {x, a, b},
-                     {"x1", "y0", "y1"},
+                     {"x2", "y0", "y1"},
                      [=](auto* pm, const auto& inputs) {
                          auto dot =
                              pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
@@ -124,7 +166,7 @@ TEST_CASE(add_dot)
         auto y   = mm->add_parameter("y", s);
         auto fused =
             add_mlir(p2,
-                     "main:pointwise0:mlir_dot1",
+                     "main:pointwise0:mlir_dot2",
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {

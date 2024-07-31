@@ -85,8 +85,6 @@ struct mlir_compiler : compiler<mlir_compiler>
 
         // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
         // perfConfig can not allow fused module
-        std::cout << "Compiling solution : \n";
-        solution.debug_print();
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
@@ -109,8 +107,6 @@ struct mlir_compiler : compiler<mlir_compiler>
             {
                 pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
             }
-            mod_splits[1].mod.debug_print();
-            ins->debug_print();
             assert(pw_shapes.back() == ins->get_shape());
             auto pw_mod                        = create_pointwise_module(&mod_splits[1].mod);
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);

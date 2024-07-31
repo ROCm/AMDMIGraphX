@@ -21,59 +21,42 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/type_traits.hpp>
-#include <migraphx/kernels/atomic.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-
-struct assign_none
+template <class Derived, int64_t Axis, int64_t Direction, int64_t Idx>
+struct test_scan_slice_base : verify_program<Derived>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    migraphx::program create_program() const
     {
-        x = y;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape data_sh{migraphx::shape::int32_type, {2, 2, 2}};
+        auto data_param = mm->add_parameter("data", data_sh);
+        migraphx::shape idx_sh{migraphx::shape::int64_type, {1}};
+        auto idx_lit = mm->add_literal(migraphx::literal{idx_sh, {Idx}});
+
+        mm->add_instruction(
+            migraphx::make_op("scan_slice", {{"axis", Axis}, {"direction", Direction}}),
+            data_param,
+            idx_lit);
+
+        return p;
     }
 };
 
-struct assign_add
+struct test_scan_slice1 : test_scan_slice_base<test_scan_slice1, 0, 0, 0>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::sum{});
-    }
 };
 
-struct assign_mul
+struct test_scan_slice2 : test_scan_slice_base<test_scan_slice2, -1, 1, 1>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::product{});
-    }
 };
 
-struct assign_max
+struct test_scan_slice3 : test_scan_slice_base<test_scan_slice2, 1, 0, 1>
 {
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::max{});
-    }
 };
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::min{});
-    }
-};
-
-} // namespace migraphx
-#endif

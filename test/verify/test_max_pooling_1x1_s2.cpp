@@ -21,59 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
 
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/type_traits.hpp>
-#include <migraphx/kernels/atomic.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/op/common.hpp>
 
-namespace migraphx {
-
-struct assign_none
+struct test_max_pooling_1x1_s2 : verify_program<test_max_pooling_1x1_s2>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
+    migraphx::program create_program() const
     {
-        x = y;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
+        mm->add_instruction(migraphx::make_op("pooling",
+                                              {{"mode", migraphx::op::pooling_mode::max},
+                                               {"padding", {0, 0}},
+                                               {"stride", {2, 2}},
+                                               {"lengths", {1, 1}}}),
+                            input);
+        return p;
     }
 };
-
-struct assign_add
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::sum{});
-    }
-};
-
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::product{});
-    }
-};
-
-struct assign_max
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::max{});
-    }
-};
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::min{});
-    }
-};
-
-} // namespace migraphx
-#endif

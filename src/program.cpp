@@ -430,7 +430,7 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 {
     // Check subshapes
     if(expected.type() == shape::tuple_type)
-        return equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible_shape);
+        return equal(actual.sub_shapes().begin(), actual.sub_shapes().end(), expected.sub_shapes().begin(), &is_compatible_shape);
     // Only the expected can be dynamic
     if(expected.dynamic())
         return true;

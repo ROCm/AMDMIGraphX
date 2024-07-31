@@ -143,7 +143,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_cubic_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
-    backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_end_out_of_bounds_cpu')

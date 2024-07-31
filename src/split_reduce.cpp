@@ -24,6 +24,7 @@
  */
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/dom_info.hpp>
+#include <migraphx/dom_info.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/module.hpp>
@@ -62,6 +63,12 @@ struct split_fused_reduce
         const auto* sm = mods.front();
         auto names = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
+
+        auto result =
+            sm->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
 
         auto result =
             sm->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
@@ -144,6 +151,41 @@ struct splitter
     std::optional<dominator_info> dom = std::nullopt;
 };
 } // namespace
+    std::vector<instruction_ref> find_alive(const std::vector<instruction_ref>& splits)
+    {
+        std::vector<instruction_ref> result;
+        bool stop = false;
+        liveness(*rm, [&](auto rins, const auto& live_set) {
+            if(stop)
+                return;
+            if(rins == rm->begin())
+                return;
+            // We want to know what instructions are live after the split instruction
+            auto ins = instruction::get_output_alias(std::prev(rins));
+            if(not contains(splits, ins))
+                return;
+            std::copy_if(live_set.begin(),
+                         live_set.end(),
+                         std::back_inserter(result),
+                         [&](instruction_ref live) {
+                             if(live->name() == "@param")
+                                 return false;
+                             if(contains(splits, live))
+                                 return false;
+                             if(splits.size() > 1 and none_of(splits, [&](instruction_ref split) {
+                                    return this->strictly_dominate(live, split);
+                                }))
+                                 return false;
+                             return true;
+                         });
+            stop = true;
+        });
+        return result;
+    }
+
+    std::optional<dominator_info> dom = std::nullopt;
+};
+} // namespace
 
 static std::string assign_op(const std::vector<instruction_ref>& splits)
 {
@@ -182,6 +224,8 @@ void split_reduce::apply(module_pass_manager& mpm) const
             continue;
         splitter s{rm};
         auto splits = s.find_splits();
+        splitter s{rm};
+        auto splits = s.find_splits();
         if(splits.empty())
         {
             std::cout << "split are empty\n";
@@ -189,7 +233,9 @@ void split_reduce::apply(module_pass_manager& mpm) const
         }
         // Only use split reduce with float for now
         // TODO: Support other data types
+        // TODO: Support other data types
         if(not std::all_of(splits.begin(), splits.end(), [](instruction_ref split) {
+               return contains({shape::float_type, shape::half_type}, split->get_shape().type());
                return contains({shape::float_type, shape::half_type}, split->get_shape().type());
            }))
         {
@@ -199,6 +245,7 @@ void split_reduce::apply(module_pass_manager& mpm) const
         auto v    = ins->get_operator().to_value();
         auto axes = v["axes"].to_vector<std::int64_t>();
 
+        auto alive = s.find_alive(splits);
         auto alive = s.find_alive(splits);
 
         std::array<module::with_inputs, 2> mods;
@@ -225,6 +272,20 @@ void split_reduce::apply(module_pass_manager& mpm) const
             mods[0].inputs,
             {splitm});
 
+        std::vector<instruction_ref> split_reduce_each;
+        if(splits.size() == 1)
+        {
+            split_reduce_each = {split_reduce};
+        }
+        else
+        {
+            transform(range(splits.size()), std::back_inserter(split_reduce_each), [&](auto i) {
+                return mpm.get_module().insert_instruction(
+                    ins, make_op("get_tuple_elem", {{"index", i}}), split_reduce);
+            });
+        }
+
+        mods[1].replace(splits, split_reduce_each);
         std::vector<instruction_ref> split_reduce_each;
         if(splits.size() == 1)
         {

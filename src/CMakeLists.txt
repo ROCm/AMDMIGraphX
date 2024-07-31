@@ -343,6 +343,7 @@ add_library(migraphx_all_targets INTERFACE)
 add_subdirectory(api)
 add_subdirectory(driver)
 add_subdirectory(onnx)
+add_subdirectory(op/builder)
 add_subdirectory(tf)
 
 if(MIGRAPHX_ENABLE_PYTHON)

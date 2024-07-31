@@ -49,7 +49,10 @@ TEST_CASE(bitwise_and_test)
                    data1.end(),
                    data2.begin(),
                    gold.begin(),
-                   [](int32_t n1, int32_t n2) -> int32_t { return n1 & n2; });
+                   [](int32_t n1, int32_t n2) -> int32_t {
+                       // NOLINTNEXTLINE(hicpp-signed-bitwise)
+                       return n1 & n2;
+                   });
 
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
@@ -79,6 +82,6 @@ TEST_CASE(bitwise_and_dyn_test)
                    left_data.end(),
                    right_data.begin(),
                    gold.begin(),
-                   [](uint8_t n1, uint8_t n2) -> uint8_t { return n1 and n2; });
+                   [](uint8_t n1, uint8_t n2) -> uint8_t { return n1 & n2; });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }

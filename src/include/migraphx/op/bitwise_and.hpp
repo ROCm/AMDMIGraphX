@@ -58,6 +58,7 @@ struct bitwise_and : binary<bitwise_and>
         return [](auto x, auto y) {
             if constexpr(std::is_integral<decltype(x)>{} and std::is_integral<decltype(y)>{})
             {
+                // NOLINTNEXTLINE(hicpp-signed-bitwise)
                 return x & y;
             }
             else

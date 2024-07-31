@@ -21,11 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/onnx/checks.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/onnx/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,28 +55,8 @@ struct parse_mean_variance_normalization : op_parser<parse_mean_variance_normali
                 std::to_string(data_rank));
         }
 
-        if(axes.size() != data_rank - 1)
-        {
-            MIGRAPHX_THROW("Length of axes array needs to be equal to input tensor rank - 1");
-        }
-
-        auto data_mean = info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), data);
-        auto data_mean_squared = info.add_common_op("mul", data_mean, data_mean);
-
-        auto data_squared = info.add_common_op("mul", data, data);
-        auto data_squared_mean =
-            info.add_instruction(make_op("reduce_mean", {{"axes", axes}}), data_squared);
-
-        auto mean_sub = info.add_common_op("sub", data_squared_mean, data_mean_squared);
-        auto std      = info.add_common_op("sqrt", mean_sub);
-
-        auto dividend = info.add_common_op("sub", data, data_mean);
-        auto epsilon =
-            info.add_literal({data->get_shape().type(),
-                              {data->get_shape().type() == shape::half_type ? 1e-7 : 1e-9}});
-        auto divisor = info.add_common_op("add", std, epsilon);
-
-        return info.add_common_op("div", dividend, divisor);
+        return op::builder::add("mean_variance_normalization", *info.mod, args, {{"axes", axes}})
+            .at(0);
     }
 };
 

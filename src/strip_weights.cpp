@@ -28,7 +28,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
@@ -44,14 +43,8 @@ struct fetch_literal
         return pack(f(self.id, "id"));
     }
 
-    shape compute_shape(const std::vector<shape>&) const
-    {
-        return l_shape;
-    }
-    argument compute(const std::vector<argument>&) const
-    {
-        return argument{};
-    }
+    shape compute_shape(const std::vector<shape>&) const { return l_shape; }
+    argument compute(const std::vector<argument>&) const { return argument{}; }
     friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
     {
         os << x.name() << "[id=" << x.id << "]";

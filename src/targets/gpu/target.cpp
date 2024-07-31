@@ -55,6 +55,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/strip_weights.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -202,7 +203,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         check_context<context>{},
         normalize_ops{},
         dead_code_elimination{},
-        eliminate_identity{}
+        eliminate_identity{},
+        enable_pass(options.strip_weights, strip_weights{})
     };
     // clang-format on
 }

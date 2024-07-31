@@ -499,6 +499,7 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.strip_weights, {"--strip-weights"}, ap.help("Strip weights from the program"), ap.set_value(true));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8e4m3fnuz type"), ap.set_value(true));

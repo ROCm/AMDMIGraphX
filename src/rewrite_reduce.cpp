@@ -145,7 +145,7 @@ struct find_reduce_mean
 void rewrite_reduce::apply(module& m) const
 {
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
-    // match::find_matches(m, find_reduce_mean{});
+    match::find_matches(m, find_reduce_mean{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

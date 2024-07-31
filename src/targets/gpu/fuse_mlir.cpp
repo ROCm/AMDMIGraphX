@@ -494,7 +494,6 @@ struct find_mlir_split_reduce
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         param_map[gemm_ins]      = std::prev(mm->end())->inputs().front();
         bool gemm_has_multi_outs = gemm_ins->outputs().size() > 1;
-        mm->remove_instruction(std::prev(mm->end()));
         auto return_vals =
             mm->fuse(*rm,
                      reduce_ins->inputs(),

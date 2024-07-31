@@ -35,17 +35,19 @@ struct test_conv_add_layernorm_conv : verify_program<test_conv_add_layernorm_con
     {
         migraphx::program p;
         auto* mm      = p.get_main_module();
-        auto input    = mm->add_parameter("x", migraphx::shape{DType, {4, 3, 3, 3}});
-        auto weights1 = mm->add_parameter("w", migraphx::shape{DType, {4, 3, 1, 1}});
-        auto bias_literal =
-            migraphx::literal{migraphx::shape{DType, {4}}, {2.0f, 2.0f, 2.0f, 2.0f}};
+        auto input        = mm->add_parameter("x", migraphx::shape{DType, {2, 4, 64, 64}});
+        auto weights1     = mm->add_parameter("w", migraphx::shape{DType, {320, 4, 3, 3}});
+        auto bias_literal = abs(migraphx::generate_literal(migraphx::shape{DType, {320}}, 1));
         auto bias       = mm->add_literal(bias_literal);
-        auto conv1      = mm->add_instruction(migraphx::make_op("convolution"), input, weights1);
+        auto conv1        = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), input, weights1);
         auto bcast_bias = mm->add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv1->get_shape().lens()}}),
             bias);
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv1, bcast_bias);
-        add_layernorm(*mm, bias_add, {4, 4, 3, 3});
+        auto rsp_add =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 32, -1}}}), bias_add);
+        add_layernorm(*mm, rsp_add, rsp_add->get_shape().lens());
         return p;
     }
     std::string section() const { return "conv"; }

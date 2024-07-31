@@ -21,16 +21,10 @@
  * THE SOFTWARE.
  */
 
-#include <map>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/lexing.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
@@ -53,10 +47,10 @@ struct gelu_erf : op_builder<gelu_erf>
     {
         auto x      = args[0];
         auto x_type = x->get_shape().type();
-        auto half   = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
-        auto one    = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
-        auto sqrt2  = m.add_literal(
-            migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(M_SQRT2)}});
+        auto half   = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {0.5f}});
+        auto one    = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {1.0f}});
+        auto sqrt2  = m.insert_literal(
+            ins, migraphx::literal{migraphx::shape{x_type}, {static_cast<float>(M_SQRT2)}});
         auto mul_half = insert_common_op(m, ins, make_op("mul"), {x, half});
         auto div      = insert_common_op(m, ins, make_op("div"), {x, sqrt2});
         auto erf      = m.insert_instruction(ins, migraphx::make_op("erf"), div);
@@ -84,13 +78,14 @@ struct gelu_tanh : op_builder<gelu_tanh>
         auto x_type = x->get_shape().type();
 
         auto fit_const_val = fast ? 0.035677 : 0.044715;
-        auto fit_const = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {fit_const_val}});
+        auto fit_const =
+            m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {fit_const_val}});
         auto sqrt_2_rpi_val = fast ? 0.797885 : sqrt(M_2_PI);
         auto sqrt_2_rpi =
-            m.add_literal(migraphx::literal{migraphx::shape{x_type}, {sqrt_2_rpi_val}});
-        auto one   = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {1.0f}});
-        auto half  = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.5f}});
-        auto three = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {3.0f}});
+            m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {sqrt_2_rpi_val}});
+        auto one   = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {1.0f}});
+        auto half  = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {0.5f}});
+        auto three = m.insert_literal(ins, migraphx::literal{migraphx::shape{x_type}, {3.0f}});
 
         // [0.044715|0.035677] * x^3
         auto pow0 = insert_common_op(m, ins, make_op("pow"), {x, three});

@@ -45,5 +45,7 @@ TEST_CASE(gemm_test)
     mm->add_instruction(migraphx::make_op("add"), dot, l2_b);
 
     auto prog = optimize_onnx("gemm_test.onnx");
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

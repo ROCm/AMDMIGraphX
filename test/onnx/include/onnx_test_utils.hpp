@@ -304,9 +304,8 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
     return p;
 }
 
-inline void mvn_n_rank_test(std::vector<int64_t> axes,
-                            std::vector<size_t> input_shape,
-                            const migraphx::program& prog)
+inline void
+mvn_n_rank_test(std::vector<int64_t> axes, std::vector<size_t> input_shape, migraphx::program&& prog)
 {
     using migraphx::make_op;
 
@@ -329,6 +328,8 @@ inline void mvn_n_rank_test(std::vector<int64_t> axes,
     auto divisor  = add_common_op(*mm, make_op("add"), {std, epsilon});
     add_common_op(*mm, make_op("div"), {dividend, divisor});
 
+    p.get_main_module()->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }
 

@@ -44,5 +44,7 @@ TEST_CASE(gelu_default_test)
 
     auto prog = optimize_onnx("gelu_default_test.onnx");
 
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

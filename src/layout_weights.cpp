@@ -19,14 +19,15 @@ static void transpose_layout(module& m, instruction_ref w)
         std::vector<std::size_t> perm(w->get_shape().ndim());
         std::iota(perm.begin(), perm.end(), 0);
         std::reverse(perm.end() - 2, perm.end());
-        auto layout = m.insert_instruction(std::next(w), make_op("layout", {{"permutation", perm}}), w);
+        auto layout =
+            m.insert_instruction(std::next(w), make_op("layout", {{"permutation", perm}}), w);
         m.replace_instruction(w, layout);
     }
 }
 
 void layout_weights::apply(module& m) const
 {
-    for(auto ins:iterator_for(m))
+    for(auto ins : iterator_for(m))
     {
         if(not contains({"dot"}, ins->name()))
             continue;
@@ -36,9 +37,7 @@ void layout_weights::apply(module& m) const
         if(w->outputs().size() != 1)
             continue;
         const auto& strides = w->get_shape().strides();
-        if(std::any_of(strides.end() - 2, strides.end(), [](auto s) {
-            return s == 0;
-        }))
+        if(std::any_of(strides.end() - 2, strides.end(), [](auto s) { return s == 0; }))
             continue;
         transpose_layout(m, w);
     }

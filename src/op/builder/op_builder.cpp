@@ -22,31 +22,45 @@
  * THE SOFTWARE.
  */
 
+#include <unordered_map>
 #include <migraphx/ranges.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/onnx/op_parser.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace onnx {
+namespace op {
+namespace builder {
 
-struct parse_einsum : op_parser<parse_einsum>
+std::unordered_map<std::string, builder_func>& builder_map()
 {
-    std::vector<op_desc> operators() const { return {{"Einsum"}}; }
+    static std::unordered_map<std::string, builder_func> m; // NOLINT
+    return m;
+}
 
-    instruction_ref parse(const op_desc&,
-                          const onnx_parser&,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
-    {
-        if(not contains(info.attributes, "equation"))
-            MIGRAPHX_THROW("Equation attribute is required");
-        std::string equation = info.attributes.at("equation").s();
+void register_builder(const std::string& name, builder_func f)
+{
+    builder_map()[name] = std::move(f);
+}
 
-        return op::builder::add("einsum", *info.mod, args, {{"equation", equation}}).at(0);
-    }
-};
+std::vector<instruction_ref> insert(const std::string& name,
+                                    module& m,
+                                    instruction_ref ins,
+                                    const std::vector<instruction_ref>& args,
+                                    const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, ins, args, options);
+}
 
-} // namespace onnx
+std::vector<instruction_ref> add(const std::string& name,
+                                 module& m,
+                                 const std::vector<instruction_ref>& args,
+                                 const value& options)
+{
+    return at(builder_map(), name, "Builder not found: " + name)(m, m.end(), args, options);
+}
+
+} // namespace builder
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

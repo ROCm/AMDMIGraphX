@@ -22,22 +22,40 @@
  * THE SOFTWARE.
  */
 
-#include <map>
-#include <migraphx/algorithm.hpp>
 #include <migraphx/common.hpp>
-#include <migraphx/functional.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/permutation.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/lexing.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
+
+struct gelu_quick : op_builder<gelu_quick>
+{
+    float alpha = 1.0f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.alpha, "alpha"));
+    }
+
+    static std::string name() { return "gelu_quick"; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+       auto x      = args[0];
+       auto x_type = x->get_shape().type();
+       auto alpha_lit = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {alpha}});
+       auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {alpha_lit, x});
+       auto sigmoid = m.insert_instruction(ins, migraphx::make_op("sigmoid"), mul_alpha);
+       return {insert_common_op(m, ins, make_op("mul"), {x, sigmoid})};
+    }
+};
 
 struct gemm : op_builder<gemm>
 {
@@ -74,7 +92,7 @@ struct gemm : op_builder<gemm>
         if(alpha != 1.0f)
         {
             auto alpha_literal = m.add_literal(alpha);
-            a_arg = migraphx::insert_common_op(m, ins, make_op("mul"), {alpha_literal, a_arg});
+            a_arg              = insert_common_op(m, ins, make_op("mul"), {alpha_literal, a_arg});
 
             if(a_arg->get_shape().type() != dot_type)
             {
@@ -119,8 +137,7 @@ struct gemm : op_builder<gemm>
                 if(not float_equal(beta, 1.0f))
                 {
                     auto beta_literal = m.add_literal(beta);
-                    c_arg =
-                        migraphx::insert_common_op(m, ins, make_op("mul"), {c_arg, beta_literal});
+                    c_arg = insert_common_op(m, ins, make_op("mul"), {c_arg, beta_literal});
                     if(c_arg->get_shape().type() != dot_type)
                     {
                         c_arg = m.insert_instruction(

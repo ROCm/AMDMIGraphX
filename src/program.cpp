@@ -426,6 +426,25 @@ void preview_argument(std::ostream& os, const argument& a)
         });
 }
 
+static bool is_compatible_shape(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible_shape);
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return true;
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    // If both shapes are standard and lens match, they are considered compatible
+    // even if strides are different.
+    if(actual.standard() and expected.standard())
+        return actual.lens() == expected.lens();
+    return false;
+}
+
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
                                    std::vector<context>& ctx,
@@ -507,8 +526,10 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
+        // TODO: what order do the arguments to is_compatible_shape() come in?  One
+        // can be dynamic.
         assert(ins->get_shape().any_of_dynamic() or
-               results.at(ins).get_shape().compatible_lens(ins->get_shape()));
+               is_compatible_shape(ins->get_shape(), results.at(ins).get_shape()));
     }
     return {results.at(std::prev(mod->end()))};
 }

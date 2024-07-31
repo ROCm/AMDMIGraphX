@@ -490,26 +490,6 @@ bool shape::scalar() const
 
 bool shape::standard() const { return impl->m_standard; }
 
-bool shape::compatible_lens(const shape& s2) const
-{
-    if(dynamic() or s2.dynamic())
-        return true;
-    if(lens() != s2.lens() or type() != s2.type())
-        return false;
-
-    // Lens must be the same; strides must be same except that
-    // axes with len=1 don't matter
-    for(size_t ind = 0; ind < lens().size(); ind++)
-    {
-        size_t l_ind(lens()[ind]);
-        if(l_ind != s2.lens()[ind] or (l_ind != 1 and strides()[ind] != s2.strides()[ind]))
-            return false;
-    }
-    return true;
-    // TODO:  Do these checks matter here?
-    // m_standard = this->elements() == this->element_space() and not skips() and
-}
-
 shape shape::normalize_standard() const
 {
     if(this->standard())

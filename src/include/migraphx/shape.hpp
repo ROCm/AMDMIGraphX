@@ -296,12 +296,6 @@ struct MIGRAPHX_EXPORT shape
     /// not transposed.
     bool standard() const;
 
-    /// Returns true if the shapes are compatible.  TODO: better description
-    // Paul, How would you describe the purpose of that equality check for the shapes?  I'm trying
-    // to come up with a function description that explains why it's ok for the strides not to match
-    // sometimes.
-    bool compatible_lens(const shape& s2) const;
-
     /// Returns true if all strides are equal to 0 (scalar tensor)
     bool scalar() const;
 

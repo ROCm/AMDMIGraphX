@@ -440,10 +440,7 @@ struct find_mlir_fused_ops
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto pw_ins        = r.result;
-        auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
-        auto* pm           = pw_ins->module_inputs().front();
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
         auto* pm           = pw_ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
@@ -482,10 +479,7 @@ struct find_mlir_fused_ops
         std::vector<instruction_ref> inputs;
         std::copy_if(pw_ins->inputs().begin(),
                      pw_ins->inputs().end(),
-        std::copy_if(pw_ins->inputs().begin(),
-                     pw_ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != x_ins; });
                      [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         if(gemm_has_multi_outs)

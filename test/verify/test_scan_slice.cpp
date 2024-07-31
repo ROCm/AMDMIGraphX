@@ -26,35 +26,37 @@
 #include <migraphx/program.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/apply_alpha_beta.hpp>
 
-template <migraphx::shape::type_t DType>
-struct test_gemm_add : verify_program<test_gemm_add<DType>>
+template <class Derived, int64_t Axis, int64_t Direction, int64_t Idx>
+struct test_scan_slice_base : verify_program<Derived>
 {
     migraphx::program create_program() const
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 1024}};
-        migraphx::shape m2_shape{DType, {1, 1024, 320}};
-        migraphx::shape m3_shape{DType, {1, 2, 320}};
-        auto l1 = mm->add_parameter("1", m1_shape);
-        auto l2 = mm->add_parameter("2", m2_shape);
-        auto l3 = mm->add_parameter("3", m3_shape);
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        migraphx::shape data_sh{migraphx::shape::int32_type, {2, 2, 2}};
+        auto data_param = mm->add_parameter("data", data_sh);
+        migraphx::shape idx_sh{migraphx::shape::int64_type, {1}};
+        auto idx_lit = mm->add_literal(migraphx::literal{idx_sh, {Idx}});
+
+        mm->add_instruction(
+            migraphx::make_op("scan_slice", {{"axis", Axis}, {"direction", Direction}}),
+            data_param,
+            idx_lit);
+
         return p;
-    }
-    std::string section() const { return "gemm"; }
-
-    // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
-    migraphx::compile_options get_compile_options() const
-    {
-        return migraphx::compile_options{.exhaustive_tune = true};
     }
 };
 
-template struct test_gemm_add<migraphx::shape::float_type>;
-template struct test_gemm_add<migraphx::shape::half_type>;
-// template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;
+struct test_scan_slice1 : test_scan_slice_base<test_scan_slice1, 0, 0, 0>
+{
+};
+
+struct test_scan_slice2 : test_scan_slice_base<test_scan_slice2, -1, 1, 1>
+{
+};
+
+struct test_scan_slice3 : test_scan_slice_base<test_scan_slice2, 1, 0, 1>
+{
+};

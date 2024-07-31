@@ -426,11 +426,16 @@ void preview_argument(std::ostream& os, const argument& a)
         });
 }
 
+// This function currently used only in an Assertion.
+#ifndef NDEBUG
 static bool is_compatible_shape(const shape& actual, const shape& expected)
 {
     // Check subshapes
     if(expected.type() == shape::tuple_type)
-        return equal(actual.sub_shapes().begin(), actual.sub_shapes().end(), expected.sub_shapes().begin(), &is_compatible_shape);
+        return equal(actual.sub_shapes().begin(),
+                     actual.sub_shapes().end(),
+                     expected.sub_shapes().begin(),
+                     &is_compatible_shape);
     // Only the expected can be dynamic
     if(expected.dynamic())
         return true;
@@ -444,6 +449,7 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
         return actual.lens() == expected.lens();
     return false;
 }
+#endif
 
 template <class F>
 std::vector<argument> generic_eval(const module* mod,

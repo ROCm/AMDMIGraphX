@@ -36,6 +36,7 @@
 #include <migraphx/inline_module.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/layout_nhwc.hpp>
+#include <migraphx/layout_weights.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
@@ -157,6 +158,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         auto_contiguous{},
         eliminate_data_type{{migraphx::shape::fp8e4m3fnuz_type}, shape::float_type, unsupported_fp8_ops},
         dead_code_elimination{},
+        layout_weights{},
         rewrite_reduce{},
         rewrite_low_precision{},
         dead_code_elimination{},

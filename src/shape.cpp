@@ -64,7 +64,8 @@ struct shape_impl
         assert(t != shape::tuple_type);
         assert(m_lens.size() == m_strides.size());
 
-        // Calculate standard shape flag for these lens/strides
+        // Calculate standard shape flag for these lens/strides.  Strides on size-1
+        // axes are ignored to support an MLIR rule.
         std::vector<size_t> filtered_strides;
         for(size_t ind = 0; ind < m_strides.size(); ind++)
             if(m_lens[ind] != 1)

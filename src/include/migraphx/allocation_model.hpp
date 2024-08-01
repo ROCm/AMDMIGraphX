@@ -78,10 +78,20 @@ struct MIGRAPHX_EXPORT allocation_model
 
 struct allocation_model
 {
+    private:
+    public:
     // Constructors
     allocation_model() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                                  std::declval<PrivateDetailTypeErasedT>().copy(),
+                                  std::declval<PrivateDetailTypeErasedT>().allocate(
+                                      std::declval<const shape&>()),
+                                  std::declval<PrivateDetailTypeErasedT>().preallocate(
+                                      std::declval<const shape&>(), std::declval<std::string>()),
+                                  std::declval<PrivateDetailTypeErasedT>().needs_out_params(),
+                                  void())>
     allocation_model(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -91,7 +101,15 @@ struct allocation_model
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                                  std::declval<PrivateDetailTypeErasedT>().copy(),
+                                  std::declval<PrivateDetailTypeErasedT>().allocate(
+                                      std::declval<const shape&>()),
+                                  std::declval<PrivateDetailTypeErasedT>().preallocate(
+                                      std::declval<const shape&>(), std::declval<std::string>()),
+                                  std::declval<PrivateDetailTypeErasedT>().needs_out_params(),
+                                  void())>
     allocation_model& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;

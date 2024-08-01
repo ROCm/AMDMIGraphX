@@ -70,10 +70,17 @@ struct MIGRAPHX_EXPORT concat_optimization
 
 struct concat_optimization
 {
+    private:
+    public:
     // Constructors
     concat_optimization() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                                  std::declval<PrivateDetailTypeErasedT>().allocate(),
+                                  std::declval<PrivateDetailTypeErasedT>().get_concat(
+                                      std::declval<const operation&>()),
+                                  void())>
     concat_optimization(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -83,7 +90,12 @@ struct concat_optimization
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                                  std::declval<PrivateDetailTypeErasedT>().allocate(),
+                                  std::declval<PrivateDetailTypeErasedT>().get_concat(
+                                      std::declval<const operation&>()),
+                                  void())>
     concat_optimization& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;

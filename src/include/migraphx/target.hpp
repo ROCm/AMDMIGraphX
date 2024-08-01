@@ -149,10 +149,96 @@ struct MIGRAPHX_EXPORT target
 
 struct target
 {
+    private:
+    template <class T>
+    static auto private_detail_te_default_find_supported(char,
+                                                         T&& private_detail_te_self,
+                                                         const_module_ref mod,
+                                                         support_metric m)
+        -> decltype(private_detail_te_self.find_supported(mod, m))
+    {
+        return private_detail_te_self.find_supported(mod, m);
+    }
+
+    template <class T>
+    static supported_segments private_detail_te_default_find_supported(float,
+                                                                       T&& private_detail_te_self,
+                                                                       const_module_ref mod,
+                                                                       support_metric m)
+    {
+        return target_find_supported(private_detail_te_self, mod, m);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_to(input))
+    {
+        return private_detail_te_self.copy_to(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_to_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
+        -> decltype(private_detail_te_self.copy_from(input))
+    {
+        return private_detail_te_self.copy_from(input);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
+    {
+        return copy_from_target(private_detail_te_self, input);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
+        -> decltype(private_detail_te_self.allocate(s))
+    {
+        return private_detail_te_self.allocate(s);
+    }
+
+    template <class T>
+    static argument
+    private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
+    {
+        return target_allocate(private_detail_te_self, s);
+    }
+
+    public:
     // Constructors
     target() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename =
+            decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                     std::declval<PrivateDetailTypeErasedT>().get_passes(
+                         std::declval<context&>(), std::declval<const compile_options&>()),
+                     std::declval<PrivateDetailTypeErasedT>().get_context(),
+                     private_detail_te_default_find_supported(
+                         char(0),
+                         std::declval<PrivateDetailTypeErasedT>(),
+                         std::declval<const_module_ref>(),
+                         std::declval<support_metric>()),
+                     private_detail_te_default_copy_to(char(0),
+                                                       std::declval<PrivateDetailTypeErasedT>(),
+                                                       std::declval<const argument&>()),
+                     private_detail_te_default_copy_from(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>(),
+                                                         std::declval<const argument&>()),
+                     private_detail_te_default_allocate(char(0),
+                                                        std::declval<PrivateDetailTypeErasedT>(),
+                                                        std::declval<const shape&>()),
+                     void())>
     target(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -162,7 +248,28 @@ struct target
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename =
+            decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                     std::declval<PrivateDetailTypeErasedT>().get_passes(
+                         std::declval<context&>(), std::declval<const compile_options&>()),
+                     std::declval<PrivateDetailTypeErasedT>().get_context(),
+                     private_detail_te_default_find_supported(
+                         char(0),
+                         std::declval<PrivateDetailTypeErasedT>(),
+                         std::declval<const_module_ref>(),
+                         std::declval<support_metric>()),
+                     private_detail_te_default_copy_to(char(0),
+                                                       std::declval<PrivateDetailTypeErasedT>(),
+                                                       std::declval<const argument&>()),
+                     private_detail_te_default_copy_from(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>(),
+                                                         std::declval<const argument&>()),
+                     private_detail_te_default_allocate(char(0),
+                                                        std::declval<PrivateDetailTypeErasedT>(),
+                                                        std::declval<const shape&>()),
+                     void())>
     target& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;
@@ -274,69 +381,6 @@ struct target
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
     };
-
-    template <class T>
-    static auto private_detail_te_default_find_supported(char,
-                                                         T&& private_detail_te_self,
-                                                         const_module_ref mod,
-                                                         support_metric m)
-        -> decltype(private_detail_te_self.find_supported(mod, m))
-    {
-        return private_detail_te_self.find_supported(mod, m);
-    }
-
-    template <class T>
-    static supported_segments private_detail_te_default_find_supported(float,
-                                                                       T&& private_detail_te_self,
-                                                                       const_module_ref mod,
-                                                                       support_metric m)
-    {
-        return target_find_supported(private_detail_te_self, mod, m);
-    }
-
-    template <class T>
-    static auto
-    private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
-        -> decltype(private_detail_te_self.copy_to(input))
-    {
-        return private_detail_te_self.copy_to(input);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_to_target(private_detail_te_self, input);
-    }
-
-    template <class T>
-    static auto
-    private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
-        -> decltype(private_detail_te_self.copy_from(input))
-    {
-        return private_detail_te_self.copy_from(input);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_from_target(private_detail_te_self, input);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
-        -> decltype(private_detail_te_self.allocate(s))
-    {
-        return private_detail_te_self.allocate(s);
-    }
-
-    template <class T>
-    static argument
-    private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
-    {
-        return target_allocate(private_detail_te_self, s);
-    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type

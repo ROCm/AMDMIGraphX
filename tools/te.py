@@ -52,11 +52,16 @@ ${decl_members}
 
 struct ${struct_name}
 {
+private:
+    
+    ${default_members}
+
+public:
     // Constructors
     ${struct_name} () = default;
 
     template <typename PrivateDetailTypeErasedT, 
-        typename = typename std::enable_if<decltype(private_detail_te_is_convertible_to_${struct_name}(char(0), std::declval<PrivateDetailTypeErasedT>())){}>::type>
+        typename = decltype(${constraint_members}, void())>
     ${struct_name} (PrivateDetailTypeErasedT value) :
         private_detail_te_handle_mem_var (
             std::make_shared<
@@ -66,7 +71,8 @@ struct ${struct_name}
     {}
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+        typename = decltype(${constraint_members}, void())>
     ${struct_name} & operator= (PrivateDetailTypeErasedT value)
     {
         using std::swap;
@@ -122,17 +128,6 @@ private:
 
         ${pure_virtual_members}
     };
-
-    template<class PrivateDetailTypeErasedT>
-    static auto private_detail_te_is_convertible_to_${struct_name}(char, PrivateDetailTypeErasedT&& private_detail_x) 
-        -> decltype(${constraint_members}, std::true_type{})
-    { return {}; }
-
-    template<class PrivateDetailTypeErasedT>
-    static std::false_type private_detail_te_is_convertible_to_${struct_name}(float, PrivateDetailTypeErasedT&&) 
-    { return {}; }
-
-    ${default_members}
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type :
@@ -291,16 +286,19 @@ def internal_name(name):
     else:
         return name
 
+empty_expression = 'static_cast<void>(void())'
 
 def generate_constraint(m, friend, indirect):
     if m['name'].startswith('operator'):
-        return 'void()'
+        return empty_expression
     if friend:
-        return 'void()'
+        return empty_expression
     if indirect:
-        return 'void()'
+        return string.Template(
+            'private_detail_te_default_${internal_name}(char(0), std::declval<PrivateDetailTypeErasedT>() ${comma} ${param_constraints})'
+        ).substitute(m)
     return string.Template(
-        'private_detail_x.${name}(${param_constraints})').substitute(m)
+        'std::declval<PrivateDetailTypeErasedT>().${name}(${param_constraints})').substitute(m)
 
 def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):

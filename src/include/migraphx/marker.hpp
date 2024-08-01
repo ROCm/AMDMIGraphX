@@ -62,10 +62,21 @@ struct MIGRAPHX_EXPORT marker
 
 struct marker
 {
+    private:
+    public:
     // Constructors
     marker() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().mark_start(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_start(
+                                      std::declval<const program&>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_stop(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_stop(
+                                      std::declval<const program&>()),
+                                  void())>
     marker(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -75,7 +86,16 @@ struct marker
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().mark_start(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_start(
+                                      std::declval<const program&>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_stop(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().mark_stop(
+                                      std::declval<const program&>()),
+                                  void())>
     marker& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;

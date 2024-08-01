@@ -81,10 +81,28 @@ struct MIGRAPHX_EXPORT schedule_model
 
 struct schedule_model
 {
+    private:
+    public:
     // Constructors
     schedule_model() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename =
+            decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                     std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
+                                                                    std::declval<instruction_ref>(),
+                                                                    std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().wait(std::declval<module&>(),
+                                                                   std::declval<instruction_ref>(),
+                                                                   std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().record(
+                         std::declval<module&>(),
+                         std::declval<instruction_ref>(),
+                         std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().weight(
+                         std::declval<const operation&>()),
+                     void())>
     schedule_model(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -94,7 +112,23 @@ struct schedule_model
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename =
+            decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                     std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
+                                                                    std::declval<instruction_ref>(),
+                                                                    std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().wait(std::declval<module&>(),
+                                                                   std::declval<instruction_ref>(),
+                                                                   std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().record(
+                         std::declval<module&>(),
+                         std::declval<instruction_ref>(),
+                         std::declval<std::size_t>()),
+                     std::declval<PrivateDetailTypeErasedT>().weight(
+                         std::declval<const operation&>()),
+                     void())>
     schedule_model& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;

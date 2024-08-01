@@ -98,10 +98,49 @@ struct MIGRAPHX_EXPORT pass
 
 struct pass
 {
+    private:
+    template <class T>
+    static auto
+    private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
+        -> decltype(private_detail_te_self.apply(mpm))
+    {
+        private_detail_te_self.apply(mpm);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
+    {
+        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
+        -> decltype(private_detail_te_self.apply(p))
+    {
+        private_detail_te_self.apply(p);
+    }
+
+    template <class T>
+    static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
+    {
+        migraphx::nop(private_detail_te_self, p);
+    }
+
+    public:
     // Constructors
     pass() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename =
+                  decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                           private_detail_te_default_apply(char(0),
+                                                           std::declval<PrivateDetailTypeErasedT>(),
+                                                           std::declval<module_pass_manager&>()),
+                           private_detail_te_default_apply(char(0),
+                                                           std::declval<PrivateDetailTypeErasedT>(),
+                                                           std::declval<program&>()),
+                           void())>
     pass(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -111,7 +150,16 @@ struct pass
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename =
+                  decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                           private_detail_te_default_apply(char(0),
+                                                           std::declval<PrivateDetailTypeErasedT>(),
+                                                           std::declval<module_pass_manager&>()),
+                           private_detail_te_default_apply(char(0),
+                                                           std::declval<PrivateDetailTypeErasedT>(),
+                                                           std::declval<program&>()),
+                           void())>
     pass& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;
@@ -194,34 +242,6 @@ struct pass
         virtual void apply(module_pass_manager& mpm) const = 0;
         virtual void apply(program& p) const               = 0;
     };
-
-    template <class T>
-    static auto
-    private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
-        -> decltype(private_detail_te_self.apply(mpm))
-    {
-        private_detail_te_self.apply(mpm);
-    }
-
-    template <class T>
-    static void
-    private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
-    {
-        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
-    }
-
-    template <class T>
-    static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
-        -> decltype(private_detail_te_self.apply(p))
-    {
-        private_detail_te_self.apply(p);
-    }
-
-    template <class T>
-    static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
-    {
-        migraphx::nop(private_detail_te_self, p);
-    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type

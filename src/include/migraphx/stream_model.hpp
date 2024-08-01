@@ -82,10 +82,24 @@ struct MIGRAPHX_EXPORT stream_model
 
 struct stream_model
 {
+    private:
+    public:
     // Constructors
     stream_model() = default;
 
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().get_nstream(),
+                                  std::declval<PrivateDetailTypeErasedT>().get_stream(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().get_event_id(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().has_stream(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().is_record(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().is_wait(
+                                      std::declval<instruction_ref>()),
+                                  void())>
     stream_model(PrivateDetailTypeErasedT value)
         : private_detail_te_handle_mem_var(
               std::make_shared<private_detail_te_handle_type<
@@ -95,7 +109,19 @@ struct stream_model
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
+    template <typename PrivateDetailTypeErasedT,
+              typename = decltype(std::declval<PrivateDetailTypeErasedT>().get_nstream(),
+                                  std::declval<PrivateDetailTypeErasedT>().get_stream(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().get_event_id(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().has_stream(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().is_record(
+                                      std::declval<instruction_ref>()),
+                                  std::declval<PrivateDetailTypeErasedT>().is_wait(
+                                      std::declval<instruction_ref>()),
+                                  void())>
     stream_model& operator=(PrivateDetailTypeErasedT value)
     {
         using std::swap;

@@ -32,7 +32,7 @@
 #include <utility>
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -55,10 +55,20 @@ struct schedule_model
     // Insert necessary records after an instruction
     void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
-    std::size_t weight(const operation& op) const;
+    std::size_t weight(instruction_ref ins) const;
 };
 
 #else
+
+namespace detail {
+
+template <class T>
+std::size_t schedule_weight(T& x, instruction_ref ins)
+{
+    return x.weight(ins->get_operator());
+}
+
+} // namespace detail
 
 #ifdef TYPE_ERASED_DECLARATION
 
@@ -73,8 +83,8 @@ struct MIGRAPHX_EXPORT schedule_model
     void wait(module& m, instruction_ref ins, std::size_t wait_id) const;
     //
     void record(module& m, instruction_ref ins, std::size_t wait_id) const;
-    //
-    std::size_t weight(const operation& op) const;
+    // (optional)
+    std::size_t weight(instruction_ref ins) const;
 };
 
 #else
@@ -166,10 +176,10 @@ struct schedule_model
         (*this).private_detail_te_get_handle().record(m, ins, wait_id);
     }
 
-    std::size_t weight(const operation& op) const
+    std::size_t weight(instruction_ref ins) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().weight(op);
+        return (*this).private_detail_te_get_handle().weight(ins);
     }
 
     friend bool is_shared(const schedule_model& private_detail_x,
@@ -190,8 +200,23 @@ struct schedule_model
         virtual void sched(module& m, instruction_ref ins, std::size_t n) const        = 0;
         virtual void wait(module& m, instruction_ref ins, std::size_t wait_id) const   = 0;
         virtual void record(module& m, instruction_ref ins, std::size_t wait_id) const = 0;
-        virtual std::size_t weight(const operation& op) const                          = 0;
+        virtual std::size_t weight(instruction_ref ins) const                          = 0;
     };
+
+    template <class T>
+    static auto
+    private_detail_te_default_weight(char, T&& private_detail_te_self, instruction_ref ins)
+        -> decltype(private_detail_te_self.weight(ins))
+    {
+        return private_detail_te_self.weight(ins);
+    }
+
+    template <class T>
+    static std::size_t
+    private_detail_te_default_weight(float, T&& private_detail_te_self, instruction_ref ins)
+    {
+        return detail::schedule_weight(private_detail_te_self, ins);
+    }
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type : private_detail_te_handle_base_type
@@ -241,10 +266,10 @@ struct schedule_model
             private_detail_te_value.record(m, ins, wait_id);
         }
 
-        std::size_t weight(const operation& op) const override
+        std::size_t weight(instruction_ref ins) const override
         {
 
-            return private_detail_te_value.weight(op);
+            return private_detail_te_default_weight(char(0), private_detail_te_value, ins);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

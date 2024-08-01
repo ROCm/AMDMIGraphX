@@ -32,7 +32,7 @@
 #include <utility>
 
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -55,10 +55,20 @@ struct schedule_model
     // Insert necessary records after an instruction
     void record(module& m, instruction_ref ins, std::size_t wait_id) const;
     /// Compute weights for an operation
-    std::size_t weight(const operation& op) const;
+    std::size_t weight(instruction_ref ins) const;
 };
 
 #else
+
+namespace detail {
+
+template<class T>
+std::size_t schedule_weight(T& x, instruction_ref ins)
+{
+    return x.weight(ins->get_operator());
+}
+
+}
 
 <%
 interface('schedule_model',
@@ -66,7 +76,7 @@ interface('schedule_model',
     virtual('sched', m='module&', ins='instruction_ref', n='std::size_t', const=True),
     virtual('wait', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
     virtual('record', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
-    virtual('weight', returns='std::size_t', op='const operation&', const=True)
+    virtual('weight', returns='std::size_t', ins='instruction_ref', const=True, default='detail::schedule_weight')
 )
 %>
 

@@ -75,7 +75,7 @@ struct stream_info
                 std::size_t weight = 0;
                 auto&& op          = ins->get_operator();
                 if(not is_context_free(op) and op.name()[0] != '@')
-                    weight = model.weight(op);
+                    weight = model.weight(ins);
                 // This will ensure a stream will be assigned to return
                 if(op.name() == "@return")
                     weight = 1;

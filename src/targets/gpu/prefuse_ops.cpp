@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/op/group_query_attention.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -239,6 +240,126 @@ struct find_gemm_softmax_gemm
     }
 };
 
+struct gpu_group_query_attention : op::group_query_attention
+{
+    std::string name() const { return "gpu::group_query_attention"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        // std::cout << "new compute shape : " << inputs.size() << std::endl;
+        if (inputs.size() == 8)
+        {
+            auto query_lens = inputs.front().lens();
+            std::size_t q_hidden_size = (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
+            std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
+            shape output_shape{inputs.front().type(), output_lens};
+            return shape({output_shape, inputs[1], inputs[2]});
+        }
+        auto query_lens = inputs.front().lens();
+        std::size_t q_hidden_size = (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
+        std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
+        shape output_shape{inputs.front().type(), output_lens};
+        return shape({output_shape, inputs[1], inputs[2]});
+    }
+};
+MIGRAPHX_REGISTER_OP(gpu_group_query_attention);
+
+struct find_group_query_attention
+{
+    auto matcher() const
+    {
+        return match::name("group_query_attention");
+    }
+
+    // instruction_ref insert_allocation(module mod, instruction_ref ins, const shape& s) const
+    // {
+    //     return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
+    // }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto inputs = ins->inputs();
+
+        auto v = ins->get_operator().to_value();
+        assert(v.contains("num_heads"));
+        auto num_heads = v.at("num_heads").to<int>();
+        assert(v.contains("kv_num_heads"));
+        auto kv_num_heads = v.at("kv_num_heads").to<int>();
+        auto s      = ins->get_shape();
+        // auto output = insert_allocation(mpm.get_module(), ins, s);
+        // auto inputs = ins->inputs();
+        // inputs.push_back(output);
+
+        auto q_shape              = inputs[0]->get_shape();
+        auto q_lens               = q_shape.lens();
+        auto input_type = q_shape.type();
+        const std::size_t batch_size      = q_lens[0];
+        const std::size_t sequence_length = q_lens[1];
+        auto past_key_shape       = inputs[3]->get_shape();
+        auto past_key_lens        = past_key_shape.lens();
+        auto past_sequence_length = past_key_lens[2];
+        std::size_t q_hidden_size = q_lens[2];
+        std::size_t head_size     = q_hidden_size / (num_heads + 2 * kv_num_heads);
+        q_hidden_size = head_size * num_heads; 
+        const bool packed_qkv = true;
+
+        std::size_t rotary_dim = inputs[7]->get_shape().lens()[1] * 2;
+        std::size_t present_kv_seqlen = 4096;
+
+        shape output_shape{input_type, {batch_size, sequence_length, q_hidden_size}};
+        shape qkv_rotary_shape{input_type, {batch_size,
+                                static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
+                                sequence_length,
+                                head_size}};
+        shape kv_shape{input_type, 
+                            {batch_size,
+                                static_cast<std::size_t>(kv_num_heads),
+                                past_sequence_length,
+                                head_size}};
+        shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
+        // std::cout << "mid" << std::endl;
+        // insert transpose on qkv
+        std::vector<std::size_t> bsnh{batch_size,
+                                        sequence_length,
+                                        static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
+                                        head_size};
+        // auto transposed_qkv = insert_allocation(inputs.at(0), inputs.at(0)->get_shape());                                            
+        auto transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
+        transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
+        transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("contiguous"), transposed_qkv);
+        // insert qkv_rotary with qkv_rotary_shape
+        // auto qkv_rotary = insert_allocation(mpm.get_module(), ins, qkv_rotary_shape);
+        // // insert attn_probs with attn_probs_shape
+        // auto attn_probs = insert_allocation(mpm.get_module(), ins, attn_probs_shape);
+        // std::cout << "mid2" << std::endl;
+        std::vector<instruction_ref> new_inputs{
+                                        transposed_qkv, 
+                                        inputs.at(3), 
+                                        inputs.at(4),
+                                        inputs.at(5),
+                                        inputs.at(7),
+                                        inputs.at(8)};
+        // std::cout << "mid3" << std::endl;
+        // auto ret = mod->replace_instruction(
+        //     ins,
+        //     make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+        //     new_inputs);
+
+
+
+
+        mpm.get_module().replace_instruction(
+            ins, gpu_group_query_attention{v.at("do_rotary").to<int>(),
+                                           v.at("kv_num_heads").to<int>(),
+                                           v.at("local_window_size").to<int>(),
+                                           v.at("num_heads").to<std::size_t>(),
+                                           v.at("rotary_interleaved").to<int>(),
+                                           v.at("scale").to<float>()}, new_inputs);
+        // mpm.get_module().debug_print();
+    }
+};
+
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
@@ -250,6 +371,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
+    match::find_matches(mpm, find_group_query_attention{});
 }
 
 } // namespace gpu

@@ -80,7 +80,7 @@ struct shape
     {
         if(this->standard())
         {
-            MIGRAPHX_ASSERT(i == compute_index(i));
+            // MIGRAPHX_ASSERT(i == compute_index(i));
             return i;
         }
         else

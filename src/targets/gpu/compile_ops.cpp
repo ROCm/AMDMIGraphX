@@ -156,8 +156,10 @@ struct compile_plan
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+        // std::cout << "benchmark 1" << std::endl;
         if(results.empty())
             MIGRAPHX_THROW("No configs to tune");
+        // std::cout << "benchmark 2" << std::endl;
         if(results.size() == 1)
         {
             if(not results.front().has_value())

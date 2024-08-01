@@ -57,7 +57,7 @@ struct hip_heap_vector
     MIGRAPHX_DEVICE_CONSTEXPR void sort() { sort_heap(size); }
 
     private:
-    MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2)
+    MIGRAPHX_DEVICE_CONSTEXPR inline static void swap(T& v1, T& v2) noexcept
     {
         T v = v1;
         v1  = v2;

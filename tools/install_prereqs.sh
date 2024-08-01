@@ -54,6 +54,7 @@ else
     python3-venv \
     rocblas-dev \
     rocm-cmake \
+    rocm-llvm-dev \
     libtbb-dev
 fi
 

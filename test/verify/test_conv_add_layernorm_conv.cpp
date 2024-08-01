@@ -34,11 +34,11 @@ struct test_conv_add_layernorm_conv : verify_program<test_conv_add_layernorm_con
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm      = p.get_main_module();
+        auto* mm          = p.get_main_module();
         auto input        = mm->add_parameter("x", migraphx::shape{DType, {2, 4, 64, 64}});
         auto weights1     = mm->add_parameter("w", migraphx::shape{DType, {320, 4, 3, 3}});
         auto bias_literal = abs(migraphx::generate_literal(migraphx::shape{DType, {320}}, 1));
-        auto bias       = mm->add_literal(bias_literal);
+        auto bias         = mm->add_literal(bias_literal);
         auto conv1        = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), input, weights1);
         auto bcast_bias = mm->add_instruction(

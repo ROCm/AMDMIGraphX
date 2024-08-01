@@ -26,5 +26,5 @@
 
 TEST_CASE(gelu_bias_invalid_type_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gelu_bias_invalid_type_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("gelu_bias_invalid_type_test.onnx"); }));
 }

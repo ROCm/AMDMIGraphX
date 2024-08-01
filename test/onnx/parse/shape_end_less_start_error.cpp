@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,5 +28,5 @@ TEST_CASE(shape_end_less_start_error)
 {
     migraphx::onnx_options options;
     options.map_dyn_input_dims["x"] = {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("shape_end_less_start_error.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("shape_end_less_start_error.onnx", options); }));
 }

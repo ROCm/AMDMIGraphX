@@ -67,6 +67,7 @@ add_library(migraphx
     instruction.cpp
     json.cpp
     layout_nhwc.cpp
+    lexing.cpp
     load_save.cpp
     make_op.cpp
     memory_coloring.cpp
@@ -200,6 +201,7 @@ register_migraphx_ops(
     neg
     nonmaxsuppression
     nonzero
+    onehot
     outline
     pack_int4
     pad
@@ -214,6 +216,8 @@ register_migraphx_ops(
     random_uniform
     random_seed
     recip
+    reduce_all
+    reduce_any
     reduce_max
     reduce_mean
     reduce_min
@@ -271,6 +275,7 @@ register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal buil
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
+  PRIVATE
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -307,8 +312,8 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
+find_package(msgpack-cxx QUIET)
+if(NOT msgpack-cxx_FOUND)
     find_package(msgpack REQUIRED)
 endif()
 target_link_libraries(migraphx PRIVATE msgpackc-cxx)
@@ -333,10 +338,12 @@ target_link_libraries(migraphx_all_targets INTERFACE migraphx_cpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_CPU)
 endif()
 if(MIGRAPHX_ENABLE_GPU)
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
+    endif()
     if(MIGRAPHX_USE_ROCBLAS)
         list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE rocblas)
     endif()
-    list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE MIOpen)
 add_subdirectory(targets/gpu)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_gpu)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_GPU)
@@ -345,6 +352,12 @@ if(MIGRAPHX_ENABLE_FPGA)
 add_subdirectory(targets/fpga)
 target_link_libraries(migraphx_all_targets INTERFACE migraphx_fpga)
 target_compile_definitions(migraphx_all_targets INTERFACE -DHAVE_FPGA)
+endif()
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
+else()
+    target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
 endif()
 
 if(HAVE_HALF_EXPR)

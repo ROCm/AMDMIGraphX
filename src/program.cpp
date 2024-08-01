@@ -772,9 +772,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cout << "WARNING: MXR File was created using MIGraphX version: " << migx_version
+        std::cout << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
                   << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.";
+                  << ", operators implementation could be mismatched.\n";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
@@ -1081,10 +1081,12 @@ const module* program::get_module(const std::string& name) const { return &impl-
 
 module* program::create_module(const std::string& name)
 {
+
     assert(not contains(impl->modules, name));
     auto r = impl->modules.emplace(name, name);
     return &(r.first->second);
 }
+
 module* program::create_module(const std::string& name, module m)
 {
     assert(not contains(impl->modules, name));

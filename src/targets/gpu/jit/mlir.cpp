@@ -48,19 +48,20 @@ static module create_pointwise_module(module_ref in_mod)
             pw_mod.add_parameter(any_cast<builtin::param>(param->get_operator()).parameter,
                                  shape{param->get_shape().type()});
     }
-    pw_mod.add_instructions(in_mod,
-                            &map_ins,
-                            [](module& m,
-                               instruction_ref ins,
-                               const operation& op,
-                               const std::vector<instruction_ref>& inputs,
-                               const std::vector<module_ref>& mod_args) -> instruction_ref {
-                                if(op.name() == "multibroadcast" and
-                                   inputs.front()->name() == "@literal")
-                                    return inputs.front();
-                                else
-                                    return m.insert_instruction(ins, op, inputs, mod_args);
-                            });
+    auto return_args = pw_mod.add_instructions(
+        in_mod,
+        &map_ins,
+        [](module& m,
+           instruction_ref ins,
+           const operation& op,
+           const std::vector<instruction_ref>& inputs,
+           const std::vector<module_ref>& mod_args) -> instruction_ref {
+            if(op.name() == "multibroadcast" and inputs.front()->name() == "@literal")
+                return inputs.front();
+            else
+                return m.insert_instruction(ins, op, inputs, mod_args);
+        });
+    pw_mod.add_return(return_args);
     return pw_mod;
 }
 
@@ -75,23 +76,23 @@ struct mlir_compiler : compiler<mlir_compiler>
     {
         auto* smod = ins->module_inputs().front();
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
-        auto gemm_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
-            return i.name() == "dot" or i.name() == "quant_dot";
+        auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
+            return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());
         });
-        // check if (a) module is fused (b) contains a dot instruction and (c) perfConfig can not
-        // allow fused module
-        if(gemm_ins != smod->end() and std::distance(gemm_ins, smod->end()) > 2 and
-           not is_module_fusible(*smod, solution))
+        // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c) perfConfig
+        // can not allow fused module
+        if(gemm_like_ins != smod->end() and std::distance(gemm_like_ins, smod->end()) > 2 and
+           not is_module_fusible(*smod, ctx, solution))
         {
             auto input_args = ins->inputs();
             input_args.pop_back();
-            auto mod_splits      = smod->split(input_args, {gemm_ins});
+            auto mod_splits      = smod->split(input_args, {gemm_like_ins});
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_inputs        = mod_splits[1].inputs;
             auto dot_ins_idx      = std::distance(
-                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_ins), pw_inputs.begin());
+                std::find(pw_inputs.begin(), pw_inputs.end(), gemm_like_ins), pw_inputs.begin());
             auto pw_shapes         = to_shapes(mod_splits[1].inputs);
             pw_shapes[dot_ins_idx] = cop1.cop.output;
             pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
@@ -100,7 +101,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto cop2                          = compile_pointwise(ctx, pw_shapes, &pw_mod);
             std::vector<mlir_code_object> cops = {cop1,
                                                   mlir_code_object{any_cast<code_object_op>(cop2)}};
-            return insert(cops, mod_splits, ins, gemm_ins);
+            return insert(cops, mod_splits, ins, gemm_like_ins);
         }
         return insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
     }
@@ -120,7 +121,8 @@ struct mlir_compiler : compiler<mlir_compiler>
                     }
                     auto mlir = insert_mlir(m, ins, any_cast<code_object_op>(ops.front()), inputs);
                     return m.replace_instruction(ins, mlir);
-                }};
+                },
+                &trace};
     }
 
     compiler_replace insert(const std::vector<mlir_code_object>& mcos,
@@ -131,10 +133,10 @@ struct mlir_compiler : compiler<mlir_compiler>
         std::vector<operation> cobjs(mcos.size());
         std::transform(
             mcos.begin(), mcos.end(), cobjs.begin(), [](const auto& mco) { return mco.cop; });
+        auto precompiled_inputs = precompile_ins->inputs();
         return {
             cobjs, [=](module& m, instruction_ref ins, const std::vector<operation>& ops) {
-                auto compiled_inputs    = ins->inputs();
-                auto precompiled_inputs = precompile_ins->inputs();
+                auto compiled_inputs = ins->inputs();
                 std::unordered_map<instruction_ref, instruction_ref> inputs_rep_map;
                 for(const auto i : range(precompiled_inputs.size()))
                 {
@@ -200,6 +202,13 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto shapes = to_shapes(ins->inputs());
         auto* smod  = ins->module_inputs().front();
         return get_tuning_config_mlir(ctx, *smod, shapes, exhaustive);
+    }
+
+    static void trace(std::ostream& os, instruction_ref ins)
+    {
+        auto shapes = to_shapes(ins->inputs());
+        auto* smod  = ins->module_inputs().front();
+        os << dump_mlir(*smod, shapes);
     }
 };
 

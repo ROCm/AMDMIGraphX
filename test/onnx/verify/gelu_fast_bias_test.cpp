@@ -28,7 +28,7 @@
 
 TEST_CASE(gelu_fast_bias_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gelu_fast_bias_test.onnx");
+    migraphx::program p = read_onnx("gelu_fast_bias_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape shape{migraphx::shape::half_type, {3, 3}};

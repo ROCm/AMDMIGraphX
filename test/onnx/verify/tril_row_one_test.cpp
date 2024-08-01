@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@
 
 TEST_CASE(tril_row_one_test)
 {
-    migraphx::program p = migraphx::parse_onnx("tril_row_one_test.onnx");
+    migraphx::program p = read_onnx("tril_row_one_test.onnx");
 
     std::vector<float> result_vector = gen_trilu_test({migraphx::shape::float_type, {1, 4}}, p);
 

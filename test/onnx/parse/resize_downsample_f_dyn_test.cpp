@@ -49,6 +49,6 @@ TEST_CASE(resize_downsample_f_dyn_test)
     migraphx::onnx_options options;
     options.map_dyn_input_dims["X"] = {{1, 4, {1, 4}}, {1, 1}, {5, 5}, {9, 9}};
 
-    auto prog = migraphx::parse_onnx("resize_downsample_f_dyn_test.onnx", options);
+    auto prog = read_onnx("resize_downsample_f_dyn_test.onnx", options);
     EXPECT(p == prog);
 }

@@ -82,6 +82,12 @@ struct compiled_result
 {
     compiler_replace replace;
     instruction_ref ins;
+
+    friend std::ostream& operator<<(std::ostream& os, const compiled_result& cr)
+    {
+        cr.replace.trace(os, cr.ins);
+        return os;
+    }
 };
 
 struct compile_plan
@@ -153,6 +159,13 @@ struct compile_plan
             insert_compiles(compiles, value{}, 0);
         }
     }
+    std::string problem_string() const
+    {
+        if(config)
+            return to_string(config->problem);
+        return "<no problem key>";
+    }
+
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
@@ -163,14 +176,12 @@ struct compile_plan
         if(results.size() == 1)
         {
             if(not results.front().has_value())
-                MIGRAPHX_THROW("No configs to tune");
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                               problem_string());
             return *results.front();
         }
         if(not config)
-            MIGRAPHX_THROW("Multiple kernels without config");
-        if(trace_level > 0)
-            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
-                      << std::endl;
+            MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
@@ -188,6 +199,8 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
+                           if(trace_level > 2)
+                               std::cout << *cr << std::endl;
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
@@ -215,13 +228,14 @@ struct compile_plan
                                std::cout << t << "ms" << std::endl;
                            return t;
                        });
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         if(trace_level > 0)
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           to_string(config->problem));
+                           problem_string());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

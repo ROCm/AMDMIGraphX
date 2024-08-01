@@ -28,7 +28,10 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -39,6 +42,7 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -200,8 +204,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
-                                                       upper_input->get_shape().as_standard());
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -256,8 +260,14 @@ auto is_mlir_conv(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
+#ifdef _WIN32
+        // Temporarily make it available only on Windows
+        if(ins->get_shape().lens().size() != 4 and group > 1)
+            return false;
+#else
         if(ins->get_shape().lens().size() != 4)
             return false;
+#endif
         if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -362,6 +372,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "floor",
         "log",
         "recip",
+        "sqrt",
         "rsqrt",
         "sigmoid",
         "softmax",
@@ -390,14 +401,27 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
+// A separate function so we can remove operators that are supported by mlir
+// but not supported for an input fusion.
+bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
+{
+    return is_pointwise_op_supported_by_mlir(i);
+}
+
 MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
 {
     if(ins->name() != "pointwise")
         return false;
     auto* pm = ins->module_inputs().front();
-    return std::all_of(pm->begin(), pm->end(), [&](const auto& i) {
-        return is_pointwise_op_supported_by_mlir(i);
-    });
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir);
+}
+
+MIGRAPHX_PRED_MATCHER(mlir_input_pointwise, instruction_ref ins)
+{
+    if(ins->name() != "pointwise")
+        return false;
+    auto* pm = ins->module_inputs().front();
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir_for_input);
 }
 
 std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
@@ -572,6 +596,48 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+struct find_pointwise_mlir
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
+            mlir_input_pointwise(match::used_once()).bind("pointwise")));
+    }
+
+    static instruction_ref insert_pointwise(module& m,
+                                            instruction_ref ins,
+                                            const operation& op,
+                                            const std::vector<instruction_ref>& inputs,
+                                            const std::vector<module_ref>& mod_args)
+    {
+        // Only used in assert
+        (void)mod_args;
+        assert(mod_args.empty());
+        return insert_common_op(m, ins, op, inputs);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto pw  = r.instructions["pointwise"];
+
+        auto* mm = ins->module_inputs().front();
+        auto* pm = pw->module_inputs().front();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
+        m->set_bypass();
+        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
+        map_ins[pw] = rins;
+
+        auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
+        m->add_return({ret});
+
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs, {m});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -607,6 +673,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+
+    mpm.run_pass(dead_code_elimination{});
+
+    if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+        match::find_matches(mpm, find_pointwise_mlir{});
 #else
     (void)mpm;
 #endif

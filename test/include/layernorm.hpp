@@ -29,7 +29,7 @@
 inline migraphx::instruction_ref add_layernorm(migraphx::module& m,
                                                migraphx::instruction_ref x,
                                                const std::vector<size_t>& dims,
-                                               float eps = 0e-12f)
+                                               float eps = 1e-12f)
 {
     auto mgx_type = x->get_shape().type();
     auto scale    = m.add_parameter("scale", migraphx::shape{mgx_type, {dims.back()}});

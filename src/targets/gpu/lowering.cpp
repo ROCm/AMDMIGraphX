@@ -119,6 +119,7 @@ struct miopen_apply
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
+        add_scan_slice_op();
     }
 
     void copy_params() const
@@ -303,7 +304,8 @@ struct miopen_apply
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             auto&& op   = ins->get_operator();
             auto op_val = op.to_value();
-            if(op_val.at("count_include_pad").to<bool>())
+            if(op_val.at("count_include_pad").to<bool>() and
+               op_val["mode"].to<op::pooling_mode>() == op::pooling_mode::average)
             {
                 return insert_precompile_op(ins);
             }
@@ -481,6 +483,17 @@ struct miopen_apply
             auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
             after_contiguous_args.push_back(after_alloc);
             return mod->replace_instruction(ins, make_op("gpu::contiguous"), after_contiguous_args);
+        });
+    }
+
+    void add_scan_slice_op()
+    {
+        apply_map.emplace("scan_slice", [=](instruction_ref ins) {
+            auto inputs  = ins->inputs();
+            auto cpu_idx = mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[1]);
+            inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
+            return mod->replace_instruction(
+                ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
         });
     }
 };

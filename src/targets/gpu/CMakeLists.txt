@@ -349,6 +349,11 @@ if(MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_gpu PUBLIC roc::rocblas)
 endif()
 
+if(WIN32)
+    # Temporary workaround on rocMLIR not exporting correctly libraries it depends on.
+    target_link_libraries(migraphx_gpu PRIVATE ntdll)
+endif()
+
 target_link_libraries(migraphx_gpu PUBLIC migraphx)
 if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
     target_link_libraries(migraphx_gpu PUBLIC migraphx_device)

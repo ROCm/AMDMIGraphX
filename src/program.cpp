@@ -427,6 +427,9 @@ void preview_argument(std::ostream& os, const argument& a)
 }
 
 // This function currently used only in an Assertion.
+// "Almost identical" shapes.  To support an MLIR feature, there is a limited
+// case where shapes may both be standard but have non-identical strides.
+#ifndef NDEBUG
 static bool is_compatible_shape(const shape& actual, const shape& expected)
 {
     // Check subshapes
@@ -448,6 +451,7 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
         return actual.lens() == expected.lens();
     return false;
 }
+#endif
 
 template <class F>
 std::vector<argument> generic_eval(const module* mod,
@@ -530,11 +534,7 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        // TODO: what order do the arguments to is_compatible_shape() come in?  One
-        // can be dynamic.
-        (void)(is_compatible_shape(shape{}, shape{}));
-        assert(ins->get_shape().any_of_dynamic() or
-               is_compatible_shape(ins->get_shape(), results.at(ins).get_shape()));
+        assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
     }
     return {results.at(std::prev(mod->end()))};
 }

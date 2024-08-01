@@ -286,7 +286,9 @@ def internal_name(name):
     else:
         return name
 
+
 empty_expression = 'static_cast<void>(void())'
+
 
 def generate_constraint(m, friend, indirect):
     if m['name'].startswith('operator'):
@@ -298,7 +300,9 @@ def generate_constraint(m, friend, indirect):
             'private_detail_te_default_${internal_name}(char(0), std::declval<PrivateDetailTypeErasedT>() ${comma} ${param_constraints})'
         ).substitute(m)
     return string.Template(
-        'std::declval<PrivateDetailTypeErasedT>().${name}(${param_constraints})').substitute(m)
+        'std::declval<PrivateDetailTypeErasedT>().${name}(${param_constraints})'
+    ).substitute(m)
+
 
 def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):

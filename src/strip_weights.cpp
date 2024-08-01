@@ -61,7 +61,8 @@ void strip_weights::apply(module& m) const
     {
         if(ins->name() == "@literal")
         {
-            m.replace_instruction(ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
+            m.replace_instruction(
+                ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
             n++;
         }
     }

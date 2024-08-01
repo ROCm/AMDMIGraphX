@@ -35,6 +35,7 @@ struct fetch_literal
 {
     size_t id;
     shape l_shape;
+    argument l_argument;
     std::string name() const { return "fetch_literal"; }
 
     template <class Self, class F>
@@ -44,7 +45,7 @@ struct fetch_literal
     }
 
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }
-    argument compute(const std::vector<argument>&) const { return argument{}; }
+    argument compute(const std::vector<argument>&) const { return l_argument; }
     friend std::ostream& operator<<(std::ostream& os, const fetch_literal& x)
     {
         os << x.name() << "[id=" << x.id << "]";
@@ -60,7 +61,7 @@ void strip_weights::apply(module& m) const
     {
         if(ins->name() == "@literal")
         {
-            m.replace_instruction(ins, fetch_literal{n, ins->get_shape()});
+            m.replace_instruction(ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
             n++;
         }
     }

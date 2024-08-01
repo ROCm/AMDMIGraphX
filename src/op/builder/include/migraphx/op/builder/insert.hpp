@@ -28,6 +28,7 @@
 #include <vector>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,6 +45,13 @@ MIGRAPHX_EXPORT std::vector<instruction_ref> add(const std::string& name,
                                                  module& m,
                                                  const std::vector<instruction_ref>& args,
                                                  const value& options);
+
+template <class... Ins>
+instruction_ref
+insert_common_op(module& m, instruction_ref ins, const std::string& op_name, Ins... args)
+{
+    return insert_common_op(m, ins, make_op(op_name), {args...});
+}
 
 } // namespace builder
 } // namespace op

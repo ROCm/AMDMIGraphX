@@ -24,6 +24,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
@@ -32,42 +33,50 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-struct mean_variance_normalization : op_builder<mean_variance_normalization>
+struct celu : op_builder<celu>
 {
-    std::vector<int64_t> axes{0, 2, 3};
+    float alpha = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"));
+        return pack(f(self.alpha, "alpha"));
     }
 
-    static std::string name() { return "mean_variance_normalization"; }
+    static std::string name() { return "celu"; }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x = args.front();
-        if(axes.size() != x->get_shape().ndim() - 1)
-            MIGRAPHX_THROW("Length of axes attribute needs to be equal to input tensor rank - 1");
+        if(float_equal(alpha, 0.0f))
+        {
+            MIGRAPHX_THROW("CELU: alpha is zero (division by zero)");
+        }
 
-        auto x_mean = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
-        auto x_mean_squared = insert_common_op(m, ins, "mul", x_mean, x_mean);
+        auto input_lens = args[0]->get_shape().lens();
+        auto input_type = args[0]->get_shape().type();
+        if(input_type != migraphx::shape::float_type)
+        {
+            MIGRAPHX_THROW("CELU: input tensor not float type");
+        }
 
-        auto x_squared = insert_common_op(m, ins, "mul", x, x);
-        auto x_squared_mean =
-            m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x_squared);
+        auto zero_lit = m.insert_literal(ins, {input_type, {0.}});
+        zero_lit      = m.insert_instruction(
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), zero_lit);
 
-        auto mean_sub = insert_common_op(m, ins, "sub", x_squared_mean, x_mean_squared);
-        auto std      = insert_common_op(m, ins, "sqrt", mean_sub);
+        auto one_lit   = m.insert_literal(ins, {input_type, {1.}});
 
-        auto dividend = insert_common_op(m, ins, "sub", x, x_mean);
-        auto epsilon  = m.insert_literal(
-            ins,
-            {x->get_shape().type(), {x->get_shape().type() == shape::half_type ? 1e-7 : 1e-9}});
-        auto divisor = insert_common_op(m, ins, "add", std, epsilon);
+        auto alpha_lit = m.insert_literal(ins, {input_type, {alpha}});
+        alpha_lit      = m.insert_instruction(
 
-        return {insert_common_op(m, ins, "div", dividend, divisor)};
+            ins, migraphx::make_op("multibroadcast", {{"out_lens", input_lens}}), alpha_lit);
+        auto linear_part = insert_common_op(m, ins, "max", zero_lit, args[0]);
+        auto divi        = insert_common_op(m, ins, "div", args[0], alpha_lit);
+        auto expo        = insert_common_op(m, ins, "exp", divi);
+        auto sub         = insert_common_op(m, ins, "sub", expo, one_lit);
+        auto mul         = insert_common_op(m, ins, "mul", alpha_lit, sub);
+        auto exp_part    = insert_common_op(m, ins, "min", zero_lit, mul);
+        return {insert_common_op(m, ins, "add", linear_part, exp_part)};
     }
 };
 

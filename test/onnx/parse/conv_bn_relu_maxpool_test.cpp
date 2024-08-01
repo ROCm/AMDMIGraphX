@@ -69,5 +69,7 @@ TEST_CASE(conv_bn_relu_maxpool_test)
                         l7);
 
     auto prog = optimize_onnx("conv_bn_relu_maxpool_test.onnx");
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

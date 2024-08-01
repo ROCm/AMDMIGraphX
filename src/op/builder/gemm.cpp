@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -92,7 +93,7 @@ struct gemm : op_builder<gemm>
         if(alpha != 1.0f)
         {
             auto alpha_literal = m.insert_literal(ins, alpha);
-            a_arg              = insert_common_op(m, ins, make_op("mul"), {alpha_literal, a_arg});
+            a_arg              = insert_common_op(m, ins, "mul", alpha_literal, a_arg);
 
             if(a_arg->get_shape().type() != dot_type)
             {
@@ -137,7 +138,7 @@ struct gemm : op_builder<gemm>
                 if(not float_equal(beta, 1.0f))
                 {
                     auto beta_literal = m.insert_literal(ins, beta);
-                    c_arg = insert_common_op(m, ins, make_op("mul"), {c_arg, beta_literal});
+                    c_arg = insert_common_op(m, ins, "mul", c_arg, beta_literal);
                     if(c_arg->get_shape().type() != dot_type)
                     {
                         c_arg = m.insert_instruction(

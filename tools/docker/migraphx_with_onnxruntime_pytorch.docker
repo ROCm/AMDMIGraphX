@@ -6,21 +6,21 @@ ARG PREFIX=/usr/local
 RUN apt update && apt install -y wget
 
 #Aquire and install ROCm
-RUN wget https://repo.radeon.com/amdgpu-install/6.1.3/ubuntu/jammy/amdgpu-install_6.1.60103-1_all.deb
-RUN apt install -y ./amdgpu-install_6.1.60103-1_all.deb
-RUN amdgpu-install --usecase=rocm -y && rm amdgpu-install_6.1.60103-1_all.deb
+RUN wget https://repo.radeon.com/amdgpu-install/6.2/ubuntu/jammy/amdgpu-install_6.2.60200-1_all.deb
+RUN apt install -y ./amdgpu-install_6.2.60200-1_all.deb
+RUN amdgpu-install --usecase=rocm -y && rm amdgpu-install_6.2.60200-1_all.deb
 
 #Install MIGraphX from package manager
 RUN apt install -y migraphx
 
 #Pieces for Onnxruntime for ROCm and MIGraphX Execution Provider Support
 
- RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1.3/onnxruntime_rocm-1.17.0-cp310-cp310-linux_x86_64.whl
+ RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.2/onnxruntime_rocm-1.18.0-cp310-cp310-linux_x86_64.whl
 
 #Pieces for pytorch
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1.3/pytorch_triton_rocm-2.1.0%2Brocm6.1.3.4d510c3a44-cp310-cp310-linux_x86_64.whl
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1.3/torch-2.1.2+rocm6.1.3-cp310-cp310-linux_x86_64.whl
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.1.3/torchvision-0.16.1+rocm6.1.3-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.2/pytorch_triton_rocm-2.1.0%2Brocm6.1.3.4d510c3a44-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.23/torch-2.1.2+rocm6.2-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-6.2/torchvision-0.16.1+rocm6.2-cp310-cp310-linux_x86_64.whl
 
 #Adjust final path for ability to use rocm components
 ENV PATH=$PATH:/opt/rocm/bin/

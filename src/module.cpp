@@ -730,7 +730,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                            [&](auto in) { return ins_shapes.at(in); });
             if(ins->name() == "@return")
                 return input_shapes;
-            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
+            ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
         }
     }
     MIGRAPHX_THROW("No return found in the submodule");

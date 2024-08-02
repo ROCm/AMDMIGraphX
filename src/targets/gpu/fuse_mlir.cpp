@@ -490,15 +490,14 @@ struct find_mlir_fused_ops
                 pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
             auto dot_ins = mpm.get_module().insert_instruction(
                 pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
-            // move all the reshape instructions after the fused op to avoid generating invalid
-            // migraphx program
+            // move all the reshape instructions and original GEMM instruction after the fused op to
+            // avoid generating invalid migraphx program
             while(x_ins != gemm_based_op)
             {
                 mpm.get_module().move_instruction(x_ins, pw_ins);
                 x_ins = x_ins->inputs().front();
             }
             mpm.get_module().move_instruction(gemm_based_op, pw_ins);
-
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
         }
         else

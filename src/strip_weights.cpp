@@ -41,7 +41,7 @@ struct fetch_literal
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.id, "id"));
+        return pack(f(self.l_shape, "shape"), f(self.id, "id"));
     }
 
     shape compute_shape(const std::vector<shape>&) const { return l_shape; }

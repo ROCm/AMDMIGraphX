@@ -25,10 +25,10 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
-#include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
-
+#include <basic_ops.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 

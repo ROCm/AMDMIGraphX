@@ -20,60 +20,22 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-#define MIGRAPHX_GUARD_KERNELS_SCATTER_REDUCTION_MODES_HPP
-
-#include <migraphx/kernels/types.hpp>
-#include <migraphx/kernels/type_traits.hpp>
-#include <migraphx/kernels/atomic.hpp>
+#ifndef MIGRAPHX_GUARD_KERNELS_RANK_HPP
+#define MIGRAPHX_GUARD_KERNELS_RANK_HPP
 
 namespace migraphx {
 
-struct assign_none
+template <int N>
+struct rank : rank<N - 1>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        x = y;
-    }
 };
 
-struct assign_add
+template <>
+struct rank<0>
 {
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::sum{});
-    }
-};
-
-struct assign_mul
-{
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::product{});
-    }
-};
-
-struct assign_max
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::max{});
-    }
-};
-
-struct assign_min
-{
-    template <typename T, typename U>
-    MIGRAPHX_DEVICE_CONSTEXPR void operator()(T& x, U y) const
-    {
-        atomic_assign(x, y, op::min{});
-    }
 };
 
 } // namespace migraphx
-#endif
+#endif // MIGRAPHX_GUARD_KERNELS_RANK_HPP

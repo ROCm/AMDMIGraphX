@@ -29,7 +29,7 @@
 #include <migraphx/apply_alpha_beta.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_gemm_add : verify_program<test_gemm_add<DType>>
+struct test_gemm_reshapes_add : verify_program<test_gemm_reshapes_add<DType>>
 {
     migraphx::program create_program() const
     {
@@ -37,17 +37,20 @@ struct test_gemm_add : verify_program<test_gemm_add<DType>>
         auto* mm = p.get_main_module();
         migraphx::shape m1_shape{DType, {1, 2, 1024}};
         migraphx::shape m2_shape{DType, {1, 1024, 320}};
-        migraphx::shape m3_shape{DType, {1, 2, 320}};
+        migraphx::shape m3_shape{DType, {320, 2}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);
         auto l3 = mm->add_parameter("3", m3_shape);
 
-        auto dot = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
-        mm->add_instruction(migraphx::make_op("add"), dot, l3);
+        auto dot    = mm->add_instruction(migraphx::make_op("dot"), l1, l2);
+        auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), dot_sq);
+        mm->add_instruction(migraphx::make_op("add"), dot_trans, l3);
         return p;
     }
-    std::string section() const { return "gemm"; }
 
+    std::string section() const { return "gemm"; }
     // Turn on Exhaustive-tune to enable split-k GEMM perf-configs from MLIR
     migraphx::compile_options get_compile_options() const
     {
@@ -55,6 +58,5 @@ struct test_gemm_add : verify_program<test_gemm_add<DType>>
     }
 };
 
-template struct test_gemm_add<migraphx::shape::float_type>;
-template struct test_gemm_add<migraphx::shape::half_type>;
-// template struct test_gemm_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_gemm_reshapes_add<migraphx::shape::float_type>;
+template struct test_gemm_reshapes_add<migraphx::shape::half_type>;

@@ -31,7 +31,7 @@ from argparse import ArgumentParser
 from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
 from PIL import Image
-import torchvision.transforms as transforms
+from typing import List, Optional, Tuple
 
 import sys
 mgx_lib_path = "/opt/rocm/lib/"
@@ -46,6 +46,7 @@ import os
 import sys
 import torch
 import time
+import torch.nn.functional as F
 from functools import wraps
 
 from hip import hip
@@ -121,13 +122,12 @@ def allocate_torch_tensors(model):
     }
     return data_mapping
 
-
 class RNNT_MGX():
     def __init__(self):
 
         fp16 = ["rnnt_encoder", "rnnt_prediction", "rnnt_joint"]
 
-        compiled_model_path = ''
+        compiled_model_path = None
         onnx_model_path = 'models/rnnt/'
         force_compile = False
         exhaustive_tune = False
@@ -138,7 +138,7 @@ class RNNT_MGX():
             RNNT_MGX.load_mgx_model(
                 "rnnt_encoder", {
                     "input": [157, 1, 240], # seq_length, batch_size, feature_length
-                    "feature_length": [157]
+                    "feature_length": [1]
                 },
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
@@ -149,7 +149,7 @@ class RNNT_MGX():
             "rnnt_prediction":
             RNNT_MGX.load_mgx_model(
                 "rnnt_prediction", {
-                    "symbol": [1, 20],
+                    "symbol": [1, 1],
                     "hidden_in_1": [2, 1, 320],
                     "hidden_in_2": [2, 1, 320]
                 },
@@ -188,15 +188,7 @@ class RNNT_MGX():
 
     @measure
     @torch.no_grad()
-    def run(self, seed=13):
-
-        seq_length, batch_size, feature_length = 157, 1, 240
-
-        inp = torch.randn(
-            (seq_length, batch_size, feature_length),
-            generator=torch.manual_seed(seed)).to(device="cuda")
-        feature_length = torch.LongTensor([seq_length]).to(device="cuda")
-
+    def encoder(self, inp, feature_length):
         copy_tensor_sync(self.tensors["rnnt_encoder"]["input"],
                             inp.to(torch.int32))
         copy_tensor_sync(self.tensors["rnnt_encoder"]["feature_length"],
@@ -204,10 +196,15 @@ class RNNT_MGX():
         run_model_sync(self.models["rnnt_encoder"], self.model_args["rnnt_encoder"])
         
         x_padded, x_lens = self.tensors["rnnt_encoder"][get_output_name(0)], self.tensors["rnnt_encoder"][get_output_name(1)]
+        x_padded = x_padded.squeeze(1)
+        x_padded = x_padded.transpose(1, 0)
 
-        symbol = torch.LongTensor([[20]]).to(device="cuda")
-        hidden = torch.randn([2, batch_size, 320]).to(device="cuda"), torch.randn([2, batch_size, 320]).to(device="cuda")
+        return x_padded, x_lens
+    
 
+    @measure
+    @torch.no_grad()
+    def prediction(self, symbol, hidden):
         copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
                             symbol.to(torch.int32))
         copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_1"],
@@ -217,9 +214,13 @@ class RNNT_MGX():
         run_model_sync(self.models["rnnt_prediction"], self.model_args["rnnt_prediction"])
 
         g, hidden = self.tensors["rnnt_prediction"][get_output_name(0)], self.tensors["rnnt_prediction"][get_output_name(1)]
+        
+        return g, hidden 
 
-        f = torch.randn([batch_size, 1, 1024]).to(device="cuda")
 
+    @measure
+    @torch.no_grad()
+    def joint(self, f, g):
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_0"],
                             f.to(torch.int32))
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_1"],
@@ -227,6 +228,7 @@ class RNNT_MGX():
         
         run_model_sync(self.models["rnnt_joint"], self.model_args["rnnt_joint"])
         result = self.tensors["rnnt_joint"][get_output_name(0)]
+        return result 
 
   
     @staticmethod
@@ -265,35 +267,76 @@ class RNNT_MGX():
             )
             sys.exit(1)
         return model
+    
+class ScriptGreedyDecoder():
+    def __init__(self, max_symbols_per_step=30):
+        self._model = RNNT_MGX()
+        self._SOS = 20
+        self._max_symbols_per_step = max_symbols_per_step
 
-    @measure
-    def warmup(self, num_runs):
-        copy_tensor_sync(self.tensors["rnnt_encoder"]["input"],
-                         torch.ones((157, 1, 240)).to(torch.int32))
-        copy_tensor_sync(self.tensors["rnnt_encoder"]["feature_length"],
-                         torch.randn((157)).to(torch.float32))
-        copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
-                         torch.randn((1, 20)).to(torch.float32))
-        copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_1"],
-                         torch.randn((2, 1, 320)).to(torch.float32))
-        copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_2"],
-                         torch.randn((2, 1, 320)).to(torch.float32))
-        copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_0"],
-                         torch.randn((1, 1, 1024)).to(torch.float32))
-        copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_1"],
-                         torch.randn((1, 320)).to(torch.float32))
-        
-        for _ in range(num_runs):
-            run_model_sync(self.models["rnnt_encoder"], self.model_args["rnnt_encoder"])
-            run_model_sync(self.models["rnnt_prediction"], self.model_args["rnnt_prediction"])
-            run_model_sync(self.models["rnnt_joint"],
-                           self.model_args["rnnt_joint"])
+    def run(self, x: torch.Tensor, out_lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
+        logits, logits_lens = self._model.encoder(x, out_lens)
 
+        output: List[List[int]] = []
+        for batch_idx in range(logits.size(0)):
+            inseq = logits[batch_idx, :, :].unsqueeze(1).to('cuda')
+            # inseq: TxBxF
+            logitlen = logits_lens[batch_idx]
+            sentence = self._greedy_decode(inseq, logitlen)
+            output.append(sentence)
+
+        return logits, logits_lens, output
+
+    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor) -> List[int]:
+        hidden: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+        label: List[int] = []
+        for time_idx in range(int(out_len.item())):
+            f = x[time_idx, :, :].unsqueeze(0).to('cuda')
+
+            symbols_added = 0
+
+            while symbols_added < self._max_symbols_per_step:
+                g, hidden_prime = self._pred_step(
+                    self._get_last_symb(label),
+                    hidden
+                )
+
+                logp = self._joint_step(f, g, log_normalize=False)[0, :]
+
+                # get index k, of max prob
+                v, k = logp.max(0)
+                k = k.item()
+
+                label.append(k)
+                hidden = hidden_prime
+                symbols_added += 1
+
+        return label
+
+    def _pred_step(self, label: int, hidden: Optional[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        label = torch.tensor([[label]], dtype=torch.int64)
+        if hidden is None:
+            hidden = torch.randn([2, batch_size, 320]).to(device="cuda"), torch.randn([2, batch_size, 320]).to(device="cuda")
+        return self._model.prediction(label, hidden)
+
+    def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, log_normalize: bool=False) -> torch.Tensor:
+        logits = self._model.joint(enc, pred)[:, 0, 0, :]
+        if not log_normalize:
+            return logits
+
+        probs = F.log_softmax(logits, dim=len(logits.shape) - 1)
+
+        return probs
+
+    def _get_last_symb(self, labels: List[int]) -> int:
+        return self._SOS if len(labels) == 0 else labels[-1]
 
 
 if __name__ == "__main__":
-    sd = RNNT_MGX()
-    print("Warmup")
-    sd.warmup(5)
-    print("Run")
-    sd.run()
+    sd = ScriptGreedyDecoder()
+    seq_length, batch_size, feature_length = 157, 1, 240
+
+    x = torch.randn((seq_length, batch_size, feature_length)).to(device="cuda")
+    out_lens = torch.LongTensor([seq_length]).to(device="cuda")
+    result = sd.run(x, out_lens)
+    print(result)

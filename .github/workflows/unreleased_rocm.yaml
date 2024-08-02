@@ -1,10 +1,10 @@
-name: Unreleased ROCm MIGraphX Performance Test
+name: Specifed Release ROCm MIGraphX Performance Test
 
 on:
   workflow_dispatch:
     inputs:
       unreleased_rocm:
-        description: Unreleased ROCm version
+        description: Specifed Release ROCm version
         required: true
       branch_name:
         description: Branch to use for building base ROCm image

@@ -61,7 +61,17 @@ else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
 endif()
 
+if(WIN32)
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
+else()
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
+endif()
+
+if(WIN32)
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
+else()
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+endif()
 
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
 
@@ -92,7 +102,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.10.0)
+rocm_setup_version(VERSION 2.11.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -302,6 +312,7 @@ rocm_enable_cppcheck(
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
+        MIGRAPHX_USE_MIOPEN=1
         BUILD_DEV=
         __device__=
         __host__=
@@ -341,6 +352,9 @@ else()
     set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
 endif()
 
+if(MIGRAPHX_USE_MIOPEN)
+    list(APPEND PACKAGE_DEPENDS miopen-hip)
+endif()
 if(MIGRAPHX_USE_ROCBLAS)
     list(APPEND PACKAGE_DEPENDS rocblas)
 endif()
@@ -354,9 +368,9 @@ rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX
-    DESCRIPTION "AMD's graph optimizer"
+    DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS miopen-hip ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
 )

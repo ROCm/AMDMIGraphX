@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,13 +28,12 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/op/pooling.hpp>
 #include <migraphx/gpu/miopen.hpp>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct context;
-
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_pooling
 {
     op::pooling op;
@@ -56,6 +55,7 @@ struct miopen_pooling
         return shapes.size() - 1;
     }
 };
+#endif
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

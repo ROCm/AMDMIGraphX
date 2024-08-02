@@ -233,13 +233,19 @@ struct parse_convolution : op_parser<parse_convolution>
         }
     }
 
+    bool is_dynamic(const shape& s) const
+    {
+        return s.dynamic() and
+               std::any_of(s.dyn_dims().begin() + 2, s.dyn_dims().end(), [](const auto& dyn_dim) {
+                   return not dyn_dim.is_fixed();
+               });
+    }
+
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           onnx_parser::node_info info,
                           std::vector<instruction_ref> args) const
     {
-        auto op      = make_op(opd.op_name);
-        auto values  = op.to_value();
         auto x       = args[0];
         auto weights = args[1];
 
@@ -255,125 +261,117 @@ struct parse_convolution : op_parser<parse_convolution>
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
 
+        // Goes into parser START 
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);
 
+        std::vector<std::size_t> strides(kdims, 1);
         if(contains(info.attributes, "strides"))
         {
-            values["stride"].clear();
-            copy(info.attributes["strides"].ints(), std::back_inserter(values["stride"]));
-            check_attr_sizes(kdims, values["stride"].size(), "PARSE_CONV: inconsistent strides");
+            auto&& attr = info.attributes["strides"].ints();
+            strides.assign(attr.begin(), attr.end());
         }
+
+        std::vector<std::size_t> dilations(kdims, 1);
         if(contains(info.attributes, "dilations"))
         {
-            values["dilation"].clear();
-            copy(info.attributes["dilations"].ints(), std::back_inserter(values["dilation"]));
-            check_attr_sizes(
-                kdims, values["dilation"].size(), "PARSE_CONV: inconsistent dilations");
+            auto&& attr = info.attributes["dilations"].ints();
+            dilations.assign(attr.begin(), attr.end());
         }
 
-        std::vector<int64_t> padding;
+        std::vector<int64_t> paddings;
         if(contains(info.attributes, "pads"))
         {
-            values["padding"].clear();
-            copy(info.attributes["pads"].ints(), std::back_inserter(padding));
-            check_attr_sizes(kdims, padding.size() / 2, "PARSE_CONV: inconsistent paddings");
+            auto&& attr = info.attributes["pads"].ints();
+            paddings.assign(attr.begin(), attr.end());
         }
-        if(contains(info.attributes, "auto_pad"))
-        {
-            bool is_same_padding = false;
-            auto auto_pad        = info.attributes["auto_pad"].s();
-            if(auto_pad.find("SAME") != std::string::npos)
-            {
-                is_same_padding = true;
-            }
 
-            // check if image shape is dynamic
-            bool image_shape_dynamic = false;
-            if(x_shape.dynamic())
-            {
-                auto dyn_dims = x_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
-                    if(not dyn_dim.is_fixed())
-                    {
-                        image_shape_dynamic = true;
-                    }
-                });
-            }
-
-            // check if kernel shape is dynamic
-            bool kernel_shape_dynamic = false;
-            if(w_shape.dynamic())
-            {
-                auto dyn_dims = w_shape.dyn_dims();
-                std::for_each(dyn_dims.begin() + 2, dyn_dims.end(), [&](const auto& dyn_dim) {
-                    if(not dyn_dim.is_fixed())
-                    {
-                        kernel_shape_dynamic = true;
-                    }
-                });
-            }
-
-            if(is_same_padding)
-            {
-                if(image_shape_dynamic or kernel_shape_dynamic)
-                {
-                    // must calculate "same" padding with input shape data
-                    bool is_same_upper     = (auto_pad.find("SAME_UPPER") != std::string::npos);
-                    values["padding_mode"] = is_same_upper
-                                                 ? to_value(op::padding_mode_t::same_upper)
-                                                 : to_value(op::padding_mode_t::same_lower);
-                }
-                else
-                {
-                    // kernel shape will be fixed, so max_lens() == min_len() for kernel lengths
-                    auto weight_lens = weights->get_shape().max_lens();
-                    std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
-                    cal_auto_padding_size(info,
-                                          values,
-                                          k_lens,
-                                          values["dilation"].to_vector<std::size_t>(),
-                                          in_lens,
-                                          padding);
-                }
-            }
-        }
-        values["padding"] = std::vector<size_t>(padding.begin(), padding.end());
-
+        int group = 1;
         if(contains(info.attributes, "group"))
         {
-            values["group"] = parser.parse_value(info.attributes.at("group")).at<int>();
+            group = parser.parse_value(info.attributes.at("group")).at<int>();
         }
 
-        recalc_conv_attributes(values, kdims);
+        std::string auto_pad = "NOTSET";
+        if(contains(info.attributes, "auto_pad"))
+        {
+            auto_pad = to_upper(info.attributes["auto_pad"].s());
+        }
+        // Goes into parser END 
 
-        instruction_ref ret;
-        // parse a_zero_point and b_zero_point values
-        auto is_quant_conv = opd.op_name == "quant_convolution";
+        // Goes into builder
+        if(strides.empty())
+        {
+            strides.resize(kdims);
+            std::fill_n(strides.begin(), kdims, 1);
+        }
+        else
+        {
+            check_attr_sizes(kdims, strides.size(), "PARSE_CONV: inconsistent strides");
+        }
 
-        auto x_zp = get_zero_point(x, 2, is_quant_conv, info, args);
-        auto w_zp = get_zero_point(weights, 3, is_quant_conv, info, args);
+        if(dilations.empty())
+        {
+            dilations.resize(kdims);
+            std::fill_n(dilations.begin(), kdims, 1);
+        }
+        else
+        {
+            check_attr_sizes(kdims, dilations.size(), "PARSE_CONV: inconsistent dilations");
+        }
 
+        if(paddings.empty())
+        {
+            paddings.resize(kdims);
+            std::fill_n(paddings.begin(), kdims, 0);
+        }
+        else if(paddings.size() != kdims and paddings.size() != 2 * kdims)
+        {
+            MIGRAPHX_THROW("PARSE_CONV: inconsistent paddings k-dims: " + std::to_string(kdims) +
+                           " attribute size: " + std::to_string(paddings.size()));
+        }
+
+        op::padding_mode_t padding_mode = op::padding_mode_t::default_;
+        if(contains(auto_pad, "SAME"))
+        {
+            if(is_dynamic(x_shape) or is_dynamic(w_shape))
+            {
+                // must calculate "same" padding with input shape data
+                padding_mode = contains(auto_pad, "SAME_UPPER") ? op::padding_mode_t::same_upper
+                                                                : op::padding_mode_t::same_lower;
+            }
+            else
+            {
+                // kernel shape will be fixed, so max_lens() == min_len() for kernel lengths
+                auto weight_lens = weights->get_shape().max_lens();
+                std::vector<std::size_t> k_lens(weight_lens.begin() + 2, weight_lens.end());
+                cal_auto_padding_size(auto_pad, strides, k_lens, dilations, in_lens, paddings);
+            }
+        }
+
+        auto op                = make_op(opd.op_name);
+        auto values            = op.to_value();
+        values["stride"]       = strides;
+        values["dilation"]     = dilations;
+        values["padding"]      = paddings;
+        values["group"]        = group;
+        values["padding_mode"] = padding_mode;
         op.from_value(values);
 
-        handle_quant_inputs(is_quant_conv, x, weights, x_zp, w_zp, info);
-
-        ret = info.add_instruction(op, x, weights);
-
         // Handle quant_conv residuals between input/weights to avoid overflow
-        if(is_quant_conv)
+        if(opd.op_name == "quant_convolution")
         {
-            ret = handle_quant_bias(op, ret, x, weights, x_zp, w_zp, info);
+            auto x_zp = get_zero_point(x, 2, true, info, args);
+            auto w_zp = get_zero_point(weights, 3, true, info, args);
+            handle_quant_inputs(true, x, weights, x_zp, w_zp, info);
+            auto conv = info.add_instruction(op, x, weights);
+            return handle_quant_bias(op, conv, x, weights, x_zp, w_zp, info);
         }
         else
         {
             // Handle Convolution case with bias to output
-            ret = info.add_bias(args, ret, 1);
-        }
-
-        if(opd.onnx_name == "NhwcConv")
-        {
-            ret = to_nhwc(info, ret);
+            auto conv = info.add_instruction(op, x, weights);
+            return info.add_bias(args, conv, 1);
         }
 
         return ret;

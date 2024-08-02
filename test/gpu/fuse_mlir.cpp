@@ -216,7 +216,7 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
         auto a   = mm->add_parameter("a", s1);
         auto b   = mm->add_parameter("b", s2);
         auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
-        auto dot       = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto dot_trans =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
         auto dot_unsq =

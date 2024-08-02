@@ -234,9 +234,7 @@ TEST_CASE(dot_multi_use_trans_add_pooling_sub)
             add_pointwise(p1, "main:pointwise1", {dot_unsq, pooling}, single_pointwise("sub"));
         mm->add_return({sub});
     }
-    p1.debug_print();
     run_pass(p1);
-    p1.debug_print();
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();

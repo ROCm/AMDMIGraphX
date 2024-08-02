@@ -183,6 +183,7 @@ register_migraphx_ops(
     less
     load
     log
+    log2
     logical_and
     logical_or
     logical_xor

@@ -35,8 +35,8 @@ struct test_gemm_transpose_add_pooling_sub
 {
     migraphx::program create_program() const
     {
-        migraphx::shape s1{migraphx::shape::float_type, {1, 1, 4, 5}};
-        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 5, 5}};
+        migraphx::shape s1{migraphx::shape::float_type, {1, 1, 2, 5}};
+        migraphx::shape s2{migraphx::shape::float_type, {1, 1, 5, 10}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto a   = mm->add_parameter("a", s1);
@@ -45,7 +45,9 @@ struct test_gemm_transpose_add_pooling_sub
         auto dot       = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto dot_trans = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);
-        auto add = mm->add_instruction(migraphx::make_op("add"), {dot_trans, x});
+        auto dot_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 5, 4}}}), dot_trans);
+        auto add = mm->add_instruction(migraphx::make_op("add"), {dot_rsp, x});
         auto pooling =
             mm->add_instruction(migraphx::make_op("pooling",
                                                   {{"mode", migraphx::op::pooling_mode::lpnorm},
@@ -54,7 +56,7 @@ struct test_gemm_transpose_add_pooling_sub
                                                    {"lengths", {2, 1}},
                                                    {"lp_order", 2}}),
                                 add);
-        auto sub = mm->add_instruction(migraphx::make_op("sub"), dot_trans, pooling);
+        auto sub = mm->add_instruction(migraphx::make_op("sub"), dot_rsp, pooling);
         mm->add_return({sub});
         return p;
     }

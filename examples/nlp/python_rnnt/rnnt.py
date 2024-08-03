@@ -125,7 +125,7 @@ def allocate_torch_tensors(model):
 class RNNT_MGX():
     def __init__(self):
 
-        fp16 = ["rnnt_encoder", "rnnt_prediction", "rnnt_joint"]
+        fp16 = [] #"rnnt_encoder", "rnnt_prediction", "rnnt_joint"]
 
         compiled_model_path = None
         onnx_model_path = 'models/rnnt/'
@@ -137,7 +137,7 @@ class RNNT_MGX():
             "rnnt_encoder":
             RNNT_MGX.load_mgx_model(
                 "rnnt_encoder", {
-                    "input": [157, 1, 240], # seq_length, batch_size, feature_length
+                    "input": [70, 1, 240], # seq_length, batch_size, feature_length
                     "feature_length": [1]
                 },
                 onnx_model_path,
@@ -186,7 +186,7 @@ class RNNT_MGX():
         }
 
 
-    @measure
+    # @measure
     @torch.no_grad()
     def encoder(self, inp, feature_length):
         copy_tensor_sync(self.tensors["rnnt_encoder"]["input"],
@@ -202,7 +202,7 @@ class RNNT_MGX():
         return x_padded, x_lens
     
 
-    @measure
+    # @measure
     @torch.no_grad()
     def prediction(self, symbol, hidden):
         copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
@@ -218,7 +218,7 @@ class RNNT_MGX():
         return g, hidden 
 
 
-    @measure
+    # @measure
     @torch.no_grad()
     def joint(self, f, g):
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_0"],
@@ -232,7 +232,7 @@ class RNNT_MGX():
 
   
     @staticmethod
-    @measure
+    # @measure
     def load_mgx_model(name,
                        shapes,
                        onnx_model_path,
@@ -268,14 +268,53 @@ class RNNT_MGX():
             sys.exit(1)
         return model
     
+def load_and_migrate_checkpoint(ckpt_path):
+    checkpoint = torch.load(ckpt_path, map_location="cpu")
+    migrated_state_dict = {}
+    for key, value in checkpoint['state_dict'].items():
+        key = key.replace("joint_net", "joint.net")
+        migrated_state_dict[key] = value
+    del migrated_state_dict["audio_preprocessor.featurizer.fb"]
+    del migrated_state_dict["audio_preprocessor.featurizer.window"]
+    return migrated_state_dict
+
 class ScriptGreedyDecoder():
-    def __init__(self, max_symbols_per_step=30):
-        self._model = RNNT_MGX()
-        self._SOS = 20
+    def __init__(self, max_symbols_per_step=5):
+        self._alt_model = RNNT_MGX()
+        self._SOS = -1
+        self._blank_id = 28
         self._max_symbols_per_step = max_symbols_per_step
 
+        mlcommons_inference_path = './inference/'
+        sys.path.insert(0, mlcommons_inference_path + 'retired_benchmarks/speech_recognition/rnnt/pytorch')
+        from model_separable_rnnt import RNNT
+        import toml 
+
+        config_toml = 'inference/retired_benchmarks/speech_recognition/rnnt/pytorch/configs/rnnt.toml'
+        config = toml.load(config_toml)
+
+        def add_blank_label(labels):
+            if not isinstance(labels, list):
+                raise ValueError("labels must be a list of symbols")
+            labels.append("<BLANK>")
+            return labels
+
+        dataset_vocab = config['labels']['labels']
+        rnnt_vocab = add_blank_label(dataset_vocab)
+        featurizer_config = config['input_eval']
+
+        self._model = RNNT(
+            feature_config=featurizer_config,
+            rnnt=config['rnnt'],
+            num_classes=len(rnnt_vocab)
+        )
+        self._model.load_state_dict(load_and_migrate_checkpoint('rnnt.pt'),
+                              strict=True)
+        self._model.to('cuda')
+        self._model.eval()
+
     def run(self, x: torch.Tensor, out_lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
-        logits, logits_lens = self._model.encoder(x, out_lens)
+        logits, logits_lens = self._alt_model.encoder(x, out_lens)
 
         output: List[List[int]] = []
         for batch_idx in range(logits.size(0)):
@@ -293,9 +332,11 @@ class ScriptGreedyDecoder():
         for time_idx in range(int(out_len.item())):
             f = x[time_idx, :, :].unsqueeze(0).to('cuda')
 
+            not_blank = True
             symbols_added = 0
 
-            while symbols_added < self._max_symbols_per_step:
+            while not_blank and symbols_added < self._max_symbols_per_step:
+                
                 g, hidden_prime = self._pred_step(
                     self._get_last_symb(label),
                     hidden
@@ -307,20 +348,34 @@ class ScriptGreedyDecoder():
                 v, k = logp.max(0)
                 k = k.item()
 
-                label.append(k)
-                hidden = hidden_prime
+                if k == self._blank_id:
+                    not_blank = False
+                else:
+                    label.append(k)
+                    hidden = hidden_prime
+
                 symbols_added += 1
 
+        print('returning', label)
         return label
 
     def _pred_step(self, label: int, hidden: Optional[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        if label == self._SOS:
+            label = 0
+        # if label > self._blank_id:
+        #     label -= 1
+
         label = torch.tensor([[label]], dtype=torch.int64)
+
         if hidden is None:
-            hidden = torch.randn([2, batch_size, 320]).to(device="cuda"), torch.randn([2, batch_size, 320]).to(device="cuda")
-        return self._model.prediction(label, hidden)
+            hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros([2, 1, 320]).to(device="cuda")
+       
+        return self._alt_model.prediction(label, hidden)
+
 
     def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, log_normalize: bool=False) -> torch.Tensor:
         logits = self._model.joint(enc, pred)[:, 0, 0, :]
+   
         if not log_normalize:
             return logits
 
@@ -334,9 +389,13 @@ class ScriptGreedyDecoder():
 
 if __name__ == "__main__":
     sd = ScriptGreedyDecoder()
-    seq_length, batch_size, feature_length = 157, 1, 240
 
-    x = torch.randn((seq_length, batch_size, feature_length)).to(device="cuda")
-    out_lens = torch.LongTensor([seq_length]).to(device="cuda")
+    x = torch.load('feature.pt').to("cuda")
+    out_lens = torch.load('feature_length.pt').to("cuda")
+
+    #seq_length, batch_size, feature_length = 157, 1, 240
+    #x = torch.randn((seq_length, batch_size, feature_length)).to(device="cuda")
+    #out_lens = torch.LongTensor([seq_length]).to(device="cuda")
+
     result = sd.run(x, out_lens)
     print(result)

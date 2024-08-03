@@ -36,5 +36,9 @@ TEST_CASE(convinteger_no_bias)
     mm->add_instruction(migraphx::make_op("quant_convolution"), data, weight);
 
     auto prog = optimize_onnx("convinteger_no_bias_test.onnx");
+    mm->sort();
+    prog.get_main_module()->sort();
+    mm->sort();
+    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

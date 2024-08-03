@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/target.hpp>
 #include <migraphx/auto_register.hpp>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -44,7 +45,7 @@ struct target_handler
 {
     target t;
     std::string target_name;
-    target_handler(const target& t_r) : t(t_r), target_name(t.name()) {}
+    explicit target_handler(target t_r) : t(std::move(t_r)), target_name(t.name()) {}
     ~target_handler() { unregister_target(target_name); }
 };
 } // namespace detail

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -198,6 +198,17 @@ constexpr T inner_product(InputIt1 first1, InputIt1 last1, InputIt2 first2, T in
         init,
         [](auto x, auto y) { return x + y; },
         [](auto x, auto y) { return x * y; });
+}
+
+template <class Iterator1, class Iterator2, class BinaryPred>
+constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2, BinaryPred p)
+{
+    for(; first1 != last1; ++first1, ++first2)
+        if(not p(*first1, *first2))
+        {
+            return false;
+        }
+    return true;
 }
 
 } // namespace migraphx

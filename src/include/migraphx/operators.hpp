@@ -72,6 +72,7 @@
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
+#include <migraphx/op/log2.hpp>
 #include <migraphx/op/logical_and.hpp>
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>
@@ -113,6 +114,7 @@
 #include <migraphx/op/roialign.hpp>
 #include <migraphx/op/rsqrt.hpp>
 #include <migraphx/op/scalar.hpp>
+#include <migraphx/op/scan_slice.hpp>
 #include <migraphx/op/scatter_none.hpp>
 #include <migraphx/op/scatter_add.hpp>
 #include <migraphx/op/scatter_mul.hpp>

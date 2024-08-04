@@ -54,7 +54,7 @@ std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
 
 std::unordered_set<instruction_ref> preserve_output_layout(module& m)
 {
-    std::unordered_set<instruction_ref> result;
+    std::unordered_set<instruction_ref> result;    
     std::vector<instruction_ref> outputs = find_lasts(m, [](auto ins) {
         return ins->name() == "convolution" and ins->get_shape().lens().size() == 4;
     });

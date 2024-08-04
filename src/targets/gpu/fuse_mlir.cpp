@@ -156,6 +156,7 @@ struct mlir_op
 
         auto result =
             mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+
         if(result.size() == 1)
             return result.front();
         return shape{result};

@@ -30,9 +30,9 @@ namespace gpu {
 #if MIGRAPHX_USE_MIOPEN
 shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
 {
-    check_shapes{inputs, *this}.has(2).standard();
+    check_shapes{inputs, *this}.has(2);
     std::vector<shape> pooling_input = {inputs.at(0)};
-    check_shapes{pooling_input, *this}.max_ndims(5);
+    check_shapes{pooling_input, *this}.max_ndims(5).packed_layouts({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}});
     return op.normalize_compute_shape(pooling_input);
 }
 

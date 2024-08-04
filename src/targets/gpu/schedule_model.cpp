@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/operation.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -144,6 +145,15 @@ static const std::unordered_map<std::string, std::size_t>& weight_map()
 
 std::size_t schedule_model::weight(const operation& op) const
 {
+    if(op.name() == "gpu::code_object_op")
+    {
+        const auto& co = any_cast<code_object_op>(op);
+        if (contains(co.symbol_name, "mlir_dot") or contains(co.symbol_name, "mlir_convolution"))
+            return 8;
+        if (contains(co.symbol_name, "reduce"))
+            return 4;
+        return 2;
+    }
     if(weight_map().count(op.name()) == 0)
     {
         return 2;

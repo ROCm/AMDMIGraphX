@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,8 @@
 
 #include <test.hpp>
 #include <pointwise.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 
 void run_pass(migraphx::program& p)
 {
@@ -64,6 +66,48 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
         {pm});
 }
 
+TEST_CASE(dot_reshapes_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+        auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot_trans);
+        auto add    = add_pointwise(p1, "main:pointwise0", {dot_sq, x}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot_trans = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+                auto dot_rsp = pm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3}}}),
+                                                   dot_trans);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
+                return std::make_tuple(dot, add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
@@ -88,7 +132,7 @@ TEST_CASE(dot_add)
             add_mlir(p2,
                      "mlir_main:pointwise0",
                      {x, a, b},
-                     {"x1", "y0", "y1"},
+                     {"x2", "y0", "y1"},
                      [=](auto* pm, const auto& inputs) {
                          auto dot =
                              pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
@@ -97,6 +141,44 @@ TEST_CASE(dot_add)
                      });
         mm->add_return({fused});
     }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(add_dot)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto add = add_pointwise(p1, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), add, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_mlir(p2,
+                     "main:pointwise0:mlir_dot2",
+                     {x, y, b},
+                     {"x0", "x1", "x2"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto add =
+                             pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                         auto dot = pm->add_instruction(migraphx::make_op("dot"), add, inputs[2]);
+                         return std::make_tuple(dot, dot);
+                     });
+        mm->add_return({fused});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+        return;
     EXPECT(p1.sort() == p2.sort());
 }
 

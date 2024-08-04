@@ -80,6 +80,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -597,8 +598,11 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"enable_splitk_for_tuning", true}});
+                            {"num_cu", num_cu}});
+        if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
+        {
+            ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+        }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -958,14 +962,6 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
 }
 
-std::string dump_mlir(const module& m)
-{
-    mlir_program mp;
-    mp.parse(m);
-    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    return mlir_print(&mlirOperationPrint, mod_op);
-}
-
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
 {
     auto names = m.get_parameter_names();
@@ -1000,6 +996,24 @@ void replace_params_with_literals(module& m, const std::vector<instruction_ref>&
         m.remove_instruction(param);
     }
 }
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    module mm;
+    const_module_ref mr = &m;
+    if(not inputs.empty())
+    {
+        mm = m;
+        mr = &mm;
+        adjust_param_shapes(mm, inputs);
+    }
+    mlir_program mp;
+    mp.parse(*mr);
+    auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
+    return mlir_print(&mlirOperationPrint, mod_op);
+}
+
+std::string dump_mlir(const module& m) { return dump_mlir(m, {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               module m,
@@ -1082,16 +1096,18 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
+    auto tc = mp.get_tuning_config(exhaustive);
 
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
+        std::cout << "Problem: " << tc.problem << std::endl;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
-    return mp.get_tuning_config(exhaustive);
+    return tc;
 }
 
 void dump_mlir_to_mxr(module m,
@@ -1120,11 +1136,18 @@ void dump_mlir_to_mxr(module m,
 
 #else
 
-std::string dump_mlir(const module&) { return {}; }
-
 template <class T>
 void use(T&)
 {
+}
+
+std::string dump_mlir(const module&) { return {}; }
+
+std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+{
+    use(m);
+    use(inputs);
+    return {};
 }
 
 // Disabling clang-tidy warning on non-real useage.

@@ -203,7 +203,9 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                 "reduce_mean",
                 "reduce_max",
                 "reduce_min",
-                "reduce_prod"};
+                "reduce_prod",
+                "reduce_any",
+                "reduce_all"};
     }
 
     static std::size_t get_reduce_elements(const std::vector<shape>& inputs)
@@ -293,7 +295,7 @@ ${preamble}
 extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_last(), ${transformers})(${args})([](auto y, auto... xs) {
+    transform_args(make_tensors(), ${transformers}, rotate_and_pack_last<${noutputs}>())(${args})([](auto y, auto... xs) {
         fused_reduce<reduce::${algo}, ${reduced}>(y, ${assign}{}, partial(${lambda})(xs...));
     });
 }
@@ -320,9 +322,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
     {
         auto assign         = v.get("assign", "assign_none");
         auto axes           = v.at("axes").to_vector<std::size_t>();
-        auto virtual_inputs = inputs;
-        virtual_inputs.push_back(get_reduced_shape(get_input_shape(inputs), axes));
-        virtual_inputs.push_back(get_output_shape(get_input_shape(inputs), axes));
+        auto finputs        = flatten(inputs);
+        auto noutputs       = finputs.size() - inputs.size() + 1;
+        auto virtual_inputs = finputs;
+        virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
+        virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
         virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
         if(assign != "assign_none")
             virtual_inputs = split_reduce(virtual_inputs);
@@ -332,7 +336,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         virtual_inputs.pop_back();
 
         hip_compile_options options;
-        options.inputs         = inputs;
+        options.inputs         = finputs;
         options.output         = inputs.back();
         options.virtual_inputs = virtual_inputs;
         auto faxis             = find_fast_axis({options.virtual_inputs.front()});
@@ -375,13 +379,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-                        {"params", enum_params(inputs.size(), "void * private_p")},
-                        {"args", enum_params(inputs.size(), "private_p")},
+                        {"params", enum_params(finputs.size(), "void * private_p")},
+                        {"args", enum_params(finputs.size(), "private_p")},
                         {"assign", assign},
                         {"algo", algo},
                         {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
                         {"lambda", v.at("lambda").to<std::string>()},
                         {"transformers", make_transformer_args(vec)},
+                        {"noutputs", std::to_string(noutputs)},
                         {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(src, options);

@@ -201,6 +201,7 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
+        -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-avoid-do-while
@@ -215,6 +216,11 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
+        -cppcoreguidelines-rvalue-reference-param-not-moved
+        -cppcoreguidelines-special-member-functions
+        -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-virtual-class-destructor
+        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-rvalue-reference-param-not-moved
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init

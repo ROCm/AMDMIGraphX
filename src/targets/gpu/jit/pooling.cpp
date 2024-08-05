@@ -48,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
     transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
-        pooling<reduce::lane>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
+        pooling<${algo}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 
@@ -60,13 +60,52 @@ MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 
 struct pooling_compiler : compiler<pooling_compiler>
 {
+
+    static std::size_t compute_subwave_size(context& ctx, std::size_t n)
+    {
+        std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+        std::size_t wavefront_size     = 1;
+        while(wavefront_size <= n and wavefront_size < max_wavefront_size)
+            wavefront_size *= 2;
+        return wavefront_size / 2;
+    }
+
+    struct algorithm
+    {
+        std::string name = "reduce::lane";
+        std::size_t reduce_size = 1;
+        std::size_t block_size = 1024;
+
+        algorithm()
+        {}
+
+        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        {
+            if(input.strides().back() != 1)
+                return;
+            std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
+            auto wsize = window.back();
+            if (wsize > max_wavefront_size)
+            {
+                block_size = compute_block_size(ctx, wsize, 256);
+                reduce_size = block_size;
+                name = "reduce::block";
+            }
+            else
+            {
+                block_size = max_wavefront_size;
+                reduce_size = compute_subwave_size(ctx, wsize);
+                name = "reduce::subwave<" + to_string(reduce_size) + ">";
+            }
+        }
+    };
+
     std::vector<std::string> names() const { return {"pooling"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -107,8 +146,12 @@ struct pooling_compiler : compiler<pooling_compiler>
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
 
+        // algorithm algo{ctx, inputs.front(), window};
+        algorithm algo{};
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements() * algo.reduce_size, 256), algo.block_size);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},
+                                       {"algo", algo.name},
                                        {"window", to_string_range(window)},
                                        {"stride", to_string_range(stride)},
                                        {"padding", to_string_range(padding)}});

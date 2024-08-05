@@ -60,10 +60,9 @@ struct max_pool : pool_op<max_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest{}; }
 
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
     {
-        return max(x, y);
+        return op::max{};
     }
 };
 
@@ -77,10 +76,9 @@ struct average_pool : pool_op<average_pool>
         return {x, 1};
     }
 
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
     {
-        return x + y;
+        return op::sum{};
     }
 
     template <class T, class U>
@@ -96,10 +94,9 @@ struct average_include_pad_pool : pool_op<average_include_pad_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
     {
-        return x + y;
+        return op::sum{};
     }
 
     template <class T, class U>
@@ -139,10 +136,9 @@ struct lpnorm_pool : lpnorm_pool_base, pool_op<lpnorm_pool<P>>
         return apply(init());
     }
 
-    template <class T, class U>
-    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    MIGRAPHX_DEVICE_CONSTEXPR auto reduce() const
     {
-        return x + y;
+        return op::sum{};
     }
 
     template <class T, class U>
@@ -209,7 +205,7 @@ __device__ void
 pooling(Op op, Window w, Output output, Input input)
 {
     Algo::template run<Output>([&](auto out_idx, auto r) {
-        auto x = r.reduce(op, op.init(), w.apply(out_idx, [&](auto j) {
+        auto x = r.reduce(op.reduce(), op.init(), w.apply(out_idx, [&](auto j) {
             using type = decltype(op.apply(input[j]));
             if(j < input.get_shape().lens)
             {

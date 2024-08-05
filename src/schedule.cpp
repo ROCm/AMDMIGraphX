@@ -79,8 +79,6 @@ struct stream_info
                 // This will ensure a stream will be assigned to return
                 if(op.name() == "@return")
                     weight = 1;
-                if(stream_literals and op.name() == "@literal")
-                    weight = 2;
                 iweights[ins] = weight;
                 auto inputs   = ins->inputs();
                 if(contains(mod_implicit_deps, ins))

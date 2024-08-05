@@ -30,7 +30,9 @@ def rocmtestnode(Map conf) {
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
             cat suppressions.txt
-            export ASAN_OPTIONS=use_odr_indicator=1
+            # Disable odr detection since its broken with shared libraries
+            # See: https://github.com/google/sanitizers/issues/1017
+            export ASAN_OPTIONS=detect_odr_violation=1
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}
@@ -165,7 +167,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
 }, clang_asan: rocmnode('nogpu') { cmake_build ->
     stage('Clang ASAN') {
         def sanitizers = "undefined,address"
-        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -mllvm -asan-use-private-alias=1 -Wno-unused-command-line-argument"
+        def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
         def gpu_targets = getgputargets()
         cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${gpu_targets}'")
     }

@@ -48,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
     transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
-        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
+        pooling<reduce::lane>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 
@@ -98,16 +98,17 @@ struct pooling_compiler : compiler<pooling_compiler>
         const auto& mode_v = v.at("mode");
         std::string mode =
             mode_v.is_string() ? mode_v.get_string() : to_string(mode_v.to<op::pooling_mode>());
+        bool count_include_pad = v.get("count_include_pad", false);
+        if(count_include_pad and mode == "average")
+            mode = "average_include_pad";
 
         std::string op = mode + "_pool";
         if(mode == "lpnorm")
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
-        std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";
 
         auto src = interpolate_string(pooling_kernel,
-                                      {{"count_include_pad", count_include_pad},
-                                       {"op", op + "{}"},
+                                      {{"op", op + "{}"},
                                        {"window", to_string_range(window)},
                                        {"stride", to_string_range(stride)},
                                        {"padding", to_string_range(padding)}});

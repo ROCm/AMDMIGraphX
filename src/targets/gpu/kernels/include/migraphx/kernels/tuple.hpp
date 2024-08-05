@@ -60,6 +60,13 @@ struct tuple_storage<detail::seq<Ns...>, Ts...> : element_storage<Ts, Ns>...
     {
     }
 
+    struct unpack {};
+
+    template <class U>
+    constexpr tuple_storage(unpack, U y) : element_storage<Ts, Ns>{y[_c<Ns>]}...
+    {
+    }
+
     template <class F>
     constexpr auto operator()(F f) const
     {
@@ -118,8 +125,13 @@ struct tuple : tuple_detail::tuple_base<Ts...>
 {
     using base = tuple_detail::tuple_base<Ts...>;
 
-    template <class... Us, MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts))>
+    template <class... Us, MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and (is_convertible<Us, Ts>{} and ...))>
     constexpr tuple(Us... ys) : base(ys...)
+    {
+    }
+
+    template <class... Us, MIGRAPHX_REQUIRES(sizeof...(Us) == sizeof...(Ts) and (is_convertible<Us, Ts>{} and ...))>
+    constexpr tuple(tuple<Us...> y) : base(base::unpack, y)
     {
     }
 

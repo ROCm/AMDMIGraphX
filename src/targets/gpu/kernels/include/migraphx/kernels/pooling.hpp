@@ -29,10 +29,34 @@
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/math.hpp>
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/reduce.hpp>
+#include <migraphx/kernels/tuple.hpp>
 
 namespace migraphx {
 
-struct max_pool
+template<class Derived>
+struct pool_op
+{
+    template <class T>
+    MIGRAPHX_DEVICE_CONSTEXPR T apply(T x) const
+    {
+        return x;
+    }
+
+    MIGRAPHX_DEVICE_CONSTEXPR auto pad() const
+    {
+        const auto& self = static_cast<const Derived&>(*this);
+        return self.init();
+    }
+
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, U) const
+    {
+        return x;
+    }
+};
+
+struct max_pool : pool_op<max_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return lowest{}; }
 
@@ -41,15 +65,34 @@ struct max_pool
     {
         return max(x, y);
     }
+};
+
+struct average_pool : pool_op<average_pool>
+{
+    MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return make_tuple(0.0, 0); }
 
     template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const
+    MIGRAPHX_DEVICE_CONSTEXPR tuple<T, index_int> apply(T x) const
     {
-        return x;
+        return {x, 1};
+    }
+
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        return x + y;
+    }
+
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR T final(tuple<T, index_int> t, U) const
+    {
+        T x = t[_c<0>];
+        index_int y = t[_c<1>];
+        return (y == 0) ? T{0.0} : T{x / y};
     }
 };
 
-struct average_pool
+struct average_include_pad_pool : pool_op<average_include_pad_pool>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
@@ -59,10 +102,13 @@ struct average_pool
         return x + y;
     }
 
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int y) const
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, U y) const
     {
-        return (y == 0) ? T{0.0} : T{x / y};
+        if constexpr(y == 0)
+            return T{0.0};
+        constexpr auto scale = T{1.0} / y;
+        return T{x * scale};
     }
 };
 
@@ -71,7 +117,7 @@ struct lpnorm_pool_base
 };
 
 template <index_int P>
-struct lpnorm_pool : lpnorm_pool_base
+struct lpnorm_pool : lpnorm_pool_base, pool_op<lpnorm_pool<P>>
 {
     MIGRAPHX_DEVICE_CONSTEXPR auto init() const { return 0.0; }
 
@@ -88,14 +134,19 @@ struct lpnorm_pool : lpnorm_pool_base
             return migraphx::pow(migraphx::abs(x), T(P));
     }
 
+    MIGRAPHX_DEVICE_CONSTEXPR auto pad() const
+    {
+        return apply(init());
+    }
+
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
-        return x + apply(y);
+        return x + y;
     }
 
-    template <class T>
-    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, index_int) const
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR T final(T x, U) const
     {
         if constexpr(P == 0)
             return 1;
@@ -127,8 +178,8 @@ struct window
         return return_c([] { return Padding{} == 0; });
     }
 
-    template <class Index, class F>
-    constexpr void visit(Index i, F f) const
+    template <class OutputIndex, class F>
+    constexpr auto apply(OutputIndex i, F f) const
     {
         auto win_start = generate_array<diff_int>(rank{}, [&](auto j) {
             diff_int dim = i[j];
@@ -137,7 +188,13 @@ struct window
             diff_int p = padding[j];
             return (dim * s) - p;
         });
-        repeat(size(), [&](auto j) { f(win_start + win.multi(j)); });
+        return [=](auto j) { return f(win_start + win.multi(j)); };
+    }
+
+    template <class Index, class F>
+    constexpr void visit(Index i, F f) const
+    {
+        repeat(size(), apply(i, f));
     }
 };
 
@@ -147,33 +204,23 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <bool IncludePad, class Op, class Window, class Output, class Input>
-__device__ void pooling(Op op, Window w, Output output, Input input)
+template <class Algo, class Op, class Window, class Output, class Input>
+__device__ void
+pooling(Op op, Window w, Output output, Input input)
 {
-    auto idx   = make_index();
-    using type = typename Output::type;
-    idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto out_idx        = output.get_shape().multi(i);
-        index_int pool_size = w.size();
-        type x              = op.init();
-        w.visit(out_idx, [&](auto j) {
+    Algo::template run<Output>([&](auto out_idx, auto r) {
+        auto x = r.reduce(op, op.init(), w.apply(out_idx, [&](auto j) {
+            using type = decltype(op.apply(input[j]));
             if(j < input.get_shape().lens)
             {
-                x = op(x, input[j]);
+                return op.apply(input[j]);
             }
             else
             {
-                if constexpr(is_base_of<Op, lpnorm_pool_base>{})
-                {
-                    x = op(x, op.init());
-                }
-                if constexpr(not IncludePad and is_same<Op, average_pool>{})
-                {
-                    pool_size--;
-                }
+                return type(op.pad());
             }
-        });
-        output[out_idx] = op.final(x, pool_size);
+        }))(reduce::make_indices(w.size()));
+        r.outer([&] { output[out_idx] = op.final(x, w.size()); });
     });
 }
 

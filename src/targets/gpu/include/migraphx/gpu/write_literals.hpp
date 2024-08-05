@@ -37,7 +37,7 @@ struct MIGRAPHX_GPU_EXPORT write_literals
 {
     context* ctx = nullptr;
     bool weight_streaming = false;
-    long streaming_budget = LONG_MAX;
+    long max_memory = LONG_MAX;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

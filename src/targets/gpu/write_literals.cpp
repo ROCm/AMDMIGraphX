@@ -107,7 +107,7 @@ void write_literals::apply(module& m) const
             }
         }
 
-        long budget = streaming_budget;
+        long budget = max_memory;
         if(budget == LONG_MAX)
         {
             budget = static_cast<long>(size_of_literals / 4);

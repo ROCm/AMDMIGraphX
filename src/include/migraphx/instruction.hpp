@@ -33,6 +33,7 @@
 #include <migraphx/config.hpp>
 #include <string>
 #include <utility>
+#include <msgpack.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

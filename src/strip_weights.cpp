@@ -27,6 +27,8 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
+#include <msgpack.hpp>
+#include <fstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,18 +56,42 @@ struct fetch_literal
 };
 MIGRAPHX_REGISTER_OP(fetch_literal);
 
+struct vector_stream
+{
+    std::vector<char> buffer{};
+    vector_stream& write(const char* b, std::size_t n)
+    {
+        buffer.insert(buffer.end(), b, b + n);
+        return *this;
+    }
+};
+
 void strip_weights::apply(module& m) const
 {
+    std::vector<instruction_ref> ins_list;
+    std::vector<std::string> vec;
     size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
+            ins_list.push_back(ins);
+            vec.push_back("@" + std::to_string(n) + ": " + ins->get_literal().to_string());
             m.replace_instruction(
                 ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
             n++;
         }
     }
+
+    vector_stream vs;
+    // msgpack::pack(vs, ins_list);
+    msgpack::pack(vs, vec);
+
+    auto* os = &std::cout;
+    std::ofstream fs;
+    fs.open("models/mnist.mxr_wgts", std::ios::binary);
+    os = &fs;
+    (*os).write(vs.buffer.data(), vs.buffer.size());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -211,10 +211,7 @@ std::string target::name() const { return "gpu"; }
 
 migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
 
-argument target::copy_to(const argument& arg) const
-{
-    return gpu::to_gpu(arg);
-}
+argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 
 argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
 

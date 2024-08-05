@@ -84,9 +84,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    size_t free_mem = 0;
-    auto status     = hipMemGetInfo(&free_mem, nullptr);
-    std::cout << "Free memory: " << free_mem << " status: " << status << std::endl;
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());

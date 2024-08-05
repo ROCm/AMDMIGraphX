@@ -445,11 +445,6 @@ std::vector<argument> generic_eval(const module* mod,
         {
             results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
-        // else if(name == "gpu::literal_as_argument")
-        // {
-        //     results.emplace(
-        //         ins, trace(ins, [&] { return ins->get_literal(); }));
-        // }
         else if(name == "@param")
         {
             results.emplace(

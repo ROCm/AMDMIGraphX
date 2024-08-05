@@ -34,6 +34,16 @@
 
 namespace migraphx {
 
+template <unsigned int SubWaveSize, class Op, class T, class Index, class F>
+__device__ auto lane_reduce(Op op, T init, Index n, F f)
+{
+    using type = decltype(index::invoke_loop(f, 0, _c<0>));
+    auto x     = type(init);
+    for(index_int i=0;i<n;i++)
+        x = op(x, index::invoke_loop(f, i, _c<0>));
+    return x;
+}
+
 #if MIGRAPHX_HAS_DPP
 
 template <unsigned int SubWaveSize, class T, class Op>
@@ -220,6 +230,26 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     }
     return y;
 }
+
+template <unsigned int ReduceSize, class Op, class T, class Index, class F>
+__device__ auto auto_reduce(index idx, Op op, T init, Index n, F f)
+{
+    if constexpr(ReduceSize == 1)
+    {
+        return lane_reduce(op, init, n, f);
+    }
+    else if constexpr(ReduceSize <= __AMDGCN_WAVEFRONT_SIZE)
+    {
+        MIGRAPHX_ASSERT(idx.max_nlocal() == __AMDGCN_WAVEFRONT_SIZE);
+        return subwave_reduce<ReduceSize>(idx, op, init, n, f);
+    }
+    else
+    {
+        MIGRAPHX_ASSERT(idx.max_nlocal() == ReduceSize);
+        return block_reduce(idx, op, init, n, f);
+    }
+}
+
 #else
 template <class Op, class T, class Index, class F>
 __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)

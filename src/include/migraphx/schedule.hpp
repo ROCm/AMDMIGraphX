@@ -41,7 +41,6 @@ struct MIGRAPHX_EXPORT schedule
 {
     schedule_model model{};
     bool enable = true;
-    bool weight_streaming = false;
     std::string name() const { return "schedule"; }
     void apply(module& m) const;
 };

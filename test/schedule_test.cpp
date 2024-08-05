@@ -196,7 +196,7 @@ struct scheduler
 
     void run_pass(migraphx::module& m)
     {
-        migraphx::run_passes(m, {migraphx::schedule{model, true, weight_streaming}});
+        migraphx::run_passes(m, {migraphx::schedule{model, true}});
     }
 
     bool has_stream(migraphx::instruction_ref ins) { return model.ins2stream->count(ins) > 0; }
@@ -1008,22 +1008,22 @@ TEST_CASE(unused_param_test)
     EXPECT(t.has_stream(r) == false);
 }
 
-TEST_CASE(streaming_test)
-{
-    migraphx::module m;
-    scheduler t{};
-    t.weight_streaming = true;
+// TEST_CASE(streaming_test)
+// {
+//     migraphx::module m;
+//     scheduler t{};
+//     t.weight_streaming = true;
 
-    auto one   = m.add_literal(1);
-    auto two   = m.add_literal(2);
-    auto onem1 = m.add_instruction(unary_op{}, one);
-    auto twom2 = m.add_instruction(unary_op{}, two);
-    auto add   = m.add_instruction(migraphx::make_op("add"), onem1, twom2);
-    m.add_return({add});
+//     auto one   = m.add_literal(1);
+//     auto two   = m.add_literal(2);
+//     auto onem1 = m.add_instruction(unary_op{}, one);
+//     auto twom2 = m.add_instruction(unary_op{}, two);
+//     auto add   = m.add_instruction(migraphx::make_op("add"), onem1, twom2);
+//     m.add_return({add});
 
-    t.run_pass(m);
-    EXPECT(t.has_stream(one) == true);
-    EXPECT(t.has_stream(two) == true);
-}
+//     t.run_pass(m);
+//     EXPECT(t.has_stream(one) == true);
+//     EXPECT(t.has_stream(two) == true);
+// }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

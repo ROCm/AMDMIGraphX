@@ -42,7 +42,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
     bool weight_streaming = false;
-    long max_memory = LONG_MAX;
+    long max_memory       = LONG_MAX;
 
     tracer trace{};
 };

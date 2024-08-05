@@ -30,9 +30,6 @@ def rocmtestnode(Map conf) {
             echo "leak:dnnl::impl::malloc" > suppressions.txt
             echo "leak:libtbb.so" >> suppressions.txt
             cat suppressions.txt
-            # Disable odr detection since its broken with shared libraries
-            # See: https://github.com/google/sanitizers/issues/1017
-            export ASAN_OPTIONS=detect_odr_violation=1
             export LSAN_OPTIONS="suppressions=\$(pwd)/suppressions.txt"
             export MIGRAPHX_GPU_DEBUG=${gpu_debug}
             export CXX=${compiler}

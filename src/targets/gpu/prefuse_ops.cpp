@@ -240,21 +240,41 @@ struct find_gemm_softmax_gemm
     }
 };
 
-struct gpu_group_query_attention : op::group_query_attention
+// struct gpu_group_query_attention : op::group_query_attention
+// {
+//     std::string name() const { return "gpu::group_query_attention"; }
+
+//     shape compute_shape(std::vector<shape> inputs) const
+//     {
+//         auto query_lens = inputs.front().lens();
+//         std::size_t q_hidden_size = (query_lens[2] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
+//         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(1), q_hidden_size};
+//         shape output_shape{inputs.front().type(), output_lens};
+//         return shape({output_shape, inputs[1], inputs[2]});
+//     }
+// };
+// MIGRAPHX_REGISTER_OP(gpu_group_query_attention);
+
+struct gpu_compute_attention_probabilities : op::group_query_attention
 {
-    std::string name() const { return "gpu::group_query_attention"; }
+    std::string name() const { return "gpu::compute_attention_probabilities"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // std::cout << "new compute shape : " << inputs.size() << std::endl;
-        if (inputs.size() == 8)
-        {
-            auto query_lens = inputs.front().lens();
-            std::size_t q_hidden_size = (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
-            std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
-            shape output_shape{inputs.front().type(), output_lens};
-            return shape({output_shape, inputs[1], inputs[2]});
-        }
+        auto query_lens = inputs.front().lens();
+        std::vector<std::size_t> output_lens{query_lens.at(0), num_heads, query_lens.at(2), 4096};
+        shape output_shape{inputs.front().type(), output_lens};
+        return shape({inputs.front(), inputs[1], inputs[2]});
+    }
+};
+MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
+
+struct gpu_compute_attention_scores : op::group_query_attention
+{
+    std::string name() const { return "gpu::compute_attention_scores"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
         auto query_lens = inputs.front().lens();
         std::size_t q_hidden_size = (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
         std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
@@ -262,7 +282,21 @@ struct gpu_group_query_attention : op::group_query_attention
         return shape({output_shape, inputs[1], inputs[2]});
     }
 };
-MIGRAPHX_REGISTER_OP(gpu_group_query_attention);
+MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
+
+struct gpu_gqa_rotary_embedding : op::group_query_attention
+{
+    std::string name() const { return "gpu::gqa_rotary_embedding"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        auto query_lens = inputs.front().lens();
+        std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), query_lens.at(1), query_lens.at(3)};
+        shape output_shape{inputs.front().type(), output_lens};
+        return output_shape;
+    }
+};
+MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
 
 struct find_group_query_attention
 {
@@ -270,11 +304,6 @@ struct find_group_query_attention
     {
         return match::name("group_query_attention");
     }
-
-    // instruction_ref insert_allocation(module mod, instruction_ref ins, const shape& s) const
-    // {
-    //     return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
-    // }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
@@ -287,9 +316,8 @@ struct find_group_query_attention
         assert(v.contains("kv_num_heads"));
         auto kv_num_heads = v.at("kv_num_heads").to<int>();
         auto s      = ins->get_shape();
-        // auto output = insert_allocation(mpm.get_module(), ins, s);
-        // auto inputs = ins->inputs();
-        // inputs.push_back(output);
+        assert(v.contains("do_rotary"));
+        auto do_rotary = v.at("do_rotary").to<bool>();
 
         auto q_shape              = inputs[0]->get_shape();
         auto q_lens               = q_shape.lens();
@@ -318,44 +346,78 @@ struct find_group_query_attention
                                 past_sequence_length,
                                 head_size}};
         shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
-        // std::cout << "mid" << std::endl;
-        // insert transpose on qkv
+
         std::vector<std::size_t> bsnh{batch_size,
                                         sequence_length,
                                         static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
                                         head_size};
-        // auto transposed_qkv = insert_allocation(inputs.at(0), inputs.at(0)->get_shape());                                            
+
         auto transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
         transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
         transposed_qkv = mpm.get_module().insert_instruction(ins, make_op("contiguous"), transposed_qkv);
-        // insert qkv_rotary with qkv_rotary_shape
-        // auto qkv_rotary = insert_allocation(mpm.get_module(), ins, qkv_rotary_shape);
-        // // insert attn_probs with attn_probs_shape
-        // auto attn_probs = insert_allocation(mpm.get_module(), ins, attn_probs_shape);
-        // std::cout << "mid2" << std::endl;
-        std::vector<instruction_ref> new_inputs{
-                                        transposed_qkv, 
-                                        inputs.at(3), 
-                                        inputs.at(4),
-                                        inputs.at(5),
-                                        inputs.at(7),
-                                        inputs.at(8)};
-        // std::cout << "mid3" << std::endl;
-        // auto ret = mod->replace_instruction(
-        //     ins,
-        //     make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
-        //     new_inputs);
-
-
-
-
-        mpm.get_module().replace_instruction(
-            ins, gpu_group_query_attention{v.at("do_rotary").to<int>(),
+        
+        // if (do_rotary)
+        // {
+            std::vector<instruction_ref> rotary_inputs{
+                                            transposed_qkv, 
+                                            inputs.at(5),
+                                            inputs.at(7),
+                                            inputs.at(8)};
+            auto rotary_qkv = mpm.get_module().insert_instruction(ins, 
+                                    gpu_gqa_rotary_embedding{v.at("do_rotary").to<int>(),
                                            v.at("kv_num_heads").to<int>(),
                                            v.at("local_window_size").to<int>(),
                                            v.at("num_heads").to<std::size_t>(),
                                            v.at("rotary_interleaved").to<int>(),
-                                           v.at("scale").to<float>()}, new_inputs);
+                                           v.at("scale").to<float>()}, rotary_inputs);
+            
+            std::vector<instruction_ref> attn_probs_inputs{
+                                            rotary_qkv, 
+                                            inputs.at(3), 
+                                            inputs.at(4),
+                                            inputs.at(5)};
+            auto attn_probs = mpm.get_module().insert_instruction(ins, 
+                                    gpu_compute_attention_probabilities{v.at("do_rotary").to<int>(),
+                                           v.at("kv_num_heads").to<int>(),
+                                           v.at("local_window_size").to<int>(),
+                                           v.at("num_heads").to<std::size_t>(),
+                                           v.at("rotary_interleaved").to<int>(),
+                                           v.at("scale").to<float>()}, attn_probs_inputs);
+
+            auto probs = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), attn_probs);
+            auto present_key = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), attn_probs);
+            auto present_value = mpm.get_module().insert_instruction(ins, make_op("get_tuple_elem", {{"index", 2}}), attn_probs);
+            std::vector<instruction_ref> new_inputs{
+                                            rotary_qkv, 
+                                            present_key, 
+                                            present_value,
+                                            inputs.at(5),
+                                            probs};
+
+            mpm.get_module().replace_instruction(
+                ins, gpu_compute_attention_scores{v.at("do_rotary").to<int>(),
+                                            v.at("kv_num_heads").to<int>(),
+                                            v.at("local_window_size").to<int>(),
+                                            v.at("num_heads").to<std::size_t>(),
+                                            v.at("rotary_interleaved").to<int>(),
+                                            v.at("scale").to<float>()}, new_inputs);
+            
+        // }
+        // std::vector<instruction_ref> new_inputs{
+        //                                 transposed_qkv, 
+        //                                 inputs.at(3), 
+        //                                 inputs.at(4),
+        //                                 inputs.at(5),
+        //                                 inputs.at(7),
+        //                                 inputs.at(8)};
+
+        // mpm.get_module().replace_instruction(
+        //     ins, gpu_group_query_attention{v.at("do_rotary").to<int>(),
+        //                                    v.at("kv_num_heads").to<int>(),
+        //                                    v.at("local_window_size").to<int>(),
+        //                                    v.at("num_heads").to<std::size_t>(),
+        //                                    v.at("rotary_interleaved").to<int>(),
+        //                                    v.at("scale").to<float>()}, new_inputs);
         // mpm.get_module().debug_print();
     }
 };

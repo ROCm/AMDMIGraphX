@@ -96,9 +96,9 @@ struct RotaryParameters
 using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
-static const char* const group_query_attention_kernel = R"__migraphx__(
+static const char* const gqa_rotary_embedding_kernel = R"__migraphx__(
 #include <args.hpp>
-#include <migraphx/kernels/group_query_attention.hpp>
+#include <migraphx/kernels/gqa_rotary_embedding.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
 
@@ -112,9 +112,9 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
+    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        group_query_attention(xs..., make_rotary_params(${rotary_params}));
+        gqa_rotary_embedding(xs..., make_rotary_params(${rotary_params}));
     });
 }
 
@@ -125,9 +125,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct group_query_attention_compiler : compiler<group_query_attention_compiler>
+struct gqa_rotary_embedding_compiler : compiler<gqa_rotary_embedding_compiler>
 {
-    std::vector<std::string> names() const { return {"group_query_attention", "gpu::group_query_attention"}; }
+    std::vector<std::string> names() const { return {"gqa_rotary_embedding", "gpu::gqa_rotary_embedding"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -136,32 +136,32 @@ struct group_query_attention_compiler : compiler<group_query_attention_compiler>
         assert(v.contains("kv_num_heads"));
         auto kv_num_heads = v.at("kv_num_heads").to<int>();
 
-        // std::cout << "gqa compile 1" << std::endl;
+        // std::cout << "gqa_embedding compile 1" << std::endl;
         auto q_shape              = inputs[0];
         auto q_lens               = q_shape.lens();
         auto input_type = q_shape.type();
         const std::size_t batch_size      = q_lens[0];
-        const std::size_t sequence_length = q_lens[1];
+        const std::size_t sequence_length = q_lens[2];
         std::size_t head_size     = q_lens[3];
         auto q_hidden_size = q_lens[1] * head_size;
         const bool packed_qkv = true;
 
-        // std::size_t rotary_dim = inputs[5].lens()[1] * 2;
+        std::size_t rotary_dim = inputs[3].lens()[1] * 2;
         std::size_t present_kv_seqlen = 4096;
-
+        // std::cout << "gqa_embedding compile 2" << std::endl;
         auto seq_stride  = head_size;
         auto head_stride = sequence_length * seq_stride;
         auto batch_stride =
                         (packed_qkv ? (num_heads + 2 * kv_num_heads) : num_heads) * head_stride;
         auto position_ids_format = sequence_length == 1 ? 1 : 0;
         bool transposed          = true;
-        // std::cout << "gqa compile 2" << std::endl;
+
         RotaryParameters rotary_params;
         rotary_params.batch_size           = batch_size;
         rotary_params.sequence_length      = sequence_length;
         rotary_params.hidden_size          = q_hidden_size;
         rotary_params.head_size            = head_size;
-        rotary_params.rotary_embedding_dim = 0;//rotary_dim;
+        rotary_params.rotary_embedding_dim = rotary_dim;
         rotary_params.num_heads            = num_heads;
         rotary_params.max_sequence_length  = sequence_length; // unused
         rotary_params.seq_stride           = head_size;
@@ -188,32 +188,24 @@ struct group_query_attention_compiler : compiler<group_query_attention_compiler>
 
         auto rotary_params_str = rotary_params.make_init_str();
 
-        auto virtual_inputs = inputs;
-        // virtual_inputs.erase(virtual_inputs.begin() + 4);
-        // virtual_inputs.erase(virtual_inputs.begin() + 4);
-        // for(auto i = 0; i < virtual_inputs.size(); ++ i)
-        // {
-        //     std::cout << virtual_inputs[i] << std::endl;
-        // }
-        virtual_inputs = flatten(virtual_inputs);
+        auto virtual_inputs = flatten(inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements() * 4096));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements()));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
-        options.output         = inputs.back();//output_shape;
-        options.kernel_name    = v.get("kernel", "group_query_attention_kernel");
+        options.output         = inputs.back();
+        options.kernel_name    = v.get("kernel", "gqa_rotary_embedding_kernel");
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
-        // std::cout << "gqa compile 3" << std::endl;
-        auto src = interpolate_string(group_query_attention_kernel,
+        // std::cout << "gqa_embedding compile 3" << std::endl;
+        auto src = interpolate_string(gqa_rotary_embedding_kernel,
                                       {
                                        {"params", enum_params(virtual_inputs.size(), "void * private_p")},
                                        {"args", enum_params(virtual_inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"rotary_params", rotary_params_str},
-                                       {"kernel", options.kernel_name},
-                                       {"noutputs", std::to_string(3)}});
+                                       {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);
     }
 

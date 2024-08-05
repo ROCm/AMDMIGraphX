@@ -58,33 +58,22 @@ struct make_tensor<${n}>
 )__migraphx__";
 
 
-static const char* const make_tensor_tuple_template = R"__migraphx__(
-template<>
-struct make_tensor<${n}>
-{
-    static __device__ auto apply(void* __restrict__ p)
-    {
-        return make_tensor_view(reinterpret_cast<${type}* __restrict__>(p), make_shape(${lens}, ${strides}));
-    }
-};
-)__migraphx__";
-
 std::string generate_make_tensor(std::size_t n, const shape& s)
 {
-    if (not s.sub_shapes().empty())
-    {
-        auto s0 = s.sub_shapes().front();
-        // std::cout << s0 << std::endl;
-        // std::cout << "n " << std::to_string(n) << std::endl;
-        // std::cout << "type " << shape::cpp_type(s0.type()) << std::endl;
-        // std::cout << "lens " << generate_index_ints(s0.lens()) << std::endl;
-        // std::cout << "strides " << generate_index_ints(s0.strides()) << std::endl;
-        return interpolate_string(make_tensor_template,
-                                {{"n", std::to_string(n)},
-                                {"type", shape::cpp_type(s0.type())},
-                                {"lens", generate_index_ints(s0.lens())},
-                                {"strides", generate_index_ints(s0.strides())}});
-    }
+    // if (not s.sub_shapes().empty())
+    // {
+    //     auto s0 = s.sub_shapes().front();
+    //     // std::cout << s0 << std::endl;
+    //     // std::cout << "n " << std::to_string(n) << std::endl;
+    //     // std::cout << "type " << shape::cpp_type(s0.type()) << std::endl;
+    //     // std::cout << "lens " << generate_index_ints(s0.lens()) << std::endl;
+    //     // std::cout << "strides " << generate_index_ints(s0.strides()) << std::endl;
+    //     return interpolate_string(make_tensor_template,
+    //                             {{"n", std::to_string(n)},
+    //                             {"type", shape::cpp_type(s0.type())},
+    //                             {"lens", generate_index_ints(s0.lens())},
+    //                             {"strides", generate_index_ints(s0.strides())}});
+    // }
     // std::cout << "n " << std::to_string(n) << std::endl;
     // std::cout << "type " << shape::cpp_type(s.type()) << std::endl;
     // std::cout << "lens " << generate_index_ints(s.lens()) << std::endl;

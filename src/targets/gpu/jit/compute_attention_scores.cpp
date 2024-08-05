@@ -96,9 +96,9 @@ struct RotaryParameters
 using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
-static const char* const group_query_attention_kernel = R"__migraphx__(
+static const char* const compute_attention_scores_kernel = R"__migraphx__(
 #include <args.hpp>
-#include <migraphx/kernels/group_query_attention.hpp>
+#include <migraphx/kernels/compute_attention_scores.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
 
@@ -114,7 +114,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
         
-        group_query_attention(xs..., make_rotary_params(${rotary_params}));
+        compute_attention_scores(xs..., make_rotary_params(${rotary_params}));
     });
 }
 
@@ -125,9 +125,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct group_query_attention_compiler : compiler<group_query_attention_compiler>
+struct compute_attention_scores_compiler : compiler<compute_attention_scores_compiler>
 {
-    std::vector<std::string> names() const { return {"group_query_attention", "gpu::group_query_attention"}; }
+    std::vector<std::string> names() const { return {"compute_attention_scores", "gpu::compute_attention_scores"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -141,7 +141,7 @@ struct group_query_attention_compiler : compiler<group_query_attention_compiler>
         auto q_lens               = q_shape.lens();
         auto input_type = q_shape.type();
         const std::size_t batch_size      = q_lens[0];
-        const std::size_t sequence_length = q_lens[1];
+        const std::size_t sequence_length = q_lens[2];
         std::size_t head_size     = q_lens[3];
         auto q_hidden_size = q_lens[1] * head_size;
         const bool packed_qkv = true;
@@ -201,12 +201,12 @@ struct group_query_attention_compiler : compiler<group_query_attention_compiler>
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();//output_shape;
-        options.kernel_name    = v.get("kernel", "group_query_attention_kernel");
+        options.kernel_name    = v.get("kernel", "compute_attention_scores_kernel");
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
         // std::cout << "gqa compile 3" << std::endl;
-        auto src = interpolate_string(group_query_attention_kernel,
+        auto src = interpolate_string(compute_attention_scores_kernel,
                                       {
                                        {"params", enum_params(virtual_inputs.size(), "void * private_p")},
                                        {"args", enum_params(virtual_inputs.size(), "private_p")},

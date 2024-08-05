@@ -487,85 +487,71 @@ struct miopen_apply
 
     void add_group_query_attention_op()
     {
-        // std::cout << "Lowering gqa..." << std::endl;
-        apply_map.emplace("gpu::group_query_attention", [=](instruction_ref ins) {
-            auto v = ins->get_operator().to_value();
-            assert(v.contains("num_heads"));
-            auto num_heads = v.at("num_heads").to<int>();
-            assert(v.contains("kv_num_heads"));
-            auto kv_num_heads = v.at("kv_num_heads").to<int>();
+        apply_map.emplace("gpu::gqa_rotary_embedding", [=](instruction_ref ins) {
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
-            auto inputs = ins->inputs();
-            // inputs.push_back(output);
-
-            auto q_shape              = inputs[0]->get_shape();
-            auto q_lens               = q_shape.lens();
-            auto input_type = q_shape.type();
-            const std::size_t batch_size      = q_lens[0];
-            const std::size_t sequence_length = q_lens[2];
-            auto past_key_shape       = inputs[3]->get_shape();
-            auto past_key_lens        = past_key_shape.lens();
-            auto past_sequence_length = past_key_lens[2];
-            std::size_t head_size     = q_lens[3];
-            auto q_hidden_size = q_lens[1] * head_size;
-            // std::cout << "lowering: qhs = " << q_hidden_size << " , hs = " << head_size << std::endl;
-            // q_hidden_size = head_size * num_heads; 
-            const bool packed_qkv = true;
-
-            // std::size_t rotary_dim = inputs[7]->get_shape().lens()[1] * 2;
-            std::size_t present_kv_seqlen = 4096;
-
-            shape output_shape{input_type, {batch_size, sequence_length, q_hidden_size}};
-            shape qkv_rotary_shape{input_type, {batch_size,
-                                    static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
-                                    sequence_length,
-                                    head_size}};
-            shape kv_shape{input_type, 
-                                {batch_size,
-                                    static_cast<std::size_t>(kv_num_heads),
-                                    past_sequence_length,
-                                    head_size}};
-            shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
-            // std::cout << "mid" << std::endl;
-            // insert transpose on qkv
-            // std::vector<std::size_t> bsnh{batch_size,
-            //                                 sequence_length,
-            //                                 static_cast<std::size_t>(num_heads + 2 * kv_num_heads),
-            //                                 head_size};
-            // auto transposed_qkv = insert_allocation(inputs.at(0), inputs.at(0)->get_shape());                                            
-            // auto transposed_qkv = mod->insert_instruction(ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
-            // transposed_qkv = mod->insert_instruction(ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
-            // auto transposed_qkv_gpu = insert_allocation(transposed_qkv, transposed_qkv->get_shape());
-            // transposed_qkv_gpu = mod->insert_instruction(ins, make_op("gpu::contiguous"), transposed_qkv, transposed_qkv_gpu);
-            // insert qkv_rotary with qkv_rotary_shape
-            auto qkv_rotary = insert_allocation(ins, qkv_rotary_shape);
-            // insert attn_probs with attn_probs_shape
-            auto attn_probs = insert_allocation(ins, attn_probs_shape);
-            // std::cout << "mid2" << std::endl;
-            // std::vector<instruction_ref> new_inputs{
-            //                                 transposed_qkv_gpu, 
-            //                                 inputs.at(3), 
-            //                                 inputs.at(4),
-            //                                 inputs.at(5),
-            //                                 inputs.at(7),
-            //                                 inputs.at(8),
-            //                                 qkv_rotary,
-            //                                 attn_probs,
-            //                                 output};
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(qkv_rotary);
-            new_inputs.push_back(attn_probs);
             new_inputs.push_back(output);
-            // std::cout << "mid3" << std::endl;
             auto ret = mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
-            // std::cout << "print mod" << std::endl;
-            // mod->debug_print();
             return ret;
-            // return mod->replace_instruction(ins, ins->get_operator()/* make_op("gpu::group_query_attention", ins->get_operator().to_value()) */, inputs);
+        });
+
+        apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
+            // auto v = ins->get_operator().to_value();
+            // assert(v.contains("num_heads"));
+            // auto num_heads = v.at("num_heads").to<int>();
+            // assert(v.contains("kv_num_heads"));
+            // auto kv_num_heads = v.at("kv_num_heads").to<int>();
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            auto inputs = ins->inputs();
+
+            // auto q_shape              = inputs[0]->get_shape();
+            // auto q_lens               = q_shape.lens();
+            // auto input_type = q_shape.type();
+            // const std::size_t batch_size      = q_lens[0];
+            // const std::size_t sequence_length = q_lens[1];
+            // std::size_t present_kv_seqlen = 4096;
+            // shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
+
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            auto ret = mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+            return ret;
+        });
+
+        apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
+            // auto v = ins->get_operator().to_value();
+            // assert(v.contains("num_heads"));
+            // auto num_heads = v.at("num_heads").to<int>();
+            // assert(v.contains("kv_num_heads"));
+            // auto kv_num_heads = v.at("kv_num_heads").to<int>();
+            auto s      = ins->get_shape();
+            auto output = insert_allocation(ins, s);
+            auto inputs = ins->inputs();
+
+            // auto q_shape              = inputs[0]->get_shape();
+            // auto q_lens               = q_shape.lens();
+            // auto input_type = q_shape.type();
+            // const std::size_t batch_size      = q_lens[0];
+            // const std::size_t sequence_length = q_lens[1];
+            // std::size_t present_kv_seqlen = 4096;
+            // shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
+
+            // auto attn_probs = insert_allocation(ins, attn_probs_shape);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(output);
+            auto ret = mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+            return ret;
         });
     }
 };

@@ -628,9 +628,9 @@ template <class Output,
         //   class Cos_Cache,
         //   class Sin_Cache,
         //   class Rotary_QKV,
-          class Attn_Probs,
+        //   class Attn_Probs,
           class Params>
-__device__ void group_query_attention(Output output,
+__device__ void compute_attention_probabilities(Output output,
                                         Query query,
                                         Key key,
                                         Value value,
@@ -638,7 +638,7 @@ __device__ void group_query_attention(Output output,
                                         // Cos_Cache cos_cache,
                                         // Sin_Cache sin_cache,
                                         // Rotary_QKV rotary_qkv,
-                                        Attn_Probs attn_probs,
+                                        // Attn_Probs attn_probs,
                                         Params params)
 {
     // no_op(output, query, key, value, seqlens_k, cos_cache, sin_cache, /* rotary_qkv, */ attn_probs, params);
@@ -671,7 +671,7 @@ __device__ void group_query_attention(Output output,
         auto k                      = q + params.num_heads * sequence_length * head_size;
         // sync();
         output([&](auto output0, auto output1, auto output2) {
-            CalculateAttentionProbs(attn_probs.begin(),
+            CalculateAttentionProbs(output0.begin(),
                                     q,
                                     k,
                                     seqlens_k.begin(),
@@ -689,26 +689,26 @@ __device__ void group_query_attention(Output output,
                                     idx);
 
             // sync();
-            auto v = q + (params.num_heads + params.kv_num_heads) * sequence_length * head_size;
-            const int hidden_size     = params.hidden_size;
+            // auto v = q + (params.num_heads + params.kv_num_heads) * sequence_length * head_size;
+            // const int hidden_size     = params.hidden_size;
         
-            CalculateVxAttentionScore(output0.begin(),
-                                    attn_probs.begin(),
-                                    v,
-                                    seqlens_k.begin(),
-                                    batch_size,
-                                    sequence_length,
-                                    seqlen_past_kv_cache,
-                                    seqlen_present_kv_cache,
-                                    head_size,
-                                    hidden_size,
-                                    value.begin(),
-                                    // value.begin(),
-                                    output2.begin(),
-                                    past_present_share_buffer,
-                                    packed_qkv,
-                                    params,
-                                    idx);
+            // CalculateVxAttentionScore(output0.begin(),
+            //                         attn_probs.begin(),
+            //                         v,
+            //                         seqlens_k.begin(),
+            //                         batch_size,
+            //                         sequence_length,
+            //                         seqlen_past_kv_cache,
+            //                         seqlen_present_kv_cache,
+            //                         head_size,
+            //                         hidden_size,
+            //                         value.begin(),
+            //                         // value.begin(),
+            //                         output2.begin(),
+            //                         past_present_share_buffer,
+            //                         packed_qkv,
+            //                         params,
+            //                         idx);
             // sync();
             // if (idx < key.get_shape().elements())
             // {
@@ -716,11 +716,11 @@ __device__ void group_query_attention(Output output,
             //     output2[idx] = value[idx];
             // }
             // sync();
-            // if (idx == 0)
-            // {
-            //     output1 = key;
-            //     output2 = value;
-            // }
+            if (idx == 0)
+            {
+                // output1 = key;
+                output2 = value;
+            }
         });
     });
 }

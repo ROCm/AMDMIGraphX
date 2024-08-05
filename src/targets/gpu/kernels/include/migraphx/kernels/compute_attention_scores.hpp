@@ -630,7 +630,7 @@ template <class Output,
         //   class Rotary_QKV,
           class Attn_Probs,
           class Params>
-__device__ void group_query_attention(Output output,
+__device__ void compute_attention_scores(Output output,
                                         Query query,
                                         Key key,
                                         Value value,
@@ -668,25 +668,25 @@ __device__ void group_query_attention(Output output,
 
         // // Calculate the attention score.
         bool past_present_share_buffer = false;//true;
-        auto k                      = q + params.num_heads * sequence_length * head_size;
+        // auto k                      = q + params.num_heads * sequence_length * head_size;
         // sync();
         output([&](auto output0, auto output1, auto output2) {
-            CalculateAttentionProbs(attn_probs.begin(),
-                                    q,
-                                    k,
-                                    seqlens_k.begin(),
-                                    batch_size,
-                                    sequence_length,
-                                    seqlen_past_kv_cache,
-                                    seqlen_present_kv_cache,
-                                    head_size,
-                                    key.begin(),
-                                    // key.begin(),
-                                    output1.begin(),
-                                    past_present_share_buffer,
-                                    packed_qkv,
-                                    params,
-                                    idx);
+        //     CalculateAttentionProbs(attn_probs.begin(),
+        //                             q,
+        //                             k,
+        //                             seqlens_k.begin(),
+        //                             batch_size,
+        //                             sequence_length,
+        //                             seqlen_past_kv_cache,
+        //                             seqlen_present_kv_cache,
+        //                             head_size,
+        //                             key.begin(),
+        //                             // key.begin(),
+        //                             output1.begin(),
+        //                             past_present_share_buffer,
+        //                             packed_qkv,
+        //                             params,
+        //                             idx);
 
             // sync();
             auto v = q + (params.num_heads + params.kv_num_heads) * sequence_length * head_size;
@@ -716,11 +716,11 @@ __device__ void group_query_attention(Output output,
             //     output2[idx] = value[idx];
             // }
             // sync();
-            // if (idx == 0)
-            // {
-            //     output1 = key;
-            //     output2 = value;
-            // }
+            if (idx == 0)
+            {
+                output1 = key;
+                // output2 = value;
+            }
         });
     });
 }

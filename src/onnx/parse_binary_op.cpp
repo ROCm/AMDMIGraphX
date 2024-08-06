@@ -39,6 +39,7 @@ struct parse_binary_op : op_parser<parse_binary_op>
                 {"And", "logical_and"},
                 {"Or", "logical_or"},
                 {"Xor", "logical_xor"},
+                {"BitwiseAnd", "bitwise_and"},
                 {"Mul", "mul"},
                 {"PRelu", "prelu"},
                 {"Sub", "sub"}};

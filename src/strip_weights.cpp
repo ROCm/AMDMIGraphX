@@ -29,6 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <msgpack.hpp>
 #include <fstream>
+#include <migraphx/raw_data.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,21 +67,54 @@ struct vector_stream
     }
 };
 
+class test_literal : public raw_data<test_literal>
+{ 
+private:
+    size_t l_id;
+    shape l_shape;
+    std::vector<char> l_data;
+public:
+    MSGPACK_DEFINE(l_id, l_data);
+    test_literal(size_t id = 0, shape s = shape{}, const char* data = nullptr) : l_id(id), l_shape(s) {
+        l_data = std::vector<char>(data, data + s.bytes());
+    }
+
+    bool empty() const { return l_data.empty(); }
+
+    const char* data() const { return &l_data[0]; }
+
+    const shape& get_shape() const { return l_shape; }
+
+    std::vector<test_literal> get_sub_objects() const { return {}; }
+
+    friend std::ostream& operator<<(std::ostream& os, const test_literal& x)
+    {
+        os << "test_literal[id=" << x.l_id << "]";
+        // os << static_cast<const raw_data<test_literal>&>(x);
+        return os;
+    }
+};
+
 void strip_weights::apply(module& m) const
 {
     std::vector<instruction_ref> ins_list;
-    std::vector<std::string> vec;
+    std::vector<test_literal> vec;
     size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
             ins_list.push_back(ins);
-            vec.push_back("@" + std::to_string(n) + ": " + ins->get_literal().to_string());
+            vec.push_back(test_literal{n, ins->get_shape(), ins->get_literal().data()});
             m.replace_instruction(
                 ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
             n++;
         }
+    }
+
+    for (auto literal : vec)
+    {
+        std::cout << literal << std::endl;
     }
 
     vector_stream vs;
@@ -92,6 +126,39 @@ void strip_weights::apply(module& m) const
     fs.open("models/mnist.mxr_wgts", std::ios::binary);
     os = &fs;
     (*os).write(vs.buffer.data(), vs.buffer.size());
+
+    vector_stream vs2;
+    std::ifstream is;
+    is.open("models/mnist.mxr_wgts", std::ios::binary | std::ios::ate);
+    if (not is.is_open())
+    {
+        std::cout << "Failed to open file" << std::endl;
+    }
+
+    size_t nbytes = is.tellg();
+    is.seekg(0, std::ios::beg);
+
+    std::vector<char> buffer(nbytes, 0);
+
+    if (not is.read(&buffer[0], nbytes))
+    {
+        std::cout << "Failed to read file" << std::endl;
+    }
+
+    std::cout << "vs.buffer.size() = " << vs.buffer.size() << std::endl;
+    std::cout << "nbytes = " << nbytes << std::endl;
+
+    msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
+    msgpack::object obj = oh.get();
+
+    std::vector<test_literal> vec2;
+    obj.convert(vec2);
+    // value vec2 = oh.get().as<value>();
+
+    for (auto literal : vec2)
+    {
+        std::cout << literal << std::endl;
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

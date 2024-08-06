@@ -65,11 +65,6 @@ struct dnnl_binary : dnnl_op<dnnl_binary, dnnl::binary>
             }
         }
         // Call to get_primitive to make sure an algo is available
-        std::cout << "getting premitive\n";
-        for(const auto& j : inputs)
-        {
-            std::cout << j << std::endl;
-        }
         this->get_primitive(this->to_memory_desc(r, inputs));
         return r;
     }

@@ -30,7 +30,8 @@
 #include <migraphx/apply_alpha_beta.hpp>
 
 template <migraphx::shape::type_t DType>
-struct test_transpose_reshape_add : verify_program<test_transpose_reshape_add<DType>>
+struct test_transpose_reshape_add_sub_mul
+    : verify_program<test_transpose_reshape_add_sub_mul<DType>>
 {
     migraphx::program create_program() const
     {
@@ -53,6 +54,6 @@ struct test_transpose_reshape_add : verify_program<test_transpose_reshape_add<DT
     std::string section() const { return "gemm"; }
 };
 
-template struct test_transpose_reshape_add<migraphx::shape::float_type>;
-template struct test_transpose_reshape_add<migraphx::shape::half_type>;
-template struct test_transpose_reshape_add<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_transpose_reshape_add_sub_mul<migraphx::shape::float_type>;
+template struct test_transpose_reshape_add_sub_mul<migraphx::shape::half_type>;
+template struct test_transpose_reshape_add_sub_mul<migraphx::shape::fp8e4m3fnuz_type>;

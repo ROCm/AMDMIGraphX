@@ -48,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
     transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
-        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
+        pooling<${count_include_pad}, ${groups}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 
@@ -66,7 +66,6 @@ struct pooling_compiler : compiler<pooling_compiler>
     {
         hip_compile_options options;
         const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -105,9 +104,13 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";
 
+        std::size_t groups = 8;
+
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements() / groups, 256), 256);
         auto src = interpolate_string(pooling_kernel,
                                       {{"count_include_pad", count_include_pad},
                                        {"op", op + "{}"},
+                                       {"groups", to_string(groups)},
                                        {"window", to_string_range(window)},
                                        {"stride", to_string_range(stride)},
                                        {"padding", to_string_range(padding)}});

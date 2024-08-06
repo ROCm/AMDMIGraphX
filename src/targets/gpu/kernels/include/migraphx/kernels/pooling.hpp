@@ -147,33 +147,40 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <bool IncludePad, class Op, class Window, class Output, class Input>
+template <bool IncludePad, index_int GroupSize, class Op, class Window, class Output, class Input>
 __device__ void pooling(Op op, Window w, Output output, Input input)
 {
     auto idx   = make_index();
     using type = typename Output::type;
-    idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto out_idx        = output.get_shape().multi(i);
-        index_int pool_size = w.size();
-        type x              = op.init();
-        w.visit(out_idx, [&](auto j) {
-            if(j < input.get_shape().lens)
-            {
-                x = op(x, input[j]);
-            }
-            else
-            {
-                if constexpr(is_base_of<Op, lpnorm_pool_base>{})
+    idx.global_stride(output.get_shape().elements() / GroupSize, [&](auto i) {
+        array<type, GroupSize> result;
+        repeat_c<GroupSize>([&](auto n) {
+            auto out_idx        = output.get_shape().multi(i + n);
+            index_int pool_size = w.size();
+            type x              = op.init();
+            w.visit(out_idx, [&](auto j) {
+                if(j < input.get_shape().lens)
                 {
-                    x = op(x, op.init());
+                    x = op(x, input[j]);
                 }
-                if constexpr(not IncludePad and is_same<Op, average_pool>{})
+                else
                 {
-                    pool_size--;
+                    if constexpr(is_base_of<Op, lpnorm_pool_base>{})
+                    {
+                        x = op(x, op.init());
+                    }
+                    if constexpr(not IncludePad and is_same<Op, average_pool>{})
+                    {
+                        pool_size--;
+                    }
                 }
-            }
+            });
+            result[n] = op.final(x, pool_size);
+            // output[out_idx] = op.final(x, pool_size);
         });
-        output[out_idx] = op.final(x, pool_size);
+        repeat_c<GroupSize>([&](auto n) {
+            output[i + n] = result[n];
+        });
     });
 }
 

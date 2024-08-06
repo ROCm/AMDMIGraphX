@@ -68,14 +68,17 @@ struct vector_stream
 };
 
 class test_literal : public raw_data<test_literal>
-{ 
-private:
+{
+    private:
     size_t l_id;
     shape l_shape;
     std::vector<char> l_data;
-public:
+
+    public:
     MSGPACK_DEFINE(l_id, l_data);
-    test_literal(size_t id = 0, shape s = shape{}, const char* data = nullptr) : l_id(id), l_shape(s) {
+    test_literal(size_t id = 0, shape s = shape{}, const char* data = nullptr)
+        : l_id(id), l_shape(s)
+    {
         l_data = std::vector<char>(data, data + s.bytes());
     }
 
@@ -112,7 +115,7 @@ void strip_weights::apply(module& m) const
         }
     }
 
-    for (auto literal : vec)
+    for(auto literal : vec)
     {
         std::cout << literal << std::endl;
     }
@@ -130,7 +133,7 @@ void strip_weights::apply(module& m) const
     vector_stream vs2;
     std::ifstream is;
     is.open("models/mnist.mxr_wgts", std::ios::binary | std::ios::ate);
-    if (not is.is_open())
+    if(not is.is_open())
     {
         std::cout << "Failed to open file" << std::endl;
     }
@@ -140,7 +143,7 @@ void strip_weights::apply(module& m) const
 
     std::vector<char> buffer(nbytes, 0);
 
-    if (not is.read(&buffer[0], nbytes))
+    if(not is.read(&buffer[0], nbytes))
     {
         std::cout << "Failed to read file" << std::endl;
     }
@@ -149,13 +152,13 @@ void strip_weights::apply(module& m) const
     std::cout << "nbytes = " << nbytes << std::endl;
 
     msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
-    msgpack::object obj = oh.get();
+    msgpack::object obj       = oh.get();
 
     std::vector<test_literal> vec2;
     obj.convert(vec2);
     // value vec2 = oh.get().as<value>();
 
-    for (auto literal : vec2)
+    for(auto literal : vec2)
     {
         std::cout << literal << std::endl;
     }

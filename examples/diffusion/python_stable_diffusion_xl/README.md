@@ -18,8 +18,7 @@ Install dependencies
 
 ```bash
 pip install -U pip
-pip install -r torch_requirements.txt
-pip install -r requirements.txt
+pip install -r torch_requirements.txt -r requirements.txt
 ```
 
 Use MIGraphX Python Module

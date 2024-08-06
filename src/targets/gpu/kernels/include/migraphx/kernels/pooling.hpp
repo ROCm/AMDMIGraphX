@@ -179,9 +179,7 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
             });
             result[n] = op.final(x, pool_size);
         });
-        repeat_c<GroupSize>([&](auto n) {
-            output[i + n] = result[n];
-        });
+        repeat_c<GroupSize>([&](auto n) { output[i + n] = result[n]; });
     });
 }
 

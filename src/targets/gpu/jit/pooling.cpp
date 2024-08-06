@@ -65,10 +65,10 @@ struct pooling_compiler : compiler<pooling_compiler>
 
     static std::size_t compute_group_size(const shape& output)
     {
-        auto n = output.lens().back();
+        auto n                           = output.lens().back();
         const std::size_t max_group_size = 32;
-        std::size_t group_size = 1;
-        while((n % (group_size*2) == 0) and group_size <= max_group_size)
+        std::size_t group_size           = 1;
+        while((n % (group_size * 2) == 0) and group_size <= max_group_size)
             group_size *= 2;
         return group_size;
     }
@@ -76,7 +76,7 @@ struct pooling_compiler : compiler<pooling_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s = inputs.back();
+        const auto& out_s      = inputs.back();
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -115,9 +115,8 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";
 
-        bool overlap_window = not migraphx::equal(stride, window, [](auto s, auto w) {
-            return s >= w;
-        });
+        bool overlap_window =
+            not migraphx::equal(stride, window, [](auto s, auto w) { return s >= w; });
         std::size_t groups = overlap_window ? compute_group_size(inputs.back()) : 1;
 
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements() / groups, 256), 256);

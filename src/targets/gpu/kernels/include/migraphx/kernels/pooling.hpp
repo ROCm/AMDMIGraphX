@@ -159,7 +159,9 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
             index_int pool_size = w.size();
             type x              = op.init();
             w.visit(out_idx, [&](auto j) {
-                if(j < input.get_shape().lens)
+                if constexpr(not w.has_padding())
+                    x = op(x, input[j]);
+                else if(j < input.get_shape().lens)
                 {
                     x = op(x, input[j]);
                 }

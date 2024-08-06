@@ -25,6 +25,8 @@
 accelerate
 diffusers
 transformers
+huggingface_hub[cli]
+onnx
 hip-python
 
 

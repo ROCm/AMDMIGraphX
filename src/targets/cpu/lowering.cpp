@@ -397,6 +397,10 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
+            else if(it->name() == "reshape")
+            {
+                apply_reshape(it);
+            }
             else if(apply_map.count(it->name()) > 0)
             {
                 apply_map.at(it->name())(it);
@@ -435,6 +439,29 @@ struct cpu_apply
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
     }
+    /*
+    Lowers reshape copy operator to reshape lazy by inserting contiguous operators around it.
+    Contiguous ops will later by removed by eliminate_contiguous pass.
+    */
+    instruction_ref apply_reshape(instruction_ref ins) const
+    {
+        std::vector<instruction_ref> before_contiguous_args = ins->inputs();
+        auto before_alloc =
+            insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
+        before_contiguous_args.push_back(before_alloc);
+        auto before_contig =
+            modl->insert_instruction(ins, make_op("dnnl::reorder"), {before_contiguous_args});
+
+        auto new_lazy_reshape = modl->insert_instruction(
+            ins,
+            make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+            before_contig);
+
+        std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
+        auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+        after_contiguous_args.push_back(after_alloc);
+        return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
+    }
 
     template <class T>
     static std::vector<T> read_scalar(instruction_ref ins)
@@ -451,7 +478,22 @@ struct cpu_apply
 
     instruction_ref replace(instruction_ref ins, const operation& op) const
     {
-        return replace(ins, op, ins->inputs());
+        auto inputs = ins->inputs();
+        std::vector<instruction_ref> cont_inputs;
+        for(const auto& i : inputs)
+        {
+            if(not i->get_shape().standard())
+            {
+                auto alloc = insert_allocation(ins, i->get_shape().as_standard());
+                cont_inputs.push_back(
+                    modl->insert_instruction(ins, make_op("dnnl::reorder"), {i, alloc}));
+            }
+            else
+            {
+                cont_inputs.push_back(i);
+            }
+        }
+        return replace(ins, op, cont_inputs);
     }
 
     instruction_ref

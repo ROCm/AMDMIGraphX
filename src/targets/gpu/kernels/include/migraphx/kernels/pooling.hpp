@@ -205,6 +205,21 @@ __device__ void
 pooling(Op op, Window w, Output output, Input input)
 {
     Algo::template run<Output>([&](auto out_idx, auto r) {
+#if 0
+        auto x = r.inner(w.apply(out_idx, [&](auto j) {
+            using type = decltype(op.apply(input[j]));
+            if(j < input.get_shape().lens)
+            {
+                return op.apply(input[j]);
+            }
+            else
+            {
+                return type(op.pad());
+            }
+        }))(reduce::make_indices(w.size()));
+        auto xr = r.reduce(op.reduce(), op.init(), op::id{})(x);
+        r.outer([&] { output[out_idx] = op.final(xr, w.size()); });
+#else
         auto x = r.reduce(op.reduce(), op.init(), w.apply(out_idx, [&](auto j) {
             using type = decltype(op.apply(input[j]));
             if(j < input.get_shape().lens)
@@ -217,6 +232,7 @@ pooling(Op op, Window w, Output output, Input input)
             }
         }))(reduce::make_indices(w.size()));
         r.outer([&] { output[out_idx] = op.final(x, w.size()); });
+#endif
     });
 }
 

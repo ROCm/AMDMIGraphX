@@ -85,6 +85,7 @@ struct pooling_compiler : compiler<pooling_compiler>
                 return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
             auto wsize = window.back();
+            // auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1}, std::multiplies<>{});
             if (wsize > max_wavefront_size)
             {
                 block_size = compute_block_size(ctx, wsize, 256);
@@ -146,8 +147,8 @@ struct pooling_compiler : compiler<pooling_compiler>
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
 
-        // algorithm algo{ctx, inputs.front(), window};
-        algorithm algo{};
+        algorithm algo{ctx, inputs.front(), window};
+        // algorithm algo{};
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements() * algo.reduce_size, 256), algo.block_size);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},

@@ -22,5 +22,5 @@
 # THE SOFTWARE.
 #####################################################################################
 --index-url https://download.pytorch.org/whl/rocm6.1/
-torch
+torch 
 

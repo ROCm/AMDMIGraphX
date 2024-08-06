@@ -25,6 +25,7 @@
 accelerate
 diffusers
 transformers
+optimum[onnxruntime]
 hip-python
 
 

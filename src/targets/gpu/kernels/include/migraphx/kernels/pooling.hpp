@@ -31,6 +31,7 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/reduce.hpp>
 #include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
@@ -200,39 +201,49 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <class Algo, class Op, class Window, class Output, class Input>
+template <class Algo, index_int GroupSize, class Output, class F>
+__device__ void pooling_reduce(Output output, F f)
+{
+    if constexpr(GroupSize < 2)
+    {
+        Algo::template run<decltype(output)>([&](auto out_idx, auto r) {
+            r.outer([&] { output[out_idx] = f(out_idx, r); });
+        });
+    }
+    else
+    {
+        auto goutput = as_vec<GroupSize>(output, output.get_shape().lens.size() - _c<1>);
+        Algo::template run<decltype(goutput)>([&](auto out_idx, auto r) {
+            auto i = out_idx;
+            i.back() *= GroupSize;
+            auto result = vec_generate<GroupSize>([&](auto) {
+                i.back()++;
+                return f(i, r);
+            });
+            r.outer([&] { goutput[out_idx] = result; });
+        });
+    }
+}
+
+template <class Algo, index_int GroupSize, class Op, class Window, class Output, class Input>
 __device__ void
 pooling(Op op, Window w, Output output, Input input)
 {
-    Algo::template run<Output>([&](auto out_idx, auto r) {
-#if 0
-        auto x = r.inner(w.apply(out_idx, [&](auto j) {
-            using type = decltype(op.apply(input[j]));
-            if(j < input.get_shape().lens)
-            {
-                return op.apply(input[j]);
-            }
-            else
-            {
-                return type(op.pad());
-            }
-        }))(reduce::make_indices(w.size()));
-        auto xr = r.reduce(op.reduce(), op.init(), op::id{})(x);
-        r.outer([&] { output[out_idx] = op.final(xr, w.size()); });
-#else
+    pooling_reduce<Algo, GroupSize>(output, [&](auto out_idx, auto r) {
         auto x = r.reduce(op.reduce(), op.init(), w.apply(out_idx, [&](auto j) {
-            using type = decltype(op.apply(input[j]));
+            using itype = decltype(op.apply(input[j]));
+            if constexpr(not w.has_padding())
+                return op.apply(input[j]);
             if(j < input.get_shape().lens)
             {
                 return op.apply(input[j]);
             }
             else
             {
-                return type(op.pad());
+                return itype(op.pad());
             }
         }))(reduce::make_indices(w.size()));
-        r.outer([&] { output[out_idx] = op.final(x, w.size()); });
-#endif
+        return op.final(x, w.size());
     });
 }
 

@@ -185,6 +185,15 @@ constexpr auto vec_reduce(T x, Op op)
     }
 }
 
+template<index_int N, class F>
+constexpr auto vec_generate(F f)
+{
+    using type = decltype(f(_c<0>));
+    return sequence_c<N>([&](auto... is) {
+        return safe_vec<type, N>{f(is)...};
+    });
+}
+
 template <class T>
 struct implicit_conversion_op
 {

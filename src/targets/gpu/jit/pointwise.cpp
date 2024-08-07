@@ -80,6 +80,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         options.kernel_name    = v.get("kernel", "kernel");
         auto noutputs = options.inputs.size() - inputs.size() + 1;
         auto t = tile::elements(options.virtual_inputs, noutputs);
+        // auto t = tile{};
         if (t.ntiles == 0)
             options.set_launch_params(
                 v, compute_global_for(ctx, options.inputs.front().elements() / vec.size, 256));

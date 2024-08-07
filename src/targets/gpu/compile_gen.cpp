@@ -170,6 +170,11 @@ bool preload::is_preloading() const
     return std::accumulate(args.begin(), args.end(), false, std::logical_or<>{});
 }
 
+static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
+{
+    return (x + y - std::size_t{1}) / y;
+}
+
 tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
 {
     tile result;
@@ -195,16 +200,16 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     });
 
     auto max_tile_size = transform_accumulate(inputs.begin(), inputs.end(), std::size_t{0}, MIGRAPHX_LIFT(std::max), [&](const shape& s) {
-        return std::accumulate(s.lens().begin()+result.axis, s.lens().end(), std::size_t{1}, std::multiplies<>{});
+        return std::accumulate(s.lens().begin()+result.axis+1, s.lens().end(), std::size_t{1}, std::multiplies<>{});
     });
-    result.block_size = std::min<std::size_t>(256, (1 + ((max_tile_size / 4 - 1) / 64) * 64));
+    result.block_size = std::min<std::size_t>(256, integer_divide_ceil(max_tile_size / 4, 64) * 64);
     return result;
 }
 
 std::string tile::str() const
 {
     if(args.empty())
-        return "make_transformer_args()";
+        return "transform_args()";
     std::vector<std::string> strs;
     std::transform(args.begin(), args.end(), std::back_inserter(strs), [](mode m) {
         switch(m)

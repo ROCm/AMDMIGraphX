@@ -55,7 +55,7 @@ struct parse_convolution : op_parser<parse_convolution>
         auto in_lens = x->get_shape().max_lens();
         assert(in_lens.size() > 2);
         auto kdims = in_lens.size() - 2;
-        // Goes into parser START
+
         // ensure pads available only when auto_pad is "NOT_SET"
         check_padding_mode(info, opd.onnx_name);
 
@@ -91,7 +91,6 @@ struct parse_convolution : op_parser<parse_convolution>
         {
             auto_pad = to_upper(info.attributes["auto_pad"].s());
         }
-        // Goes into parser END
 
         auto op_name = opd.op_name == "quant_convolution" ? "convolution_integer" : "convolution";
         return op::builder::add(op_name,

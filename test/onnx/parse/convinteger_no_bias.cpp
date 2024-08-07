@@ -38,7 +38,5 @@ TEST_CASE(convinteger_no_bias)
     auto prog = optimize_onnx("convinteger_no_bias_test.onnx");
     mm->sort();
     prog.get_main_module()->sort();
-    mm->sort();
-    prog.get_main_module()->sort();
     EXPECT(p == prog);
 }

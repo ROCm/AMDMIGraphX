@@ -29,7 +29,6 @@
 #include <migraphx/register_op.hpp>
 #include <msgpack.hpp>
 #include <fstream>
-#include <migraphx/raw_data.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -90,24 +89,27 @@ class test_literal : public raw_data<test_literal>
 
     std::vector<test_literal> get_sub_objects() const { return {}; }
 
-    friend std::ostream& operator<<(std::ostream& os, const test_literal& x)
+    void print(std::ostream& os) const
     {
-        os << "test_literal[id=" << x.l_id << "]";
-        // os << static_cast<const raw_data<test_literal>&>(x);
-        return os;
+        os << "test_literal[id=" << l_id << ", data={";
+        if(l_data.size() < 10) {
+            os << this;
+        }
+        else {
+            os << " ... "; 
+        }
+        os << ", size=" << l_data.size() << "}";
     }
 };
 
 void strip_weights::apply(module& m) const
 {
-    std::vector<instruction_ref> ins_list;
     std::vector<test_literal> vec;
     size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
         {
-            ins_list.push_back(ins);
             vec.push_back(test_literal{n, ins->get_shape(), ins->get_literal().data()});
             m.replace_instruction(
                 ins, fetch_literal{n, ins->get_shape(), ins->get_literal().get_argument()});
@@ -117,22 +119,24 @@ void strip_weights::apply(module& m) const
 
     for(auto literal : vec)
     {
-        std::cout << literal << std::endl;
+        literal.print(std::cout);
+        std::cout << std::endl;
     }
 
+    // Pack and write to file
     vector_stream vs;
-    // msgpack::pack(vs, ins_list);
     msgpack::pack(vs, vec);
 
     auto* os = &std::cout;
     std::ofstream fs;
-    fs.open("models/mnist.mxr_wgts", std::ios::binary);
+    fs.open("models/mnist.mxr_weights", std::ios::binary);
     os = &fs;
     (*os).write(vs.buffer.data(), vs.buffer.size());
 
+    // Read and unpack from file
     vector_stream vs2;
     std::ifstream is;
-    is.open("models/mnist.mxr_wgts", std::ios::binary | std::ios::ate);
+    is.open("models/mnist.mxr_weights", std::ios::binary | std::ios::ate);
     if(not is.is_open())
     {
         std::cout << "Failed to open file" << std::endl;
@@ -148,19 +152,16 @@ void strip_weights::apply(module& m) const
         std::cout << "Failed to read file" << std::endl;
     }
 
-    std::cout << "vs.buffer.size() = " << vs.buffer.size() << std::endl;
-    std::cout << "nbytes = " << nbytes << std::endl;
-
     msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
     msgpack::object obj       = oh.get();
 
     std::vector<test_literal> vec2;
     obj.convert(vec2);
-    // value vec2 = oh.get().as<value>();
 
     for(auto literal : vec2)
     {
-        std::cout << literal << std::endl;
+        literal.print(std::cout);
+        std::cout << std::endl;
     }
 }
 

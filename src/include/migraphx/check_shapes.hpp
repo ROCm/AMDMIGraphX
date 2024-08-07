@@ -28,6 +28,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 
@@ -225,6 +226,16 @@ struct check_shapes
     }
 
     /*!
+     * Check all shapes are compatible.
+     */
+    // const check_shapes& same_compatible() const
+    // {
+    //     if(not this->same([](const shape& s) { return is_compatible(*this, s); }))
+    //         MIGRAPHX_THROW(prefix() + "Shapes don't match");
+    //     return *this;
+    // }
+
+    /*!
      * Check all shapes have the same number of dimensions.
      */
     const check_shapes& same_ndims() const
@@ -239,8 +250,13 @@ struct check_shapes
      */
     const check_shapes& same_layout() const
     {
-        if(not this->same([](const shape& s) { return find_permutation(s); }))
+
+       if(not same_compatible())
             MIGRAPHX_THROW(prefix() + "Layouts do not match");
+
+
+        // if(not this->same_compatible([](const shape& s) { return find_permutation(s); }))
+        //     MIGRAPHX_THROW(prefix() + "Layouts do not match");
         return *this;
     }
 
@@ -366,6 +382,15 @@ struct check_shapes
             return true;
         auto&& key = f(*begin);
         return this->all_of([&](const shape& s) { return f(s) == key; });
+    }
+
+
+    bool same_compatible() const
+    {
+        if(begin == end)
+            return true;
+        return this->all_of([&](const shape& s) { return migraphx::is_compatible_shape(s, *begin)
+        or   find_permutation(s) == find_permutation(*begin) ; });
     }
 
     template <class Predicate>

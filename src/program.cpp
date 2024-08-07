@@ -35,6 +35,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
@@ -425,33 +426,6 @@ void preview_argument(std::ostream& os, const argument& a)
             }
         });
 }
-
-// This function currently used only in an Assertion.
-// "Almost identical" shapes.  To support an MLIR feature, there is a limited
-// case where shapes may both be standard but have non-identical strides.
-#ifndef NDEBUG
-static bool is_compatible_shape(const shape& actual, const shape& expected)
-{
-    // Check subshapes
-    if(expected.type() == shape::tuple_type)
-        return equal(actual.sub_shapes().begin(),
-                     actual.sub_shapes().end(),
-                     expected.sub_shapes().begin(),
-                     &is_compatible_shape);
-    // Only the expected can be dynamic
-    if(expected.dynamic())
-        return true;
-    if(actual == expected)
-        return true;
-    if(actual.type() != expected.type())
-        return false;
-    // If both shapes are standard and lens match, they are considered compatible
-    // even if strides are different.
-    if(actual.standard() and expected.standard())
-        return actual.lens() == expected.lens();
-    return false;
-}
-#endif
 
 template <class F>
 std::vector<argument> generic_eval(const module* mod,

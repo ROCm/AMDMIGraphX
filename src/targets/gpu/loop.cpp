@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <cstdint>
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -56,7 +57,13 @@ struct gpu_loop
         copy_to_gpu(ctx, arg_src, dst);
     }
 
-    void append(const std::vector<argument>&, const std::vector<argument>&, int) const {}
+    void append(const std::vector<argument>&,
+                const std::vector<argument>&,
+                const std::vector<int64_t>&,
+                int64_t,
+                int64_t) const
+    {
+    }
 
     void set_zero(context& ctx, const std::vector<argument>& concatenated_outputs, int iter) const
     {
@@ -111,7 +118,7 @@ hip_loop::compute(context& ctx,
                   const std::function<std::vector<argument>(
                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
 {
-    return run_loop(gpu_loop{op.max_iterations}, ctx, args, mods, run);
+    return run_loop(gpu_loop{op.max_iterations}, op.scan_output_directions, ctx, args, mods, run);
 }
 
 } // namespace gpu

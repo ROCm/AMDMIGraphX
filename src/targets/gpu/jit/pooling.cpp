@@ -45,10 +45,10 @@ namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output) 
+MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
-    transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) { 
-        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...); 
+    transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
+        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 

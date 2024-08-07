@@ -278,6 +278,11 @@ Limits the number of solutions available to MLIR for tuning.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable input fusions in MLIR.
 
+.. envvar:: MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION
+
+Set to "1", "enable", "enabled", "yes", or "true" to use.
+Enable reduction fusions in MLIR.
+
 .. envvar:: MIGRAPHX_MLIR_ENABLE_SPLITK
 
 Set to "1", "enable", "enabled", "yes", or "true" to use.

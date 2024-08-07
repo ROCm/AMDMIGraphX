@@ -26,6 +26,14 @@
 
 namespace migraphx {
 
+template< class T >
+constexpr void swap( T& a, T& b )
+{
+    T old = a;
+    a = b;
+    b = old;
+}
+
 template <class Iterator1, class Iterator2>
 constexpr void iter_swap(Iterator1 a, Iterator2 b)
 {

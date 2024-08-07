@@ -24,6 +24,7 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
@@ -167,6 +168,61 @@ std::string preload::str() const
 bool preload::is_preloading() const
 {
     return std::accumulate(args.begin(), args.end(), false, std::logical_or<>{});
+}
+
+tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
+{
+    tile result;
+    auto ndim = inputs.front().ndim();
+    std::vector<std::size_t> faxes;
+    std::transform(inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
+    result.axis = std::accumulate(faxes.begin(), faxes.end(), ndim, MIGRAPHX_LIFT(std::min));
+    if (result.axis >= (ndim - 1))
+        return result;
+    auto select = [&](auto m) {
+        return [&, m](std::size_t faxis) {
+            if(faxis < (ndim - 1))
+                return m;
+            else
+                return none;
+        };
+    };
+    std::transform(faxes.begin(), faxes.end()-noutputs, std::back_inserter(result.args), select(load));
+    std::transform(faxes.end()-noutputs, faxes.end(), std::back_inserter(result.args), select(store));
+
+    result.ntiles = transform_accumulate(inputs.begin(), inputs.end(), std::size_t{0}, MIGRAPHX_LIFT(std::max), [&](const shape& s) {
+        return std::accumulate(s.lens().begin(), s.lens().begin()+result.axis+1, std::size_t{1}, std::multiplies<>{});
+    });
+
+    auto max_tile_size = transform_accumulate(inputs.begin(), inputs.end(), std::size_t{0}, MIGRAPHX_LIFT(std::max), [&](const shape& s) {
+        return std::accumulate(s.lens().begin()+result.axis, s.lens().end(), std::size_t{1}, std::multiplies<>{});
+    });
+    result.block_size = std::min<std::size_t>(256, (1 + ((max_tile_size / 4 - 1) / 64) * 64));
+    return result;
+}
+
+std::string tile::str() const
+{
+    if(args.empty())
+        return "make_transformer_args()";
+    std::vector<std::string> strs;
+    std::transform(args.begin(), args.end(), std::back_inserter(strs), [](mode m) {
+        switch(m)
+        {
+        case load: return "tile::load";
+        case store: return "tile::store";
+        case none: return "tile::none";
+        }
+        MIGRAPHX_THROW("Invalid mode");
+    });
+    return "auto_tile<" + std::to_string(axis) + ", " + join_strings(strs, ", ") + ">()";
+}
+
+std::size_t find_fast_axis(const shape& input)
+{
+    auto permutation = find_permutation(input);
+    auto it          = std::max_element(permutation.begin(), permutation.end());
+    return it - permutation.begin();
 }
 
 std::size_t find_fast_axis(const std::vector<shape>& inputs)

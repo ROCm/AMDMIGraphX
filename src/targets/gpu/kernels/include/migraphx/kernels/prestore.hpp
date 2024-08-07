@@ -29,13 +29,11 @@ __device__ auto prestore_copy(index idx, T x)
         if constexpr(B)
         {
             using type          = typename T::type;
-            constexpr auto size = get_shape_c<T>{}.elements();
+            constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
             auto b = make_packed_tensor(buffer, get_shape_c<T>{});
-            auto r = f(b);
-            // TODO: Use vectorize copy if packed
-            idx.local_stride(size, [&](auto i) { x[i] = b[i]; });
-            return r;
+            f(b);
+            local_vector_copy(idx, buffer, x.data(), size);
         }
         else
         {
@@ -48,6 +46,7 @@ template <bool... Bs>
 __device__ auto auto_prestore(index idx)
 {
     return make_transform([=](auto f, auto... xs) {
+        static_assert(sizeof...(Bs) == sizeof...(xs));
         auto invoke = [=](auto... ys) {
             f(ys...);
             if constexpr((Bs or ...))

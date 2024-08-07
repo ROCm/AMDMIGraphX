@@ -143,7 +143,7 @@ struct tuple : tuple_detail::tuple_base<Ts...>
     {
         return x([&](const auto&... xs) {
             return y([&](const auto&... ys) {
-                fold([&](auto a, auto b) { return a == 0 ? b() : 0; })(0, [&] {
+                return fold([&](auto a, auto b) { return a == 0 ? b() : 0; })(0, [&] {
                     return (xs < ys) ? -1 : (ys < xs) ? 1 : 0;
                 }...);
             });

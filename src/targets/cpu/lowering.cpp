@@ -478,22 +478,7 @@ struct cpu_apply
 
     instruction_ref replace(instruction_ref ins, const operation& op) const
     {
-        auto inputs = ins->inputs();
-        std::vector<instruction_ref> cont_inputs;
-        for(const auto& i : inputs)
-        {
-            if(not i->get_shape().standard())
-            {
-                auto alloc = insert_allocation(ins, i->get_shape().as_standard());
-                cont_inputs.push_back(
-                    modl->insert_instruction(ins, make_op("dnnl::reorder"), {i, alloc}));
-            }
-            else
-            {
-                cont_inputs.push_back(i);
-            }
-        }
-        return replace(ins, op, cont_inputs);
+        return replace(ins, op, ins->inputs());
     }
 
     instruction_ref

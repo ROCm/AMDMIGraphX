@@ -92,11 +92,13 @@ class test_literal : public raw_data<test_literal>
     void print(std::ostream& os) const
     {
         os << "test_literal[id=" << l_id << ", data={";
-        if(l_data.size() < 10) {
+        if(l_data.size() < 10)
+        {
             os << this;
         }
-        else {
-            os << " ... "; 
+        else
+        {
+            os << " ... ";
         }
         os << ", size=" << l_data.size() << "}";
     }

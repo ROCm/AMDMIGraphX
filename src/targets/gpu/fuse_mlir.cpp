@@ -468,7 +468,7 @@ struct find_mlir_fused_ops
         {
             reshapes_vec.push_back(reshaped_gemm);
             gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
-            reshaped_gemm = reshaped_gemm->inputs().at(0);
+            reshaped_gemm       = reshaped_gemm->inputs().at(0);
         }
         reshapes_vec.push_back(reshaped_gemm);
 

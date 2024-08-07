@@ -21,7 +21,7 @@ python3 -m venv sd_venv
 Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r torch_requirements.txt -r requirements.txt
 ```
 
 Use MIGraphX Python Module

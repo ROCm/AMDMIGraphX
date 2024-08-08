@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,10 +25,10 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/op/common.hpp>
 #include <migraphx/program.hpp>
-#include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
-
+#include <basic_ops.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 
@@ -66,6 +66,48 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
         {pm});
 }
 
+TEST_CASE(dot_reshapes_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s);
+        auto b   = mm->add_parameter("b", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+        auto dot_sq = mm->add_instruction(migraphx::make_op("squeeze"), dot_trans);
+        auto add    = add_pointwise(p1, "main:pointwise0", {dot_sq, x}, single_pointwise("add"));
+        mm->add_return({add});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm   = p2.get_main_module();
+        auto a     = mm->add_parameter("a", s);
+        auto b     = mm->add_parameter("b", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {3, 3}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot_trans = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+                auto dot_rsp = pm->add_instruction(migraphx::make_op("reshape", {{"dims", {3, 3}}}),
+                                                   dot_trans);
+                auto add     = pm->add_instruction(migraphx::make_op("add"), dot_rsp, inputs[0]);
+                return std::make_tuple(dot, add);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};
@@ -90,7 +132,7 @@ TEST_CASE(dot_add)
             add_mlir(p2,
                      "mlir_main:pointwise0",
                      {x, a, b},
-                     {"x1", "y0", "y1"},
+                     {"x2", "y0", "y1"},
                      [=](auto* pm, const auto& inputs) {
                          auto dot =
                              pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
@@ -98,6 +140,139 @@ TEST_CASE(dot_add)
                          return std::make_tuple(dot, add);
                      });
         mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(multi_use_dot_trans_add_pooling_sub)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 1, 4, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 1, 5, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto dot       = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot_trans = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot_trans, x}, single_pointwise("add"));
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {0, 0, 0, 1}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {2, 1}},
+                                                   {"lp_order", 2}}),
+                                add);
+        auto sub = add_pointwise(p1, "main:pointwise1", {dot, pooling}, single_pointwise("sub"));
+        mm->add_return({sub});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot_trans = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), dot);
+
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot_trans, inputs[0]);
+                return std::make_tuple(dot, std::vector<migraphx::instruction_ref>{dot, add});
+            });
+        auto fused_dot_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {0, 0, 0, 1}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {2, 1}},
+                                                   {"lp_order", 2}}),
+                                fused_dot_add);
+        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto sub = add_pointwise(p2, "main:pointwise1", {dot, pooling}, single_pointwise("sub"));
+        mm->add_return({sub});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_multi_use_trans_add_pooling_sub)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 5, 5}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+        auto dot_unsq =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 5, 4}}}), dot_trans);
+        auto add = add_pointwise(p1, "main:pointwise0", {dot_unsq, x}, single_pointwise("add"));
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {1, 0, 0, 0}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {2, 1}},
+                                                   {"lp_order", 2}}),
+                                add);
+        auto sub =
+            add_pointwise(p1, "main:pointwise1", {dot_unsq, pooling}, single_pointwise("sub"));
+        mm->add_return({sub});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}});
+        auto fused = add_mlir(
+            p2,
+            "mlir_main:pointwise0",
+            {x, a, b},
+            {"x2", "y0", "y1"},
+            [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                auto dot_trans = pm->add_instruction(
+                    migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+                auto dot_unsq = pm->add_instruction(
+                    migraphx::make_op("reshape", {{"dims", {1, 1, 5, 4}}}), dot_trans);
+                auto add = pm->add_instruction(migraphx::make_op("add"), dot_unsq, inputs[0]);
+                return std::make_tuple(dot, std::vector<migraphx::instruction_ref>{dot, add});
+            });
+        auto fused_dot_add =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto pooling =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::lpnorm},
+                                                   {"padding", {1, 0, 0, 0}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {2, 1}},
+                                                   {"lp_order", 2}}),
+                                fused_dot_add);
+        auto dot = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto dot_trans =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), dot);
+        auto dot_reshape =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 5, 4}}}), dot_trans);
+        auto sub =
+            add_pointwise(p2, "main:pointwise1", {dot_reshape, pooling}, single_pointwise("sub"));
+        mm->add_return({sub});
     }
     EXPECT(p1.sort() == p2.sort());
 }
@@ -124,7 +299,7 @@ TEST_CASE(add_dot)
         auto y   = mm->add_parameter("y", s);
         auto fused =
             add_mlir(p2,
-                     "main:pointwise0:mlir_dot1",
+                     "main:pointwise0:mlir_dot4",
                      {x, y, b},
                      {"x0", "x1", "x2"},
                      [=](auto* pm, const auto& inputs) {

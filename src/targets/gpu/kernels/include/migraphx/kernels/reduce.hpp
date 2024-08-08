@@ -29,6 +29,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
+#include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/pp.hpp>
 
 namespace migraphx {
@@ -142,6 +143,15 @@ __device__ void dpp_reduce(T& in, Op op)
     }
 #endif
 
+// Navi21 doesn't support int32 dpp
+#if defined(__gfx1030__)
+// NOLINTNEXTLINE
+#define MIGRAPHX_DPP_REDUCE(op, prefix, sign)              \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64); \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(float, op, prefix##_f32);  \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);   \
+    MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#else
 // NOLINTNEXTLINE
 #define MIGRAPHX_DPP_REDUCE(op, prefix, sign)                   \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(double, op, prefix##_f64);      \
@@ -149,6 +159,7 @@ __device__ void dpp_reduce(T& in, Op op)
     MIGRAPHX_DPP_REDUCE_ASM_FUN(half, op, prefix##_f16);        \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(int32_t, op, prefix##sign##32); \
     MIGRAPHX_DPP_REDUCE_ASM_FUN(uint32_t, op, prefix##_u32);
+#endif
 
 // Note: when max and min are in int32_t, signed version of instruction needs to be used.
 MIGRAPHX_DPP_REDUCE(op::sum, v_add, _u)
@@ -657,7 +668,7 @@ struct lane
         template <class Op, class T, class Read, class N, class U, class... Us>
         __device__ auto reduce_impl(Op op, T init, Read read, N n, U&& x, Us&&... xs) const
         {
-            using type = remove_reference_t<decltype(x(0, _c<0>))>;
+            using type = remove_reference_t<decltype(read(x(0, _c<0>), xs(0, _c<0>)...))>;
             type r     = type(init);
             for(index_int j = 0; j < n; j++)
             {
@@ -744,18 +755,23 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
 }
 
 template <class Algo, class Reduced, class Output, class Assign, class F>
-__device__ void fused_reduce(Output output, Assign assign, F f)
+__device__ void fused_reduce(Output output_pack, Assign assign, F f)
 {
     Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result = f(r, out_idx);
-        if constexpr(reduce::is_inner_storage<decltype(result)>{})
-        {
-            r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
-        }
-        else
-        {
-            r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
-        }
+        auto result_tuple = f(r, out_idx);
+        unpack_each(
+            [&](auto output, auto result) {
+                if constexpr(reduce::is_inner_storage<decltype(result)>{})
+                {
+                    r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+                }
+                else
+                {
+                    r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+                }
+            },
+            output_pack,
+            result_tuple);
     });
 }
 

@@ -78,6 +78,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_EXHAUSTIVE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNE_LIMIT);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_DB);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
 #ifdef MIGRAPHX_MLIR
 template <class T, class F, F f> // NOLINT
@@ -595,8 +596,11 @@ struct mlir_program
                             {"sym_name", sym_name},
                             {"kernel", std::string("mixr")},
                             {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+                            {"num_cu", num_cu}});
+        if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
+        {
+            ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+        }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
 
@@ -1020,7 +1024,15 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     auto co            = mp.compile(solution);
 
     co.expected_inputs = in_shapes;
-    co.output          = m.get_output_shapes().front();
+    auto out_shapes    = m.get_output_shapes();
+    if(out_shapes.size() == 1)
+    {
+        co.output = m.get_output_shapes().front();
+    }
+    else
+    {
+        co.output = shape{out_shapes};
+    }
     mlir_code_object mco;
     mco.cop                 = co;
     size_t num_prefill_args = mlirGetNumPrefillArgs(mp.mmodule.get());

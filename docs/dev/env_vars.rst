@@ -283,6 +283,11 @@ Enable input fusions in MLIR.
 Set to "1", "enable", "enabled", "yes", or "true" to use.
 Enable Split-k perf configs when tuning with MLIR.
 
+.. envvar:: MIGRAPHX_MLIR_DUMP_TO_MXR
+
+Set to path where MXRs will be saved.
+Dumps MLIRs module to mxr files.
+
 CK vars
 -----------
 

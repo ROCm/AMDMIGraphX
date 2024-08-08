@@ -127,43 +127,59 @@ struct pass
         migraphx::nop(private_detail_te_self, p);
     }
 
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                 private_detail_te_default_apply(char(0),
+                                                 std::declval<PrivateDetailTypeErasedT>(),
+                                                 std::declval<module_pass_manager&>()),
+                 private_detail_te_default_apply(
+                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<program&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
     public:
     // Constructors
     pass() = default;
 
     template <typename PrivateDetailTypeErasedT,
-              typename =
-                  decltype(std::declval<PrivateDetailTypeErasedT>().name(),
-                           private_detail_te_default_apply(char(0),
-                                                           std::declval<PrivateDetailTypeErasedT>(),
-                                                           std::declval<module_pass_manager&>()),
-                           private_detail_te_default_apply(char(0),
-                                                           std::declval<PrivateDetailTypeErasedT>(),
-                                                           std::declval<program&>()),
-                           void())>
-    pass(PrivateDetailTypeErasedT value)
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, pass>{}>::type>
+    pass(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
     template <typename PrivateDetailTypeErasedT,
-              typename =
-                  decltype(std::declval<PrivateDetailTypeErasedT>().name(),
-                           private_detail_te_default_apply(char(0),
-                                                           std::declval<PrivateDetailTypeErasedT>(),
-                                                           std::declval<module_pass_manager&>()),
-                           private_detail_te_default_apply(char(0),
-                                                           std::declval<PrivateDetailTypeErasedT>(),
-                                                           std::declval<program&>()),
-                           void())>
-    pass& operator=(PrivateDetailTypeErasedT value)
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, pass>{}>::type>
+    pass& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);

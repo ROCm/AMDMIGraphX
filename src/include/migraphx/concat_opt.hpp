@@ -71,35 +71,59 @@ struct MIGRAPHX_EXPORT concat_optimization
 struct concat_optimization
 {
     private:
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().name(),
+                 std::declval<PrivateDetailTypeErasedT>().allocate(),
+                 std::declval<PrivateDetailTypeErasedT>().get_concat(
+                     std::declval<const operation&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
     public:
     // Constructors
     concat_optimization() = default;
 
     template <typename PrivateDetailTypeErasedT,
-              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
-                                  std::declval<PrivateDetailTypeErasedT>().allocate(),
-                                  std::declval<PrivateDetailTypeErasedT>().get_concat(
-                                      std::declval<const operation&>()),
-                                  void())>
-    concat_optimization(PrivateDetailTypeErasedT value)
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>,
+                                   concat_optimization>{}>::type>
+    concat_optimization(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
     template <typename PrivateDetailTypeErasedT,
-              typename = decltype(std::declval<PrivateDetailTypeErasedT>().name(),
-                                  std::declval<PrivateDetailTypeErasedT>().allocate(),
-                                  std::declval<PrivateDetailTypeErasedT>().get_concat(
-                                      std::declval<const operation&>()),
-                                  void())>
-    concat_optimization& operator=(PrivateDetailTypeErasedT value)
+              typename = private_te_constraints<PrivateDetailTypeErasedT>,
+              typename = typename std::enable_if<
+                  not std::is_same<private_te_pure<PrivateDetailTypeErasedT>,
+                                   concat_optimization>{}>::type>
+    concat_optimization& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);

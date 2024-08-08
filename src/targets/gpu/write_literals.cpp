@@ -74,7 +74,7 @@ void write_literals::apply(module& m) const
     if(weight_streaming)
     {
         std::unordered_map<std::string, shape> params = m.get_parameter_shapes();
-        size_t param_size = 0;
+        size_t param_size                             = 0;
         for(auto&& p : params)
         {
             param_size += p.second.bytes();

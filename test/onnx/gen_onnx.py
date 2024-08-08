@@ -652,6 +652,19 @@ def binary_dyn_brcst_mul_fp8_test():
 
 
 @onnx_test()
+def bitwise_and_bcast_test():
+    x = helper.make_tensor_value_info('0', TensorProto.INT32, [2, 3, 4, 5])
+    y = helper.make_tensor_value_info('1', TensorProto.INT32, [4, 5])
+    z = helper.make_tensor_value_info('2', TensorProto.INT32, [2, 3, 4, 5])
+
+    node = onnx.helper.make_node('BitwiseAnd',
+                                 inputs=['0', '1'],
+                                 outputs=['2'])
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def div_fp8_test():
     arg0 = helper.make_tensor_value_info('0', TensorProto.FLOAT8E4M3FNUZ,
                                          [2, 3])
@@ -10524,6 +10537,56 @@ def sign_test():
     )
 
     return ([node], [x], [y])
+
+
+@onnx_test()
+def simplified_layer_normalization_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale'],
+        outputs=['y'],
+        axis=-1,
+        epsilon=1e-5,
+        stash_type=1,
+    )
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def simplified_layer_normalization_invalid_input_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale'],
+        outputs=['y'],
+    )
+
+    return ([node], [x, scale], [y])
+
+
+@onnx_test()
+def simplified_layer_normalization_invalid_n_args_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [2, 2, 4])
+    scale = helper.make_tensor_value_info('scale', TensorProto.FLOAT16, [4])
+    bias = helper.make_tensor_value_info('bias', TensorProto.FLOAT16,
+                                         [1, 2, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [2, 2, 4])
+
+    node = onnx.helper.make_node(
+        'SimplifiedLayerNormalization',
+        inputs=['x', 'scale', 'bias'],
+        outputs=['y'],
+    )
+
+    return ([node], [x, scale, bias], [y])
 
 
 @onnx_test()

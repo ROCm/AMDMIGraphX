@@ -40,7 +40,7 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     std::transform(einputs.begin(), einputs.end(), einputs.begin(), [](const shape& s) {
         return s.normalize_standard();
     });
-    if(einputs != flatten(inputs))
+    if(flatten(einputs) != flatten(inputs))
         MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
                        to_string_range(inputs) + "]");
     return output;

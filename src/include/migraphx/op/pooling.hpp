@@ -331,7 +331,7 @@ struct pooling
                 int end;
                 std::size_t dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
                 // NOLINT
-                if(count_include_pad and (mode != pooling_mode::max))
+                if(count_include_pad and mode == pooling_mode::average)
                 {
                     // Even when using padding, if in ceil_mode a window
                     // could extend beyond the end of both input and

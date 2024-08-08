@@ -198,6 +198,12 @@ void copy(Range&& r, Iterator it)
     std::copy(r.begin(), r.end(), it);
 }
 
+template <class Range, class Iterator, class Predicate>
+void copy_if(Range&& r, Iterator it, Predicate pred)
+{
+    std::copy_if(r.begin(), r.end(), it, pred);
+}
+
 template <class Range, class Iterator, class F>
 void transform(Range&& r, Iterator it, F f)
 {

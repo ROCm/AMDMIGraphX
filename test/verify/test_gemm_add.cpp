@@ -35,8 +35,8 @@ struct test_gemm_add : verify_program<test_gemm_add<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape m1_shape{DType, {1, 2, 1280}};
-        migraphx::shape m2_shape{DType, {1, 1280, 320}};
+        migraphx::shape m1_shape{DType, {1, 2, 1024}};
+        migraphx::shape m2_shape{DType, {1, 1024, 320}};
         migraphx::shape m3_shape{DType, {1, 2, 320}};
         auto l1 = mm->add_parameter("1", m1_shape);
         auto l2 = mm->add_parameter("2", m2_shape);

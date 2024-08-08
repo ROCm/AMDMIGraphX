@@ -73,7 +73,13 @@ void write_literals::apply(module& m) const
 
     if(weight_streaming)
     {
-        std::size_t bytes_on_gpu = 0;
+        std::unordered_map<std::string, shape> params = m.get_parameter_shapes();
+        size_t param_size = 0;
+        for(auto&& p : params)
+        {
+            param_size += p.second.bytes();
+        }
+
         size_t scratch_size      = 0;
         liveness(m, [&](auto ins, auto live_set) {
             if(ins->name() != "hip::allocate" or ins->get_shape().bytes() == 0)
@@ -97,20 +103,22 @@ void write_literals::apply(module& m) const
         });
 
         std::vector<instruction_ref> ins_list;
-        size_t size_of_literals = 0;
+        size_t literal_size = 0;
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@literal")
             {
                 ins_list.push_back(ins);
-                size_of_literals += ins->get_shape().bytes();
+                literal_size += ins->get_shape().bytes();
             }
         }
+
+        size_t bytes_on_gpu = param_size + scratch_size;
 
         long budget = max_memory;
         if(budget == LONG_MAX)
         {
-            budget = static_cast<long>(size_of_literals / 4);
+            budget = static_cast<long>(literal_size / 4);
         }
 
         size_t free_memory = 0;
@@ -120,7 +128,7 @@ void write_literals::apply(module& m) const
                   << "\n"
                   << "Streaming budget: " << budget << "\n"
                   << "Scratch size: " << scratch_size << "\n"
-                  << "Total size of literals: " << size_of_literals << "\n"
+                  << "Total size of literals: " << literal_size << "\n"
                   << "[Before] Free memory: " << free_memory << " Status: " << status << std::endl;
 
         // std::sort(ins_list.begin(),

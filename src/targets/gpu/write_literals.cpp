@@ -115,14 +115,14 @@ void write_literals::apply(module& m) const
 
         size_t bytes_on_gpu = param_size + scratch_size;
 
+        size_t free_memory = 0;
+        auto status        = hipMemGetInfo(&free_memory, nullptr);
+
         long budget = max_memory;
         if(budget == LONG_MAX)
         {
-            budget = static_cast<long>(literal_size / 4);
+            budget = free_memory - bytes_on_gpu;
         }
-
-        size_t free_memory = 0;
-        auto status        = hipMemGetInfo(&free_memory, nullptr);
 
         std::cout << "Using weight streaming..."
                   << "\n"

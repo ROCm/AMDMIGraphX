@@ -206,11 +206,11 @@ class RNNT_MGX():
     @torch.no_grad()
     def prediction(self, symbol, hidden):
         copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
-                            symbol.to(torch.int64))
+                            symbol)
         copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_1"],
-                            hidden[0].to(torch.float32))
+                            hidden[0])
         copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_2"],
-                            hidden[1].to(torch.float32))
+                            hidden[1])
         run_model_sync(self.models["rnnt_prediction"], self.model_args["rnnt_prediction"])
 
         g = self.tensors["rnnt_prediction"][get_output_name(0)]
@@ -281,46 +281,102 @@ def load_and_migrate_checkpoint(ckpt_path):
 
 class ScriptGreedyDecoder():
     def __init__(self, max_symbols_per_step=30):
-        self._alt_model = RNNT_MGX()
+        self._mi_model = RNNT_MGX()
         self._SOS = -1
         self._blank_id = 28
         self._max_symbols_per_step = max_symbols_per_step
 
+        mlcommons_inference_path = './inference/'
+        sys.path.insert(0, mlcommons_inference_path + 'retired_benchmarks/speech_recognition/rnnt/pytorch')
+        from model_separable_rnnt import RNNT
+        import toml 
+
+        config_toml = 'inference/retired_benchmarks/speech_recognition/rnnt/pytorch/configs/rnnt.toml'
+        config = toml.load(config_toml)
+
+        def add_blank_label(labels):
+            if not isinstance(labels, list):
+                raise ValueError("labels must be a list of symbols")
+            labels.append("<BLANK>")
+            return labels
+
+        dataset_vocab = config['labels']['labels']
+        rnnt_vocab = add_blank_label(dataset_vocab)
+        featurizer_config = config['input_eval']
+
+        self._model = RNNT(
+            feature_config=featurizer_config,
+            rnnt=config['rnnt'],
+            num_classes=len(rnnt_vocab)
+        )
+        self._model.load_state_dict(load_and_migrate_checkpoint('rnnt.pt'),
+                              strict=True)
+        self._model.to('cuda')
+        self._model.eval()
+
     def run(self, x: torch.Tensor, out_lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
-        logits, logits_lens = self._alt_model.encoder(x, out_lens)
+        logits, logits_lens = self._mi_model.encoder(x, out_lens)
 
         output: List[List[int]] = []
         for batch_idx in range(logits.size(0)):
             inseq = logits[batch_idx, :, :].unsqueeze(1).to('cuda')
-            # inseq: TxBxF
             logitlen = logits_lens[batch_idx]
+
             sentence = self._greedy_decode(inseq, logitlen)
             output.append(sentence)
 
         return logits, logits_lens, output
 
     def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor) -> List[int]:
+        hidden_mi: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+        label_mi: List[int] = []
+
         hidden: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
         label: List[int] = []
         for time_idx in range(int(out_len.item())):
             f = x[time_idx, :, :].unsqueeze(0).to('cuda')
 
+            not_blank_mi = True
             not_blank = True
             symbols_added = 0
 
-            while not_blank and symbols_added < self._max_symbols_per_step:
+            while not_blank and not_blank_mi and symbols_added < self._max_symbols_per_step:
                 
-                g, hidden_prime = self._pred_step(
-                    self._get_last_symb(label),
-                    hidden
+                g_mi, hidden_prime_mi = self._pred_step(
+                    self._get_last_symb(label_mi),
+                    hidden_mi,
+                    self._mi_model
                 )
 
-                logp = self._joint_step(f, g, log_normalize=False)[0, :]
+                g, hidden_prime = self._pred_step(
+                    self._get_last_symb(label),
+                    hidden,
+                    self._model
+                )
+
+                print(label, label_mi)
+                assert torch.allclose(g_mi, g, rtol=1e-03, atol=1e-03, equal_nan=False) 
+                assert torch.allclose(hidden_prime[0], hidden_prime_mi[0], rtol=1e-03, atol=1e-03, equal_nan=False) 
+                assert torch.allclose(hidden_prime[1], hidden_prime_mi[1], rtol=1e-03, atol=1e-03, equal_nan=False) 
+
+                logp_mi = self._joint_step(f, g_mi, self._mi_model, log_normalize=False)[0, :]
+                logp = self._joint_step(f, g, self._model, log_normalize=False)[0, :]
+
+                assert torch.allclose(logp, logp_mi, rtol=1e-03, atol=1e-03, equal_nan=False) 
+
+
+                # get index k, of max prob
+                v_mi, k_mi = logp_mi.max(0)
+                k_mi = k_mi.item()
+                if k_mi == self._blank_id:
+                    not_blank_mi = False
+                else:
+                    label_mi.append(k_mi)
+                    hidden_mi = hidden_prime_mi
 
                 # get index k, of max prob
                 v, k = logp.max(0)
                 k = k.item()
-
                 if k == self._blank_id:
                     not_blank = False
                 else:
@@ -328,10 +384,13 @@ class ScriptGreedyDecoder():
                     hidden = hidden_prime
 
                 symbols_added += 1
+            
+                if k != k_mi:
+                    print("erred", label, label_mi)
 
-        return label
+        return label_mi
 
-    def _pred_step(self, label: int, hidden: Optional[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def _pred_step(self, label: int, hidden: Optional[Tuple[torch.Tensor, torch.Tensor]], model) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if label == self._SOS:
             label = 0
 
@@ -340,13 +399,12 @@ class ScriptGreedyDecoder():
         if hidden is None:
             hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros([2, 1, 320]).to(device="cuda")
        
-        g, hidden = self._alt_model.prediction(label, hidden)
-
+        g, hidden = model.prediction(label, hidden)
         return g, hidden
 
 
-    def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, log_normalize: bool=False) -> torch.Tensor:
-        logits = self._alt_model.joint(enc, pred)[:, 0, 0, :]
+    def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, model, log_normalize: bool=False) -> torch.Tensor:
+        logits = model.joint(enc, pred)[:, 0, 0, :]
    
         if not log_normalize:
             return logits
@@ -364,6 +422,10 @@ if __name__ == "__main__":
 
     x = torch.load('feature.pt').to("cuda")
     out_lens = torch.load('feature_length.pt').to("cuda")
+
+    #seq_length, batch_size, feature_length = 157, 1, 240
+    #x = torch.randn((seq_length, batch_size, feature_length)).to(device="cuda")
+    #out_lens = torch.LongTensor([seq_length]).to(device="cuda")
 
     _, _, result = sd.run(x, out_lens)
 

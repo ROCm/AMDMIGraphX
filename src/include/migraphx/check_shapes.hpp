@@ -28,7 +28,6 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/program.hpp>
 #include <migraphx/config.hpp>
 #include <algorithm>
 

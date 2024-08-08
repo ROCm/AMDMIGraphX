@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,6 +58,7 @@ using uint64_t = std::uint64_t;
 #endif // MIGRAPHX_USE_HIPRTC
 using index_int = uint32_t;
 using diff_int  = int32_t;
+using uintptr_t = uint64_t;
 
 static_assert(sizeof(int8_t) == 1, "int8_t must be 1 bytes");
 static_assert(sizeof(uint8_t) == 1, "uint8_t must be 1 bytes");

@@ -495,7 +495,7 @@ struct find_mlir_fused_ops
                 pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
             // move all the reshape instructions and original GEMM instruction after the fused op to
             // avoid generating invalid migraphx program
-            for(const auto orig_i : reverse(reshapes_vec))
+            for(const auto& orig_i : reverse(reshapes_vec))
             {
                 mpm.get_module().move_instruction(orig_i, pw_ins);
             }

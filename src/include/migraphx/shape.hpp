@@ -433,7 +433,6 @@ struct MIGRAPHX_EXPORT shape
 
 // "Almost identical" shapes.  To support an MLIR feature, there is a limited
 // case where shapes may both be standard but have non-identical strides.
-// #ifndef NDEBUG
 static bool inline is_compatible_shape(const shape& actual, const shape& expected)
 {
     // Check subshapes
@@ -455,7 +454,6 @@ static bool inline is_compatible_shape(const shape& actual, const shape& expecte
         return actual.lens() == expected.lens();
     return false;
 }
-// #endif
 
 /// Flatten subshapes to a single vector of non-tuple type of shapes
 MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);

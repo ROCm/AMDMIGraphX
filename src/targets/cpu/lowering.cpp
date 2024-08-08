@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -397,6 +397,10 @@ struct cpu_apply
             {
                 apply_pooling(it);
             }
+            else if(it->name() == "reshape")
+            {
+                apply_reshape(it);
+            }
             else if(apply_map.count(it->name()) > 0)
             {
                 apply_map.at(it->name())(it);
@@ -415,14 +419,48 @@ struct cpu_apply
                        {ins->inputs().front()});
     }
 
+    // TODO:  update lowering to run the reference
+    // code when OneDNN can't execute pooling for a CPU
+
+    // OneDNN has a limitation on padding size for pooling.  see
+    // https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#doxid-dev-guide-convolution
+
+    // padding = {2}; stride = {1}; lengths = {3} succeeds in oneDNN but
+    // padding = {2}; stride = {1}; lengths = {2} fails.
+    // Also, the referenced documentation contains a max. dimension size of 14 for the kernel
+    // ("weights tensor") that MIGraphX doesn't enforce.
     instruction_ref apply_pooling(instruction_ref ins) const
     {
         auto&& op = ins->get_operator();
         auto v    = op.to_value();
         if(has_op("dnnl::pooling") and ins->get_shape().type() == shape::type_t::float_type and
-           not v["ceil_mode"].to<bool>())
+           not v["ceil_mode"].to<bool>() and
+           v["mode"].to<op::pooling_mode>() != op::pooling_mode::lpnorm)
             return replace(ins, make_op("dnnl::pooling", op.to_value()));
         return ins;
+    }
+    /*
+    Lowers reshape copy operator to reshape lazy by inserting contiguous operators around it.
+    Contiguous ops will later by removed by eliminate_contiguous pass.
+    */
+    instruction_ref apply_reshape(instruction_ref ins) const
+    {
+        std::vector<instruction_ref> before_contiguous_args = ins->inputs();
+        auto before_alloc =
+            insert_allocation(ins, before_contiguous_args.front()->get_shape().as_standard());
+        before_contiguous_args.push_back(before_alloc);
+        auto before_contig =
+            modl->insert_instruction(ins, make_op("dnnl::reorder"), {before_contiguous_args});
+
+        auto new_lazy_reshape = modl->insert_instruction(
+            ins,
+            make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
+            before_contig);
+
+        std::vector<instruction_ref> after_contiguous_args = {new_lazy_reshape};
+        auto after_alloc = insert_allocation(new_lazy_reshape, new_lazy_reshape->get_shape());
+        after_contiguous_args.push_back(after_alloc);
+        return modl->replace_instruction(ins, make_op("dnnl::reorder"), after_contiguous_args);
     }
 
     template <class T>

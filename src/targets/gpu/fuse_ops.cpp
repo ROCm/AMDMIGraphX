@@ -42,7 +42,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_FUSION)
-
+#if MIGRAPHX_USE_MIOPEN
 struct fusion
 {
     using op_t = miopenFusionOpDescriptor_t;
@@ -162,14 +162,15 @@ struct fusion
         return y;
     }
 };
+#endif
 
 const std::unordered_set<std::string>& get_supported_archs()
 {
     static std::unordered_set<std::string> supported_archs{
-        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940", "gfx941", "gfx942"};
+        "gfx900", "gfx906", "gfx908", "gfx1030", "gfx940"};
     return supported_archs;
 }
-
+#if MIGRAPHX_USE_MIOPEN
 MIGRAPHX_PRED_MATCHER(bias_shape, instruction_ref ins)
 {
     auto&& s = ins->get_shape();
@@ -210,6 +211,7 @@ MIGRAPHX_PRED_MATCHER(fusable_conv, instruction_ref ins)
     return contains({{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}}, conv_op.padding) and
            contains({{0, 0}, {1, 1}}, conv_op.stride) and contains({{1, 1}}, conv_op.dilation);
 }
+#endif
 
 void move_broadcasted_back(std::vector<instruction_ref>& args)
 {
@@ -234,6 +236,7 @@ void move_standard_front(std::vector<instruction_ref>& args)
 auto gpu_name(const std::string& s) { return match::name("gpu::" + s); }
 
 namespace {
+#if MIGRAPHX_USE_MIOPEN
 struct miopen_fusion
 {
     struct fuse_op_data
@@ -473,6 +476,7 @@ void apply_conv_bias(context& ctx, module& m, const match::matcher_result& r)
     (void)ws;
     m.replace_instruction(ins, cb, input_ins, weights_ins, old_ws_ins, bias_ins, alloc_ins);
 }
+#endif
 
 template <class... Strings>
 inline auto precompile_name(Strings... names) // NOLINT
@@ -485,13 +489,14 @@ inline auto precompile_name(Strings... names) // NOLINT
     });
 }
 
+#if MIGRAPHX_USE_MIOPEN
 struct find_conv_bias
 {
     context* ctx = nullptr;
     auto matcher() const
     {
-        return conv_bias(match::none_of(
-            match::output(match::name(std::unordered_set<std::string>{"gpu::relu"}))));
+        auto relu = match::name(std::unordered_set<std::string>{"gpu::relu"});
+        return conv_bias(match::none_of(match::output(relu)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -510,7 +515,6 @@ struct find_conv_bias_relu
         apply_conv_bias<miopen_conv_bias_relu>(*ctx, m, r);
     }
 };
-
 struct find_conv_pointwise
 {
     context* ctx = nullptr;
@@ -549,6 +553,7 @@ struct find_conv_pointwise
         m.replace_instruction(ins, op, inputs);
     }
 };
+#endif
 
 #if MIGRAPHX_USE_ROCBLAS
 struct find_gemm_pointwise
@@ -892,8 +897,10 @@ void fuse_ops::apply(module& m) const
 {
     match::find_matches(m, find_pointwise_layout_contiguous{}, find_contiguous_layout_pointwise{});
     run_passes(m, {dead_code_elimination{}});
+#if MIGRAPHX_USE_MIOPEN
     match::find_matches(m, find_conv_pointwise{ctx}, find_conv_bias_relu{ctx}, find_conv_bias{ctx});
     run_passes(m, {dead_code_elimination{}});
+#endif
     match::find_matches(m,
 #if MIGRAPHX_USE_ROCBLAS
                         find_gemm_pointwise{},

@@ -5,7 +5,7 @@ To use MIGraphX, you can install the binaries or build from source code. Refer t
 for Ubuntu installation instructions (we'll provide instructions for other Linux distributions in the future).
 
 > [!NOTE] 
-> You must [install ROCm](https://rocm.docs.amd.com/en/latest/deploy/linux/quick_start.html) before
+> You must [install ROCm](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/index.html) before
 > installing MIGraphX.
 
 ## Installing from binaries
@@ -188,7 +188,7 @@ Where `myApp` is the CMake target in your project.
 Using `rbuild`, you can install the dependencies for development with:
 
 ```bash
-rbuild develop
+rbuild develop -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
 ```
 
 This installs development dependencies in the `deps` directory and configures `cmake` to use those

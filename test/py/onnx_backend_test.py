@@ -143,7 +143,6 @@ def disabled_tests_onnx_1_7_0(backend_test):
     backend_test.exclude(r'test_resize_upsample_sizes_cubic_cpu')
     backend_test.exclude(r'test_reversesequence_batch_cpu')
     backend_test.exclude(r'test_reversesequence_time_cpu')
-    backend_test.exclude(r'test_scan9_sum_cpu')
     backend_test.exclude(r'test_scan_sum_cpu')
     backend_test.exclude(r'test_slice_cpu')
     backend_test.exclude(r'test_slice_end_out_of_bounds_cpu')
@@ -372,14 +371,7 @@ def disabled_tests_onnx_1_10_0(backend_test):
 def disabled_tests_onnx_1_11_0(backend_test):
     # errors
     # from OnnxBackendNodeModelTest
-    backend_test.exclude(r'test_gridsample_aligncorners_true_cpu')
     backend_test.exclude(r'test_gridsample_bicubic_cpu')
-    backend_test.exclude(r'test_gridsample_bilinear_cpu')
-    backend_test.exclude(r'test_gridsample_border_padding_cpu')
-    backend_test.exclude(r'test_gridsample_cpu')
-    backend_test.exclude(r'test_gridsample_nearest_cpu')
-    backend_test.exclude(r'test_gridsample_reflection_padding_cpu')
-    backend_test.exclude(r'test_gridsample_zeros_padding_cpu')
     backend_test.exclude(r'test_identity_opt_cpu')
     backend_test.exclude(r'test_if_opt_cpu')
     backend_test.exclude(r'test_loop16_seq_none_cpu')
@@ -878,6 +870,7 @@ def create_backend_test(testname=None, target_device=None):
         backend_test.include(r'.*test_lrn.*')
         backend_test.include(r'.*test_lstm.*')
         backend_test.include(r'.*test_log.*')
+        backend_test.include(r'.*test_log2.*')
         backend_test.include(r'.*test_loop.*')
         backend_test.include(r'.*test_lpnorm.*')
         backend_test.include(r'.*test_lppool.*')

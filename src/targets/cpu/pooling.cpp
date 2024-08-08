@@ -38,11 +38,23 @@ struct dnnl_pooling : dnnl_extend_op<dnnl_pooling, dnnl::pooling_v2_forward, op:
 {
     std::vector<int> arg_map(int) const { return {MIGRAPHX_DNNL_PREFIX(ARG_SRC)}; }
 
+    dnnl::algorithm get_algo() const
+    {
+        switch(op.mode)
+        {
+        case op::pooling_mode::max: return dnnl::algorithm::pooling_max;
+        case op::pooling_mode::average:
+            return op.count_include_pad ? dnnl::algorithm::pooling_avg_include_padding
+                                        : dnnl::algorithm::pooling_avg_exclude_padding;
+        case op::pooling_mode::lpnorm: MIGRAPHX_THROW("Lpnorn pooling mode not supported");
+        }
+        MIGRAPHX_THROW("Unknown pooling mode");
+    }
+
     dnnl::pooling_v2_forward::desc
     get_desc(const std::unordered_map<int, dnnl::memory::desc>& m) const
     {
-        auto algo  = op.mode == op::pooling_mode::max ? dnnl::algorithm::pooling_max
-                                                      : dnnl::algorithm::pooling_avg;
+        auto algo  = get_algo();
         auto kdims = op.kdims();
         std::vector<size_t> padding_l(op.padding.begin(), op.padding.begin() + kdims);
         std::vector<size_t> padding_r(op.padding.begin() + kdims, op.padding.end());

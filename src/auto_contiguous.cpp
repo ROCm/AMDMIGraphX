@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -58,7 +59,7 @@ void auto_contiguous::apply(module& m) const
     auto last = std::prev(m.end());
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "layout")
+        if(contains({"layout", "@return"}, ins->name()))
             continue;
         // for last instruction that is NOT a return
         if(ins->outputs().empty() and ins != last)

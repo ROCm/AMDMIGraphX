@@ -21,13 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
--f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.0/
-torch==2.1.1
+--extra-index-url https://test.pypi.org/simple
 accelerate
 diffusers
 transformers
 huggingface_hub[cli]
 onnx
-
---extra-index-url https://test.pypi.org/simple
 hip-python
+
+

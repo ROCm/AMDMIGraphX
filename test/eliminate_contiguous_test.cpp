@@ -184,6 +184,38 @@ TEST_CASE(standard_flatten_op)
     EXPECT(std::distance(m.begin(), m.end()) == (count - 1));
 }
 
+TEST_CASE(transpose_contiguous_reshape_add)
+{
+
+    migraphx::shape s1{migraphx::shape::float_type, {2, 10}};
+    migraphx::shape s2{migraphx::shape::float_type, {5, 4}};
+    migraphx::program p1;
+    auto* m1 = p1.get_main_module();
+    {
+        auto x  = m1->add_parameter("x", s1);
+        auto y  = m1->add_parameter("y", s2);
+        auto xt = m1->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto xc = m1->add_instruction(migraphx::make_op("contiguous"), xt);
+        auto br = m1->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {10, 2}}}), y);
+        auto bc = m1->add_instruction(migraphx::make_op("contiguous"), br);
+        m1->add_instruction(sum_std_op{}, xc, bc);
+    }
+    auto count = std::distance(m1->begin(), m1->end());
+    run_pass(*m1);
+    EXPECT(std::distance(m1->begin(), m1->end()) == (count - 1));
+    migraphx::program p2;
+    auto* m2 = p2.get_main_module();
+    {
+        auto x  = m2->add_parameter("x", s1);
+        auto y  = m2->add_parameter("y", s2);
+        auto xt = m2->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto xc = m2->add_instruction(migraphx::make_op("contiguous"), xt);
+        auto br = m2->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {10, 2}}}), y);
+        m2->add_instruction(sum_std_op{}, xc, br);
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(contiguous_pointwise)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 8, 8}};

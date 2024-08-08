@@ -95,6 +95,9 @@ int main(int argc, const char* argv[])
             "test_block_reduce_small<67, migraphx::shape::int8_type>",
             "test_block_reduce_small<128, migraphx::shape::int8_type>",
             "test_block_reduce_small<129, migraphx::shape::int8_type>",
+            // disabled because CPU does eliminate_data_type to float for everything
+            "test_bitwise_and<migraphx::shape::int32_type>",
+            "test_bitwise_and<migraphx::shape::uint8_type>",
     });
     rv.disable_test_for("gpu",
                         {// These passes on MI300 but fails on others, same issue as CPU.

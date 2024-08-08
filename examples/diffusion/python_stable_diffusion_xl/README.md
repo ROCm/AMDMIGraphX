@@ -18,9 +18,7 @@ Install dependencies
 
 ```bash
 pip install -U pip
-pip install -r requirements.txt
-# hip-python needs to be installed separately to not conflict with test packages
-pip install -i https://test.pypi.org/simple hip-python
+pip install -r torch_requirements.txt -r requirements.txt
 ```
 
 Use MIGraphX Python Module

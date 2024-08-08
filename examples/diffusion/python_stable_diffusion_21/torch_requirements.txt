@@ -21,4 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-gradio
+--index-url https://download.pytorch.org/whl/rocm6.1/
+torch
+

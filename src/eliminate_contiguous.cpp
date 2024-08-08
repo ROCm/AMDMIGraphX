@@ -132,9 +132,7 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         if(not f(ins))
             continue;
 
-        // Make a copy so we can modify it while we iterate
         auto args     = ins->inputs();
-        auto new_args = args;
         auto mod_args = ins->module_inputs();
 
         for(auto arg : ins->inputs())
@@ -147,6 +145,8 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
                 m.debug_print(ins);
             }
             auto prev = arg->inputs().front();
+            // create copy of args each time as they are modified inside the loop
+            auto new_args = ins->inputs();
             replace(new_args, arg, prev);
             if(try_compute_shape(ins, new_args, mod_args))
             {

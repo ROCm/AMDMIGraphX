@@ -241,9 +241,9 @@ struct check_shapes
     const check_shapes& compatible_layout() const
     {
         if(begin != end and this->any_of([&](const shape& s) {
-            return not migraphx::is_compatible_shape(s, *begin) and
-                   find_permutation(s) != find_permutation(*begin);
-        }))
+               return not migraphx::is_compatible_shape(s, *begin) and
+                      find_permutation(s) != find_permutation(*begin);
+           }))
             MIGRAPHX_THROW(prefix() + "Layouts do not match");
         return *this;
     }

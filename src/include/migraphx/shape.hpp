@@ -431,7 +431,6 @@ struct MIGRAPHX_EXPORT shape
     std::shared_ptr<const shape_impl> impl;
 };
 
-
 // "Almost identical" shapes.  To support an MLIR feature, there is a limited
 // case where shapes may both be standard but have non-identical strides.
 // #ifndef NDEBUG

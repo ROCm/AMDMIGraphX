@@ -251,9 +251,8 @@ struct check_shapes
     const check_shapes& same_layout() const
     {
 
-       if(not same_compatible())
+        if(not same_compatible())
             MIGRAPHX_THROW(prefix() + "Layouts do not match");
-
 
         // if(not this->same_compatible([](const shape& s) { return find_permutation(s); }))
         //     MIGRAPHX_THROW(prefix() + "Layouts do not match");
@@ -389,8 +388,10 @@ struct check_shapes
     {
         if(begin == end)
             return true;
-        return this->all_of([&](const shape& s) { return migraphx::is_compatible_shape(s, *begin)
-        or   find_permutation(s) == find_permutation(*begin) ; });
+        return this->all_of([&](const shape& s) {
+            return migraphx::is_compatible_shape(s, *begin) or
+                   find_permutation(s) == find_permutation(*begin);
+        });
     }
 
     template <class Predicate>

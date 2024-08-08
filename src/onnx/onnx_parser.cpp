@@ -300,7 +300,7 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-void print_added_instructions(module* mod,
+void print_added_instructions(const module* mod,
                               const std::vector<instruction_ref>& args,
                               const std::vector<instruction_ref>& result)
 {

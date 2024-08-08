@@ -80,7 +80,7 @@ void write_literals::apply(module& m) const
             param_size += p.second.bytes();
         }
 
-        size_t scratch_size      = 0;
+        size_t scratch_size = 0;
         liveness(m, [&](auto ins, auto live_set) {
             if(ins->name() != "hip::allocate" or ins->get_shape().bytes() == 0)
             {

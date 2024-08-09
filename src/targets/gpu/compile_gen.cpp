@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/prepare_reduce.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/shape.hpp>
@@ -36,6 +37,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/array.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
@@ -175,6 +177,22 @@ static std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
     return (x + y - std::size_t{1}) / y;
 }
 
+static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
+{
+    std::size_t n = 1;
+    auto factors  = make_array(2, 3, 5, 7, 11);
+    while(n < max_size)
+    {
+        // NOLINTNEXTLINE(readability-qualified-auto)
+        auto it = std::find_if(factors.begin(), factors.end(), [&](auto d) { return r % d == 0; });
+        if(it == factors.end())
+            break;
+        r /= *it;
+        n *= *it;
+    }
+    return n;
+}
+
 tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
 {
     tile result;
@@ -183,7 +201,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     std::transform(inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
     result.axis = std::accumulate(faxes.begin(), faxes.end(), ndim, MIGRAPHX_LIFT(std::min));
     if (result.axis >= (ndim - 1))
-        return result;
+        return tile{};
     auto select = [&](auto m) {
         return [&, m](std::size_t faxis) {
             if(faxis < (ndim - 1))
@@ -195,14 +213,30 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     std::transform(faxes.begin(), faxes.end()-noutputs, std::back_inserter(result.args), select(load));
     std::transform(faxes.end()-noutputs, faxes.end(), std::back_inserter(result.args), select(store));
 
-    result.ntiles = transform_accumulate(inputs.begin(), inputs.end(), std::size_t{0}, MIGRAPHX_LIFT(std::max), [&](const shape& s) {
-        return std::accumulate(s.lens().begin(), s.lens().begin()+result.axis+1, std::size_t{1}, std::multiplies<>{});
-    });
+    const auto& s = inputs.front();
+    auto dim1 = compute_tile_factor(s.lens()[result.axis]);
+    auto dim2 = compute_tile_factor(s.lens().back(), 256);
+    if(dim1 == 1 or dim2 == 1)
+        return tile{};
+    
+    auto inner_lens = s.lens();
+    std::fill(inner_lens.begin(), inner_lens.end(), 1);
+    inner_lens[result.axis] = dim1;
+    inner_lens.back() = dim2;
+    result.inner = shape{s.type(), inner_lens, s.strides()};
 
-    auto max_tile_size = transform_accumulate(inputs.begin(), inputs.end(), std::size_t{0}, MIGRAPHX_LIFT(std::max), [&](const shape& s) {
-        return std::accumulate(s.lens().begin()+result.axis+1, s.lens().end(), std::size_t{1}, std::multiplies<>{});
-    });
-    result.block_size = std::min<std::size_t>(256, integer_divide_ceil(max_tile_size / 4, 64) * 64);
+    auto outer_lens = s.lens();
+    auto outer_strides = s.strides();
+    outer_lens[result.axis] /= dim1;
+    outer_strides[result.axis] *= dim1;
+    outer_lens.back() /= dim2;
+    outer_strides.back() *= dim2;
+    result.outer = shape{s.type(), outer_lens, outer_strides};
+
+    auto tile_size = result.inner.elements();
+    result.ntiles = result.outer.elements();
+
+    result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
     return result;
 }
 
@@ -220,7 +254,8 @@ std::string tile::str() const
         }
         MIGRAPHX_THROW("Invalid mode");
     });
-    return "auto_tile<" + std::to_string(axis) + ", " + join_strings(strs, ", ") + ">()";
+    const std::string auto_tile = "auto_tile<${modes}>(${inner}, ${outer})";
+    return interpolate_string(auto_tile, {{"modes", join_strings(strs, ", ")}, {"inner", generate_make_shape(inner)}, {"outer", generate_make_shape(outer)}});
 }
 
 std::size_t find_fast_axis(const shape& input)

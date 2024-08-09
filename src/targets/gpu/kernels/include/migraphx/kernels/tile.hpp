@@ -16,59 +16,30 @@ struct tile
     };
     struct none{};
 
-    static constexpr auto outer()
+    template<class T, class InnerLens, class OuterLens>
+    static constexpr auto slice(T x, index_int group, InnerLens, OuterLens)
     {
-        return [](auto axis, auto a) {
-            return transform_i(a, [=](auto x, auto i) {
-                if constexpr(i <= axis)
-                    return x;
-                else
-                    return 1;
-            });
-        };
+        constexpr auto outer_strides = transform_i(x.get_shape().strides, [&](auto stride, auto i) {
+            constexpr auto inner_lens = InnerLens{};
+            constexpr auto outer_lens = OuterLens{};
+            if (inner_lens[i] == outer_lens[i])
+                return stride;
+            return stride * inner_lens[i];
+        });
+        constexpr auto is = make_shape(InnerLens{}, x.get_shape().strides);
+        constexpr auto os = make_shape(OuterLens{}, outer_strides);
+        auto offset = os.index(group);
+        return make_tensor_view(x.data() + offset, is);
     }
 
-    static constexpr auto inner()
-    {
-        return [](auto axis, auto a) {
-            return transform_i(a, [=](auto x, auto i) {
-                if constexpr(i > axis)
-                    return x;
-                else
-                    return 1;
-            });
-        };
-    }
-
-    template <index_int Axis, class Select, class Shape>
-    static constexpr auto slice(Select select, Shape)
-    {
-        constexpr Shape s{};
-        return make_shape(select(_c<Axis>, s.lens), select(_c<Axis>, s.strides));
-    }
-
-    template <index_int Axis, class T>
-    static constexpr auto slice_tensor(index_int i, T x)
-    {
-        constexpr auto s = get_shape_c<T>{};
-        auto offset      = slice<Axis>(outer(), s).index(i);
-        return make_tensor_view(x.data() + offset, slice<Axis>(inner(), s));
-    }
-
-    template <index_int Axis, class T, class... Ts>
-    static constexpr auto get_size(T, Ts...)
-    {
-        // TODO: Assert all slices are the same size
-        constexpr auto size = slice<Axis>(outer(), get_shape_c<T>{}).elements();
-        return size;
-    }
-
-    template <index_int Axis>
+    template <class InnerShape, class OuterShape>
     static __device__ auto auto_slice(index idx)
     {
         return make_transform([=](auto f, auto... xs) {
-            idx.group_stride(get_size<Axis>(xs...),
-                             [=](auto group) { f(slice_tensor<Axis>(group, xs)...); });
+            idx.group_stride(OuterShape{}.elements(),
+                             [=](auto group) {
+                                f(slice(xs, group, InnerShape{}.lens, OuterShape{}.lens)...); 
+                            });
         });
     }
 };
@@ -86,8 +57,8 @@ __device__ auto tile_stride(index idx)
     }
 }
 
-template <index_int Axis, class... Mode>
-__device__ auto auto_tile()
+template <class... Mode, class InnerShape, class OuterShape>
+__device__ auto auto_tile(InnerShape, OuterShape)
 {
     if constexpr((is_same<Mode, tile::none>{} and ...))
     {
@@ -96,7 +67,7 @@ __device__ auto auto_tile()
     else
     {
         auto idx = make_index();
-        return transform_args(tile::auto_slice<Axis>(idx),
+        return transform_args(tile::auto_slice<InnerShape, OuterShape>(idx),
                               auto_prestore<is_same<Mode, tile::store>{}...>(idx),
                               auto_preload<is_same<Mode, tile::load>{}...>(idx));
     }

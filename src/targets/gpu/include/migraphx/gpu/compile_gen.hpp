@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module_ref.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -73,6 +74,8 @@ struct tile
     std::size_t axis = 0;
     std::size_t ntiles = 0;
     std::size_t block_size = 0;
+    shape inner{};
+    shape outer{};
     static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
     // bool is_preloading() const;
     std::string str() const;

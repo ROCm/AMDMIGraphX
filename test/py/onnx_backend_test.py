@@ -632,7 +632,7 @@ def disabled_tests_int4(backend_test):
     backend_test.exclude(r'test_cast_UINT4_to_FLOAT')
     backend_test.exclude(r'test_cast_UINT4_to_FLOAT16')
     backend_test.exclude(r'test_cast_UINT4_to_INT8')
-    backend_test.exclude(r'test_UINT4_to_UINT8_cpu')
+    backend_test.exclude(r'test_cast_UINT4_to_UINT8_cpu')
 
 def disabled_tests_float8(backend_test):
     # e4m3fn (Prototensor data type 17 not supported)

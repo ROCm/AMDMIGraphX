@@ -202,7 +202,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
     result.axis = std::accumulate(faxes.begin(), faxes.end(), ndim, MIGRAPHX_LIFT(std::min));
     if(result.axis >= (ndim - 1))
-        return tile{};
+        return {};
     auto select = [&](auto m) {
         return [&, m](std::size_t faxis) {
             if(faxis < (ndim - 1))
@@ -216,11 +216,16 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     std::transform(
         faxes.end() - noutputs, faxes.end(), std::back_inserter(result.args), select(store));
 
+    auto nargs = std::count_if(result.args.begin(), result.args.end(), [](auto m) { return m != mode::none; });
+    // TODO: Handle tiling more than one arguments
+    if(nargs != 1)
+        return {};
+
     const auto& s = inputs.front();
     auto dim1     = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2     = compute_tile_factor(s.lens().back(), 256);
+    auto dim2     = compute_tile_factor(s.lens().back(), 16384/dim1);
     if(dim1 == 1 or dim2 == 1)
-        return tile{};
+        return {};
 
     auto inner_lens = s.lens();
     std::fill(inner_lens.begin(), inner_lens.end(), 1);
@@ -238,6 +243,8 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
 
     auto tile_size = result.inner.elements();
     result.ntiles  = result.outer.elements();
+    if(tile_size > 16384)
+        return {};
 
     result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
     return result;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,35 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
-#define MIGRAPHX_GUARD_RTGLIB_QUANTIZATION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT4_HPP
+#define MIGRAPHX_GUARD_RTGLIB_QUANTIZE_INT4_HPP
 
 #include <string>
 #include <vector>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/operation.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/env.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct program;
+struct module;
 
-MIGRAPHX_EXPORT void quantize_fp16(program& prog,
-                                   const std::vector<std::string>& ins_names = {"all"});
-
-MIGRAPHX_EXPORT void quantize_int8(program& prog,
-                                   const target& t,
-                                   const std::vector<parameter_map>& calibration,
-                                   const std::unordered_set<std::string>& ins_names = {
-                                       "dot", "convolution"});
-MIGRAPHX_EXPORT void
-quantize_fp8(program& prog, const target& t, const std::vector<parameter_map>& calibration);
-
-MIGRAPHX_EXPORT void quantize_int4(program& prog);
+/**
+ * quantize a program to int4
+ */
+struct MIGRAPHX_EXPORT quantize_int4_pass
+{
+    std::vector<std::string> ins_names;
+    std::string name() const { return "quantize_int4"; }
+    void apply(module& m) const;
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

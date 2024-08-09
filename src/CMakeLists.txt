@@ -90,6 +90,7 @@ add_library(migraphx
     promote_literals.cpp
     quantization.cpp
     quantize_fp16.cpp
+    quantize_int4.cpp
     quantize_8bits.cpp
     reduce_dims.cpp
     register_op.cpp

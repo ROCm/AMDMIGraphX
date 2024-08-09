@@ -81,5 +81,5 @@ rbuild prepare -d $PREFIX -s develop
 
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-pip3 install -r $REQ_FILE_DIR/requirements.txt
+pip3 install -r $REQ_FILE_DIR/requirements-py.txt
 fi

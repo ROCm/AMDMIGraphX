@@ -170,6 +170,7 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
+    glu
     greater
     gru
     identity

@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/op/common.hpp>
 
@@ -48,7 +49,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void pooling_kernel(void* in_data, void* output)
 {
     transform_args(make_tensors(), rotate_last())(in_data, output)([](auto&&... xs) {
-        pooling<${count_include_pad}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
+        pooling<${count_include_pad}, ${groups}>(${op}, make_window(index_ints<${window}>{}, index_ints<${stride}>{}, index_ints<${padding}>{}), xs...);
     });
 }
 
@@ -62,11 +63,20 @@ struct pooling_compiler : compiler<pooling_compiler>
 {
     std::vector<std::string> names() const { return {"pooling"}; }
 
+    static std::size_t compute_group_size(const shape& output)
+    {
+        auto n                           = output.lens().back();
+        const std::size_t max_group_size = 32;
+        std::size_t group_size           = 1;
+        while((n % (group_size * 2) == 0) and group_size <= max_group_size)
+            group_size *= 2;
+        return group_size;
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+        const auto& out_s      = inputs.back();
         options.inputs         = inputs;
         options.output         = out_s;
         options.kernel_name    = "pooling_kernel";
@@ -105,9 +115,15 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         std::string count_include_pad = v.get("count_include_pad", false) ? "true" : "false";
 
+        bool overlap_window =
+            not migraphx::equal(stride, window, [](auto s, auto w) { return s >= w; });
+        std::size_t groups = overlap_window ? compute_group_size(inputs.back()) : 1;
+
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements() / groups, 256), 256);
         auto src = interpolate_string(pooling_kernel,
                                       {{"count_include_pad", count_include_pad},
                                        {"op", op + "{}"},
+                                       {"groups", to_string(groups)},
                                        {"window", to_string_range(window)},
                                        {"stride", to_string_range(stride)},
                                        {"padding", to_string_range(padding)}});

@@ -33,8 +33,7 @@ struct test_layout : verify_program<test_layout>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        // migraphx::shape s{migraphx::shape::float_type, {1, 320, 128, 128}};
-        migraphx::shape s{migraphx::shape::float_type, {1, 2, 2, 2}};
+        migraphx::shape s{migraphx::shape::float_type, {1, 320, 128, 128}};
         auto x    = mm->add_parameter("x", s);
         auto layout = mm->add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), x);
         mm->add_return({layout});

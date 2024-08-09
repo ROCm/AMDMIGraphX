@@ -79,8 +79,7 @@ struct pad
             {
                 rdims[i] += pads[i] + pads[i + num_dims];
             }
-            shape s{s0.type(), rdims};
-            return s;
+            return s0.with_lens(rdims);
         }
     }
 

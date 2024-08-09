@@ -32,5 +32,7 @@ This will do three things:
 - Run the MIGraphX model 
 
 Transcript: mister quilter is the apostle of the middle classes and we are glad to welcome his gospel 
+
 PyTorch Output: mister quilter is the apostle of the middle classes and we are glad to welcome his gospel
+
 MIGX Output: miso quter is the aposile o the midle clases an we arad to welcome his gospel

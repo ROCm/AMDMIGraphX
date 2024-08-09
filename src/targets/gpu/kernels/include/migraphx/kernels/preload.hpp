@@ -165,11 +165,11 @@ __device__ auto preload_copy(index idx, T x)
         if constexpr(B)
         {
             using type          = typename T::type;
-            constexpr auto size = get_shape_c<T>{}.element_space();
+            constexpr auto size = get_shape_c<T>{}.elements();
             __shared__ type buffer[size];
-            auto b = x.with(buffer);
+            auto b = make_packed_tensor(buffer, get_shape_c<T>{});
             local_tensor_copy(idx, x, b);
-            return f(x.with(buffer));
+            return f(b);
         }
         else
         {

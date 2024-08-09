@@ -27,7 +27,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/copy.hpp>
 
 namespace migraphx {
 
@@ -167,8 +167,8 @@ __device__ auto preload_copy(index idx, T x)
             using type          = typename T::type;
             constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
-            // TODO: Handle non-packed tensors
-            local_vector_copy(idx, x.data(), buffer, size);
+            auto b = x.with(buffer);
+            local_tensor_copy(idx, x, b);
             return f(x.with(buffer));
         }
         else

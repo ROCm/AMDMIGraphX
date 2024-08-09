@@ -27,11 +27,12 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/permutation.hpp>
+#include <migraphx/kernels/operators.hpp>
 
 namespace migraphx {
 
 template <class Lens, class Strides>
-struct shape
+struct shape : equality_comparable<shape<Lens, Strides>>
 {
     using shape_type  = shape;
     using index_array = typename Lens::base_array;
@@ -120,6 +121,12 @@ struct shape
     }
 
     constexpr shape get_shape() const { return *this; }
+
+    template<class... Ts>
+    friend constexpr bool operator==(const shape& x, const shape<Ts...>& y)
+    {
+        return x.lens == y.lens and x.strides == y.strides;
+    }
 
     template <class Stream>
     friend constexpr const Stream& operator<<(const Stream& ss, const shape& s)

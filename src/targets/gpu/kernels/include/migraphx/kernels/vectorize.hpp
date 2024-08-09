@@ -227,17 +227,6 @@ inline __device__ __host__ auto auto_vectorize_impl(F f, Ts... xs)
     }
 }
 
-// TODO: Move this to another header
-template<class Index, class T, class U, class Size>
-__device__ void local_vector_copy(Index idx, T* src, U* dst, Size size)
-{
-    constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
-    auto vsrc           = as_vec<n>(remove_bool(src));
-    auto vdst       = as_vec<n>(remove_bool(dst));
-    index_int vsize = size / n;
-    idx.local_stride(vsize, [&](auto i) { vsrc[i] = vdst[i]; });
-}
-
 inline __device__ __host__ auto auto_vectorize()
 {
     return make_transform([](auto f, auto... xs) { auto_vectorize_impl(f, xs...); });

@@ -4,7 +4,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/copy.hpp>
 
 namespace migraphx {
 
@@ -29,11 +29,11 @@ __device__ auto prestore_copy(index idx, T x)
         if constexpr(B)
         {
             using type          = typename T::type;
-            constexpr auto size = get_shape_c<T>{}.element_space();
+            constexpr auto size = get_shape_c<T>{}.elements();
             __shared__ type buffer[size];
             auto b = make_packed_tensor(buffer, get_shape_c<T>{});
             f(b);
-            local_vector_copy(idx, buffer, x.data(), size);
+            local_tensor_copy(idx, b, x);
         }
         else
         {

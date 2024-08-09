@@ -44,5 +44,27 @@ constexpr auto find_permutation(Shape)
     });
 }
 
+template <class Shape1, class Shape2>
+constexpr auto find_permutation(Shape1, Shape2)
+{
+    return return_array_c([] {
+        constexpr Shape1 s1{};
+        constexpr Shape2 s2{};
+        auto perm1 = find_permutation(s1).base();
+        auto perm2 = find_permutation(s2).base();
+        if (perm1 == perm2)
+            return perm1;
+        if(s1.standard())
+            return perm1;
+        if(s2.standard())
+            return perm2;
+        if(s1.packed())
+            return perm1;
+        if(s2.packed())
+            return perm2;
+        return perm1;
+    });
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_PERMUTATION_HPP

@@ -557,7 +557,7 @@ struct compiler
         {
             co.output = l.output;
         }
-        
+
         auto t = ct.get_target();
         if(to_fp16)
         {

@@ -80,7 +80,8 @@ ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+COPY ./tools/requirements.txt / 
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf

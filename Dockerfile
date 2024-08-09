@@ -90,7 +90,8 @@ ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 COPY ./tools/install_prereqs.sh /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh
+COPY ./tools/requirements.txt /requirements.txt
+RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf

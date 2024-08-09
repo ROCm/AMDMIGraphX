@@ -81,10 +81,10 @@ struct layernorm_compiler : compiler<layernorm_compiler>
         }
         auto relements  = inputs[0].lens()[axis] / vec.size;
         auto nelements  = (inputs.back().elements() / inputs[0].lens()[axis]);
-        auto block_size = compute_block_size(ctx, relements, 256);
+        auto block_size = compute_block_size(ctx, relements, 512);
         hip_compile_options options;
         options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            v, compute_global_for(ctx, nelements * block_size, 512), block_size);
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = v.get("kernel", "layernorm_kernel");

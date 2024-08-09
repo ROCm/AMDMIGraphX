@@ -82,7 +82,11 @@ rbuild prepare -d $PREFIX -s develop
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
-pip3 install onnx==1.16 numpy==1.26 typing==3.7.4 pytest==6.0.1 packaging==23.0
+pip3 install onnx==1.16;python_version>="3.12"
+pip3 install onnx==1.14.1;python_version<"3.12"
+pip3 install numpy==1.26;python_version>="3.12"
+pip3 install numpy==1.21.6;python_version<"3.12"
+pip3 install typing==3.7.4 pytest==6.0.1 packaging==23.0
 
 # pin version of protobuf in Python for onnx runtime unit tests between dist versions
 pip3 install protobuf==3.20.2

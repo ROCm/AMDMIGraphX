@@ -1,0 +1,54 @@
+import toml
+import torch
+import sys
+import argparse
+from datasets import load_dataset
+import numpy as np
+
+def audio_processing(waveform, mlcommons_inference_path):
+    config_toml = f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch/configs/rnnt.toml'
+    config = toml.load(config_toml)
+
+    sys.path.insert(0, f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch')
+
+    from preprocessing import AudioPreprocessing
+
+    featurizer_config = config['input_eval']
+    audio_preprocessor = AudioPreprocessing(**featurizer_config)
+    audio_preprocessor.eval()
+
+    assert waveform.ndim == 1
+    waveform_length = np.array(waveform.shape[0], dtype=np.int64)
+    waveform = np.expand_dims(waveform, 0)
+    waveform_length = np.expand_dims(waveform_length, 0)
+    with torch.no_grad():
+        waveform = torch.from_numpy(waveform)
+        waveform_length = torch.from_numpy(waveform_length)
+        feature, feature_length = audio_preprocessor.forward(
+            (waveform, waveform_length))
+        assert feature.ndim == 3
+        assert feature_length.ndim == 1
+        feature = feature.permute(2, 0, 1)
+
+    return feature, feature_length
+    
+
+def librespeech_huggingface(mlcommons_inference_path='./inference/'):
+    ds = load_dataset("hf-internal-testing/librispeech_asr_dummy",                  
+                   "clean",                  
+                   split="validation")
+
+    waveform = ds[0]["audio"]["array"]
+    transcript = ds[0]["text"]
+    feature, feature_length = audio_processing(waveform, mlcommons_inference_path)
+    return feature, feature_length, transcript.lower()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mlcommons_inference_path", default="./inference/")
+    args = parser.parse_args()
+
+    return librespeech_huggingface(args.mlcommons_inference_path)
+
+if __name__ == "__main__":
+    main()

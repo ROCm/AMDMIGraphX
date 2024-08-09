@@ -123,9 +123,9 @@ def allocate_torch_tensors(model):
     return data_mapping
 
 class RNNT_MGX():
-    def __init__(self):
+    def __init__(self, seq_length, onnx_model_path='models/rnnt/'):
 
-        fp16 = [] #"rnnt_encoder", "rnnt_prediction", "rnnt_joint"]
+        fp16 = [] 
 
         compiled_model_path = None
         onnx_model_path = 'models/rnnt/'
@@ -137,7 +137,7 @@ class RNNT_MGX():
             "rnnt_encoder":
             RNNT_MGX.load_mgx_model(
                 "rnnt_encoder", {
-                    "input": [133, 1, 240], # seq_length, batch_size, feature_length
+                    "input": [seq_length, 1, 240], # seq_length, batch_size, feature_length
                     "feature_length": [1]
                 },
                 onnx_model_path,
@@ -186,7 +186,7 @@ class RNNT_MGX():
         }
 
 
-    # @measure
+
     @torch.no_grad()
     def encoder(self, inp, feature_length):
         copy_tensor_sync(self.tensors["rnnt_encoder"]["input"],
@@ -202,7 +202,6 @@ class RNNT_MGX():
         return x_padded, x_lens
     
 
-    # @measure
     @torch.no_grad()
     def prediction(self, symbol, hidden):
         copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
@@ -219,7 +218,6 @@ class RNNT_MGX():
         return g, hidden 
 
 
-    # @measure
     @torch.no_grad()
     def joint(self, f, g):
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_0"],
@@ -233,7 +231,6 @@ class RNNT_MGX():
 
   
     @staticmethod
-    # @measure
     def load_mgx_model(name,
                        shapes,
                        onnx_model_path,
@@ -268,26 +265,16 @@ class RNNT_MGX():
             )
             sys.exit(1)
         return model
-    
-def load_and_migrate_checkpoint(ckpt_path):
-    checkpoint = torch.load(ckpt_path, map_location="cpu")
-    migrated_state_dict = {}
-    for key, value in checkpoint['state_dict'].items():
-        key = key.replace("joint_net", "joint.net")
-        migrated_state_dict[key] = value
-    del migrated_state_dict["audio_preprocessor.featurizer.fb"]
-    del migrated_state_dict["audio_preprocessor.featurizer.window"]
-    return migrated_state_dict
 
-class ScriptGreedyDecoder():
-    def __init__(self, max_symbols_per_step=30):
-        self._alt_model = RNNT_MGX()
+class GreedyDecoder():
+    def __init__(self, model, max_symbols_per_step=30):
+        self._model = model 
         self._SOS = -1
         self._blank_id = 28
         self._max_symbols_per_step = max_symbols_per_step
 
     def run(self, x: torch.Tensor, out_lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
-        logits, logits_lens = self._alt_model.encoder(x, out_lens)
+        logits, logits_lens = self._model.encoder(x, out_lens)
 
         output: List[List[int]] = []
         for batch_idx in range(logits.size(0)):
@@ -338,15 +325,15 @@ class ScriptGreedyDecoder():
         label = torch.tensor([[label]], dtype=torch.int64)
 
         if hidden is None:
-            hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros([2, 1, 320]).to(device="cuda")
+           hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros([2, 1, 320]).to(device="cuda")
        
-        g, hidden = self._alt_model.prediction(label, hidden)
+        g, hidden = self._model.prediction(label, hidden)
 
         return g, hidden
 
 
     def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, log_normalize: bool=False) -> torch.Tensor:
-        logits = self._alt_model.joint(enc, pred)[:, 0, 0, :]
+        logits = self._model.joint(enc, pred)[:, 0, 0, :]
    
         if not log_normalize:
             return logits
@@ -358,21 +345,35 @@ class ScriptGreedyDecoder():
     def _get_last_symb(self, labels: List[int]) -> int:
         return self._SOS if len(labels) == 0 else labels[-1]
 
-
-if __name__ == "__main__":
-    sd = ScriptGreedyDecoder()
-
-    x = torch.load('feature.pt').to("cuda")
-    out_lens = torch.load('feature_length.pt').to("cuda")
-
-    _, _, result = sd.run(x, out_lens)
-
+def decode_string(result):
     string = ''
     for c in result[0]:
         if c == 0:
             string += " "
         else:
             string += chr(c + 96)
-    print(string)
+    return string
 
-    print(result)
+if __name__ == "__main__":
+    from rnnt_data import librespeech_huggingface
+    from rnnt_torch_model import pytorch_rnnt_model
+
+    print("Getting data...")
+    x, out_lens, transcript = librespeech_huggingface()
+    seq_length = x.shape[0]
+    
+    print("Run pytorch model.....")
+    pytorch_model = pytorch_rnnt_model()
+    sd_pytorch = GreedyDecoder(pytorch_model)
+    _, _, result = sd_pytorch.run(x.to(torch.float32), out_lens)
+    print(decode_string(result), transcript)
+
+    print("Export pytorch model....")
+    from rnnt_onnx import export_rnnt_onnx
+    export_rnnt_onnx(pytorch_model, seq_length=seq_length)
+
+    print("Read MIGX model from ONNX and run....")
+    migx_model = RNNT_MGX(seq_length=seq_length)
+    sd_migx = GreedyDecoder(migx_model)
+    _, _, result = sd_migx.run(x.to(torch.float32), out_lens)
+    print(decode_string(result), transcript)

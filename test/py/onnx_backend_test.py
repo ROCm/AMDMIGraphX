@@ -1237,4 +1237,4 @@ if __name__ == '__main__':
 
     args = parse_args()
     backend_test = create_backend_test(args.testname, args.device)
-    unittest.main(verbosity=2)
+    unittest.main()

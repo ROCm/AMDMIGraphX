@@ -27,7 +27,9 @@ constexpr auto reorder_dims(integral_const_array<T, Xs...>, integral_const_array
 template <class Array>
 constexpr auto invert_permutation(const Array& permutation)
 {
-    return reorder_dims(permutation, permutation);
+    return reorder_dims(transform_i(permutation, [](auto, auto i) {
+         return i;
+    }), permutation);
 }
 
 template <class Shape>

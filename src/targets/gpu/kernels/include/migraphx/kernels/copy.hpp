@@ -30,6 +30,8 @@ __device__ void local_tensor_copy(Index idx, T src, U dst)
         constexpr auto perm = find_permutation(src_shape, dst_shape);
         auto new_src = reorder_tensor_view(src, perm);
         auto new_dst = reorder_tensor_view(dst, perm);
+        // println_once("new_src: ", new_src.get_shape());
+        // println_once("new_dst: ", new_dst.get_shape());
         auto_vectorize()(new_src, new_dst)([&](auto vsrc, auto vdst) {
             index_int size = vsrc.get_shape().elements();
             idx.local_stride(size, [&](auto i) { vdst[i] = vsrc[i]; });

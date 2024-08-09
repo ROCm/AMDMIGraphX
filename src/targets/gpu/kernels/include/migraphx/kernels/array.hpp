@@ -376,8 +376,8 @@ constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U,
 template <class F>
 constexpr auto return_array_c(F f)
 {
-    // constexpr auto r = f();
-    return sequence(f().size(), [&](auto... is) { return make_const_array(_c<f()[is]>...); });
+    constexpr auto r = f();
+    return sequence(r.size(), [&](auto... is) { return make_const_array(_c<r[is]>...); });
 }
 
 template <index_int... Ns>

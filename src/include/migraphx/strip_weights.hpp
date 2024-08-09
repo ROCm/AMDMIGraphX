@@ -38,6 +38,7 @@ struct module;
  */
 struct MIGRAPHX_EXPORT strip_weights
 {
+    std::string output;
     std::string name() const { return "strip_weights"; }
     void apply(module& m) const;
 };

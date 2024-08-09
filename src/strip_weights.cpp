@@ -119,6 +119,7 @@ void strip_weights::apply(module& m) const
         }
     }
 
+    std::cout << "Before packing: \n";
     for(auto literal : vec)
     {
         literal.print(std::cout);
@@ -129,16 +130,20 @@ void strip_weights::apply(module& m) const
     vector_stream vs;
     msgpack::pack(vs, vec);
 
+    std::string output_file = output + "_weights";
+    std::cout << "Output: " << output << std::endl;
+    std::cout << "Output file: " << output_file << std::endl;
+
     auto* os = &std::cout;
     std::ofstream fs;
-    fs.open("models/mnist.mxr_weights", std::ios::binary);
+    fs.open(output_file, std::ios::binary);
     os = &fs;
     (*os).write(vs.buffer.data(), vs.buffer.size());
 
     // Read and unpack from file
     vector_stream vs2;
     std::ifstream is;
-    is.open("models/mnist.mxr_weights", std::ios::binary | std::ios::ate);
+    is.open(output_file, std::ios::binary | std::ios::ate);
     if(not is.is_open())
     {
         std::cout << "Failed to open file" << std::endl;
@@ -160,6 +165,7 @@ void strip_weights::apply(module& m) const
     std::vector<test_literal> vec2;
     obj.convert(vec2);
 
+    std::cout << "After unpacking: \n";
     for(auto literal : vec2)
     {
         literal.print(std::cout);

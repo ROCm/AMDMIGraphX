@@ -204,7 +204,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         normalize_ops{},
         dead_code_elimination{},
         eliminate_identity{},
-        enable_pass(options.strip_weights, strip_weights{})
+        enable_pass(options.strip_weights, strip_weights{options.output})
     };
     // clang-format on
 }

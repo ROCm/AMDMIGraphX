@@ -164,6 +164,7 @@ struct loader
            ap.help("Print out program in binary format."),
            ap.set_value("binary"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
+        std::cout << "output: " << output << std::endl;
     }
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
@@ -547,6 +548,16 @@ struct compiler
 
             return p;
         }
+
+        if(co.strip_weights and l.output.empty())
+        {
+            MIGRAPHX_THROW("--strip-weights option requires an output file");
+        }
+        else
+        {
+            co.output = l.output;
+        }
+        
         auto t = ct.get_target();
         if(to_fp16)
         {

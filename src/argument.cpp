@@ -23,7 +23,11 @@
  */
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/make_shared_array.hpp>
+#include <migraphx/shape.hpp>
+#include <functional>
 #include <unordered_map>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

@@ -302,13 +302,8 @@ constexpr void sort(Iterator first, Iterator last, Compare comp)
 {
     if(first == last)
         return;
-#if 0
-    for (auto i = first; i != last; ++i)
-        rotate(upper_bound(first, i, *i, comp), i, i+1);
-#else
     for(auto i = first; i != last - 1; ++i)
         iter_swap(i, min_element(i, last, comp));
-#endif
     MIGRAPHX_ASSERT(is_sorted(first, last, comp));
 }
 
@@ -316,6 +311,22 @@ template <class Iterator>
 constexpr void sort(Iterator first, Iterator last)
 {
     sort(first, last, less{});
+}
+
+template <class Iterator, class Compare>
+constexpr void stable_sort(Iterator first, Iterator last, Compare comp)
+{
+    if(first == last)
+        return;
+    for (auto i = first; i != last; ++i)
+        rotate(upper_bound(first, i, *i, comp), i, i+1);
+    MIGRAPHX_ASSERT(is_sorted(first, last, comp));
+}
+
+template <class Iterator>
+constexpr void stable_sort(Iterator first, Iterator last)
+{
+    stable_sort(first, last, less{});
 }
 
 } // namespace migraphx

@@ -37,7 +37,7 @@ constexpr auto find_permutation(Shape)
         constexpr Shape s{};
         typename Shape::index_array perm;
         iota(perm.begin(), perm.end(), 0);
-        sort(perm.begin(),
+        stable_sort(perm.begin(),
              perm.end(),
              by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
         return perm;

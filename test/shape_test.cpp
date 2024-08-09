@@ -828,7 +828,7 @@ TEST_CASE(tuple_copy)
     EXPECT(s3 == s2);
     migraphx::shape s4{{migraphx::shape{migraphx::shape::int8_type},
                         migraphx::shape{migraphx::shape::float_type}}};
-    EXPECT(!is_compatible_shape(s1, s4));
+    EXPECT(not is_compatible_shape(s1, s4));
     EXPECT(s4 != s1);
     EXPECT(s4 != s2);
     EXPECT(s4 != s3);

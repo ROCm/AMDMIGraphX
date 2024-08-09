@@ -583,7 +583,7 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_qlinearmatmul_2D_uint8_float32_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_int8_float16_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_int8_float32_cpu')
-    backend_test.excldue(r'test_qlinearmatmul_3D_uint8_float16_cpu')
+    backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float16_cpu')
     backend_test.exclude(r'test_qlinearmatmul_3D_uint8_float32_cpu')
     backend_test.exclude(r'test_quantizelinear_blocked_asymmetric_cpu')
     backend_test.exclude(r'test_quantizelinear_blocked_symmetric_cpu')
@@ -597,7 +597,7 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_reduce_log_sum_exp_empty_set_expanded_cpu')
     backend_test.exclude(r'test_reduce_max_bool_inputs_cpu')
     backend_test.exclude(r'test_reduce_min_bool_inputs_cpu')
-    # TODO: reduce ops should be supported
+    # TODO: empty set ReduceOps tests are generating dynamic shapes
     backend_test.exclude(r'test_reduce_min_empty_set_cpu')
     backend_test.exclude(r'test_reduce_prod_empty_set_cpu')
     backend_test.exclude(r'test_reduce_sum_empty_set_cpu')

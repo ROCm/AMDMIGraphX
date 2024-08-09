@@ -5,11 +5,15 @@ import argparse
 from datasets import load_dataset
 import numpy as np
 
+
 def audio_processing(waveform, mlcommons_inference_path):
     config_toml = f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch/configs/rnnt.toml'
     config = toml.load(config_toml)
 
-    sys.path.insert(0, f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch')
+    sys.path.insert(
+        0,
+        f'{mlcommons_inference_path}/retired_benchmarks/speech_recognition/rnnt/pytorch'
+    )
 
     from preprocessing import AudioPreprocessing
 
@@ -31,17 +35,19 @@ def audio_processing(waveform, mlcommons_inference_path):
         feature = feature.permute(2, 0, 1)
 
     return feature, feature_length
-    
+
 
 def librespeech_huggingface(mlcommons_inference_path='./inference/'):
-    ds = load_dataset("hf-internal-testing/librispeech_asr_dummy",                  
-                   "clean",                  
-                   split="validation")
+    ds = load_dataset("hf-internal-testing/librispeech_asr_dummy",
+                      "clean",
+                      split="validation")
 
     waveform = ds[0]["audio"]["array"]
     transcript = ds[0]["text"]
-    feature, feature_length = audio_processing(waveform, mlcommons_inference_path)
+    feature, feature_length = audio_processing(waveform,
+                                               mlcommons_inference_path)
     return feature, feature_length, transcript.lower()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -49,6 +55,7 @@ def main():
     args = parser.parse_args()
 
     return librespeech_huggingface(args.mlcommons_inference_path)
+
 
 if __name__ == "__main__":
     main()

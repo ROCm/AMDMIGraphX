@@ -20,13 +20,6 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #  THE SOFTWARE.
 
-# Model Download Instructions from diffusers/scripts/
-# python3 convert_stable_diffusion_controlnet_to_onnx.py \
-#     --model_path runwayml/stable-diffusion-v1-5 \
-#     --controlnet_path lllyasviel/sd-controlnet-canny \
-#     --output_path sd15-onnx \
-#     --fp16
-
 from argparse import ArgumentParser
 from diffusers import EulerDiscreteScheduler
 from transformers import CLIPTokenizer
@@ -53,6 +46,7 @@ from hip import hip
 from collections import namedtuple
 HipEventPair = namedtuple('HipEventPair', ['start', 'end'])
 
+
 # measurement helper
 def measure(fn):
     @wraps(fn)
@@ -66,6 +60,7 @@ def measure(fn):
         return result
 
     return measure_ms
+
 
 mgx_to_torch_dtype_dict = {
     "bool_type": torch.bool,
@@ -122,10 +117,11 @@ def allocate_torch_tensors(model):
     }
     return data_mapping
 
+
 class RNNT_MGX():
     def __init__(self, seq_length, onnx_model_path='models/rnnt/'):
 
-        fp16 = [] 
+        fp16 = []
 
         compiled_model_path = None
         onnx_model_path = 'models/rnnt/'
@@ -136,8 +132,10 @@ class RNNT_MGX():
         self.models = {
             "rnnt_encoder":
             RNNT_MGX.load_mgx_model(
-                "rnnt_encoder", {
-                    "input": [seq_length, 1, 240], # seq_length, batch_size, feature_length
+                "rnnt_encoder",
+                {
+                    "input": [seq_length, 1, 240
+                              ],  # seq_length, batch_size, feature_length
                     "feature_length": [1]
                 },
                 onnx_model_path,
@@ -147,89 +145,91 @@ class RNNT_MGX():
                 exhaustive_tune=exhaustive_tune,
                 offload_copy=False),
             "rnnt_prediction":
-            RNNT_MGX.load_mgx_model(
-                "rnnt_prediction", {
-                    "symbol": [1, 1],
-                    "hidden_in_1": [2, 1, 320],
-                    "hidden_in_2": [2, 1, 320]
-                },
-                onnx_model_path,
-                compiled_model_path=compiled_model_path,
-                use_fp16="rnnt_prediction" in fp16,
-                force_compile=force_compile,
-                exhaustive_tune=exhaustive_tune,
-                offload_copy=False),
+            RNNT_MGX.load_mgx_model("rnnt_prediction", {
+                "symbol": [1, 1],
+                "hidden_in_1": [2, 1, 320],
+                "hidden_in_2": [2, 1, 320]
+            },
+                                    onnx_model_path,
+                                    compiled_model_path=compiled_model_path,
+                                    use_fp16="rnnt_prediction" in fp16,
+                                    force_compile=force_compile,
+                                    exhaustive_tune=exhaustive_tune,
+                                    offload_copy=False),
             "rnnt_joint":
-            RNNT_MGX.load_mgx_model(
-                "rnnt_joint", {
-                    "0": [1, 1, 1024],
-                    "1": [1, 1, 320]
-                },
-                onnx_model_path,
-                compiled_model_path=compiled_model_path,
-                use_fp16="rnnt_joint" in fp16,
-                force_compile=force_compile,
-                exhaustive_tune=exhaustive_tune,
-                offload_copy=False)
+            RNNT_MGX.load_mgx_model("rnnt_joint", {
+                "0": [1, 1, 1024],
+                "1": [1, 1, 320]
+            },
+                                    onnx_model_path,
+                                    compiled_model_path=compiled_model_path,
+                                    use_fp16="rnnt_joint" in fp16,
+                                    force_compile=force_compile,
+                                    exhaustive_tune=exhaustive_tune,
+                                    offload_copy=False)
         }
 
         self.tensors = {
-            "rnnt_encoder": allocate_torch_tensors(self.models["rnnt_encoder"]),
-            "rnnt_prediction": allocate_torch_tensors(self.models["rnnt_prediction"]),
-            "rnnt_joint": allocate_torch_tensors(self.models["rnnt_joint"]),
+            "rnnt_encoder":
+            allocate_torch_tensors(self.models["rnnt_encoder"]),
+            "rnnt_prediction":
+            allocate_torch_tensors(self.models["rnnt_prediction"]),
+            "rnnt_joint":
+            allocate_torch_tensors(self.models["rnnt_joint"]),
         }
 
         self.model_args = {
             "rnnt_encoder": tensors_to_args(self.tensors['rnnt_encoder']),
-            "rnnt_prediction": tensors_to_args(self.tensors['rnnt_prediction']),
+            "rnnt_prediction":
+            tensors_to_args(self.tensors['rnnt_prediction']),
             "rnnt_joint": tensors_to_args(self.tensors['rnnt_joint']),
         }
-
-
 
     @torch.no_grad()
     def encoder(self, inp, feature_length):
         copy_tensor_sync(self.tensors["rnnt_encoder"]["input"],
-                            inp.to(torch.float32))
+                         inp.to(torch.float32))
         copy_tensor_sync(self.tensors["rnnt_encoder"]["feature_length"],
-                            feature_length.to(torch.int64))
-        run_model_sync(self.models["rnnt_encoder"], self.model_args["rnnt_encoder"])
-        
-        x_padded, x_lens = self.tensors["rnnt_encoder"][get_output_name(0)], self.tensors["rnnt_encoder"][get_output_name(1)]
+                         feature_length.to(torch.int64))
+        run_model_sync(self.models["rnnt_encoder"],
+                       self.model_args["rnnt_encoder"])
+
+        x_padded, x_lens = self.tensors["rnnt_encoder"][get_output_name(
+            0)], self.tensors["rnnt_encoder"][get_output_name(1)]
         x_padded = x_padded.squeeze(1)
         x_padded = x_padded.transpose(1, 0)
 
         return x_padded, x_lens
-    
 
     @torch.no_grad()
     def prediction(self, symbol, hidden):
         copy_tensor_sync(self.tensors["rnnt_prediction"]["symbol"],
-                            symbol.to(torch.int64))
+                         symbol.to(torch.int64))
         copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_1"],
-                            hidden[0].to(torch.float32))
+                         hidden[0].to(torch.float32))
         copy_tensor_sync(self.tensors["rnnt_prediction"]["hidden_in_2"],
-                            hidden[1].to(torch.float32))
-        run_model_sync(self.models["rnnt_prediction"], self.model_args["rnnt_prediction"])
+                         hidden[1].to(torch.float32))
+        run_model_sync(self.models["rnnt_prediction"],
+                       self.model_args["rnnt_prediction"])
 
         g = self.tensors["rnnt_prediction"][get_output_name(0)]
-        hidden = self.tensors["rnnt_prediction"][get_output_name(1)], self.tensors["rnnt_prediction"][get_output_name(2)]
-        
-        return g, hidden 
+        hidden = self.tensors["rnnt_prediction"][get_output_name(
+            1)], self.tensors["rnnt_prediction"][get_output_name(2)]
 
+        return g, hidden
 
     @torch.no_grad()
     def joint(self, f, g):
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_0"],
-                            f.to(torch.float32))
+                         f.to(torch.float32))
         copy_tensor_sync(self.tensors["rnnt_joint"]["onnx::Shape_1"],
-                            g.to(torch.float32))
-        
-        run_model_sync(self.models["rnnt_joint"], self.model_args["rnnt_joint"])
-        result = self.tensors["rnnt_joint"][get_output_name(0)]
-        return result 
+                         g.to(torch.float32))
 
-  
+        run_model_sync(self.models["rnnt_joint"],
+                       self.model_args["rnnt_joint"])
+        result = self.tensors["rnnt_joint"][get_output_name(0)]
+        return result
+
     @staticmethod
     def load_mgx_model(name,
                        shapes,
@@ -266,14 +266,16 @@ class RNNT_MGX():
             sys.exit(1)
         return model
 
+
 class GreedyDecoder():
     def __init__(self, model, max_symbols_per_step=30):
-        self._model = model 
+        self._model = model
         self._SOS = -1
         self._blank_id = 28
         self._max_symbols_per_step = max_symbols_per_step
 
-    def run(self, x: torch.Tensor, out_lens: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
+    def run(self, x: torch.Tensor, out_lens: torch.Tensor
+            ) -> Tuple[torch.Tensor, torch.Tensor, List[List[int]]]:
         logits, logits_lens = self._model.encoder(x, out_lens)
 
         output: List[List[int]] = []
@@ -286,7 +288,8 @@ class GreedyDecoder():
 
         return logits, logits_lens, output
 
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor) -> List[int]:
+    def _greedy_decode(self, x: torch.Tensor,
+                       out_len: torch.Tensor) -> List[int]:
         hidden: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
         label: List[int] = []
         for time_idx in range(int(out_len.item())):
@@ -296,11 +299,9 @@ class GreedyDecoder():
             symbols_added = 0
 
             while not_blank and symbols_added < self._max_symbols_per_step:
-                
-                g, hidden_prime = self._pred_step(
-                    self._get_last_symb(label),
-                    hidden
-                )
+
+                g, hidden_prime = self._pred_step(self._get_last_symb(label),
+                                                  hidden)
 
                 logp = self._joint_step(f, g, log_normalize=False)[0, :]
 
@@ -318,23 +319,28 @@ class GreedyDecoder():
 
         return label
 
-    def _pred_step(self, label: int, hidden: Optional[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def _pred_step(self, label: int,
+                   hidden: Optional[Tuple[torch.Tensor, torch.Tensor]]
+                   ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if label == self._SOS:
             label = 0
 
         label = torch.tensor([[label]], dtype=torch.int64)
 
         if hidden is None:
-           hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros([2, 1, 320]).to(device="cuda")
-       
+            hidden = torch.zeros([2, 1, 320]).to(device="cuda"), torch.zeros(
+                [2, 1, 320]).to(device="cuda")
+
         g, hidden = self._model.prediction(label, hidden)
 
         return g, hidden
 
-
-    def _joint_step(self, enc: torch.Tensor, pred: torch.Tensor, log_normalize: bool=False) -> torch.Tensor:
+    def _joint_step(self,
+                    enc: torch.Tensor,
+                    pred: torch.Tensor,
+                    log_normalize: bool = False) -> torch.Tensor:
         logits = self._model.joint(enc, pred)[:, 0, 0, :]
-   
+
         if not log_normalize:
             return logits
 
@@ -345,6 +351,7 @@ class GreedyDecoder():
     def _get_last_symb(self, labels: List[int]) -> int:
         return self._SOS if len(labels) == 0 else labels[-1]
 
+
 def decode_string(result):
     string = ''
     for c in result[0]:
@@ -354,6 +361,7 @@ def decode_string(result):
             string += chr(c + 96)
     return string
 
+
 if __name__ == "__main__":
     from rnnt_data import librespeech_huggingface
     from rnnt_torch_model import pytorch_rnnt_model
@@ -361,7 +369,7 @@ if __name__ == "__main__":
     print("Getting data...")
     x, out_lens, transcript = librespeech_huggingface()
     seq_length = x.shape[0]
-    
+
     print("Run pytorch model.....")
     pytorch_model = pytorch_rnnt_model()
     sd_pytorch = GreedyDecoder(pytorch_model)

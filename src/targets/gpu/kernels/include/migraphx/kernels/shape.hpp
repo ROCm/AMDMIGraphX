@@ -122,7 +122,7 @@ struct shape : equality_comparable<shape<Lens, Strides>>
 
     constexpr shape get_shape() const { return *this; }
 
-    template<class... Ts>
+    template <class... Ts>
     friend constexpr bool operator==(const shape& x, const shape<Ts...>& y)
     {
         return x.lens == y.lens and x.strides == y.strides;
@@ -142,7 +142,7 @@ constexpr auto calculate_strides(Lens)
     return return_array_c([] {
         Lens lens{};
         array<typename Lens::value_type, Lens{}.size()> strides{1};
-        const auto n           = lens.size() - 1;
+        const auto n     = lens.size() - 1;
         index_int stride = 1;
         for(index_int i = 0; i < n; i++)
         {
@@ -169,8 +169,9 @@ constexpr auto make_shape(Lens lens)
 template <class Shape, class Permutation>
 constexpr auto reorder_shape(Shape, Permutation)
 {
-    constexpr auto lens    = return_array_c([] { return reorder_dims(Shape{}.lens, Permutation{}); });
-    constexpr auto strides = return_array_c([] { return reorder_dims(Shape{}.strides, Permutation{}); });
+    constexpr auto lens = return_array_c([] { return reorder_dims(Shape{}.lens, Permutation{}); });
+    constexpr auto strides =
+        return_array_c([] { return reorder_dims(Shape{}.strides, Permutation{}); });
     return make_shape(lens, strides);
 }
 

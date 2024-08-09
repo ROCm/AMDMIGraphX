@@ -17,19 +17,17 @@ constexpr auto reorder_dims(const Array1& dims, const Array2& permutation)
 template <class T, T... Xs, class U, U... Ys>
 constexpr auto reorder_dims(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
 {
-    return return_array_c([] { 
+    return return_array_c([] {
         constexpr integral_const_array<T, Xs...> dims{};
         constexpr integral_const_array<U, Ys...> permutation{};
-        return reorder_dims(dims.base(), permutation.base()); 
+        return reorder_dims(dims.base(), permutation.base());
     });
 }
 
 template <class Array>
 constexpr auto invert_permutation(const Array& permutation)
 {
-    return reorder_dims(transform_i(permutation, [](auto, auto i) {
-         return i;
-    }), permutation);
+    return reorder_dims(transform_i(permutation, [](auto, auto i) { return i; }), permutation);
 }
 
 template <class Shape>
@@ -39,9 +37,9 @@ constexpr auto find_permutation(Shape)
         constexpr Shape s{};
         typename Shape::index_array perm;
         iota(perm.begin(), perm.end(), 0);
-        sort(perm.begin(), perm.end(), by([&](auto x) {
-                 return make_tuple(s.strides[x], s.lens[x]);
-             }, greater{}));
+        sort(perm.begin(),
+             perm.end(),
+             by([&](auto x) { return make_tuple(s.strides[x], s.lens[x]); }, greater{}));
         return perm;
     });
 }
@@ -54,7 +52,7 @@ constexpr auto find_permutation(Shape1, Shape2)
         constexpr Shape2 s2{};
         auto perm1 = find_permutation(s1).base();
         auto perm2 = find_permutation(s2).base();
-        if (perm1 == perm2)
+        if(perm1 == perm2)
             return perm1;
         if(s1.standard())
             return perm1;

@@ -198,9 +198,10 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     tile result;
     auto ndim = inputs.front().ndim();
     std::vector<std::size_t> faxes;
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(faxes), MIGRAPHX_LIFT(find_fast_axis));
     result.axis = std::accumulate(faxes.begin(), faxes.end(), ndim, MIGRAPHX_LIFT(std::min));
-    if (result.axis >= (ndim - 1))
+    if(result.axis >= (ndim - 1))
         return tile{};
     auto select = [&](auto m) {
         return [&, m](std::size_t faxis) {
@@ -210,22 +211,24 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
                 return none;
         };
     };
-    std::transform(faxes.begin(), faxes.end()-noutputs, std::back_inserter(result.args), select(load));
-    std::transform(faxes.end()-noutputs, faxes.end(), std::back_inserter(result.args), select(store));
+    std::transform(
+        faxes.begin(), faxes.end() - noutputs, std::back_inserter(result.args), select(load));
+    std::transform(
+        faxes.end() - noutputs, faxes.end(), std::back_inserter(result.args), select(store));
 
     const auto& s = inputs.front();
-    auto dim1 = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2 = compute_tile_factor(s.lens().back(), 256);
+    auto dim1     = compute_tile_factor(s.lens()[result.axis]);
+    auto dim2     = compute_tile_factor(s.lens().back(), 256);
     if(dim1 == 1 or dim2 == 1)
         return tile{};
-    
+
     auto inner_lens = s.lens();
     std::fill(inner_lens.begin(), inner_lens.end(), 1);
     inner_lens[result.axis] = dim1;
-    inner_lens.back() = dim2;
-    result.inner = shape{s.type(), inner_lens, s.strides()};
+    inner_lens.back()       = dim2;
+    result.inner            = shape{s.type(), inner_lens, s.strides()};
 
-    auto outer_lens = s.lens();
+    auto outer_lens    = s.lens();
     auto outer_strides = s.strides();
     outer_lens[result.axis] /= dim1;
     outer_strides[result.axis] *= dim1;
@@ -234,7 +237,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     result.outer = shape{s.type(), outer_lens, outer_strides};
 
     auto tile_size = result.inner.elements();
-    result.ntiles = result.outer.elements();
+    result.ntiles  = result.outer.elements();
 
     result.block_size = std::min<std::size_t>(256, integer_divide_ceil(tile_size / 4, 64) * 64);
     return result;
@@ -255,7 +258,10 @@ std::string tile::str() const
         MIGRAPHX_THROW("Invalid mode");
     });
     const std::string auto_tile = "auto_tile<${modes}>(${inner}, ${outer})";
-    return interpolate_string(auto_tile, {{"modes", join_strings(strs, ", ")}, {"inner", generate_make_shape(inner)}, {"outer", generate_make_shape(outer)}});
+    return interpolate_string(auto_tile,
+                              {{"modes", join_strings(strs, ", ")},
+                               {"inner", generate_make_shape(inner)},
+                               {"outer", generate_make_shape(outer)}});
 }
 
 std::size_t find_fast_axis(const shape& input)

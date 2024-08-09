@@ -14,21 +14,23 @@ struct tile
     struct store
     {
     };
-    struct none{};
+    struct none
+    {
+    };
 
-    template<class T, class InnerLens, class OuterLens>
+    template <class T, class InnerLens, class OuterLens>
     static constexpr auto slice(T x, index_int group, InnerLens, OuterLens)
     {
         constexpr auto outer_strides = transform_i(x.get_shape().strides, [&](auto stride, auto i) {
             constexpr auto inner_lens = InnerLens{};
             constexpr auto outer_lens = OuterLens{};
-            if (inner_lens[i] == outer_lens[i])
+            if(inner_lens[i] == outer_lens[i])
                 return stride;
             return stride * inner_lens[i];
         });
-        constexpr auto is = make_shape(InnerLens{}, x.get_shape().strides);
-        constexpr auto os = make_shape(OuterLens{}, outer_strides);
-        auto offset = os.index(group);
+        constexpr auto is            = make_shape(InnerLens{}, x.get_shape().strides);
+        constexpr auto os            = make_shape(OuterLens{}, outer_strides);
+        auto offset                  = os.index(group);
         return make_tensor_view(x.data() + offset, is);
     }
 
@@ -36,15 +38,14 @@ struct tile
     static __device__ auto auto_slice(index idx)
     {
         return make_transform([=](auto f, auto... xs) {
-            idx.group_stride(OuterShape{}.elements(),
-                             [=](auto group) {
-                                f(slice(xs, group, InnerShape{}.lens, OuterShape{}.lens)...); 
-                            });
+            idx.group_stride(OuterShape{}.elements(), [=](auto group) {
+                f(slice(xs, group, InnerShape{}.lens, OuterShape{}.lens)...);
+            });
         });
     }
 };
 
-template<bool Tiled>
+template <bool Tiled>
 __device__ auto tile_stride(index idx)
 {
     if constexpr(Tiled)

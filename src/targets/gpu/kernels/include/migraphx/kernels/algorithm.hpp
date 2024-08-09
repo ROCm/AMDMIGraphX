@@ -28,12 +28,12 @@
 
 namespace migraphx {
 
-template< class T >
-constexpr void swap( T& a, T& b )
+template <class T>
+constexpr void swap(T& a, T& b)
 {
     T old = a;
-    a = b;
-    b = old;
+    a     = b;
+    b     = old;
 }
 
 template <class Iterator1, class Iterator2>
@@ -251,50 +251,49 @@ constexpr Iterator min_element(Iterator first, Iterator last, Compare comp)
     return smallest;
 }
 
-template<class Iterator>
+template <class Iterator>
 constexpr Iterator rotate(Iterator first, Iterator middle, Iterator last)
 {
-    if (first == middle)
+    if(first == middle)
         return last;
- 
-    if (middle == last)
+
+    if(middle == last)
         return first;
- 
-    Iterator write = first;
+
+    Iterator write     = first;
     Iterator next_read = first;
- 
-    for (Iterator read = middle; read != last; ++write, ++read)
+
+    for(Iterator read = middle; read != last; ++write, ++read)
     {
-        if (write == next_read)
+        if(write == next_read)
             next_read = read;
         iter_swap(write, read);
     }
- 
+
     rotate(write, next_read, last);
     return write;
 }
 
-template<class Iterator, class T,
-         class Compare>
+template <class Iterator, class T, class Compare>
 constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Compare comp)
 {
     auto count = last - first;
- 
-    while (count > 0)
+
+    while(count > 0)
     {
-        auto it = first; 
+        auto it   = first;
         auto step = count / 2;
         it += step;
- 
-        if (not comp(value, *it))
+
+        if(not comp(value, *it))
         {
             first = ++it;
             count -= step + 1;
-        } 
+        }
         else
             count = step;
     }
- 
+
     return first;
 }
 
@@ -307,7 +306,7 @@ constexpr void sort(Iterator first, Iterator last, Compare comp)
     for (auto i = first; i != last; ++i)
         rotate(upper_bound(first, i, *i, comp), i, i+1);
 #else
-    for (auto i = first; i != last - 1; ++i)
+    for(auto i = first; i != last - 1; ++i)
         iter_swap(i, min_element(i, last, comp));
 #endif
     MIGRAPHX_ASSERT(is_sorted(first, last, comp));

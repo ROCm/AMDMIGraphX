@@ -71,8 +71,8 @@ struct tile
         none
     };
     std::vector<mode> args = {};
-    std::size_t axis = 0;
-    std::size_t ntiles = 0;
+    std::size_t axis       = 0;
+    std::size_t ntiles     = 0;
     std::size_t block_size = 0;
     shape inner{};
     shape outer{};

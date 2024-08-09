@@ -42,7 +42,12 @@ class MIGraphXBackendTest(onnx.backend.test.BackendTest):
         super(MIGraphXBackendTest, self).__init__(backend, parent_module)
 
     @classmethod
-    def assert_similar_outputs(cls, ref_outputs, outputs, rtol, atol, model_dir=None):
+    def assert_similar_outputs(cls,
+                               ref_outputs,
+                               outputs,
+                               rtol,
+                               atol,
+                               model_dir=None):
         prog_string = c2.get_program()
         np.testing.assert_equal(len(ref_outputs),
                                 len(outputs),
@@ -607,9 +612,11 @@ def disabled_tests_onnx_1_16_0(backend_test):
     backend_test.exclude(r'test_reduce_sum_square_empty_set_expanded_cpu')
     # TODO: Pooling tests are failing with shape mismatches, look into it.
     backend_test.exclude(
-        r'test_averagepool_3d_dilations_large_count_include_pad_is_0_ceil_mode_is_True_cpu')
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_0_ceil_mode_is_True_cpu'
+    )
     backend_test.exclude(
-        r'test_averagepool_3d_dilations_large_count_include_pad_is_1_ceil_mode_is_True_cpu')
+        r'test_averagepool_3d_dilations_large_count_include_pad_is_1_ceil_mode_is_True_cpu'
+    )
     backend_test.exclude(r'test_maxpool_2d_ceil_output_size_reduce_by_one_cpu')
     backend_test.exclude(r'test_maxpool_3d_dilations_use_ref_impl_large_cpu')
 
@@ -633,6 +640,7 @@ def disabled_tests_int4(backend_test):
     backend_test.exclude(r'test_cast_UINT4_to_FLOAT16')
     backend_test.exclude(r'test_cast_UINT4_to_INT8')
     backend_test.exclude(r'test_cast_UINT4_to_UINT8_cpu')
+
 
 def disabled_tests_float8(backend_test):
     # e4m3fn (Prototensor data type 17 not supported)

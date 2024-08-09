@@ -605,7 +605,7 @@ def disabled_tests_onnx_1_16_0(backend_test):
         r'test_reduce_sum_empty_set_non_reduced_axis_zero_cpu')
     backend_test.exclude(r'test_reduce_sum_square_empty_set_cpu')
     backend_test.exclude(r'test_reduce_sum_square_empty_set_expanded_cpu')
-    # TODO :Pooling tests are failing with shape mismatches, look into it.
+    # TODO: Pooling tests are failing with shape mismatches, look into it.
     backend_test.exclude(
         r'test_averagepool_3d_dilations_large_count_include_pad_is_0_ceil_mode_is_True_cpu')
     backend_test.exclude(

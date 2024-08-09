@@ -36,6 +36,7 @@
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
 #include <migraphx/op/binary.hpp>
+#include <migraphx/op/bitwise_and.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>
 #include <migraphx/op/ceil.hpp>
@@ -72,6 +73,7 @@
 #include <migraphx/op/less.hpp>
 #include <migraphx/op/load.hpp>
 #include <migraphx/op/log.hpp>
+#include <migraphx/op/log2.hpp>
 #include <migraphx/op/logical_and.hpp>
 #include <migraphx/op/logical_or.hpp>
 #include <migraphx/op/logical_xor.hpp>

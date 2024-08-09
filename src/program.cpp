@@ -35,6 +35,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/make_op.hpp>
@@ -507,8 +508,7 @@ std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         assert(results.find(ins) != results.end());
-        assert(ins->get_shape().any_of_dynamic() or
-               results.at(ins).get_shape() == ins->get_shape());
+        assert(is_compatible_shape(results.at(ins).get_shape(), ins->get_shape()));
     }
     return {results.at(std::prev(mod->end()))};
 }

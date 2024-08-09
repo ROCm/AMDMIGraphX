@@ -53,7 +53,7 @@ TEST_CASE(same_layout_fail)
     EXPECT(test::throws([] {
         shape a{shape::float_type, {2, 3}};
         shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
+        migraphx::check_shapes{{a, b}, ""}.compatible_layout();
     }));
 }
 
@@ -62,7 +62,7 @@ TEST_CASE(same_layout_pass)
     EXPECT(not test::throws([] {
         shape a{shape::float_type, {2, 3}, {1, 2}};
         shape b{shape::float_type, {2, 3}, {1, 2}};
-        migraphx::check_shapes{{a, b}, ""}.same_layout();
+        migraphx::check_shapes{{a, b}, ""}.compatible_layout();
     }));
 }
 

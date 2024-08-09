@@ -24,10 +24,37 @@
  */
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE)
+
+void problem_cache::load()
+{
+    auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
+    if(pc_path.empty())
+        return;
+    if(not fs::exists(pc_path))
+    {
+        std::cout << "Problem cache not found. Creating new file.\n";
+        return;
+    }
+    from_value(from_json_string(read_string(pc_path)), cache);
+}
+void problem_cache::save() const
+{
+    auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
+    if(pc_path.empty())
+        return;
+    write_string(pc_path, to_pretty_json_string(to_value(cache)));
+}
 
 static value create_key(const std::string& name, const value& problem)
 {

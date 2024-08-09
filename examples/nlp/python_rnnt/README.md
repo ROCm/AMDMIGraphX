@@ -7,7 +7,7 @@ This version was taken from [MLCommons](https://github.com/mlcommons/inference/t
 To run the RNN-T, follow these steps below.
 
 Download model inference and checkpoints via [run.sh](./run.sh) 
-**Note: Run this outside of docker. Will take longer to download within docker.***
+**Note: Run this outside of docker. Will take longer to download within docker.**
 
 ```bash
 bash run.sh

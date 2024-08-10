@@ -182,6 +182,20 @@ constexpr auto make_shape_from_permutation(Lens, Permutation)
     return reorder_shape(make_shape(new_lens), invert_permutation(Permutation{}));
 }
 
+template <class Shape>
+constexpr auto make_packed_shape(Shape)
+{
+    constexpr auto s = Shape{};
+    if constexpr(s.packed())
+    {
+        return s;
+    }
+    else
+    {
+        return make_shape_from_permutation(s.lens, find_permutation(s));
+    }
+}
+
 } // namespace migraphx
 
 #endif

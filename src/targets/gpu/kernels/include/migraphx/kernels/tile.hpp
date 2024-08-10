@@ -1,21 +1,76 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_TILE_HPP
 #define MIGRAPHX_GUARD_KERNELS_TILE_HPP
 
-#include <migraphx/kernels/prestore.hpp>
-#include <migraphx/kernels/preload.hpp>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/copy.hpp>
 
 namespace migraphx {
 
+
 struct tile
 {
+    template<class Shape>
+    static constexpr auto pad_shape(Shape)
+    {
+        constexpr Shape s{};
+        constexpr auto axis = s.strides.size() - _c<1>;
+        constexpr auto strides = transform_i(s.strides, [](auto stride, auto i) {
+            if constexpr(i == decltype(axis){})
+            {
+                // Pad by 1 element extra to avoid memory bank conflicts
+                return stride+1;
+            }
+            else
+            {
+                return stride;
+            }
+        });
+        return make_shape(s.lens, strides);
+    }
     struct load
     {
+        template<class T>
+        static __device__ auto copy(index idx, T x)
+        {
+            return [=](auto f) {
+                using type          = typename T::type;
+                constexpr auto s = pad_shape(make_packed_shape(get_shape_c<T>{}));
+                constexpr auto size = s.element_space();
+                __shared__ type buffer[size];
+                auto b = make_tensor_view(buffer, s);
+                local_tensor_copy(idx, b, x);
+                f(b);
+            };
+        }
     };
     struct store
     {
+        template<class T>
+        static __device__ auto copy(index idx, T x)
+        {
+            return [=](auto f) {
+                using type          = typename T::type;
+                constexpr auto s = pad_shape(make_packed_shape(get_shape_c<T>{}));
+                constexpr auto size = s.element_space();
+                __shared__ type buffer[size];
+                auto b = make_tensor_view(buffer, s);
+                f(b);
+                local_tensor_copy(idx, b, x);
+            };
+        }
     };
     struct none
     {
+        template<class T>
+        static __device__ auto copy(index, T x)
+        {
+            return [=](auto f)
+            {
+                f(x);
+            };
+        }
     };
 
     template <class T, class InnerLens, class OuterLens>
@@ -43,6 +98,22 @@ struct tile
             });
         });
     }
+
+    template <class... Modes>
+    static __device__ auto auto_copy(index idx)
+    {
+        return make_transform([=](auto f, auto... xs) {
+            static_assert(sizeof...(Modes) == sizeof...(xs));
+            auto invoke = [=](auto... ys) {
+                if constexpr((is_same<Modes, load>{} or ...))
+                    __syncthreads();
+                f(ys...);
+                if constexpr((is_same<Modes, store>{} or ...))
+                    __syncthreads();
+            };
+            join(invoke, Modes::copy(idx, xs)...);
+        });
+    }
 };
 
 template <bool Tiled>
@@ -58,10 +129,10 @@ __device__ auto tile_stride(index idx)
     }
 }
 
-template <class... Mode, class InnerShape, class OuterShape>
+template <class... Modes, class InnerShape, class OuterShape>
 __device__ auto auto_tile(InnerShape, OuterShape)
 {
-    if constexpr((is_same<Mode, tile::none>{} and ...))
+    if constexpr((is_same<Modes, tile::none>{} and ...))
     {
         return transform_args();
     }
@@ -69,8 +140,7 @@ __device__ auto auto_tile(InnerShape, OuterShape)
     {
         auto idx = make_index();
         return transform_args(tile::auto_slice<InnerShape, OuterShape>(idx),
-                              auto_prestore<is_same<Mode, tile::store>{}...>(idx),
-                              auto_preload<is_same<Mode, tile::load>{}...>(idx));
+                              tile::auto_copy<Modes...>(idx));
     }
 }
 

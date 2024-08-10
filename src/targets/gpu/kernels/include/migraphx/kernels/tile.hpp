@@ -89,12 +89,12 @@ struct tile
         return make_tensor_view(x.data() + offset, is);
     }
 
-    template <class InnerShape, class OuterShape>
+    template <class InnerLens, class OuterLens>
     static __device__ auto auto_slice(index idx)
     {
         return make_transform([=](auto f, auto... xs) {
-            idx.group_stride(OuterShape{}.elements(), [=](auto group) {
-                f(slice(xs, group, InnerShape{}.lens, OuterShape{}.lens)...);
+            idx.group_stride(OuterLens{}.product(), [=](auto group) {
+                f(slice(xs, group, InnerLens{}, OuterLens{})...);
             });
         });
     }
@@ -129,8 +129,8 @@ __device__ auto tile_stride(index idx)
     }
 }
 
-template <class... Modes, class InnerShape, class OuterShape>
-__device__ auto auto_tile(InnerShape, OuterShape)
+template <class... Modes, class InnerLens, class OuterLens>
+__device__ auto auto_tile(InnerLens, OuterLens)
 {
     if constexpr((is_same<Modes, tile::none>{} and ...))
     {
@@ -139,7 +139,7 @@ __device__ auto auto_tile(InnerShape, OuterShape)
     else
     {
         auto idx = make_index();
-        return transform_args(tile::auto_slice<InnerShape, OuterShape>(idx),
+        return transform_args(tile::auto_slice<InnerLens, OuterLens>(idx),
                               tile::auto_copy<Modes...>(idx));
     }
 }

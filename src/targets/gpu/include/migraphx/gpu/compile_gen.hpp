@@ -74,8 +74,8 @@ struct tile
     std::size_t axis       = 0;
     std::size_t ntiles     = 0;
     std::size_t block_size = 0;
-    shape inner{};
-    shape outer{};
+    std::vector<std::size_t> inner{};
+    std::vector<std::size_t> outer{};
     static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
     // bool is_preloading() const;
     std::string str() const;

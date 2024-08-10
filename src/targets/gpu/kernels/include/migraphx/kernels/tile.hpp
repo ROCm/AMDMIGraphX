@@ -1,27 +1,27 @@
 /*
-* The MIT License (MIT)
-*
-* Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*
-*/
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
 #ifndef MIGRAPHX_GUARD_KERNELS_TILE_HPP
 #define MIGRAPHX_GUARD_KERNELS_TILE_HPP
 
@@ -32,19 +32,18 @@
 
 namespace migraphx {
 
-
 struct tile
 {
-    template<class Shape>
+    template <class Shape>
     static constexpr auto pad_shape(Shape)
     {
         constexpr Shape s{};
-        constexpr auto axis = s.strides.size() - _c<1>;
+        constexpr auto axis    = s.strides.size() - _c<1>;
         constexpr auto strides = transform_i(s.strides, [](auto stride, auto i) {
             if constexpr(i == decltype(axis){})
             {
                 // Pad by 1 element extra to avoid memory bank conflicts
-                return stride+1;
+                return stride + 1;
             }
             else
             {
@@ -55,12 +54,12 @@ struct tile
     }
     struct load
     {
-        template<class T>
+        template <class T>
         static __device__ auto copy(index idx, T x)
         {
             return [=](auto f) {
                 using type          = typename T::type;
-                constexpr auto s = pad_shape(make_packed_shape(get_shape_c<T>{}));
+                constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
                 __shared__ type buffer[size];
                 auto b = make_tensor_view(buffer, s);
@@ -71,12 +70,12 @@ struct tile
     };
     struct store
     {
-        template<class T>
+        template <class T>
         static __device__ auto copy(index idx, T x)
         {
             return [=](auto f) {
                 using type          = typename T::type;
-                constexpr auto s = pad_shape(make_packed_shape(get_shape_c<T>{}));
+                constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
                 __shared__ type buffer[size];
                 auto b = make_tensor_view(buffer, s);
@@ -87,13 +86,10 @@ struct tile
     };
     struct none
     {
-        template<class T>
+        template <class T>
         static __device__ auto copy(index, T x)
         {
-            return [=](auto f)
-            {
-                f(x);
-            };
+            return [=](auto f) { f(x); };
         }
     };
 
@@ -117,9 +113,8 @@ struct tile
     static __device__ auto auto_slice(index idx)
     {
         return make_transform([=](auto f, auto... xs) {
-            idx.group_stride(OuterLens{}.product(), [=](auto group) {
-                f(slice(xs, group, InnerLens{}, OuterLens{})...);
-            });
+            idx.group_stride(OuterLens{}.product(),
+                             [=](auto group) { f(slice(xs, group, InnerLens{}, OuterLens{})...); });
         });
     }
 

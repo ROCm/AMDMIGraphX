@@ -205,26 +205,33 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
     auto select = [&](auto m) {
         return [&, m](std::size_t faxis, shape input) {
-            if (input.broadcasted())
+            if(input.broadcasted())
                 return none;
             if(faxis < (ndim - 1))
                 return m;
             return none;
         };
     };
-    std::transform(
-        faxes.begin(), faxes.end() - noutputs, inputs.begin(), std::back_inserter(result.args), select(load));
-    std::transform(
-        faxes.end() - noutputs, faxes.end(), inputs.end() - noutputs, std::back_inserter(result.args), select(store));
+    std::transform(faxes.begin(),
+                   faxes.end() - noutputs,
+                   inputs.begin(),
+                   std::back_inserter(result.args),
+                   select(load));
+    std::transform(faxes.end() - noutputs,
+                   faxes.end(),
+                   inputs.end() - noutputs,
+                   std::back_inserter(result.args),
+                   select(store));
 
-    auto nargs = std::count_if(result.args.begin(), result.args.end(), [](auto m) { return m != mode::none; });
+    auto nargs = std::count_if(
+        result.args.begin(), result.args.end(), [](auto m) { return m != mode::none; });
     // TODO: Handle tiling more than one arguments
     if(nargs != 1)
         return {};
 
     const auto& s = inputs.front();
     auto dim1     = compute_tile_factor(s.lens()[result.axis]);
-    auto dim2     = compute_tile_factor(s.lens().back(), 4096/dim1);
+    auto dim2     = compute_tile_factor(s.lens().back(), 4096 / dim1);
     if(dim1 == 1 or dim2 == 1)
         return {};
 
@@ -233,12 +240,12 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     result.inner[result.axis] = dim1;
     result.inner.back()       = dim2;
 
-    result.outer    = s.lens();
+    result.outer = s.lens();
     result.outer[result.axis] /= dim1;
     result.outer.back() /= dim2;
 
-    auto tile_size = dim1*dim2;
-    result.ntiles  = s.elements() / tile_size;
+    auto tile_size  = dim1 * dim2;
+    result.ntiles   = s.elements() / tile_size;
     auto tile_bytes = (tile_size + dim1) * s.type_size();
     if(tile_bytes > 65536)
         return {};

@@ -318,8 +318,8 @@ constexpr void stable_sort(Iterator first, Iterator last, Compare comp)
 {
     if(first == last)
         return;
-    for (auto i = first; i != last; ++i)
-        rotate(upper_bound(first, i, *i, comp), i, i+1);
+    for(auto i = first; i != last; ++i)
+        rotate(upper_bound(first, i, *i, comp), i, i + 1);
     MIGRAPHX_ASSERT(is_sorted(first, last, comp));
 }
 

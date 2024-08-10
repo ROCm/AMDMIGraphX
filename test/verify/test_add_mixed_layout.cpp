@@ -34,10 +34,10 @@ struct test_add_mixed_layout : verify_program<test_add_mixed_layout<DType>>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        auto s1 = migraphx::shape{DType, {1, 32, 16, 16}};
-        auto s2 = migraphx::shape::from_permutation(DType, {1, 32, 16, 16}, {0, 2, 3, 1});
-        auto x = mm->add_parameter("x", s1);
-        auto y = mm->add_parameter("y", s2);
+        auto s1  = migraphx::shape{DType, {1, 32, 16, 16}};
+        auto s2  = migraphx::shape::from_permutation(DType, {1, 32, 16, 16}, {0, 2, 3, 1});
+        auto x   = mm->add_parameter("x", s1);
+        auto y   = mm->add_parameter("y", s2);
         mm->add_instruction(migraphx::make_op("add"), x, y);
         return p;
     }

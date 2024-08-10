@@ -204,17 +204,18 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
     if(result.axis >= (ndim - 1))
         return {};
     auto select = [&](auto m) {
-        return [&, m](std::size_t faxis) {
+        return [&, m](std::size_t faxis, shape input) {
+            if (input.broadcasted())
+                return none;
             if(faxis < (ndim - 1))
                 return m;
-            else
-                return none;
+            return none;
         };
     };
     std::transform(
-        faxes.begin(), faxes.end() - noutputs, std::back_inserter(result.args), select(load));
+        faxes.begin(), faxes.end() - noutputs, inputs.begin(), std::back_inserter(result.args), select(load));
     std::transform(
-        faxes.end() - noutputs, faxes.end(), std::back_inserter(result.args), select(store));
+        faxes.end() - noutputs, faxes.end(), inputs.end() - noutputs, std::back_inserter(result.args), select(store));
 
     auto nargs = std::count_if(result.args.begin(), result.args.end(), [](auto m) { return m != mode::none; });
     // TODO: Handle tiling more than one arguments

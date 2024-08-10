@@ -109,19 +109,5 @@ constexpr auto reorder_tensor_view(T x, Permutation perm)
     return make_tensor_view(x.data(), reorder_shape(x.get_shape(), perm));
 }
 
-template <class T, class Shape>
-constexpr auto make_packed_tensor(T* x, Shape)
-{
-    constexpr auto s = Shape{};
-    if constexpr(s.packed())
-    {
-        return make_tensor_view(x, s);
-    }
-    else
-    {
-        return make_tensor_view(x, make_shape_from_permutation(s.lens, find_permutation(s)));
-    }
-}
-
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_TENSOR_VIEW_HPP

@@ -27,7 +27,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
-#include <migraphx/kernels/copy.hpp>
+#include <migraphx/kernels/vec.hpp>
 
 namespace migraphx {
 
@@ -165,11 +165,14 @@ __device__ auto preload_copy(index idx, T x)
         if constexpr(B)
         {
             using type          = typename T::type;
-            constexpr auto size = get_shape_c<T>{}.elements();
+            constexpr auto size = get_shape_c<T>{}.element_space();
             __shared__ type buffer[size];
-            auto b = make_packed_tensor(buffer, get_shape_c<T>{});
-            local_tensor_copy(idx, x, b);
-            return f(b);
+            // TODO: Always vecotrize when size > 4, and then use a second loop for remainder
+            constexpr auto n = find_vectorize_size([&](auto i) { return (size % i) == 0; });
+            auto input       = as_vec<n>(remove_bool(x.data()));
+            auto b           = as_vec<n>(remove_bool(buffer));
+            idx.local_stride(size / n, [&](auto i) { b[i] = input[i]; });
+            return f(x.with(buffer));
         }
         else
         {
@@ -182,7 +185,6 @@ template <bool... Bs>
 __device__ auto auto_preload(index idx)
 {
     return make_transform([=](auto f, auto... xs) {
-        static_assert(sizeof...(Bs) == sizeof...(xs));
         auto invoke = [=](auto... ys) {
             if constexpr((Bs or ...))
                 __syncthreads();

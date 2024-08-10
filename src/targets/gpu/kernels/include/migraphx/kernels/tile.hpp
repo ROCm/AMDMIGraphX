@@ -40,7 +40,7 @@ struct tile
                 constexpr auto size = s.element_space();
                 __shared__ type buffer[size];
                 auto b = make_tensor_view(buffer, s);
-                local_tensor_copy(idx, b, x);
+                local_tensor_copy(idx, x, b);
                 f(b);
             };
         }

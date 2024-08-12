@@ -52,24 +52,52 @@ ${decl_members}
 
 struct ${struct_name}
 {
+private:
+    
+    ${default_members}
+
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl = decltype(${constraint_members}, void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+public:
     // Constructors
     ${struct_name} () = default;
 
-    template <typename PrivateDetailTypeErasedT>
-    ${struct_name} (PrivateDetailTypeErasedT value) :
+    template <typename PrivateDetailTypeErasedT, 
+        typename = private_te_constraints<PrivateDetailTypeErasedT>,
+        typename = typename std::enable_if<not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, ${struct_name}>{}>::type>
+    ${struct_name} (PrivateDetailTypeErasedT&& value) :
         private_detail_te_handle_mem_var (
             std::make_shared<
-                private_detail_te_handle_type<typename std::remove_reference<PrivateDetailTypeErasedT>::type>
+                private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>
             >(std::forward<PrivateDetailTypeErasedT>(value))
         )
     {}
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    ${struct_name} & operator= (PrivateDetailTypeErasedT value)
+    template <typename PrivateDetailTypeErasedT,
+        typename = private_te_constraints<PrivateDetailTypeErasedT>,
+        typename = typename std::enable_if<not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, ${struct_name}>{}>::type>
+    ${struct_name} & operator= (PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto * derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto * derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);
@@ -121,8 +149,6 @@ private:
 
         ${pure_virtual_members}
     };
-
-    ${default_members}
 
     template <typename PrivateDetailTypeErasedT>
     struct private_detail_te_handle_type :
@@ -282,6 +308,23 @@ def internal_name(name):
         return name
 
 
+empty_expression = 'static_cast<void>(void())'
+
+
+def generate_constraint(m, friend, indirect):
+    if m['name'].startswith('operator'):
+        return empty_expression
+    if friend:
+        return empty_expression
+    if indirect:
+        return string.Template(
+            'private_detail_te_default_${internal_name}(char(0), std::declval<PrivateDetailTypeErasedT>() ${comma} ${param_constraints})'
+        ).substitute(m)
+    return string.Template(
+        'std::declval<PrivateDetailTypeErasedT>().${name}(${param_constraints})'
+    ).substitute(m)
+
+
 def generate_call(m, friend, indirect):
     if m['name'].startswith('operator'):
         op = m['name'][8:]
@@ -316,6 +359,7 @@ def convert_member(d, struct_name):
         }
         args = []
         params = []
+        param_constraints = []
         member_args = []
         member_params = []
         skip = False
@@ -362,6 +406,7 @@ def convert_member(d, struct_name):
                         member_args.append('std::move({})'.format(x))
                     args.append('std::move({})'.format(arg_name))
                 params.append(t + ' ' + x)
+                param_constraints.append('std::declval<{}>()'.format(t))
                 if use_member: member_params.append(t + ' ' + x)
                 else: skip = False
         member['args'] = ','.join(args)
@@ -369,8 +414,10 @@ def convert_member(d, struct_name):
         member['params'] = ','.join(params)
         member['params'] = ','.join(params)
         member['member_params'] = ','.join(member_params)
+        member['param_constraints'] = ','.join(param_constraints)
         member['comma'] = ',' if len(args) > 0 else ''
         member['call'] = generate_call(member, friend, indirect)
+        member['constraint'] = generate_constraint(member, friend, indirect)
         return member
     return None
 
@@ -382,6 +429,7 @@ def generate_form(name, members):
     comment_members = []
     default_members = []
     decl_members = []
+    constraint_members = []
     for member in members:
         m = convert_member(member, name)
         nonvirtual_members.append(nonvirtual_member.substitute(m))
@@ -389,6 +437,7 @@ def generate_form(name, members):
         virtual_members.append(virtual_member.substitute(m))
         comment_members.append(comment_member.substitute(m))
         decl_members.append(decl_member.substitute(m))
+        constraint_members.append(m['constraint'])
         if 'default' in m:
             default_members.append(default_member.substitute(m))
     return form.substitute(nonvirtual_members=''.join(nonvirtual_members),
@@ -396,6 +445,7 @@ def generate_form(name, members):
                            virtual_members=''.join(virtual_members),
                            default_members=''.join(default_members),
                            decl_members=''.join(decl_members),
+                           constraint_members=','.join(constraint_members),
                            comment_members='\n'.join(comment_members),
                            struct_name=name,
                            export_macro=export_macro)

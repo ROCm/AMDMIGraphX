@@ -62,30 +62,59 @@ struct unpack_int4
     {
         check_shapes{inputs, *this}.same_dims().has(1);
         auto in_shape = inputs.front();
-        if(in_shape.type() != migraphx::shape::uint8_type)
+        if(in_shape.type() != migraphx::shape::int8_type and
+           in_shape.type() != migraphx::shape::uint8_type)
         {
-            MIGRAPHX_THROW("UNPACK_INT4: Only Unsigned Int8 type is supported for unpacking");
+            MIGRAPHX_THROW("UNPACK_INT4: Only Int8 or Uint8 is supported for unpacking");
         }
         auto new_lens = in_shape.lens();
         new_lens[axis] *= 2;
-        return {migraphx::shape::uint8_type, new_lens};
+        return {in_shape.type(), new_lens};
     }
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
+        auto input    = args.front();
+        auto in_shape = input.get_shape();
+
         argument result{output_shape};
-        auto in_shape = args.front().get_shape();
-        auto input    = args.at(0).get<uint8_t>();
-        auto output   = result.get<uint8_t>();
-        par_for(in_shape.elements(), [&](auto i) {
-            auto data_idx           = in_shape.multi(i);
-            auto out_data_multi_idx = data_idx;
-            out_data_multi_idx[axis] *= 2;
-            auto input_val = input[data_idx];
-            // mask first 4 bits, packing is assumed to be little endian
-            output[out_data_multi_idx] = uint8_t(0x0F) & input_val;
-            out_data_multi_idx[axis] += 1;
-            output[out_data_multi_idx] = input_val >> 4; // NOLINT(hicpp-signed-bitwise)
+
+        visit_all(result, input)([&](auto out, auto inp) {
+            par_for(in_shape.elements(), [&](auto i) {
+                using type    = typename decltype(out)::value_type;
+                auto data_idx = in_shape.multi(i);
+                data_idx[axis] *= 2;
+                if constexpr(std::is_signed<type>{})
+                {
+                    // signed input: [Most significant nibble | Least significant nibble]
+                    int8_t val1 = inp[i];
+                    int8_t val2 = val1;
+
+                    // Step1: move the LSN to MSN:
+                    // However avoid doing a left shift of signed quantity
+                    // due to its possible run time error.
+                    uint8_t u_tmp = static_cast<uint8_t>(val1);
+                    u_tmp <<= 4; // NOLINT(hicpp-signed-bitwise)
+                    val1 = static_cast<int8_t>(u_tmp);
+
+                    // Step2: the sign bit is copied in a right signed-shift:
+                    val1 >>= 4; // NOLINT(hicpp-signed-bitwise)
+                    out[data_idx] = val1;
+
+                    data_idx[axis] += 1;
+                    val2 >>= 4; // NOLINT(hicpp-signed-bitwise)
+                    out[data_idx] = val2;
+                }
+                else
+                {
+                    // unpacking of 2 unsigned nibbles:
+                    uint8_t val   = inp[i];
+                    out[data_idx] = val & 0xf; // NOLINT(hicpp-signed-bitwise)
+
+                    data_idx[axis] += 1;
+                    out[data_idx] = val >> 4; // NOLINT(hicpp-signed-bitwise)
+                }
+            });
         });
         return result;
     }

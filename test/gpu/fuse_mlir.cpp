@@ -335,11 +335,11 @@ TEST_CASE(dot_dot_pointwise_pointwise)
     run_pass(p1);
     migraphx::program p2;
     {
-        auto* mm  = p2.get_main_module();
-        auto a    = mm->add_parameter("a", s1);
-        auto b    = mm->add_parameter("b", s2);
-        auto c    = mm->add_parameter("c", s2);
-        auto x    = mm->add_parameter("d", s1);
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s2);
+        auto x   = mm->add_parameter("d", s1);
         auto dot1 =
             add_mlir(p2, "mlir_dot6", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
                 auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);

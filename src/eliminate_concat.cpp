@@ -40,7 +40,7 @@ void eliminate_concat::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        auto concat_op         = concat_opt.get_concat(ins->get_operator());
+        auto concat_op = concat_opt.get_concat(ins->get_operator());
         // Look for the concat operator
         if(not concat_op.has_value())
             continue;

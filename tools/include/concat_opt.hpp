@@ -53,10 +53,11 @@ struct concat_optimization
 #else
 
 <%
-interface('concat_optimization',
-    virtual('allocate', returns='std::string', const=True),
-    virtual('get_concat', returns='optional<op::concat>', op='const operation&', const=True)
-)
+    interface(
+        'concat_optimization',
+        virtual('allocate', returns = 'std::string', const = True),
+        virtual(
+            'get_concat', returns = 'optional<op::concat>', op = 'const operation&', const = True))
 %>
 
 #endif

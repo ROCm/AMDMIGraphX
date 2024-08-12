@@ -130,10 +130,28 @@ struct source_location_capture
         : x(px), loc(ploc)
     {
     }
+    template <class U, class = decltype(T(declval<U>()))>
+    constexpr source_location_capture(source_location_capture<U> slc) : x(slc.x), loc(slc.loc)
+    {
+    }
+
     constexpr operator source_location() const { return loc; }
 
     constexpr operator T() const { return x; }
 };
+
+template <class T, class F>
+constexpr auto capture_transform(source_location_capture<T> slc, F f)
+{
+    auto r = f(slc.x);
+    return source_location_capture<decltype(r)>(r, slc.loc);
+}
+
+template <class T, class F>
+constexpr auto capture_transform(T x, F f)
+{
+    return f(x);
+}
 
 // noreturn cannot be used on this function because abort in hip is broken
 template <class T1, class T2, class T3, class T4>

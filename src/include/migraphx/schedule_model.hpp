@@ -81,24 +81,67 @@ struct MIGRAPHX_EXPORT schedule_model
 
 struct schedule_model
 {
+    private:
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    struct private_te_unwrap_reference<std::reference_wrapper<PrivateDetailTypeErasedT>>
+    {
+        using type = PrivateDetailTypeErasedT;
+    };
+    template <class PrivateDetailTypeErasedT>
+    using private_te_pure = typename std::remove_cv<
+        typename std::remove_reference<PrivateDetailTypeErasedT>::type>::type;
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints_impl =
+        decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                 std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
+                                                                std::declval<instruction_ref>(),
+                                                                std::declval<std::size_t>()),
+                 std::declval<PrivateDetailTypeErasedT>().wait(std::declval<module&>(),
+                                                               std::declval<instruction_ref>(),
+                                                               std::declval<std::size_t>()),
+                 std::declval<PrivateDetailTypeErasedT>().record(std::declval<module&>(),
+                                                                 std::declval<instruction_ref>(),
+                                                                 std::declval<std::size_t>()),
+                 std::declval<PrivateDetailTypeErasedT>().weight(std::declval<const operation&>()),
+                 void());
+
+    template <class PrivateDetailTypeErasedT>
+    using private_te_constraints = private_te_constraints_impl<
+        typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
+
+    public:
     // Constructors
     schedule_model() = default;
 
-    template <typename PrivateDetailTypeErasedT>
-    schedule_model(PrivateDetailTypeErasedT value)
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename = private_te_constraints<PrivateDetailTypeErasedT>,
+        typename = typename std::enable_if<
+            not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, schedule_model>{}>::type>
+    schedule_model(PrivateDetailTypeErasedT&& value)
         : private_detail_te_handle_mem_var(
-              std::make_shared<private_detail_te_handle_type<
-                  typename std::remove_reference<PrivateDetailTypeErasedT>::type>>(
+              std::make_shared<
+                  private_detail_te_handle_type<private_te_pure<PrivateDetailTypeErasedT>>>(
                   std::forward<PrivateDetailTypeErasedT>(value)))
     {
     }
 
     // Assignment
-    template <typename PrivateDetailTypeErasedT>
-    schedule_model& operator=(PrivateDetailTypeErasedT value)
+    template <
+        typename PrivateDetailTypeErasedT,
+        typename = private_te_constraints<PrivateDetailTypeErasedT>,
+        typename = typename std::enable_if<
+            not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, schedule_model>{}>::type>
+    schedule_model& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
-        auto* derived = this->any_cast<PrivateDetailTypeErasedT>();
+        auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
         if(derived and private_detail_te_handle_mem_var.use_count() == 1)
         {
             *derived = std::forward<PrivateDetailTypeErasedT>(value);

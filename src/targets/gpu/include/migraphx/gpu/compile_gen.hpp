@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/module_ref.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/shape.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,7 +62,26 @@ struct preload
     bool is_preloading() const;
     std::string str() const;
 };
+struct tile
+{
+    enum mode
+    {
+        store,
+        load,
+        none
+    };
+    std::vector<mode> args = {};
+    std::size_t axis       = 0;
+    std::size_t ntiles     = 0;
+    std::size_t block_size = 0;
+    std::vector<std::size_t> inner{};
+    std::vector<std::size_t> outer{};
+    static tile elements(const std::vector<shape>& inputs, std::size_t noutputs);
+    // bool is_preloading() const;
+    std::string str() const;
+};
 
+std::size_t find_fast_axis(const shape& input);
 std::size_t find_fast_axis(const std::vector<shape>& inputs);
 
 std::string make_transformer_args(std::vector<std::string> transformers);

@@ -142,12 +142,12 @@ struct tuple : tuple_detail::tuple_base<Ts...>
     friend constexpr bool operator<(const tuple& x, const tuple& y)
     {
         return x([&](const auto&... xs) {
-            return y([&](const auto&... ys) {
-                fold([&](auto a, auto b) { return a == 0 ? b() : 0; })(0, [&] {
-                    return (xs < ys) ? -1 : (ys < xs) ? 1 : 0;
-                }...);
-            });
-        });
+                   return y([&](const auto&... ys) {
+                       return fold([&](auto a, auto b) { return a == 0 ? b() : a; })(0, [&] {
+                           return (xs < ys) ? -1 : (ys < xs) ? 1 : 0;
+                       }...);
+                   });
+               }) < 0;
     }
     friend constexpr bool operator>(const tuple& x, const tuple& y) { return y < x; }
     friend constexpr bool operator<=(const tuple& x, const tuple& y) { return not(x > y); }

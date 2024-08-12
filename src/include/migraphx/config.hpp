@@ -56,3 +56,13 @@
 #define MIGRAPHX_TIDY_CONST
 #endif // tidy_const
 #endif // clang_tidy
+
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define MIGRAPHX_ASAN 1
+#endif
+#endif
+#ifndef MIGRAPHX_ASAN
+#define MIGRAPHX_ASAN 0
+#endif
+    

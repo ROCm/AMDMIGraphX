@@ -37,7 +37,11 @@ struct op_name
 {
     std::string name() const
     {
-        const std::string& name = get_type_name<Derived>();
+#if MIGRAPHX_ASAN
+        std::string name = get_type_name<Derived>();
+#else
+        static const std::string& name = get_type_name<Derived>();
+#endif
         return name.substr(name.rfind("::") + 2);
     }
 };

@@ -292,8 +292,26 @@ TEST_CASE(dot_dot_pointwise)
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, dot2}, single_pointwise("add"));
         mm->add_return({add});
     }
-    migraphx::program p2 = p1;
     run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto c   = mm->add_parameter("c", s2);
+        auto dot1 =
+            add_mlir(p2, "mlir_dot4", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot, dot);
+            });
+        auto dot2 =
+            add_mlir(p2, "mlir_dot5", {dot1, c}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot, dot);
+            });
+        auto add = add_pointwise(p2, "main:pointwise0", {dot1, dot2}, single_pointwise("add"));
+        mm->add_return({add});
+    }
     EXPECT(p1 == p2);
 }
 
@@ -322,7 +340,11 @@ TEST_CASE(dot_dot_pointwise_pointwise)
         auto b    = mm->add_parameter("b", s2);
         auto c    = mm->add_parameter("c", s2);
         auto x    = mm->add_parameter("d", s1);
-        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot1 =
+            add_mlir(p2, "mlir_dot6", {a, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot, dot);
+            });
         auto fused =
             add_mlir(p2,
                      "mlir_main:pointwise0",

@@ -92,10 +92,7 @@ struct matcher_context
         return ins == std::prev(mod->end());
     }
 
-    void debug_print(instruction_ref ins) const
-    {
-        mod->debug_print(ins);
-    }
+    void debug_print(instruction_ref ins) const { mod->debug_print(ins); }
 
     private:
     module* mod = nullptr;
@@ -590,54 +587,46 @@ inline auto outputs()
 inline auto trace(std::string s)
 {
     return [=](auto m) {
-        return make_basic_fun_matcher(
-            [=](matcher_context& ctx,
-                                    instruction_ref ins) {
-
-                std::cout << s << ": ";
-                ctx.debug_print(ins);
-                optional<instruction_ref>  result = m.match(ctx, ins);
-                if (result.has_value())
-                    std::cout << "Found\n";
-                else
-                    std::cout << "Not Found\n";
-                return result;
-            });
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            std::cout << s << ": ";
+            ctx.debug_print(ins);
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+                std::cout << "Found\n";
+            else
+                std::cout << "Not Found\n";
+            return result;
+        });
     };
 }
-
 
 inline auto trace_found(std::string s)
 {
     return [=](auto m) {
-        return make_basic_fun_matcher(
-            [=](matcher_context& ctx,
-                                    instruction_ref ins) {
-                optional<instruction_ref>  result = m.match(ctx, ins);
-                if (result.has_value())
-                {
-                    std::cout << "Found: " << s << ": ";
-                    ctx.debug_print(ins);
-                }
-                return result;
-            });
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(result.has_value())
+            {
+                std::cout << "Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
     };
 }
 
 inline auto trace_not_found(std::string s)
 {
     return [=](auto m) {
-        return make_basic_fun_matcher(
-            [=](matcher_context& ctx,
-                                    instruction_ref ins) {
-                optional<instruction_ref>  result = m.match(ctx, ins);
-                if (not result.has_value())
-                {
-                    std::cout << "Not Found: " << s << ": ";
-                    ctx.debug_print(ins);
-                }
-                return result;
-            });
+        return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
+            optional<instruction_ref> result = m.match(ctx, ins);
+            if(not result.has_value())
+            {
+                std::cout << "Not Found: " << s << ": ";
+                ctx.debug_print(ins);
+            }
+            return result;
+        });
     };
 }
 

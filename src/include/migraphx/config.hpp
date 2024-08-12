@@ -65,4 +65,3 @@
 #ifndef MIGRAPHX_ASAN
 #define MIGRAPHX_ASAN 0
 #endif
-    

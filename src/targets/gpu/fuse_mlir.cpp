@@ -414,7 +414,7 @@ MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {
     if(ins->name() != "split_fused_reduce")
         return false;
-    auto mod_arg            = ins->module_inputs().front();
+    auto* mod_arg           = ins->module_inputs().front();
     auto supported_reshapes = reshaper_names();
     supported_reshapes.erase("slice");
     std::unordered_set<std::string> builtins = {"@param", "@literal", "@return"};
@@ -515,7 +515,7 @@ struct find_mlir_split_reduce
                                                      // pointwise inside split_fused_reduce
                                  }
                              }
-                             auto sub_pm      = mod_args.front();
+                             auto* sub_pm     = mod_args.front();
                              auto param_map_2 = create_param_map_with_literals(
                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
                              for(const auto& i : param_map_2)

@@ -32,7 +32,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-struct problem_cache
+struct MIGRAPHX_GPU_EXPORT problem_cache
 {
     bool has(const std::string& name, const value& problem) const;
     void insert(const std::string& name, const value& problem, const value& solution);

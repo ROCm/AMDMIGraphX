@@ -297,6 +297,49 @@ TEST_CASE(dot_dot_pointwise)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(dot_dot_pointwise_pointwise)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {1, 4, 5}};
+    migraphx::shape s2{migraphx::shape::float_type, {1, 5, 5}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto c    = mm->add_parameter("c", s2);
+        auto x    = mm->add_parameter("d", s1);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), dot1, c);
+        auto add1 = add_pointwise(p1, "main:pointwise0", {dot2, x}, single_pointwise("add"));
+        auto add2 = add_pointwise(p1, "main:pointwise1", {dot1, add1}, single_pointwise("add"));
+        mm->add_return({add2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto c    = mm->add_parameter("c", s2);
+        auto x    = mm->add_parameter("d", s1);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0",
+                     {x, dot1, c},
+                     {"x2", "y0", "y1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto dot =
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[1], inputs[2]);
+                         auto add = pm->add_instruction(migraphx::make_op("add"), dot, inputs[0]);
+                         return std::make_tuple(dot, add);
+                     });
+        auto add2 = add_pointwise(p2, "main:pointwise1", {dot1, fused}, single_pointwise("add"));
+        mm->add_return({add2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(add_dot)
 {
     migraphx::shape s{migraphx::shape::float_type, {1, 3, 3}};

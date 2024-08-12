@@ -52,20 +52,22 @@ std::vector<instruction_ref> find_lasts(const module& m, Predicate pred)
     return result;
 }
 
-std::unordered_set<instruction_ref> preserve_output_layout(module& m)
+void preserve_output_layout(module& m)
 {
-    std::unordered_set<instruction_ref> result;    
-    std::vector<instruction_ref> outputs = find_lasts(m, [](auto ins) {
-        return ins->name() == "convolution" and ins->get_shape().lens().size() == 4;
-    });
+    auto last = std::prev(m.end());
+    std::vector<instruction_ref> outputs;
+    if(last->name() == "@return")
+        outputs = last->inputs();
+    else
+        outputs = {last};
+
     for(auto output : outputs)
     {
         auto permutation = find_permutation(output->get_shape());
         auto layout      = m.insert_instruction(
             std::next(output), make_op("layout", {{"permutation", permutation}}), output);
-        result.insert(m.replace_instruction(output, layout));
+        m.replace_instruction(output, layout);
     }
-    return result;
 }
 
 void transform_convolutions(module& m)
@@ -89,7 +91,7 @@ void transform_convolutions(module& m)
     }
 }
 
-void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_layouts)
+void remove_layout(module& m)
 {
     for(auto ins : iterator_for(m))
     {
@@ -97,21 +99,21 @@ void remove_layout(module& m, const std::unordered_set<instruction_ref>& output_
             continue;
         if(ins->get_shape() != ins->inputs().front()->get_shape())
             continue;
-        if(contains(output_layouts, ins))
-            continue;
         m.replace_instruction(ins, ins->inputs().front());
     }
 }
 
 void layout_nhwc::apply(module_pass_manager& mpm) const
 {
-    std::unordered_set<instruction_ref> output_layouts = preserve_output_layout(mpm.get_module());
+    preserve_output_layout(mpm.get_module());
     transform_convolutions(mpm.get_module());
+    mpm.get_module().debug_print();
     mpm.run_pass(dead_code_elimination{});
     mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
-    remove_layout(mpm.get_module(), output_layouts);
+    remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
+    mpm.get_module().debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

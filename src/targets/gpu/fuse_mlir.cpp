@@ -601,11 +601,14 @@ struct find_mlir_fused_ops
                                        // input to pointwise in new fused module
         bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
         auto reshaped_gemm       = x_ins;
+        std::vector<instruction_ref> reshapes_vec;
         while(reshaped_gemm != gemm_based_op)
         {
-            gemm_has_multi_outs |= reshaped_gemm->outputs().size() > 1;
-            reshaped_gemm = reshaped_gemm->inputs().at(0);
+            reshapes_vec.push_back(reshaped_gemm);
+            gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
+            reshaped_gemm       = reshaped_gemm->inputs().at(0);
         }
+        reshapes_vec.push_back(reshaped_gemm);
 
         auto return_vals = mm->fuse(*pm, pw_ins->inputs(), &param_map);
         if(gemm_has_multi_outs)
@@ -622,15 +625,18 @@ struct find_mlir_fused_ops
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
         if(gemm_has_multi_outs)
         {
-            auto fused_ins =
-                mpm.get_module().insert_instruction(gemm_based_op,
-                                                    mlir_op{gemm_based_op->get_operator()},
-                                                    mlir_contiguous(mpm, inputs),
-                                                    {mm});
+            auto fused_ins = mpm.get_module().insert_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
             mpm.get_module().replace_instruction(
                 pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
             auto dot_ins = mpm.get_module().insert_instruction(
-                gemm_based_op, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            // move all the reshape instructions and original GEMM instruction after the fused op to
+            // avoid generating invalid migraphx program
+            for(const auto& orig_i : reverse(reshapes_vec))
+            {
+                mpm.get_module().move_instruction(orig_i, pw_ins);
+            }
             mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
         }
         else

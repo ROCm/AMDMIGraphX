@@ -102,6 +102,28 @@ struct min
         return migraphx::min(x, y);
     }
 };
+
+struct logical_and
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if(static_cast<bool>(x) and static_cast<bool>(y))
+            return static_cast<T>(1);
+        return static_cast<T>(0);
+    }
+};
+
+struct logical_or
+{
+    template <class T, class U>
+    MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
+    {
+        if(static_cast<bool>(x) or static_cast<bool>(y))
+            return static_cast<T>(1);
+        return static_cast<T>(0);
+    }
+};
 } // namespace op
 
 // NOLINTNEXTLINE
@@ -135,6 +157,7 @@ struct highest
         return numeric_max<vec_type<T>>();
     }
 };
+
 MIGRAPHX_OPS_DEFINE_COMMON_TYPE(highest)
 
 } // namespace migraphx

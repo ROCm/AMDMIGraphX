@@ -400,8 +400,8 @@ struct find_const_alloc_reshapes
 {
     auto matcher() const
     {
-        return match::name("reshape")(match::nargs(2),
-                                      match::arg(1)(match::name("allocate")(match::is_constant())));
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
+        return match::name("reshape")(match::nargs(2), const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -434,8 +434,8 @@ struct find_const_alloc_fill
 {
     auto matcher() const
     {
-        return match::name("fill")(match::arg(0)(match::is_constant()),
-                                   match::arg(1)(match::name("allocate")(match::is_constant())));
+        auto const_alloc = match::arg(1)(match::name("allocate")(match::is_constant()));
+        return match::name("fill")(match::arg(0)(match::is_constant()), const_alloc);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -482,9 +482,10 @@ struct find_static_broadcast_for_dot
 
 /**
  * Simplify onehot instructions with static shape `indices` input and
- * a compile-time constant `depth` input.
+ * a compile-time constant `depth` attribute or input.
  * From:
- * onehot(static_shape_arg, constant_arg, values)
+ * onehot(static_shape_arg, constant_arg, values) or
+ * onehot(static_shape_arg, values)
  * To:
  * A = literal(shape = onehot_output_shape, value = 0)
  * B = unsqueeze(literal(lens = indices_lens, strides = broadcasted scalar, value = 1),
@@ -499,9 +500,12 @@ struct find_static_onehot
 {
     auto matcher() const
     {
-        return match::name("onehot")(match::arg(0)(match::static_shape()),
-                                     match::arg(1)(match::is_constant()),
-                                     match::arg(2)(match::static_shape()));
+        auto match_2_args = match::nargs(2)(match::arg(0)(match::static_shape()),
+                                            match::arg(1)(match::static_shape()));
+        auto match_3_args = match::nargs(3)(match::arg(0)(match::static_shape()),
+                                            match::arg(1)(match::is_constant()),
+                                            match::arg(2)(match::static_shape()));
+        return match::name("onehot")(match::any_of(match_2_args, match_3_args));
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -511,15 +515,26 @@ struct find_static_onehot
         auto onehot_op      = any_cast<op::onehot>(onehot_ins->get_operator());
         auto indices_ins    = onehot_inputs[0];
         shape indices_shape = indices_ins->get_shape();
-        auto depth_ins      = onehot_inputs[1];
-        auto values_ins     = onehot_inputs[2];
+        std::size_t depth_val;
+        migraphx::instruction_ref values_ins;
+        if(onehot_op.depth.has_value())
+        {
+            assert(onehot_inputs.size() == 2);
+            depth_val  = onehot_op.depth.value();
+            values_ins = onehot_inputs[1];
+        }
+        else
+        {
+            assert(onehot_inputs.size() == 3);
+            auto depth_ins = onehot_inputs[1];
+            depth_ins->eval().visit([&](auto d) { depth_val = d[0]; });
+            values_ins = onehot_inputs[2];
+        }
         shape values_shape  = values_ins->get_shape();
         std::vector<std::size_t> static_output_lens = indices_shape.lens();
         auto normalized_axis =
             (onehot_op.axis < 0) ? onehot_op.axis + indices_shape.ndim() + 1 : onehot_op.axis;
-        depth_ins->eval().visit([&](auto d) {
-            static_output_lens.insert(static_output_lens.begin() + normalized_axis, d[0]);
-        });
+        static_output_lens.insert(static_output_lens.begin() + normalized_axis, depth_val);
         shape output_shape{values_shape.type(), static_output_lens};
         std::vector<float> zeros(output_shape.elements(), 0);
         auto zeros_lit      = m.add_literal(literal(output_shape, zeros));

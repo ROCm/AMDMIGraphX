@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -186,10 +186,22 @@ bool none_of(detail::empty, const Predicate&)
     return true;
 }
 
+template <class C, class Predicate>
+auto find_if(const C& c, const Predicate& p)
+{
+    return std::find_if(c.begin(), c.end(), p);
+}
+
 template <class Range, class Iterator>
 void copy(Range&& r, Iterator it)
 {
     std::copy(r.begin(), r.end(), it);
+}
+
+template <class Range, class Iterator, class Predicate>
+void copy_if(Range&& r, Iterator it, Predicate pred)
+{
+    std::copy_if(r.begin(), r.end(), it, pred);
 }
 
 template <class Range, class Iterator, class F>

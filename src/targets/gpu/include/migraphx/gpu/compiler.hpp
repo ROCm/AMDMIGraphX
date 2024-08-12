@@ -48,26 +48,48 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f)
-        : code_objects{{op}},
-          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_objects.front());
-          })
+    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(f))
+    {
+    }
+
+    template <class F, class Trace>
+    compiler_replace(const operation& op, F f, Trace t)
+        : code_objects{{op}}, replace_fn(make_replace(f)), trace_fn(t)
     {
     }
 
     template <class F>
     compiler_replace(const std::vector<operation>& op, F f)
-        : code_objects{op},
-          replace_fn([=](const compiler_replace& cr, module& m, instruction_ref ins) {
-              f(m, ins, cr.code_objects);
-          })
+        : code_objects{op}, replace_fn(make_replace_all(f))
+    {
+    }
+
+    template <class F, class Trace>
+    compiler_replace(const std::vector<operation>& op, F f, Trace t)
+        : code_objects{op}, replace_fn(make_replace_all(f)), trace_fn(t)
     {
     }
 
     std::vector<operation> code_objects = {};
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
+    std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
+
+    template <class F>
+    static auto make_replace(F f)
+    {
+        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+            f(m, ins, cr.code_objects.front());
+        };
+    }
+
+    template <class F>
+    static auto make_replace_all(F f)
+    {
+        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+            f(m, ins, cr.code_objects);
+        };
+    }
 
     void replace(module& m, instruction_ref ins) const
     {
@@ -81,6 +103,12 @@ struct compiler_replace
             }
             m.replace_instruction(ins, code_objects.front(), ins->inputs());
         }
+    }
+
+    void trace(std::ostream& os, instruction_ref ins) const
+    {
+        if(trace_fn)
+            trace_fn(os, ins);
     }
 };
 

@@ -37,7 +37,7 @@ struct op_name
 {
     std::string name() const
     {
-        static const std::string& name = get_type_name<Derived>();
+        const std::string& name = get_type_name<Derived>();
         return name.substr(name.rfind("::") + 2);
     }
 };

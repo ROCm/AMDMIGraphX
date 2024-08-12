@@ -445,7 +445,7 @@ struct find_mlir_fused_ops
         auto* pm           = pw_ins->module_inputs().front();
         auto pw_inputs     = pw_ins->inputs();
         // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
-        // being fused
+        // being fused, otherwise it can create invalid graph transformation
         if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
                if(i == x_ins or not reaches(gemm_based_op, i))
                {

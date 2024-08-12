@@ -27,7 +27,9 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
+#endif
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -304,9 +306,17 @@ argument get_preallocation(context& ctx, const std::string& id)
 
 void gpu_fill(context& ctx, const argument& dst, int value)
 {
-    // TODO: Handle non-packed tensor when value is not 0
-    assert(dst.get_shape().packed() and value == 0);
-    hip_async_memset(ctx, dst, value);
+    if(dst.get_sub_objects().empty())
+    {
+        // TODO: Handle non-packed tensor when value is not 0
+        assert(dst.get_shape().packed() and value == 0);
+        hip_async_memset(ctx, dst, value);
+    }
+    else
+    {
+        for(const auto& arg : dst.get_sub_objects())
+            gpu_fill(ctx, arg, value);
+    }
 }
 
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)

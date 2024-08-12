@@ -38,6 +38,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+
 namespace {
 
 template <class Derived, std::size_t N>
@@ -194,9 +196,10 @@ struct find_gemm_softmax_gemm
                 .bind("gemm1")));
         auto mul   = match::name("mul")(
             match::nargs(2), match::either_arg(0, 1)(match::is_constant().bind("scale"), gemm1));
-        auto add = match::name("add")(is_bias_supported(),
-                                      match::nargs(2),
-                                      match::any_arg(0, 1)(match::none_of(mul).bind("bias")));
+        auto add =
+            match::name("add")(is_bias_supported(),
+                               match::nargs(2),
+                               match::either_arg(0, 1)(match::none_of(mul).bind("bias"), mul));
         auto softmax =
             match::name("softmax")(match::arg(0)(match::any_of(mul, add, gemm1))).bind("softmax");
 
@@ -241,9 +244,12 @@ struct find_gemm_softmax_gemm
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    match::find_matches(mpm.get_module(), find_layernorm{});
-    mpm.run_pass(dead_code_elimination{});
-    match::find_matches(mpm.get_module(), find_add_layernorm{});
+    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    {
+        match::find_matches(mpm.get_module(), find_layernorm{});
+        mpm.run_pass(dead_code_elimination{});
+        match::find_matches(mpm.get_module(), find_add_layernorm{});
+    }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
 }
 

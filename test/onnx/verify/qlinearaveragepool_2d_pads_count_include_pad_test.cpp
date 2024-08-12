@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,7 +28,7 @@
 
 TEST_CASE(qlinearaveragepool_2d_pads_count_include_pad_test)
 {
-    auto p = migraphx::parse_onnx("qlinearaveragepool_2d_pads_count_include_pad_test.onnx");
+    auto p = read_onnx("qlinearaveragepool_2d_pads_count_include_pad_test.onnx");
     p.compile(migraphx::make_target("ref"));
     std::vector<int8_t> data_x = {-30,  50,  91,  -87,  -21, -113, -16, 6,    -128, 104,  82,  -126,
                                   54,   41,  -71, 62,   -11, -111, 13,  104,  -43,  -48,  30,  85,

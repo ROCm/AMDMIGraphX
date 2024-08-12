@@ -27,5 +27,5 @@
 TEST_CASE(gridsample_volumetric_nearest_align_corners_0_test)
 {
     EXPECT(test::throws(
-        [&] { migraphx::parse_onnx("gridsample_volumetric_nearest_align_corners_0_test.onnx"); }));
+        [&] { read_onnx("gridsample_volumetric_nearest_align_corners_0_test.onnx"); }));
 }

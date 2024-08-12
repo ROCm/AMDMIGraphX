@@ -26,5 +26,5 @@
 
 TEST_CASE(gridsample_wrong_grid_type_test)
 {
-    EXPECT(test::throws([&] { migraphx::parse_onnx("gridsample_wrong_grid_type_test.onnx"); }));
+    EXPECT(test::throws([&] { read_onnx("gridsample_wrong_grid_type_test.onnx"); }));
 }

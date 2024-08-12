@@ -36,7 +36,7 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
-
+#if MIGRAPHX_USE_ROCBLAS
 /*
 Regular rocBLAS API takes compute_type as `rocblas_datatype` enum value v/s "ex3" BETA API takes it
 as `rocblas_computetype` enum value. `rb_compute_type` is faciliator to implictly cast integer enum
@@ -79,8 +79,10 @@ void blas_shape(const shape& s)
 {
     if(s.lens().size() < 2)
         return;
-    if(std::none_of(s.strides().end() - 2, s.strides().end(), [&](auto i) { return i == 1; }))
+    if(std::none_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 1; }))
         MIGRAPHX_THROW("GPU_GEMM: needs to have one matrix stride as 1");
+    if(std::any_of(s.strides().end() - 2, s.strides().end(), [](auto i) { return i == 0; }))
+        MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
     shape batch_shape{s.type(),
@@ -261,7 +263,8 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args =
+                    create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -270,7 +273,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex3,
                                common_args,
                                rocblas_gemm_algo_standard,
@@ -283,7 +286,8 @@ struct gemm_impl
         {
             if(strided_batched)
             {
-                auto common_args = create_strided_batched_args_common(ctx, input_args);
+                auto common_args =
+                    create_strided_batched_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -292,7 +296,7 @@ struct gemm_impl
             }
             else
             {
-                auto common_args = create_gemm_ex_args_common(ctx, input_args);
+                auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
                 rocblas_invoke(&rocblas_gemm_ex,
                                common_args,
                                rocblas_gemm_algo_solution_index,
@@ -331,7 +335,7 @@ struct gemm_impl
 
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_strided_batched_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -340,7 +344,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, compute_type, input_args);
             check_valid      = rocblas_invoke(&rocblas_gemm_ex,
                                          common_args,
                                          rocblas_gemm_algo_solution_index,
@@ -367,7 +371,9 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      */
-    auto create_strided_batched_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_strided_batched_args_common(context& ctx,
+                                            rb_compute_type rbcompute_type,
+                                            const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -394,7 +400,7 @@ struct gemm_impl
                     ldd,
                     d_stride,
                     num_matrices,
-                    compute_type);
+                    rbcompute_type);
     }
     /**
      * Helper method to create that subset of a long rocBLAS argument list that is common
@@ -406,7 +412,9 @@ struct gemm_impl
      *   A and args[0] as B in calling the rocblas_gemm.
      *
      * */
-    auto create_gemm_ex_args_common(context& ctx, const std::vector<argument>& args) const
+    auto create_gemm_ex_args_common(context& ctx,
+                                    rb_compute_type rbcompute_type,
+                                    const std::vector<argument>& args) const
     {
         return pack(ctx.get_stream().get_rocblas(),
                     transb ? rocblas_operation_transpose : rocblas_operation_none,
@@ -428,7 +436,7 @@ struct gemm_impl
                     is_3inputs ? args[3].data() : args[2].data(),
                     output_type,
                     ldd,
-                    compute_type);
+                    rbcompute_type);
     }
 
 #ifdef MIGRAPHX_USE_ROCBLAS_TUNING_API
@@ -453,9 +461,16 @@ struct gemm_impl
         //
         rocblas_int list_size = 0;
         std::vector<rocblas_int> solution_indices;
+        rb_compute_type rbcompute_type = compute_type;
+        // rocblas_gemm_get_solutions() API requires compute_type as rocblas_datatype. Convert
+        // manually for FP8
+        if(arg_type == rocblas_datatype_f8_r)
+        {
+            rbcompute_type = rocblas_datatype_f32_r;
+        }
         if(strided_batched)
         {
-            auto common_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_args = create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -464,7 +479,8 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_strided_batched_args_common(ctx, input_args);
+            auto common_sol_args =
+                create_strided_batched_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_strided_batched_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -474,7 +490,7 @@ struct gemm_impl
         }
         else
         {
-            auto common_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_args,
                            rocblas_gemm_algo_solution_index,
@@ -483,7 +499,7 @@ struct gemm_impl
                            &list_size);
             solution_indices.resize(list_size);
 
-            auto common_sol_args = create_gemm_ex_args_common(ctx, input_args);
+            auto common_sol_args = create_gemm_ex_args_common(ctx, rbcompute_type, input_args);
             rocblas_invoke(&rocblas_gemm_ex_get_solutions,
                            common_sol_args,
                            rocblas_gemm_algo_solution_index,
@@ -522,6 +538,7 @@ struct gemm_impl
         }
         std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
                   << first_time << "ms" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }
 #endif
@@ -676,7 +693,7 @@ int32_t gemm_finalize(context& ctx,
     return gemm_finalize_impl(
         ctx, output_shape, input_shapes, alpha, beta, compute_fp32, solution_idx);
 }
-
+#endif
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

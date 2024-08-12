@@ -28,7 +28,10 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/param_utils.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -39,6 +42,7 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_EXTRA_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 /**
  * @brief Declares a new MIGraphX environment variable which forces to generate
@@ -150,80 +154,41 @@ struct mlir_op
         if(inputs.size() < 2)
             MIGRAPHX_THROW("should have at least two inputs.");
 
-        auto type       = mod->get_output_shapes().front().type();
-        auto mod_params = mod->get_parameter_names();
-        std::sort(mod_params.begin(), mod_params.end());
-        std::unordered_map<instruction_ref, shape> mod_ins_shapes;
-        std::unordered_map<std::string, shape> adjusted_mod_param_shapes;
-        std::transform(inputs.begin(),
-                       inputs.end(),
-                       mod_params.begin(),
-                       std::inserter(adjusted_mod_param_shapes, adjusted_mod_param_shapes.end()),
-                       [](auto ps, auto name) { return std::make_pair(name, ps); });
-        for(auto ins : iterator_for(*mod))
-        {
-            if(ins->name() == "@param")
-            {
-                mod_ins_shapes[ins] =
-                    adjusted_mod_param_shapes[any_cast<builtin::param>(ins->get_operator())
-                                                  .parameter];
-                if(ins->get_shape().type() != mod_ins_shapes[ins].type())
-                {
-                    MIGRAPHX_THROW(
-                        "MLIR_OP: adjusted mod parameter doesn't have the same type lens as "
-                        "original input. Type changed from : " +
-                        ins->get_shape().type_string() + " to " +
-                        mod_ins_shapes[ins].type_string());
-                }
-                if(ins->get_shape().lens() != mod_ins_shapes[ins].lens())
-                {
-                    MIGRAPHX_THROW("MLIR_OP: adjusted mod parameter doesn't have the same lens as "
-                                   "original input. Lens changed from " +
-                                   to_string_range(ins->get_shape().lens()) + " to " +
-                                   to_string_range(mod_ins_shapes[ins].lens()));
-                }
-            }
-            else if(ins->name() == "@literal")
-            {
-                mod_ins_shapes[ins] = ins->get_shape();
-            }
-            else if(ins->name() == "@return")
-            {
-                return mod_ins_shapes[ins->inputs().at(0)].with_type(type);
-            }
-            else
-            {
-                std::vector<shape> input_shapes;
-                input_shapes.resize(ins->inputs().size());
-                std::transform(ins->inputs().begin(),
-                               ins->inputs().end(),
-                               input_shapes.begin(),
-                               [&](auto in) { return mod_ins_shapes[in]; });
-                mod_ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes);
-            }
-        }
-        MIGRAPHX_THROW("No return found in the submodule");
+        auto result =
+            mod->compute_shapes(inputs, {.name = name(), .strict_type = true, .strict_lens = true});
+        if(result.size() == 1)
+            return result.front();
+        return shape{result};
     }
 };
 MIGRAPHX_REGISTER_OP(mlir_op);
 
 namespace {
 
+const auto& reshaper_names()
+{
+    // clang-format off
+    static const std::unordered_set<std::string> names = {
+        "slice",
+        "transpose",
+        "multibroadcast",
+        "broadcast",
+        "contiguous",
+        "reshape",
+        "squeeze",
+        "flatten",
+        "unsqueeze"
+    };
+    // clang-format on
+    return names;
+}
+
 std::tuple<instruction_ref, std::vector<operation>>
 get_fusable_input_op_stream(instruction_ref lower_input)
 {
     instruction_ref upper_input = lower_input;
     std::vector<operation> op_stream;
-    while(contains({"slice",
-                    "transpose",
-                    "multibroadcast",
-                    "broadcast",
-                    "contiguous",
-                    "reshape",
-                    "squeeze",
-                    "flatten",
-                    "unsqueeze"},
-                   upper_input->name()))
+    while(contains(reshaper_names(), upper_input->name()))
     {
         operation op = upper_input->get_operator();
         if(contains({"squeeze", "flatten", "unsqueeze"}, upper_input->name()))
@@ -248,8 +213,8 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
     {
         auto [upper_input, op_stream] = get_fusable_input_op_stream(input);
         top_inputs.push_back(upper_input);
-        instruction_ref prev_input = mm->add_parameter("y" + std::to_string(input_cnt++),
-                                                       upper_input->get_shape().as_standard());
+        instruction_ref prev_input =
+            mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
             prev_input = mm->add_instruction(op, {prev_input});
@@ -275,12 +240,12 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
-        if(mode != mlir_mode::fast)
-            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS has the support
         // for it.
         if(ins->get_shape().type() == migraphx::shape::fp8e4m3fnuz_type)
             return false;
+        if(mode != mlir_mode::fast)
+            return true;
         auto a = ins->inputs().front()->get_shape();
         auto b = ins->inputs().back()->get_shape();
         // auto m = a.lens()[a.lens().size() - 2];
@@ -304,8 +269,14 @@ auto is_mlir_conv(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         // Avoid MLIR assertion: Index < Length && "Invalid index!"
+#ifdef _WIN32
+        // Temporarily make it available only on Windows
+        if(ins->get_shape().lens().size() != 4 and group > 1)
+            return false;
+#else
         if(ins->get_shape().lens().size() != 4)
             return false;
+#endif
         if(contains({shape::fp8e4m3fnuz_type, shape::int8_type}, input.type()))
             return true;
         if(mode == mlir_mode::all)
@@ -339,30 +310,6 @@ create_param_map_with_literals(module_ref mm, const module* pm, const shape& sha
         ins_map[ins] = mbcast;
     }
     return ins_map;
-}
-
-std::vector<instruction_ref>
-fold_pointwise_mod(instruction_ref pm_ins,
-                   module_ref parent_mod,
-                   const std::unordered_map<instruction_ref, instruction_ref>& ins_map)
-{
-    auto* pm   = pm_ins->module_inputs().front();
-    auto names = pm->get_parameter_names();
-    std::sort(names.begin(), names.end());
-    std::unordered_map<instruction_ref, instruction_ref> param_map =
-        create_param_map_with_literals(parent_mod, pm, pm_ins->get_shape());
-    std::transform(names.begin(),
-                   names.end(),
-                   pm_ins->inputs().begin(),
-                   std::inserter(param_map, param_map.end()),
-                   [&](auto name, auto input) {
-                       if(ins_map.count(input))
-                           return std::make_pair(pm->get_parameter(name), ins_map.at(input));
-                       return std::make_pair(
-                           pm->get_parameter(name),
-                           parent_mod->add_parameter(name, input->get_shape().as_standard()));
-                   });
-    return parent_mod->insert_instructions(parent_mod->end(), pm, &param_map);
 }
 
 // Whitelist supported fusion options, including imposing type constraints
@@ -410,6 +357,7 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
         "floor",
         "log",
         "recip",
+        "sqrt",
         "rsqrt",
         "sigmoid",
         "softmax",
@@ -438,14 +386,41 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
     return false;
 }
 
+// A separate function so we can remove operators that are supported by mlir
+// but not supported for an input fusion.
+bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
+{
+    return is_pointwise_op_supported_by_mlir(i);
+}
+
 MIGRAPHX_PRED_MATCHER(mlir_pointwise, instruction_ref ins)
 {
     if(ins->name() != "pointwise")
         return false;
     auto* pm = ins->module_inputs().front();
-    return std::all_of(pm->begin(), pm->end(), [&](const auto& i) {
-        return is_pointwise_op_supported_by_mlir(i);
-    });
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir);
+}
+
+MIGRAPHX_PRED_MATCHER(mlir_input_pointwise, instruction_ref ins)
+{
+    if(ins->name() != "pointwise")
+        return false;
+    auto* pm = ins->module_inputs().front();
+    return std::all_of(pm->begin(), pm->end(), &is_pointwise_op_supported_by_mlir_for_input);
+}
+
+std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
+                                             const std::vector<instruction_ref>& inputs)
+{
+    std::vector<instruction_ref> result;
+    std::transform(
+        inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
+            if(input->get_shape().packed() or input->get_shape().broadcasted())
+                return input;
+            return mpm.get_module().insert_instruction(
+                std::next(input), make_op("contiguous"), input);
+        });
+    return result;
 }
 
 struct find_mlir_fused_ops
@@ -454,33 +429,83 @@ struct find_mlir_fused_ops
     mlir_mode dot_mode  = mlir_mode::none;
     auto matcher() const
     {
-        auto dot_or_conv = match::skip(match::name("contiguous"))(
+        auto reshapes = reshaper_names();
+        // slice is not supported
+        reshapes.erase("slice");
+        auto dot_or_conv = match::skip(match::name(reshapes))(
             match::any_of(is_mlir_dot(dot_mode), is_mlir_conv(conv_mode)).bind("gemm_based_op"));
         return mlir_pointwise()(match::any_of[match::inputs()](dot_or_conv.bind("x")));
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto ins           = r.result;
+        auto pw_ins        = r.result;
         auto gemm_based_op = r.instructions["gemm_based_op"];
-        auto x_ins         = r.instructions["x"]; // input after contiguous
-        auto* pm           = ins->module_inputs().front();
+        auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
+        auto* pm           = pw_ins->module_inputs().front();
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
-        mm->add_return(fold_pointwise_mod(ins, mm, {{x_ins, anchor_op}}));
+        std::unordered_map<instruction_ref, instruction_ref> param_map =
+            create_param_map_with_literals(mm, pm, pw_ins->get_shape());
+        auto [upper_input, op_stream] = get_fusable_input_op_stream(x_ins);
+        assert(upper_input == gemm_based_op);
+        auto prev_input = anchor_op;
+        for(const auto& op : reverse(op_stream))
+        {
+            prev_input = mm->add_instruction(op, {prev_input});
+        }
+        assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
+        param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
+                                       // input to pointwise in new fused module
+        bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
+        auto reshaped_gemm       = x_ins;
+        std::vector<instruction_ref> reshapes_vec;
+        while(reshaped_gemm != gemm_based_op)
+        {
+            reshapes_vec.push_back(reshaped_gemm);
+            gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
+            reshaped_gemm       = reshaped_gemm->inputs().at(0);
+        }
+        reshapes_vec.push_back(reshaped_gemm);
+
+        auto return_vals = mm->fuse(*pm, pw_ins->inputs(), &param_map);
+        if(gemm_has_multi_outs)
+        {
+            return_vals.insert(return_vals.begin(), anchor_op);
+        }
+        mm->add_return(return_vals);
 
         std::vector<instruction_ref> inputs;
-        std::copy_if(ins->inputs().begin(),
-                     ins->inputs().end(),
+        std::copy_if(pw_ins->inputs().begin(),
+                     pw_ins->inputs().end(),
                      std::back_inserter(inputs),
-                     [&](auto input) { return input != gemm_based_op; });
+                     [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        mpm.get_module().replace_instruction(
-            ins, mlir_op{gemm_based_op->get_operator()}, inputs, {mm});
+        if(gemm_has_multi_outs)
+        {
+            auto fused_ins = mpm.get_module().insert_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            mpm.get_module().replace_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
+            auto dot_ins = mpm.get_module().insert_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            // move all the reshape instructions and original GEMM instruction after the fused op to
+            // avoid generating invalid migraphx program
+            for(const auto& orig_i : reverse(reshapes_vec))
+            {
+                mpm.get_module().move_instruction(orig_i, pw_ins);
+            }
+            mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
+        }
+        else
+        {
+            mpm.get_module().replace_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        }
     }
 };
 
@@ -509,8 +534,10 @@ struct find_mlir_standalone_op
         auto [anchor_op, top_inputs] = fuse_input_ops_and_gemm_based_op(
             mm, gemm_based_op->inputs(), gemm_based_op->get_operator());
         mm->add_return({anchor_op});
-        mpm.get_module().replace_instruction(
-            gemm_based_op, mlir_op{gemm_based_op->get_operator()}, top_inputs, {mm});
+        mpm.get_module().replace_instruction(gemm_based_op,
+                                             mlir_op{gemm_based_op->get_operator()},
+                                             mlir_contiguous(mpm, top_inputs),
+                                             {mm});
     }
 };
 
@@ -573,23 +600,26 @@ struct find_mlir_standalone_attention_op
 
         auto gemm1 = mm->add_instruction(make_op("dot"), {softmax, new_upper_v});
 
-        std::unordered_map<instruction_ref, instruction_ref> ins_map;
-        ins_map[gemm_softmax_gemm] = gemm1;
-        auto ins_to_replace        = gemm1;
+        std::vector<instruction_ref> ins_to_replace = {gemm1};
         auto ins_to_be_replaced    = gemm_softmax_gemm;
         if(r.instructions.find("trailing_pm") != r.instructions.end())
         {
-            ins_to_replace = fold_pointwise_mod(r.instructions["trailing_pm"], mm, ins_map)[0];
-            std::copy_if(r.instructions["trailing_pm"]->inputs().begin(),
-                         r.instructions["trailing_pm"]->inputs().end(),
+            auto trailing_pm_ins = r.instructions["trailing_pm"];
+            auto ins_map         = create_param_map_with_literals(
+                mm, trailing_pm_ins->module_inputs().front(), trailing_pm_ins->get_shape());
+            ins_map[gemm_softmax_gemm] = gemm1;
+            ins_to_replace             = mm->fuse(
+                *trailing_pm_ins->module_inputs().front(), trailing_pm_ins->inputs(), &ins_map);
+            std::copy_if(trailing_pm_ins->inputs().begin(),
+                         trailing_pm_ins->inputs().end(),
                          std::back_inserter(inputs),
                          [&](auto input) { return input != gemm_softmax_gemm; });
-            ins_to_be_replaced = r.instructions["trailing_pm"];
+            ins_to_be_replaced = trailing_pm_ins;
         }
-        mm->add_return({ins_to_replace});
+        mm->add_return(ins_to_replace);
 
         mpm.get_module().replace_instruction(
-            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, inputs, {mm});
+            ins_to_be_replaced, mlir_op{gemm1->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
     }
 };
 
@@ -604,6 +634,48 @@ struct find_mlir_attention_fused_ops : public find_mlir_standalone_attention_op
     }
 };
 
+struct find_pointwise_mlir
+{
+    auto matcher() const
+    {
+        return match::name("gpu::mlir_op")(match::any_of[match::inputs()](
+            mlir_input_pointwise(match::used_once()).bind("pointwise")));
+    }
+
+    static instruction_ref insert_pointwise(module& m,
+                                            instruction_ref ins,
+                                            const operation& op,
+                                            const std::vector<instruction_ref>& inputs,
+                                            const std::vector<module_ref>& mod_args)
+    {
+        // Only used in assert
+        (void)mod_args;
+        assert(mod_args.empty());
+        return insert_common_op(m, ins, op, inputs);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto pw  = r.instructions["pointwise"];
+
+        auto* mm = ins->module_inputs().front();
+        auto* pm = pw->module_inputs().front();
+
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        module_ref m = mpm.create_module(pm->name() + ":" + mm->name());
+        m->set_bypass();
+        auto rins   = m->fuse(*pm, pw->inputs(), &map_ins, &insert_pointwise).front();
+        map_ins[pw] = rins;
+
+        auto ret = m->fuse(*mm, ins->inputs(), &map_ins);
+        m->add_return({ret});
+
+        auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
+        mpm.get_module().replace_instruction(ins, ins->get_operator(), inputs, {m});
+    }
+};
+
 } // namespace
 
 #endif // MIGRAPHX_MLIR
@@ -612,7 +684,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_MLIR
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-    const bool is_navi      = starts_with(device_name, "gfx110");
+    const bool is_navi      = starts_with(device_name, "gfx11");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
@@ -639,6 +711,11 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_standalone_convolution_op{get_mode("convolution", mlir_mode::fast)},
         find_mlir_standalone_dot_op{get_mode("dot", mlir_mode::fast)});
+
+    mpm.run_pass(dead_code_elimination{});
+
+    if(enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+        match::find_matches(mpm, find_pointwise_mlir{});
 #else
     (void)mpm;
 #endif

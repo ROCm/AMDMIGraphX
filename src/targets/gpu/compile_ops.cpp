@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/program.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -81,6 +82,12 @@ struct compiled_result
 {
     compiler_replace replace;
     instruction_ref ins;
+
+    friend std::ostream& operator<<(std::ostream& os, const compiled_result& cr)
+    {
+        cr.replace.trace(os, cr.ins);
+        return os;
+    }
 };
 
 struct compile_plan
@@ -152,22 +159,33 @@ struct compile_plan
             insert_compiles(compiles, value{}, 0);
         }
     }
+    std::string problem_string() const
+    {
+        if(config)
+            return to_string(config->problem);
+        return "<no problem key>";
+    }
+
     const compiled_result& benchmark() const
     {
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+        if(trace_level > 0 and not results.empty())
+        {
+            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
+                      << std::endl;
+        }
         if(results.empty())
-            MIGRAPHX_THROW("No configs to tune");
+            MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                           problem_string());
         if(results.size() == 1)
         {
             if(not results.front().has_value())
-                MIGRAPHX_THROW("No configs to tune");
+                MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
+                               problem_string());
             return *results.front();
         }
         if(not config)
-            MIGRAPHX_THROW("Multiple kernels without config");
-        if(trace_level > 0)
-            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
-                      << std::endl;
+            MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
@@ -185,28 +203,43 @@ struct compile_plan
                                    std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
-                           // Time all the code objects for a given perf config and calculate total
-                           // time e.g. in case of split-K GEMM, it may or may not support fusion.
-                           // In that case MLIR compile would return code objects for individual
-                           // GEMM and pre/post fusion code objects.
-                           auto cobjs = cr->replace.code_objects;
-                           double t   = transform_accumulate(
-                               cobjs.begin(),
-                               cobjs.end(),
-                               double{0},
-                               std::plus<>{},
-                               [&](const operation& op) { return time_op(*ctx, op, 20); });
+                           if(trace_level > 2)
+                               std::cout << *cr << std::endl;
+                           /*
+                           create a small program with insturction being compiled and call "replace"
+                           on that which would insert all the compiled code objects, prefills etc.
+                           necessary to run candidate code object
+                           */
+                           program bench_prog;
+                           auto* bench_mm = bench_prog.get_main_module();
+                           std::vector<instruction_ref> bench_ins_inputs;
+
+                           std::transform(cr->ins->inputs().begin(),
+                                          cr->ins->inputs().end(),
+                                          std::back_inserter(bench_ins_inputs),
+                                          [&](const auto& arg) {
+                                              return bench_mm->add_parameter(
+                                                  std::to_string(bench_ins_inputs.size()),
+                                                  arg->get_shape());
+                                          });
+                           auto bench_ins = bench_mm->add_instruction(
+                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
+                           cr->replace.replace(*bench_mm, bench_ins);
+                           // do dead code elimination by directly removing instruction
+                           bench_mm->remove_instruction(bench_ins);
+                           auto t = time_program(*ctx, bench_prog, 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;
                        });
+        std::this_thread::sleep_for(std::chrono::milliseconds{50});
         auto i = std::distance(times.begin(), std::min_element(times.begin(), times.end()));
         if(trace_level > 0)
             std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(not results[i].has_value())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
-                           to_string(config->problem));
+                           problem_string());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)

@@ -202,6 +202,20 @@ struct MIGRAPHX_EXPORT module
     instruction_ref begin() const;
     instruction_ref end() const;
 
+    struct compute_shapes_options
+    {
+        std::string name                               = "compute_shapes";
+        bool strict_type                               = false;
+        bool strict_lens                               = false;
+        std::vector<std::size_t> scalar_const_out_lens = {};
+    };
+
+    /// Compute a new ouput shape by replacing each parameter with input
+    /// shapes passed in.
+    std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
+                                      compute_shapes_options options) const;
+    std::vector<shape> compute_shapes(const std::vector<shape>& inputs) const;
+
     std::vector<shape> get_output_shapes() const;
 
     instruction_ref validate() const;
@@ -230,6 +244,21 @@ struct MIGRAPHX_EXPORT module
     std::array<with_inputs, 3> split(const std::vector<instruction_ref>& args,
                                      const std::vector<instruction_ref>& splits1,
                                      const std::vector<instruction_ref>& splits2) const;
+
+    // Fuse the instruction into the module by inserting the instructions and
+    // parameters for any missing inputs.
+    std::vector<instruction_ref>
+    fuse(const std::vector<instruction_ref>& inss,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
+
+    // Fuse another module into this module by inserting the instructions and
+    // parameters from the module
+    std::vector<instruction_ref>
+    fuse(const module& m,
+         const std::vector<instruction_ref>& inputs,
+         std::unordered_map<instruction_ref, instruction_ref>* map_ins = nullptr,
+         inserter insert                                               = nullptr);
 
     void debug_print() const;
     void debug_print(instruction_ref ins) const;
@@ -275,6 +304,8 @@ struct MIGRAPHX_EXPORT module
      */
     ins_dep_map calc_implicit_deps() const;
 
+    void repeat_while_changes(std::size_t n, const std::function<void()>& f);
+
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const module& m);
     MIGRAPHX_EXPORT friend bool operator==(const module& x, const module& y);
     friend bool operator!=(const module& x, const module& y) { return not(x == y); }
@@ -292,7 +323,7 @@ struct MIGRAPHX_EXPORT module
     std::unique_ptr<module_impl> impl;
 };
 
-struct module_with_inputs
+struct MIGRAPHX_EXPORT module_with_inputs
 {
     module mod;
     std::vector<instruction_ref> inputs;

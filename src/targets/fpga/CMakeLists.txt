@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@ rocm_clang_tidy_check(migraphx_fpga)
 target_link_libraries(migraphx_fpga migraphx)
 
 rocm_install_targets(
+    PRIVATE
     TARGETS migraphx_fpga
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

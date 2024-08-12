@@ -6,7 +6,7 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Install rocm key
-RUN apt-get update && apt-get install -y gnupg2 --no-install-recommends curl && \
+RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
@@ -14,6 +14,9 @@ RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/6.0
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
+
+# rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
+RUN add-apt-repository -y ppa:deadsnakes/ppa
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -32,10 +35,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3 \
     python3-dev \
     python3-pip \
-    software-properties-common \
+    libpython3.8 \
     wget \
     rocm-device-libs \
-    hip-base \
+    hip-dev \
     libnuma-dev \
     miopen-hip \
     rocblas \
@@ -100,7 +103,7 @@ RUN pip3 install -r /doc-requirements.txt
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
-RUN cget -p /opt/cmake install kitware/cmake@v3.26.4
+RUN cget -p /opt/cmake install kitware/cmake@v3.27.0
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_9_8
 

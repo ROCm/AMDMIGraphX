@@ -603,6 +603,34 @@ TEST_CASE(lppool_l2_norm_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(lppool_l2_norm_test_asym_padding)
+{
+    migraphx::program p;
+    auto* mm     = p.get_main_module();
+    auto s       = migraphx::shape{migraphx::shape::float_type, {1, 1, 5, 4}};
+    auto op      = migraphx::op::pooling{migraphx::op::pooling_mode::lpnorm};
+    op.lengths   = {2, 1};
+    op.padding   = {1, 0, 0, 0};
+    op.stride    = {1, 1};
+    op.dilations = {1, 1};
+    op.lp_order  = 2;
+
+    std::vector<float> data{0.3, 0.2, 0.4, 0.1, 0.8, 0.5, 0.9,  0.1, 0.1, 0.7,
+                            0.1, 0.6, 0.7, 0.5, 0.1, 0.2, 0.11, 0.2, 0.3, 0.4};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold{0.3,        0.2,        0.4,        0.1,        0.8544004,
+                            0.53851646, 0.98488575, 0.14142136, 0.8062258,  0.86023253,
+                            0.9055385,  0.60827625, 0.70710677, 0.86023253, 0.14142136,
+                            0.6324555,  0.70859015, 0.53851646, 0.31622776, 0.44721362};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(lppool_dyn_test)
 {
     migraphx::program p;

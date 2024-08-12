@@ -28,7 +28,7 @@
 
 TEST_CASE(gridsample_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_test.onnx");
+    migraphx::program p = read_onnx("gridsample_test.onnx");
     migraphx::compile_options options;
     p.compile(migraphx::make_target("ref"));
 

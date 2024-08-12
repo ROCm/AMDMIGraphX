@@ -130,10 +130,23 @@ ${RC_FILE_MAPPING}
 namespace resource {
 std::string_view read(int id)
 {
-    HMODULE handle = GetModuleHandle(nullptr);
-    HRSRC rc = FindResource(handle, MAKEINTRESOURCE(id), MAKEINTRESOURCE(TEXTFILE));
-    HGLOBAL data = LoadResource(handle, rc);
-    return {static_cast<const char*>(LockResource(data)), SizeofResource(handle, rc)};
+    HMODULE handle;
+    if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                         reinterpret_cast<LPCSTR>(${EMBED_NAME}),
+                         &handle) != 0)
+    {
+        HRSRC rc = FindResource(handle, MAKEINTRESOURCE(id), MAKEINTRESOURCE(TEXTFILE));
+        if(rc != nullptr)
+        {
+            HGLOBAL data = LoadResource(handle, rc);
+            if(data != nullptr)
+            {
+                return {static_cast<const char*>(LockResource(data)), SizeofResource(handle, rc)};
+            }
+        }
+    }
+    return std::string_view{};
 }
 }
 ")

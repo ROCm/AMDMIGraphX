@@ -28,7 +28,7 @@
 
 TEST_CASE(gridsample_bicubic_test)
 {
-    migraphx::program p = migraphx::parse_onnx("gridsample_bicubic_test.onnx");
+    migraphx::program p = read_onnx("gridsample_bicubic_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
@@ -46,21 +46,6 @@ TEST_CASE(gridsample_bicubic_test)
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    std::cout << "result:" << std::endl;
-    for(auto r : result_vector)
-    {
-        std::cout << r << ",";
-    }
-    std::cout << std::endl;
-
     std::vector<float> gold = {-0.1406, 0.3828, 1.7556, 2.9688, 2.9688, 1.7556, 5.1445, 1.3906};
-
-    std::cout << "gold:" << std::endl;
-    for(auto g : gold)
-    {
-        std::cout << g << ",";
-    }
-    std::cout << std::endl;
-
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

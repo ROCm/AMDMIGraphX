@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,5 +29,5 @@ TEST_CASE(where_mixed_test)
     //  mixture of static and dynamic input shapes is not supported
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { migraphx::parse_onnx("where_mixed_test.onnx", options); }));
+    EXPECT(test::throws([&] { read_onnx("where_mixed_test.onnx", options); }));
 }

@@ -29,6 +29,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/optional.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
 
@@ -66,13 +67,13 @@ struct concat
 
 struct concat_test_optimization
 {
-    /// A unique name used to identify the concat optimization
-    std::string name() const { return "eliminate_concat::concat"; }
     /// A unique name used to identify the allocate operator
     std::string allocate() const { return "allocate"; }
     /// Return the lowered concat operator
-    migraphx::op::concat get_concat(const migraphx::operation& op) const
+    std::optional<migraphx::op::concat> get_concat(const migraphx::operation& op) const
     {
+        if(op.name() != "eliminate_concat::concat")
+            return std::nullopt;
         return migraphx::any_cast<concat>(op).op;
     }
 };

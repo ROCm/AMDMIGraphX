@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_OUTPUT_ITERATOR_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
 #include <iterator>
 
 namespace migraphx {
@@ -33,7 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 struct function_output_iterator
 {
-    F f;
+    optional<F> f;
 
     using self              = function_output_iterator;
     using difference_type   = void;
@@ -53,7 +54,7 @@ struct function_output_iterator
         }
         F* f;
     };
-    output_proxy operator*() { return output_proxy{&f}; }
+    output_proxy operator*() { return output_proxy{&*f}; }
     self& operator++() { return *this; }
     self& operator++(int) { return *this; } // NOLINT
 };
@@ -68,7 +69,7 @@ template <class Container>
 auto join_back_inserter(Container& c)
 {
     return make_function_output_iterator(
-        [&](const auto& r) mutable { c.insert(c.end(), r.begin(), r.end()); });
+        [&](const auto& r) { c.insert(c.end(), r.begin(), r.end()); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

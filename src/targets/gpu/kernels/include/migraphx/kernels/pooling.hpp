@@ -147,13 +147,26 @@ constexpr window<Window, Stride, Padding> make_window(Window w, Stride s, Paddin
     return {w, s, p};
 }
 
-template <bool IncludePad, class Op, class Window, class Output, class Input>
-__device__ void pooling(Op op, Window w, Output output, Input input)
+template <index_int GroupSize, class Output, class F>
+__device__ void pooling_reduce(Output output, F f)
 {
     auto idx   = make_index();
     using type = typename Output::type;
-    idx.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto out_idx        = output.get_shape().multi(i);
+    idx.global_stride(output.get_shape().elements() / GroupSize, [&](auto i) {
+        array<type, GroupSize> result;
+        repeat_c<GroupSize>([&](auto n) {
+            auto out_idx        = output.get_shape().multi(i + n);
+            result[n] = f(out_idx);
+        });
+        repeat_c<GroupSize>([&](auto n) { output[i + n] = result[n]; });
+    });
+}
+
+template <bool IncludePad, index_int GroupSize, class Op, class Window, class Output, class Input>
+__device__ void pooling(Op op, Window w, Output output, Input input)
+{
+    using type = typename Output::type;
+    pooling_reduce<GroupSize>(output, [&](auto out_idx) {
         index_int pool_size = w.size();
         type x              = op.init();
         w.visit(out_idx, [&](auto j) {
@@ -173,7 +186,7 @@ __device__ void pooling(Op op, Window w, Output output, Input input)
                 }
             }
         });
-        output[out_idx] = op.final(x, pool_size);
+        return op.final(x, pool_size);
     });
 }
 

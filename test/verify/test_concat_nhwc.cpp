@@ -21,38 +21,28 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MARKER_HPP
-#define MIGRAPHX_GUARD_MARKER_HPP
 
-#include <cassert>
-#include <string>
-#include <functional>
-#include <memory>
-#include <type_traits>
-#include <utility>
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
+#include "verify_program.hpp"
 #include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+template <migraphx::shape::type_t DType>
+struct test_concat_nhwc : verify_program<test_concat_nhwc<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s0{DType, {2, 64, 56, 56}, {200704, 1, 3584, 64}};
+        auto x = mm->add_parameter("x", s0);
+        auto y = mm->add_parameter("y", s0);
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        return p;
+    }
+};
 
-#ifdef DOXYGEN
-
-/// Marker is an interface to general marking functions, such as rocTX markers.
-
-#else
-
-<%
-interface('marker',
-           virtual('mark_start', ins_ref = 'instruction_ref', returns = 'void'),
-           virtual('mark_start', prog = 'const program&', returns = 'void'),
-           virtual('mark_stop', ins = 'instruction_ref', returns = 'void'),
-           virtual('mark_stop', prog = 'const program&', returns = 'void')
-        ) %>
-#endif
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_concat_nhwc<migraphx::shape::fp8e4m3fnuz_type>;
+template struct test_concat_nhwc<migraphx::shape::half_type>;
+template struct test_concat_nhwc<migraphx::shape::float_type>;
+template struct test_concat_nhwc<migraphx::shape::int32_type>;

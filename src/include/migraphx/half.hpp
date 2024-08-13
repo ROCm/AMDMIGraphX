@@ -81,6 +81,30 @@ struct common_type<migraphx::half, migraphx::fp8::fp8e4m3fnuz>
 };
 
 template <>
+struct common_type<migraphx::fp8::fp8e4m3fn, migraphx::half>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::half, migraphx::fp8::fp8e4m3fn>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::fp8::fp8e5m2, migraphx::half>
+{
+    using type = float;
+};
+
+template <>
+struct common_type<migraphx::half, migraphx::fp8::fp8e5m2>
+{
+    using type = float;
+};
+
+template <>
 struct common_type<migraphx::half, migraphx::half>
 {
     using type = migraphx::half;

@@ -48,7 +48,17 @@ struct test_conv_add_layernorm_conv : verify_program<test_conv_add_layernorm_con
         auto bias_add = mm->add_instruction(migraphx::make_op("add"), conv1, bcast_bias);
         auto rsp_add =
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {0, 32, -1}}}), bias_add);
-        auto layernorm     = add_layernorm(*mm, rsp_add, rsp_add->get_shape().lens());
+        float eps = 1e-12;
+        if constexpr((DType) == migraphx::shape::fp8e4m3fnuz_type)
+        {
+            // use 0.250 for fp8
+            eps = 0.250;
+        }
+        else if constexpr((DType) == migraphx::shape::half_type)
+        {
+            eps = 1e-6;
+        }
+        auto layernorm     = add_layernorm(*mm, rsp_add, rsp_add->get_shape().lens(), eps);
         auto layernorm_rsp = mm->add_instruction(
             migraphx::make_op("reshape", {{"dims", {0, 320, 64, 64}}}), layernorm);
         mm->add_instruction(

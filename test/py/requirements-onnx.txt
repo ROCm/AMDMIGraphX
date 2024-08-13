@@ -21,10 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-onnx==1.16;python_version>="3.12"
-onnx==1.14.1;python_version<"3.12"
+onnx==1.16;python_version>="3.11"
+onnx==1.14.1;python_version<"3.11"
 protobuf==3.20.2
-numpy==1.26.4;python_version>="3.12"
-numpy==1.21.6;python_version<"3.12"
+numpy==1.26.4;python_version>="3.11"
+numpy==1.21.6;python_version<"3.11"
 packaging==23.0
 pytest==6.0.1

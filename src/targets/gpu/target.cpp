@@ -164,13 +164,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_pointwise_reduce{},
         enable_pass(enabled(MIGRAPHX_ENABLE_SPLIT_REDUCE{}), split_reduce{}),
         dead_code_elimination{},
-        fuse_concat{},
-        dead_code_elimination{},
 #ifndef _WIN32
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
         enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+        dead_code_elimination{},
+        fuse_concat{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

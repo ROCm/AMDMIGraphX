@@ -447,11 +447,7 @@ struct find_mlir_fused_ops
         // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
         // being fused, otherwise it can create invalid graph transformation
         if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
-               if(i == x_ins or not reaches(gemm_based_op, i))
-               {
-                   return false;
-               }
-               return true;
+				return i != x_ins and reaches(gemm_based_op, i);
            }))
             return;
         auto names         = pm->get_parameter_names();

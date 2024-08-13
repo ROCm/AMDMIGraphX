@@ -61,24 +61,23 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-
 struct concat_compiler : compiler<concat_compiler>
 {
     std::vector<std::string> names() const { return {"fused_concat", "concat"}; }
 
     static std::vector<shape> normalize(std::vector<shape> inputs, std::size_t& axis)
     {
-        auto s = inputs.back();
+        auto s    = inputs.back();
         auto lens = s.lens();
         std::vector<std::size_t> strides(lens.size());
         strides[axis] = 1;
 
         inputs.push_back(shape{s.type(), lens, strides});
 
-        auto result = reduce_dims(normalize_permutation(inputs));
+        auto result   = reduce_dims(normalize_permutation(inputs));
         auto rstrides = result.back().strides();
         auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
-        axis = it - rstrides.begin();
+        axis    = it - rstrides.begin();
         return result;
     }
 
@@ -87,10 +86,10 @@ struct concat_compiler : compiler<concat_compiler>
         hip_compile_options options;
         options.inputs      = inputs;
         options.output      = inputs.back();
-        auto concat_axis = v.at("axis").to<std::size_t>();
+        auto concat_axis       = v.at("axis").to<std::size_t>();
         options.virtual_inputs = normalize(inputs, concat_axis);
         options.kernel_name = v.get("kernel", "concat_kernel");
-        auto axis           = find_fast_axis(options.virtual_inputs);
+        auto axis              = find_fast_axis(options.virtual_inputs);
         auto op_names       = v.at("ops").to_vector<std::string>();
         auto args           = v.at("args");
         vectorize vec{};

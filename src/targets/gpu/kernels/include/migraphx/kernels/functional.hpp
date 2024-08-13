@@ -180,6 +180,47 @@ constexpr void each_args(F)
 {
 }
 
+template <class F, class Pack>
+constexpr void unpack_each(F f)
+{
+    f();
+}
+
+template <class F, class Pack>
+constexpr void unpack_each(F f, Pack p)
+{
+    p([&](auto&&... xs) { each_args(f, static_cast<decltype(xs)>(xs)...); });
+}
+
+template <class F, class Pack1, class Pack2>
+constexpr void unpack_each(F f, Pack1 p1, Pack2 p2)
+{
+    p1([&](auto&&... xs) {
+        p2([&](auto&&... ys) {
+            each_args(
+                [&](auto&& p) { p(f); },
+                pack_forward(static_cast<decltype(xs)>(xs), static_cast<decltype(ys)>(ys))...);
+        });
+    });
+}
+
+template <class F, class Pack1, class Pack2, class... Packs>
+constexpr void unpack_each(F f, Pack1 p1, Pack2 p2, Packs... packs)
+{
+    unpack_each(
+        [&](auto&& x, auto&& y) {
+            unpack_each(
+                [&](auto&&... zs) {
+                    f(static_cast<decltype(x)>(x),
+                      static_cast<decltype(y)>(y),
+                      static_cast<decltype(zs)>(zs)...);
+                },
+                packs...);
+        },
+        p1,
+        p2);
+}
+
 template <index_int N, class F>
 constexpr void repeat_c(F&& f)
 {
@@ -230,6 +271,12 @@ template <class... Ts>
 constexpr auto pack(Ts... xs)
 {
     return [=](auto f) { return f(xs...); };
+}
+
+template <class... Ts>
+constexpr auto pack_forward(Ts&&... xs)
+{
+    return [&](auto f) { return f(static_cast<Ts&&>(xs)...); };
 }
 
 template <class G, class F>

@@ -73,6 +73,19 @@ struct pooling_compiler : compiler<pooling_compiler>
         return group_size;
     }
 
+
+    template<class... Ts>
+    static void normalize(std::vector<shape>& inputs, Ts&... xs)
+    {
+        auto perm   = find_permutation(inputs);
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto s) {
+            return reorder_shape(s, perm);
+        });
+        each_args([&](auto& dims) {
+            dims = reorder_dims(dims, perm);
+        }, xs...);
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
@@ -119,6 +132,7 @@ struct pooling_compiler : compiler<pooling_compiler>
             not migraphx::equal(stride, window, [](auto s, auto w) { return s >= w; });
         std::size_t groups = overlap_window ? compute_group_size(inputs.back()) : 1;
 
+        normalize(options.virtual_inputs, padding, stride, window);
         options.set_launch_params(v, compute_global_for(ctx, out_s.elements() / groups, 256), 256);
         auto src = interpolate_string(pooling_kernel,
                                       {{"count_include_pad", count_include_pad},

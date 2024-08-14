@@ -485,12 +485,18 @@ struct find_mlir_split_reduce
     {
         auto reduce_ins = r.result;
         auto gemm_ins   = r.instructions["gemm"];
+        assert(gemm_ins->get_shape().sub_shapes().empty());
         auto* rm        = reduce_ins->module_inputs().front();
         auto names      = rm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref gemm_old_mm = gemm_ins->module_inputs().front();
-        module_ref mm          = mpm.create_module(gemm_old_mm->name() + "_split_fused_reduce");
-        mm->add_instructions(gemm_old_mm);
+        module_ref mm =
+            mpm.create_module(gemm_old_mm->name() + "_split_fused_reduce", *gemm_old_mm);
+        // remove last return instruction
+        if(std::prev(mm->end())->name() == "@return")
+        {
+            mm->remove_instruction(std::prev(mm->end()));
+        }
         mm->set_bypass();
         std::unordered_map<instruction_ref, instruction_ref> param_map;
         param_map[gemm_ins]      = std::prev(mm->end());
@@ -518,10 +524,7 @@ struct find_mlir_split_reduce
                              auto* sub_pm     = mod_args.front();
                              auto param_map_2 = create_param_map_with_literals(
                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                             for(const auto& i : param_map_2)
-                             {
-                                 param_map.insert(i);
-                             }
+                             param_map.insert(param_map_2.begin(), param_map_2.end());
                              return main_mod.fuse(*sub_pm, inputs, &param_map).front();
                          }
                          return main_mod.insert_instruction(pos, op, inputs, mod_args);

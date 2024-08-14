@@ -26,6 +26,8 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
@@ -958,7 +960,6 @@ bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); 
 
 static void rewrite_reduce(module& m)
 {
-    std::vector<instruction_ref> ins_to_remove;
     for(auto i : iterator_for(m))
     {
         if(is_reduce(*i))
@@ -997,12 +998,9 @@ static void rewrite_reduce(module& m)
             auto rsp_back = m.insert_instruction(
                 i, migraphx::make_op("reshape", {{"dims", reduce_lens}}), collapsed_reduce);
             m.replace_instruction(i, rsp_back);
-            ins_to_remove.push_back(i);
         }
     }
-    std::for_each(ins_to_remove.begin(), ins_to_remove.end(), [&](const auto& remove_ins) {
-        m.remove_instruction(remove_ins);
-    });
+    migraphx::run_passes(m, {migraphx::dead_code_elimination{}});
 }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)

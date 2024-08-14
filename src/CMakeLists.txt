@@ -143,6 +143,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bitwise_and
     broadcast
     broadcast_for_dot
     broadcast_with_dims

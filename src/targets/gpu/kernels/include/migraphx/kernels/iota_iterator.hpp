@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_KERNELS_IOTA_ITERATOR_HPP
 #define MIGRAPHX_GUARD_KERNELS_IOTA_ITERATOR_HPP
 
+#include <migraphx/kernels/debug.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 
@@ -80,10 +81,9 @@ struct basic_iota_iterator
     // TODO: operator->
     constexpr reference operator*() const { return f(index); }
 
-    template <class T>
-    constexpr reference operator[](T x) const
+    constexpr reference operator[](MIGRAPHX_CAPTURE_SOURCE_LOCATION(index_int) x) const
     {
-        return f(index + x);
+        return f(capture_transform(x, [&](auto y) { return index + y; }));
     }
 };
 

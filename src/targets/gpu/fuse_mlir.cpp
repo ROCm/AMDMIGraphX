@@ -486,8 +486,8 @@ struct find_mlir_split_reduce
         auto reduce_ins = r.result;
         auto gemm_ins   = r.instructions["gemm"];
         assert(gemm_ins->get_shape().sub_shapes().empty());
-        auto* rm        = reduce_ins->module_inputs().front();
-        auto names      = rm->get_parameter_names();
+        auto* rm   = reduce_ins->module_inputs().front();
+        auto names = rm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref gemm_old_mm = gemm_ins->module_inputs().front();
         module_ref mm =

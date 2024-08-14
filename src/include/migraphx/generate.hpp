@@ -142,7 +142,7 @@ MIGRAPHX_EXPORT argument fill_argument(shape s, double value = 0);
 
 MIGRAPHX_EXPORT argument generate_argument(shape s,
                                            unsigned long seed = 0,
-                                           random_mode m      = random_mode::legacy);
+                                           random_mode m      = random_mode::random);
 
 MIGRAPHX_EXPORT literal generate_literal(shape s, unsigned long seed = 0);
 

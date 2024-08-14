@@ -27,10 +27,8 @@
 TEST_CASE(generate)
 {
     migraphx::shape s{migraphx::shape::float_type, {4, 4, 1, 1}};
-    EXPECT(migraphx::generate_literal(s, 1) ==
-           migraphx::generate_argument(s, 1, migraphx::random_mode::legacy));
-    EXPECT(migraphx::generate_literal(s, 1) !=
-           migraphx::generate_argument(s, 0, migraphx::random_mode::legacy));
+    EXPECT(migraphx::generate_literal(s, 1) == migraphx::generate_argument(s, 1));
+    EXPECT(migraphx::generate_literal(s, 1) != migraphx::generate_argument(s, 0));
 }
 
 TEST_CASE(fill_tuple)

@@ -581,6 +581,13 @@ struct find_mlir_fused_ops
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
         auto* pm           = pw_ins->module_inputs().front();
+        auto pw_inputs     = pw_ins->inputs();
+        // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
+        // being fused, otherwise it can create invalid graph transformation
+        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
+               return i != x_ins and reaches(gemm_based_op, i);
+           }))
+            return;
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());

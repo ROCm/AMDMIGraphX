@@ -20,7 +20,8 @@ RUN zypper --gpg-auto-import-keys install -y \
     gdb \
     git \
     python3-pip \
-    rpm-build
+    rpm-build \
+    hipblaslt
 
 #addition of repos for packages
 RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.5/devel:languages:perl.repo 

@@ -48,20 +48,20 @@ struct shape_impl
 
     shape_impl(shape::type_t t) : m_type(t), m_lens({1}), m_strides({0}), m_standard(true)
     {
-        assert(t != shape::tuple_type);
+        assert(t != shape::tuple_type && t != shape::uint4_type && t != shape::int4_type);
     }
 
     shape_impl(shape::type_t t, std::vector<std::size_t> l)
         : m_type(t), m_lens(std::move(l)), m_standard(true)
     {
-        assert(t != shape::tuple_type);
+        assert(t != shape::tuple_type && t != shape::uint4_type && t != shape::int4_type);
         this->calculate_strides();
     }
 
     shape_impl(shape::type_t t, std::vector<std::size_t> l, std::vector<std::size_t> s)
         : m_type(t), m_lens(std::move(l)), m_strides(std::move(s))
     {
-        assert(t != shape::tuple_type);
+        assert(t != shape::tuple_type && t != shape::uint4_type && t != shape::int4_type);
         assert(m_lens.size() == m_strides.size());
         m_standard = this->elements() == this->element_space() and not skips() and
                      std::is_sorted(m_strides.rbegin(), m_strides.rend());
@@ -122,7 +122,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -224,7 +224,9 @@ const std::vector<shape::type_t>& shape::types()
 {
     static const std::vector<shape::type_t> result = {
 #define MIGRAPHX_GENERATE_TYPE_VECTOR(x, t) x,
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type};
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_GENERATE_TYPE_VECTOR) tuple_type,
+        int4_type,
+        uint4_type};
     return result;
 }
 
@@ -233,6 +235,8 @@ std::string shape::name(shape::type_t t)
     switch(t)
     {
     case tuple_type: return "tuple_type";
+    case int4_type: return "int4_type";
+    case uint4_type: return "uint4_type";
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE(x, t) \
     case x: return #x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_NAME_CASE)
@@ -246,6 +250,8 @@ std::string shape::cpp_type(shape::type_t t)
     switch(t)
     {
     case tuple_type: MIGRAPHX_THROW("No C++ type for tuple");
+    case int4_type: MIGRAPHX_THROW("No C++ type for int4_type");
+    case uint4_type: MIGRAPHX_THROW("No C++ type for uint4_type");
 #define MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE(x, t) \
     case x: return #t;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_CPP_TYPE_CASE)
@@ -728,7 +734,9 @@ shape::type_t shape::parse_type(const std::string& s)
 #define MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP(x, t) {#x, x}, {#t, x},
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_TYPE_STRING_MAP){"tuple_type",
                                                                             tuple_type},
-        {"tuple", tuple_type}};
+        {"tuple", tuple_type},
+        {"int4_type", int4_type},
+        {"uint4_type", uint4_type}};
     return m.at(s);
 }
 
@@ -744,7 +752,7 @@ std::vector<shape> flatten(const std::vector<shape>& shapes)
             auto subs = flatten(s.sub_shapes());
             result.insert(result.end(), subs.begin(), subs.end());
         }
-        else
+        else if(s.type() != shape::uint4_type && s.type() != shape::int4_type)
         {
             result.push_back(s);
         }

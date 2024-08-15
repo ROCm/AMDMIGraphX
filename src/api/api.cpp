@@ -115,6 +115,9 @@ migraphx_shape_datatype_t to_shape_type(shape::type_t t)
     case shape::x: return migraphx_shape_##x;
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT)
 #undef MIGRAPHX_DETAIL_SHAPE_CASE_CONVERT
+    case shape::uint4_type:
+    case shape::int4_type:
+        break;
     }
     MIGRAPHX_THROW(migraphx_status_bad_param, "Unknown type");
 }

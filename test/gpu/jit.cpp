@@ -239,7 +239,7 @@ TEST_CASE(code_object_hip)
 
     std::vector<migraphx::shape> expected_inputs = {input, input};
     auto co                                      = migraphx::make_op("gpu::code_object",
-                                                                     {{"code_object", migraphx::value::binary{binaries.front()}},
+                                {{"code_object", migraphx::value::binary{binaries.front()}},
                                                                       {"symbol_name", "add_2"},
                                                                       {"global", input.elements()},
                                                                       {"local", 1024},
@@ -350,7 +350,11 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
+        if(contains({migraphx::shape::bool_type,
+                     migraphx::shape::tuple_type,
+                     migraphx::shape::int4_type,
+                     migraphx::shape::uint4_type},
+                    t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
         if(t == migraphx::shape::half_type)
@@ -403,6 +407,8 @@ TEST_CASE(assert_type_min_max)
     for(auto&& t : migraphx::shape::types())
     {
         if(contains({migraphx::shape::bool_type,
+                     migraphx::shape::uint4_type,
+                     migraphx::shape::int4_type,
                      migraphx::shape::fp8e4m3fnuz_type,
                      migraphx::shape::tuple_type},
                     t))

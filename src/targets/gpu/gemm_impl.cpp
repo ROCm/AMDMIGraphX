@@ -69,6 +69,8 @@ rocblas_datatype get_type(shape::type_t type)
     case shape::uint16_type:
     case shape::int16_type:
     case shape::int64_type:
+    case shape::int4_type:
+    case shape::uint4_type:
     case shape::uint64_type: MIGRAPHX_THROW("ROCBLAS_GEMM: data type not supported!");
     }
 

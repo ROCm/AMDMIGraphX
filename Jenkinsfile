@@ -44,7 +44,7 @@ def rocmtestnode(Map conf) {
             make -j\$(nproc) generate VERBOSE=1
             git diff
             git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-            make -j\$(nproc) all doc package check VERBOSE=1
+            make -j\$(nproc) all package check VERBOSE=1
             md5sum ./*.deb
         """
         echo cmd
@@ -70,7 +70,7 @@ def rocmtestnode(Map conf) {
                     }
                 }
                 withDockerContainer(image: image, args: "--device=/dev/kfd --device=/dev/dri --group-add video --cap-add SYS_PTRACE -v=/home/jenkins:/home/jenkins ${docker_args}") {
-                    timeout(time: 3, unit: 'HOURS') {
+                    timeout(time: 2, unit: 'HOURS') {
                         body(cmake_build)
                     }
                 }

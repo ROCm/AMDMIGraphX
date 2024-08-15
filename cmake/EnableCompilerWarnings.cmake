@@ -23,6 +23,8 @@
 #####################################################################################
 # - Enable warning all for gcc/clang or use /W4 for visual studio
 
+include(CheckCXXCompilerFlag)
+
 ## Strict warning level
 if (MSVC)
     # Use the highest warning level for visual studio.
@@ -112,8 +114,8 @@ else()
             )
         endif()
         foreach(COMPILER_WARNING ${CMAKE_COMPILER_WARNINGS})
-            string(MAKE_C_IDENTIFIER "HAS_${COMPILER}_FLAG${COMPILER_WARING}" HAS_COMPILER_WARNING)
-            check_cxx_compiler_flag(${COMPILER_WARING} ${HAS_COMPILER_WARNING})
+            string(MAKE_C_IDENTIFIER "HAS_${COMPILER}_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
+            check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
             if(${HAS_COMPILER_WARNING})
                 add_compile_options($<$<COMPILE_LANGUAGE:${COMPILER}>:${COMPILER_WARNING}>)
             endif()

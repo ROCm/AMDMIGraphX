@@ -23,6 +23,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-utils \
     bison \
     build-essential \
+    clang-15 \
     cmake \
     curl \
     flex \

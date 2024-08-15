@@ -47,7 +47,8 @@ struct gemm_softmax_gemm
 
     void check_gemm_shape(const shape& s) const
     {
-        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1))
+        if(not contains(range(s.strides().rbegin(), s.strides().rbegin() + 3), 1) and
+           not s.scalar())
             MIGRAPHX_THROW("Invalid shape for " + name());
     }
 

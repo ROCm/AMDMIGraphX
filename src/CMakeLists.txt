@@ -285,6 +285,14 @@ rocm_install_targets(
     ${CMAKE_CURRENT_BINARY_DIR}/include
 )
 
+set(COMPILER_NAME ${CMAKE_CXX_COMPILER})
+if(NOT WIN32)
+    get_filename_component(GET_COMPILER_NAME ${CMAKE_CXX_COMPILER} NAME)
+    if(${GET_COMPILER_NAME} MATCHES "^amdclang")
+        set(COMPILER_NAME ${GET_COMPILER_NAME})
+    endif()
+endif()
+
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
     if(HAS_LIB_STD_FILESYSTEM)
@@ -374,7 +382,7 @@ if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
-target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${COMPILER_NAME}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c
@@ -383,5 +391,5 @@ rocm_export_targets(
     Threads
     ${MIGRAPHX_CONFIG_DEPENDS}
 )
- 
+
 

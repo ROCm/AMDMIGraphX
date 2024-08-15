@@ -42,7 +42,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     hip-dev \
     libnuma-dev \
     miopen-hip \
-    openmp-extras-dev \
+    libomp-dev \
     rocblas \
     hipfft \
     rocthrust \

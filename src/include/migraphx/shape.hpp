@@ -68,7 +68,9 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        uint4_type,
+        int4_type
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -381,6 +383,8 @@ struct MIGRAPHX_EXPORT shape
     {
         switch(t)
         {
+        case uint4_type:
+        case int4_type:
         case tuple_type: {
             tv();
             return;

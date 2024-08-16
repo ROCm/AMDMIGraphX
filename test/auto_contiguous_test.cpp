@@ -178,7 +178,8 @@ TEST_CASE(two_transpose_gather2)
 
     migraphx::module m2;
     {
-        auto data = m2.add_parameter("2x2", {migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}});
+        auto data =
+            m2.add_parameter("2x2", {migraphx::shape::float_type, {11, 8, 1, 1}, {8, 1, 1, 1}});
         auto ind  = m2.add_parameter("ind", {migraphx::shape::float_type, {2, 3}});
         auto td   = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), data);

@@ -66,13 +66,8 @@ void auto_contiguous::apply(module& m) const
         shape s = ins->get_shape();
         // If s is not standard layout or has out of sequence strides, insert "contiguous" op
         // to make a standard shape     
-        // if(not s.dynamic() and (not s.standard() or s.normalize_standard() != s) and s.elements() != 0)
-        if(not s.dynamic() and not s.transposed() and s.elements() != 0)
+        if(not s.dynamic() and (not s.transposed() or s.normalize_standard() != s) and s.elements() != 0)
         {
-            // TODO: Why does this loop so many times? Run test_auto_contiguous_test two_transpose_gather2
-            static int counter=0;  // debug
-            if(++counter % 1000 == 0)
-                std::cout << " looped " << counter << " times\n";
             auto c = m.insert_instruction(std::next(ins), make_op("contiguous"), ins);
             m.replace_instruction(ins, c);
         }

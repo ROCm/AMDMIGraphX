@@ -490,8 +490,7 @@ struct find_mlir_split_reduce
         auto names = rm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref gemm_old_mm = gemm_ins->module_inputs().front();
-        module_ref mm =
-            mpm.create_module(gemm_old_mm->name() + "_split_fused_reduce", *gemm_old_mm);
+        module_ref mm = mpm.create_module(gemm_old_mm->name() + "_" + rm->name(), *gemm_old_mm);
         // remove last return instruction
         if(std::prev(mm->end())->name() == "@return")
         {
@@ -587,7 +586,7 @@ struct find_mlir_fused_ops
                return i != x_ins and reaches(gemm_based_op, i);
            }))
             return;
-        auto names         = pm->get_parameter_names();
+        auto names = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
         mm->set_bypass();

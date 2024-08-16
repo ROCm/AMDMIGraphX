@@ -516,7 +516,7 @@ struct find_mlir_split_reduce
                              auto param_map_2 = create_param_map_with_literals(
                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
                              // skip adding parameter for inputs of
-                             // pointwise inside split_fused_reduc
+                             // pointwise inside split_fused_reduce
                              for(const auto& skip_input : inputs)
                              {
                                  param_map_2[skip_input] = skip_input;

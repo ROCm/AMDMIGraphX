@@ -62,7 +62,7 @@ migraphx::instruction_ref add_mlir(migraphx::program& p,
     auto values = f(pm, params);
     auto root   = std::get<0>(values);
     auto r      = std::get<1>(values);
-    pm->add_return({r});
+    auto_add_return(pm, r);
     return mm->add_instruction(
         migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(root)}}), inputs, {pm});
 }

@@ -81,130 +81,156 @@ struct RotaryParameters
     }
 };
 
+
+template <class T>
+__device__ bool float_equal(T x, T y)
+{
+    return isfinite(x) and isfinite(y) and
+           nextafterf(x, numeric_lowest<T>()) <= y and
+           nextafterf(x, numeric_max<T>()) >= y;
+}
+
+
 template<class S, class... Ts>
 __device__ RotaryParameters make_rotary_params(S s, Ts... ts)
 {
     return {static_cast<float>(s), ts...};
 }
 
-template <class T, class A, class B, class F>
-__device__ void gemm(std::size_t M, std::size_t N, std::size_t K, std::size_t lda, std::size_t ldb, std::size_t ldc, T cmat, A amat, B bmat, F alpha, F beta, std::size_t idx, const bool b_transpose = false)
+template <class T>
+__device__ void CalculateAttentionSoftmaxInplace(T score, int N, int D)
 {
-    auto m = idx / N;
-    auto n = idx % N;
-    auto a_idx = [&](auto ii, auto kk){ return kk + (ii * lda); };
-    auto b_idx = [&](auto kk, auto jj){ return jj + (kk * ldb); };
-    auto bt_idx = [&](auto kk, auto jj){ return jj + (kk * ldb); };
-    auto c_idx = [&](auto ii, auto jj){ return jj + (ii * ldc); };
-
-    if (m < M)
+    for (int j = 0; j < N; ++j)
     {
-        if (n < N)
+        auto x = score + j * D;
+        auto y = x;
+
+        // e^x is represented as infinity if x is large enough, like 100.f.
+        // Infinity divided by Infinity is a NAN. Thus, softmax gets a NAN if
+        // one or more item are large enough. a math transform as below is
+        // leveraged to get a stable softmax: e^xi/(e^x1 + ...e^xn) = e^(xi -
+        // max) / (e^(x1 - max) + ... + e^(xn - max))
+        float max = -numeric_max<float>();
+        for(int i = 0; i < D; i++)
         {
-            double s = 0.0;
-            for (int k = 0; k < K; ++k)
+            if(max < x[i])
+                max = x[i];
+        }
+        for(int i = 0; i < D; i++)
+        {
+            y[i] = expf(x[i] - max);
+        }
+
+        float sum = 0.0;
+        const float zero = 0.0;
+        for(int i = 0; i < D; i++)
+        {
+            sum += x[i];
+        }
+
+        if(float_equal(sum, zero))
+        {
+            for(int i = 0; i < D; i++)
             {
-                auto a_i = a_idx(m, k);
-                auto b_i = b_transpose ? bt_idx(n, k) : b_idx(k, n);
-                s += static_cast<double>(amat[a_i]) *
-                     static_cast<double>(bmat[b_i]);
+                y[i] = 1.0f / static_cast<float>(D);
             }
-            auto c_i = c_idx(m, n);
-            cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
+        }
+        else
+        {
+            for(int i = 0; i < D; i++)
+            {
+                y[i] = x[i] / static_cast<float>(sum);
+            }
         }
     }
 }
 
-template <class Output, 
-          class Attn_Probs,
+template <class Attn_Probs,
           class SeqLens,
-          class PresentValue,
           class Params>
-__device__ void CalculateVxAttentionScore(
-        Output output,                           // buffer for the result with size BxSxNxH
-        const Attn_Probs attention_probs,            // Attention probs with size BxNxSxT
-        const SeqLens seqlens_k,                  // past sequence lengths tensor
-        int batch_size,                     // batch size
-        int sequence_length,                // sequence length
-        int present_buffer_sequence_length, // sequence length in past state
-        int head_size,                      // head size of Q, K, V
-        int hidden_size,                    // hidden size of Output
-        PresentValue present_value,                    // present value only
-        Params params,
-        int idx)  
+__device__ void CalculateSoftmax(
+    Attn_Probs attention_probs,                  // output buffer with size BxNxSxT
+    SeqLens seqlens_k,                        // past sequence lengths tensor
+    int batch_size,                     // batch size of self-attention
+    int sequence_length,                // sequence length of self-attention (S)
+    int present_buffer_sequence_length, // sequence length of present state
+    Params params,
+    int idx)                    
 {
     const int num_heads = params.num_heads;
-    const int kv_num_heads = params.kv_num_heads;
-    const int kv_num_heads_factor   = num_heads / kv_num_heads;
-    const size_t present_buff_chunk_length =
-        static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
 
-    auto loop_len = batch_size * num_heads;
-    auto i = idx / (sequence_length * head_size);
-    auto inner_i = idx %  (sequence_length * head_size);
-    if (i < loop_len)
+    const int loop_len = batch_size * num_heads;
+    auto i = idx / sequence_length;
+    auto inner_i = idx % sequence_length;
+    if(i < loop_len)
     {
-        const int batch_index = static_cast<int>(i / num_heads);
-        const int head_index  = static_cast<int>(i % num_heads);
+        const int batch_index = static_cast<int>(i) / num_heads;
         const int total_seqlen         = seqlens_k[batch_index] + 1;
+        const int output_offset =
+            static_cast<int>(i) * sequence_length * present_buffer_sequence_length;
+        auto output = attention_probs + output_offset;
         
-        auto pv = present_value + ((i / kv_num_heads_factor) * present_buff_chunk_length);
-        Output output_current =
-            output + (batch_index * sequence_length * num_heads + head_index) * head_size;
-        ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
-
-        gemm(sequence_length,
-            head_size,
-            total_seqlen,
-            present_buffer_sequence_length, // 4096
-            head_size,
-            hidden_size,
-            output_current,
-            attention_probs + attention_probs_offset,
-            pv,
-            1.0f,
-            0.0f,
-            inner_i);
+        const int local_window_size = params.local_window_size;
+        auto output_softmax = output;
+        int seq = inner_i;
+        if (seq < sequence_length)
+        {
+            output_softmax += seq * present_buffer_sequence_length;
+            auto consume = total_seqlen + local_window_size;
+            seq += consume;
+            seq -= consume;
+            int seq_causal_length = sequence_length == 1 ? total_seqlen : seq + 1;
+            if(local_window_size > 0 && seq_causal_length > local_window_size + 1)
+            {
+                for(int total_seq_id = 0;
+                    total_seq_id < seq_causal_length - local_window_size - 1;
+                    total_seq_id++)
+                {
+                    output_softmax[total_seq_id] = 0.f;
+                }
+                CalculateAttentionSoftmaxInplace(output_softmax + seq_causal_length -
+                                                        local_window_size - 1,
+                                                    1,
+                                                    local_window_size + 1);
+            }
+            else
+            {
+                CalculateAttentionSoftmaxInplace(output_softmax, 1, seq_causal_length);
+            }
+            // set causal [seq_causal_length, total_seqlen) to 0.f
+            for(int total_seq_id = seq_causal_length; total_seq_id < total_seqlen;
+                total_seq_id++)
+            {
+                output_softmax[total_seq_id] = 0.f;
+            }
+        }
     }
 }
 
 template <class Output,
-          class Query,
-          class Key,
-          class Value,
+          class Pass,
+          class Input,
           class Seqlens_K,
-          class Attn_Probs,
           class Params>
-__device__ void compute_attention_scores(Output output,
-                                        Query query,
-                                        Key,
-                                        Value,
+__device__ void gqa_softmax(Output output,
+                                        Pass,
+                                        Input,
                                         Seqlens_K seqlens_k,
-                                        Attn_Probs attn_probs,
                                         Params params)
 {
     auto ind = make_index();
-    ind.global_stride(query.get_shape().elements(), [&](auto idx) {
+    ind.global_stride(output.get_shape().elements() / 4096, [&](auto idx) {
         const int batch_size      = params.batch_size;
         const int sequence_length = params.sequence_length;
-        const int head_size       = params.head_size;
-
         int seqlen_present_kv_cache = params.seqlen_present_kv_cache;
-        output([&](auto output0, auto, auto v_cache) {
-            const int hidden_size     = params.hidden_size;
+        CalculateSoftmax(output.begin(),
+                                seqlens_k.begin(),
+                                batch_size,
+                                sequence_length,
+                                seqlen_present_kv_cache,
+                                params,
+                                idx);
         
-            CalculateVxAttentionScore(output0.begin(),
-                                    attn_probs.begin(),
-                                    seqlens_k.begin(),
-                                    batch_size,
-                                    sequence_length,
-                                    seqlen_present_kv_cache,
-                                    head_size,
-                                    hidden_size,
-                                    v_cache.begin(),
-                                    params,
-                                    idx);
-        });
     });
 }
 

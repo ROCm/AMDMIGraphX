@@ -143,7 +143,7 @@ struct compute_attention_scores_compiler : compiler<compute_attention_scores_com
         const std::size_t batch_size      = q_lens[0];
         const std::size_t sequence_length = q_lens[2];
         std::size_t head_size     = q_lens[3];
-        auto q_hidden_size = q_lens[1] * head_size;
+        auto q_hidden_size = kv_num_heads * head_size;
         const bool packed_qkv = true;
 
         // std::size_t rotary_dim = inputs[5].lens()[1] * 2;
@@ -197,7 +197,7 @@ struct compute_attention_scores_compiler : compiler<compute_attention_scores_com
         // }
         virtual_inputs = flatten(virtual_inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements() * 4096));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements()));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();//output_shape;

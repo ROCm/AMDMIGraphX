@@ -82,6 +82,7 @@ void gemm(std::size_t M, std::size_t N, std::size_t K, std::size_t lda, std::siz
                  static_cast<double>(bmat[b_i]);
         });
         auto c_i = c_idx(ii, jj);
+        // printf("ref_gemm c[%zu] = %f * %f + %f * %f\n", c_i, static_cast<double>(alpha), static_cast<double>(s), static_cast<double>(cmat[c_i]), static_cast<double>(beta));
         cmat[c_i] = static_cast<double>(alpha) * s + cmat[c_i] * static_cast<double>(beta);
     });
 }

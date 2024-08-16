@@ -31,6 +31,27 @@ struct RotaryParameters
     bool transposed; // Whether the input tensor has been transposed into (batch, num_heads,
                      // seq_len, hidden)
     int seqlen_present_kv_cache;
+
+    void print() const {
+        // printf("scale: %f\n", scale);
+        printf("batch_size: %d\n", batch_size);
+        printf("sequence_length: %d\n", sequence_length);
+        printf("hidden_size: %d\n", hidden_size);
+        printf("head_size: %d\n", head_size);
+        printf("rotary_embedding_dim: %d\n", rotary_embedding_dim);
+        printf("num_heads: %d\n", num_heads);
+        printf("max_sequence_length: %d\n", max_sequence_length);
+        printf("head_stride: %d\n", head_stride);
+        printf("seq_stride: %d\n", seq_stride);
+        printf("batch_stride: %d\n", batch_stride);
+        printf("position_ids_format: %d\n", position_ids_format);
+        printf("transposed: %d\n", transposed);
+        printf("seqlen_present_kv_cache: %d\n", seqlen_present_kv_cache);
+        // printf("do_rotary: %d\n", do_rotary);
+        // printf("kv_num_heads: %d\n", kv_num_heads);
+        // printf("local_window_size: %d\n", local_window_size);
+        // printf("rotary_interleaved: %d\n", rotary_interleaved);
+    }
 };
 
 struct group_query_attention
@@ -105,6 +126,8 @@ struct group_query_attention
             const int position_id = (position_ids_format == 0)
                                         ? static_cast<int>(pos_ids[0]) + s
                                         : static_cast<int>(pos_ids[b * sequence_length + s]);
+            // if(print)
+            //     printf("ref_pos_id%lu: %d | %d + %d\n", idx, position_id, static_cast<int>(pos_ids[0]), s);
             const int cache_offset = position_id * half_rotary_emb_dim;
             auto cos_data          = cos_cache + cache_offset;
             auto sin_data          = sin_cache + cache_offset;
@@ -156,9 +179,14 @@ struct group_query_attention
     }
 
     template <class T>
-    void copy_data(T destination, const T source, std::size_t n) const
+    void copy_data(T destination, const T source, std::size_t n, bool print=false) const
     {
-        par_for(n, [&](auto i) { destination[i] = source[i]; });
+        par_for(n, [&](auto i) { 
+            if(print)
+                // printf("ref_query%zu: %f\n", i, static_cast<double>(source[i]));
+                printf("ref_query%zu\n", i);
+
+            destination[i] = source[i]; });
     }
 
     template <typename T>
@@ -171,7 +199,8 @@ struct group_query_attention
                           size_t new_chunk_length,
                           bool is_prompt,
                           bool past_present_share_buffer,
-                          std::ptrdiff_t i) const
+                          std::ptrdiff_t i,
+                          bool print = false) const
     {
         T start = present + i * present_buff_chunk_length;
 
@@ -185,7 +214,7 @@ struct group_query_attention
             }
             p += past_chunk_length;
         }
-        copy_data(p, chunk, new_chunk_length);
+        copy_data(p, chunk, new_chunk_length, print);
         return start;
     }
 
@@ -272,7 +301,7 @@ struct group_query_attention
         const int loop_len = batch_size * num_heads;
         const float alpha  = scale == 0.0f ? 1.0f / sqrt(static_cast<float>(head_size)) : scale;
 
-        par_for(loop_len, [&](const auto i) {
+        par_for(loop_len /* - loop_len + 1 */, [&](const auto i) {
             const int batch_index = static_cast<int>(i) / num_heads;
             const int head_index  = static_cast<int>(i) % num_heads;
             const int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
@@ -286,7 +315,20 @@ struct group_query_attention
 
             auto k = K + packed_batch_stride * batch_index +
                      kv_input_chunk_length * (head_index / kv_num_heads_factor);
-
+            // if(i == 0)
+            // {
+            //     for(int j = 0; j < kv_input_chunk_length; ++j)
+            //     {
+            //         printf("ref_query%d: %f\n", j, static_cast<double>(k[j]));
+            //     }
+            // }
+            // if (i == 0)
+            // {
+            //     auto k_offset = packed_batch_stride * batch_index +
+            //         kv_input_chunk_length * (head_index / kv_num_heads_factor);;
+            //     printf("ref_query%lu: %zu\n", i, k_offset);
+            // }
+            
             k = ConcatStateChunkGQA(past_key,
                                     k,
                                     present_key,
@@ -297,7 +339,17 @@ struct group_query_attention
                                     is_prompt,
                                     past_present_share_buffer,
                                     i / kv_num_heads_factor);
-
+            // if(i == 0)
+            // {
+            //     // printf("ref_vals%zu, %zu, %zu, %zu\n", present_buff_chunk_length,
+            //     //                 past_buff_chunk_length,
+            //     //                 past_chunk_length,
+            //     //                 kv_input_chunk_length);
+            //     for(int j = 0; j < kv_input_chunk_length; ++j)
+            //     {
+            //         printf("ref_query%d: %f\n", j, static_cast<double>(k[j]));
+            //     }
+            // }
             // Calculate Q*K' + AttentionMask
             //                     original                 transposed             each iteration
             // A: Q                (B x N x) S x H          (B x N x) S x H        S x H
@@ -326,7 +378,13 @@ struct group_query_attention
                  0.0f,
                  dtype,
                  true);
-
+            // if(i == 0)
+            // {
+            //     for(int j = 0; j < sequence_length * total_seqlen; ++j)
+            //     {
+            //         printf("ref_query%d: %f\n", j, static_cast<double>(output[j]));
+            //     }
+            // }
             T output_softmax = output;
             for(int seq = 0; seq < sequence_length; seq++)
             {
@@ -389,7 +447,7 @@ struct group_query_attention
             static_cast<size_t>(present_buffer_sequence_length) * head_size; // T x H
 
         auto loop_len = batch_size * num_heads;
-        par_for(loop_len, [&](const auto i) {
+        par_for(loop_len /* - loop_len + 1 */, [&](const auto i) {
             const int batch_index = static_cast<int>(i / num_heads);
             const int head_index  = static_cast<int>(i % num_heads);
             const int past_seqlen = sequence_length == 1 ? static_cast<int>(seqlens_k[batch_index])
@@ -418,10 +476,19 @@ struct group_query_attention
                                     is_prompt,
                                     past_present_share_buffer,
                                     i / kv_num_heads_factor);
+            // if(i == 0)
+            // {
+            //     for(int j = 0; j < kv_input_chunk_length; ++j)
+            //     {
+            //         printf("ref_query%d: %f\n", j, static_cast<double>(v[j]));
+            //     }
+            // }
 
             T output_current =
                 output + (batch_index * sequence_length * num_heads + head_index) * head_size;
             ptrdiff_t attention_probs_offset = sequence_length * present_buffer_sequence_length * i;
+            // auto out_off = (batch_index * sequence_length * num_heads + head_index) * head_size;
+            // printf("ref%d: %d\n", i, hidden_size);
 
             gemm(sequence_length,
                  head_size,
@@ -462,7 +529,7 @@ struct group_query_attention
         // Calculate the attention score.
         bool past_present_share_buffer = false;
         const T k                      = Q + num_heads * sequence_length * head_size;
-
+        
         CalculateAttentionProbs(attention_probs,
                                 Q,
                                 k,
@@ -477,9 +544,18 @@ struct group_query_attention
                                 past_present_share_buffer,
                                 packed_qkv,
                                 dtype);
-
+        // for(auto i = 0; i < 4096; ++i)
+        // {
+        //     output[i] = attention_probs[i];
+        // }
+        
+        // for(int j = 0; j < 262144; ++j)
+        // {
+        //     printf("ref_query%d: %f\n", j, static_cast<double>(attention_probs[j]));
+        // }
         const T v = Q + (num_heads + kv_num_heads) * sequence_length * head_size;
-
+        // for(int j = 0; j < parameters.num_heads * sequence_length * head_size; ++j)
+        //     printf("ref_query%d: %f\n", j, static_cast<double>(v[j]));
         CalculateVxAttentionScore(output,
                                   attention_probs,
                                   v,
@@ -558,7 +634,7 @@ struct group_query_attention
         });
 
         visit_all(result,
-                  qkv,
+                qkv,
                   args[3],
                   args[4],
                   args[7],
@@ -579,6 +655,10 @@ struct group_query_attention
             visit_all(args[5])([&](auto seqlens_k) {
                 if(do_rotary)
                 {
+                    par_for(kv_shape.elements(), [&](auto i){
+                        present_k[i] = past_key[i];
+                        present_v[i] = past_value[i];
+                    }); 
                     auto seq_stride  = head_size;
                     auto head_stride = sequence_length * seq_stride;
                     auto batch_stride =
@@ -616,7 +696,18 @@ struct group_query_attention
                     rotary_params.position_ids_format  = position_ids_format;
                     rotary_params.transposed           = transposed;
                     rotary_params.seqlen_present_kv_cache = present_kv_seqlen;
-
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(query[i]));
+                    // }
+                    for(int i = 0; i < query.get_shape().elements(); ++i)
+                    {
+                        RotaryQKV[i] = 0.0;
+                    }
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(query[i]));
+                    // }
                     run_rotary_embedding(q_input,
                                          cos_cache.begin(),
                                          sin_cache.begin(),
@@ -624,7 +715,10 @@ struct group_query_attention
                                          rotary_interleaved,
                                          pos_ids.data(),
                                          rotary_params);
-
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(RotaryQKV[i]));
+                    // }
                     std::size_t kv_hidden_size = head_size * kv_num_heads;
                     rotary_params.num_heads    = kv_num_heads;
                     rotary_params.hidden_size  = kv_hidden_size;
@@ -636,14 +730,29 @@ struct group_query_attention
                                          rotary_interleaved,
                                          pos_ids.data(),
                                          rotary_params);
-
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(RotaryQKV[i]));
+                    // }
                     auto v_input            = k_input + kv_num_heads * sequence_length * head_size;
                     auto v_rotary           = k_rotary + kv_num_heads * sequence_length * head_size;
                     rotary_params.num_heads = num_heads;
 
                     pack_v_into_rotary_QKV(rotary_params, v_input, v_rotary);
-
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(RotaryQKV[i]));
+                    // }
                     auto Q = RotaryQKV;
+                    // rotary_params.print();
+                    // for(int i = 0; i < query.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(Q[i]));
+                    // }
+                    // for(int i = 0; i < past_key.get_shape().elements(); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(past_value[i]));
+                    // }
                     apply_attention(Q.begin(),
                                     past_key.begin(),
                                     past_value.begin(),
@@ -654,6 +763,44 @@ struct group_query_attention
                                     attn_probs.begin(),
                                     rotary_params,
                                     output_shape_0.type());
+                    // for(int i = 0; i < (kv_shape.elements() / 32); ++i)
+                    // {
+                    //     printf("ref_query%d: %f\n", i, static_cast<double>(present_k[i]));
+                    // }
+                    // for(int j = 0; j < output_shape_0.elements(); ++j)
+                    // {
+                    //     printf("ref_query%d: %f\n", j, static_cast<double>(output[j]));
+                    // }
+                    // for(int j = 0; j < kv_shape.elements() - 2/* 524288 */; ++j)
+                    // {
+                    //     if (float_equal(static_cast<double>(present_k[j]), 0.750000))
+                    //     {
+                    //         if(float_equal(static_cast<double>(present_k[j + 1]), 0.125000))
+                    //         {
+                    //             if(float_equal(static_cast<double>(present_k[j + 2]), -0.187500))
+                    //             {
+                    //                 // if(float_equal(static_cast<double>(present_k[j + 3]), 0.562500))
+                    //                 // {
+                    //                     printf("pattern found at %d\n", j);
+                    //                 // }
+                    //             }
+                    //         }
+                    //     }
+                    //     // float zero = 0.0;
+                    //     // if(not float_equal(static_cast<float>(present_k[j]), zero))
+                    //         // printf("ref_query%d: %f\n", j, static_cast<double>(present_k[j]));
+                    // }
+                    // present_k.begin() = past_key.begin();
+                    // present_v.begin() = past_value.begin();
+                    // for(auto i = 0; i < present_k_out.get_shape().elements(); ++i)
+                    // {
+                    //     present_k.data()[i] = past_key.data()[i];
+                    //     present_v.data()[i] = past_value.data()[i];
+                    // }
+                    // for(auto i = 0; i < result.get_shape().elements(); ++i)
+                    // {
+                    //     output.data()[i] = Q.data()[i];
+                    // }
                 }
             });
         });

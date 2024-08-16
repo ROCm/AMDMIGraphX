@@ -98,6 +98,7 @@ struct parse_groupqueryattention : op_parser<parse_groupqueryattention>
         auto ret_present_value = info.add_instruction(make_op("get_tuple_elem", {{"index", 2}}), ret);
 
         return {ret_result, ret_present_key, ret_present_value};
+        // return {args[0], args[3], args[4]};
 
     }
 };

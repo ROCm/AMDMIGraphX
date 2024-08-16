@@ -203,6 +203,7 @@ register_migraphx_ops(
     nonzero
     onehot
     outline
+    pack_ops
     pack_int4
     pad
     pointwise

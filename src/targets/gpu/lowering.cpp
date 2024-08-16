@@ -499,26 +499,46 @@ struct miopen_apply
             return ret;
         });
 
+        apply_map.emplace("gpu::concat_past_present", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            auto past_k = inputs[1];
+            auto past_v = inputs[2];
+            
+            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), past_k, past_v);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(outputs);
+            auto ret = mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+            return ret;
+        });
+
         apply_map.emplace("gpu::compute_attention_probabilities", [=](instruction_ref ins) {
-            // auto v = ins->get_operator().to_value();
-            // assert(v.contains("num_heads"));
-            // auto num_heads = v.at("num_heads").to<int>();
-            // assert(v.contains("kv_num_heads"));
-            // auto kv_num_heads = v.at("kv_num_heads").to<int>();
-            auto s      = ins->get_shape();
+            auto s      = ins->get_shape().sub_shapes().front();
             auto output = insert_allocation(ins, s);
             auto inputs = ins->inputs();
+            auto past_k = inputs[1];
+            auto past_v = inputs[2];
+            
+            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
+            auto new_inputs = ins->inputs();
+            new_inputs.push_back(outputs);
+            auto ret = mod->replace_instruction(
+                ins,
+                make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+                new_inputs);
+            return ret;
+        });
 
-            // auto q_shape              = inputs[0]->get_shape();
-            // auto q_lens               = q_shape.lens();
-            // auto input_type = q_shape.type();
-            // const std::size_t batch_size      = q_lens[0];
-            // const std::size_t sequence_length = q_lens[1];
-            // std::size_t present_kv_seqlen = 4096;
-            // shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
+        apply_map.emplace("gpu::gqa_softmax", [=](instruction_ref ins) {
+            auto s      = ins->get_shape();
+            // auto output = insert_allocation(ins, s);
+            auto inputs = ins->inputs();
 
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
+            // new_inputs.push_back(output);
+            new_inputs.push_back(inputs.at(1));
             auto ret = mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
@@ -527,32 +547,38 @@ struct miopen_apply
         });
 
         apply_map.emplace("gpu::compute_attention_scores", [=](instruction_ref ins) {
-            // auto v = ins->get_operator().to_value();
-            // assert(v.contains("num_heads"));
-            // auto num_heads = v.at("num_heads").to<int>();
-            // assert(v.contains("kv_num_heads"));
-            // auto kv_num_heads = v.at("kv_num_heads").to<int>();
-            auto s      = ins->get_shape();
+            auto s      = ins->get_shape().sub_shapes().front();
             auto output = insert_allocation(ins, s);
             auto inputs = ins->inputs();
-
-            // auto q_shape              = inputs[0]->get_shape();
-            // auto q_lens               = q_shape.lens();
-            // auto input_type = q_shape.type();
-            // const std::size_t batch_size      = q_lens[0];
-            // const std::size_t sequence_length = q_lens[1];
-            // std::size_t present_kv_seqlen = 4096;
-            // shape attn_probs_shape{input_type, {batch_size, static_cast<std::size_t>(num_heads), sequence_length, present_kv_seqlen}};
-
-            // auto attn_probs = insert_allocation(ins, attn_probs_shape);
+            auto past_k = inputs[1];
+            auto past_v = inputs[2];
+            
+            auto outputs = mod->insert_instruction(ins, make_op("pack_ops"), output, past_k, past_v);
             auto new_inputs = ins->inputs();
-            new_inputs.push_back(output);
+            new_inputs.push_back(outputs);
             auto ret = mod->replace_instruction(
                 ins,
                 make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
                 new_inputs);
             return ret;
         });
+
+        // apply_map.emplace("gpu::debug_op", [=](instruction_ref ins) {
+        //     auto s      = ins->get_shape();
+        //     auto output = insert_allocation(ins, s);
+        //     auto inputs = ins->inputs();
+
+        //     auto new_inputs = ins->inputs();
+        //     new_inputs.push_back(output);
+        //     // new_inputs.push_back(inputs.at(1));
+        //     auto ret = mod->replace_instruction(
+        //         ins,
+        //         make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
+        //         new_inputs);
+        //     return ret;
+        // });
+
+        // mod->debug_print();
     }
 };
 

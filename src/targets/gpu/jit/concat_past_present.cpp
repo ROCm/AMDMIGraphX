@@ -96,9 +96,9 @@ struct RotaryParameters
 using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
-static const char* const compute_attention_probabilities_kernel = R"__migraphx__(
+static const char* const concat_past_present_kernel = R"__migraphx__(
 #include <args.hpp>
-#include <migraphx/kernels/compute_attention_probabilities.hpp>
+#include <migraphx/kernels/concat_past_present.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
 
@@ -114,7 +114,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
         
-        compute_attention_probabilities(xs..., make_rotary_params(${rotary_params}));
+        concat_past_present(xs..., make_rotary_params(${rotary_params}));
     });
 }
 
@@ -125,9 +125,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct compute_attention_probabilities_compiler : compiler<compute_attention_probabilities_compiler>
+struct concat_past_present_compiler : compiler<concat_past_present_compiler>
 {
-    std::vector<std::string> names() const { return {"compute_attention_probabilities", "gpu::compute_attention_probabilities"}; }
+    std::vector<std::string> names() const { return {"concat_past_present", "gpu::concat_past_present"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -197,23 +197,23 @@ struct compute_attention_probabilities_compiler : compiler<compute_attention_pro
         // }
         virtual_inputs = flatten(virtual_inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, (inputs.at(0).elements() / head_size) * 4096));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.at(0).elements()));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();//output_shape;
-        options.kernel_name    = v.get("kernel", "compute_attention_probabilities_kernel");
+        options.kernel_name    = v.get("kernel", "concat_past_present_kernel");
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
         // std::cout << "gqa compile 3" << std::endl;
-        auto src = interpolate_string(compute_attention_probabilities_kernel,
+        auto src = interpolate_string(concat_past_present_kernel,
                                       {
                                        {"params", enum_params(virtual_inputs.size(), "void * private_p")},
                                        {"args", enum_params(virtual_inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"rotary_params", rotary_params_str},
                                        {"kernel", options.kernel_name},
-                                       {"noutputs", std::to_string(3)}});
+                                       {"noutputs", std::to_string(2)}});
         return compile_hip_code_object(src, options);
     }
 

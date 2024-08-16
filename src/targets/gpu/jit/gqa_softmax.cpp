@@ -96,9 +96,9 @@ struct RotaryParameters
 using namespace migraphx::gpu::gen; // NOLINT
 
 // NOLINTNEXTLINE
-static const char* const compute_attention_probabilities_kernel = R"__migraphx__(
+static const char* const gqa_softmax_kernel = R"__migraphx__(
 #include <args.hpp>
-#include <migraphx/kernels/compute_attention_probabilities.hpp>
+#include <migraphx/kernels/gqa_softmax.hpp>
 #include <migraphx/kernels/pointwise.hpp>
 #include <migraphx/kernels/ops.hpp>
 
@@ -112,9 +112,9 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_and_pack_last<${noutputs}>())(${args})([](auto... xs) {
+    transform_args(make_tensors(), rotate_last())(${args})([](auto... xs) {
         
-        compute_attention_probabilities(xs..., make_rotary_params(${rotary_params}));
+        gqa_softmax(xs..., make_rotary_params(${rotary_params}));
     });
 }
 
@@ -125,9 +125,9 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
-struct compute_attention_probabilities_compiler : compiler<compute_attention_probabilities_compiler>
+struct gqa_softmax_compiler : compiler<gqa_softmax_compiler>
 {
-    std::vector<std::string> names() const { return {"compute_attention_probabilities", "gpu::compute_attention_probabilities"}; }
+    std::vector<std::string> names() const { return {"gqa_softmax", "gpu::gqa_softmax"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
@@ -189,7 +189,7 @@ struct compute_attention_probabilities_compiler : compiler<compute_attention_pro
         auto rotary_params_str = rotary_params.make_init_str();
 
         auto virtual_inputs = inputs;
-        // virtual_inputs.erase(virtual_inputs.begin() + 4);
+        // virtual_inputs.erase(virtual_inputs.begin());
         // virtual_inputs.erase(virtual_inputs.begin() + 4);
         // for(auto i = 0; i < virtual_inputs.size(); ++ i)
         // {
@@ -197,23 +197,22 @@ struct compute_attention_probabilities_compiler : compiler<compute_attention_pro
         // }
         virtual_inputs = flatten(virtual_inputs);
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, (inputs.at(0).elements() / head_size) * 4096));
+        options.set_launch_params(v, compute_global_for(ctx, inputs.at(1).elements() / 4096));
         int blocks_per_batch = 1; ////
         options.inputs         = virtual_inputs;
         options.output         = inputs.back();//output_shape;
-        options.kernel_name    = v.get("kernel", "compute_attention_probabilities_kernel");
+        options.kernel_name    = v.get("kernel", "gqa_softmax_kernel");
 
         if(v.get("check", false) or enabled(MIGRAPHX_CK_DEBUG{}))
             options.emplace_param("-DMIGRAPHX_CK_CHECK=1");
         // std::cout << "gqa compile 3" << std::endl;
-        auto src = interpolate_string(compute_attention_probabilities_kernel,
+        auto src = interpolate_string(gqa_softmax_kernel,
                                       {
                                        {"params", enum_params(virtual_inputs.size(), "void * private_p")},
                                        {"args", enum_params(virtual_inputs.size(), "private_p")},
                                        {"blocks_per_batch", to_string(blocks_per_batch)},
                                        {"rotary_params", rotary_params_str},
-                                       {"kernel", options.kernel_name},
-                                       {"noutputs", std::to_string(3)}});
+                                       {"kernel", options.kernel_name}});
         return compile_hip_code_object(src, options);
     }
 

@@ -1877,6 +1877,27 @@ TEST_CASE(pointwise_reshape_unary)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(pointwise_reshape_layout_convolution)
+{
+    auto s1 = migraphx::shape{migraphx::shape::float_type, {2, 32, 10, 64, 64}};
+    auto s2 = migraphx::shape{migraphx::shape::float_type, {640, 320, 1, 1}};
+    migraphx::module m1;
+    {
+        auto x   = m1.add_parameter("x", s1);
+        auto y   = m1.add_parameter("y", s1);
+        auto w   = m1.add_parameter("w", s2);
+        auto mul = m1.add_instruction(migraphx::make_op("mul"), x, y);
+        auto reshape_ins =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mul);
+        auto layout = m1.add_instruction(migraphx::make_op("layout", {{"permutation", {0, 2, 3, 1}}}), reshape_ins);
+        auto conv   = m1.add_instruction(migraphx::make_op("convolution"), layout, w);
+        m1.add_instruction(pass_op{}, conv);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(transpose_contiguous_reshape_binary_packed)
 {
     migraphx::module m1;

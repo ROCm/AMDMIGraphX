@@ -238,42 +238,6 @@ make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
     return p;
 }
 
-inline migraphx::program
-make_simplified_layer_norm(const std::vector<int64_t>& input_shape,
-                           const std::vector<int64_t>& skip_shape,
-                           const std::vector<int64_t>& scale_shape,
-                           const int axis,
-                           const float eps_value               = 1e-5f,
-                           const migraphx::shape::type_t dtype = migraphx::shape::half_type)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto x   = mm->add_parameter("x", {dtype, input_shape});
-    migraphx::instruction_ref skip;
-    migraphx::instruction_ref scale;
-    if(skip_shape.empty())
-    {
-        scale = mm->add_parameter("scale", {dtype, scale_shape});
-    }
-    else
-    {
-        skip  = mm->add_parameter("skip", {dtype, skip_shape});
-        scale = mm->add_parameter("gamma", {dtype, scale_shape});
-        x     = add_common_op(*mm, migraphx::make_op("add"), {x, skip});
-    }
-
-    auto eps = mm->add_literal(migraphx::literal{dtype, {eps_value}});
-
-    auto x_sq      = add_common_op(*mm, migraphx::make_op("mul"), {x, x});
-    auto norm_axis = axis < 0 ? axis + x->get_shape().lens().size() : axis;
-    auto rms = mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {norm_axis}}}), x_sq);
-    rms      = add_common_op(*mm, migraphx::make_op("add"), {rms, eps});
-    auto rrms   = mm->add_instruction(migraphx::make_op("rsqrt"), {rms});
-    auto result = add_common_op(*mm, migraphx::make_op("mul"), {x, rrms});
-    result      = add_common_op(*mm, migraphx::make_op("mul"), {result, scale});
-    return p;
-}
-
 inline void mvn_n_rank_test(std::vector<int64_t> axes,
                             std::vector<size_t> input_shape,
                             const migraphx::program& prog)

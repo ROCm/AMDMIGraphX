@@ -640,6 +640,136 @@ TEST_CASE(conv_add_split_reduce_multi_use)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(conv_add_split_reduce_multi_use_conv)
+{
+    migraphx::shape s_x{migraphx::shape::float_type, {2, 4, 64, 64}};
+    migraphx::shape s_w1{migraphx::shape::float_type, {320, 4, 3, 3}};
+    migraphx::shape s_w2{migraphx::shape::float_type, {320, 320, 3, 3}};
+    migraphx::shape s_b{migraphx::shape::float_type, {32}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w1  = mm->add_parameter("w1", s_w1);
+        auto w2  = mm->add_parameter("w2", s_w2);
+        auto b   = mm->add_literal(migraphx::generate_literal(s_b));
+        auto mb  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
+        auto conv = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), x, w1);
+        auto reshape = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+        auto add = add_pointwise(p1, "main:pointwise0", {reshape, mb}, single_pointwise("add"));
+        auto mean_var = add_reduce(
+            p1,
+            "main:split_reduce0",
+            {add},
+            {2, 3, 4},
+            "assign_add",
+            [&](auto* rm,
+                const auto& inputs,
+                const auto& axes) -> std::vector<migraphx::instruction_ref> {
+                auto xx    = add_pointwise(p1, rm, "main:pointwise1", {inputs[0]}, squared());
+                auto rsum1 = rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}),
+                                                 inputs[0]);
+                auto rsum2 =
+                    rm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), xx);
+                return {rsum2, rsum1};
+            });
+        auto var =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), mean_var);
+        auto mean =
+            mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), mean_var);
+        auto mean_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", add->get_shape().lens()}}), mean);
+        auto mean_rsp = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mean_mb);
+        auto var_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", add->get_shape().lens()}}), var);
+        auto var_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
+        auto add_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), add);
+        auto norm = add_pointwise(
+            p1, "main:pointwise2", {add_rsp, mean_rsp, var_rsp}, [=](auto* pm, const auto& inputs) {
+                auto sub =
+                    pm->add_instruction(migraphx::make_op("sub"), inputs.at(0), inputs.at(1));
+                return pm->add_instruction(migraphx::make_op("div"), sub, inputs.at(2));
+            });
+        auto conv_2 = mm->add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}), norm, w2);
+        mm->add_return({conv_2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s_x);
+        auto w1  = mm->add_parameter("w1", s_w1);
+        auto w2  = mm->add_parameter("w2", s_w2);
+        auto b   = mm->add_literal(migraphx::generate_literal(s_b));
+        auto mb  = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 32, 10, 64, 64}}}), b);
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0_main:split_reduce0",
+                     {mb, x, w1},
+                     {"x2", "y0", "y1"},
+                     [=](auto* pm, const auto& inputs) {
+                         auto conv = pm->add_instruction(
+                             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
+                             inputs[1],
+                             inputs[2]);
+                         auto reshape = pm->add_instruction(
+                             migraphx::make_op("reshape", {{"dims", {2, 32, 10, 64, 64}}}), conv);
+                         auto add =
+                             pm->add_instruction(migraphx::make_op("add"), reshape, inputs[0]);
+                         auto mul  = pm->add_instruction(migraphx::make_op("mul"), add, add);
+                         auto mean = pm->add_instruction(
+                             migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), add);
+                         auto var = pm->add_instruction(
+                             migraphx::make_op("reduce_sum", {{"axes", {2, 3, 4}}}), mul);
+                         return std::make_tuple(
+                             migraphx::make_op("gpu::mlir_op",
+                                               {{"op", migraphx::to_value(conv->get_operator())}}),
+                             std::vector<migraphx::instruction_ref>{var, mean, add});
+                     });
+        auto cba  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 2}}), fused);
+        auto var  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused);
+        auto mean = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
+        auto mean_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), mean);
+        auto mean_rsp = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), mean_mb);
+        auto var_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", cba->get_shape().lens()}}), var);
+        auto var_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), var_mb);
+        auto cba_rsp =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 320, 64, 64}}}), cba);
+        auto input_fused_conv = add_mlir(
+            p2,
+            "main:pointwise2:mlir_convolution3",
+            {cba_rsp, mean_rsp, var_rsp, w2},
+            {"x0", "x1", "x2", "x3"},
+            [=](auto* pm, const auto& inputs) {
+                auto sub =
+                    pm->add_instruction(migraphx::make_op("sub"), inputs.at(0), inputs.at(1));
+                auto div  = pm->add_instruction(migraphx::make_op("div"), sub, inputs.at(2));
+                auto conv = pm->add_instruction(
+                    migraphx::make_op("convolution", {{"padding", {1, 1, 1, 1}}}),
+                    div,
+                    inputs.at(3));
+                return std::make_tuple(conv->get_operator(), conv);
+            });
+        mm->add_return({input_fused_conv});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}) or
+       not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     if(migraphx::gpu::mlir_enabled())

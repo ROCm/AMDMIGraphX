@@ -108,6 +108,9 @@ TEST_CASE(squeeze_transpose_test)
     p.compile(migraphx::make_target("ref"));
     auto result          = p.eval({}).back();
     auto expected_result = p_uncompiled.eval({}).back();
+    for(auto aa : result.get_shape().strides()) std::cout << aa << std::endl;
+    std::cout << "\n\n***\n\n";
+    for(auto aa : expected_result.get_shape().strides()) std::cout << aa << std::endl;
     EXPECT(result.get_shape() == migraphx::shape{migraphx::shape::float_type, {3, 4, 3}});
     EXPECT(result == expected_result);
 }

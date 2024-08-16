@@ -85,7 +85,7 @@ struct miopen_convolution
         check_shapes{conv_inputs, *this}
             .max_ndims(5)
             .packed_layouts({{0, 1, 2}, {0, 1, 2, 3}, {0, 2, 3, 1}, {0, 1, 2, 3, 4}})
-            .compatible_layout();
+            .same_layout();
         return migraphx::compute_shape<Op>(op, conv_inputs);
     }
 

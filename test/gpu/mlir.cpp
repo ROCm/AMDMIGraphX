@@ -301,7 +301,7 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
-    //EXPECT(verify_mlir(m));
+    // EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(quant_dot_add)

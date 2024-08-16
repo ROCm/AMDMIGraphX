@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/time.hpp>
 #ifdef HAVE_GPU
 #include <migraphx/gpu/hip.hpp>
 #endif
@@ -34,6 +35,19 @@
 namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
+
+using milliseconds = std::chrono::duration<double, std::milli>;
+
+double measure_device_ms(const program& p, const parameter_map& params, std::size_t n)
+{
+    p.eval(params);
+    p.finish();
+    return time<milliseconds>([&] {
+        for(std::size_t i = 0; i < n; i++)
+            p.eval(params);
+        p.finish();
+    });
+}
 
 template <class T>
 auto get_hash(const T& x)

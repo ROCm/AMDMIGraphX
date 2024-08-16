@@ -30,6 +30,8 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
+double measure_device_ms(const program& p, const parameter_map& params, std::size_t n);
+
 parameter_map fill_param_map(parameter_map& m,
                              const std::unordered_map<std::string, shape>& param_shapes,
                              const target& t,

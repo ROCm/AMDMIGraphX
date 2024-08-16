@@ -1138,17 +1138,7 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(m);
-    auto tc = mp.get_tuning_config(exhaustive);
-    std::string problem_config = tc.problem.to<std::string>();
-    for(const auto i : iterator_for(m))
-    {
-        if(starts_with(i->name(), "@"))
-        {
-            continue;
-        }
-        problem_config += " " + i->name();
-    }
-    tc.problem       = problem_config;
+    auto tc          = mp.get_tuning_config(exhaustive);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
     static std::mutex mutex;
     if(trace)

@@ -30,49 +30,12 @@
 #include <migraphx/make_op.hpp>
 
 #include <test.hpp>
+#include <reduce.hpp>
 #include <pointwise.hpp>
 
 void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::fuse_reduce{}, migraphx::dead_code_elimination{}});
-}
-
-bool all_instructions_are_local(const migraphx::module& m)
-{
-    return std::all_of(m.begin(), m.end(), [&](const auto& ins) {
-        return std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](auto input) {
-            return m.has_instruction(input);
-        });
-    });
-}
-
-template <class F>
-migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const std::vector<int64_t>& axes,
-                                     F f)
-{
-    auto* rm = p.create_module(name);
-    auto* mm = p.get_main_module();
-    rm->set_bypass();
-    std::vector<migraphx::instruction_ref> params;
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
-        return rm->add_parameter(
-            "x" + std::to_string(params.size()),
-            migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
-    });
-    auto r = f(rm, params, axes);
-    rm->add_return({r});
-    EXPECT(all_instructions_are_local(*rm));
-    return mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", axes}}), inputs, {rm});
-}
-
-inline auto single_reduce(const std::string& name)
-{
-    return [=](auto* rm, const auto& inputs, const auto& axes) {
-        return rm->add_instruction(migraphx::make_op(name, {{"axes", axes}}), inputs);
-    };
 }
 
 TEST_CASE(single)

@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/generate.hpp"
+#include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/instruction.hpp>
@@ -40,81 +40,6 @@ void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p, {migraphx::gpu::fuse_mlir{.enable_extra = true}, migraphx::dead_code_elimination{}});
-}
-
-bool all_instructions_are_local(const migraphx::module& m)
-{
-    return std::all_of(m.begin(), m.end(), [&](const auto& ins) {
-        return std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](auto input) {
-            return m.has_instruction(input);
-        });
-    });
-}
-
-void auto_add_return(migraphx::module_ref m, migraphx::instruction_ref ins)
-{
-    m->add_return({ins});
-}
-
-void auto_add_return(migraphx::module_ref m, std::vector<migraphx::instruction_ref> inss)
-{
-    m->add_return(std::move(inss));
-}
-
-template <class F>
-migraphx::module_ref add_reduce_module(migraphx::program& p,
-                                       const std::string& name,
-                                       std::vector<migraphx::instruction_ref> inputs,
-                                       const std::vector<int64_t>& axes,
-                                       F f)
-{
-    auto* rm = p.create_module(name);
-    rm->set_bypass();
-    std::vector<migraphx::instruction_ref> params;
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(params), [&](auto input) {
-        return rm->add_parameter(
-            "x" + std::to_string(params.size()),
-            migraphx::shape{input->get_shape().type(), input->get_shape().lens()});
-    });
-    auto r = f(rm, params, axes);
-    auto_add_return(rm, r);
-    EXPECT(all_instructions_are_local(*rm));
-    return rm;
-}
-
-template <class F>
-migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const std::vector<int64_t>& axes,
-                                     F f)
-{
-    auto* mm = p.get_main_module();
-    auto rm  = add_reduce_module(p, name, inputs, axes, f);
-    return mm->add_instruction(migraphx::make_op("fused_reduce", {{"axes", axes}}), inputs, {rm});
-}
-
-template <class F>
-migraphx::instruction_ref add_reduce(migraphx::program& p,
-                                     const std::string& name,
-                                     std::vector<migraphx::instruction_ref> inputs,
-                                     const std::vector<int64_t>& axes,
-                                     const std::string& assign,
-                                     F f)
-{
-    auto* mm = p.get_main_module();
-    auto rm  = add_reduce_module(p, name, inputs, axes, f);
-    return mm->add_instruction(
-        migraphx::make_op("split_fused_reduce", {{"axes", axes}, {"assign", assign}}),
-        inputs,
-        {rm});
-}
-
-inline auto squared()
-{
-    return [](auto* pm, const auto& inputs) {
-        return pm->add_instruction(migraphx::make_op("mul"), inputs[0], inputs[0]);
-    };
 }
 
 template <class F>

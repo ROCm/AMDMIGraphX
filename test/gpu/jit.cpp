@@ -239,7 +239,7 @@ TEST_CASE(code_object_hip)
 
     std::vector<migraphx::shape> expected_inputs = {input, input};
     auto co                                      = migraphx::make_op("gpu::code_object",
-                                {{"code_object", migraphx::value::binary{binaries.front()}},
+                                                                     {{"code_object", migraphx::value::binary{binaries.front()}},
                                                                       {"symbol_name", "add_2"},
                                                                       {"global", input.elements()},
                                                                       {"local", 1024},

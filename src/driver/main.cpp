@@ -684,7 +684,7 @@ struct perf : command<perf>
     compiler c;
     unsigned n    = 100;
     bool detailed = false;
-    bool device = false;
+    bool device   = false;
     void parse(argument_parser& ap)
     {
         c.parse(ap);
@@ -693,10 +693,7 @@ struct perf : command<perf>
            {"--detailed", "-d"},
            ap.help("Show a more detailed summary report"),
            ap.set_value(true));
-        ap(device,
-           {"--device"},
-           ap.help("Try to measure device time"),
-           ap.set_value(true));
+        ap(device, {"--device"}, ap.help("Try to measure device time"), ap.set_value(true));
     }
 
     void run()

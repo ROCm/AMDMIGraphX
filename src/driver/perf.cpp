@@ -46,7 +46,7 @@ double measure_device_ms(const program& p, const parameter_map& params, std::siz
         for(std::size_t i = 0; i < n; i++)
             p.eval(params);
         p.finish();
-    });
+    }) / n;
 }
 
 template <class T>

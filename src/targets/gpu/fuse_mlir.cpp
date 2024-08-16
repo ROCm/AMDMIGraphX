@@ -512,20 +512,16 @@ struct find_mlir_split_reduce
                          const std::vector<module_ref>& mod_args) {
                          if(op.name() == "pointwise")
                          {
-                             for(const auto& skip_param : inputs)
-                             {
-                                 if(not contains(param_map, skip_param))
-                                 {
-                                     param_map[skip_param] =
-                                         skip_param; // skip adding parameter for inputs of
-                                                     // pointwise inside split_fused_reduce
-                                 }
-                             }
                              auto* sub_pm     = mod_args.front();
                              auto param_map_2 = create_param_map_with_literals(
                                  &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                             param_map.insert(param_map_2.begin(), param_map_2.end());
-                             return main_mod.fuse(*sub_pm, inputs, &param_map).front();
+                             // skip adding parameter for inputs of
+                             // pointwise inside split_fused_reduc
+                             for(const auto& skip_input : inputs)
+                             {
+                                 param_map_2[skip_input] = skip_input;
+                             }
+                             return main_mod.fuse(*sub_pm, inputs, &param_map_2).front();
                          }
                          return main_mod.insert_instruction(pos, op, inputs, mod_args);
                      });

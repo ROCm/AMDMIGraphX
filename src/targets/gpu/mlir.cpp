@@ -1032,24 +1032,21 @@ void adjust_param_shapes(module& m, const std::vector<shape>& inputs)
     }
 }
 
-std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
-    module mm;
     const_module_ref mr = &m;
     if(not inputs.empty())
     {
-        mm = m;
-        mr = &mm;
-        adjust_param_shapes(mm, inputs);
+        adjust_param_shapes(m, inputs);
     }
-    rewrite_reduce(mm);
+    rewrite_reduce(m);
     mlir_program mp;
     mp.parse(*mr);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
 
-std::string dump_mlir(const module& m) { return dump_mlir(m, {}); }
+std::string dump_mlir(module m) { return dump_mlir(m, {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               module m,
@@ -1171,9 +1168,9 @@ void use(T&)
 {
 }
 
-std::string dump_mlir(const module&) { return {}; }
+std::string dump_mlir(module) { return {}; }
 
-std::string dump_mlir(const module& m, const std::vector<shape>& inputs)
+std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     use(m);
     use(inputs);

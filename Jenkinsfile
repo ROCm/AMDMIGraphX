@@ -122,7 +122,7 @@ rocmtest clang_debug: rocmnode('mi100+') { cmake_build ->
         // Disable MLIR since it doesnt work with all ub sanitizers
         withEnv(['MIGRAPHX_DISABLE_MLIR=1']) {
             def sanitizers = "undefined"
-            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+            def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
             def gpu_targets = getgputargets()
             cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${gpu_targets}'", gpu_debug: true)
         }

@@ -67,7 +67,7 @@ pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
 
 PREFIX=/usr/local
-REQ_FILE_DIR=""
+REQ_FILE_DIR="$(dirname -- "$0")"
 if [ "$#" -ge 2 ]; then
   PREFIX=$1
   cd $2
@@ -82,9 +82,5 @@ rbuild prepare -d $PREFIX -s develop
 
 if [[ ("${ID}" != "sles") ]]; then
 export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
-
-pip3 install onnx==1.14.1 numpy==1.21.6 typing==3.7.4 pytest==6.0.1 packaging==23.0
-
-# pin version of protobuf in Python for onnx runtime unit tests between dist versions
-pip3 install protobuf==3.20.2
+pip3 install -r $REQ_FILE_DIR/requirements-py.txt
 fi

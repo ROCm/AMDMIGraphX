@@ -443,6 +443,13 @@ struct find_mlir_fused_ops
         auto gemm_based_op = r.instructions["gemm_based_op"];
         auto x_ins         = r.instructions["x"]; // input to pointwise after reshaper op stream
         auto* pm           = pw_ins->module_inputs().front();
+        auto pw_inputs     = pw_ins->inputs();
+        // only of one of the inputs to pointwise module should be dependent on conv/gemm that is
+        // being fused, otherwise it can create invalid graph transformation
+        if(std::any_of(pw_inputs.begin(), pw_inputs.end(), [&](const auto& i) {
+               return i != x_ins and reaches(gemm_based_op, i);
+           }))
+            return;
         auto names         = pm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref mm = mpm.create_module("mlir_" + pm->name());
@@ -461,7 +468,23 @@ struct find_mlir_fused_ops
         assert(prev_input->get_shape().lens() == x_ins->get_shape().lens());
         param_map[x_ins] = prev_input; // this is to avoid adding parameter for gemm/conv reshaped
                                        // input to pointwise in new fused module
-        mm->add_return(mm->fuse(*pm, pw_ins->inputs(), &param_map));
+        bool gemm_has_multi_outs = gemm_based_op->outputs().size() > 1;
+        auto reshaped_gemm       = x_ins;
+        std::vector<instruction_ref> reshapes_vec;
+        while(reshaped_gemm != gemm_based_op)
+        {
+            reshapes_vec.push_back(reshaped_gemm);
+            gemm_has_multi_outs = gemm_has_multi_outs or reshaped_gemm->outputs().size() > 1;
+            reshaped_gemm       = reshaped_gemm->inputs().at(0);
+        }
+        reshapes_vec.push_back(reshaped_gemm);
+
+        auto return_vals = mm->fuse(*pm, pw_ins->inputs(), &param_map);
+        if(gemm_has_multi_outs)
+        {
+            return_vals.insert(return_vals.begin(), anchor_op);
+        }
+        mm->add_return(return_vals);
 
         std::vector<instruction_ref> inputs;
         std::copy_if(pw_ins->inputs().begin(),
@@ -469,8 +492,27 @@ struct find_mlir_fused_ops
                      std::back_inserter(inputs),
                      [&](auto input) { return input != x_ins; });
         inputs.insert(inputs.end(), top_inputs.begin(), top_inputs.end());
-        mpm.get_module().replace_instruction(
-            pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        if(gemm_has_multi_outs)
+        {
+            auto fused_ins = mpm.get_module().insert_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+            mpm.get_module().replace_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused_ins);
+            auto dot_ins = mpm.get_module().insert_instruction(
+                pw_ins, migraphx::make_op("get_tuple_elem", {{"index", 0}}), fused_ins);
+            // move all the reshape instructions and original GEMM instruction after the fused op to
+            // avoid generating invalid migraphx program
+            for(const auto& orig_i : reverse(reshapes_vec))
+            {
+                mpm.get_module().move_instruction(orig_i, pw_ins);
+            }
+            mpm.get_module().replace_instruction(gemm_based_op, dot_ins);
+        }
+        else
+        {
+            mpm.get_module().replace_instruction(
+                pw_ins, mlir_op{gemm_based_op->get_operator()}, mlir_contiguous(mpm, inputs), {mm});
+        }
     }
 };
 

@@ -514,7 +514,8 @@ struct find_mlir_split_reduce
                     auto* sub_pm     = mod_args.front();
                     auto param_map_2 = create_param_map_with_literals(
                         &main_mod, sub_pm, op.compute_shape(to_shapes(inputs), mod_args));
-                    return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2).front();
+                    return main_mod.insert_inline(pos, *sub_pm, inputs, &param_map_2)
+                        .front(); // cppcheck-suppress returnDanglingLifetime;
                 }
                 return main_mod.insert_instruction(pos, op, inputs, mod_args);
             });

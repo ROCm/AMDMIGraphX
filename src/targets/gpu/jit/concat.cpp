@@ -78,6 +78,7 @@ struct concat_compiler : compiler<concat_compiler>
         auto rstrides = result.back().strides();
         auto it = std::find_if(rstrides.begin(), rstrides.end(), [](auto x) { return x == 1; });
         axis    = it - rstrides.begin();
+        result.pop_back();
         return result;
     }
 

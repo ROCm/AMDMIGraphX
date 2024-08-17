@@ -155,8 +155,8 @@ __device__ void pooling_reduce(Output output, F f)
     idx.global_stride(output.get_shape().elements() / GroupSize, [&](auto i) {
         array<type, GroupSize> result;
         repeat_c<GroupSize>([&](auto n) {
-            auto out_idx        = output.get_shape().multi(i + n);
-            result[n] = f(out_idx);
+            auto out_idx = output.get_shape().multi(i + n);
+            result[n]    = f(out_idx);
         });
         repeat_c<GroupSize>([&](auto n) { output[i + n] = result[n]; });
     });

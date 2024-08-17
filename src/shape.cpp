@@ -260,6 +260,30 @@ bool shape::is_integral(shape::type_t t)
     return result;
 }
 
+bool shape::is_compatible(const shape& actual, const shape& expected)
+{
+    // Check subshapes
+    if(expected.type() == shape::tuple_type)
+        return migraphx::equal(actual.sub_shapes(),
+                     expected.sub_shapes(),
+                     &is_compatible);
+    // Only the expected can be dynamic
+    if(expected.dynamic())
+        return true;
+    if(actual == expected)
+        return true;
+    if(actual.type() != expected.type())
+        return false;
+    if(actual.lens() != expected.lens())
+        return false;
+    // Check strides from dimensions that are not 1
+    return all_of(range(actual.lens().size()), [&](auto i) {
+        if(actual.lens()[i] == 1)
+            return true;
+        return actual.strides()[i] == expected.strides()[i];
+    });
+}
+
 shape::shape() : impl(shape_impl::default_shape()) {}
 
 shape::shape(type_t t) : impl(std::make_shared<shape_impl>(t)) {}

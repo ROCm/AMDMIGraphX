@@ -264,9 +264,7 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
 {
     // Check subshapes
     if(expected.type() == shape::tuple_type)
-        return migraphx::equal(actual.sub_shapes(),
-                     expected.sub_shapes(),
-                     &is_compatible);
+        return migraphx::equal(actual.sub_shapes(), expected.sub_shapes(), &is_compatible);
     if(actual == expected)
         return true;
     if(actual.type() != expected.type())

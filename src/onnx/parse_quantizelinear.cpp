@@ -46,34 +46,47 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
             axis = info.attributes.at("axis").i();
 
         auto input_lens = args[0]->get_shape().lens();
+        auto input_sz   = args[0]->get_shape().elements();
         auto n_dim      = input_lens.size();
 
         instruction_ref y_scale = args[1];
-        if(args[1]->get_shape().elements() != 1)
+        auto scale_sz           = y_scale->get_shape().elements();
+        if(scale_sz != input_sz)
         {
-            auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-            y_scale         = info.add_instruction(
-                make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}), args[1]);
+            if(scale_sz > 1)
+            {
+                auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
+                y_scale         = info.add_instruction(
+                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
+                    y_scale);
+            }
+            else
+            {
+                y_scale = info.add_instruction(
+                    make_op("multibroadcast", {{"out_lens", input_lens}}), y_scale);
+            }
         }
-
         auto common_args = add_common_args(*info.mod, {args[0], y_scale});
 
         if(args.size() == 3)
         {
             auto y_zero_point = args[2];
-            if(y_zero_point->get_shape().elements() != 1)
+            auto zp_sz        = y_zero_point->get_shape().elements();
+            if(zp_sz != input_sz)
             {
-                auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
-                y_zero_point    = info.add_instruction(
-                    make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
-                    y_zero_point);
+                if(zp_sz > 1)
+                {
+                    auto tuned_axis = tune_axis(n_dim, axis, opd.op_name);
+                    y_zero_point    = info.add_instruction(
+                        make_op("broadcast", {{"axis", tuned_axis}, {"out_lens", input_lens}}),
+                        y_zero_point);
+                }
+                else
+                {
+                    y_zero_point = info.add_instruction(
+                        make_op("multibroadcast", {{"out_lens", input_lens}}), y_zero_point);
+                }
             }
-            else
-            {
-                y_zero_point = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", input_lens}}), y_zero_point);
-            }
-
             common_args.push_back(y_zero_point);
         }
 

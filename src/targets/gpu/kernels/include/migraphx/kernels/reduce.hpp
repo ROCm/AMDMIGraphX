@@ -199,24 +199,25 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     if constexpr(decltype(idx.nlocal()){} == __AMDGCN_WAVEFRONT_SIZE)
         return wave_reduce(idx, op, init, n, f);
 #endif
-    constexpr index_int lanes_per_thread = __AMDGCN_WAVEFRONT_SIZE;
     using type = decltype(index::invoke_loop(f, 0, _c<0>));
-    __shared__ type buffer[idx.max_nlocal() / lanes_per_thread];
+    __shared__ type buffer[idx.nwave()];
     auto x = type(init);
     idx.local_stride(n, [&](auto i, auto d) { x = op(x, index::invoke_loop(f, i, d)); });
     dpp_reduce(x, op);
 
-    const auto ldsidx = idx.local / lanes_per_thread;
-    if((idx.local % lanes_per_thread) == lanes_per_thread - 1)
+    if(idx.local_wave() == idx.nlocal_wave() - 1)
     {
-        buffer[ldsidx] = x;
+        buffer[idx.wave()] = x;
     }
     __syncthreads();
 
     type y = type(init);
-    for(index_int i = 0; i < idx.nlocal() / lanes_per_thread; i++)
+    if(idx.local_wave() == 0)
     {
-        y = op(y, buffer[i]);
+        for(index_int i = 0; i < idx.nlocal() / idx.nlocal_wave(); i++)
+        {
+            y = op(y, buffer[i]);
+        }
     }
     return y;
 }

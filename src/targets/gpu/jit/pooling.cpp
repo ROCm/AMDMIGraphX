@@ -92,17 +92,15 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm(const shape& output)
         {
-            group_size = compute_group_size(output);
         }
 
         algorithm(context& ctx, const shape& input, const shape& output, const std::vector<std::size_t>& window)
         {
-            group_size = compute_group_size(output);
             if(input.strides().back() != 1)
                 return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
-            // auto wsize = window.back();
-            auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1}, std::multiplies<>{});
+            auto wsize = window.back();
+            // auto wsize = std::accumulate(window.begin(), window.end(), std::size_t{1}, std::multiplies<>{});
             if (wsize > max_wavefront_size)
             {
                 block_size = compute_block_size(ctx, wsize, 256);

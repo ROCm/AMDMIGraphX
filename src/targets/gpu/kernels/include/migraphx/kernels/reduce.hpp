@@ -211,15 +211,31 @@ __device__ auto block_reduce(index idx, Op op, T init, Index n, F f)
     }
     __syncthreads();
 
+#if 1
+#if 0
+    type y = (idx.local_wave() < idx.nwave()) ? buffer[idx.local_wave()] : type(init);
+    const auto nsubwave = next_pow2(idx.nwave());
+    dpp_reduce<nsubwave>(y, op);
+    return readlane<nsubwave - 1, nsubwave>(y);
+#else
     type y = type(init);
     if(idx.local_wave() == 0)
     {
-        for(index_int i = 0; i < idx.nlocal() / idx.nlocal_wave(); i++)
+        for(index_int i = 0; i < idx.nwave(); i++)
         {
             y = op(y, buffer[i]);
         }
     }
+    return readlane<0>(y);
+#endif
+#else
+    type y = type(init);
+    for(index_int i = 0; i < idx.nwave(); i++)
+    {
+        y = op(y, buffer[i]);
+    }
     return y;
+#endif
 }
 #else
 template <class Op, class T, class Index, class F>

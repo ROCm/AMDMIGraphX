@@ -32,6 +32,18 @@ namespace migraphx {
 
 constexpr bool is_power_of_2(unsigned int x) { return x > 0 && (x & (x - 1)) == 0u; }
 
+constexpr unsigned int next_pow2(unsigned int v)
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
+}
+
 #ifndef MIGRAPHX_HAS_DPP
 #define MIGRAPHX_HAS_DPP 1
 #endif
@@ -88,7 +100,7 @@ __device__ T dpp_swizzle(T& x)
     return dpp_op(x, [](auto i) { return __hip_ds_swizzle(i, Mask); });
 }
 
-template <unsigned int SrcLane, unsigned int Width, class T>
+template <unsigned int SrcLane, unsigned int Width = __AMDGCN_WAVEFRONT_SIZE, class T>
 __device__ T readlane(T& x)
 {
     static_assert(is_power_of_2(Width), "Width must be a power of 2");

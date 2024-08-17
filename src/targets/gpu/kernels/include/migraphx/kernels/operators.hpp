@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_KERNELS_OPERATORS_HPP
 
 #include <migraphx/kernels/functional.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 

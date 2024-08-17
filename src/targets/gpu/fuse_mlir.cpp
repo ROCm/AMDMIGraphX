@@ -679,7 +679,8 @@ struct find_pointwise_mlir
         m->add_return({ret});
 
         auto inputs = find_inputs(map_ins, &mpm.get_module(), m);
-        mpm.get_module().replace_instruction(ins, ins->get_operator(), mlir_contiguous(mpm, inputs), {m});
+        mpm.get_module().replace_instruction(
+            ins, ins->get_operator(), mlir_contiguous(mpm, inputs), {m});
     }
 };
 

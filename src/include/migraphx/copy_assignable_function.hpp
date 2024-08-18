@@ -37,12 +37,13 @@ struct copy_assignable_function_wrapper
     optional<F> f;
 
     copy_assignable_function_wrapper(F pf) : f(std::move(pf)) {}
-    copy_assignable_function_wrapper(const copy_assignable_function_wrapper& other)     = default;
+    copy_assignable_function_wrapper(const copy_assignable_function_wrapper& other) = default;
     copy_assignable_function_wrapper(copy_assignable_function_wrapper&& other) noexcept = default;
     copy_assignable_function_wrapper& operator=(copy_assignable_function_wrapper other)
     {
-        using std::swap;
-        swap(f, std::move(other.f));
+        f.reset();
+        if(other.f.has_value())
+            f.emplace(std::move(*other.f));
         return *this;
     }
 

@@ -75,8 +75,8 @@ TEST_CASE(conv_relu)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto conv_layout = m2.add_instruction(layout(), conv);
-        m2.add_instruction(migraphx::make_op("relu"), conv_layout);
+        auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);
+        m2.add_instruction(layout(), relu);
     }
     EXPECT(m1.sort() == m2.sort());
 }
@@ -114,11 +114,11 @@ TEST_CASE(conv_add)
                               {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             w);
-        auto conv_layout = m2.add_instruction(layout(), conv);
         auto b           = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", conv->get_shape().lens()}}),
             y);
-        m2.add_instruction(migraphx::make_op("add"), conv_layout, b);
+        auto add = m2.add_instruction(migraphx::make_op("add"), conv, b);
+        m2.add_instruction(layout(), add);
     }
     EXPECT(m1.sort() == m2.sort());
 }

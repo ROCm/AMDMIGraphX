@@ -41,7 +41,8 @@ struct copy_assignable_function_wrapper
     copy_assignable_function_wrapper(copy_assignable_function_wrapper&& other)      = default;
     copy_assignable_function_wrapper& operator=(copy_assignable_function_wrapper other)
     {
-        f.swap(other.f);
+        using std::swap;
+        swap(f, std::move(other.f));
         return *this;
     }
 

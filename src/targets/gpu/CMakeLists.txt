@@ -146,7 +146,6 @@ add_library(migraphx_gpu
     argmax.cpp
     argmin.cpp
     code_object_op.cpp
-    compile_blas.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp

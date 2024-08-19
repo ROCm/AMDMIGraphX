@@ -31,7 +31,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 #if MIGRAPHX_USE_HIPBLASLT
 // for hipblaslt only
-static size_t workspace_size = HIPBLASLT_WORKSPACE_SIZE;
+static size_t workspace_size = hipblaslt_workspace_size;
 static void* d_workspace;
 hipblaslt_handle_ptr create_hipblaslt_handle_ptr()
 {

@@ -28,7 +28,6 @@
 #include <migraphx/errors.hpp>
 #if MIGRAPHX_USE_HIPBLASLT
 #include <hipblaslt/hipblaslt.h>
-#define HIPBLASLT_WORKSPACE_SIZE (2 * 128 * 1024 * 1024)
 #ifndef HIPBLASLT_INVOKE_FUNCTION
 #define HIPBLASLT_INVOKE_FUNCTION
 template <class F, class... Ts>
@@ -82,6 +81,7 @@ hipblaslt_handle_ptr create_hipblaslt_handle_ptr(hipStream_t s);
 hipblaslt_preference_ptr create_hipblaslt_preference_ptr();
 hipblaslt_workspace_ptr create_hipblaslt_workspace_ptr();
 bool hipblaslt_supported();
+const size_t hipblaslt_workspace_size = 2 * 128 * 1024 * 1024;
 #endif // MIGRAPHX_USE_HIPBLASLT
 
 } // namespace gpu
